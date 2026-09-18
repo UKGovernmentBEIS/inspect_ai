@@ -472,18 +472,37 @@ that adds an index field fails honest transfers closed until the parser
 learns it; the real-restic tests run against the pinned binary and catch
 that on a version bump (`test_strict_index_parser_accepts_a_restic_produced_index`).
 
-*The two restic invocations per fire, and why each is there.*
+*The two restic invocations per fire, and why each is there.* Both run on
+one throwaway view — config, keys, the new index files, every accepted
+snapshot file and the new snapshot files (hard links to the inodes the
+accepted repo holds or will hold; copies where links are unsupported) —
+and concurrently, since they are independent, so the wall-time floor is
+one key derivation. One view serves both without changing what either
+validates: `cat index` reads only the index file it names and never loads
+snapshot files, and `snapshots` never loads indexes.
 
-1. `restic cat index <id>` on the view, one per new index file (normally
-   one), before publish. Kept: it is the only source of the new index's
-   pack and blob ids, which the containment rule needs, and containment is
-   what carries the guarantee.
-2. `restic snapshots --json` on the accepted repository after publish
-   (`_verify_fresh_snapshot`). Kept: it is the one check that runs restic
-   against the accepted repository as it actually exists after publish,
-   rather than against a view this code assembled, so it catches our own
-   publish mistakes as well as the sandbox's; and it is restic's documented
-   JSON interface for the tag check.
+1. `restic cat index <id>`, one per new index file (normally one), before
+   publish. Kept: it is the only source of the new index's pack and blob
+   ids, which the containment rule needs, and containment is what carries
+   the guarantee.
+2. `restic snapshots --json --no-lock --no-cache`, before publish (moved
+   from after publish on the accepted repository; decision: Ransom,
+   2026-09-18, option A of review round 8's B2). The checks are the ones
+   the after listing did: listed ids minus the ids of snapshot files
+   present before the transfer must equal the shipped snapshot files, and
+   the reported id must be among them with exactly the expected tag. A new
+   snapshot restic cannot load is missing from the listing; one it loads
+   but cannot encode makes restic print no JSON at all; either fails here
+   and nothing is published. This is what closes B2: nothing unverified is
+   ever placed under `snapshots/`, so the loadable-but-unlistable residual
+   class no longer exists. What is given up: restic itself no longer reads
+   the accepted repository after publish. The view is hard links to the
+   same inodes the accepted repo will hold, so restic's reading of the view
+   before publish is the same statement about those bytes; the remaining
+   mistake class — files not landing where the view had them — is covered
+   by a host-side stat after publish (`_verify_published`: every written
+   file is a regular file of the staged size at its published path; a
+   failure unwinds the fire's files). O(increment files), no restic.
 
 *The three the whole-repository design ran, and why they are not needed.*
 
@@ -494,13 +513,11 @@ that on a version bump (`test_strict_index_parser_accepts_a_restic_produced_inde
   files and has verified every accepted file's name is the hash of its
   bytes. Replay: the reported id (full or prefix) must match no snapshot
   file already present — stricter than the listing, which showed only
-  loadable snapshots. After-diff: the listing after publish minus the
-  snapshot files present before must equal the shipped snapshot files, and
-  the reported id must be among them with exactly the expected tag. The old
+  loadable snapshots. The diff baseline is that same file set. The old
   "lost snapshot" check is gone: egress never modifies or removes an
   accepted snapshot file. A pre-existing unloadable snapshot file is in the
-  before set and absent from the listing, so it falls out of the arithmetic
-  with no false positive. Residual: none.
+  before set and skipped by restic in the view listing, so it falls out of
+  the arithmetic with no false positive. Residual: none.
 - *`restic check --read-data` on the view* read every pack the new indexes
   reference and checked each blob's hash and length. With containment
   holding, every blob an earlier snapshot references is still located
@@ -513,70 +530,74 @@ that on a version bump (`test_strict_index_parser_accepts_a_restic_produced_inde
   above is the condition for dropping it. Residual: the new snapshot's own
   bytes are not verified at fire time (below).
 - *`restic cat snapshot <id>` on the view* decoded each new snapshot file
-  before publish. A malformed snapshot file harms only the checkpoint that
-  shipped it: restic's `FindFilteredSnapshots` warns `Ignoring ...` and
-  continues, and `ls`/`restore` of an earlier snapshot by id never open
-  other snapshot files (verified against 0.18.1 by
-  `test_unloadable_snapshot_file_in_accepted_repo_is_inert`). The after
-  listing rejects a shipped snapshot file that does not list (the
-  destination did not gain exactly the shipped files) and the existing
-  unwind removes the fire's files. One condition, found while verifying:
-  restic 0.18.1's `Repository.LoadUnpacked` slices the 16-byte nonce off a
-  snapshot file without a length check and *panics* on a file shorter than
-  16 bytes, which makes every `restic snapshots` listing exit 2 while the
-  file exists — not inert. So the egress refuses at extraction any
-  `snapshots/` member shorter than 32 bytes, restic's nonce-plus-MAC
-  overhead and the least any encrypted restic file can be
-  (`_MIN_SNAPSHOT_FILE_BYTES`); from 16 bytes up an unloadable file is
-  skipped with a warning. Residual: a hard kill between publish and the
-  unwind can leave an inert unloadable file under `snapshots/`, which
-  `forget` cannot load and a later fire's arithmetic ignores. It is left in
-  place (the smaller change; a sweep would need to consult the checkpoint
-  records to know the file is unrecorded, which is outside the egress).
-  **Open (review round 8, B2).** Not every loadable snapshot file is
-  listable: Go's RFC 3339 parser accepts a zone offset hour of exactly 24
-  (`hr > 24` is the range test) that `Time.MarshalJSON` then refuses, and
-  restic 0.18.1 encodes the whole listing as one array, so with such a file
-  present `restic snapshots --json` prints nothing and exits 0 (`error
-  printing snapshots` on stderr), while `snapshots --json <id>`, a
-  `--tag`-filtered listing, the table listing, and `ls`/`restore` by id all
-  still work (verified). This fire's own after-listing catches it — empty
-  output fails the check and the unwind removes the file — so the exposure
-  is the hard kill between publish and unwind, after which every later
-  fire's after-listing and resume's `forget_unrecorded_snapshots` (a full
-  `snapshots --json`) fail while the file exists. That is not inert. The
-  fix is a design decision: a pre-publish `snapshots --json` on a view of
-  config, keys, the accepted snapshot files (hard links, O(fires)) and the
-  new ones, which reproduces the after-diff and refuses the file before it
-  is published — either as a third process or replacing the after-publish
-  listing (with a stat check of the published paths standing in for "our
-  own publish mistakes") — or a resume path tolerant of such a file. See
-  the PR.
+  before publish. It stays removed because the pre-publish listing now
+  covers it: a snapshot file restic cannot load is absent from the view's
+  listing, and one it loads but cannot encode empties the listing, so both
+  are refused before publish, with one process for all new snapshots
+  instead of one per snapshot. One restic fact found while verifying, kept
+  as an explicit guard: restic 0.18.1's `Repository.LoadUnpacked` slices the
+  16-byte nonce off a snapshot file without a length check and *panics* on
+  a file shorter than 16 bytes (exit 2). The view listing would refuse such
+  a file too, but the egress refuses at extraction any `snapshots/` member
+  shorter than 32 bytes — restic's nonce-plus-MAC overhead, the least any
+  encrypted restic file can be (`_MIN_SNAPSHOT_FILE_BYTES`) — so the panic
+  never enters the validation path.
 
-*View.* The throwaway view now holds only config, keys and the new index
-files — a handful of small files. The lazy builder (256-file slices) and the
-copy fallback for filesystems without hard links (exFAT/FAT, some CIFS/NFS
-mounts; plain copies for the view, copy-to-`.partial`-then-rename for the
-accepted repo) are kept as tested; both are O(increment) and now trivial.
+*B2, the loadable-but-unlistable snapshot (review round 8), and why it is
+closed.* Not every loadable snapshot file is listable: Go's RFC 3339 parser
+accepts a zone offset hour of exactly 24 (`hr > 24` is its range test) that
+`Time.MarshalJSON` then refuses, and restic 0.18.1 encodes `snapshots
+--json` as one array, so with such a file present the listing prints
+nothing and exits 0 (`error printing snapshots` on stderr), while
+`snapshots --json <id>`, a `--tag`-filtered listing, the table listing and
+`ls`/`restore` by id all still work (verified). Under the after-publish
+listing, this fire's own check caught it, but a hard kill between publish
+and the unwind left the file under `snapshots/`, after which every later
+fire's listing and resume's `forget_unrecorded_snapshots` (a full
+`snapshots --json`) failed while it existed — not inert. With the listing
+before publish the file is refused on the view and is never published, so
+the class is gone (`test_egress_rejects_snapshot_restic_loads_but_cannot_encode`:
+refused with the accepted repo unchanged, a following honest fire commits,
+`forget_unrecorded_snapshots` works throughout).
 
-*Cost.* Per fire: two restic processes (about 0.9 s on the measurement
-host, each paying restic's ~0.45 s scrypt key derivation, which restic
-calibrates at key creation and does not let a caller lower — the same
-process count as before this PR), plus SQLite memo work proportional to the
-increment, plus hard-linking a handful of files. Nothing proportional to
-repository bytes or increment bytes beyond the tar copy-out and extraction
-that predate this PR; the one O(repository files) step, the accepted repo's
-file listing used for the re-ship and replay checks, also predates it.
+*Hard-kill residual.* A hard kill during publish leaves a prefix of this
+fire's validated files — packs before indexes before snapshots — so every
+earlier snapshot stays restorable, and the next fire re-ships the rest
+idempotently or resume drops the unrecorded snapshot. Every snapshot file
+that reaches `snapshots/` was listed on the view first, so the only
+snapshot residue a kill can leave is a file that listed. An unloadable
+`snapshots/` file can arise only outside the egress (planted on the host);
+restic skips one with a warning, the view listing's arithmetic ignores it,
+and it is left in place (`test_unloadable_snapshot_file_in_accepted_repo_is_inert`).
+
+*View.* One throwaway view holds config, keys, the new index files, the
+accepted snapshot files and the new snapshot files — a handful of small
+files plus O(fires) snapshot files of about 1 KiB. The lazy builder
+(256-file slices) and the copy fallback for filesystems without hard links
+(exFAT/FAT, some CIFS/NFS mounts; plain copies for the view,
+copy-to-`.partial`-then-rename for the accepted repo) are kept as tested.
+
+*Cost.* Per fire: two restic processes run concurrently (each paying
+restic's ~0.45 s scrypt key derivation, which restic calibrates at key
+creation and does not let a caller lower — the same process count as before
+this PR, now with a one-derivation wall-time floor), plus SQLite memo work
+proportional to the increment, plus hard-linking a handful of files and
+O(fires) snapshot files, plus a stat of each written file after publish
+(O(increment files), no restic). Nothing proportional to repository bytes
+or increment bytes beyond the tar copy-out and extraction that predate this
+PR; the one O(repository files) step, the accepted repo's file listing used
+for the re-ship and replay checks, also predates it.
 Measured with the real `egress_sandbox` (restic 0.18.1, Apple M4 Max, local
 SSD, 50 MB increments of 70% incompressible / 30% text, 40 fires):
 
 | fire | accepted repo | egress wall |
 |---|---|---|
-| 1 | 0.03 GB | 1.26 s |
-| 20 | 0.70 GB | 1.24 s |
-| 40 | 1.40 GB | 1.22 s |
+| 1 | 0.03 GB | 0.74 s |
+| 20 | 0.70 GB | 0.70 s |
+| 40 | 1.40 GB | 0.71 s |
 
-All 40 fires fell in 1.21–1.26 s; least-squares slope 0.00 s/GB.
+All 40 fires fell in 0.69–0.74 s; least-squares slope 0.00 s/GB (the two
+processes in sequence measured 1.21–1.26 s on the same host).
 
 *Strict parser, representation.* The check runs on the raw bytes, not on
 what Python's decoder makes of them, because restic's custom decoders look
@@ -593,17 +614,25 @@ Each refuses a transfer restic would load; none admits one it would not
 real egress as encrypted indexes, each refused with the earlier snapshot
 restoring).
 
-*What is given up relative to the earlier designs.* Accepted packs are not
-re-read, so host-side bit rot or tampering with accepted files surfaces at
-restore, not at fire time. The new snapshot's own bytes are not verified at
-fire time: a sandbox that ships garbage for its own blobs, or understates
-their lengths, gets a committed checkpoint that fails or restores wrong at
-restore time, indistinguishable from an honest sandbox with a wrecked
-filesystem (`test_egress_accepts_garbage_pack_under_a_new_blob_id`,
-`test_egress_accepts_understated_length_on_new_blobs`; aimed at an accepted
-blob the same shapes are rejected by containment). And an inert unloadable
-snapshot file can be left by a hard kill, as above — with the
-loadable-but-unlistable case still open.
+*What is given up relative to the earlier designs — decisions (Ransom,
+2026-09-18), not open questions.*
+
+- Accepted packs are not re-read on each fire, so host-side bit rot or
+  tampering with accepted files surfaces at restore, not at fire time.
+- Containment permits garbage new pack contents and wrong lengths for new
+  blobs: a sandbox that ships garbage for its own blobs, or understates
+  their lengths, gets a committed checkpoint that fails or restores wrong
+  bytes at restore time, indistinguishable from an honest sandbox with a
+  wrecked filesystem, while earlier history stays intact
+  (`test_egress_accepts_garbage_pack_under_a_new_blob_id`,
+  `test_egress_accepts_understated_length_on_new_blobs`; aimed at an
+  accepted blob the same shapes are rejected by containment).
+- Unloadable snapshot residue (a file restic skips) is retained as
+  harmless, and a restic upgrade that adds an index field fails honest
+  transfers closed until the strict parser is updated.
+- restic itself no longer reads the accepted repository after publish; the
+  view listing before publish plus the stat check after stand in for it,
+  as above.
 
 ### 4.7 Strategy identity is recorded and pinned
 

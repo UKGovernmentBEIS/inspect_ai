@@ -172,10 +172,25 @@ class _ResticCrypto:
 
     def write_index_bytes(self, plaintext: bytes) -> str:
         """Encrypt exactly ``plaintext`` as an index file; return its name."""
+        return self.write_unpacked("index", plaintext)
+
+    def load_unpacked(self, rel: str) -> dict[str, Any]:
+        """Decrypt (and decompress) the unpacked file at ``rel``."""
+        raw = self._open(self.master, (self.repo / rel).read_bytes())
+        if raw[:1] in (b"[", b"{"):
+            return json.loads(raw)
+        import zstandard
+
+        return json.loads(
+            zstandard.ZstdDecompressor().decompressobj().decompress(raw[1:])
+        )
+
+    def write_unpacked(self, kind: str, plaintext: bytes) -> str:
+        """Encrypt exactly ``plaintext`` as a ``kind/`` file; return its name."""
         sealed = self._seal(plaintext)
         name = hashlib.sha256(sealed).hexdigest()
-        (self.repo / "index" / name).write_bytes(sealed)
-        return f"index/{name}"
+        (self.repo / kind / name).write_bytes(sealed)
+        return f"{kind}/{name}"
 
     def a_data_blob(self, index_names: Sequence[str]) -> dict[str, Any]:
         for name in index_names:
@@ -757,12 +772,11 @@ async def test_egress_rejects_new_key_after_first_cycle(repos: _Repos) -> None:
 
 
 async def test_egress_rejects_malformed_snapshot_file(repos: _Repos) -> None:
-    """A hash-named snapshot file that does not load is unwound after publish.
+    """A hash-named snapshot file that does not load is refused before publish.
 
-    Nothing decodes a new snapshot file before publish (restic skips one it
-    cannot load, so it can harm only its own checkpoint), but the accepted
-    repo's listing afterwards does not show it, which fails "the destination
-    gained exactly the shipped snapshots" and removes this fire's files.
+    restic skips one it cannot load, so the view's listing does not show
+    it, which fails "the view lists exactly the shipped snapshots"; nothing
+    reaches the accepted repo.
     """
     id1 = repos.backup("ckpt-00001")
     await repos.egress("ckpt-00001", id1)
@@ -772,11 +786,77 @@ async def test_egress_rejects_malformed_snapshot_file(repos: _Repos) -> None:
     bad = os.urandom(100)
     repos.plant_in_sandbox_repo(f"snapshots/{hashlib.sha256(bad).hexdigest()}", bad)
 
-    with pytest.raises(EgressVerificationError, match="destination gained snapshot"):
+    with pytest.raises(EgressVerificationError, match="view lists new snapshot"):
         await repos.egress("ckpt-00002", id2)
 
     assert repos.dest_files() == files_after_1
     assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+
+
+async def test_egress_rejects_snapshot_restic_loads_but_cannot_encode(
+    repos: _Repos,
+) -> None:
+    """A loadable but unlistable snapshot never reaches the accepted repo (B2).
+
+    Go's RFC 3339 parser accepts a zone offset hour of 24 that its JSON
+    encoder refuses, and restic 0.18.1 encodes ``snapshots --json`` as one
+    array, so with such a file in a repo the listing prints nothing (exit
+    0). Left under the accepted ``snapshots/`` it would fail every later
+    fire and ``forget_unrecorded_snapshots`` on resume. The pre-publish
+    listing on the view refuses it before anything is published: the
+    accepted repo is unchanged, a following honest fire succeeds, and orphan
+    cleanup on the accepted repo works throughout.
+    """
+    pytest.importorskip("cryptography")
+    id1 = repos.backup("ckpt-00001")
+    await repos.egress("ckpt-00001", id1)
+    files_after_1 = repos.dest_files()
+    (repos.src / "notes.txt").write_text("v2\n")
+    id2 = repos.backup("ckpt-00002")
+    crypto = _ResticCrypto(repos.repo)
+    snap = crypto.load_unpacked(f"snapshots/{id2}")
+    snap["time"] = "2026-09-17T00:00:00+24:00"
+    bad = crypto.write_unpacked(
+        "snapshots", json.dumps(snap, separators=(",", ":")).encode()
+    )
+    # The shape is what the finding says: restic loads it and cannot list it.
+    env = {"RESTIC_PASSWORD": PASSWORD, "PATH": os.environ["PATH"]}
+    listing = subprocess.run(
+        [str(repos.restic), "-r", str(repos.repo), "snapshots", "--json", "--no-lock"],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert listing.returncode == 0 and listing.stdout == ""
+    assert "MarshalJSON" in listing.stderr
+
+    with pytest.raises(EgressVerificationError, match="no usable JSON"):
+        await repos.egress("ckpt-00002", id2)
+
+    assert repos.dest_files() == files_after_1
+    assert await repos.dest_snapshots() == {id1: ["ckpt-00001"]}
+    assert (
+        await forget_unrecorded_snapshots(
+            repos.restic, str(repos.dest), PASSWORD, recorded_ids=[id1], required_id=id1
+        )
+        == []
+    )
+
+    # The sandbox drops the file; the next honest fire commits.
+    (repos.repo / bad).unlink()
+    (repos.src / "notes.txt").write_text("v3\n")
+    id3 = repos.backup("ckpt-00003")
+    assert await repos.egress("ckpt-00003", id3) == id3
+    snapshots = await repos.dest_snapshots()
+    assert set(snapshots) == {id1, id2, id3}
+    assert await forget_unrecorded_snapshots(
+        repos.restic,
+        str(repos.dest),
+        PASSWORD,
+        recorded_ids=[id1, id3],
+        required_id=id3,
+    ) == ["ckpt-00002"]
+    assert set(await repos.dest_snapshots()) == {id1, id3}
 
 
 async def test_egress_refuses_snapshot_file_shorter_than_a_ciphertext(

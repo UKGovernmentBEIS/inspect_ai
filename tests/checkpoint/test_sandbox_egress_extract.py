@@ -42,6 +42,7 @@ from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     _parse_index_json,
     _publish_into,
     _remove_files,
+    _verify_published,
 )
 
 
@@ -162,6 +163,28 @@ def test_rejects_snapshot_file_shorter_than_a_ciphertext(tmp_path: Path) -> None
     tiny_name = f"data/{_blob(tiny_pack)[:2]}/{_blob(tiny_pack)}"
     tar = _tar(tmp_path, _file(tiny_name, tiny_pack))
     assert _extract(tar, dest, [tiny_name]) == [tiny_name]
+
+
+def test_verify_published_checks_each_written_path(tmp_path: Path) -> None:
+    """After publish, every written file must be a regular file of the staged size."""
+    staging = tmp_path / "staging"
+    dest = _dest(tmp_path)
+    for root in (staging, dest):
+        (root / "data" / "aa").mkdir(parents=True)
+        (root / "data" / "aa" / "x").write_bytes(b"pack")
+        (root / "snapshots").mkdir()
+        (root / "snapshots" / "s").write_bytes(b"snapshot bytes")
+    written = ["data/aa/x", "snapshots/s"]
+    _verify_published(str(dest), staging, written)
+    (dest / "snapshots" / "s").write_bytes(b"short")
+    with pytest.raises(RuntimeError, match="not the 14-byte regular file"):
+        _verify_published(str(dest), staging, written)
+    (dest / "snapshots" / "s").unlink()
+    with pytest.raises(RuntimeError, match="missing"):
+        _verify_published(str(dest), staging, written)
+    (dest / "snapshots" / "s").mkdir()
+    with pytest.raises(RuntimeError, match="regular file"):
+        _verify_published(str(dest), staging, written)
 
 
 def test_rejects_member_not_in_diff_list(tmp_path: Path) -> None:
