@@ -955,3 +955,27 @@ def test_scorer_from_spec_unknown_name_is_prerequisite_error() -> None:
 
     with pytest.raises(PrerequisiteError, match="couldn't be loaded"):
         scorer_from_spec(ScorerSpec(scorer="no_such_scorer_anywhere"), task_path=None)
+
+
+def test_scorer_from_spec_preserves_scorer_name_argument() -> None:
+    from inspect_ai._eval.loader import scorer_from_spec
+    from inspect_ai.scorer._scorer import ScorerSpec
+
+    received_names: list[str] = []
+
+    @scorer(metrics=[accuracy()])
+    def scorer_with_name_argument(scorer_name: str) -> Scorer:
+        received_names.append(scorer_name)
+
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1)
+
+        return score
+
+    resolved = scorer_from_spec(
+        ScorerSpec(scorer="scorer_with_name_argument"),
+        task_path=None,
+        scorer_name="custom",
+    )
+    assert callable(resolved)
+    assert received_names == ["custom"]

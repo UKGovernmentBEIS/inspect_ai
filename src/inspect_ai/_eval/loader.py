@@ -790,7 +790,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 f"The function '{scorer_name}' in the file '{scorer_path}' requires a return type annotation. Please add a return type annotation to use this function with scoring."
             )
 
-    def create_scorer(scorer_name: str, **kwargs: Any) -> Scorer:
+    def create_scorer(scorer_name: str, /, **kwargs: Any) -> Scorer:
         # handle scorers and scanners
         if registry_lookup("scorer", scorer_name) is not None:
             return scorer_create(scorer_name, **kwargs)
