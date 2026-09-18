@@ -484,13 +484,23 @@ an index restic cannot decode fails the command before publish (an
 undecryptable file; a malformed one, which would otherwise abort index
 loading for the whole repository and block *every* restore), an index
 whose offset or length exceeds `math.MaxUint32` panics *this* process
-(`Index.store`, exit 2) instead of a later restore's, and the blob ids come
-from the authority itself. Verified against restic 0.18.1:
+(`Index.store`) instead of a later restore's, and the blob ids come from
+the authority itself. That panic, though, races restic's own exit: the
+decode runs in an `errgroup` worker whose deferred bookkeeping lets
+`ParallelList` return while the panic unwinds, so `list blobs` exits 2 with
+the crash on stderr or, having printed nothing, exits 0 first — about a
+third of runs on linux/amd64 (where the branch's CI caught it), never in
+ten on darwin/arm64. Either way that index's entries are never printed,
+because the callback runs only after `DecodeIndex` returns. So an index
+file whose listing is empty is refused: an honest `restic backup` never
+writes an index file with no entries (an unchanged re-backup writes no
+index file at all; `Flush` skips empty ones), and an empty listing means
+restic did not finish decoding the file. Verified against restic 0.18.1:
 the output is one lowercase `<type> <id>` line per entry, a blob two index
 files both map prints twice (the host dedupes), `list` accepts
 `--no-lock`/`--no-cache`, an undecodable index exits 1, the oversize offset
-exits 2 with a Go panic on stderr (within the bounded stderr capture), and a
-view holding no packs is fine because `list blobs` reads none. The host
+exits 2 with a Go panic on stderr or 0 with nothing printed (both refused),
+and a view holding no packs is fine because `list blobs` reads none. The host
 normalises rather than validates (split lines, lowercase the hex, refuse a
 line that is not `data|tree <64 hex>`, which restic never prints for a
 loaded index): whatever restic accepts, egress accepts — unknown fields,

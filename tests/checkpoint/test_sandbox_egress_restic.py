@@ -667,9 +667,11 @@ async def test_egress_follows_restic_on_hostile_index_shapes(
 
     Each shape is fire 2's honest index with one edit, encrypted like a real
     index and shipped through the real egress. Where restic 0.18.1's
-    ``DecodeIndex`` refuses the file (or ``Index.store`` panics on an
-    oversized offset), ``list blobs`` on the view fails and the transfer is
-    refused with the earlier checkpoint restoring; where restic loads it
+    ``DecodeIndex`` refuses the file, ``list blobs`` on the view fails and
+    the transfer is refused with the earlier checkpoint restoring. The
+    oversized offset makes ``Index.store`` panic, which races restic's own
+    exit: the process exits 2 or, having printed nothing, 0 (seen on
+    linux/amd64), and either way the empty listing is refused; where restic loads it
     (unknown fields, which Go's decoder ignores; an uppercase id, which
     restic prints back in lowercase), the transfer is accepted and both
     checkpoints restore. Nothing is decided by a host re-implementation of
@@ -733,7 +735,7 @@ async def test_egress_follows_restic_on_hostile_index_shapes(
             assert next(restored.rglob("notes.txt")).read_text() == expected
         return
 
-    with pytest.raises(EgressVerificationError, match="listing blobs"):
+    with pytest.raises(EgressVerificationError, match="listing blobs|lists no blobs"):
         await repos.egress("ckpt-00002", id2)
 
     assert repos.dest_files() == files_after_1
@@ -1045,6 +1047,25 @@ async def test_egress_refuses_a_version_1_repository(tmp_path: Path) -> None:
         await repos.egress("ckpt-00001", id1)
     assert repos.dest_files() == set()
     assert not list(repos.dest.parent.glob(".egress-*"))
+
+
+async def test_list_index_blobs_refuses_an_empty_listing(tmp_path: Path) -> None:
+    """A ``list blobs`` that prints nothing and exits 0 is a refused index.
+
+    That is what restic 0.18.1 does when its ``Index.store`` panic loses
+    the race with its own exit (observed on linux/amd64), and what an empty
+    index file would print; no honest backup writes one.
+    """
+    silent = _fake_restic(tmp_path, "exit 0")
+    with pytest.raises(EgressVerificationError, match="lists no blobs"):
+        await _list_index_blobs(
+            silent, tmp_path / "view-index-abc", PASSWORD, label="t"
+        )
+    (tmp_path / "ok").mkdir()
+    listing = _fake_restic(tmp_path / "ok", "echo 'data " + "a" * 64 + "'")
+    assert await _list_index_blobs(listing, tmp_path / "v", PASSWORD, label="t") == {
+        "data:" + "a" * 64
+    }
 
 
 async def test_list_blobs_reports_a_restic_produced_index(repos: _Repos) -> None:

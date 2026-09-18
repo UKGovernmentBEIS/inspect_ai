@@ -1467,6 +1467,18 @@ async def _list_index_blobs(
     have been spelled either way), and a blob two index files both map is
     counted once. ``list`` takes ``--no-lock``/``--no-cache`` like the
     listing; the view holds no packs, and ``list blobs`` reads none.
+
+    One thing restic's verdict does not settle on its own: the
+    ``Index.store`` panic races restic's own exit. The decode runs in an
+    ``errgroup`` worker whose deferred bookkeeping lets ``ParallelList``
+    return while the panic is still unwinding, so the main goroutine can
+    print nothing and exit 0 before the crash prints and exits 2 (observed
+    on linux/amd64 about a third of the time; darwin/arm64 always crashed).
+    Either way the index's entries are never printed, because ``fn`` runs
+    only after ``DecodeIndex`` returns. So an empty listing is refused: an
+    honest ``restic backup`` never writes an index file with no entries (an
+    unchanged re-backup writes no index file at all), and a listing with
+    none means restic did not finish decoding the file.
     """
     raw = await _run_view_restic(
         host_restic,
@@ -1477,7 +1489,14 @@ async def _list_index_blobs(
         what="listing blobs",
         max_stdout_bytes=_MAX_BLOB_LISTING_BYTES,
     )
-    return _parse_blob_listing(raw, label=label)
+    blobs = _parse_blob_listing(raw, label=label)
+    if not blobs:
+        raise EgressVerificationError(
+            f"{label}: the received repository files failed validation "
+            f"(restic lists no blobs for the index in {view.name}: restic writes "
+            f"no empty index files, and a decode restic abandoned prints none)"
+        )
+    return blobs
 
 
 def _parse_blob_listing(raw: bytes, *, label: str) -> set[str]:
