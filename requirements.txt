@@ -1,5 +1,5 @@
 agent-client-protocol>=0.12.0 # 0.12 renamed UntitledMultiSelectItems and added the ElicitationOtherPropertySchema catch-all
-aioboto3>=13.0.0
+aiobotocore>=2.18.0
 anyio>=4.14.0 # 4.14 fixes asyncio Lock/Semaphore waiter deadlock after cancellation (agronholm/anyio#1145)
 beautifulsoup4>=4.10.0
 boto3

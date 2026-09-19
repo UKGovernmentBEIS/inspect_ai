@@ -271,13 +271,17 @@ Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build
 
 ### Cache TTL {#anthropic-cache-ttl}
 
-Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default, using the standard 5-minute cache TTL. Use the `cache_ttl` model arg (`-M`) to specify a different TTL. Valid values are "5m" (the default) and "1h":
+Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default. Use the `cache_ttl` model arg (`-M`) to control the cache TTL. Valid values are:
+
+- "auto" (the default): requests use the standard 5-minute cache TTL, and a sample is automatically switched to the 1-hour TTL for the remainder of its execution when more than 5 minutes pass between requests that use the cache (e.g. due to slow tool calls, long generations, or queuing behind `max_connections`). By that point the 5-minute cache has expired and the full prompt prefix is being rewritten regardless, so escalating protects the rest of the sample from repeated cache misses. Escalations are reported in a log message.
+
+- "5m" or "1h": pin the TTL for all requests (disables automatic escalation).
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
 ```
 
-Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart.
+Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart. Automatic escalation applies only on the first-party Claude API (not Bedrock, Vertex, or Azure) and does not apply in [batch mode](models-batch.qmd).
 
 ### Streaming
 
@@ -611,7 +615,7 @@ This requires no configuration. Note that the header is not sent for [batch](mod
 
 ## AWS Bedrock {#aws-bedrock}
 
-To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider, install the `aioboto3` package, set your credentials, and specify a model using the `--model` option:
+To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider, set your credentials and specify a model using the `--model` option:
 
 ``` bash
 export AWS_ACCESS_KEY_ID=access-key-id
@@ -620,7 +624,7 @@ export AWS_DEFAULT_REGION=us-east-1
 inspect eval bedrock/meta.llama2-70b-chat-v1
 ```
 
-For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
+For the `bedrock` provider, custom model args (`-M`) are forwarded to the `create_client` method of the `aiobotocore.session.AioSession` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
 
 Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
 
@@ -638,10 +642,9 @@ inspect eval arc.py --model bedrock/us.anthropic.claude-sonnet-4-6 -M streaming=
 
 ## AWS SageMaker {#aws-sagemaker}
 
-To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, install the `aioboto3` package, set your credentials, and specify a SageMaker endpoint name using the `--model` option:
+To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, set your credentials and specify a SageMaker endpoint name using the `--model` option:
 
 ``` bash
-pip install aioboto3
 export AWS_ACCESS_KEY_ID=access-key-id
 export AWS_SECRET_ACCESS_KEY=secret-access-key
 inspect eval arc.py --model sagemaker/my-endpoint-name \
@@ -1292,7 +1295,7 @@ vLLM only applies `add_special_tokens` when tokenizing a string prompt, so for `
 
 ### Tool Use and Reasoning
 
-vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
+vLLM supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
 
 For vLLM reasoning models, pass the model-specific parser and chat-template kwargs through `-M`. See [Reasoning](reasoning.qmd#vllmsglang) for CLI examples.
 
@@ -1372,7 +1375,7 @@ $ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct --model
 
 ### Tool Use and Reasoning
 
-SGLang supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
+SGLang supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
 
 ### Batching
 
