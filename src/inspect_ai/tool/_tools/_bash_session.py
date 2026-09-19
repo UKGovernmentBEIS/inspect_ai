@@ -224,7 +224,10 @@ def bash_session(
         }
         action_specific: dict[str, dict[str, object]] = {
             "type": {"input": input, **timing},
-            "type_submit": {"input": f"{input}\n", **timing},
+            "type_submit": {
+                "input": f"{input}\n" if input is not None else "\n",
+                **timing,
+            },
             "interrupt": {"input": "\u0003", **timing},
             "read": timing,
             "restart": {"restart": True},
