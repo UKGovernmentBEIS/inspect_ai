@@ -54,7 +54,7 @@ def csv_dataset(
     shuffle_choices: bool | int | None = None,
     limit: int | None = None,
     dialect: str = "unix",
-    encoding: str = "utf-8",
+    encoding: str = "utf-8-sig",
     name: str | None = None,
     fs_options: dict[str, Any] | None = None,
     fieldnames: list[str] | None = None,
@@ -77,7 +77,8 @@ def csv_dataset(
         shuffle_choices: Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
         limit: Limit the number of records to read.
         dialect: CSV dialect ("unix", "excel" or"excel-tab"). Defaults to "unix". See https://docs.python.org/3/library/csv.html#dialects-and-formatting-parameters for more details
-        encoding: Text encoding for file (defaults to "utf-8").
+        encoding: Text encoding for file (defaults to "utf-8-sig", which accepts
+            UTF-8 with or without a byte-order mark).
         name: Optional name for dataset (for logging). If not specified,
             defaults to the stem of the filename
         fs_options: Optional. Additional arguments to pass through

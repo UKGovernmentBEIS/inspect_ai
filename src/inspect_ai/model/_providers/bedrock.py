@@ -391,7 +391,7 @@ class BedrockAPI(ModelAPI):
         self.read_timeout: int = int(str(model_args.pop("read_timeout", 60)))
         self.connect_timeout: int = int(str(model_args.pop("connect_timeout", 60)))
 
-        # save model_args (filter out inference params that shouldn't go to session.client)
+        # save model_args (filter out inference params that shouldn't go to session.create_client)
         _CLIENT_EXCLUDED_KEYS = {
             "max_tokens",
             "temperature",
@@ -405,20 +405,20 @@ class BedrockAPI(ModelAPI):
             k: v for k, v in model_args.items() if k not in _CLIENT_EXCLUDED_KEYS
         }
 
-        # import aioboto3 on demand
+        # import aiobotocore on demand
         try:
-            import aioboto3
+            from aiobotocore.session import get_session
 
-            verify_required_version("Bedrock API", "aioboto3", "13.0.0")
+            verify_required_version("Bedrock API", "aiobotocore", "2.18.0")
 
             # Create a shared session to be used when generating
-            self.session = aioboto3.Session()
+            self.session = get_session()
 
             # create time tracker
             self._http_hooks = ConverseHooks(self.session, api=self)
 
         except ImportError:
-            raise pip_dependency_error("Bedrock API", ["aioboto3"])
+            raise pip_dependency_error("Bedrock API", ["aiobotocore"])
 
     @override
     def connection_key(self) -> str:
@@ -716,15 +716,15 @@ class BedrockAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        from botocore.config import Config
+        from aiobotocore.config import AioConfig
         from botocore.exceptions import ClientError
 
         # The bedrock client
         request_id = self._http_hooks.start_request()
-        async with self.session.client(  # type: ignore[call-overload]
+        async with self.session.create_client(
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
-            config=Config(
+            config=AioConfig(
                 read_timeout=self.read_timeout,
                 connect_timeout=self.connect_timeout,
                 retries=dict(mode="adaptive"),

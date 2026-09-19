@@ -61,6 +61,14 @@ def _get_perplexity_metadata(
     return (int(num_tokens), float(sum_log_probs))
 
 
+def _exp_or_inf(value: float) -> float:
+    """Exponentiate an NLL, reporting infinite perplexity once exp() overflows."""
+    try:
+        return math.exp(value)
+    except OverflowError:
+        return float("inf")
+
+
 @metric
 def perplexity_per_token() -> Metric:
     """Corpus-level perplexity weighted by token count.
@@ -82,10 +90,7 @@ def perplexity_per_token() -> Metric:
             total_tokens += n
         if total_tokens == 0:
             return float("nan")
-        try:
-            return math.exp(-total_log_probs / total_tokens)
-        except OverflowError:
-            return float("inf")
+        return _exp_or_inf(-total_log_probs / total_tokens)
 
     return metric_fn
 
@@ -114,9 +119,6 @@ def perplexity_per_seq() -> Metric:
                 nll_per_seq.append(-s / n)
         if not nll_per_seq:
             return float("nan")
-        try:
-            return math.exp(sum(nll_per_seq) / len(nll_per_seq))
-        except OverflowError:
-            return float("inf")
+        return _exp_or_inf(sum(nll_per_seq) / len(nll_per_seq))
 
     return metric_fn
