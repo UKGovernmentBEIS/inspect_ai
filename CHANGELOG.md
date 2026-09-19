@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Dataset: JSON and JSONL datasets now load correctly from HTTP URLs containing query parameters or fragments.
 - Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the "scorer couldn't be loaded" guidance rather than a raw traceback.
 
 ## 0.3.265 (17 September 2026)
