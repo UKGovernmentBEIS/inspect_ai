@@ -208,6 +208,29 @@ def fast_retry_waits(request):
 
 
 @pytest.fixture(autouse=True)
+def disable_ctl_server(request, monkeypatch):
+    """Turn off the per-eval control-channel server during tests.
+
+    Every ``eval()`` binds (and tears down) a uvicorn control server that
+    nothing in an in-process test connects to, so the bind is dead weight on
+    the ~800 tests that call ``eval()``. Set the documented env var so
+    ``eval()`` / ``eval_set()`` — and any ``inspect eval`` subprocess that
+    inherits the environment — skip it. An explicit ``ctl_server=`` argument
+    still wins over the env var, so tests passing ``True`` / ``"keep"`` are
+    unaffected. Tests whose subject is the default-on control surface (launch
+    handoff, ``inspect ctl`` against a live run) opt out with
+    ``@pytest.mark.real_ctl_server``, which also clears an inherited setting
+    so the default binding is what runs.
+    """
+    from inspect_ai._control.server import CTL_SERVER_ENV_VAR
+
+    if request.node.get_closest_marker("real_ctl_server"):
+        monkeypatch.delenv(CTL_SERVER_ENV_VAR, raising=False)
+    else:
+        monkeypatch.setenv(CTL_SERVER_ENV_VAR, "false")
+
+
+@pytest.fixture(autouse=True)
 def isolate_active_model():
     """Keep the active-model contextvar from leaking across tests.
 
@@ -856,6 +879,12 @@ def pytest_configure(config):
         "markers",
         "real_retry_wait: opt out of the fast-retry fixture and use real "
         "exponential backoff (for tests that assert on retry wait timing)",
+    )
+    config.addinivalue_line(
+        "markers",
+        "real_ctl_server: opt out of the disable_ctl_server fixture so eval() "
+        "binds its default-on control-channel server (for tests whose subject "
+        "is the live control surface)",
     )
     os.environ["INSPECT_EVAL_LOG_MODEL_API"] = "1"
     # Dummy provider keys so tests that only construct a client (not call the

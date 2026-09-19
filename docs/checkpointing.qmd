@@ -83,7 +83,7 @@ inspect eval-retry logs/<log-file-name>.eval # recover
 For incomplete samples, Inspect locates the checkpoint directory, restores each sample's most recent committed checkpoint, and continues. The following is restored before the agent runs:
 
 1.  Agent State: Any state values the agent registered (e.g. message or compaction history).
-2.  Sandbox: The sandbox setup script is run and the configured sandbox paths are restored from backup into a fresh sandbox container.
+2.  Sandbox: The sandbox setup script is run and the configured sandbox paths are restored from backup into a fresh sandbox container (only those paths — see [What can be restored](#restore-constraints)).
 3.  Events and Store: Inspect's internal per-sample state is rehydrated (the events appear under a synthesized `prior_run` span in the new `.eval` log).
 
 By default checkpoints are deleted once the eval completes successfully; use `retention="retain"` in the `CheckpointConfig` to preserve them.
@@ -216,6 +216,17 @@ When more than one of the sample / task / eval layers supplies a configuration, 
 `sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. The exception is [snapshot-strategy](#snapshot-strategies) selection: `strategy` values merge per-sandbox across all layers (eval \> sample \> task) regardless of which layer's paths dict won, so a paths-only override never silently resets a selected strategy. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g. `sandbox_paths={"tools": []}`) opts that sandbox out of checkpointing entirely.
 
 Cache directories are never backed up: any `.cache` directory at any depth (`**/.cache`, including the user's XDG cache dir) is always excluded from sandbox backups — even when you specify `sandbox_paths` explicitly. Agents should not keep state they need across a resume under a `.cache` directory.
+
+#### What can be restored {#restore-constraints}
+
+A resume writes into the fresh sandbox as root, so the snapshot it restores is checked before anything is written. The rules below are what a retry enforces; a capture that breaks them fails hydration with an error naming the sandbox and the offending path, and the sample is not resumed.
+
+- Paths must be absolute and cannot be `/`. A relative `sandbox_paths` entry or a bare `/` fails when the sample starts (before its first checkpoint) rather than at resume. An image whose default user has `HOME=/` gets no automatic home-directory capture (a warning is logged); configure `sandbox_paths` for it instead.
+- Only the captured paths are written. A snapshot node outside them is refused, as is any device, fifo or socket node, a hard link to a file outside the captured paths, and any regular file carrying a setuid, setgid or sticky bit. An agent that builds a setuid binary or creates a fifo under a captured path makes that sample unresumable; keep such files outside `sandbox_paths`. Directories keep their sticky and setgid bits (`/tmp`, a `chmod g+s` shared directory), so such a directory can be a captured path.
+- Symbolic links that the sandbox image ships under a captured path are removed before the restore and replaced by whatever the snapshot holds at that path, so a snapshot can never write through one of them to a location outside the captured paths. A link the snapshot also holds comes back unchanged.
+- `sandbox_paths` must not change between attempts. A snapshot captured from one set of paths is refused when the retry captures another; restore the original configuration and resume.
+- A sandbox no committed checkpoint records is never restored from an older or unrelated snapshot; resume fails for it instead.
+- Ownership under an automatically captured home directory is normalized on resume: everything restored under it is re-owned to the home directory's owner (including files the prior attempt created via `sudo`). Paths you configure explicitly keep their recorded owners.
 
 ### Snapshot Strategies {#snapshot-strategies}
 

@@ -43,10 +43,10 @@ from inspect_ai.util._sandbox._framework_directory import (
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
     _WRITE_ENTRY,
-    SHELL_PATH,
     FrameworkDirectoryError,
     write_file_in_framework_directory,
 )
+from inspect_ai.util._sandbox._privileged import SHELL_PATH, SYSTEM_PATH, pinned_env
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
@@ -239,9 +239,12 @@ async def test_install_writes_task_py_into_verified_root_dir_after_bashrc(
     assert is_task_py_write(write)
     assert sandbox.inputs[3] == human_agent_commands([])
 
-    # Every command is launched through the absolute shell path; nothing is staged,
-    # chowned, or executed from a directory the login user could replace.
+    # Every command is launched through the absolute shell path with the shared PATH
+    # pin in its env (the framework-directory helper and the .bashrc append alike);
+    # nothing is staged, chowned, or executed from a directory the login user could
+    # replace.
     assert all(cmd[0] == SHELL_PATH for cmd, _ in sandbox.exec_calls)
+    assert sandbox.envs == [pinned_env(None)] * len(sandbox.exec_calls)
     assert sandbox.written == []
 
 
@@ -543,7 +546,7 @@ class _HomeSandbox(SandboxEnvironment):
         (self.bindir / "getent").chmod(0o700)
         self.env: dict[str, str] | None = None
         """Extra environment for the script (e.g. ``HOME`` for the no-getent fallback)."""
-        path_line = "PATH=/usr/sbin:/usr/bin:/sbin:/bin"
+        path_line = f"PATH={SYSTEM_PATH}"
         assert path_line in _BASHRC_APPEND_SCRIPT
         self.script = _BASHRC_APPEND_SCRIPT.replace(path_line, f"PATH={self.bindir}")
 
@@ -563,6 +566,7 @@ class _HomeSandbox(SandboxEnvironment):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         assert cmd[:3] == [SHELL_PATH, "-c", _BASHRC_APPEND_SCRIPT]
+        assert env == pinned_env(None)
         return await self.inner.exec(
             [SHELL_PATH, "-c", self.script, *cmd[3:]], input, env=self.env
         )

@@ -45,9 +45,12 @@ answers each differently (none of them well):
 On a **retry attempt** there is a fourth look-alike: a planned sample whose
 prior-attempt result is being **reused** (`run_sample` resolves reuse — the
 `sample_source.lookup` at its top — before ever reaching the queue). For the whole
-resolution window (which `reuse_read_throttle` can stretch on a large retry) it presents
-exactly like flavor 1 — planned, no `ActiveSample`, no record in this attempt's
-recorder — and gets the same 404. But unlike flavor 1 it must *stay* uncancellable: a
+resolution window (which the checkpoint probes under `checkpoint_probe_limit` can
+stretch on a large retry) it presents exactly like flavor 1 — planned, no
+`ActiveSample`, no record visible in this attempt's recorder (the attempt's log is
+seeded with the prior record, but `TaskLogger.read_sample` and `sample_summaries`
+withhold it until the sweep resolves it; see `design/retry-seeded-attempt-log.md`) —
+and gets the same 404. But unlike flavor 1 it must *stay* uncancellable: a
 reuse hit re-logs the prior result and records completion on its own, without ever
 passing the queue. See "Reuse in flight" under Mechanism.
 
