@@ -7,7 +7,9 @@ from pydantic import JsonValue
 from ..state import HumanAgentState
 
 
-class HumanAgentCommand:
+class HumanAgentCommand(abc.ABC):
+    """A command exposed by the human CLI agent -- implementable as a `task <name>` CLI subcommand, a service-side RPC handler, or both (see `contexts`)."""
+
     @property
     @abc.abstractmethod
     def name(self) -> str:
@@ -22,6 +24,7 @@ class HumanAgentCommand:
 
     @property
     def group(self) -> Literal[1, 2, 3]:
+        """Display group in `task instructions` (1 and 2 are separated by a blank line from what follows; 3 is last, with no trailing separator)."""
         return 1
 
     @property
@@ -30,14 +33,32 @@ class HumanAgentCommand:
         return ["cli", "service"]
 
     class CLIArg(NamedTuple):
+        """A positional argument accepted by this command's CLI invocation."""
+
         name: str
+        """Argument name, as displayed in help text."""
+
         description: str
+        """Argument description, as displayed in help text."""
+
         required: bool = False
+        """Whether the argument must be provided."""
 
     @property
     def cli_args(self) -> list[CLIArg]:
         """Positional command line arguments."""
         return []
+
+    @property
+    def cli_state(self) -> dict[str, JsonValue]:
+        """State serialized into the sandbox for `cli`.
+
+        `cli` runs in a generated sandbox script, so it receives a
+        `Namespace` whose attributes are the JSON values returned here rather
+        than this command instance. Override this property when `cli` needs
+        command state.
+        """
+        return {}
 
     def cli(self, args: Namespace) -> None:
         """CLI command (runs in container). Required for context "cli"."""
@@ -57,3 +78,9 @@ class HumanAgentCommand:
 
 def call_human_agent(method: str, **params: Any) -> Any:
     return None
+
+
+HumanAgentCommandsFilter = Callable[[list[HumanAgentCommand]], list[HumanAgentCommand]]
+"""Filter applied to the human CLI agent's command list before it is installed
+(and before the instructions command is built, so `task instructions` reflects
+the result)."""
