@@ -34,6 +34,12 @@ sets on its own, since they live on the transport and supplying one drops them.
 Supplying a transport likewise turns off httpx's environment proxy discovery,
 so the proxy mounts are rebuilt here and given the same settings.
 
+The transport is also scoped to the event loop. An SDK client built here
+outlives the loop that used it whenever a memoized model spans two ``eval()``
+calls or two ``anyio.run()`` calls, and an idle keep-alive connection that an
+asyncio loop opened cannot be touched from another loop (see
+``LoopScopedTransport``).
+
 ``keepalive_expiry`` stays at httpx's 5s default: raising it past an
 intermediary's idle timeout (an ALB commonly defaults to 60s) trades these
 failures for stale-connection ones. Note this leaves the
@@ -45,15 +51,19 @@ should raise the expiry alongside the cap.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import socket
 import ssl
 import sys
+import threading
+import weakref
 from logging import getLogger
 from typing import Any, overload
 
 import httpx2
+import sniffio
 
 from inspect_ai._util.logger import warn_once
 
@@ -246,6 +256,76 @@ def _default_proxy(proxy: str | httpx2.URL | httpx2.Proxy) -> httpx2.Proxy:
     return proxy
 
 
+class LoopScopedTransport(httpx2.AsyncBaseTransport):
+    """An `AsyncHTTPTransport` per event loop, built lazily from one set of kwargs.
+
+    asyncio binds a socket transport to the loop that created it, and the SDK
+    clients built here outlive that loop: a model memoized by `get_model()` is
+    reused across `eval()` calls, and each call from synchronous code runs on a
+    fresh `anyio.run()` loop. A pooled keep-alive connection from the previous
+    loop then fails on the next one with `RuntimeError: Event loop is closed`.
+    Keeping one pool per running loop means a request only ever sees
+    connections its own loop opened.
+
+    Pools bound to closed loops are dropped, not closed: closing them is what
+    raises. Their sockets are released when the pool is garbage collected
+    (asyncio's transport finalizer closes the socket, with a ResourceWarning
+    under `-X dev`), which is bounded to the idle connections left at each loop
+    boundary. A pooled connection keeps its loop reachable, so the weak key
+    alone would not free them; closed loops are pruned whenever a new loop
+    first uses the transport.
+
+    Under trio one transport is shared, since trio sockets belong to no run.
+
+    Pool limits (`INSPECT_HTTP_POOL_CONNECTIONS`, the keepalive cap) therefore
+    apply per event loop rather than per client. Inspect runs one loop at a
+    time, so nothing changes; a process running loops on several threads holds
+    a pool per loop, which is also the only arrangement that works for it.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        self._kwargs = kwargs
+        self._per_loop: weakref.WeakKeyDictionary[
+            asyncio.AbstractEventLoop, httpx2.AsyncHTTPTransport
+        ] = weakref.WeakKeyDictionary()
+        self._shared: httpx2.AsyncHTTPTransport | None = None
+        # Loops on different threads reach the maps together, and two of them
+        # pruning the same closed loop at once would KeyError.
+        self._lock = threading.Lock()
+
+    def current(self) -> httpx2.AsyncHTTPTransport:
+        """The transport for the running event loop, built on first use."""
+        with self._lock:
+            if sniffio.current_async_library() != "asyncio":
+                if self._shared is None:
+                    self._shared = httpx2.AsyncHTTPTransport(**self._kwargs)
+                return self._shared
+            loop = asyncio.get_running_loop()
+            transport = self._per_loop.get(loop)
+            if transport is None:
+                for other in list(self._per_loop):
+                    if other.is_closed():
+                        del self._per_loop[other]
+                transport = httpx2.AsyncHTTPTransport(**self._kwargs)
+                self._per_loop[loop] = transport
+            return transport
+
+    async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
+        return await self.current().handle_async_request(request)
+
+    async def aclose(self) -> None:
+        """Close the running loop's transport, the only one that can be, and drop the rest."""
+        with self._lock:
+            if sniffio.current_async_library() != "asyncio":
+                transport = self._shared
+            else:
+                transport = self._per_loop.get(asyncio.get_running_loop())
+            self._shared = None
+            self._per_loop.clear()
+        if transport is not None:
+            await transport.aclose()
+
+
 def _transport_kwargs(
     limits: httpx2.Limits, overrides: dict[str, Any]
 ) -> dict[str, Any]:
@@ -281,8 +361,6 @@ def default_client_kwargs(**overrides: Any) -> dict[str, Any]:
             context = _default_ssl_context()
             if context is not None:
                 kwargs["verify"] = context
-        if kwargs.get("proxy") is not None:
-            kwargs["proxy"] = _default_proxy(kwargs["proxy"])
         transport_kwargs = _transport_kwargs(limits, kwargs)
         # Supplying a transport turns off httpx's environment proxy discovery,
         # so rebuild the mounts with the same settings rather than losing
@@ -297,14 +375,18 @@ def default_client_kwargs(**overrides: Any) -> dict[str, Any]:
         mounts: dict[str, httpx2.AsyncBaseTransport | None] = {
             key: None
             if url is None
-            else httpx2.AsyncHTTPTransport(
-                proxy=_default_proxy(url), **transport_kwargs
-            )
+            else LoopScopedTransport(proxy=_default_proxy(url), **transport_kwargs)
             for key, url in environment_proxies.items()
         }
+        # httpx would build the mount for an explicit proxy itself, from a
+        # transport that is not loop scoped.
+        if kwargs.get("proxy") is not None:
+            mounts["all://"] = LoopScopedTransport(
+                proxy=_default_proxy(kwargs.pop("proxy")), **transport_kwargs
+            )
         mounts.update(kwargs.get("mounts") or {})
         kwargs["mounts"] = mounts
-        kwargs["transport"] = httpx2.AsyncHTTPTransport(**transport_kwargs)
+        kwargs["transport"] = LoopScopedTransport(**transport_kwargs)
 
     hooks = dict(kwargs.get("event_hooks") or {})
     hooks["request"] = [_floor_connect_timeout, *hooks.get("request", [])]

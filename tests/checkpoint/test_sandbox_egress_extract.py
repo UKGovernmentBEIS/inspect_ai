@@ -19,12 +19,14 @@ import tarfile
 import tracemalloc
 from collections.abc import Collection, Sequence
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from inspect_ai.util._checkpoint._sandbox_restic.egress import (
     EgressVerificationError,
     _extract_verified,
+    _remove_files,
 )
 
 
@@ -390,3 +392,27 @@ def test_rejects_oversized_sparse_metadata(tmp_path: Path) -> None:
     with pytest.raises(EgressVerificationError, match="tar metadata"):
         _extract(path, dest, [PACK_NAME])
     assert _files(dest) == set()
+
+
+def test_remove_files_unwinds_last_written_first(tmp_path: Path) -> None:
+    """Rollback removes in reverse write order.
+
+    A kill mid-rollback then never leaves a snapshot without its packs or
+    a ``config`` without its key.
+    """
+    names = ["keys/k", "config", "data/ab/p", "index/i", "snapshots/s"]
+    for name in names:
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text("x")
+    removed: list[str] = []
+    real_unlink = Path.unlink
+
+    def spy(self: Path, missing_ok: bool = False) -> None:
+        removed.append(self.relative_to(tmp_path).as_posix())
+        real_unlink(self, missing_ok=missing_ok)
+
+    with patch.object(Path, "unlink", spy):
+        _remove_files(str(tmp_path), names)
+
+    assert removed == list(reversed(names))
+    assert not any((tmp_path / name).exists() for name in names)

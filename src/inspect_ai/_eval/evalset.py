@@ -55,6 +55,7 @@ from inspect_ai._eval.task.scan import (
 )
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
+from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import (
     FileSystem,
@@ -90,6 +91,7 @@ from inspect_ai.model._model_config import (
     model_roles_to_model_roles_config,
 )
 from inspect_ai.model._model_data.model_data import ModelCost
+from inspect_ai.review._policy import ReviewPolicy, ReviewPolicyConfig
 from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -252,6 +254,7 @@ def eval_set(
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     score: bool = True,
     score_display: bool | None = None,
@@ -371,6 +374,9 @@ def eval_set(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        review: Tool result review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
+            Defaults to no review policy.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -481,6 +487,12 @@ def eval_set(
     # lifecycle aligned with eval()"). Refuse the combination
     # explicitly rather than silently giving a broken keep-alive
     # experience.
+    #
+    # Load the project `.env` first: resolving here (before the inner eval()
+    # would load it) must see the same INSPECT_EVAL_CTL_SERVER a bare eval()
+    # sees, and the value is passed down explicitly so the inner call can't
+    # recover it later.
+    init_dotenv()
     ctl = resolve_ctl_server(ctl_server)
     # clear a stale keep-alive intent left by a prior run in this process;
     # needed here as well as in eval_async because the all-reused short-circuit
@@ -533,6 +545,7 @@ def eval_set(
             trace=trace,
             display=display,
             approval=approval,
+            review=review,
             notification=notification,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -702,6 +715,7 @@ def eval_set(
         sandbox_prebuilt = _applied(sandbox_prebuilt, overrides.sandbox_prebuilt)
         checkpoint = _applied(checkpoint, overrides.checkpoint)
         approval = _applied(approval, overrides.approval)
+        review = _applied(review, overrides.review)
         retry_on_error = _applied(retry_on_error, overrides.retry_on_error)
         score_on_error = _applied(score_on_error, overrides.score_on_error)
         debug_errors = _applied(debug_errors, overrides.debug_errors)
@@ -751,7 +765,7 @@ def eval_set(
                 "with eval-set capture."
             )
         capture_config = GenerateConfig(**kwargs)
-        capture_tasks, _ = eval_resolve_tasks(
+        capture_tasks, _, _ = eval_resolve_tasks(
             tasks,
             task_args,
             models,
@@ -761,6 +775,7 @@ def eval_set(
             sandbox,
             sample_shuffle,
             notification=notification,
+            review=review,
             input_media_policy="trusted_pre_run",
         )
         if len(capture_tasks) == 0:
@@ -841,7 +856,7 @@ def eval_set(
         selection_config = GenerateConfig(**kwargs)
 
         def resolve_selection_tasks(selection_input: Tasks) -> list[ResolvedTask]:
-            resolved, _ = eval_resolve_tasks(
+            resolved, _, _ = eval_resolve_tasks(
                 selection_input,
                 task_args,
                 models,
@@ -851,6 +866,7 @@ def eval_set(
                 sandbox,
                 sample_shuffle,
                 notification=notification,
+                review=review,
                 input_media_policy="trusted_pre_run",
             )
             if len(resolved) == 0:
@@ -1003,7 +1019,7 @@ def eval_set(
     def try_eval() -> list[EvalLog]:
         config = GenerateConfig(**kwargs)
         # resolve tasks
-        resolved_tasks, _ = eval_resolve_tasks(
+        resolved_tasks, _, _ = eval_resolve_tasks(
             tasks,
             task_args,
             models,
@@ -1013,6 +1029,7 @@ def eval_set(
             sandbox,
             sample_shuffle,
             notification=notification,
+            review=review,
             input_media_policy="trusted_pre_run",
         )
 

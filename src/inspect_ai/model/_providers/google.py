@@ -1052,23 +1052,30 @@ class GoogleGenAIAPI(ModelAPI):
         ):
             http_options.httpx_async_client = default_async_client()
         api_key = self.api_key
-        if self._oauth and self._credentials is not None:
-            # The dev-endpoint client requires a non-empty api_key; pass a
-            # placeholder and carry the OAuth bearer token in headers instead
-            # (Authorization overrides the placeholder x-goog-api-key). Header
-            # building does no I/O — token freshness is ensured by the awaited
-            # _ensure_oauth_token() at the top of generate()/count_tokens().
+        credentials = self._credentials
+        oauth = self._oauth and credentials is not None
+        if oauth:
+            assert credentials is not None
+            # google-genai refuses a Gemini Developer API client without an API
+            # key, even when a bearer token is supplied. It therefore needs a
+            # placeholder at construction time, but Google rejects that
+            # placeholder when it is sent as x-goog-api-key alongside OAuth.
+            # Remove the SDK-added header after construction below.
             api_key = OAUTH_PLACEHOLDER_API_KEY
             http_options.headers = {
                 **(http_options.headers or {}),
-                **self._credentials.headers(self._quota_project_id),
+                **credentials.headers(self._quota_project_id),
             }
-        return Client(
+        client = Client(
             vertexai=self.is_vertex(),
             api_key=api_key,
             http_options=http_options,
             **self.model_args,
         )
+        if oauth:
+            assert client._api_client._http_options.headers is not None
+            del client._api_client._http_options.headers["x-goog-api-key"]
+        return client
 
     def handle_client_error(self, ex: ClientError) -> ModelOutput | Exception:
         # exceeding a quota with a limit of 0 means no access to model or capability,
