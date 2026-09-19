@@ -518,6 +518,12 @@ class SessionScreen(Screen[None]):
         # dismissal routes through :meth:`action_interrupt`.
         if action in ("submit", "newline") and not self._session.row.interactive:
             return False
+        # While a request card is mounted the composer is hidden and these
+        # priority bindings would otherwise swallow the keys before the
+        # focused widget sees them — in the elicitation card's multiline
+        # TextArea, Ctrl+J / Shift+Enter must insert a newline, not no-op.
+        if action in ("submit", "newline") and self._request_card_mounted():
+            return False
         if action == "interrupt" and not self._session.row.interactive:
             return (
                 self._cancel_card_or_none() is not None

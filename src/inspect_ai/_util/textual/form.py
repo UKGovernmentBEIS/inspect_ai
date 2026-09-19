@@ -20,18 +20,28 @@ from acp.schema import (
     ElicitationStringPropertySchema,
 )
 from rich.segment import Segment
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.content import Content
+from textual.message import Message
 from textual.strip import Strip
 from textual.style import Style
 from textual.widget import Widget
-from textual.widgets import Checkbox, Input, Select, SelectionList, Static
+from textual.widgets import (
+    Checkbox,
+    Input,
+    Select,
+    SelectionList,
+    Static,
+    TextArea,
+)
 from textual.widgets.selection_list import Selection
 from typing_extensions import override
 
 from inspect_ai.util._input._validate import (
     PropertySchema,
+    is_multiline,
     known_property,
     multiselect_options,
     string_choice_labels,
@@ -48,6 +58,59 @@ from inspect_ai.util._input._validate import (
 # Keep the string itself in sync with the literals used inside
 # ``FieldRow._collect_string`` / ``_collect_integer`` / ``_collect_number``.
 _REQUIRED_ERROR = "This field is required."
+
+
+class FormTextArea(TextArea):
+    r"""Multiline string control where Enter accepts the answer.
+
+    Enter posts :class:`Submitted` (the form dispatches it like
+    :class:`Input.Submitted`: advance to the next empty required field or
+    request submit). Shift+Enter, Ctrl+J, or Alt+Enter insert a newline.
+    Pasted text is content — Textual's bracketed paste delivers it as a
+    single :class:`~textual.events.Paste`, so pasted newlines never
+    submit or spill into later fields.
+
+    Shift+Enter and Alt+Enter are only distinguishable from Enter on
+    terminals that speak the kitty keyboard protocol (Textual requests
+    it); elsewhere they arrive as plain Enter and submit. Ctrl+J is a
+    literal LF and works everywhere, so the hint leads with it. Unlike
+    the chat composers (`ComposerTextArea`, `InterjectTextArea`) this
+    deliberately omits their trailing-backslash+Enter newline heuristic:
+    form answers are data, and eating a legitimate trailing ``\`` (e.g.
+    a Windows path) is worse here than in a chat draft.
+    """
+
+    _NEWLINE_KEYS = ("shift+enter", "ctrl+j", "alt+enter")
+
+    # Rendered under every multiline field; kept beside _NEWLINE_KEYS so
+    # the advertised chords can't drift from the handled ones.
+    HINT = "Enter submits · Ctrl+J or Shift+Enter for a new line"
+
+    class Submitted(Message):
+        """Posted when the user presses Enter in the text area."""
+
+        def __init__(self, text_area: "FormTextArea") -> None:
+            super().__init__()
+            self.text_area = text_area
+
+        @property
+        def control(self) -> "FormTextArea":
+            return self.text_area
+
+    async def _on_key(self, event: events.Key) -> None:
+        # Unhandled keys (and pastes) fall through to TextArea's own private
+        # handlers — Textual dispatches along the MRO, so no super() call.
+        # prevent_default() is what halts that walk for the keys we claim.
+        if event.key == "enter":
+            event.stop()
+            event.prevent_default()
+            self.post_message(self.Submitted(self))
+        elif event.key in self._NEWLINE_KEYS:
+            event.stop()
+            event.prevent_default()
+            start, end = self.selection
+            result = self.replace("\n", start, end, maintain_selection_offset=False)
+            self.move_cursor(result.end_location)
 
 
 class _CleanCheckbox(Checkbox):
@@ -145,6 +208,9 @@ class ElicitationForm(VerticalScroll):
         width: 1fr;
         margin-left: 2;
     }
+    ElicitationForm FieldRow .field-hint {
+        color: $text-muted;
+    }
     ElicitationForm FieldRow .field-error {
         color: $error;
         display: none;
@@ -154,6 +220,19 @@ class ElicitationForm(VerticalScroll):
     }
     ElicitationForm FieldRow Input {
         width: 1fr;
+    }
+    /* TextArea (multiline strings) sizes to content up to a cap, like the
+       ACP composer; the cursor-line tint is dropped so it reads like the
+       Input next to it. */
+    ElicitationForm FieldRow TextArea {
+        width: 1fr;
+        height: auto;
+        min-height: 3;
+        max-height: 8;
+        scrollbar-size-vertical: 1;
+    }
+    ElicitationForm FieldRow TextArea .text-area--cursor-line {
+        background: transparent;
     }
     /* SelectionList toggle: paint the inner X success-green when selected.
        The off state is handled in `_CleanSelectionList.render_line` (which
@@ -176,10 +255,46 @@ class ElicitationForm(VerticalScroll):
     }
     """
 
+    class SubmitRequested(Message):
+        """Posted when Enter dispatch exhausts the empty required fields.
+
+        Hosts handle this the same way as their Submit button: call
+        :meth:`collect` and either complete the request or surface the
+        validation errors.
+        """
+
+        def __init__(self, form: "ElicitationForm") -> None:
+            super().__init__()
+            self.form = form
+
+        @property
+        def control(self) -> "ElicitationForm":
+            return self.form
+
     def __init__(self, schema: ElicitationSchema) -> None:
         super().__init__()
         self._schema = schema
         self._fields: list[FieldRow] = []
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        event.stop()
+        self._advance_or_submit(event.input)
+
+    def on_form_text_area_submitted(self, event: FormTextArea.Submitted) -> None:
+        event.stop()
+        self._advance_or_submit(event.text_area)
+
+    def _advance_or_submit(self, control: Widget) -> None:
+        """Enter on a control → advance to next empty required, or submit.
+
+        Multi-field UX ("advance, then submit"): if a later required
+        field is still empty, focus it and do NOT submit — operators can
+        fill multi-field forms by typing + Enter through each row, the
+        same Tab-then-Enter flow they expect from web forms. Otherwise
+        post :class:`SubmitRequested` for the host to action.
+        """
+        if not self.focus_next_empty_required(after=control):
+            self.post_message(self.SubmitRequested(self))
 
     @override
     def compose(self) -> ComposeResult:
@@ -215,6 +330,20 @@ class ElicitationForm(VerticalScroll):
             return None, errors
         return values, {}
 
+    def collect_or_show_errors(self) -> dict[str, Any] | None:
+        """Validate the form; return values, or surface errors and return `None`.
+
+        The submit half shared by every host's Submit button and the
+        Enter dispatch. Note `{}` (all optional fields blank) is a valid
+        success value — callers must test `is not None`, not truthiness.
+        """
+        self.clear_errors()
+        values, errors = self.collect()
+        if errors:
+            self.show_errors(errors)
+            return None
+        return values
+
     def clear_errors(self) -> None:
         for row in self._fields:
             row.clear_error()
@@ -238,12 +367,12 @@ class ElicitationForm(VerticalScroll):
     def focus_next_empty_required(self, *, after: Widget) -> bool:
         """Focus the next empty-required field after the one owning ``after``.
 
-        ``after`` is typically the :class:`Input` widget that
-        emitted :class:`Input.Submitted` (Enter on the focused
-        input). The control widgets the form composes — ``Input``,
-        ``Select``, ``Checkbox``, ``SelectionList`` — are yielded
-        directly from :meth:`FieldRow._compose_control`, so
-        ``after.parent`` is the owning :class:`FieldRow`.
+        ``after`` is the control widget that requested submission
+        (an :class:`Input` emitting :class:`Input.Submitted`, or a
+        :class:`FormTextArea` emitting its ``Submitted``). The
+        control widgets the form composes are yielded directly from
+        :meth:`FieldRow._compose_control`, so ``after.parent`` is
+        the owning :class:`FieldRow`.
 
         Returns:
             ``True`` if focus moved to a later empty-required
@@ -310,6 +439,11 @@ class FieldRow(Vertical):
                     [(title, const) for const, title in labels],
                     **select_kwargs,
                 )
+            elif is_multiline(prop):
+                # Plain TextArea keeps tab_behavior="focus" so Tab still
+                # leaves the field; TextArea.code_editor() would indent.
+                yield FormTextArea(prop.default or "")
+                yield Static(FormTextArea.HINT, classes="field-hint")
             else:
                 placeholder = prop.format or ""
                 yield Input(
@@ -340,7 +474,7 @@ class FieldRow(Vertical):
 
     def focus_control(self) -> None:
         for child in self.children:
-            if isinstance(child, (Input, Checkbox, Select, SelectionList)):
+            if isinstance(child, (Input, TextArea, Checkbox, Select, SelectionList)):
                 child.focus()
                 return
 
@@ -392,8 +526,11 @@ class FieldRow(Vertical):
                 return _OMIT, None
             return select.value, None
 
-        input_widget = self.query_one(Input)
-        raw = input_widget.value
+        # Not stripped: leading whitespace is meaningful in pasted output.
+        if is_multiline(prop):
+            raw = self.query_one(TextArea).text
+        else:
+            raw = self.query_one(Input).value
         if not raw:
             if self._required:
                 return None, _REQUIRED_ERROR

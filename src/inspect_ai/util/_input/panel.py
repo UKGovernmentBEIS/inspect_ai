@@ -82,6 +82,22 @@ class QuestionInputPanel(InputPanel):
         if self._unsubscribe is not None:
             self._unsubscribe()
 
+    def on_elicitation_form_submit_requested(
+        self, event: ElicitationForm.SubmitRequested
+    ) -> None:
+        """Enter dispatch exhausted the form's empty required fields.
+
+        Same path as clicking the Submit button; validation errors
+        short-circuit and surface inline on the form. Submits from a
+        form that is no longer the mounted one (a stale message posted
+        just before a remount) are dropped.
+        """
+        event.stop()
+        mounted = self.query_one(QuestionRequestBody).mounted()
+        if mounted is None or event.form is not mounted[1]:
+            return
+        self.query_one(QuestionRequestActions).submit_current()
+
     def on_questions_changed(self, action: Literal["add", "remove"]) -> None:
         heading = self.query_one(QuestionRequestHeading)
         body = self.query_one(QuestionRequestBody)
@@ -91,17 +107,11 @@ class QuestionInputPanel(InputPanel):
             question_id, pending = self._questions[0]
             self.title = f"{self.DEFAULT_TITLE} ({len(self._questions):,})"
             heading.pending = pending
-            body.pending = pending
+            body.pending = (question_id, pending)
             actions.question = (question_id, pending)
             if action == "add":
                 self.activate()
-                # Focus the first form field rather than the Submit button so
-                # the user can immediately interact with the form. If we left
-                # focus on Submit, pressing Space (e.g. to toggle a
-                # SelectionList item) would activate the button and submit an
-                # empty form. Tab order naturally carries the user from the
-                # last field to Submit / Decline.
-                body.focus_first()
+                body.focus_on_mount = True
             self.visible = True
         else:
             self.title = self.DEFAULT_TITLE
@@ -157,22 +167,54 @@ class QuestionRequestBody(Vertical):
     }
     """
 
-    pending: reactive[PendingQuestionRequest | None] = reactive(None)
+    pending: reactive[tuple[str, PendingQuestionRequest] | None] = reactive(None)
 
-    async def watch_pending(self, pending: PendingQuestionRequest | None) -> None:
+    _mounted: tuple[str, ElicitationForm] | None = None
+
+    focus_on_mount: bool = False
+    """Set by the panel when a question arrives (it has just activated
+    the tab). Consumed by the next mount."""
+
+    async def watch_pending(
+        self, pending: tuple[str, PendingQuestionRequest] | None
+    ) -> None:
+        # Focus the first field, not Submit (Space there would submit an
+        # empty form). It has to happen here, after the mount: the host's
+        # activate() has already parked focus on the tab bar by the time
+        # this deferred watcher runs. Also when the form being replaced
+        # held focus (the next queued question), but not otherwise: a
+        # form on a hidden tab is still focusable and would swallow keys.
+        focused = self.app.focused
+        refocus = self.focus_on_mount or (
+            self._mounted is not None
+            and focused is not None
+            and self._mounted[1] in focused.ancestors_with_self
+        )
+        self.focus_on_mount = False
+        self._mounted = None
         await self.remove_children()
         if pending is not None:
-            form = ElicitationForm(pending.request.schema)
+            question_id, request = pending
+            form = ElicitationForm(request.request.schema)
             await self.mount(form)
+            self._mounted = (question_id, form)
+            if refocus:
+                self.call_after_refresh(form.focus_first)
 
     def form(self) -> ElicitationForm | None:
-        forms = self.query(ElicitationForm)
-        return forms.first() if len(forms) > 0 else None  # type: ignore[return-value]
+        return self._mounted[1] if self._mounted is not None else None
 
-    def focus_first(self) -> None:
-        form = self.form()
-        if form is not None:
-            form.focus_first()
+    def mounted(self) -> tuple[str, ElicitationForm] | None:
+        """The mounted form and the question id it was built for.
+
+        The id is bound at mount time rather than read from the queue
+        head: completing a question advances the head synchronously
+        while this (async, reactive) remount is deferred, so a rapid
+        second submit could otherwise answer the next question with the
+        previous form's values. A stale submit through this binding
+        targets an already-completed id, which the manager ignores.
+        """
+        return self._mounted
 
 
 class QuestionRequestActions(Horizontal):
@@ -205,27 +247,42 @@ class QuestionRequestActions(Horizontal):
         submit = self.query_one(f"#{self.SUBMIT_QUESTION}")
         submit.focus()
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if self.question is None:
-            return
-        question_id, _ = self.question
-        if event.button.id == self.SUBMIT_QUESTION:
-            self._handle_submit(question_id)
-        elif event.button.id == self.DECLINE_QUESTION:
-            human_question_manager().complete_question(
-                question_id, InputResult(outcome="declined")
-            )
+    def submit_current(self) -> None:
+        """Submit the mounted form (Enter dispatch and Submit button).
 
-    def _handle_submit(self, question_id: str) -> None:
-        body = self.parent.query_one(QuestionRequestBody) if self.parent else None
-        form = body.form() if body is not None else None
-        if form is None:
+        The question id comes from the body's mount-time binding, not
+        the queue head — see :meth:`QuestionRequestBody.mounted`.
+        """
+        mounted = self._mounted()
+        if mounted is None:
             return
-        form.clear_errors()
-        values, errors = form.collect()
-        if errors:
-            form.show_errors(errors)
+        question_id, form = mounted
+        values = form.collect_or_show_errors()
+        if values is None:
             return
         human_question_manager().complete_question(
             question_id, InputResult(outcome="accepted", content=values)
         )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == self.SUBMIT_QUESTION:
+            self.submit_current()
+        elif event.button.id == self.DECLINE_QUESTION:
+            # Decline the question the operator is looking at (the mounted
+            # form's id); before the first mount, fall back to the head.
+            mounted = self._mounted()
+            question_id = (
+                mounted[0]
+                if mounted is not None
+                else self.question[0]
+                if self.question is not None
+                else None
+            )
+            if question_id is not None:
+                human_question_manager().complete_question(
+                    question_id, InputResult(outcome="declined")
+                )
+
+    def _mounted(self) -> tuple[str, ElicitationForm] | None:
+        body = self.parent.query_one(QuestionRequestBody) if self.parent else None
+        return body.mounted() if body is not None else None

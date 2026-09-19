@@ -1000,12 +1000,6 @@
       "undescribed": 1
     }
   },
-  "src/inspect_ai/util/_input/panel.py": {
-    "type: ignore[return-value]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "src/inspect_ai/util/_json.py": {
     "type: ignore": {
       "count": 2,

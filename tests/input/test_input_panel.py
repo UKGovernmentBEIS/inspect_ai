@@ -24,11 +24,13 @@ from acp.schema import (
     TitledMultiSelectItems,
 )
 from test_helpers.utils import skip_if_trio
+from textual import events
 from textual.app import App, ComposeResult
-from textual.widgets import Checkbox, Input, Select, SelectionList
+from textual.widgets import Checkbox, Input, Select, SelectionList, TextArea
 
 from inspect_ai._util.textual.form import ElicitationForm
 from inspect_ai.util import InputRequest, InputResult
+from inspect_ai.util._input._validate import MULTILINE_META_KEY
 from inspect_ai.util._input.manager import (
     HumanQuestionManager,
     PendingQuestionRequest,
@@ -406,6 +408,118 @@ async def test_form_required_boolean_uses_checkbox() -> None:
         assert values == {"flag": False}
 
 
+@skip_if_trio
+@pytest.mark.anyio
+async def test_form_multiline_string_renders_text_area() -> None:
+    """Only the ``inspect.multiline`` meta flag gets a TextArea; other strings keep Input."""
+    schema = ElicitationSchema(
+        properties={
+            "notes": ElicitationStringPropertySchema(
+                type="string", title="Notes", field_meta={MULTILINE_META_KEY: True}
+            ),
+            "email": ElicitationStringPropertySchema(
+                type="string", title="Email", format="email"
+            ),
+            "plain": ElicitationStringPropertySchema(type="string", title="Plain"),
+            "color": ElicitationStringPropertySchema(
+                type="string",
+                title="Color",
+                enum=["red", "blue"],
+                field_meta={MULTILINE_META_KEY: True},
+            ),
+        },
+        required=["notes"],
+    )
+
+    class FormApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield ElicitationForm(schema)
+
+    app = FormApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(ElicitationForm)
+        assert len(form.query(TextArea)) == 1
+        assert len(form.query(Input)) == 2
+        assert len(form.query(Select)) == 1  # enum wins over the meta flag
+        text_area = form.query_one(TextArea)
+        assert text_area.tab_behavior == "focus"
+        # Keyboard instructions render under the multiline control.
+        assert form.query(".field-hint")
+
+        form.focus_first()
+        await pilot.pause()
+        assert app.focused is text_area
+
+        # Required and blank → error; is_empty_required drives Enter-advance.
+        values, errors = form.collect()
+        assert values is None
+        assert "notes" in errors
+
+        # A terminal paste arrives at the App, which forwards it to the focused
+        # widget. The whole text survives, unstripped (Input keeps line 1 only).
+        pasted = "  line one\n\nline three\n"
+        app.post_message(events.Paste(pasted))
+        await pilot.pause()
+        values, errors = form.collect()
+        assert errors == {}
+        assert values == {"notes": pasted}
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_form_multiline_enter_submits_newline_keys_insert() -> None:
+    """Enter in a TextArea requests submit; Ctrl+J / Shift+Enter insert a line.
+
+    Pins the paste-safe key scheme: no in-band terminator exists, so a
+    dot-only line can never end the answer, and typed Enter is the only
+    way to accept it.
+    """
+    schema = ElicitationSchema(
+        properties={
+            "notes": ElicitationStringPropertySchema(
+                type="string",
+                title="Notes",
+                field_meta={MULTILINE_META_KEY: True},
+                default="a",
+            ),
+        },
+        required=["notes"],
+    )
+    submit_requests: list[ElicitationForm.SubmitRequested] = []
+
+    class FormApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield ElicitationForm(schema)
+
+        def on_elicitation_form_submit_requested(
+            self, event: ElicitationForm.SubmitRequested
+        ) -> None:
+            submit_requests.append(event)
+
+    app = FormApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(ElicitationForm)
+        form.focus_first()
+        await pilot.pause()
+
+        # Newline chords insert without submitting.
+        await pilot.press("end", "ctrl+j", "b", "shift+enter", "c")
+        await pilot.pause()
+        values, errors = form.collect()
+        assert errors == {}
+        assert values == {"notes": "a\nb\nc"}
+        assert submit_requests == []
+
+        # Enter accepts: submit requested, no newline added.
+        await pilot.press("enter")
+        await pilot.pause()
+        values, errors = form.collect()
+        assert values == {"notes": "a\nb\nc"}
+        assert len(submit_requests) == 1
+
+
 # ---------------------------------------------------------------------------
 # QuestionInputPanel — submit / decline / queue lifecycle
 # ---------------------------------------------------------------------------
@@ -413,6 +527,75 @@ async def test_form_required_boolean_uses_checkbox() -> None:
 
 def _post_pending(manager: HumanQuestionManager, request: InputRequest) -> str:
     return manager.request_question(request)
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_panel_focuses_first_field_when_question_arrives() -> None:
+    """Keys and pastes must land in the form, not on the host's tab bar.
+
+    The form is mounted by an async reactive watcher, so focusing from
+    `on_questions_changed` is too early; a paste into an unfocused panel
+    was silently dropped (seen with `--display full`).
+    """
+    init_human_question_manager()
+    from inspect_ai.util._input.manager import human_question_manager
+
+    app = _PanelApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.set_focus(None)
+        human_question_manager().request_question(_request_string())
+        await pilot.pause()
+        await pilot.pause()
+
+        form = app.panel.query_one(QuestionRequestBody).form()
+        assert form is not None
+        assert app.focused is form.query_one(Input)
+
+
+@skip_if_trio
+@pytest.mark.anyio
+@pytest.mark.parametrize("operator_in_form", [True, False])
+async def test_panel_next_queued_question_follows_focus(
+    operator_in_form: bool,
+) -> None:
+    """Focus follows the next queued question only if it was in the form.
+
+    A hidden tab's form is still focusable, so grabbing focus
+    unconditionally would swallow keys typed elsewhere.
+    """
+    init_human_question_manager()
+    from inspect_ai.util._input.manager import human_question_manager
+
+    manager = human_question_manager()
+    app = _PanelApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        q1 = manager.request_question(_request_string())
+        q2 = manager.request_question(_request_string())
+        await pilot.pause()
+        await pilot.pause()
+
+        body = app.panel.query_one(QuestionRequestBody)
+        mounted = body.mounted()
+        assert mounted is not None and mounted[0] == q1
+        if operator_in_form:
+            assert app.focused is mounted[1].query_one(Input)
+        else:
+            app.set_focus(None)
+
+        manager.complete_question(q1, InputResult(outcome="declined"))
+        await pilot.pause()
+        await pilot.pause()
+
+        remounted = body.mounted()
+        assert remounted is not None and remounted[0] == q2
+        if operator_in_form:
+            assert app.focused is remounted[1].query_one(Input)
+        else:
+            assert app.focused is None
+        manager.complete_question(q2, InputResult(outcome="declined"))
 
 
 @skip_if_trio
@@ -451,6 +634,67 @@ async def test_panel_submit_resolves_with_accepted() -> None:
     result = holder["result"]
     assert result.outcome == "accepted"
     assert result.content == {"name": "Sam"}
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_panel_rapid_double_submit_does_not_leak_answers() -> None:
+    """A stale second submit can't answer the next queued question.
+
+    Completing a question advances the queue head synchronously while
+    the form remount is deferred, so a rapid second Enter (keyboard
+    auto-repeat) used to dispatch against the NEXT question's id with
+    the previous question's still-mounted form — answering it with the
+    wrong values, unseen by the operator.
+    """
+    import anyio
+
+    from inspect_ai._util.textual.form import ElicitationForm
+
+    init_human_question_manager()
+    from inspect_ai.util._input.manager import human_question_manager
+
+    manager = human_question_manager()
+    results: dict[str, InputResult] = {}
+
+    async def wait(qid: str) -> None:
+        results[qid] = await manager.wait_for_question(qid)
+
+    app = _PanelApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        q1 = manager.request_question(_request_string())
+        q2 = manager.request_question(_request_string())
+        await pilot.pause()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(wait, q1)
+            await anyio.sleep(0)
+
+            body = app.panel.query_one(QuestionRequestBody)
+            mounted = body.mounted()
+            assert mounted is not None and mounted[0] == q1
+            form = mounted[1]
+            _set_input_value(form.query_one(Input), "one")
+
+            # Two back-to-back submits, delivered before the deferred
+            # remount runs — what auto-repeat Enter produces.
+            app.panel.on_elicitation_form_submit_requested(
+                ElicitationForm.SubmitRequested(form)
+            )
+            app.panel.on_elicitation_form_submit_requested(
+                ElicitationForm.SubmitRequested(form)
+            )
+            await pilot.pause()
+
+        # Q1 answered exactly once; Q2 untouched and remounted fresh.
+        assert results == {q1: InputResult(outcome="accepted", content={"name": "one"})}
+        assert q2 in dict(manager.question_requests())
+        remounted = app.panel.query_one(QuestionRequestBody).mounted()
+        assert remounted is not None and remounted[0] == q2
+
+        # Resolve Q2 so nothing dangles.
+        manager.complete_question(q2, InputResult(outcome="declined"))
 
 
 @skip_if_trio

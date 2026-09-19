@@ -35,6 +35,7 @@ from acp.schema import (
 )
 from test_helpers.utils import skip_if_trio
 
+from inspect_ai.agent._acp.inspect_ext import MULTILINE_META_KEY
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.util import InputRequest
@@ -170,9 +171,15 @@ class _ElicitationClientRpcStub:
 
 
 def _trivial_schema() -> ElicitationSchema:
+    # One property with the multiline _meta flag and one plain optional
+    # string, so the socket round trip covers both wire shapes (the
+    # no-meta property must serialize with no "_meta" key at all).
     return ElicitationSchema(
         properties={
-            "answer": ElicitationStringPropertySchema(type="string", title="Answer")
+            "answer": ElicitationStringPropertySchema(
+                type="string", title="Answer", field_meta={MULTILINE_META_KEY: True}
+            ),
+            "note": ElicitationStringPropertySchema(type="string", title="Note"),
         },
         required=["answer"],
     )
@@ -273,6 +280,11 @@ async def test_elicitation_over_real_socket_accept_round_trip(
     assert params["mode"] == "form"
     assert "sessionId" in params
     assert params["requestedSchema"]["properties"]["answer"]["type"] == "string"
+    assert params["requestedSchema"]["properties"]["answer"]["_meta"] == {
+        MULTILINE_META_KEY: True
+    }
+    # The no-meta property serializes without an "_meta" key (not null).
+    assert "_meta" not in params["requestedSchema"]["properties"]["note"]
 
 
 @skip_if_trio
