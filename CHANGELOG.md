@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Datasets: Hugging Face timeouts are retried with newer Hub clients, including failures reported as an unreachable Hub without an exception cause.
 - Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the "scorer couldn't be loaded" guidance rather than a raw traceback.
 
 ## 0.3.265 (17 September 2026)
