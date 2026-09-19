@@ -1,5 +1,10 @@
 # changelog – Inspect
 
+## 0.3.266 (19 September 2026)
+
+- Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the “scorer couldn’t be loaded” guidance rather than a raw traceback.
+- Control channel: the `inspect ctl task score` interim-metrics payload now reports each entry’s originating scorer under `scorer` and the score’s name under `name` (previously `scorer` held the score name). This lets consumers disambiguate scores from dict-valued scorers — where several scorers can share a score name — and reconstruct the [EvalScore](./reference/inspect_ai.log.html.md#evalscore) needed to resolve a task’s headline metric. Breaking for clients that read the old `scorer` field as the score name.
+
 ## 0.3.265 (17 September 2026)
 
 - Agent Bridge: Bridged host tools are no longer denied under an approval policy when the sandboxed agent presents them to its model under a different name.
