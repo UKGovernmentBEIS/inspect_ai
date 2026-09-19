@@ -19,7 +19,10 @@ from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer import types as buffer_types_module
-from inspect_ai.log._recorders.buffer.database import sync_to_filestore
+from inspect_ai.log._recorders.buffer.database import (
+    sample_buffer_dbs,
+    sync_to_filestore,
+)
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent
@@ -1016,3 +1019,24 @@ def test_completed_samples_release_seen_hash_state(
     assert db._inserted_attachment_hashes
     db.complete_sample(sample, sample_metadata=None)
     assert (str(sample.id), 1) not in db._inserted_attachment_hashes
+
+
+def test_sample_buffer_dbs_matches_the_log_file_name_literally(tmp_path: Path) -> None:
+    """Glob characters in a log file name select only that log's databases.
+
+    `task[1].eval` read as a pattern would match `task1.eval`'s database and
+    miss its own.
+    """
+    db_dir = tmp_path / "db"
+    bracketed = SampleBufferDatabase(str(tmp_path / "task[1].eval"), db_dir=db_dir)
+    plain = SampleBufferDatabase(str(tmp_path / "task1.eval"), db_dir=db_dir)
+    try:
+        assert sample_buffer_dbs(str(tmp_path / "task[1].eval"), db_dir) == [
+            bracketed.db_path
+        ]
+        assert sample_buffer_dbs(str(tmp_path / "task1.eval"), db_dir) == [
+            plain.db_path
+        ]
+    finally:
+        bracketed.cleanup()
+        plain.cleanup()

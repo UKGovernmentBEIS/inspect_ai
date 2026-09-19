@@ -4,6 +4,7 @@ import logging
 import os
 import threading
 from collections.abc import Callable, Iterator
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
 
@@ -79,6 +80,7 @@ from inspect_ai.log._file import (
     write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig
+from inspect_ai.log._recorders.buffer.buffer import cleanup_sample_buffers_for_log
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
@@ -517,6 +519,11 @@ def eval_set(
         request_keep_alive()
 
     # helper function to run a set of evals
+    # run ids of every eval() this call has made. A `started` log carrying one
+    # of them is an attempt this process ran and knows has ended, which is what
+    # lets the retry-cleanup sweep remove it (see latest_completed_task_eval_logs)
+    run_ids: set[str] = set()
+
     def run_eval(
         eval_set_id: str,
         tasks: list[ResolvedTask]
@@ -603,6 +610,7 @@ def eval_set(
             ctl_server=ctl.enabled,
             **kwargs,
         )
+        run_ids.update(log.eval.run_id for log in results)
 
         # check for cancelled
         if evals_cancelled(results):
@@ -1103,6 +1111,7 @@ def eval_set(
                 cleanup_older=retry_cleanup,
                 incomplete_action=incomplete_action,
                 incomplete_max=incomplete_max,
+                owned_run_ids=run_ids,
             )
             if not failed_logs:
                 failed_tasks = []
@@ -1188,7 +1197,7 @@ def eval_set(
             # final sweep to remove failed log files
             if retry_cleanup:
                 task_ids = {result.eval.task_id for result in results}
-                cleanup_older_eval_logs(log_dir, task_ids)
+                cleanup_older_eval_logs(log_dir, task_ids, run_ids)
 
         # if specified, bundle the output directory
         if bundle_dir:
@@ -1779,9 +1788,10 @@ def list_latest_eval_logs(
     cleanup_older: bool,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
+    owned_run_ids: AbstractSet[str] = frozenset(),
 ) -> tuple[list[Log], list[Log]]:
     latest_logs = latest_completed_task_eval_logs(
-        logs=logs, cleanup_older=cleanup_older
+        logs=logs, cleanup_older=cleanup_older, owned_run_ids=owned_run_ids
     )
 
     # a resolving disposition recovers crashed logs *before* the completeness
@@ -1927,18 +1937,46 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
 
 
 # cleanup logs that aren't the latest
-def cleanup_older_eval_logs(log_dir: str, task_ids: set[str]) -> None:
+def cleanup_older_eval_logs(
+    log_dir: str, task_ids: set[str], owned_run_ids: AbstractSet[str] = frozenset()
+) -> None:
     logs = [
         log
         for log in list_all_eval_logs(log_dir)
         if log.header.eval.task_id in task_ids
     ]
-    latest_completed_task_eval_logs(logs=logs, cleanup_older=True)
+    latest_completed_task_eval_logs(
+        logs=logs, cleanup_older=True, owned_run_ids=owned_run_ids
+    )
 
 
 def latest_completed_task_eval_logs(
-    logs: list[Log], cleanup_older: bool = False
+    logs: list[Log],
+    cleanup_older: bool = False,
+    owned_run_ids: AbstractSet[str] = frozenset(),
 ) -> list[Log]:
+    """Select each task's newest log, optionally removing the older ones.
+
+    Every attempt's log is seeded from the task's prior log, so an older log
+    holds nothing the newest lacks; with ``cleanup_older`` the older logs are
+    removed. That includes a `started` log an interrupted attempt left
+    behind, together with the sample buffer it never cleaned up, but only
+    when the attempt is one this process ran and so knows has ended: its
+    ``eval.run_id`` is in ``owned_run_ids``. Nothing on disk can show that
+    another process has stopped writing a `started` log (its buffer database
+    may live in another data directory or pid namespace, and a recovered
+    snapshot carries the crashed log's run id), so `started` logs from other
+    runs stay.
+
+    Args:
+        logs: Logs of the tasks to select from.
+        cleanup_older: Remove every log that is not its task's newest.
+        owned_run_ids: Run ids of the ``eval()`` calls the current process
+            has made; a `started` log from any other run is never removed.
+
+    Returns:
+        The newest log for each task.
+    """
     # collect logs by id
     logs_by_id: dict[str, list[Log]] = {}
     for log in logs:
@@ -1963,16 +2001,22 @@ def latest_completed_task_eval_logs(
         latest_completed_logs.append(id_logs[0])
 
         # remove the rest if requested
-        # (don't remove 'started' in case its needed for post-mortum debugging)
         if cleanup_older:
             fs = filesystem(id_logs[0][0].name)
             for id_log in id_logs[1:]:
                 try:
-                    if id_log.header.status != "started":
-                        fs.rm(id_log.info.name)
-                        # the attempt's EvalState may have memoized this log's
-                        # sample summaries; the memo must not outlive the file
-                        invalidate_log_sample_summaries(id_log.header.eval.eval_id)
+                    if id_log.header.status == "started":
+                        if id_log.header.eval.run_id not in owned_run_ids:
+                            logger.info(
+                                f"Not removing '{id_log.info.name}': another "
+                                "run wrote it and may still be writing it"
+                            )
+                            continue
+                        cleanup_sample_buffers_for_log(id_log.info.name)
+                    fs.rm(id_log.info.name)
+                    # the attempt's EvalState may have memoized this log's
+                    # sample summaries; the memo must not outlive the file
+                    invalidate_log_sample_summaries(id_log.header.eval.eval_id)
                 except Exception as ex:
                     logger.warning(f"Error attempt to remove '{id_log[0].name}': {ex}")
 
