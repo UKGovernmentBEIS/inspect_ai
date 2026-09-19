@@ -40,6 +40,7 @@
 - Documents: Data URIs without parameters now retain their declared media type and receive the corresponding default filename.
 - Elicitation: long lines in `ask_user` prompts are no longer hard-wrapped by the console, so long commands copy out of the terminal intact.
 - Compaction: summary compaction now produces a more detailed, structured summary that preserves code snippets, user messages, and any security-relevant constraints stated earlier in the conversation.
+- Recording an eval or model error no longer spends seconds syntax highlighting its traceback; the stored ANSI traceback is unhighlighted and shows at most 40 frames.
 - Control Channel: `inspect ctl sample cancel` now works on a sample that is still initializing (e.g. waiting on sandbox provisioning) — the cancel applies the moment the sample starts, and `inspect ctl sample list` marks the pending cancel.
 - Control Channel: Starting and stopping the control server no longer adds ~200ms to every `eval()`, which dominated the wall time of very small evals during tests.
 - Control Channel: `INSPECT_EVAL_CTL_SERVER` is now honored by `eval()` and `eval_set()` called from Python, not only by the CLI.
