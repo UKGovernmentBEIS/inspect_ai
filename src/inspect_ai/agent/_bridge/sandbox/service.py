@@ -6,9 +6,9 @@ from pydantic import JsonValue, TypeAdapter
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
-from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
 from inspect_ai.model._call_tools import get_tools_info
+from inspect_ai.model._model import ModelRefusalError
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._limit import LimitExceededError
@@ -29,7 +29,9 @@ JSON_VALUE_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
 GenerateMethod = Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]
 
 
-def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
+def _forward_provider_errors(
+    generate: GenerateMethod, bridge: SandboxAgentBridge
+) -> GenerateMethod:
     """Convert a failed generate into a forwardable provider-error result.
 
     Any exception from the wrapped generate is returned (not raised) under
@@ -39,6 +41,11 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
 
     `LimitExceededError` is deliberately excluded so message/token/cost limit
     hit during generation properly end the sample.
+
+    A `ModelRefusalError` (`fail_on_refusal`) must also end the sample, but the
+    sandbox service dispatcher would swallow a re-raise into an RPC error, so it
+    is signalled through `bridge.request_fail` (raised on the agent's side by the
+    bridge's monitor task) while the scaffold still gets an error reply.
     """
 
     async def generate_forwarding_errors(
@@ -48,6 +55,11 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
             return await generate(json_data)
         except LimitExceededError:
             raise
+        except ModelRefusalError as ex:
+            bridge.request_fail(ex)
+            # no non-provider-error warning: the failure is reported once, by
+            # the sample error the monitor task raises
+            return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
         except Exception as ex:
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the
@@ -79,16 +91,16 @@ async def run_model_service(
         name=MODEL_SERVICE,
         methods={
             "generate_completions": _forward_provider_errors(
-                generate_completions(bridge)
+                generate_completions(bridge), bridge
             ),
             "generate_responses": _forward_provider_errors(
-                generate_responses(web_search, code_execution, bridge)
+                generate_responses(web_search, code_execution, bridge), bridge
             ),
             "generate_anthropic": _forward_provider_errors(
-                generate_anthropic(web_search, code_execution, bridge)
+                generate_anthropic(web_search, code_execution, bridge), bridge
             ),
             "generate_google": _forward_provider_errors(
-                generate_google(web_search, code_execution, bridge)
+                generate_google(web_search, code_execution, bridge), bridge
             ),
             "list_tools": list_tools(bridge),
             "call_tool": call_tool(bridge),
@@ -218,18 +230,10 @@ def call_tool(
         if tool not in server_tools:
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
-        if bridge.tool_approval_required() and not bridge.consume_tool_execution_grant(
-            server, tool, arguments
-        ):
-            warn_once(
-                logger,
-                f"Denied host tool call '{server}/{tool}': no approved "
-                "execution grant matched it.",
-            )
-            raise PermissionError(
-                f"Host tool call '{server}/{tool}' was not approved for execution"
-            )
-
+        # The execution-grant check (bridge.consume_tool_execution_grant) is
+        # disabled pending #5428: scaffolds present bridged tools to their model
+        # under names the grant resolution does not recognise, so every approved
+        # call was denied here. Approval still runs at generate time.
         tool_fn = server_tools[tool]
         result = await tool_fn(**arguments)
 

@@ -59,6 +59,7 @@ from inspect_ai.log._log import eval_error
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import Model, ModelName, ensure_model_controller
+from inspect_ai.review._policy import ReviewPolicy, config_from_review_policies
 from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -144,6 +145,7 @@ async def eval_run(
     header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
     approval: list[ApprovalPolicy] | None = None,
+    review: list[ReviewPolicy] | None = None,
     solver: Solver | SolverSpec | None = None,
     scanner: "Scanners | None" = None,
     scan_id: str | None = None,
@@ -374,6 +376,12 @@ async def eval_run(
                     task_eval_config.approval = config_from_approval_policies(
                         task.approval
                     )
+
+                # review
+                if review:
+                    task.review = review
+                elif task.review:
+                    task_eval_config.review = config_from_review_policies(task.review)
 
                 # merge eval-level and task-level tags
                 merged_tags = list(set(tags or []) | set(task.tags or [])) or None
@@ -644,6 +652,14 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
             error=eval_error(inner, type(inner), inner, inner.__traceback__),
             location=options.logger.location,
         )
+    finally:
+        # Startup can fail before log_finish owns teardown. Release the
+        # cached prior on every exit without removing a written destination.
+        with anyio.CancelScope(shield=True):
+            try:
+                await options.logger.recorder.close_seed_source(options.logger.eval)
+            except Exception as ex:
+                log.warning(f"Error closing prior log source: {exception_message(ex)}")
     return TaskRunResult(result, cancel_type)
 
 
@@ -802,7 +818,17 @@ async def run_task_retry_attempts(
                 async def run_one(item: PendingTask) -> None:
                     nonlocal in_flight, cancelled
                     options = item.options
-                    run = await _run_task(options, can_retry=item.retries_remaining > 0)
+                    try:
+                        run = await _run_task(
+                            options, can_retry=item.retries_remaining > 0
+                        )
+                    except BaseException:
+                        with anyio.CancelScope(shield=True):
+                            if not options.logger.finished:
+                                await options.logger.discard(
+                                    keep_destination=True, keep_buffer=True
+                                )
+                        raise
                     result = run.log
 
                     # a drain/cancel abandoned this queued retry between the
@@ -889,17 +915,23 @@ async def run_task_retry_attempts(
 
                         # build sample_source from the failed log so completed
                         # samples are reused on retry (mirrors legacy eval_set
-                        # retry). An attempt that died before anything reached
-                        # its destination log (e.g. its checkpoint startup copy
-                        # failed pre-log_start) left no file — chain the retry
-                        # from whatever *it* was retrying instead, so reuse and
-                        # checkpoints fall back a hop rather than sourcing an
-                        # attempt that holds nothing. The logger knows whether
-                        # it wrote anything; no storage probe is needed.
+                        # retry). The attempt's destination is the newest
+                        # record on disk whenever a flush reached it, finished
+                        # or not: it holds the seeded prior set plus every
+                        # live completion flushed since. An unfinished one
+                        # (log_finish failed) sits under a `started` header,
+                        # which reinit() below leaves in place — sample
+                        # progress outranks the header it lacks. Only an
+                        # attempt that wrote nothing (its prior-log seed or
+                        # log_start flush failed) has nothing newer to offer:
+                        # the retry keeps the source this attempt ran with
+                        # (the same prior log). Decided from recorder state,
+                        # with no filesystem probe on the dispatcher's loop.
+                        failed_location = options.logger.location
                         sample_source: EvalSampleSource | None
                         if options.logger.destination_written:
                             failed_log_info = EvalLogInfo(
-                                name=options.logger.location,
+                                name=failed_location,
                                 type="file",
                                 size=0,
                                 mtime=None,
@@ -912,12 +944,17 @@ async def run_task_retry_attempts(
                                 failed_log_info,
                                 options.task.dataset,
                                 eval_checkpoints_dir_from_config(
-                                    options.logger.location,
+                                    failed_location,
                                     options.checkpoint,
                                     options.eval_checkpoint,
                                 ),
                             )
                         else:
+                            log.info(
+                                f"Task '{options.task.name}' wrote no log for this "
+                                "attempt; retrying with the prior attempt's sample "
+                                "source"
+                            )
                             sample_source = options.sample_source
 
                         # reinit logger for a fresh eval entry
@@ -945,6 +982,15 @@ async def run_task_retry_attempts(
                         # was already cleared by the directive; this is a no-op
                         # then)
                         clear_eval_retry_pending(result.eval.eval_id)
+
+                    # Retry source selection needs the recorder's write state.
+                    # Once no retry follows, release any unfinished entry even
+                    # if startup failed after seeding an entire prior log.
+                    if not retry and not options.logger.finished:
+                        with anyio.CancelScope(shield=True):
+                            await options.logger.discard(
+                                keep_destination=True, keep_buffer=True
+                            )
 
                     # finalize atomically (no awaits below) so the dispatcher sees
                     # a consistent (in_flight, pending) snapshot
