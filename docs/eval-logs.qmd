@@ -375,8 +375,8 @@ After running an evaluation, you may need to modify the results—for example, c
 Use the `edit_score()` function to modify scores for individual samples. For example, this example will modify the score for the first sample, preserving its previous value in the score history, while also tracking the author and reason for the change:
 
 ``` python
-from inspect_ai.log import read_eval_log, write_eval_log, edit_score
-from inspect_ai.scorer import ScoreEdit, ProvenanceData
+from inspect_ai.log import read_eval_log, write_eval_log, edit_score, ProvenanceData
+from inspect_ai.scorer import ScoreEdit
 
 # Read the log file
 log = read_eval_log("my_eval.json")
