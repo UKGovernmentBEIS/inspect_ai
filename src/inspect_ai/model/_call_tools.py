@@ -217,69 +217,18 @@ async def _execute_tools_impl(
                     inner_ex = inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
-            except TimeoutError as ex:
-                tool_error = ToolCallError(
-                    "timeout", "Command timed out before completing."
-                )
-                if isinstance(ex, SandboxTimeoutError) and ex.truncated_output:
-                    result = ex.truncated_output
-            except UnicodeDecodeError as ex:
-                tool_error = ToolCallError(
-                    "unicode_decode",
-                    f"Error decoding bytes to {ex.encoding}: {ex.reason}",
-                )
-            except ValueError as ex:
-                # CPython's subprocess module raises ValueError("embedded null byte")
-                # when a command or argument string contains '\x00'. Surface it as
-                # a tool error so the model can recover instead of crashing the sample.
-                if "embedded null byte" in str(ex):
-                    tool_error = ToolCallError(
-                        "parsing",
-                        f"An argument to tool '{call.function}' contained an embedded null byte.",
-                    )
-                else:
-                    raise
-            except SandboxUnavailableError as ex:
-                # Preserve the tool loop's existing non-terminal behavior while
-                # surfacing sandbox unavailability as a failed tool call. Evals
-                # that need it to be terminal can enforce that policy in their
-                # agent logic.
-                tool_error = ToolCallError("sandbox_unavailable", str(ex))
-            except PermissionError as ex:
-                err = f"{ex.strerror or str(ex)}."
-                if isinstance(ex.filename, str):
-                    err = f"{err} Filename '{ex.filename}'."
-                tool_error = ToolCallError("permission", err)
-            except FileNotFoundError as ex:
-                if isinstance(ex.filename, str):
-                    err = f"File '{ex.filename}' was not found."
-                else:
-                    err = ex.strerror or str(ex)
-                tool_error = ToolCallError("file_not_found", err)
-            except IsADirectoryError as ex:
-                err = f"{ex.strerror or str(ex)}."
-                if isinstance(ex.filename, str):
-                    err = f"{err} Filename '{ex.filename}'."
-                tool_error = ToolCallError("is_a_directory", err)
-            except OutputLimitExceededError as ex:
-                tool_error = ToolCallError(
-                    "limit",
-                    f"The tool exceeded its output limit of {ex.limit_str}.",
-                )
-                result = ex.truncated_output or ""
-            except LimitExceededError as ex:
-                tool_error = ToolCallError(
-                    "limit",
-                    f"The tool exceeded its {ex.type} limit of {ex.limit_str}.",
-                )
-            except ToolParsingError as ex:
-                tool_error = ToolCallError("parsing", ex.message)
-            except ToolApprovalError as ex:
-                tool_error = ToolCallError("approval", ex.message)
-            except ToolError as ex:
-                tool_error = ToolCallError("unknown", ex.message)
             except Exception as ex:
-                tool_exception = ex
+                failure = tool_call_failure(ex, call.function)
+                if failure is not None:
+                    tool_error = failure.error
+                    if failure.result != "":
+                        result = failure.result
+                elif isinstance(ex, ValueError):
+                    # a ValueError other than the embedded-null-byte case is a
+                    # bug, not a tool failure: propagate it as before
+                    raise
+                else:
+                    tool_exception = ex
 
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
@@ -694,6 +643,102 @@ async def _execute_tools_impl(
 
     else:
         return ExecuteToolsResult([])
+
+
+class ToolCallFailure(NamedTuple):
+    """A tool exception the model sees as a tool error rather than a sample error."""
+
+    error: ToolCallError
+    result: ToolResult
+    """Partial output to record with the error (a timeout's truncated output, else "")."""
+
+
+def tool_call_failure(ex: Exception, function: str) -> ToolCallFailure | None:
+    """Map an exception raised while calling `function` to the `ToolCallError` the model sees.
+
+    Returns `None` for exceptions that are not tool failures: an unexpected
+    exception, which the caller records as a hard failure and propagates, and a
+    `ValueError` other than CPython's embedded-null-byte error, which the caller
+    re-raises. The checks run in the order the original `except` chain did, so a
+    `UnicodeDecodeError` (a `ValueError`) is a decode error and a
+    `SandboxTimeoutError` (a `TimeoutError`) is a timeout carrying partial output.
+
+    Args:
+        ex: Exception raised by the tool call.
+        function: Name of the tool called, for messages that mention it.
+    """
+    if isinstance(ex, TimeoutError):
+        result: ToolResult = ""
+        if isinstance(ex, SandboxTimeoutError) and ex.truncated_output:
+            result = ex.truncated_output
+        return ToolCallFailure(
+            ToolCallError("timeout", "Command timed out before completing."), result
+        )
+    if isinstance(ex, UnicodeDecodeError):
+        return ToolCallFailure(
+            ToolCallError(
+                "unicode_decode",
+                f"Error decoding bytes to {ex.encoding}: {ex.reason}",
+            ),
+            "",
+        )
+    if isinstance(ex, ValueError):
+        # CPython's subprocess module raises ValueError("embedded null byte")
+        # when a command or argument string contains '\x00'. Surface it as
+        # a tool error so the model can recover instead of crashing the sample.
+        if "embedded null byte" in str(ex):
+            return ToolCallFailure(
+                ToolCallError(
+                    "parsing",
+                    f"An argument to tool '{function}' contained an embedded null byte.",
+                ),
+                "",
+            )
+        return None
+    if isinstance(ex, SandboxUnavailableError):
+        # Preserve the tool loop's existing non-terminal behavior while
+        # surfacing sandbox unavailability as a failed tool call. Evals
+        # that need it to be terminal can enforce that policy in their
+        # agent logic.
+        return ToolCallFailure(ToolCallError("sandbox_unavailable", str(ex)), "")
+    if isinstance(ex, PermissionError):
+        err = f"{ex.strerror or str(ex)}."
+        if isinstance(ex.filename, str):
+            err = f"{err} Filename '{ex.filename}'."
+        return ToolCallFailure(ToolCallError("permission", err), "")
+    if isinstance(ex, FileNotFoundError):
+        if isinstance(ex.filename, str):
+            err = f"File '{ex.filename}' was not found."
+        else:
+            err = ex.strerror or str(ex)
+        return ToolCallFailure(ToolCallError("file_not_found", err), "")
+    if isinstance(ex, IsADirectoryError):
+        err = f"{ex.strerror or str(ex)}."
+        if isinstance(ex.filename, str):
+            err = f"{err} Filename '{ex.filename}'."
+        return ToolCallFailure(ToolCallError("is_a_directory", err), "")
+    if isinstance(ex, OutputLimitExceededError):
+        return ToolCallFailure(
+            ToolCallError(
+                "limit", f"The tool exceeded its output limit of {ex.limit_str}."
+            ),
+            ex.truncated_output or "",
+        )
+    if isinstance(ex, LimitExceededError):
+        return ToolCallFailure(
+            ToolCallError(
+                "limit",
+                f"The tool exceeded its {ex.type} limit of {ex.limit_str}.",
+            ),
+            "",
+        )
+    if isinstance(ex, ToolParsingError):
+        return ToolCallFailure(ToolCallError("parsing", ex.message), "")
+    if isinstance(ex, ToolApprovalError):
+        return ToolCallFailure(ToolCallError("approval", ex.message), "")
+    if isinstance(ex, ToolError):
+        return ToolCallFailure(ToolCallError("unknown", ex.message), "")
+    return None
 
 
 class CalledTool(NamedTuple):
