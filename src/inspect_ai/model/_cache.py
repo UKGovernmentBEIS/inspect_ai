@@ -160,6 +160,11 @@ _CACHE_KEY_DROPPED_FIELDS = {
     "stream_idle_timeout",
     "cache",
     "batch",
+    # never reaches the provider request (it decides what generate() does with
+    # a refusal, and refusals are never cached), so a cache hit can't depend on
+    # it. Unlike the fields above it *does* change sample outcomes, so it stays
+    # in eval-set task identity (GENERATE_CONFIG_FIELDS_TO_EXCLUDE).
+    "fail_on_refusal",
 }
 
 _CACHE_KEY_NEUTRALIZED_FIELDS = {

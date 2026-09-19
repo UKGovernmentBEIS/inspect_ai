@@ -122,14 +122,6 @@
     }
   },
   "src/inspect_ai/_control/server.py": {
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[method-assign]": {
-      "count": 1,
-      "undescribed": 1
-    },
     "type: ignore[misc]": {
       "count": 1,
       "undescribed": 1
@@ -205,12 +197,6 @@
   },
   "src/inspect_ai/_util/_async.py": {
     "type: ignore": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
-  "src/inspect_ai/_util/asyncfiles.py": {
-    "type: ignore[arg-type]": {
       "count": 1,
       "undescribed": 1
     }
@@ -760,12 +746,6 @@
       "undescribed": 3
     }
   },
-  "src/inspect_ai/model/_providers/bedrock.py": {
-    "type: ignore[call-overload]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "src/inspect_ai/model/_providers/google.py": {
     "type: ignore[arg-type]": {
       "count": 4,
@@ -841,17 +821,13 @@
     }
   },
   "src/inspect_ai/model/_providers/sagemaker.py": {
-    "type: ignore[call-overload]": {
-      "count": 1,
-      "undescribed": 1
-    },
     "type: ignore[dict-item]": {
       "count": 1,
       "undescribed": 1
     },
     "type: ignore[import-untyped]": {
-      "count": 3,
-      "undescribed": 3
+      "count": 1,
+      "undescribed": 1
     }
   },
   "src/inspect_ai/model/_providers/sglang.py": {
@@ -1726,12 +1702,6 @@
       "undescribed": 3
     }
   },
-  "tests/model/providers/test_openrouter.py": {
-    "type: ignore[typeddict-item]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "tests/model/providers/test_transformer_lens.py": {
     "type: ignore": {
       "count": 4,
@@ -1891,12 +1861,6 @@
     "type: ignore[arg-type]": {
       "count": 2,
       "undescribed": 2
-    }
-  },
-  "tests/test_task_retry_error_history.py": {
-    "type: ignore[arg-type]": {
-      "count": 4,
-      "undescribed": 4
     }
   },
   "tests/tools/test_call_tools.py": {
