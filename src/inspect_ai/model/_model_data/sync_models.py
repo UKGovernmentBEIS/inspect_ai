@@ -124,7 +124,7 @@ def load_curated_model_keys(data_dir: Path) -> set[str]:
     for info_file in sorted(data_dir.glob("*.yml")):
         if info_file.name in GENERATED_FILES:
             continue
-        with open(info_file) as f:
+        with open(info_file, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         for org, org_data in data.items():
             for model_name, model_def in (org_data.get("models") or {}).items():
