@@ -315,23 +315,21 @@ def _identity_parity(check_root: bool = True) -> Solver:
         if not check_root:
             return state
 
-        # Responses over the exec output limit spill into a shared 1733 chunk root
-        # that the CLI, running as root for the daemon tools, may create first. A
-        # chunked text_editor response as the default user must still work then.
-        # (The limit is lowered because the editor clips its output at 16k chars.)
-        chunk_root = f"{SANDBOX_TOOLS_DIR}-json-rpc-chunks"
-        made = await sb.exec(["mkdir", "-m", "1733", chunk_root], user="root")
-        assert made.success, made.stderr
+        # Responses over the exec output limit spill into root's private chunk
+        # directory, which the CLI reserves a file in before switching to the
+        # default user. (The limit is lowered because the editor clips its output
+        # at 16k chars.)
         big = f"{path}.big"
         await sb.write_file(big, "".join(f"line {i}\n" for i in range(800)))
         with override_max_exec_output_size(4096):
             view = str(await text_editor()(command="view", path=big))
         assert "line 799" in view, view[-200:]
-        # the response really was chunked, by the default user
         spilled = await sb.exec(
-            ["stat", "-c", "%u", f"{chunk_root}/{uid}"], user="root"
+            ["stat", "-c", "%u %a", f"{SERVER_DIR}/chunks"], user="root"
         )
-        assert spilled.success and spilled.stdout.strip() == uid, spilled
+        assert spilled.success and spilled.stdout.strip() == "0 700", spilled
+        sibling = await sb.exec(["test", "-e", f"{SANDBOX_TOOLS_DIR}-json-rpc-chunks"])
+        assert not sibling.success, "no shared chunk root beside the tools dir"
 
         # explicit user= still overrides the default
         root = ExecRemoteAwaitableOptions(user="root")

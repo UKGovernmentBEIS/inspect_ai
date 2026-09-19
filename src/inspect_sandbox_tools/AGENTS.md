@@ -72,7 +72,11 @@ Tools communicate through a two-layer RPC architecture:
 1. Tool creates JSON-RPC request on host
 2. `SandboxJSONRPCTransport` executes: `sandbox.exec(["/var/tmp/.da7be258e003d428/inspect-sandbox-tools", "exec"], input=json_rpc_request)`
 3. JSON-RPC payload passed via stdin to the injected executable
-4. Response returns via stdout
+4. Response returns via stdout. A response larger than the host's exec output limit is
+   spilled to a chunk file in `.server/chunks` (private to the tools user) and fetched
+   by the host in continuation requests. When the executable switches to a sandbox user
+   for an in-process tool, it reserves the chunk file before switching, so the response
+   still lands in tools-user storage.
 
 **Layer 2 - Container Internal (stateful operations):**
 1. When stateful execution is needed, the injected executable acts as a client
