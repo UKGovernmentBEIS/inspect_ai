@@ -2,6 +2,7 @@ from rich.console import RenderableType
 from rich.text import Text
 
 from inspect_ai._util.retry import http_retries_count
+from inspect_ai.log._reasoning import reasoning_exhausted_count
 from inspect_ai.log._refusal import refusal_count
 from inspect_ai.model._throughput import throughput_footer_rate
 from inspect_ai.util._concurrency import concurrency_status_display
@@ -32,6 +33,12 @@ def task_counters(counters: dict[str, str]) -> str:
     refusals = refusal_count()
     if refusals > 0:
         counters = counters | {"Refusals": f"{refusals:,}"}
+
+    # responses that hit the output limit with the budget consumed by reasoning: scored
+    # from an empty completion, so worth surfacing next to refusals
+    exhausted = reasoning_exhausted_count()
+    if exhausted > 0:
+        counters = counters | {"Reasoning budget exhausted": f"{exhausted:,}"}
 
     return task_dict(counters)
 

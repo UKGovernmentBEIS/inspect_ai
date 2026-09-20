@@ -1327,6 +1327,7 @@ class Model:
             get_all_hooks,
         )
         from inspect_ai.hooks._legacy import send_telemetry_legacy
+        from inspect_ai.log._reasoning import report_reasoning_exhausted
         from inspect_ai.log._refusal import report_refusal
         from inspect_ai.log._samples import (
             cleared_retry_wait,
@@ -1749,6 +1750,11 @@ class Model:
         # report refusal
         if not model_output.empty and model_output.stop_reason == "content_filter":
             report_refusal(model_output.completion)
+
+        # report (and count) a response whose output budget was consumed by reasoning:
+        # it stops at the output limit with an empty completion, so the sample is scored
+        # from nothing -- without this the zero looks like a wrong answer
+        report_reasoning_exhausted(model_output)
 
         # return results
         return model_output, event

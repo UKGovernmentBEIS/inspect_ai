@@ -7,6 +7,7 @@ from inspect_ai._util.logger import init_logger
 from inspect_ai.approval._apply import have_tool_approval, init_tool_approval
 from inspect_ai.approval._human.manager import init_human_approval_manager
 from inspect_ai.approval._policy import ApprovalPolicy
+from inspect_ai.log._reasoning import init_reasoning_exhausted_tracking
 from inspect_ai.log._refusal import init_refusal_tracking
 from inspect_ai.log._samples import init_active_samples
 from inspect_ai.model import GenerateConfig, Model
@@ -44,6 +45,7 @@ def init_eval_context(
     init_runtime_context(max_subprocesses)
     init_logger(log_level, log_level_transcript)
     init_refusal_tracking(log_refusals)
+    init_reasoning_exhausted_tracking()
     init_active_samples()
     init_human_approval_manager()
     init_human_question_manager()
