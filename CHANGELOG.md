@@ -2,6 +2,7 @@
 
 - Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
 - Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
+- Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
 
 ## 0.3.266 (19 September 2026)
 
