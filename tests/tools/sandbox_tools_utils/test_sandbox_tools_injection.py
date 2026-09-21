@@ -1285,8 +1285,11 @@ async def test_local_sandbox_is_probed_as_the_current_user_without_warning() -> 
     assert local._root_access is access
     assert sandbox_tools._root_probe_user(SandboxEnvironmentProxy(local)) is None
     assert not [w for w in caught if issubclass(w.category, UserWarning)], caught
-    if sys.platform == "linux":
-        assert access.state == ("usable" if os.geteuid() == 0 else "unusable")
+    if sys.platform == "linux" and os.geteuid() != 0:
+        assert access.state == "unusable"
+    elif sys.platform == "linux":
+        # root, but possibly with capabilities dropped: definitive either way
+        assert access.state in ("usable", "unusable")
     else:
         # no /proc, so the probe reports no identity
         assert access.state == "ambiguous"

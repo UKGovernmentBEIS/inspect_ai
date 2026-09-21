@@ -142,9 +142,8 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
 
     The check records no transcript events: it repeats on every tool call and its
     argv carries the whole verification script, so logging it would add kilobytes
-    of identical shell to the transcript per call. The injection and the one-off
-    root probe (see ``resolve_root_access``), which each run once per sandbox, are
-    still recorded.
+    of identical shell to the transcript per call. The injection, and the root
+    probe at sample init (see ``resolve_root_access``), are still recorded.
 
     Raises:
         SandboxDefaultUserError: A trustworthy root installation was found but the
@@ -214,14 +213,14 @@ def _without_sandbox_events(
 
 # The tool list must stay in step with the callers of sandbox_with_injected_tools().
 _AMBIGUOUS_ROOT_ACCESS_WARNING = (
-    "Sandbox tools: a sandbox's root check returned no result (the sandbox provider "
-    "raised an error or produced no output), so Inspect could not tell whether it "
-    "can run commands as root. Everything that runs through the tooling Inspect "
-    "installs into the sandbox (bash_session, text_editor, sandbox MCP servers, "
-    "exec_remote and the sandbox agent bridge) therefore runs as the sandbox's "
-    "default user, the same user the agent's own commands run as. That is expected "
-    "for sandboxes that cannot run as root; if root is in fact available, that "
-    "tooling is not isolated from the agent's code. The check is recorded under "
+    "Sandbox tools: a sandbox's root check produced no verdict (the sandbox provider "
+    "raised an error or returned nothing the check could read), so Inspect could not "
+    "tell whether it can run commands as root. Everything that runs through the "
+    "tooling Inspect installs into the sandbox (bash_session, text_editor, sandbox "
+    "MCP servers, exec_remote and the sandbox agent bridge) therefore runs as the "
+    "sandbox's default user, the same user the agent's own commands run as. That is "
+    "expected for sandboxes that cannot run as root; if root is in fact available, "
+    "that tooling is not isolated from the agent's code. The check is recorded under "
     "'Sandbox Tools' in the trace log and, when the provider returned output, as a "
     "sandbox exec event at the start of the sample."
 )
@@ -351,8 +350,9 @@ async def resolve_root_access(sandbox: SandboxEnvironment) -> RootAccess:
     provider object behind it, which ``as_type()`` hands out, in both directions: a
     decision that object already carries is adopted (a provider may return one
     object under several names), and a fresh probe is recorded on both. In an eval
-    the probe is one ``SandboxEvent`` in the sample's init span: the durable record
-    of which sandbox reached which verdict, for a security-relevant decision.
+    the probe at sample init is one ``SandboxEvent`` in the sample's init span, the
+    durable record of which sandbox reached which verdict, whenever the provider
+    returns a result; a provider that raises leaves only the trace-log entry.
     """
     if sandbox._root_access is None:
         inner = (
