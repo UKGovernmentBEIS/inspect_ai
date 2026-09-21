@@ -104,106 +104,6 @@ class ExecuteToolsResult(NamedTuple):
     """Model output if a generation occurred within the conversation."""
 
 
-class MappedToolCallError(NamedTuple):
-    """A tool call exception the model sees as a `ToolCallError`."""
-
-    error: ToolCallError
-    """The error reported in the tool message."""
-
-    result: ToolResult | None
-    """Output the model still receives alongside the error (e.g. truncated output), or `None` to leave the result as is."""
-
-
-def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
-    """Map an exception raised by a tool call to the error the model sees.
-
-    A fixed set of exception types are the model's problem: the call is reported
-    to it as a `ToolCallError` and the sample continues. For anything else
-    `None` is returned and the exception is the eval's fault (the sample fails).
-    This is the single definition of that set: `execute_tools` applies it to
-    native calls and the sandbox agent bridge classifies host tool exceptions
-    with it.
-
-    Args:
-       ex: The exception, already unwrapped from any `ExceptionGroup`.
-       function: Name of the tool that was called (used in messages).
-    """
-    if isinstance(ex, TimeoutError):
-        return MappedToolCallError(
-            ToolCallError("timeout", "Command timed out before completing."),
-            ex.truncated_output
-            if isinstance(ex, SandboxTimeoutError) and ex.truncated_output
-            else None,
-        )
-    elif isinstance(ex, UnicodeDecodeError):
-        return MappedToolCallError(
-            ToolCallError(
-                "unicode_decode",
-                f"Error decoding bytes to {ex.encoding}: {ex.reason}",
-            ),
-            None,
-        )
-    elif isinstance(ex, ValueError):
-        # CPython's subprocess module raises ValueError("embedded null byte")
-        # when a command or argument string contains '\x00'. Surface it as
-        # a tool error so the model can recover instead of crashing the sample.
-        if "embedded null byte" in str(ex):
-            return MappedToolCallError(
-                ToolCallError(
-                    "parsing",
-                    f"An argument to tool '{function}' contained an embedded null byte.",
-                ),
-                None,
-            )
-        return None
-    elif isinstance(ex, SandboxUnavailableError):
-        # Preserve the tool loop's existing non-terminal behavior while
-        # surfacing sandbox unavailability as a failed tool call. Evals
-        # that need it to be terminal can enforce that policy in their
-        # agent logic.
-        return MappedToolCallError(ToolCallError("sandbox_unavailable", str(ex)), None)
-    elif isinstance(ex, PermissionError):
-        err = f"{ex.strerror or str(ex)}."
-        if isinstance(ex.filename, str):
-            err = f"{err} Filename '{ex.filename}'."
-        return MappedToolCallError(ToolCallError("permission", err), None)
-    elif isinstance(ex, FileNotFoundError):
-        if isinstance(ex.filename, str):
-            err = f"File '{ex.filename}' was not found."
-        else:
-            err = ex.strerror or str(ex)
-        return MappedToolCallError(ToolCallError("file_not_found", err), None)
-    elif isinstance(ex, IsADirectoryError):
-        err = f"{ex.strerror or str(ex)}."
-        if isinstance(ex.filename, str):
-            err = f"{err} Filename '{ex.filename}'."
-        return MappedToolCallError(ToolCallError("is_a_directory", err), None)
-    elif isinstance(ex, OutputLimitExceededError):
-        return MappedToolCallError(
-            ToolCallError(
-                "limit",
-                f"The tool exceeded its output limit of {ex.limit_str}.",
-            ),
-            ex.truncated_output or "",
-        )
-    elif isinstance(ex, LimitExceededError):
-        return MappedToolCallError(
-            ToolCallError(
-                "limit",
-                f"The tool exceeded its {ex.type} limit of {ex.limit_str}.",
-            ),
-            None,
-        )
-    elif isinstance(ex, ToolParsingError):
-        return MappedToolCallError(ToolCallError("parsing", ex.message), None)
-    elif isinstance(ex, ToolApprovalError):
-        return MappedToolCallError(ToolCallError("approval", ex.message), None)
-    elif isinstance(ex, ToolError):
-        return MappedToolCallError(ToolCallError("unknown", ex.message), None)
-    else:
-        return None
-
-
 async def execute_tools(
     messages: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
@@ -316,68 +216,30 @@ async def _execute_tools_impl(
                 except Exception as ex:
                     inner_ex = inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
-
             except Exception as ex:
-                mapped = tool_call_error(ex, call.function)
-                if mapped is not None:
-                    tool_error = mapped.error
-                    if mapped.result is not None:
-                        result = mapped.result
+                # shared classification with the human agent tool path — the
+                # same exception yields the same ToolCallError on both paths
+                classified = tool_call_error(ex, call.function)
+                if classified is not None:
+                    tool_error = classified.error
+                    if classified.result is not None:
+                        result = classified.result
                 elif isinstance(ex, ValueError):
-                    # pre-existing: a ValueError other than the null-byte case
-                    # escapes the per-call handler rather than being captured
+                    # historical model-path behavior: ordinary ValueErrors
+                    # propagate immediately rather than staging as a
+                    # tool exception
                     raise
                 else:
                     tool_exception = ex
 
             # massage result, leave list[Content] alone, convert all other
-            # types to string as that is what the model APIs accept
-            truncated: tuple[int, int] | None = None
-            if isinstance(
+            # types to string as that is what the model APIs accept (shared
+            # with the human agent tool path)
+            content, truncated = resolve_tool_content(
                 result,
-                ContentText
-                | ContentImage
-                | ContentAudio
-                | ContentVideo
-                | ContentDocument,
-            ):
-                content: (
-                    str
-                    | list[
-                        ContentText
-                        | ContentImage
-                        | ContentAudio
-                        | ContentVideo
-                        | ContentDocument
-                    ]
-                ) = [result]
-            elif isinstance(result, list) and all(
-                isinstance(
-                    r,
-                    ContentText
-                    | ContentImage
-                    | ContentAudio
-                    | ContentVideo
-                    | ContentDocument,
-                )
-                for r in result
-            ):
-                content = result
-            else:
-                content = str(result)
-
-                # truncate if necessary
-                truncated_output = truncate_tool_output(
-                    call.function,
-                    content,
-                    _tool_max_output(tdefs, call.function, max_output),
-                )
-                if truncated_output:
-                    content = truncated_output.output
-                    truncated = (
-                        truncated_output.raw_bytes,
-                        truncated_output.truncated_bytes,
-                    )
+                call.function,
+                _tool_max_output(tdefs, call.function, max_output),
+            )
 
             # create event
             result_event = ToolEvent(
@@ -1292,6 +1154,210 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return input
     else:
         return input
+
+
+class MappedToolCallError(NamedTuple):
+    """A tool-execution exception mapped to the error the model/human sees.
+
+    Shared by the model tool path and the human agent tool path (#3053) so
+    both produce identical ToolCallError types and partial results for the
+    same exception. Returned from tool_call_error(); None means the
+    exception is unexpected. The agreed contract is that both paths fail
+    the sample on an unexpected exception, but this is implemented and
+    tested only for the model path so far: #3053's caller change to apply
+    that disposition on the human agent path, and its corresponding tests,
+    remain outstanding.
+    """
+
+    error: ToolCallError
+    result: ToolResult | None = None
+
+
+def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
+    """Map a tool-execution exception to the error the caller reports.
+
+    Callers must normalize exception groups (inner_exception()) first.
+    Control-flow exceptions are classified where they have a tool-error
+    rendering (limits) — callers with propagation semantics re-raise after
+    recording. Unexpected exceptions (including non-embedded-null-byte
+    ValueErrors) return None: this function is policy-free, and each
+    caller applies its own disposition.
+
+    Args:
+        ex: The (normalized) exception raised by tool execution.
+        function: Tool function name (used in messages).
+
+    Returns:
+        MappedToolCallError with the error (and any partial result, e.g.
+        truncated output from a sandbox timeout, or None if there is no
+        partial result), or None if the exception is unexpected.
+    """
+    if isinstance(ex, TimeoutError):
+        return MappedToolCallError(
+            error=ToolCallError("timeout", "Command timed out before completing."),
+            result=ex.truncated_output
+            if isinstance(ex, SandboxTimeoutError) and ex.truncated_output
+            else None,
+        )
+    elif isinstance(ex, UnicodeDecodeError):
+        return MappedToolCallError(
+            error=ToolCallError(
+                "unicode_decode",
+                f"Error decoding bytes to {ex.encoding}: {ex.reason}",
+            )
+        )
+    elif isinstance(ex, ValueError) and "embedded null byte" in str(ex):
+        # CPython's subprocess module raises ValueError("embedded null byte")
+        # when a command or argument string contains '\x00'. Surface it as
+        # a tool error so the model can recover instead of crashing the sample.
+        # (Other ValueErrors are unexpected — callers apply their own policy.)
+        return MappedToolCallError(
+            error=ToolCallError(
+                "parsing",
+                f"An argument to tool '{function}' contained an embedded null byte.",
+            )
+        )
+    elif isinstance(ex, SandboxUnavailableError):
+        # Preserve the tool loop's existing non-terminal behavior while
+        # surfacing sandbox unavailability as a failed tool call. Evals
+        # that need it to be terminal can enforce that policy in their
+        # agent logic.
+        return MappedToolCallError(error=ToolCallError("sandbox_unavailable", str(ex)))
+    elif isinstance(ex, PermissionError):
+        err = f"{ex.strerror or str(ex)}."
+        if isinstance(ex.filename, str):
+            err = f"{err} Filename '{ex.filename}'."
+        return MappedToolCallError(error=ToolCallError("permission", err))
+    elif isinstance(ex, FileNotFoundError):
+        if isinstance(ex.filename, str):
+            err = f"File '{ex.filename}' was not found."
+        else:
+            err = ex.strerror or str(ex)
+        return MappedToolCallError(error=ToolCallError("file_not_found", err))
+    elif isinstance(ex, IsADirectoryError):
+        err = f"{ex.strerror or str(ex)}."
+        if isinstance(ex.filename, str):
+            err = f"{err} Filename '{ex.filename}'."
+        return MappedToolCallError(error=ToolCallError("is_a_directory", err))
+    elif isinstance(ex, OutputLimitExceededError):
+        return MappedToolCallError(
+            error=ToolCallError(
+                "limit",
+                f"The tool exceeded its output limit of {ex.limit_str}.",
+            ),
+            # Note the sentinel here is "" (not None): a limit-truncated
+            # result of zero bytes is still a known ("no output") partial
+            # result, distinct from "no partial result available" (None).
+            result=ex.truncated_output or "",
+        )
+    elif isinstance(ex, LimitExceededError):
+        return MappedToolCallError(
+            error=ToolCallError(
+                "limit",
+                f"The tool exceeded its {ex.type} limit of {ex.limit_str}.",
+            )
+        )
+    elif isinstance(ex, ToolParsingError):
+        return MappedToolCallError(error=ToolCallError("parsing", ex.message))
+    elif isinstance(ex, ToolApprovalError):
+        return MappedToolCallError(error=ToolCallError("approval", ex.message))
+    elif isinstance(ex, ToolError):
+        return MappedToolCallError(error=ToolCallError("unknown", ex.message))
+    else:
+        return None
+
+
+class ClassifiedToolException(NamedTuple):
+    """A tool-execution exception classified as an expected tool failure.
+
+    Compatibility adapter for #3053's human agent tool path, which passes
+    `result` straight into `resolve_tool_content()` and needs the "no
+    partial result" sentinel to be `""`, not `None`. `tool_call_error()`
+    is the single classification implementation; this wraps it and
+    translates only that sentinel — it does not re-derive classification.
+    """
+
+    error: ToolCallError
+    result: ToolResult = ""
+
+
+def classify_tool_exception(
+    ex: Exception, function: str
+) -> ClassifiedToolException | None:
+    """Classify a tool-execution exception as an expected tool failure.
+
+    Thin adapter over tool_call_error() for #3053: translates its `None`
+    "no partial result" sentinel to `""`. See ClassifiedToolException.
+
+    Args:
+        ex: The (normalized) exception raised by tool execution.
+        function: Tool function name (used in messages).
+
+    Returns:
+        ClassifiedToolException with the error (and any partial result,
+        e.g. truncated output from a sandbox timeout), or None if the
+        exception is unexpected.
+    """
+    mapped = tool_call_error(ex, function)
+    if mapped is None:
+        return None
+    return ClassifiedToolException(
+        error=mapped.error, result=mapped.result if mapped.result is not None else ""
+    )
+
+
+ToolResultContent = (
+    str
+    | list[ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument]
+)
+"""Content forms a tool result may take after massaging."""
+
+
+def resolve_tool_content(
+    result: ToolResult, function: str, max_output: int | None
+) -> tuple[ToolResultContent, tuple[int, int] | None]:
+    """Massage a tool result for recording, truncating oversize text.
+
+    Shared by the model tool path and the human agent tool path: valid
+    Content values (single or list) pass through structurally untouched;
+    everything else is stringified and truncated to the active output cap.
+
+    Args:
+        result: Raw ToolResult from tool execution.
+        function: Tool function name (used in the truncation marker).
+        max_output: Maximum output bytes (None uses the active generate
+            config, falling back to the 16 KiB default).
+
+    Returns:
+        Tuple of recorded content and (raw_bytes, truncated_bytes) when
+        truncation occurred (None otherwise).
+    """
+    truncated: tuple[int, int] | None = None
+    if isinstance(
+        result,
+        ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument,
+    ):
+        content: ToolResultContent = [result]
+    elif isinstance(result, list) and all(
+        isinstance(
+            r,
+            ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument,
+        )
+        for r in result
+    ):
+        content = result
+    else:
+        content = str(result)
+
+        # truncate if necessary
+        truncated_output = truncate_tool_output(function, content, max_output)
+        if truncated_output:
+            content = truncated_output.output
+            truncated = (
+                truncated_output.raw_bytes,
+                truncated_output.truncated_bytes,
+            )
+    return content, truncated
 
 
 def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | None:
