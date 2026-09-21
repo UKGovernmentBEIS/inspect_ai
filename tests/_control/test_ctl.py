@@ -5655,7 +5655,12 @@ def test_task_score_polls_to_completion(monkeypatch: pytest.MonkeyPatch) -> None
             },
             "samples": [],
             "metrics": [
-                {"scorer": "match", "reducer": None, "metrics": {"accuracy": 0.5}}
+                {
+                    "name": "match",
+                    "scorer": "match",
+                    "reducer": None,
+                    "metrics": {"accuracy": 0.5},
+                }
             ],
             "interim": True,
             "epochs": 1,
