@@ -37,6 +37,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai_responses import ResponsesModelInfo
+from inspect_ai.model._providers.openai import OpenAIAPI
 from inspect_ai.model._providers.openai_completions import generate_completions
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.hooks import HttpxHooks
@@ -748,6 +749,18 @@ def _echo_content(rubric: str, tail_digit: str) -> list[Content]:
     ]
 
 
+def _assert_route(model: Any, expected_responses_api: bool) -> None:
+    """Assert which API route `model` actually resolved to.
+
+    gpt-5 family models default to the Responses API when num_choices is
+    unset (see OpenAIAPI.responses_preferred); assert the actual route
+    rather than assuming it from the model name or an explicit kwarg alone.
+    """
+    api = model.api
+    assert isinstance(api, OpenAIAPI)
+    assert api.responses_api is expected_responses_api
+
+
 @pytest.mark.anyio
 @skip_if_no_openai
 @skip_if_no_openai_model(_GPT_5_6_MODEL)
@@ -755,7 +768,14 @@ async def test_openai_explicit_cache_breakpoint_reuses_marked_prefix_completions
     None
 ):
     """A marked stable rubric is read from cache on a second Chat Completions call."""
-    model = get_model(f"openai/{_GPT_5_6_MODEL}", config=_LIVE_CONFIG)
+    # gpt-5 family models default to the Responses API when num_choices is
+    # unset (see OpenAIAPI.responses_preferred); force Chat Completions
+    # explicitly so this test doesn't silently exercise the same route as
+    # the Responses test below.
+    model = get_model(
+        f"openai/{_GPT_5_6_MODEL}", responses_api=False, config=_LIVE_CONFIG
+    )
+    _assert_route(model, False)
     rubric = _unique_rubric()
 
     out1 = await model.generate(
@@ -785,6 +805,7 @@ async def test_openai_explicit_cache_breakpoint_reuses_marked_prefix_responses()
     model = get_model(
         f"openai/{_GPT_5_6_MODEL}", responses_api=True, config=_LIVE_CONFIG
     )
+    _assert_route(model, True)
     rubric = _unique_rubric()
 
     out1 = await model.generate(
@@ -818,9 +839,12 @@ async def test_openai_unsupported_model_with_mark_falls_back_without_error() -> 
 @pytest.mark.anyio
 @skip_if_no_openai
 @skip_if_no_openai_model(_GPT_5_6_MODEL)
-async def test_openai_initial_system_checkpoint_reused_across_changing_marked_prefix() -> (
-    None
-):
+@pytest.mark.parametrize(
+    "responses_api", [False, True], ids=["completions", "responses"]
+)
+async def test_openai_initial_system_checkpoint_reused_across_changing_marked_prefix(
+    responses_api: bool,
+) -> None:
     """R5: the automatic initial-system checkpoint is reused even as the caller's own mark changes.
 
     The leading system block is left unmarked (so it gets Inspect's
@@ -828,9 +852,15 @@ async def test_openai_initial_system_checkpoint_reused_across_changing_marked_pr
     call — cannot itself be read back. The second call's cache read must
     still be positive and strictly smaller than the first call's cache
     write, showing the reused amount is attributable only to the stable
-    system prefix, not to the (changed, unreusable) rubric.
+    system prefix, not to the (changed, unreusable) rubric. Parametrized
+    over both API routes: gpt-5 family models default to Responses when
+    num_choices is unset, so the route must be forced explicitly rather
+    than assumed from the model name.
     """
-    model = get_model(f"openai/{_GPT_5_6_MODEL}", config=_LIVE_CONFIG)
+    model = get_model(
+        f"openai/{_GPT_5_6_MODEL}", responses_api=responses_api, config=_LIVE_CONFIG
+    )
+    _assert_route(model, responses_api)
     system = ChatMessageSystem(content=_unique_rubric())
 
     async def call(rubric: str, tail_digit: str) -> ModelOutput:
