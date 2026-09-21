@@ -1325,6 +1325,26 @@ async def test_resolve_shares_the_decision_between_proxy_and_provider_object() -
     assert recorded.exec_calls == []
 
 
+async def test_resolve_tolerates_a_provider_that_skips_the_base_init() -> None:
+    """Several providers (k8s among them) never call `SandboxEnvironment.__init__`."""
+
+    class BareSandbox(CannedSandbox):
+        def __init__(self) -> None:
+            self.policy = lambda cmd, user: root_probe_result()
+            self.exec_calls = []
+            self.inputs = []
+            self.envs = []
+            self.concurrency = []
+            self.timeouts = []
+            self.written = []
+
+    inner = BareSandbox()
+    access = await sandbox_tools.resolve_root_access(SandboxEnvironmentProxy(inner))
+    assert access.state == "usable"
+    assert inner._root_access is access
+    assert await sandbox_tools.resolve_root_access(inner) is access
+
+
 def provider(**policies: ExecPolicy) -> type[SandboxEnvironment]:
     """A sandbox provider whose sample holds one canned sandbox per policy."""
 

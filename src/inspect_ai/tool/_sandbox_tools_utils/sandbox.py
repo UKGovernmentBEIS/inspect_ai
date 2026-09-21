@@ -358,8 +358,7 @@ async def resolve_root_access(sandbox: SandboxEnvironment) -> RootAccess:
         inner = (
             sandbox._sandbox if isinstance(sandbox, SandboxEnvironmentProxy) else None
         )
-        # belt and suspenders in case the provider forgot to call __init__
-        recorded: RootAccess | None = getattr(inner, "_root_access", None)
+        recorded = inner._root_access if inner is not None else None
         if recorded is not None:
             sandbox._root_access = recorded
             return recorded
