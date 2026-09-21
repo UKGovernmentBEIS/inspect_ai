@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Grok: Support for Grok 4.7.
 - Bugfix: `bash_session` no longer sends the literal string "None" to the shell when `type_submit` is called without `input`.
 - Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
 - Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
