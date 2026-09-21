@@ -8,6 +8,7 @@ description: Model interface and providers.
 ### get_model
 ### Model
 ### ModelRole
+### ModelRoles
 ### GenerateConfig
 ### GenerateConfigArgs
 ### GenerateFilter
@@ -23,6 +24,15 @@ description: Model interface and providers.
 ### OutputModality
 ### ImageOutput
 ### RetryDecision
+
+## Streaming
+
+### StreamHandler
+### StreamEvent
+### StreamTextEvent
+### StreamReasoningEvent
+### StreamToolCallEvent
+### StreamRetryEvent
 
 ## Messages
 
@@ -78,6 +88,7 @@ description: Model interface and providers.
 ### get_model_info
 ### set_model_info
 ### set_model_cost
+### compute_model_cost
 ### ModelInfo
 ### ModelCost
 ### model_roles
@@ -113,6 +124,3 @@ description: Model interface and providers.
 
 ### modelapi
 ### ModelAPI
-
-
-

@@ -4,6 +4,7 @@ import os
 from rich import print
 
 from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.entrypoints import ensure_entry_points
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import registry_info
 from inspect_ai.hooks._hooks import Hooks
@@ -41,6 +42,12 @@ def _load_registry_hooks() -> list[Hooks]:
         return []
 
     from inspect_ai.hooks._hooks import get_all_hooks
+
+    # registry_find() falls back to loading entry points only when its scan comes up
+    # empty, so a hook registered by an earlier import (e.g. init_legacy_hooks()
+    # importing the INSPECT_TELEMETRY package) would otherwise hide every
+    # entry-point hook from this once-per-process load.
+    ensure_entry_points()
 
     # Note that hooks loaded by virtue of load_file_tasks() -> load_module() (e.g.
     # if the user defines an @hook alongside their task) won't be loaded by now.

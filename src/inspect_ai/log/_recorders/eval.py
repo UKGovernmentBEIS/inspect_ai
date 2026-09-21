@@ -27,7 +27,18 @@ from typing import (
 from zipfile import ZipFile
 
 import anyio
+from ijson import IncompleteJSONError  # type: ignore[import-untyped]
+from ijson.backends.python import (  # type: ignore[import-untyped]
+    UnexpectedSymbol,
+)
 from pydantic import BaseModel, Field, JsonValue
+from tenacity import (
+    AsyncRetrying,
+    RetryCallState,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 from typing_extensions import override
 
 from inspect_ai._util._async import current_async_backend, tg_collect
@@ -42,6 +53,7 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem, local_path
 from inspect_ai._util.json import (
+    ExcludingObjectBuilder,
     is_ijson_int_overflow_error,
     is_ijson_nan_inf_error,
     jsonable_dict,
@@ -49,7 +61,13 @@ from inspect_ai._util.json import (
 )
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
-from inspect_ai._util.zipfile import zipfile_compress_kwargs
+from inspect_ai._util.zipfile import (
+    compact_zip,
+    copy_live_members,
+    zip_dead_bytes,
+    zip_needs_rewrite,
+    zipfile_compress_kwargs,
+)
 
 from .._condense import ATTACHMENT_PROTOCOL, condense_sample
 from .._config_update import ConfigUpdate
@@ -69,6 +87,7 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .file import FileRecorder, write_local_snapshot
+from .recorder import SampleRecordKey, exclude_sample_fields, sample_read_exclusions
 
 logger = getLogger(__name__)
 
@@ -173,6 +192,32 @@ class EvalRecorder(FileRecorder):
         return zip_file
 
     @override
+    async def log_seed(
+        self,
+        eval: EvalSpec,
+        prior: "str | Sequence[EvalSample]",
+        keep: set[tuple[str | int, int]] | None,
+    ) -> None:
+        # a byte copy is only valid same-format: a `.json` prior (a retry with
+        # an explicit `log_format="eval"`) or in-memory samples take the
+        # generic re-log path
+        if isinstance(prior, str) and self.handles_location(prior):
+            log = self.data[self._log_file_key(eval)]
+            await log.seed_from_prior_log(prior, keep)
+        else:
+            await super().log_seed(eval, prior, keep)
+
+    @override
+    def destination_written(self, eval: EvalSpec) -> bool:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            raise RuntimeError(
+                f"No log in progress for eval {eval.eval_id} "
+                "(finished, discarded, or never initialised)"
+            )
+        return log.destination_written
+
+    @override
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         log = self.data[self._log_file_key(eval)]
         start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval, plan=plan)
@@ -204,12 +249,17 @@ class EvalRecorder(FileRecorder):
 
     @override
     async def buffered_sample(
-        self, eval: EvalSpec, id: str | int, epoch: int
+        self,
+        eval: EvalSpec,
+        id: str | int,
+        epoch: int,
+        *,
+        exclude_fields: set[str] | None = None,
     ) -> EvalSample | None:
         log = self.data.get(self._log_file_key(eval))
         if log is None:
             return None
-        return await log.buffered_sample(id, epoch)
+        return await log.buffered_sample(id, epoch, exclude_fields=exclude_fields)
 
     @override
     async def log_config_update(self, eval: EvalSpec, update: ConfigUpdate) -> None:
@@ -221,11 +271,23 @@ class EvalRecorder(FileRecorder):
         # Skip while the destination hasn't been written at all: an inherited
         # snapshot recorded at logger init (a zip without start.json isn't
         # readable as an in-progress log, and log_start's own flush follows
-        # shortly), or a held retry attempt deferring every destination write
-        # until its reuse sweep settles — the journal entry rides out with
-        # the settle flush.
+        # shortly, carrying the journal entry with it).
         if log.destination_written:
             await log.flush(fsync=False)
+
+    @override
+    async def log_prune(self, eval: EvalSpec, keys: set[SampleRecordKey]) -> None:
+        log = self.data[self._log_file_key(eval)]
+        await log.prune_samples(keys)
+
+    @override
+    async def log_discard(
+        self, eval: EvalSpec, *, keep_destination: bool = False
+    ) -> None:
+        await self.close_seed_source(eval)
+        log = self.data.pop(self._log_file_key(eval), None)
+        if log is not None:
+            await log.discard(keep_destination=keep_destination)
 
     @override
     async def flush(self, eval: EvalSpec) -> None:
@@ -252,12 +314,16 @@ class EvalRecorder(FileRecorder):
         log_updates: list[LogUpdate] | None = None,
         config_updates: list[ConfigUpdate] | None = None,
     ) -> EvalLog:
+        await self.close_seed_source(eval)
         # get the key and log
         key = self._log_file_key(eval)
         log = self.data[key]
 
         # write the buffered samples
         await log.write_buffered_samples()
+
+        if status == "success":
+            await log.compact()
 
         # write consolidated summaries
         await log.write(SUMMARIES_JSON, log._summaries)
@@ -404,7 +470,9 @@ class EvalRecorder(FileRecorder):
                     None,
                 )
                 if sample is None:
-                    raise ValueError(f"Sample with uuid '{uuid}' not found in log.")
+                    raise IndexError(
+                        f"Sample with uuid '{uuid}' not found in log {location}"
+                    )
                 id = sample.id
                 epoch = sample.epoch
 
@@ -440,58 +508,61 @@ class EvalRecorder(FileRecorder):
         log: EvalLog,
         if_match_etag: str | None = None,
         header_only: bool = False,
-    ) -> None:
-        if filesystem(location).is_s3() and if_match_etag:
-            # Use S3 conditional write
-            await cls._write_log_s3_conditional(
+    ) -> str | None:
+        fs = filesystem(location)
+        if fs.is_s3() and (if_match_etag is not None or header_only):
+            return await cls._write_log_s3(
                 location, log, if_match_etag, header_only=header_only
             )
-        else:
-            # Standard write using the recorder (so we get all of the extra streams)
-            await _write_eval_log_with_recorder(
-                log, dirname(location), location, header_only=header_only
-            )
+
+        # Standard write using the recorder (so we get all of the extra streams)
+        return await _write_eval_log_with_recorder(
+            log, dirname(location), location, header_only=header_only
+        )
 
     @classmethod
-    async def _write_log_s3_conditional(
+    async def _write_log_s3(
         cls,
         location: str,
         log: EvalLog,
-        etag: str,
+        etag: str | None,
         header_only: bool = False,
-    ) -> None:
-        """Perform S3 conditional write for .eval format using boto3."""
+    ) -> str:
+        """Write an .eval log to S3 and return the upload response ETag."""
         bucket, key = _s3_bucket_and_key(location)
 
-        if header_only:
-            # Download the existing object, rewrite the zip in memory with a
-            # fresh header.json. Sample entries are untouched; any sample
-            # mutations on the in-memory log are discarded, matching the
-            # local .eval contract.
-            async with AsyncFilesystem() as async_fs:
-                s3_client = await async_fs.s3_client_async()
-                response = await s3_client.get_object(Bucket=bucket, Key=key)
-                body = await response["Body"].read()
-            log_bytes = _rewrite_eval_zip_with_new_header(body, log)
-        else:
-            # Full recreate goes through the recorder, which needs a
-            # filesystem path; read the result back into memory for upload.
-            with tempfile.TemporaryDirectory() as tmpdir:
-                temp_eval_file = os.path.join(tmpdir, "temp_log.eval")
-                await _write_eval_log_with_recorder(log, tmpdir, temp_eval_file)
-                with open(temp_eval_file, "rb") as f:
-                    log_bytes = f.read()
-
         async with AsyncFilesystem() as async_fs:
-            await _write_s3_conditional(
-                async_fs,
-                bucket,
-                key,
-                log_bytes,
-                etag,
-                location,
-                logger,
-            )
+            if header_only:
+                # Download the existing object, rewrite the zip in memory with a
+                # fresh header.json. Sample entries are untouched; any sample
+                # mutations on the in-memory log are discarded, matching the
+                # local .eval contract.
+                body = await async_fs.read_file(location)
+                log_bytes = _rewrite_eval_zip_with_new_header(body, log)
+            else:
+                # Full recreate goes through the recorder, which needs a
+                # filesystem path; read the result back into memory for upload.
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    temp_eval_file = os.path.join(tmpdir, "temp_log.eval")
+                    await _write_eval_log_with_recorder(log, tmpdir, temp_eval_file)
+                    with open(temp_eval_file, "rb") as f:
+                        log_bytes = f.read()
+
+            if etag is not None:
+                return await _write_s3(
+                    async_fs,
+                    bucket,
+                    key,
+                    log_bytes,
+                    etag,
+                    location,
+                    logger,
+                )
+            with trace_action(logger, "Log Write", location):
+                write_etag = await async_fs.write_file(location, log_bytes)
+            if write_etag is None:
+                raise RuntimeError("S3 upload completed without returning an ETag")
+            return write_etag
 
 
 def _replace_eval_header_in_place(zip_path: str, log: EvalLog) -> None:
@@ -531,19 +602,7 @@ def _rewrite_eval_zip_with_new_header(zip_bytes: bytes, log: EvalLog) -> bytes:
         ZipFile(BytesIO(zip_bytes), "r") as src,
         ZipFile(out, "w", **zipfile_compress_kwargs) as dst,
     ):
-        # Dedupe by member name, last entry winning — a requeued sample's
-        # fresh record supersedes the prior one as a duplicate zip member
-        # (see _zip_writestr), and read-by-name resolves to the last entry;
-        # copying every info would write those superseded bytes twice.
-        infos = {info.filename: info for info in src.infolist()}
-        for info in infos.values():
-            if info.filename == HEADER_JSON:
-                continue
-            # writestr with a ZipInfo preserves the original compression
-            # type / date_time / external_attr. The data still round-trips
-            # through decompress + recompress, but member metadata is
-            # carried over verbatim.
-            dst.writestr(info, src.read(info.filename))
+        copy_live_members(src, dst, exclude=frozenset({HEADER_JSON}))
         dst.writestr(HEADER_JSON, to_json_safe(eval_header, indent=None))
     return out.getvalue()
 
@@ -567,16 +626,41 @@ def _eval_log_header(log: EvalLog) -> EvalLog:
 def _rewrite_eval_zip_via_filesystem(location: str, log: EvalLog) -> None:
     """Read a remote .eval, rewrite zip with a new header, write it back.
 
-    Works for any fsspec-backed filesystem (S3, GCS, abfs, …). Used by the
-    unconditional header_only write path — the S3 conditional path inlines
-    the equivalent steps so it can route the upload through
-    `_write_s3_conditional` with `If-Match`.
+    Used for non-S3 fsspec-backed filesystems such as GCS and abfs. S3
+    header-only writes instead use `_write_log_s3` so they can return the
+    exact upload ETag and apply `If-Match` when requested.
     """
     with file(location, "rb") as f:
         existing_bytes = f.read()
     new_bytes = _rewrite_eval_zip_with_new_header(existing_bytes, log)
     with file(location, "wb") as f:
         f.write(new_bytes)
+
+
+def _read_local_sample_excluding(
+    zip: ZipFile, member: str, exclude_fields: set[str]
+) -> dict[str, Any]:
+    """Stream a local member's included JSON fields in a worker thread.
+
+    Like the async disk reader, retain the stdlib fallback for Python's
+    non-finite numbers and integers too large for the streaming parser.
+    """
+    from inspect_ai._util.json import get_ijson_backend
+
+    try:
+        builder = ExcludingObjectBuilder(exclude_fields)
+        with zip.open(member) as stream:
+            for prefix, event, value in get_ijson_backend().parse(
+                stream, use_float=True
+            ):
+                builder.event(event, value)
+        return builder.data
+    except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
+        if not (is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex)):
+            raise
+        with zip.open(member) as stream:
+            data: dict[str, Any] = json.load(stream)
+        return {key: value for key, value in data.items() if key not in exclude_fields}
 
 
 async def _read_member_json_excluding(
@@ -590,38 +674,16 @@ async def _read_member_json_excluding(
     from inspect_ai._util.json import get_ijson_backend
 
     ijson = get_ijson_backend()
-    from ijson import IncompleteJSONError, ObjectBuilder  # type: ignore[import-untyped]
-    from ijson.backends.python import (  # type: ignore[import-untyped]
-        UnexpectedSymbol,
-    )
 
     try:
         data: dict[str, Any] = {}
         async with await reader.open_member(member) as f:
-            depth = 0
-            current_key: str = ""
-            builder: ObjectBuilder | None = None
+            builder = ExcludingObjectBuilder(exclude_fields)
             async for prefix, event, value in ijson.parse_async(
                 adapt_to_reader(f), use_float=True
             ):
-                # Depth must be updated before the completion check
-                # so that a closing bracket that returns depth to 1
-                # is recognised as completing the current value.
-                if event in ("start_map", "start_array"):
-                    depth += 1
-                elif event in ("end_map", "end_array"):
-                    depth -= 1
-
-                if depth == 1 and event == "map_key":
-                    current_key = value
-                    builder = None if current_key in exclude_fields else ObjectBuilder()
-                elif builder is not None:
-                    builder.event(event, value)
-                    # Depth 1 means we have returned to the top-level
-                    # object, so the current field's value is complete.
-                    if depth == 1:
-                        data[current_key] = builder.value
-                        builder = None
+                builder.event(event, value)
+            data = builder.data
     except (
         ValueError,
         IncompleteJSONError,
@@ -638,14 +700,14 @@ async def _read_member_json_excluding(
 
 async def _write_eval_log_with_recorder(
     log: EvalLog, recorder_dir: str, output_file: str, header_only: bool = False
-) -> None:
+) -> str | None:
     """Helper function to write EvalLog using EvalRecorder pattern."""
     if header_only:
         if filesystem(output_file).is_local():
             _replace_eval_header_in_place(local_path(output_file), log)
         else:
             _rewrite_eval_zip_via_filesystem(output_file, log)
-        return
+        return None
 
     recorder = EvalRecorder(recorder_dir)
     await recorder.log_init(log.eval, output_file, clean=True)
@@ -653,7 +715,7 @@ async def _write_eval_log_with_recorder(
     for sample in log.samples or []:
         sample = condense_sample(sample)
         await recorder.log_sample(log.eval, sample)
-    await recorder.log_finish(
+    result = await recorder.log_finish(
         log.eval,
         log.status,
         log.stats,
@@ -664,6 +726,7 @@ async def _write_eval_log_with_recorder(
         log_updates=log.log_updates,
         config_updates=log.config_updates,
     )
+    return result.etag
 
 
 def _s3_bucket_and_key(location: str) -> tuple[str, str]:
@@ -676,25 +739,55 @@ def _s3_bucket_and_key(location: str) -> tuple[str, str]:
     return bucket, key
 
 
-async def _s3_conditional_put_object(
-    async_fs: AsyncFilesystem, bucket: str, key: str, body: bytes, etag: str
-) -> None:
-    """Helper function to perform S3 conditional write with aioboto3."""
+async def _s3_put_object(
+    async_fs: AsyncFilesystem,
+    bucket: str,
+    key: str,
+    body: bytes,
+    etag: str | None,
+) -> str:
+    """Write to S3 and return the ETag from that exact PutObject response."""
     s3_client = await async_fs.s3_client_async()
-    # Preflight HEAD: some S3-compatible backends (notably moto) do not honor the
-    # IfMatch header on put_object, so verify the current ETag matches before writing.
-    current = await s3_client.head_object(Bucket=bucket, Key=key)
-    current_etag = str(current["ETag"]).strip('"')
-    if current_etag != etag:
-        raise WriteConflictError(
-            f"Log file was modified by another process. Expected ETag: {etag}"
-        )
-    await s3_client.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=body,
-        IfMatch=f'"{etag}"',  # S3 requires quotes around ETag
-    )
+    put_args: dict[str, Any] = {"Bucket": bucket, "Key": key, "Body": body}
+    if etag is not None:
+        # Some S3-compatible backends (notably moto) do not honor IfMatch on
+        # put_object, so verify the current ETag before the conditional write.
+        current = await s3_client.head_object(Bucket=bucket, Key=key)
+        current_etag = str(current["ETag"]).strip('"')
+        if current_etag != etag:
+            raise WriteConflictError(
+                f"Log file was modified by another process. Expected ETag: {etag}"
+            )
+        put_args["IfMatch"] = f'"{etag}"'
+
+    response = await s3_client.put_object(**put_args)
+    return str(response["ETag"]).strip('"')
+
+
+async def _write_s3(
+    async_fs: AsyncFilesystem,
+    bucket: str,
+    key: str,
+    body: bytes,
+    etag: str | None,
+    location: str,
+    logger: logging.Logger,
+) -> str:
+    """Write to S3 with conditional-conflict translation when requested."""
+    from botocore.exceptions import ClientError
+
+    from inspect_ai._util.trace import trace_action
+
+    action = "Log Conditional Write" if etag is not None else "Log Write"
+    with trace_action(logger, action, location):
+        try:
+            return await _s3_put_object(async_fs, bucket, key, body, etag)
+        except ClientError as e:
+            if etag is not None and e.response["Error"]["Code"] == "PreconditionFailed":
+                raise WriteConflictError(
+                    f"Log file was modified by another process. Expected ETag: {etag}"
+                )
+            raise
 
 
 async def _s3_download_with_etag(
@@ -719,46 +812,6 @@ async def _s3_download_with_etag(
     return etag.strip('"')  # S3 returns ETag with quotes
 
 
-async def s3_head_etag(location: str) -> str:
-    """Return an S3 object's current ETag via a HEAD request.
-
-    Cheaper than `read_eval_log_async(..., header_only=True)` when the
-    caller only needs the ETag — no central-directory read, no zip
-    parsing, no body bytes. Used by the viewer's edit endpoint to
-    surface the post-write ETag without re-fetching the header.
-    """
-    bucket, key = _s3_bucket_and_key(location)
-    async with AsyncFilesystem() as async_fs:
-        s3_client = await async_fs.s3_client_async()
-        response = await s3_client.head_object(Bucket=bucket, Key=key)
-        return str(response["ETag"]).strip('"')
-
-
-async def _write_s3_conditional(
-    async_fs: AsyncFilesystem,
-    bucket: str,
-    key: str,
-    body: bytes,
-    etag: str,
-    location: str,
-    logger: logging.Logger,
-) -> None:
-    """Write to S3 with conditional check and error handling."""
-    from botocore.exceptions import ClientError
-
-    from inspect_ai._util.trace import trace_action
-
-    with trace_action(logger, "Log Conditional Write", location):
-        try:
-            await _s3_conditional_put_object(async_fs, bucket, key, body, etag)
-        except ClientError as e:
-            if e.response["Error"]["Code"] == "PreconditionFailed":
-                raise WriteConflictError(
-                    f"Log file was modified by another process. Expected ETag: {etag}"
-                )
-            raise
-
-
 def _copy_temp_to_local(temp_file: BinaryIO, dest: str, fsync: bool) -> None:
     """Copy the zip temp file to its local destination via atomic write.
 
@@ -771,6 +824,110 @@ def _copy_temp_to_local(temp_file: BinaryIO, dest: str, fsync: bool) -> None:
     temp_file.seek(0)
     with atomic_write(dest, fsync=fsync) as out:
         shutil.copyfileobj(temp_file, out, length=1024 * 1024)
+
+
+# Compaction rewrites (decompress + recompress) every live member of the log,
+# so it only pays off once dead bytes are a real share of the file.
+COMPACT_DEAD_BYTES_FRACTION = 0.1
+
+# A prior-log copy failing on a storage blip should not burn a retry attempt:
+# the copy is retried this many times with exponential jittered backoff
+# starting from this many seconds.
+SEED_COPY_ATTEMPTS = 3
+SEED_COPY_BACKOFF_SECONDS = 1.0
+_SEED_COPY_CHUNK_SIZE = 1024 * 1024
+
+
+async def _copy_prior_log(prior_log: str, dest: BinaryIO) -> None:
+    """Copy a prior log's bytes into ``dest`` (empty, positioned at 0).
+
+    ``AsyncFilesystem.read_file_into`` does the copy (``dest`` is an
+    anonymous temp file, so it has no path a filesystem download could
+    target). Transient failures are retried with backoff (the same
+    ``AsyncRetrying`` idiom as the S3 put retry in ``asyncfiles``); a
+    missing prior log raises ``FileNotFoundError`` immediately.
+    """
+
+    def is_transient_failure(exception: BaseException) -> bool:
+        # a positive predicate: tenacity's attempt manager catches
+        # BaseException, so a negative one would also match a cancellation
+        # mid-copy, swallowing it for one step (a spurious "retrying"
+        # warning and temp-file reset) before the next sleep re-raised it
+        return isinstance(exception, Exception) and not isinstance(
+            exception, FileNotFoundError
+        )
+
+    def reset_before_retry(state: RetryCallState) -> None:
+        dest.seek(0)
+        dest.truncate()
+        outcome = state.outcome
+        logger.warning(
+            f"Copying prior log {prior_log} failed (attempt {state.attempt_number} "
+            f"of {SEED_COPY_ATTEMPTS}), retrying: "
+            f"{outcome.exception() if outcome is not None else 'unknown error'}"
+        )
+
+    async for attempt in AsyncRetrying(
+        retry=retry_if_exception(is_transient_failure),
+        wait=wait_exponential_jitter(
+            initial=SEED_COPY_BACKOFF_SECONDS, jitter=SEED_COPY_BACKOFF_SECONDS
+        ),
+        stop=stop_after_attempt(SEED_COPY_ATTEMPTS),
+        sleep=anyio.sleep,
+        before_sleep=reset_before_retry,
+        reraise=True,
+    ):
+        with attempt:
+            async with AsyncFilesystem() as async_fs:
+                await async_fs.read_file_into(prior_log, dest, _SEED_COPY_CHUNK_SIZE)
+
+
+def _read_prior_summaries(prior: BinaryIO) -> list[EvalSampleSummary]:
+    """Read a copied prior log's summaries, validating it is a zip.
+
+    Opened read-only: unlike append mode, which treats anything that is not
+    a zip as an empty archive to append to, this raises ``BadZipFile`` for a
+    corrupt or truncated copy rather than seeding nothing. Blocking — run in
+    a worker thread.
+    """
+    prior.seek(0)
+    with ZipFile(prior, "r") as zip:
+        return _read_all_summaries(zip)
+
+
+def _read_all_summaries(zip: ZipFile) -> list[EvalSampleSummary]:
+    """Sync counterpart of ``_read_all_summaries_async`` over an open ``ZipFile``.
+
+    Prefers the consolidated ``summaries.json``; an in-progress log has only
+    the journal, read in index order so a superseded row precedes its
+    re-run's. Used by the prior-log seed, whose zip is an anonymous temp
+    file the path-based async reader cannot target.
+    """
+    names = set(zip.namelist())
+    if SUMMARIES_JSON in names:
+        with zip.open(SUMMARIES_JSON, "r") as f:
+            return _dedupe_summaries(_parse_summaries(json.load(f), SUMMARIES_JSON))
+    summaries: list[EvalSampleSummary] = []
+    for name in _sorted_journal_entries(names, _journal_summary_path()):
+        with zip.open(name, "r") as f:
+            summaries.extend(_parse_summaries(json.load(f), name))
+    return _dedupe_summaries(summaries)
+
+
+def _parse_sample_data(data: bytes | dict[str, Any]) -> EvalSample:
+    """Validate a full or selectively parsed member, resolved as a log read is.
+
+    The same read-time resolution ``read_eval_log_sample`` applies
+    (``events_data`` references bound back into the events, timelines
+    rebound), so a sample served from the recorder's local copy and one read
+    from the destination log look alike. Blocking (JSON parse + validation
+    of a whole transcript) — run in a worker thread.
+    """
+    sample = EvalSample.model_validate(
+        json.loads(data) if isinstance(data, bytes) else data,
+        context=get_deserializing_context(),
+    )
+    return rebind_sample_timelines(resolve_sample_events_data(sample))
 
 
 class _BufferedSample(NamedTuple):
@@ -800,13 +957,24 @@ class ZipLogFile:
         self._lock = anyio.Lock()
         self._temp_file = tempfile.TemporaryFile()
         self._samples: list[_BufferedSample] = []
-        self._streaming_samples: dict[tuple[str | int, int], EvalSample] = {}
+        self._streaming_samples: dict[SampleRecordKey, EvalSample] = {}
         self._summary_counter = 0
         self._summaries: list[EvalSampleSummary] = []
         self._config_update_counter = 0
         self._config_updates: list[ConfigUpdate] = []
         self._log_start: LogStart | None = None
         self._destination_written = False
+        # whether the destination existed before this log (init seeded from
+        # it) — such a file is never ours to remove on discard. Distinct from
+        # a prior-log seed (`seed_from_prior_log`): that fills the temp zip
+        # from *another* file for a fresh destination, which discard must
+        # still remove.
+        self._destination_seeded = False
+        # sample members that `buffered_sample` serves from the local temp zip
+        # (a prior-log seed's copied records and write-through re-logs) rather
+        # than deferring to the destination log
+        self._local_sample_names: set[str] = set()
+        self._etag: str | None = None
 
     async def init(
         self,
@@ -825,6 +993,7 @@ class ZipLogFile:
             self._config_updates = config_updates or []
             self._log_start = log_start
             self._destination_written = destination_exists
+            self._destination_seeded = destination_exists
 
     @property
     def log_start(self) -> LogStart | None:
@@ -837,9 +1006,9 @@ class ZipLogFile:
         True after a successful :meth:`flush`, or from the start when
         ``init`` was seeded from an existing file (re-logging into an
         existing log, e.g. ``score --overwrite``). Gates eager per-update
-        flushes in ``log_config_update``: while False the destination may
-        be deliberately absent (a held retry attempt before its reuse-sweep
-        settle flush), so nothing should force it into existence early.
+        flushes in ``log_config_update``: while False the destination is
+        absent (``log_start``'s flush creates it), so nothing should force
+        it into existence early.
         """
         return self._destination_written
 
@@ -880,9 +1049,11 @@ class ZipLogFile:
             # ``buffered_sample``, and (when the prior arrived via the
             # streaming path, whose member is already zip-written) leave a
             # stale event-less fallback in ``_streaming_samples``.
-            key = (sample.id, sample.epoch)
+            key = SampleRecordKey(str(sample.id), sample.epoch)
             self._samples = [
-                s for s in self._samples if (s.sample.id, s.sample.epoch) != key
+                s
+                for s in self._samples
+                if SampleRecordKey(str(s.sample.id), s.sample.epoch) != key
             ]
             self._streaming_samples.pop(key, None)
             self._samples.append(buffered)
@@ -890,26 +1061,22 @@ class ZipLogFile:
     async def buffer_sample_write_through(self, sample: EvalSample) -> None:
         """Write a completed sample straight into the temp-file zip.
 
-        The bulk re-log counterpart to :meth:`buffer_sample` (used for a
-        retry's reused completed samples): the full sample — events included —
-        goes into the temp zip immediately, so it lands on local disk instead
-        of staying resident in ``_samples`` until the next flush (anything in
-        the temp zip reaches the destination on any later flush, which copies
-        the whole file). Mirrors :meth:`buffer_sample_streaming`: only an
-        event-less copy is retained in ``_streaming_samples`` (cleared by
-        ``flush`` once the sample is on-disk-readable) so control-channel
-        reads of error detail / scores keep working pre-flush — event reads
-        are unavailable until the next flush — and the summary is journalled
-        immediately with the same replace-by-``(id, epoch)`` dedupe. Nothing
-        is appended to ``_samples``.
+        The bulk re-log counterpart to :meth:`buffer_sample` (used to seed a
+        retry attempt with a prior log's samples when they cannot be copied
+        as bytes — an in-memory prior log, or one in a different format): the
+        full sample — events included — goes into the temp zip immediately,
+        so it lands on local disk instead of staying resident in ``_samples``
+        until the next flush (anything in the temp zip reaches the
+        destination on any later flush, which copies the whole file). The
+        member is registered for :meth:`buffered_sample`, which serves it
+        whole from the local zip, and the summary is journalled immediately
+        with the same replace-by-``(id, epoch)`` dedupe. Nothing is appended
+        to ``_samples``.
         """
         async with self._lock:
-            self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample)
-
-            self._streaming_samples[(sample.id, sample.epoch)] = sample.model_copy(
-                update={"events": [], "events_data": None}
-            )
-
+            name = _sample_filename(sample.id, sample.epoch)
+            self._zip_writestr(name, sample)
+            self._local_sample_names.add(name)
             self._journal_summary(sample)
 
     def _journal_summary(self, sample: EvalSample) -> None:
@@ -925,7 +1092,10 @@ class ZipLogFile:
         summary_path = _journal_summary_path(summary_file)
         self._zip_writestr(summary_path, [summary])
         self._summaries = [
-            s for s in self._summaries if (s.id, s.epoch) != (summary.id, summary.epoch)
+            s
+            for s in self._summaries
+            if SampleRecordKey(str(s.id), s.epoch)
+            != SampleRecordKey(str(summary.id), summary.epoch)
         ]
         self._summaries.append(summary)
 
@@ -956,6 +1126,7 @@ class ZipLogFile:
 
             self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample_data)
 
+            key = SampleRecordKey(str(sample.id), sample.epoch)
             # evict a buffered prior record for the same (id, epoch): its
             # member would otherwise be flush-written *after* the streaming
             # write above, and the readers' name-based last-entry-wins rule
@@ -963,14 +1134,14 @@ class ZipLogFile:
             self._samples = [
                 s
                 for s in self._samples
-                if (s.sample.id, s.sample.epoch) != (sample.id, sample.epoch)
+                if SampleRecordKey(str(s.sample.id), s.sample.epoch) != key
             ]
 
             # Retain the event-less sample so the control channel can read its
             # error detail before the next flush makes it on-disk-readable
             # (events stay in the buffer database — see ``buffered_sample``).
             # Cleared in ``flush`` once the sample lands on disk.
-            self._streaming_samples[(sample.id, sample.epoch)] = sample
+            self._streaming_samples[key] = sample
 
             self._journal_summary(sample)
 
@@ -1004,9 +1175,11 @@ class ZipLogFile:
                 # replace any existing summaries for the same (id, epoch)
                 # (e.g. when re-logging completed samples after log_init
                 # with clean=False during eval_retry / score --overwrite)
-                new_keys = {(s.id, s.epoch) for s in summaries}
+                new_keys = {SampleRecordKey(str(s.id), s.epoch) for s in summaries}
                 self._summaries = [
-                    s for s in self._summaries if (s.id, s.epoch) not in new_keys
+                    s
+                    for s in self._summaries
+                    if SampleRecordKey(str(s.id), s.epoch) not in new_keys
                 ]
                 self._summaries.extend(summaries)
 
@@ -1024,12 +1197,18 @@ class ZipLogFile:
         large the buffered samples are or how often the control channel polls.
         """
         async with self._lock:
-            by_key = {(s.id, s.epoch): s for s in self._summaries}
+            by_key = {SampleRecordKey(str(s.id), s.epoch): s for s in self._summaries}
             for b in self._samples:
-                by_key[(b.summary.id, b.summary.epoch)] = b.summary
+                by_key[SampleRecordKey(str(b.summary.id), b.summary.epoch)] = b.summary
             return list(by_key.values())
 
-    async def buffered_sample(self, id: str | int, epoch: int) -> EvalSample | None:
+    async def buffered_sample(
+        self,
+        id: str | int,
+        epoch: int,
+        *,
+        exclude_fields: set[str] | None = None,
+    ) -> EvalSample | None:
         """A not-yet-flushed full sample by ``(id, epoch)``, or None.
 
         Gap-free counterpart to :meth:`sample_summaries`, covering both
@@ -1037,19 +1216,50 @@ class ZipLogFile:
 
         - ``_samples`` — buffered whole samples (with events) awaiting a flush
           (the default :meth:`buffer_sample` path).
-        - ``_streaming_samples`` — event-less samples from the streaming and
-          write-through paths (their events live in the buffer database and
-          the temp zip respectively, so this carries error detail / scores
-          but not events).
+        - the local temp zip, for members a prior-log seed copied in or a
+          write-through re-logged (``_local_sample_names``): the freshest
+          complete record under that name (a re-run's superseding member
+          wins, as for every zip reader), read and decompressed in a worker
+          thread while the lock is held — the same contention a flush
+          imposes — then validated and resolved like a log read outside it.
+          Excluded fields are skipped during streaming JSON parsing, before
+          building the sample, rather than loaded and discarded afterward.
+        - ``_streaming_samples`` — event-less samples from the streaming path
+          (their events live in the buffer database, so this carries error
+          detail / scores but not events).
 
         Returns ``None`` once flushed (the on-disk log takes over) or for a
         recorder that doesn't buffer; callers fall back to the on-disk log.
         """
         async with self._lock:
             for buffered in self._samples:
-                if buffered.sample.id == id and buffered.sample.epoch == epoch:
-                    return buffered.sample
-            return self._streaming_samples.get((id, epoch))
+                if (
+                    str(buffered.sample.id) == str(id)
+                    and buffered.sample.epoch == epoch
+                ):
+                    return exclude_sample_fields(buffered.sample, exclude_fields)
+            name = _sample_filename(id, epoch)
+            if (
+                name in self._local_sample_names
+                and self._zip is not None
+                and name in self._zip.NameToInfo
+            ):
+                data: bytes | dict[str, Any]
+                excluded = sample_read_exclusions(exclude_fields)
+                if excluded:
+                    data = await anyio.to_thread.run_sync(
+                        _read_local_sample_excluding, self._zip, name, excluded
+                    )
+                else:
+                    data = await anyio.to_thread.run_sync(self._zip.read, name)
+            else:
+                sample = self._streaming_samples.get(SampleRecordKey(str(id), epoch))
+                return (
+                    exclude_sample_fields(sample, exclude_fields)
+                    if sample is not None
+                    else None
+                )
+        return await anyio.to_thread.run_sync(_parse_sample_data, data)
 
     async def write(self, filename: str, data: Any) -> None:
         async with self._lock:
@@ -1072,6 +1282,7 @@ class ZipLogFile:
             # (atomic local write, native S3 multipart upload, or chunked
             # copy via fsspec).
             written = True
+            etag: str | None = None
             with trace_action(logger, "Log Write", self._file):
                 try:
                     if self._fs.is_local():
@@ -1093,7 +1304,7 @@ class ZipLogFile:
                     else:
                         self._temp_file.seek(0)
                         async with AsyncFilesystem() as async_fs:
-                            await async_fs.write_file_streaming(
+                            etag = await async_fs.write_file_streaming(
                                 self._file, self._temp_file
                             )
                 finally:
@@ -1112,6 +1323,43 @@ class ZipLogFile:
             if written:
                 self._streaming_samples.clear()
                 self._destination_written = True
+                self._etag = etag
+
+    async def discard(self, *, keep_destination: bool = False) -> None:
+        """Release this never-finished log's resources without writing.
+
+        Removes the destination file when this log wrote it (the header
+        flushed by ``log_start``, e.g. an abandoned retry attempt) — a stray
+        ``started`` log would otherwise win the end-of-run retry-cleanup
+        sweep by mtime over the errored prior attempt's log. A pre-existing
+        destination the log was initialized over is left in place; a log
+        seeded from a *prior attempt's* file (``seed_from_prior_log``) owns
+        its own destination and is removed like any other. With
+        ``keep_destination`` the file stays whatever wrote it: an attempt
+        whose final write failed leaves a ``started`` log holding every
+        sample flushed so far, which the next attempt seeds from.
+        """
+        async with self._lock:
+            try:
+                if self._zip:
+                    self._zip.close()
+                    self._zip = None
+            finally:
+                self._temp_file.close()
+            if (
+                self._destination_written
+                and not self._destination_seeded
+                and not keep_destination
+            ):
+                # TODO: sync fsspec rm blocks the event loop on remote log
+                # dirs; route through AsyncFilesystem if it ever grows an rm
+                # helper (to_thread over remote fsspec can deadlock — see
+                # AGENTS.md). Rare path, and failures are contained by
+                # TaskLogger.discard.
+                try:
+                    self._fs.rm(self._file)
+                except FileNotFoundError:
+                    pass
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:
@@ -1121,9 +1369,11 @@ class ZipLogFile:
                 # bytes: LazyList materialization goes through the sync
                 # read_eval_log(), which raises in a trio async context.
                 if not header_only and current_async_backend() == "trio":
-                    return _read_log_from_bytes(
+                    eval_log = _read_log_from_bytes(
                         self._temp_file, self._file, header_only=False
                     )
+                    eval_log.etag = self._etag
+                    return eval_log
                 # Always read header only from temp file (fast path)
                 eval_log = _read_log_from_bytes(
                     self._temp_file, self._file, header_only=True
@@ -1147,11 +1397,296 @@ class ZipLogFile:
                         )
                         lazy_data.reductions_list = reductions_lazy
                         eval_log.reductions = reductions_lazy  # type: ignore[assignment]
+                eval_log.etag = self._etag
                 return eval_log
             finally:
                 self._temp_file.close()
                 if self._zip:
                     self._zip.close()
+
+    async def seed_from_prior_log(
+        self, prior_log: str, keep: set[tuple[str | int, int]] | None
+    ) -> None:
+        """Fill the temp zip from a prior attempt's log before this log starts.
+
+        Copies the prior ``.eval`` as a file (one streamed download for a
+        remote log), so every selected prior sample record is in this log
+        before any of the attempt's own work runs — the invariant that
+        makes any finish of the attempt write a complete log (see
+        ``design/retry-seeded-attempt-log.md``). Then prunes the prior's
+        metadata members and the sample members outside ``keep`` from the
+        central directory. Seeds that exclude sample bodies or contain dead
+        bytes first rebuild the archive, physically removing those payloads
+        before any destination write. Complete keep-sets without dead bytes
+        retain the byte-copy path. Rewrites the summaries journal to list
+        exactly the kept samples (one member, built in a worker thread), and
+        re-journals any config updates recorded since :meth:`init`.
+
+        ``keep`` restricts the seed to the attempt's planned ``(id, epoch)``
+        keys; ``None`` keeps every prior sample (a dynamically fed task has no
+        upfront plan). Matching is by generated member name, as the sample
+        readers match.
+
+        Must run before :meth:`start`. The copy lands in a *fresh* temp file
+        outside ``_lock`` (a multi-GB download must not stall the other lock
+        users), which then replaces the one ``init`` opened: that handle is
+        an append-mode ``ZipFile`` over an empty file, and closing it writes
+        an end-of-central-directory record at offset 0 (a dropped handle
+        does the same from ``__del__``), so it is closed explicitly over the
+        old file before the swap — the copied bytes are never written over.
+        The copy is validated as a zip before it is adopted (append mode
+        would treat a corrupt copy as an empty archive and seed nothing).
+        A failure leaves the log exactly as it was and re-raises for the
+        caller to decide; a missing prior log raises ``FileNotFoundError``
+        without retrying.
+        """
+        if (
+            self._log_start is not None
+            or self._destination_written
+            or self._destination_seeded
+        ):
+            raise RuntimeError("An eval log can only be seeded before it starts")
+        seeded: BinaryIO = tempfile.TemporaryFile()
+        try:
+            await _copy_prior_log(prior_log, seeded)
+            summaries = await anyio.to_thread.run_sync(_read_prior_summaries, seeded)
+            if keep is not None:
+                keep_names = {_sample_filename(id, epoch) for id, epoch in keep}
+                summaries = [
+                    s
+                    for s in summaries
+                    if _sample_filename(s.id, s.epoch) in keep_names
+                ]
+                kept_names = frozenset(
+                    _sample_filename(s.id, s.epoch) for s in summaries
+                )
+                # excluded sample bodies must not reach the destination, not
+                # even as dead bytes: rewrite the copy unless it holds exactly
+                # the kept samples (the prior's metadata members are pruned
+                # from the directory either way)
+                if await anyio.to_thread.run_sync(
+                    zip_needs_rewrite,
+                    seeded,
+                    lambda name: not name.startswith(f"{SAMPLES_DIR}/")
+                    or name in kept_names,
+                ):
+                    restricted = await anyio.to_thread.run_sync(
+                        compact_zip, seeded, kept_names
+                    )
+                    seeded.close()
+                    seeded = restricted
+        except BaseException:
+            seeded.close()
+            raise
+
+        async with self._lock:
+            if self._log_start is not None:
+                seeded.close()
+                raise RuntimeError("An eval log can only be seeded before it starts")
+            assert self._zip is not None
+            self._zip.close()
+            self._zip = None
+            self._temp_file.close()
+            self._temp_file = seeded
+            self._open()
+            assert self._zip is not None
+
+            kept_names = {_sample_filename(s.id, s.epoch) for s in summaries}
+            self._prune_prior_members(kept_names)
+
+            # the prior's journal is pruned above (its batched files would list
+            # pruned keys to in-progress readers), so the kept summaries become
+            # this log's journal; the counter restarts since readers take the
+            # maximum index present
+            self._summaries = summaries
+            self._summary_counter = 0
+            if summaries:
+                self._summary_counter = 1
+                journal = _journal_summary_path(_journal_summary_file(1))
+                zip_file = self._zip
+
+                def write_journal() -> None:
+                    # `_zip_writestr` is not used: it quiets zipfile's
+                    # duplicate-name warning via the process-wide warnings
+                    # filters, which a worker thread must not touch. The name
+                    # is fresh here (the prior's journal was pruned above)
+                    zip_file.writestr(journal, to_json_safe(summaries, indent=None))
+
+                # one member for the whole kept list (tens of MB of JSON for a
+                # large prior), so serialize and deflate in a worker thread
+                # with `_lock` held, as `buffered_sample` and `compact` do
+                await anyio.to_thread.run_sync(write_journal)
+            self._rejournal_config_updates()
+            self._local_sample_names.update(kept_names)
+
+    def _prune_prior_members(self, kept_sample_names: set[str]) -> None:
+        """Drop the prior log's superseded members from the central directory.
+
+        Removes its finished-log metadata (``header.json``, ``summaries.json``,
+        ``reductions.json``, ``start.json``, journaled config updates and
+        summaries) — an in-progress read of this log would otherwise return
+        the prior attempt's header and eval_id — and every sample member not
+        in ``kept_sample_names``. Seeds requiring a rewrite have already
+        physically removed these members. Otherwise, metadata bytes stay
+        unreferenced (the idiom ``_replace_eval_header_in_place`` uses) until
+        :meth:`compact` measures and reclaims them. Caller holds ``_lock``.
+        """
+        assert self._zip is not None
+        metadata = {
+            HEADER_JSON,
+            SUMMARIES_JSON,
+            REDUCTIONS_JSON,
+            _journal_path(START_JSON),
+        }
+        config_prefix = _journal_config_update_path() + "/"
+        summary_prefix = _journal_summary_path() + "/"
+
+        def drop(name: str) -> bool:
+            if name in metadata:
+                return True
+            if name.startswith(config_prefix) or name.startswith(summary_prefix):
+                return True
+            return name.startswith(f"{SAMPLES_DIR}/") and name not in kept_sample_names
+
+        pruned = [info for info in self._zip.filelist if drop(info.filename)]
+        self._zip.filelist = [
+            info for info in self._zip.filelist if not drop(info.filename)
+        ]
+        for info in pruned:
+            self._zip.NameToInfo.pop(info.filename, None)
+
+    async def prune_samples(self, keys: set[SampleRecordKey]) -> None:
+        """Drop the sample members and summaries for ``keys``.
+
+        Used at finish for unresolved seeds and mid-run when a normalized
+        JSON ID re-runs under a different member name. Rewrite the summary
+        journal along with the directory so intermediate snapshots list only
+        readable samples. Writing the journal, even when empty, also marks
+        the ZIP modified: its next close must persist directory deletions.
+        Removed bodies' bytes remain until :meth:`compact` reclaims them.
+        """
+        async with self._lock:
+            assert self._zip is not None
+            names = {_sample_filename(key.sample_id, key.epoch) for key in keys}
+            summaries = [
+                s
+                for s in self._summaries
+                if SampleRecordKey(str(s.id), s.epoch) not in keys
+            ]
+            zip_file = self._zip
+
+            def rewrite_journal() -> None:
+                journal = to_json_safe(summaries, indent=None)
+                removed = names | {
+                    name
+                    for name in zip_file.NameToInfo
+                    if name == SUMMARIES_JSON
+                    or name.startswith(_journal_summary_path() + "/")
+                }
+                zip_file.filelist = [
+                    info for info in zip_file.filelist if info.filename not in removed
+                ]
+                for name in removed:
+                    zip_file.NameToInfo.pop(name, None)
+                zip_file.writestr(
+                    _journal_summary_path(_journal_summary_file(1)), journal
+                )
+                self._summary_counter = 1
+                self._summaries = summaries
+                self._local_sample_names -= names
+
+            await anyio.to_thread.run_sync(rewrite_journal)
+
+    def _restrict_members(self, live: frozenset[str]) -> None:
+        """Drop every member not in ``live`` from the open zip's central directory.
+
+        Re-applies the in-memory directory after a reopen that re-read a
+        stale on-disk one (a failed :meth:`compact`). Caller holds ``_lock``.
+        """
+        assert self._zip is not None
+        self._zip.filelist = [
+            info for info in self._zip.filelist if info.filename in live
+        ]
+        for name in [name for name in self._zip.NameToInfo if name not in live]:
+            self._zip.NameToInfo.pop(name, None)
+
+    def _rejournal_config_updates(self) -> None:
+        """Re-append the config updates recorded so far as journal members 1..n.
+
+        A prior-log seed replaces the temp zip, leaving behind any
+        ``_journal/config_updates/*`` written between ``init`` and the seed
+        (inherited process-scoped retunes); this puts them back. Caller holds
+        ``_lock``.
+        """
+        self._config_update_counter = 0
+        for update in self._config_updates:
+            self._config_update_counter += 1
+            self._zip_writestr(
+                _journal_config_update_path(
+                    _journal_config_update_file(self._config_update_counter)
+                ),
+                update,
+            )
+
+    async def compact(self) -> None:
+        """Rewrite the temp zip without dead bytes when they are worth reclaiming.
+
+        Dead bytes are every byte of the member area no live member accounts
+        for: members pruned by a prior-log seed, members superseded by a
+        later write under the same name (a re-run of a seeded or requeued
+        sample), and the same left behind in the prior log by *its* seed and
+        re-runs, which its non-success finish never compacted and the byte
+        copy carried along (see :meth:`_should_compact`). Rewriting
+        decompresses and recompresses every live member, so it runs only
+        when the dead bytes exceed ``COMPACT_DEAD_BYTES_FRACTION`` of the
+        file — a fresh eval never qualifies — and only at a successful
+        finish, the log's last write. Local CPU in a worker thread; a
+        failure warns and leaves the uncompacted (still correct) zip in
+        place.
+        """
+        async with self._lock:
+            assert self._zip is not None
+            if not self._should_compact():
+                return
+            live = frozenset(self._zip.NameToInfo)
+            self._zip.close()
+            self._zip = None
+            compacted: BinaryIO | None = None
+            try:
+                compacted = await anyio.to_thread.run_sync(
+                    compact_zip, self._temp_file, live
+                )
+            except Exception as ex:
+                logger.warning(f"Unable to compact eval log {self._file}: {ex}")
+            finally:
+                # reopen on every exit, a cancellation landing at the await
+                # above included: whatever follows (the finish's remaining
+                # writes, or the cancel path's discard) expects an open zip.
+                # Without a compacted file the original is reopened, which
+                # re-reads its on-disk central directory; a prune since the
+                # last write has not reached that (see compact_zip), so
+                # restore the live set or the pruned members come back as
+                # bodies without summaries
+                if compacted is not None:
+                    self._temp_file.close()
+                    self._temp_file = compacted
+                    self._open()
+                else:
+                    self._open()
+                    self._restrict_members(live)
+
+    def _should_compact(self) -> bool:
+        """Whether dead bytes are at least ``COMPACT_DEAD_BYTES_FRACTION`` of the member area.
+
+        Measured from the file (``zip_dead_bytes``) rather than tracked per
+        prune or supersede, so dead bytes inherited from the prior log count
+        too; a fresh eval measures none.
+        """
+        assert self._zip is not None
+        dead = zip_dead_bytes(self._zip)
+        if dead <= 0:
+            return False
+        return dead >= self._zip.start_dir * COMPACT_DEAD_BYTES_FRACTION
 
     # cleanup zip file if we didn't in normal course
     def __del__(self) -> None:
@@ -1385,15 +1920,15 @@ def _parse_summaries(data: Any, source: str) -> list[EvalSampleSummary]:
 def _dedupe_summaries(
     summaries: Iterable[EvalSampleSummary],
 ) -> list[EvalSampleSummary]:
-    """Keep the last row per ``(id, epoch)``.
+    """Keep the last row per ``(str(id), epoch)``.
 
     The same last-entry-wins rule the zip sample readers apply: a requeued
     sample's re-run is recorded after its superseded prior attempt, so the
     later row is the current one.
     """
-    by_key: dict[tuple[int | str, int], EvalSampleSummary] = {}
+    by_key: dict[SampleRecordKey, EvalSampleSummary] = {}
     for summary in summaries:
-        by_key[(summary.id, summary.epoch)] = summary
+        by_key[SampleRecordKey(str(summary.id), summary.epoch)] = summary
     return list(by_key.values())
 
 
@@ -1499,7 +2034,12 @@ def _journal_config_update_file(index: int) -> str:
 
 def _sorted_config_update_entries(entry_names: set[str]) -> list[str]:
     """Journal config-update entries in write order (by their integer index)."""
-    prefix = _journal_config_update_path() + "/"
+    return _sorted_journal_entries(entry_names, _journal_config_update_path())
+
+
+def _sorted_journal_entries(entry_names: set[str], journal_dir: str) -> list[str]:
+    """The ``{n}.json`` members under a journal directory, in index order."""
+    prefix = journal_dir + "/"
     entries = [
         name
         for name in entry_names

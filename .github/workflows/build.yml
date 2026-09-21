@@ -56,52 +56,46 @@ jobs:
           filter: "blob:none"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
+      # `uv sync` rather than `uv venv` + `uv pip install .[dev]`: the step
+      # below runs under `uv run`, which syncs the project environment to
+      # uv.lock before it executes anything, so an unlocked `uv pip install`
+      # is partly undone a step later. Installing the locked set here and
+      # passing --no-sync below reaches the same environment once.
       - name: Install dependencies
-        run: |-
-          uv venv
-          uv pip install .[dev]
+        run: uv sync
 
       - name: Run mypy
-        run: uv run mypy --exclude tests/test_package src tests
+        run: uv run --no-sync mypy --exclude tests/test_package src tests
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
         run: uv cache prune --ci
 
+  # No project install: every hook in .pre-commit-config.yaml comes from a
+  # remote repo and runs in an environment pre-commit builds itself (the
+  # uv-lock hook brings its own uv), so nothing here reads the inspect_ai
+  # package. The checkout is shallow because nothing here consumes a
+  # setuptools_scm version either: the uv-lock hook does build root metadata,
+  # but uv.lock records this project as a versionless editable root, so the
+  # tagless fallback version a shallow clone yields never reaches the file.
   pre-commit:
     runs-on: ubuntu-latest
     env:
       SKIP: "ruff"
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-          filter: "blob:none"
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v9.0.0
-        with:
-          version: "${{ env.UV_VERSION }}"
-
-      - name: Install dependencies
-        run: uv pip install --system .[dev]
-
       - uses: pre-commit/action@v3.0.1
-
-      - name: Minimize uv cache
-        if: ${{ !cancelled() }}
-        run: uv cache prune --ci
 
   # Detect which areas changed so conditional jobs (docs, sandbox-tools-unit)
   # can be skipped. A skipped job-level `if` still reports a (non-blocking)
@@ -157,19 +151,42 @@ jobs:
       # inspect_ai source that reference docs are generated from (griffe).
       # The marker is created only after a successful render and the cache
       # is saved only when the job succeeds, so a hit implies a past pass.
+      #
+      # The source component is this PR's own src/inspect_ai delta against
+      # its merge base, not the checked-out tree. On pull_request the
+      # checkout is the PR merged into current main, so hashing the tree
+      # invalidated every open PR's entry on every push to main that touched
+      # src/inspect_ai. The delta still forces a re-render when this PR edits
+      # the source the reference docs are generated from. diff-tree lists
+      # changed paths with blob ids, so it needs no blob fetches under the
+      # blob:none checkout. The merge-base is quoted so a failure there fails
+      # the step; an empty unquoted arg would leave the delta silently empty
+      # (diff-tree prints nothing for a merge commit given one argument).
+      # base_ref is empty on push and workflow_dispatch, so those use main.
+      - name: Record this PR's own inspect_ai source delta
+        run: git diff-tree -r "$(git merge-base origin/${{ github.base_ref || 'main' }} HEAD)" HEAD -- src/inspect_ai > .docs-src-delta
+
       - name: Check for previous successful render
         id: render-cache
         uses: actions/cache@v6
         with:
           path: .docs-render-ok
-          key: docs-render-${{ hashFiles('docs/**', 'requirements-doc.txt', 'src/inspect_ai/**') }}
+          key: docs-render-${{ hashFiles('docs/**', 'requirements-doc.txt', '.docs-src-delta') }}
 
+      # Own cache scope: setup-uv's default key is shared by every 3.11 job
+      # here, so the first to finish saves its dev cache and this job only ever
+      # logs "cache hit ... not saving cache" — leaving the sdist-built
+      # quarto-cli wheel, 43s of the install step below, uncacheable. Note the
+      # key hashes requirements-doc.txt, not the resolution it produces, so a
+      # quarto release above its `>=` floor still re-pays that build until some
+      # hashed file rotates the key.
       - name: Install uv
         if: steps.render-cache.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
+          cache-suffix: docs
 
       # The package itself is installed because reference docs are
       # generated from the inspect_ai module (griffe).
@@ -252,19 +269,26 @@ jobs:
 
       - name: Install uv
         if: env.RUN_TESTS == 'true'
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
+      # `uv sync` then `uv run --no-sync`, for the same reason as the mypy job.
+      # The other `uv run` sites below keep their implicit sync on purpose:
+      # for docs and sandbox-tools-unit, dropping it would change which
+      # dependency versions the job tests against, and slow-tool-tests-release
+      # relies on the sync replacing its wheel install with the lockfile's
+      # editable one, so `_binaries_dir()` resolves to the source tree the
+      # published binaries were downloaded into.
+      # tests/test_package goes in after the sync (it is not in the lockfile)
+      # so ensure_test_package_installed() short-circuits instead of
+      # pip-installing it mid-run (~9s on the xdist critical path, paid by
+      # whichever test calls it first).
       - name: Install dependencies
         if: env.RUN_TESTS == 'true'
-        # tests/test_package is pre-installed so ensure_test_package_installed()
-        # short-circuits instead of pip-installing it mid-run (~9s on the
-        # xdist critical path, paid by whichever test calls it first).
         run: |-
-          uv venv
-          uv pip install .[dev]
+          uv sync
           uv pip install --no-deps ./tests/test_package
 
       - name: Test with pytest
@@ -285,7 +309,7 @@ jobs:
         # -n logical, not auto: auto means physical cores when psutil is
         # importable (it always is — a runtime dependency), using only 2 of
         # the runner's 4 vCPUs. Measured: 449s → 334s of pytest wall.
-        run: uv run pytest -rA --doctest-modules --color=yes -n logical --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
+        run: uv run --no-sync pytest -ra --doctest-modules --color=yes -n logical --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
 
       - name: Upload test order log
         if: ${{ !cancelled() && env.RUN_TESTS == 'true' }}
@@ -316,7 +340,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -327,7 +351,7 @@ jobs:
           uv pip install "./src/inspect_sandbox_tools[dev]"
 
       - name: Test with pytest
-        run: uv run pytest src/inspect_sandbox_tools/tests/ -rA --color=yes
+        run: uv run pytest src/inspect_sandbox_tools/tests/ -ra --color=yes
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -385,6 +409,9 @@ jobs:
           filters: |
             checkpoint:
               - "src/inspect_ai/util/_checkpoint/**"
+              # tests/checkpoint/ exercises restore_repo against a real restic
+              # binary, so restic-only changes must trigger the area too.
+              - "src/inspect_ai/util/_restic/**"
               - "tests/checkpoint/**"
 
   # Fast gate: confirm sandbox_tools_version.txt is bumped to exactly N+1
@@ -466,18 +493,8 @@ jobs:
       - name: Create local main ref
         run: git branch main origin/main
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v4
-        with:
-          version: latest
-          driver-opts: |
-            network=host
-          buildkitd-flags: |
-            --allow-insecure-entitlement security.insecure
-            --allow-insecure-entitlement network.host
-
       - name: Install uv
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -501,10 +518,7 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
-          # Digest verification is warning-only by default during its soft
-          # launch; CI exercises strict mode.
-          INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS: 1
-        run: uv run pytest --runslow -m slow tests/tools/ -x
+        run: uv run pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -530,18 +544,8 @@ jobs:
           filter: "blob:none"
           submodules: true
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v4
-        with:
-          version: latest
-          driver-opts: |
-            network=host
-          buildkitd-flags: |
-            --allow-insecure-entitlement security.insecure
-            --allow-insecure-entitlement network.host
-
       - name: Install uv
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -606,10 +610,7 @@ jobs:
           # the non-dev name; _check_main_divergence would otherwise return
           # "edited" on this PR (version.txt differs from main).
           INSPECT_SANDBOX_TOOLS_INSTALL_STATE: clean
-          # Digest verification is warning-only by default during its soft
-          # launch; CI exercises strict mode.
-          INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS: 1
-        run: uv run pytest --runslow -m slow tests/tools/ -x
+        run: uv run pytest --runslow -m slow tests/tools/ -x -v --durations=0 -n logical
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -639,7 +640,7 @@ jobs:
           submodules: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -650,7 +651,7 @@ jobs:
           uv pip install .[dev]
 
       - name: Run slow tests
-        run: uv run pytest --runslow -m slow tests/${{ matrix.area }}/
+        run: uv run pytest --runslow -m slow tests/${{ matrix.area }}/ -n logical --durations=0
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}

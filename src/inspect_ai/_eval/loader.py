@@ -61,10 +61,10 @@ logger = getLogger(__name__)
 
 
 def _merge_model_roles(
-    *roles_dicts: dict[str, Model] | None,
-) -> dict[str, Model] | None:
+    *roles_dicts: dict[str, Model | list[Model]] | None,
+) -> dict[str, Model | list[Model]] | None:
     """Merge model_roles dicts with later dicts taking priority."""
-    merged: dict[str, Model] = {}
+    merged: dict[str, Model | list[Model]] = {}
     for d in roles_dicts:
         if d:
             merged.update(d)
@@ -75,7 +75,7 @@ def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
     model: Model,
-    model_roles: dict[str, Model] | None,
+    model_roles: dict[str, Model | list[Model]] | None,
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
@@ -285,7 +285,7 @@ def resolve_previous_tasks(
     tasks: list[ResolvedTask] | list[PreviousTask] | list[ResolvedTask | PreviousTask],
     sample_shuffle: bool | int | None,
     model: Model,
-    model_roles: dict[str, Model] | None,
+    model_roles: dict[str, Model | list[Model]] | None,
     eval_checkpoint: CheckpointConfig | None = None,
 ) -> list[ResolvedTask]:
     result = []
@@ -327,7 +327,7 @@ def resolve_previous_task(
     loaded_task: Task,
     loaded_task_args: dict[str, Any],
     model: Model,
-    model_roles: dict[str, Model] | None,
+    model_roles: dict[str, Model | list[Model]] | None,
     previous_task: PreviousTask,
     sequence: int,
     eval_checkpoint: CheckpointConfig | None = None,
@@ -347,8 +347,9 @@ def resolve_previous_task(
         task_args=loaded_task_args,
         task_file=previous_task.log.eval.task_file,
         model=previous_task.model or loaded_task.model or model,
+        # same precedence as as_resolved_tasks: eval roles outrank task roles
         model_roles=_merge_model_roles(
-            model_roles, loaded_task.model_roles, previous_task.model_roles
+            loaded_task.model_roles, model_roles, previous_task.model_roles
         ),
         sandbox=resolve_task_file_sandbox(
             previous_task.log.eval.task_file, previous_task.log.eval.sandbox
@@ -789,7 +790,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 f"The function '{scorer_name}' in the file '{scorer_path}' requires a return type annotation. Please add a return type annotation to use this function with scoring."
             )
 
-    def create_scorer(scorer_name: str, **kwargs: Any) -> Scorer:
+    def create_scorer(scorer_name: str, /, **kwargs: Any) -> Scorer:
         # handle scorers and scanners
         if registry_lookup("scorer", scorer_name) is not None:
             return scorer_create(scorer_name, **kwargs)
@@ -810,7 +811,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 raise ValueError(f"Unable to resolve scorer name from {spec.scorer}")
 
             try:
-                return scorer_create(scorer_name, **kwargs)
+                return create_scorer(scorer_name, **kwargs)
             except ValueError:
                 # We need a valid path to a scorer file to try to load the scorer from there
                 if not task_path:

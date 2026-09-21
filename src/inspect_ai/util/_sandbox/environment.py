@@ -10,6 +10,7 @@ from typing import (
     Awaitable,
     Callable,
     Literal,
+    NamedTuple,
     Type,
     TypeVar,
     Union,
@@ -124,6 +125,16 @@ class SandboxConnection(BaseModel):
     """Optional container name (does not apply to all sandboxes)."""
 
 
+class SandboxDefaultUser(NamedTuple):
+    """Identity of the user `exec()` runs as when no `user` is given."""
+
+    uid: int
+    gid: int
+    groups: list[int]
+    home: str | None
+    """HOME as exec() sees it; None when unset (the passwd home applies)."""
+
+
 class SandboxEnvironment(abc.ABC):
     """Environment for executing arbitrary code from tools.
 
@@ -135,6 +146,12 @@ class SandboxEnvironment(abc.ABC):
         self._inject_lock = anyio.Lock()
         self._tools_injected: bool = False
         self._tools_user: str | None = None
+        # True once the sandbox-tools user has been decided for this object (root
+        # or, for a rootless sandbox, the default user), so the detector stops
+        # probing root on every tool call. `_tools_user is None` alone cannot say
+        # this because None also means "default user".
+        self._tools_user_resolved: bool = False
+        self._tools_default_user: SandboxDefaultUser | None = None
 
     @abc.abstractmethod
     async def exec(
@@ -162,6 +179,22 @@ class SandboxEnvironment(abc.ABC):
         overflow. This is particularly important when parsing structured output
         such as JSON. For large output, write to a file and use `read_file()`,
         which always raises `OutputLimitExceededError` when the limit is exceeded.
+
+        Provider requirement: `cmd[0]` is resolved through the sandbox's own
+        `PATH` (with `env` applied first, when the provider can), which is what
+        the agent's commands expect. Any command the provider itself inserts
+        ahead of `cmd` (a `timeout`, `runuser`, `su`, or `env` wrapper) runs
+        with `user`'s authority before `cmd` does, so it must be launched by
+        absolute path or resolved through a fixed system `PATH`, never through
+        the image's: an image whose `PATH` puts a directory the default user can
+        write to ahead of the system directories would otherwise let that user
+        supply the wrapper root runs. The same applies to how `env` is applied:
+        a provider must set variables through its exec API (as `docker exec
+        --env` does), not by prefixing a bare `env K=V` resolved through the
+        image's `PATH`. Inspect's own privileged commands go through
+        `inspect_ai.util._sandbox._privileged`, which launches the shell by
+        absolute path, pins `PATH` inside it, and passes the pinned `PATH` in
+        `env` for providers that honour it when resolving their wrapper.
 
         Args:
           cmd: Command or command and arguments to execute.

@@ -35,8 +35,9 @@ from .._log import (
     sort_samples,
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
-from .eval import _s3_bucket_and_key, _write_s3_conditional
+from .eval import _s3_bucket_and_key, _write_s3
 from .file import FileRecorder, write_local_snapshot
+from .recorder import SampleRecordKey, exclude_sample_fields
 
 logger = getLogger(__name__)
 
@@ -69,12 +70,20 @@ class JSONRecorder(FileRecorder):
     class JSONLogFile(BaseModel):
         file: str
         data: EvalLog
+        # whether a flush has written the destination file (so a discard of a
+        # never-finished log knows to remove it)
+        written: bool = False
         # Per-sample summaries cached as samples are logged. Computing a
         # summary is expensive for large samples (thin_data runs
         # textwrap.shorten / JSON size probes over full-size fields), and
         # `sample_summaries` is polled by the control channel — recomputing
         # over the whole in-memory log on every request stalls the event loop.
         summaries: list[EvalSampleSummary] = Field(default_factory=list)
+        # the latest record per (id, epoch), so the common append and the
+        # per-sample lookup (`buffered_sample`, called for every planned key
+        # by a seeded retry's reuse sweep) stay O(1) and only a re-log of an
+        # existing key pays for superseding it in the ordered lists
+        samples_by_key: dict[SampleRecordKey, EvalSample] = Field(default_factory=dict)
 
     def __init__(
         self,
@@ -108,6 +117,16 @@ class JSONRecorder(FileRecorder):
         return file
 
     @override
+    def destination_written(self, eval: EvalSpec) -> bool:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            raise RuntimeError(
+                f"No log in progress for eval {eval.eval_id} "
+                "(finished, discarded, or never initialised)"
+            )
+        return log.written
+
+    @override
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         log = self.data[self._log_file_key(eval)]
         log.data.plan = plan
@@ -122,6 +141,21 @@ class JSONRecorder(FileRecorder):
         log = self.data[self._log_file_key(eval)]
         if log.data.samples is None:
             log.data.samples = []
+        # a re-log of the same (id, epoch) supersedes the earlier record — a
+        # requeued sample's re-run, or a retry re-running a prior attempt's
+        # errored sample that seeded this log — matching the .eval readers'
+        # last-entry-wins rule rather than listing the sample twice
+        key = SampleRecordKey(str(sample.id), sample.epoch)
+        if key in log.samples_by_key:
+            log.data.samples = [
+                s
+                for s in log.data.samples
+                if SampleRecordKey(str(s.id), s.epoch) != key
+            ]
+            log.summaries = [
+                s for s in log.summaries if SampleRecordKey(str(s.id), s.epoch) != key
+            ]
+        log.samples_by_key[key] = sample
         log.data.samples.append(sample)
         log.summaries.append(sample.summary())
 
@@ -134,18 +168,31 @@ class JSONRecorder(FileRecorder):
 
     @override
     async def buffered_sample(
-        self, eval: EvalSpec, id: str | int, epoch: int
+        self,
+        eval: EvalSpec,
+        id: str | int,
+        epoch: int,
+        *,
+        exclude_fields: set[str] | None = None,
     ) -> EvalSample | None:
         # The whole in-memory log (full samples, events included) is retained
         # until log_finish, so this is gap-free and ahead of disk for the entire
         # run — the counterpart to sample_summaries for whole samples.
         log = self.data.get(self._log_file_key(eval))
-        if log is None or log.data.samples is None:
+        if log is None:
             return None
-        for sample in log.data.samples:
-            if sample.id == id and sample.epoch == epoch:
-                return sample
-        return None
+        sample = log.samples_by_key.get(SampleRecordKey(str(id), epoch))
+        if sample is None:
+            return None
+        # a seeded prior record is stored condensed (log_seed re-logs
+        # condense_sample output) with its model-event inputs pooled in
+        # events_data; serve it resolved, as the .eval recorder's read and this
+        # recorder's log_finish do, so the reuse sweep's callbacks and the
+        # control channel see populated ModelEvent.input. A live completion is
+        # stored whole and passes through unchanged (no events_data to resolve)
+        return rebind_sample_timelines(
+            resolve_sample_events_data(exclude_sample_fields(sample, exclude_fields))
+        )
 
     @override
     async def log_config_update(self, eval: EvalSpec, update: ConfigUpdate) -> None:
@@ -171,6 +218,7 @@ class JSONRecorder(FileRecorder):
         log_updates: list[LogUpdate] | None = None,
         config_updates: list[ConfigUpdate] | None = None,
     ) -> EvalLog:
+        await self.close_seed_source(eval)
         log = self.data[self._log_file_key(eval)]
         log.data.status = status
         log.data.stats = stats
@@ -203,10 +251,44 @@ class JSONRecorder(FileRecorder):
         return log.data
 
     @override
+    async def log_prune(self, eval: EvalSpec, keys: set[SampleRecordKey]) -> None:
+        log = self.data[self._log_file_key(eval)]
+
+        def pruned(id: str | int, epoch: int) -> bool:
+            return SampleRecordKey(str(id), epoch) in keys
+
+        log.data.samples = [
+            s for s in (log.data.samples or []) if not pruned(s.id, s.epoch)
+        ]
+        log.summaries = [s for s in log.summaries if not pruned(s.id, s.epoch)]
+        log.samples_by_key = {
+            key: sample for key, sample in log.samples_by_key.items() if key not in keys
+        }
+
+    @override
+    async def log_discard(
+        self, eval: EvalSpec, *, keep_destination: bool = False
+    ) -> None:
+        await self.close_seed_source(eval)
+        log = self.data.pop(self._log_file_key(eval), None)
+        # `written` only becomes true via this process's own flush, and
+        # TaskLogger.init() never passes a pre-existing location to log_init,
+        # so the rm below can only remove a file this attempt itself wrote.
+        # TODO: sync fsspec rm blocks the event loop on remote log dirs; route
+        # through AsyncFilesystem if it ever grows an rm helper (to_thread
+        # over remote fsspec can deadlock — see AGENTS.md).
+        if log is not None and log.written and not keep_destination:
+            try:
+                self.fs.rm(log.file)
+            except FileNotFoundError:
+                pass
+
+    @override
     async def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]
         # intermediate snapshot: skip fsync (see _write_log_impl)
         await self._write_log_impl(log.file, log.data, fsync=False)
+        log.written = True
 
     @override
     @classmethod
@@ -269,8 +351,10 @@ class JSONRecorder(FileRecorder):
         log: EvalLog,
         if_match_etag: str | None = None,
         header_only: bool = False,
-    ) -> None:
-        await cls._write_log_impl(location, log, if_match_etag, header_only, fsync=True)
+    ) -> str | None:
+        return await cls._write_log_impl(
+            location, log, if_match_etag, header_only, fsync=True
+        )
 
     @classmethod
     async def _write_log_impl(
@@ -281,7 +365,7 @@ class JSONRecorder(FileRecorder):
         header_only: bool = False,
         *,
         fsync: bool,
-    ) -> None:
+    ) -> str | None:
         """Write the log, controlling durability of the local write.
 
         The public ``write_log`` always passes ``fsync=True`` (a caller
@@ -305,28 +389,43 @@ class JSONRecorder(FileRecorder):
             sort_samples(log.samples)
 
         fs = filesystem(location)
-        if fs.is_s3() and if_match_etag:
-            # Use S3 conditional write
-            await cls._write_log_s3_conditional(location, log, if_match_etag)
-        else:
-            # Standard write
-            # get log as bytes (serialized on the event loop: the pydantic
-            # log object may be mutated by concurrent coroutines, whereas
-            # the resulting bytes are immutable and safe to hand to a thread)
-            log_bytes = eval_log_json(log)
+        # Standard write
+        # get log as bytes (serialized on the event loop: the pydantic
+        # log object may be mutated by concurrent coroutines, whereas
+        # the resulting bytes are immutable and safe to hand to a thread)
+        log_bytes = eval_log_json(log)
 
-            with trace_action(logger, "Log Write", location):
-                if fs.is_local():
-                    await write_local_snapshot(
+        if fs.is_s3():
+            bucket, key = _s3_bucket_and_key(location)
+            async with AsyncFilesystem() as async_fs:
+                if if_match_etag is not None:
+                    return await _write_s3(
+                        async_fs,
+                        bucket,
+                        key,
+                        log_bytes,
+                        if_match_etag,
                         location,
-                        fsync,
-                        partial(
-                            atomic_write_bytes, local_path(location), log_bytes, fsync
-                        ),
+                        logger,
                     )
-                else:
-                    with file(location, "wb") as f:
-                        f.write(log_bytes)
+                with trace_action(logger, "Log Write", location):
+                    etag = await async_fs.write_file(location, log_bytes)
+                if etag is None:
+                    raise RuntimeError("S3 upload completed without returning an ETag")
+                return etag
+
+        with trace_action(logger, "Log Write", location):
+            if fs.is_local():
+                await write_local_snapshot(
+                    location,
+                    fsync,
+                    partial(atomic_write_bytes, local_path(location), log_bytes, fsync),
+                )
+            else:
+                with file(location, "wb") as f:
+                    f.write(log_bytes)
+
+        return None
 
     @classmethod
     async def _merge_disk_samples_for_header_only(
@@ -350,29 +449,6 @@ class JSONRecorder(FileRecorder):
             },
             deep=False,
         )
-
-    @classmethod
-    async def _write_log_s3_conditional(
-        cls, location: str, log: EvalLog, etag: str
-    ) -> None:
-        """Perform S3 conditional write using aioboto3."""
-        from inspect_ai.log._file import eval_log_json
-
-        bucket, key = _s3_bucket_and_key(location)
-
-        # get log as bytes
-        log_bytes = eval_log_json(log)
-
-        async with AsyncFilesystem() as async_fs:
-            await _write_s3_conditional(
-                async_fs,
-                bucket,
-                key,
-                log_bytes,
-                etag,
-                location,
-                logger,
-            )
 
 
 def _validate_version(ver: int) -> None:

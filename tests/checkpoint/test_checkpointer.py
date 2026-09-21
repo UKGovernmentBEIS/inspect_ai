@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -18,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import JsonValue
@@ -50,6 +51,7 @@ from inspect_ai.util._checkpoint import (
     checkpointer,
 )
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
+from inspect_ai.util._checkpoint._restore_scope import remove_existing_symlinks_command
 from inspect_ai.util._checkpoint._triggers import CheckpointTriggerKind
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_impl import (
@@ -57,13 +59,20 @@ from inspect_ai.util._checkpoint.checkpointer_impl import (
     _CheckpointerSetup,
     _EnteredCheckpointer,
     _scan_next_checkpoint_id,
+    _snapshot_info,
 )
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
-from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
+from inspect_ai.util._checkpoint.config import (
+    ResolvedCheckpointConfig,
+    SandboxSnapshotConfig,
+)
 from inspect_ai.util._checkpoint.hydrate import HydrationResult, _HostHydrationResult
 from inspect_ai.util._checkpoint.report import ResumeReport
+from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
 from inspect_ai.util._restic import ResticBackupSummary
+from inspect_ai.util._sandbox._privileged import pinned_command, pinned_shell_command
 from inspect_ai.util._store import Store
+from inspect_ai.util._subprocess import ExecResult
 
 
 def _write_transcript_files(store: TranscriptEventStore, work_dir: Path) -> None:
@@ -175,8 +184,8 @@ class _CountingCheckpointer(_EnteredCheckpointer):
         await super()._fire(trigger, metadata=metadata, final=final)
         self.fire_count += 1
 
-    async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
-        return _fake_summary(checkpoint_id)
+    async def _backup_host(self, checkpoint_id: int) -> SnapshotDetails:
+        return _snapshot_info(_fake_summary(checkpoint_id))
 
 
 def _fake_hydration(sample_checkpoints_dir: str, context_dir: str) -> HydrationResult:
@@ -347,6 +356,34 @@ async def test_token_interval_fires_when_usage_crosses_threshold(
         fake_tokens[0] = 2100
         await cp.tick()
         assert cp.fire_count == 2
+
+
+async def test_token_interval_first_tick_after_restore_not_full_interval(
+    dirs: _Dirs,
+) -> None:
+    """Seeding _reference from the snapshot avoids delaying the first post-resume tick."""
+    fake_tokens = [5000]
+
+    def tokens() -> int:
+        return fake_tokens[0]
+
+    hydration = _fake_hydration(dirs.checkpoints, dirs.context)
+    hydration.host.sample_runtime = {"token_interval_reference": 5000}
+
+    with patch("inspect_ai.model._model.sample_total_tokens", tokens):
+        cp = _CountingCheckpointer(
+            config=ResolvedCheckpointConfig(trigger=TokenInterval(every=1000)),
+            hydration=hydration,
+            resume_checkpoint=None,
+            reset_transcript_store=True,
+        )
+        fake_tokens[0] = 5500
+        await cp.tick()
+        assert cp.fire_count == 0
+
+        fake_tokens[0] = 6100
+        await cp.tick()
+        assert cp.fire_count == 1
 
 
 # --- manual ---------------------------------------------------------------
@@ -730,6 +767,57 @@ def test_validate_resume_state_allows_unreadable_interior_checkpoint_entry(
     _validate_resume_state(events, str(sample_root), 3)
 
 
+def test_warn_if_sample_dir_renamed_fires_once_per_process(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Passthrough ids never warn; the first renamed id warns, later ones only trace."""
+    from inspect_ai.util._checkpoint import hydrate as hydrate_mod
+
+    monkeypatch.setattr(hydrate_mod, "_sample_dir_rename_warned", False)
+    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+        hydrate_mod._warn_if_sample_dir_renamed("plain-id")
+        hydrate_mod._warn_if_sample_dir_renamed(42)
+        assert not [
+            r
+            for r in caplog.records
+            if "is not used as its checkpoint directory name" in r.getMessage()
+        ]
+
+        hydrate_mod._warn_if_sample_dir_renamed("task/1")
+        hydrate_mod._warn_if_sample_dir_renamed("task/2")
+        hydrate_mod._warn_if_sample_dir_renamed("task/1")
+
+    warnings = [
+        r.getMessage()
+        for r in caplog.records
+        if "is not used as its checkpoint directory name" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert "'task/1'" in warnings[0]
+    assert "task/2" not in warnings[0]
+    assert hydrate_mod._sample_dir_rename_warned is True
+
+
+def test_validate_resume_state_ignores_names_outside_checkpoint_file_form(
+    tmp_path: Path,
+) -> None:
+    """Validation lists ``ckpt-*.json`` with the same regex as the scanner.
+
+    A stray ``ckpt-1.json`` (parseable by ``int`` but not the zero-padded
+    form the writer emits) is ignored, even when its content id disagrees
+    with its name, rather than tripping the file-id mismatch check on a
+    file ``scan_latest_committed_checkpoint`` never counts.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    (sample_root / "ckpt-1.json").write_text(_make_checkpoint(7).model_dump_json())
+    events = _checkpoint_resume_events(2)
+
+    _validate_resume_state(events, str(sample_root), 2)
+
+
 def test_validate_resume_state_accepts_failed_fire_retry_span(
     tmp_path: Path,
 ) -> None:
@@ -1005,16 +1093,8 @@ async def test_failure_recorded_as_info_event_and_warning(
 
     cp = _flaky(ResolvedCheckpointConfig(trigger=Manual()), dirs)
     cp.should_fail = True
-    # A prior test may have called `eval()`, which sets `propagate=False`
-    # on the `inspect_ai` logger — restore propagation for caplog.
-    inspect_logger = logging.getLogger("inspect_ai")
-    saved_propagate = inspect_logger.propagate
-    inspect_logger.propagate = True
-    try:
-        with caplog.at_level(logging.WARNING):
-            await cp.checkpoint()
-    finally:
-        inspect_logger.propagate = saved_propagate
+    with caplog.at_level(logging.WARNING):
+        await cp.checkpoint()
 
     infos = [
         e for e in dirs.events if isinstance(e, InfoEvent) and e.source == "checkpoint"
@@ -1202,7 +1282,8 @@ async def test_fire_writes_restic_config_and_checkpoint_files(
     active_sample.checkpoint = ResolvedCheckpointConfig(trigger=TurnInterval(every=2))
 
     # Inject a real checkpointer into the fake, mirroring what
-    # `task_run_sample` does in production before opening `active_sample`.
+    # `task_run_sample`'s attempt does in production before opening
+    # `active_sample`.
     from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 
     assert active_sample.sample.id is not None
@@ -1249,6 +1330,54 @@ async def test_fire_writes_restic_config_and_checkpoint_files(
     assert (context / "events_data.json").is_file()
     assert (context / "attachments.json").is_file()
     assert (context / "store.json").is_file()
+
+
+async def test_fire_with_traversal_sample_id_stays_inside_eval_dir(
+    active_sample: _FakeActiveSample, tmp_path: Path
+) -> None:
+    """A dataset id with `/` and `..` checkpoints inside the eval dir and is resumable.
+
+    Everything the checkpointer materializes (restic config, checkpoint
+    files, context) must land under the eval checkpoints dir, and the
+    resume lookup must find it under the same name the write path used.
+    """
+    from inspect_ai.util._checkpoint._layout import sample_checkpoints_dir
+    from inspect_ai.util._checkpoint._layout._paths import sample_dir_segment
+    from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+    from inspect_ai.util._checkpoint.resume import resolve_resume_checkpoint
+
+    hostile_id = "../../escape/me"
+    active_sample.sample.id = hostile_id
+    active_sample.epoch = 0
+    active_sample.checkpoint = ResolvedCheckpointConfig(trigger=TurnInterval(every=1))
+    active_sample.checkpointer = create_checkpointer(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=hostile_id,
+        epoch=0,
+    )
+
+    async with checkpointer() as cp:
+        await cp.tick()  # informational boundary, no fire
+        await cp.tick()  # turn 1 elapsed, fires (ckpt-1)
+
+    log = Path(active_sample.log_location)
+    eval_dir = log.parent / f"{log.stem}.checkpoints"
+    sample_dir = eval_dir / f"{sample_dir_segment(hostile_id)}__0"
+    assert sample_dir.is_dir()
+    assert (sample_dir / "restic" / "restic-config.json").is_file()
+    assert (sample_dir / "ckpt-00001.json").is_file()
+    assert (sample_dir / "context" / "events.json").is_file()
+    # Nothing was relocated to where the raw id would have pointed.
+    assert not (log.parent / "escape").exists()
+    assert not (tmp_path / "escape").exists()
+    assert not (tmp_path.parent / "escape").exists()
+    # The eval dir holds exactly this sample's dir.
+    assert [p.name for p in eval_dir.iterdir()] == [sample_dir.name]
+
+    # Resume detection derives the same name and finds the checkpoint.
+    assert await resolve_resume_checkpoint(str(eval_dir), hostile_id, 0) is not None
+    assert sample_checkpoints_dir(str(eval_dir), hostile_id, 0) == str(sample_dir)
 
 
 # === nested re-entry: sub-agent loops (agent-as-tool / handoff / deepagent) ==
@@ -1564,6 +1693,198 @@ async def test_write_host_context_skips_empty_assistant_internal(
     assert host_context.read(str(work)).assistant_internal is None
 
 
+async def test_write_host_context_writes_raw_model_usage(tmp_path: Path) -> None:
+    """Fire writes raw ModelUsage (not the metered number) and read() round-trips."""
+    from inspect_ai.model._model_output import ModelUsage
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._limit import record_model_usage, token_limit
+
+    usage = ModelUsage(input_tokens=10, output_tokens=3, total_tokens=13)
+    with token_limit(100, type="output"):
+        record_model_usage(usage)
+        cp = _make_cp()
+        work = tmp_path / "work"
+        work.mkdir()
+        await cp._write_host_context(str(work), Store())
+
+    data = json.loads((work / "sample_runtime.json").read_text())
+    assert data["token_usage"]["input_tokens"] == 10
+    assert data["token_usage"]["output_tokens"] == 3
+    assert data["token_usage"]["total_tokens"] == 13
+    assert host_context.read(str(work)).sample_runtime == data
+
+
+async def test_write_host_context_always_writes_sample_runtime(tmp_path: Path) -> None:
+    """Zeros are written so presence means this checkpoint has runtime state."""
+    from inspect_ai.util._checkpoint._layout import host_context
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+
+    data = host_context.read(str(work)).sample_runtime
+    assert isinstance(data, dict)
+    token_usage = data["token_usage"]
+    assert isinstance(token_usage, dict)
+    assert token_usage["total_tokens"] == 0
+
+
+async def test_host_context_read_missing_sample_runtime_is_none(tmp_path: Path) -> None:
+    """Pre-this-file checkpoints read as sample_runtime=None (legacy reset-to-0)."""
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint._layout.host_context import SAMPLE_RUNTIME
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    (work / SAMPLE_RUNTIME).unlink()
+    assert host_context.read(str(work)).sample_runtime is None
+
+
+async def test_host_context_read_refuses_symlinked_required_file(
+    tmp_path: Path,
+) -> None:
+    """A symlink at ``store.json`` is refused rather than read through.
+
+    The restored context comes from an untrusted repo; following the link
+    would load an arbitrary host file into the sample Store.
+    """
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint._layout.host_context import STORE
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    secret = tmp_path / "secret.json"
+    secret.write_text('{"pwned": true}')
+    (work / STORE).unlink()
+    os.symlink(secret, work / STORE)
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        host_context.read(str(work))
+
+
+async def test_host_context_read_refuses_symlinked_optional_file(
+    tmp_path: Path,
+) -> None:
+    """Optional files get the same no-follow treatment (not ``is_file()``)."""
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint._layout.host_context import AGENT_STATE
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    secret = tmp_path / "secret.json"
+    secret.write_text('{"pwned": true}')
+    os.symlink(secret, work / AGENT_STATE)
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        host_context.read(str(work))
+
+
+async def test_host_context_read_refuses_dangling_symlink(tmp_path: Path) -> None:
+    """A dangling symlink is reported as a symlink, not as an absent optional file."""
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint._layout.host_context import AGENT_STATE
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    os.symlink(tmp_path / "does-not-exist.json", work / AGENT_STATE)
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        host_context.read(str(work))
+
+
+async def test_host_context_read_refuses_non_regular_file(tmp_path: Path) -> None:
+    """A directory (or other non-regular entry) at a schema filename raises."""
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint._layout.host_context import AGENT_STATE
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    (work / AGENT_STATE).mkdir()
+
+    with pytest.raises(RuntimeError, match="not a regular file"):
+        host_context.read(str(work))
+
+
+async def test_resume_for_scoring_over_limit_does_not_raise(tmp_path: Path) -> None:
+    """resume_for_scoring reseeds over-limit usage without calling check()."""
+    from inspect_ai.model._model_output import ModelUsage
+    from inspect_ai.util._limit import record_model_usage, token_limit
+
+    with token_limit(10):
+        record_model_usage(ModelUsage(total_tokens=11))
+        from inspect_ai.util._checkpoint.sample_runtime import dump_sample_runtime
+
+        payload = dump_sample_runtime()
+
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
+    hydration.host.sample_runtime = payload
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        log_location=str(tmp_path / "t.eval"),
+        sample_id="s",
+        epoch=0,
+        resume_checkpoint=ResumeCheckpoint(attempt="resume_for_scoring"),
+    )
+    with (
+        token_limit(10) as limit,
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+            return_value=hydration,
+        ),
+    ):
+        await setup.__aenter__()
+        assert limit.usage == 11
+        setup.close()
+
+
+async def test_resume_over_limit_raises(tmp_path: Path) -> None:
+    """Normal resume calls check() after restore and raises when already over limit."""
+    from inspect_ai.model._model_output import ModelUsage
+    from inspect_ai.util._limit import (
+        LimitExceededError,
+        record_model_usage,
+        token_limit,
+    )
+
+    with token_limit(10):
+        record_model_usage(ModelUsage(total_tokens=11))
+        from inspect_ai.util._checkpoint.sample_runtime import dump_sample_runtime
+
+        payload = dump_sample_runtime()
+
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
+    hydration.host.sample_runtime = payload
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        log_location=str(tmp_path / "t.eval"),
+        sample_id="s",
+        epoch=0,
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
+    )
+    with (
+        token_limit(10),
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+            return_value=hydration,
+        ),
+        pytest.raises(LimitExceededError) as exc_info,
+    ):
+        await setup.__aenter__()
+    assert exc_info.value.type == "token"
+    setup.close()
+
+
 def test_track_noop_session() -> None:
     """`_NoopCheckpointer.track()` returns initial_value and never registers."""
     cp = _NoopCheckpointer()
@@ -1587,17 +1908,13 @@ def test_attempt_reflects_resume_checkpoint() -> None:
     assert _make_cp().attempt == "initial"
     assert (
         _make_cp(
-            resume_checkpoint=ResumeCheckpoint(
-                sample_checkpoints_dir="/x", attempt="resume"
-            ),
+            resume_checkpoint=ResumeCheckpoint(attempt="resume"),
         ).attempt
         == "resume"
     )
     assert (
         _make_cp(
-            resume_checkpoint=ResumeCheckpoint(
-                sample_checkpoints_dir="/x", attempt="resume_for_scoring"
-            ),
+            resume_checkpoint=ResumeCheckpoint(attempt="resume_for_scoring"),
         ).attempt
         == "resume_for_scoring"
     )
@@ -1610,7 +1927,7 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
     setup = _CheckpointerSetup(
         config=ResolvedCheckpointConfig(
             trigger=TurnInterval(every=1),
-            sandbox_paths={"web": ["/var/www"]},
+            sandbox_snapshots={"web": SandboxSnapshotConfig(paths=["/var/www"])},
         ),
         log_location=str(tmp_path / "t.eval"),
         sample_id="s",
@@ -1661,11 +1978,11 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             return_value=fake_env,
         ) as get_sandbox,
         patch(
-            "inspect_ai.util._checkpoint.hydrate.inject_restic",
+            "inspect_ai.util._checkpoint._snapshot.restic.inject_restic",
             new=AsyncMock(),
         ) as inject,
         patch(
-            "inspect_ai.util._checkpoint.hydrate.init_sandbox_repo",
+            "inspect_ai.util._checkpoint._snapshot.restic.init_sandbox_repo",
             new=AsyncMock(),
         ) as init_sandbox,
     ):
@@ -2065,13 +2382,7 @@ def _finalize_setup(
     hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
     Path(hydration.sample_checkpoints_dir).mkdir(parents=True)
     Path(hydration.context_dir).mkdir(parents=True)
-    resume = (
-        ResumeCheckpoint(
-            sample_checkpoints_dir=str(tmp_path / "prior"), attempt=attempt
-        )
-        if attempt is not None
-        else None
-    )
+    resume = ResumeCheckpoint(attempt=attempt) if attempt is not None else None
     setup = _CheckpointerSetup(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         log_location=str(tmp_path / "t.eval"),
@@ -2176,10 +2487,7 @@ async def test_resume_resets_restored_transcript_store_before_seeding(
         log_location=str(tmp_path / "t.eval"),
         sample_id="s",
         epoch=0,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=str(tmp_path / "prior-ckpts"),
-            attempt="resume",
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
     )
 
     with (
@@ -2225,10 +2533,7 @@ def test_resume_seed_skips_restored_resident_events(
     cp = _EnteredCheckpointer(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=hydration,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=str(tmp_path / "old"),
-            attempt="resume",
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
         reset_transcript_store=True,
     )
     snapshot = tmp_path / "snapshot"
@@ -2438,9 +2743,7 @@ async def _run_resume_outcome(
         log_location=str(Path(dirs.checkpoints) / "t.eval"),
         sample_id="s",
         epoch=0,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=dirs.checkpoints, attempt="resume"
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
     )
     with patch(
         "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
@@ -2534,9 +2837,7 @@ async def test_on_resume_exception_fails_resume(dirs: _Dirs) -> None:
         log_location=str(Path(dirs.checkpoints) / "t.eval"),
         sample_id="s",
         epoch=0,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=dirs.checkpoints, attempt="resume"
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
     )
     with patch(
         "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
@@ -2562,10 +2863,7 @@ async def test_on_resume_receives_attempt_resume_for_scoring(dirs: _Dirs) -> Non
         log_location=str(Path(dirs.checkpoints) / "t.eval"),
         sample_id="s",
         epoch=0,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=dirs.checkpoints,
-            attempt="resume_for_scoring",
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume_for_scoring"),
     )
     with patch(
         "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
@@ -2604,9 +2902,7 @@ async def test_on_resume_fires_only_once_across_reentry(dirs: _Dirs) -> None:
         log_location=str(Path(dirs.checkpoints) / "t.eval"),
         sample_id="s",
         epoch=0,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=dirs.checkpoints, attempt="resume"
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
     )
     with patch(
         "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
@@ -2669,3 +2965,301 @@ def test_task_stores_checkpoint_callbacks() -> None:
     t3 = task_with(t, on_resume=on_resume2)
     assert t3.on_resume is on_resume2
     assert t3.on_checkpoint is on_checkpoint  # unchanged
+
+
+# --- snapshot strategy fan-out ---------------------------------------
+
+
+class _StubStrategy:
+    """Records strategy calls; snapshots are cheap fabricated details."""
+
+    name = "archive"
+
+    def __init__(self) -> None:
+        self.snapshot_ids: list[int] = []
+
+    async def setup(self, env: object, ctx: object) -> None:
+        pass
+
+    async def snapshot(
+        self, env: object, paths: object, checkpoint_id: int, ctx: object
+    ) -> SnapshotDetails:
+        self.snapshot_ids.append(checkpoint_id)
+        return SnapshotDetails.model_validate(
+            dict(
+                snapshot_id=f"ckpt-{checkpoint_id:05d}",
+                size_bytes=1,
+                duration_ms=1,
+                strategy=self.name,
+            )
+        )
+
+    async def restore(
+        self, env: object, paths: object, ref: object, ctx: object
+    ) -> None:
+        pass
+
+    async def discard_orphans(self, committed: object, ctx: object) -> None:
+        pass
+
+
+async def test_fire_routes_sandbox_snapshot_through_strategy(
+    dirs: _Dirs,
+) -> None:
+    """Fires fan out to the sandbox strategy with sequential checkpoint ids."""
+    from inspect_ai.util._checkpoint._snapshot import (
+        SandboxSnapshotSession,
+        SnapshotContext,
+    )
+    from inspect_ai.util._checkpoint.config import (
+        ArchiveSnapshots,
+        SandboxSnapshotConfig,
+    )
+    from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
+
+    stub = _StubStrategy()
+    subpath = "sandboxes/default/archive"
+    hydration = _fake_hydration(dirs.checkpoints, dirs.context)
+    hydration.sandbox_sessions = {
+        "default": SandboxSnapshotSession(
+            strategy=stub,
+            context=SnapshotContext(
+                sandbox_name="default",
+                storage_dir=f"{dirs.checkpoints}/{subpath}",
+                storage_subpath=subpath,
+                secret="test-pwd",
+                resuming=False,
+            ),
+            paths=SandboxBackupPaths(include=["/data"]),
+        )
+    }
+    config = ResolvedCheckpointConfig(
+        trigger=Manual(),
+        sandbox_snapshots={
+            "default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())
+        },
+    )
+    cp = _CountingCheckpointer(
+        config=config,
+        hydration=hydration,
+        resume_checkpoint=None,
+        reset_transcript_store=True,
+    )
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.sandbox",
+        return_value=MagicMock(),
+    ):
+        await cp.checkpoint()
+        await cp.checkpoint()
+        await cp.checkpoint()
+
+    # Every fire routed through the strategy with sequential ids.
+    assert stub.snapshot_ids == [1, 2, 3]
+    # Recorded details carry the strategy identity.
+    checkpoint = Checkpoint.model_validate_json(
+        (Path(dirs.checkpoints) / "ckpt-00003.json").read_bytes()
+    )
+    details = checkpoint.sandboxes["default"]
+    assert (details.model_extra or {}).get("strategy") == "archive"
+
+
+# --- sandbox hydration: restore gating and home ownership ---------------
+
+
+class _RecordingStrategy(_StubStrategy):
+    """Records the resume-side calls in order, with what ``restore`` received."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls: list[str] = []
+        self.restored: list[tuple[object, object]] = []
+        self.commands_before_setup: list[list[str]] = []
+
+    async def setup(self, env: object, ctx: object) -> None:
+        self.calls.append("setup")
+        if isinstance(env, _RecordingSandbox):
+            self.commands_before_setup = list(env.commands)
+
+    async def discard_orphans(self, committed: object, ctx: object) -> None:
+        self.calls.append("discard_orphans")
+
+    async def restore(
+        self, env: object, paths: object, ref: object, ctx: object
+    ) -> None:
+        self.calls.append("restore")
+        self.restored.append((paths, ref))
+
+
+class _RecordingSandbox:
+    """Sandbox fake that records ``exec`` commands and answers the owner probes.
+
+    With ``home_exists`` the home dir stats as uid 1001; without it,
+    ``stat`` and ``test -e`` fail and ``id -u`` (as the default user)
+    answers 1000.
+    """
+
+    def __init__(self, home_exists: bool = True) -> None:
+        self.commands: list[list[str]] = []
+        self.home_exists = home_exists
+
+    async def exec(
+        self, cmd: list[str], user: str | None = None, **kwargs: object
+    ) -> ExecResult[str]:
+        self.commands.append(cmd)
+        if _pinned(cmd, ["stat", "-L", "-c", "%u"]) or _pinned(cmd, ["test", "-e"]):
+            if not self.home_exists:
+                return ExecResult(
+                    success=False, returncode=1, stdout="", stderr="No such file"
+                )
+            return ExecResult(success=True, returncode=0, stdout="1001\n", stderr="")
+        if cmd == pinned_command(["id", "-u"]):
+            assert user is None, "the default user's uid is read as the default user"
+            return ExecResult(success=True, returncode=0, stdout="1000\n", stderr="")
+        return ExecResult(success=True, returncode=0, stdout="", stderr="")
+
+
+def _pinned(cmd: list[str], argv: list[str]) -> bool:
+    """``cmd`` is ``privileged_exec``'s argv for ``argv``, or for a longer argv starting with it."""
+    prefix = pinned_command(argv)
+    return cmd[: len(prefix)] == prefix
+
+
+def _symlink_pass(*roots: str) -> list[str]:
+    """The core's pre-``setup`` exec deleting the image's symlinks under ``roots``."""
+    return pinned_shell_command("set -e\n" + remove_existing_symlinks_command(roots))
+
+
+def _sandbox_checkpoint(checkpoint_id: int, sandboxes: dict[str, str]) -> Checkpoint:
+    return Checkpoint(
+        checkpoint_id=checkpoint_id,
+        trigger="turn",
+        turn=checkpoint_id,
+        created_at=datetime.now(timezone.utc),
+        duration_ms=0,
+        size_bytes=0,
+        host=SnapshotDetails(snapshot_id="host", size_bytes=0, duration_ms=0),
+        sandboxes={
+            name: SnapshotDetails(snapshot_id=sid, size_bytes=0, duration_ms=0)
+            for name, sid in sandboxes.items()
+        },
+    )
+
+
+async def _hydrate_one_sandbox(
+    strategy: _RecordingStrategy,
+    env: _RecordingSandbox,
+    paths: SandboxBackupPaths,
+    committed: list[Checkpoint],
+) -> None:
+    from inspect_ai.util._checkpoint._snapshot import (
+        SandboxSnapshotSession,
+        SnapshotContext,
+    )
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+    from inspect_ai.util._checkpoint.hydrate import _hydrate_sandbox
+
+    session = SandboxSnapshotSession(
+        strategy=strategy,
+        context=SnapshotContext(
+            sandbox_name="default",
+            storage_dir="/nowhere/sandboxes/default/archive",
+            storage_subpath="sandboxes/default/archive",
+            secret="test-pwd",
+            resuming=True,
+        ),
+        paths=paths,
+    )
+    with patch("inspect_ai.util._checkpoint.hydrate.sandbox", return_value=env):
+        await _hydrate_sandbox(
+            name="default",
+            session=session,
+            resume=ResumeCheckpoint(attempt="resume"),
+            committed_checkpoints=committed,
+            action="Checkpoint Hydrate",
+        )
+
+
+async def test_hydrate_sandbox_refuses_resume_without_committed_record() -> None:
+    """No committed checkpoint records this sandbox: nothing is restored or discarded."""
+    strategy = _RecordingStrategy()
+    env = _RecordingSandbox()
+    with pytest.raises(
+        RuntimeError, match="no committed checkpoint records a snapshot"
+    ):
+        await _hydrate_one_sandbox(
+            strategy,
+            env,
+            SandboxBackupPaths(include=["/root"], home="/root"),
+            [_sandbox_checkpoint(1, {"other": "o1"})],
+        )
+    assert strategy.calls == ["setup"]
+    assert env.commands == [
+        pinned_command(["stat", "-L", "-c", "%u", "/root"]),
+        _symlink_pass("/root"),
+    ]
+
+
+async def test_hydrate_sandbox_reowns_auto_home_around_restore() -> None:
+    """Auto-home: read the owner before the restore, re-own under it after.
+
+    The owner is read from the untouched image, before the symlink pass
+    (a home dir that is itself an image symlink stats through to its
+    target's owner), and the pass runs before ``setup`` so nothing the
+    strategy places is written through an image symlink.
+    """
+    strategy = _RecordingStrategy()
+    env = _RecordingSandbox()
+    paths = SandboxBackupPaths(include=["/home/agent"], home="/home/agent")
+    committed = [
+        _sandbox_checkpoint(1, {"default": "d1"}),
+        _sandbox_checkpoint(2, {"default": "d2"}),
+    ]
+    await _hydrate_one_sandbox(strategy, env, paths, committed)
+
+    assert strategy.calls == ["setup", "discard_orphans", "restore"]
+    [(restored_paths, ref)] = strategy.restored
+    assert restored_paths is paths
+    assert isinstance(ref, SnapshotDetails) and ref.snapshot_id == "d2"
+    assert env.commands == [
+        pinned_command(["stat", "-L", "-c", "%u", "/home/agent"]),
+        _symlink_pass("/home/agent"),
+        pinned_shell_command(
+            "find /home/agent -xdev ! -user 1001 -exec chown -h 1001 {} +"
+        ),
+    ]
+    assert strategy.commands_before_setup == env.commands[:2]
+
+
+async def test_hydrate_sandbox_reowns_missing_home_to_default_user() -> None:
+    """A home dir the image never created is owned by the default user after restore."""
+    strategy = _RecordingStrategy()
+    env = _RecordingSandbox(home_exists=False)
+    paths = SandboxBackupPaths(include=["/home/agent"], home="/home/agent")
+    await _hydrate_one_sandbox(
+        strategy, env, paths, [_sandbox_checkpoint(1, {"default": "d1"})]
+    )
+    assert strategy.calls == ["setup", "discard_orphans", "restore"]
+    assert env.commands == [
+        pinned_command(["stat", "-L", "-c", "%u", "/home/agent"]),
+        pinned_command(["test", "-e", "/home/agent"]),
+        pinned_command(["id", "-u"]),
+        _symlink_pass("/home/agent"),
+        pinned_shell_command(
+            "find /home/agent -xdev ! -user 1000 -exec chown -h 1000 {} +"
+        ),
+    ]
+
+
+async def test_hydrate_sandbox_keeps_recorded_ownership_for_configured_paths() -> None:
+    """Configured roots: no owner probe or re-own, only the pre-``setup`` symlink pass."""
+    strategy = _RecordingStrategy()
+    env = _RecordingSandbox()
+    await _hydrate_one_sandbox(
+        strategy,
+        env,
+        SandboxBackupPaths(include=["/data", "/data/sub", "/srv"]),
+        [_sandbox_checkpoint(1, {"default": "d1"})],
+    )
+    assert strategy.calls == ["setup", "discard_orphans", "restore"]
+    assert env.commands == [_symlink_pass("/data", "/srv")]
+    assert strategy.commands_before_setup == env.commands

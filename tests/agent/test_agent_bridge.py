@@ -15,15 +15,15 @@ from test_helpers.utils import (
     skip_if_no_openai,
 )
 
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, eval, eval_async, task
 from inspect_ai._util.content import ContentToolUse
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import GenerateInput
-from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._model import GenerateInput, get_model
+from inspect_ai.model._model_output import Logprob, Logprobs, ModelOutput, TopLogprob
 from inspect_ai.model._openai import (
     messages_to_openai,
     openai_chat_tools,
@@ -681,6 +681,59 @@ def google_web_search_agent() -> Agent:
             return bridge.state
 
     return execute
+
+
+async def test_google_bridge_returns_logprobs_to_client() -> None:
+    output = ModelOutput.from_content("mockllm/model", "Hello")
+    output.choices[0].logprobs = Logprobs(
+        content=[
+            Logprob(
+                token="Hello",
+                logprob=-0.2,
+                top_logprobs=[TopLogprob(token="Hi", logprob=-0.1)],
+            )
+        ]
+    )
+
+    @agent
+    def logprobs_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state, forward_generation_config=True) as bridge:
+                async with genai.Client(api_key="inspect").aio as client:
+                    response = await client.models.generate_content(
+                        model="inspect",
+                        contents="Say hello",
+                        config=genai.types.GenerateContentConfig(
+                            response_logprobs=True, logprobs=1
+                        ),
+                    )
+                assert response.candidates
+                candidate = response.candidates[0]
+                assert candidate.logprobs_result is not None
+                assert candidate.logprobs_result.chosen_candidates == [
+                    genai.types.LogprobsResultCandidate(
+                        token="Hello", log_probability=-0.2
+                    )
+                ]
+                assert candidate.logprobs_result.top_candidates == [
+                    genai.types.LogprobsResultTopCandidates(
+                        candidates=[
+                            genai.types.LogprobsResultCandidate(
+                                token="Hi", log_probability=-0.1
+                            )
+                        ]
+                    )
+                ]
+                assert candidate.avg_logprobs == pytest.approx(-0.2)
+                return bridge.state
+
+        return execute
+
+    logs = await eval_async(
+        Task(dataset=[Sample(input="Say hello")], solver=logprobs_agent()),
+        model=get_model("mockllm/model", custom_outputs=[output]),
+    )
+    assert logs[0].status == "success", logs[0].error
 
 
 @agent

@@ -19,6 +19,10 @@ from ._target import Target
 def multi_scorer(scorers: list[Scorer], reducer: str | ScoreReducer) -> Scorer:
     r"""Returns a Scorer that runs multiple Scorers in parallel and aggregates their results into a single Score using the provided reducer function.
 
+    If every sub-scorer declines to score (returns `None`), the combined
+    scorer returns `Score.unscored(reason="scoring_failed")` rather
+    than invoking the reducer with no scores.
+
     Args:
         scorers: a list of Scorers.
         reducer: a function which takes in a list of Scores and returns a single Score.
@@ -36,7 +40,7 @@ def multi_scorer(scorers: list[Scorer], reducer: str | ScoreReducer) -> Scorer:
         if len(resolved_scores) == 0:
             # every sub-scorer declined to score; reducers index scores[0]
             # so surface the unscored sentinel rather than crashing
-            return Score.unscored()
+            return Score.unscored(reason="scoring_failed")
         return reducer(resolved_scores)
 
     registry_tag(

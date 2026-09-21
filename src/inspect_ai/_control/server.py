@@ -17,13 +17,17 @@ Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
 status histogram and an ``active_since`` recency delta), ``GET
 /evals/{id}/sample`` (summary + error detail), ``GET
-/evals/{id}/sample/events`` (cursored transcript pull), and
-``GET /evals/{id}/sample/messages`` (conversation snapshot) —
+/evals/{id}/sample/events`` (cursored transcript pull),
+``GET /evals/{id}/sample/messages`` (conversation snapshot),
+``GET /evals/{id}/sample/store`` (store snapshot), and
+``GET /models/throughput`` (per-model run throughput) —
 plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations,
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``,
 ``POST /evals/{id}/sample/cancel-tool-call``,
-``POST /evals/{id}/sample/requeue``, and
+``POST /evals/{id}/sample/requeue``,
+the interim-scoring pass (``POST``/``GET /tasks/{id}/score`` and the
+sample-scoped ``POST``/``GET /evals/{id}/sample/score``), and
 the pause/resume latches (``POST /tasks/{id}/pause`` / ``…/resume``,
 process-scoped ``POST /pause`` / ``POST /resume``, and model-scoped
 ``POST /models/pause`` / ``…/resume``).
@@ -34,7 +38,9 @@ with the rest of phases 3-4.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
+import socket
 import time
 from contextlib import asynccontextmanager
 from logging import getLogger
@@ -58,6 +64,7 @@ from inspect_ai._control.cancel import (
     cancel_sample,
     cancel_task,
     cancel_tool_call,
+    drain_task,
 )
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import DEFAULT_PAGE_LIMIT, sample_events
@@ -85,6 +92,7 @@ from inspect_ai._control.state import (
     parse_status_filter,
     sample_error_detail,
 )
+from inspect_ai._control.store import sample_store
 from inspect_ai._util.discovery import (
     prepare_discovery_dir,
     write_discovery_file,
@@ -109,6 +117,13 @@ class _ParsedOverrideKnobs(NamedTuple):
     error: "JSONResponse | None"
 
 
+class _ParsedMaxTasks(NamedTuple):
+    """The parsed ``max_tasks`` knob value, or the 400 that rejects it."""
+
+    value: "int | Literal['clear'] | None"
+    error: "JSONResponse | None"
+
+
 # ---------------------------------------------------------------------------
 # Parameter resolution
 # ---------------------------------------------------------------------------
@@ -124,6 +139,10 @@ class CtlServerConfig(NamedTuple):
     """Whether the process parks after the eval finishes."""
 
 
+CTL_SERVER_ENV_VAR = "INSPECT_EVAL_CTL_SERVER"
+"""Environment variable mirroring the ``ctl_server`` parameter / flag."""
+
+
 def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
     """Resolve a ``ctl_server`` parameter value to a :class:`CtlServerConfig`.
 
@@ -131,7 +150,9 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
     ``--ctl-server`` CLI flag) mirrors the ``--acp-server`` shape — one
     flag whose value selects the behaviour:
 
-    - ``None`` / ``True`` — control server on (the default).
+    - ``None`` — not specified: the ``INSPECT_EVAL_CTL_SERVER`` environment
+      variable if set (same spellings as below), else control server on.
+    - ``True`` — control server on (the default).
     - ``False`` — control server off.
     - ``"keep"`` — control server on, and the process parks after the eval
       finishes (until ``inspect ctl process release`` / ``POST /release``).
@@ -141,13 +162,22 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
     callers can forward a flag or ``INSPECT_EVAL_CTL_SERVER`` env value
     verbatim. This function is the single source of truth for the value
     grammar — the ``--ctl-server`` click callback delegates here, so the CLI
-    and the Python API cannot drift apart.
+    and the Python API cannot drift apart. The env-var fallback lives here
+    too (rather than only as the click option's ``envvar``) so that an
+    in-process ``eval()`` honours ``INSPECT_EVAL_CTL_SERVER=false`` exactly
+    as ``inspect eval`` does — the documented way to disable the control
+    server across a CI job. An explicit argument always wins over the env.
 
     Raises:
         PrerequisiteError: For any other value — an unknown string is more
             likely a typo of ``keep`` than an intentional choice, and
             silently treating it as ``True`` would drop the requested park.
     """
+    source = ""
+    if value is None:
+        # an empty env value counts as unset, matching click's envvar handling
+        value = os.environ.get(CTL_SERVER_ENV_VAR) or None
+        source = f" (from {CTL_SERVER_ENV_VAR})"
     if value is None or value is True:
         return CtlServerConfig(enabled=True, keep_alive=False)
     if value is False:
@@ -162,7 +192,8 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
         if lower in ("keep", "keep-alive"):
             return CtlServerConfig(enabled=True, keep_alive=True)
     raise PrerequisiteError(
-        f"Unexpected ctl_server value '{value}' (expected true, false, or keep)."
+        f"Unexpected ctl_server value '{value}'{source} "
+        "(expected true, false, or keep)."
     )
 
 
@@ -300,6 +331,165 @@ def _peer_checked_http_protocol() -> "type[asyncio.Protocol] | None":
 # Control server
 # ---------------------------------------------------------------------------
 
+# Ceiling on concurrent control-channel connections (uvicorn
+# ``limit_concurrency``): at the cap, requests get a 503 instead of queueing
+# (the incoming connection counts itself against the limit, so effective
+# capacity is one below this constant).
+# The server shares the eval's event loop, so unbounded queueing lets a
+# runaway poller pile identical work onto the loop with nothing ever erroring
+# while the eval starves (design/ctl/endpoint-cost-audit.md, "Structural
+# guards"). The CLI treats the 503 as "busy, retry shortly" (see
+# ``inspect_ai._cli.ctl._http``). Sized well above legitimate fan-in — the
+# CLI caps a fan-out at 32 in-flight reads — so this is a backstop, not a
+# rate limiter.
+_MAX_CONCURRENT_CONNECTIONS = 100
+
+# uvicorn logs one WARNING per over-limit rejection ("Exceeded concurrency
+# limit.", via the ``uvicorn.error`` logger), and with ``log_config=None``
+# those records propagate into the eval's own log capture — so the runaway
+# poller the cap defends against would flood the eval log/console at its
+# request rate. One warning per window is enough to surface the incident.
+_CONCURRENCY_WARNING_WINDOW = 60.0
+
+
+class _ConcurrencyLimitWarningFilter(logging.Filter):
+    """Rate-limits uvicorn's per-rejection concurrency-limit warning.
+
+    Passes everything else through untouched; if uvicorn ever rewords the
+    message the filter fails open (the warnings flow unfiltered).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._last_emitted: float | None = None
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.getMessage() != "Exceeded concurrency limit.":
+            return True
+        now = time.monotonic()
+        if (
+            self._last_emitted is None
+            or now - self._last_emitted >= _CONCURRENCY_WARNING_WINDOW
+        ):
+            self._last_emitted = now
+            return True
+        return False
+
+
+def _install_concurrency_warning_filter() -> None:
+    """Attach the rate-limit filter to uvicorn's logger (idempotent).
+
+    Installed once per process rather than per server: the logger is global,
+    and leaving the filter in place after ``stop()`` is harmless (it only
+    ever suppresses repeats of this one message).
+    """
+    uvicorn_logger = logging.getLogger("uvicorn.error")
+    if not any(
+        isinstance(f, _ConcurrencyLimitWarningFilter) for f in uvicorn_logger.filters
+    ):
+        uvicorn_logger.addFilter(_ConcurrencyLimitWarningFilter())
+
+
+def _prompt_exit_server_class() -> "type[Any]":
+    """Uvicorn ``Server`` subclass whose shutdown is prompt, not polled.
+
+    Stock uvicorn re-reads ``should_exit`` once per 100ms tick of its main
+    loop, then sleeps another unconditional 100ms in ``shutdown()`` to let
+    open connections settle — so tearing down the control server at the end
+    of an ``eval()`` costs 100-200ms of pure waiting, most of a small eval's
+    wall time. This subclass:
+
+    - wakes the main loop on an event the moment ``should_exit`` is set (any
+      setter — our ``stop()`` or uvicorn's own signal handler), still
+      ticking once a second for the ``Date`` header refresh;
+    - skips the settle sleep when no connection is open (the common case at
+      eval end), keeping uvicorn's drain for the case where one is.
+
+    ``shutdown()`` mirrors ``uvicorn.Server.shutdown`` step for step;
+    ``tests/_control/test_server.py`` pins the mirrored uvicorn code (comments
+    aside) so an upgrade that changes it fails a test and prompts a re-check
+    here.
+
+    Defined in a function because uvicorn is imported lazily — only
+    ``start()`` pays for it.
+    """
+    import uvicorn
+
+    class PromptExitServer(uvicorn.Server):
+        def __init__(self, config: uvicorn.Config) -> None:
+            self._exit_event = asyncio.Event()
+            self._should_exit = False
+            # start() constructs the server on the eval's running loop
+            self._loop = asyncio.get_running_loop()
+            super().__init__(config)
+
+        @property
+        def should_exit(self) -> bool:
+            return self._should_exit
+
+        @should_exit.setter
+        def should_exit(self, value: bool) -> None:
+            self._should_exit = value
+            if value:
+                # Through the loop's self-pipe rather than Event.set() directly:
+                # uvicorn's signal handler assigns this from a signal context
+                # while the loop may be blocked in select(), and a plain
+                # call_soon wouldn't wake it until the next tick.
+                try:
+                    self._loop.call_soon_threadsafe(self._exit_event.set)
+                except RuntimeError:  # loop closed — nothing left to wake
+                    self._exit_event.set()
+            else:
+                self._exit_event.clear()
+
+        async def main_loop(self) -> None:
+            # on_tick(0) refreshes the default headers (as uvicorn does once
+            # a second) and reports should_exit
+            while not await self.on_tick(0):
+                try:
+                    await asyncio.wait_for(self._exit_event.wait(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    pass
+
+        async def shutdown(self, sockets: list[socket.socket] | None = None) -> None:
+            # Mirrors uvicorn.Server.shutdown, except the 100ms settle sleep
+            # only runs when there is a connection to settle.
+            for server in self.servers:
+                server.close()
+            for sock in sockets or []:
+                sock.close()
+            # Best effort: a connection accepted in the same iteration as the
+            # close registers itself via call_soon, so yielding narrows (but
+            # doesn't close) the window in which the check below misses it.
+            # One that slips through is still drained by
+            # _wait_tasks_to_complete, it just skips the settle sleep.
+            await asyncio.sleep(0)
+            if self.server_state.connections:
+                for connection in list(self.server_state.connections):
+                    connection.shutdown()
+                await asyncio.sleep(0.1)
+            try:
+                await asyncio.wait_for(
+                    self._wait_tasks_to_complete(),
+                    timeout=self.config.timeout_graceful_shutdown,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Control server: cancelling %d running task(s), graceful "
+                    "shutdown timeout exceeded",
+                    len(self.server_state.tasks),
+                )
+                for t in self.server_state.tasks:
+                    t.cancel(msg="Task cancelled, timeout graceful shutdown exceeded")
+            if not self.force_exit:
+                await self.lifespan.shutdown()
+
+    return PromptExitServer
+
+
+# The process-wide FastAPI app (see ControlServer._build_app).
+_app: Any = None
+
 
 class ControlServer:
     """FastAPI control server for the live eval.
@@ -327,6 +517,11 @@ class ControlServer:
     def socket_path(self) -> Path | None:
         return self._socket_path
 
+    @property
+    def started_at(self) -> float:
+        """Unix timestamp of this server's construction (the run's start)."""
+        return self._started_at
+
     async def wait_for_release(self) -> None:
         """Park until keep-alive intent is released.
 
@@ -350,14 +545,46 @@ class ControlServer:
             self._park_cond.notify_all()
 
     def _build_app(self) -> Any:
-        """Build the FastAPI app.
+        """Return the process-wide FastAPI app, bound to this server.
+
+        The app is built once per process (see :func:`_create_app`) and
+        reused by every ``ControlServer``: its route table is static, and
+        building it costs ~40ms — a fixed tax on every ``eval()`` when done
+        per server. The only per-server state a route needs (this instance,
+        for its ``started_at`` and park condition) rides ``app.state.server``,
+        rebound here. Every shipped path has at most one server live per
+        process (the eval-set park binds its server only after the run's has
+        torn down); a second concurrent ``start()`` would already rebind the
+        per-pid socket path and discovery file out from under the first, so
+        the shared app adds no new hazard there.
+        """
+        global _app
+        if _app is None:
+            _app = self._create_app()
+        _app.state.server = self
+        return _app
+
+    @staticmethod
+    def _create_app() -> Any:
+        """Build the FastAPI app (once per process — see :meth:`_build_app`).
 
         Imported lazily so module import doesn't pay the FastAPI cost
-        when control is disabled.
+        when control is disabled. Routes must not close over a
+        ``ControlServer`` instance; they take the live one via the
+        :func:`current_control_server` dependency. Anything evaluated at
+        definition time (route parameter defaults such as
+        ``DEFAULT_PAGE_LIMIT``, the dependency objects) is fixed for the
+        process — module functions the handlers call are looked up per
+        request, so monkeypatching those still works.
         """
-        from fastapi import Depends, FastAPI, Request
+        from fastapi import Depends, FastAPI, Query, Request
         from fastapi.responses import JSONResponse
 
+        from inspect_ai._control.current_server import current_control_server
+        from inspect_ai._control.disconnect import (
+            ClientDisconnectedError,
+            reject_disconnected_client,
+        )
         from inspect_ai._control.strict import (
             UnknownQueryParamsError,
             reject_unknown_query_params,
@@ -370,13 +597,29 @@ class ControlServer:
         # module docstring for the rationale, including why GETs stay
         # tolerant).
         app = FastAPI(dependencies=[Depends(reject_unknown_query_params)])
-        started_at = self._started_at
+
+        # Attached per-route (`dependencies=skip_disconnected`) to the reads
+        # that do nontrivial work — the disconnect module's docstring has the
+        # rationale, including why the mutations and the trivially cheap
+        # handlers deliberately don't carry it.
+        skip_disconnected = [Depends(reject_disconnected_client)]
 
         @app.exception_handler(UnknownQueryParamsError)
         async def on_unknown_params(
             request: Request, exc: UnknownQueryParamsError
         ) -> JSONResponse:
             return JSONResponse(status_code=400, content={"error": str(exc)})
+
+        @app.exception_handler(ClientDisconnectedError)
+        async def on_client_disconnected(
+            request: Request, exc: ClientDisconnectedError
+        ) -> JSONResponse:
+            # 499 (nginx's "client closed request") — a placeholder nobody
+            # observes: the client is gone and uvicorn drops writes to
+            # disconnected transports.
+            return JSONResponse(
+                status_code=499, content={"error": "client disconnected"}
+            )
 
         @app.exception_handler(Exception)
         async def on_error(request: Request, exc: Exception) -> JSONResponse:
@@ -415,17 +658,23 @@ class ControlServer:
             return None
 
         def _parse_override_knobs(
-            maximum: int, *knobs: tuple[str, str | None]
+            maximum: int | None,
+            *knobs: tuple[str, str | None],
+            minimum: int = 0,
         ) -> _ParsedOverrideKnobs:
-            """Parse override knobs' raw query values (retry + sample limits).
+            """Parse override knobs' raw values (retry/sample limits, max_samples).
 
             Unlike the limits knobs these are declared ``str`` on the route:
-            every integer >= 0 is a real value (0 = fail after the first
-            attempt / a zero budget), so clearing an override is spelled with
-            the keyword ``clear`` rather than a sentinel integer. Values above
+            every integer >= ``minimum`` is a real value, so clearing an
+            override is spelled with the keyword ``clear`` rather than a
+            sentinel integer. The default floor is 0 (0 = fail after the
+            first attempt / a zero budget for the retry/limit knobs);
+            ``max_samples`` passes ``minimum=1`` (its apply layer raises on
+            0), so both its rejections carry the same bound. Values above
             ``maximum`` (the store's own bound —
             :data:`MAX_GENERATE_CONFIG_OVERRIDE` /
-            :data:`MAX_SAMPLE_LIMIT_OVERRIDE`) are rejected here too: the
+            :data:`MAX_SAMPLE_LIMIT_OVERRIDE`; ``None`` for a knob with no
+            upper bound, like ``max_samples``) are rejected here too: the
             store enforces the same bound, but a 400 at the wire beats a 500.
             Returns the parsed values plus a 400 for the first invalid one
             (a ``None`` passes through as "not requested").
@@ -440,22 +689,63 @@ class ControlServer:
                     try:
                         value = int(raw)
                     except ValueError:
-                        value = -1
-                    if value < 0 or value > maximum:
+                        value = minimum - 1
+                    if value < minimum or (maximum is not None and value > maximum):
+                        bounds = (
+                            f"between {minimum} and {maximum}"
+                            if maximum is not None
+                            else f">= {minimum}"
+                        )
                         return _ParsedOverrideKnobs(
                             values=parsed,
                             error=JSONResponse(
                                 status_code=400,
                                 content={
                                     "error": f"{label} must be an integer "
-                                    f"between 0 and "
-                                    f"{maximum} or "
+                                    f"{bounds} or "
                                     f"'clear' (got {raw!r})"
                                 },
                             ),
                         )
                     parsed[label] = value
             return _ParsedOverrideKnobs(values=parsed, error=None)
+
+        def _parse_max_tasks(raw: str | None) -> _ParsedMaxTasks:
+            """Parse the ``max_tasks`` knob's raw query value.
+
+            String-typed like the retry knobs to admit the keyword ``clear``,
+            but with a floor of 1 rather than 0 (``max_tasks 0`` would be a
+            disguised pause — ``POST /pause`` is the real spelling). The
+            floor rides the shared ``_limits_below_one`` on the parsed int so
+            the error shape matches the int-typed knobs.
+            """
+            from inspect_ai.model._generate_overrides import (
+                MAX_GENERATE_CONFIG_OVERRIDE,
+            )
+
+            parsed, error = _parse_override_knobs(
+                MAX_GENERATE_CONFIG_OVERRIDE, ("max_tasks", raw)
+            )
+            if error is not None:
+                # restate the bound: the shared parse advertises a floor of 0
+                # (right for the retry knobs, wrong here)
+                return _ParsedMaxTasks(
+                    value=None,
+                    error=JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": f"max_tasks must be an integer between "
+                            f"1 and {MAX_GENERATE_CONFIG_OVERRIDE} or "
+                            f"'clear' (got {raw!r})"
+                        },
+                    ),
+                )
+            value = parsed["max_tasks"]
+            if isinstance(value, int) and (
+                error := _limits_below_one(("max_tasks", value))
+            ):
+                return _ParsedMaxTasks(value=None, error=error)
+            return _ParsedMaxTasks(value=value, error=None)
 
         def _key_pair_error(
             key: str | None, key_limit: int | None
@@ -476,9 +766,11 @@ class ControlServer:
         # Folded per-task summaries (retry attempts of a task collapse into
         # one row keyed by task_id) — the wire behind `inspect ctl task list`
         # and the selector-resolution step of every other command.
-        @app.get("/tasks")
-        async def list_tasks() -> list[dict[str, Any]]:
-            summaries = await current_eval_summaries(started_at)
+        @app.get("/tasks", dependencies=skip_disconnected)
+        async def list_tasks(
+            server: ControlServer = Depends(current_control_server),
+        ) -> list[dict[str, Any]]:
+            summaries = await current_eval_summaries(server.started_at)
             # Keep-alive is a process-level property, so every task this
             # process hosts shares it. Stamp each row with the live value
             # (which reflects a runtime `POST /keep` or `/release`, not just
@@ -503,7 +795,7 @@ class ControlServer:
                 summary["api_version"] = CONTROL_API_VERSION
             return summaries
 
-        @app.get("/evals/{eval_id}/samples")
+        @app.get("/evals/{eval_id}/samples", dependencies=skip_disconnected)
         async def list_eval_samples(
             eval_id: str,
             active_since: float | None = None,
@@ -566,7 +858,7 @@ class ControlServer:
         # `content=true` opts into the error free text (message / tracebacks
         # — agent-influenced strings, withheld by default; see
         # sample_error_detail).
-        @app.get("/evals/{eval_id}/sample")
+        @app.get("/evals/{eval_id}/sample", dependencies=skip_disconnected)
         async def get_sample_errors(
             eval_id: str, sample_id: str, epoch: int = 1, content: bool = False
         ) -> Any:
@@ -586,7 +878,7 @@ class ControlServer:
         # is agent-controlled; see events._project), `full` returns raw
         # events, `since_time`/`until` a wall-clock window, `limit` the page
         # size (max events scanned per page).
-        @app.get("/evals/{eval_id}/sample/events")
+        @app.get("/evals/{eval_id}/sample/events", dependencies=skip_disconnected)
         async def get_sample_events(
             eval_id: str,
             sample_id: str,
@@ -643,7 +935,7 @@ class ControlServer:
         # `status` / `count`. `content` opts into truncated message text
         # (metadata only by default — the text is agent-controlled; see
         # messages._project); `full` returns raw ChatMessage JSON.
-        @app.get("/evals/{eval_id}/sample/messages")
+        @app.get("/evals/{eval_id}/sample/messages", dependencies=skip_disconnected)
         async def get_sample_messages(
             eval_id: str,
             sample_id: str,
@@ -654,6 +946,34 @@ class ControlServer:
         ) -> Any:
             page = await sample_messages(
                 eval_id, sample_id, epoch, tail=tail, content=content, full=full
+            )
+            if page is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            return page
+
+        # Per-sample store snapshot (the sample's `Store` — solver/agent
+        # shared state). Like the other per-sample routes, `sample_id` is a
+        # query param (ids may carry URL-reserved characters). Deliberately
+        # not cursored — the store is rewritable, so each call returns the
+        # current snapshot, enveloped with `as_of` / `status` / `count`.
+        # `key` (repeatable) selects keys server-side — exact names plus
+        # trailing-`*` prefixes; `content` opts into truncated value previews
+        # (metadata only by default — values are agent-controlled; see
+        # store._project); `full` returns raw jsonable values.
+        @app.get("/evals/{eval_id}/sample/store")
+        async def get_sample_store(
+            eval_id: str,
+            sample_id: str,
+            epoch: int = 1,
+            key: list[str] | None = Query(default=None),
+            content: bool = False,
+            full: bool = False,
+        ) -> Any:
+            page = await sample_store(
+                eval_id, sample_id, epoch, keys=key, content=content, full=full
             )
             if page is None:
                 return JSONResponse(
@@ -716,6 +1036,31 @@ class ControlServer:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
             return result
 
+        # Drain a running task (phase 3 — see design/ctl/task-drain.md):
+        # stop dispatching new samples, let in-flight samples finish
+        # naturally (scored on their own terms, no interrupts), then
+        # complete the task with an ordinary terminal log. Task-keyed like
+        # `cancel`; rides the cancel stamp without the interrupt sweep. Its
+        # own route (not a cancel action): drain inverts the cancel
+        # contract — the task ends on the samples' clock, unbounded, not
+        # the operator's — and the separate route gives the crisp version
+        # story (an older server 404s and the CLI reports "older inspect").
+        # Idempotent (`changed: false` on a repeat, on any pending
+        # resolution — drain is the weakest escalation rung — or on a
+        # finished task); a task between attempts abandons its pending
+        # retry, like a plain cancel; `dry_run=true` reports without acting.
+        @app.post("/tasks/{task_id}/drain")
+        async def task_drain(task_id: str, dry_run: bool = False) -> Any:
+            result = drain_task(task_id, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result["ok"] is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
         # Pause / resume a running task (phase 3 — see design/ctl/pause-resume.md).
         # Task-keyed like `config` / `log-flush` / `cancel` (a pause handle
         # must not dangle across a retry). Quiesce semantics: pause stops new
@@ -744,6 +1089,122 @@ class ControlServer:
                 return JSONResponse(
                     status_code=404,
                     content={"error": f"task {task_id} not found"},
+                )
+            return result
+
+        # Interim scoring pass (design/ctl/interim-scoring.md): run the task's
+        # scorers over its completed and in-flight samples (each in-flight
+        # sample is briefly held at its next model call while scored) and
+        # compute interim metrics. Task-keyed like `config` / `cancel` /
+        # `pause`. Start + poll: the POST starts a pass and returns
+        # immediately (one pass per task at a time — a start while one runs
+        # is the idempotent no-op with the running pass's id); the GET
+        # reports the current (or most recent) pass, with per-sample rows and
+        # interim metrics once complete. `dry_run=true` reports the targeted
+        # counts by disposition without scoring; `completed_only=true` skips
+        # the in-flight rows entirely (no holds) — the hold-free spelling for
+        # recurring polling. A task with no scorers is a 409.
+        @app.post("/tasks/{task_id}/score")
+        async def task_score(
+            task_id: str, dry_run: bool = False, completed_only: bool = False
+        ) -> Any:
+            from inspect_ai._control.scoring import start_score_pass
+
+            result = await start_score_pass(
+                task_id, dry_run=dry_run, completed_only=completed_only
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        @app.get("/tasks/{task_id}/score")
+        async def task_score_status(task_id: str) -> Any:
+            from inspect_ai._control.scoring import get_score_pass
+
+            result = await get_score_pass(task_id)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=404, content={"error": result["error"]})
+            return result
+
+        # Interim scoring for one sample (the per-sample variant of the
+        # task-wide pass above — design/ctl/interim-scoring.md): the same
+        # start + poll pair, scoped to one `(sample_id, epoch)`. `sample_id`
+        # is a query param like the other per-sample routes (ids may contain
+        # URL-reserved characters); `epoch` is required on the POST — this is
+        # a mutation, and a defaulted epoch would silently score a different
+        # attempt. Shares the one-pass-per-task registry: a start while any
+        # pass runs for the task is the idempotent no-op with that pass's id
+        # and scope. A task with no scorers (or a superseded attempt's eval
+        # id) is a 409; a sample with no live or completed record is a 404.
+        @app.post("/evals/{eval_id}/sample/score")
+        async def sample_score(
+            eval_id: str,
+            sample_id: str,
+            epoch: int | None = None,
+            dry_run: bool = False,
+        ) -> Any:
+            from inspect_ai._control.scoring import start_sample_score_pass
+
+            if epoch is None:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "epoch is required — a defaulted epoch would "
+                            "silently score the epoch-1 attempt on a "
+                            "multi-epoch task"
+                        )
+                    },
+                )
+            result = await start_sample_score_pass(
+                eval_id, sample_id, epoch, dry_run=dry_run
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "error": (
+                            f"sample {sample_id} (epoch {epoch}) not found "
+                            "(it may not have started yet)"
+                        )
+                    },
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        # `epoch` is required here too, unlike the other per-sample reads:
+        # this GET answers "is/was there a pass for this exact attempt", so
+        # a defaulted epoch wouldn't return harmless epoch-1 data — it would
+        # 404 a pass that is running normally on another epoch (or serve
+        # epoch 1's result as if it answered the caller's question).
+        @app.get("/evals/{eval_id}/sample/score")
+        async def sample_score_status(eval_id: str, sample_id: str, epoch: int) -> Any:
+            from inspect_ai._control.scoring import get_sample_score_pass
+
+            result = await get_sample_score_pass(eval_id, sample_id, epoch)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"eval {eval_id} not found"},
+                )
+            if result.get("ok") is False:
+                # a superseded attempt is a 409 (as on the POST) so the CLI
+                # surfaces this message instead of its static not-found text;
+                # a plain 404 here only ever means no pass for this sample
+                status = 409 if result.get("superseded") else 404
+                return JSONResponse(
+                    status_code=status, content={"error": result["error"]}
                 )
             return result
 
@@ -919,8 +1380,10 @@ class ControlServer:
         # read, like GET. `model` filters the adaptive controllers (name start or
         # after a `/`); `key`/`key_limit` retune a named concurrency() registry
         # entry by exact name (400 for a name with no entry — named limits are
-        # created lazily on first use). The retry knobs (timeout /
-        # attempt_timeout / max_retries) set live overrides; the keyword
+        # created lazily on first use). The override knobs (max_tasks and the
+        # retry knobs timeout / attempt_timeout / stream_idle_timeout /
+        # max_retries) set live
+        # overrides; the keyword
         # `clear` removes one. `author`/`reason` are provenance for the eval-log
         # record of any applied change (see EvalLog.config_updates); the
         # response's `persisted` reports per applied knob whether that record
@@ -930,6 +1393,7 @@ class ControlServer:
         # Unknown query params 400 (fail closed) rather than partially applying.
         @app.patch("/config")
         async def patch_process_limits(
+            max_tasks: str | None = None,
             max_sandboxes: int | None = None,
             max_subprocesses: int | None = None,
             max_connections: int | None = None,
@@ -938,6 +1402,7 @@ class ControlServer:
             key_limit: int | None = None,
             timeout: str | None = None,
             attempt_timeout: str | None = None,
+            stream_idle_timeout: str | None = None,
             max_retries: str | None = None,
             author: str | None = None,
             reason: str | None = None,
@@ -960,12 +1425,17 @@ class ControlServer:
                 MAX_GENERATE_CONFIG_OVERRIDE,
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
+                ("stream_idle_timeout", stream_idle_timeout),
                 ("max_retries", max_retries),
             )
             if retry_error is not None:
                 return retry_error
+            max_tasks_value, max_tasks_error = _parse_max_tasks(max_tasks)
+            if max_tasks_error is not None:
+                return max_tasks_error
             try:
                 return await process_limits(
+                    max_tasks=max_tasks_value,
                     max_sandboxes=max_sandboxes,
                     max_subprocesses=max_subprocesses,
                     max_connections=max_connections,
@@ -974,6 +1444,7 @@ class ControlServer:
                     key_limit=key_limit,
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
+                    stream_idle_timeout=retry_knobs["stream_idle_timeout"],
                     max_retries=retry_knobs["max_retries"],
                     author=author,
                     reason=reason,
@@ -1015,7 +1486,8 @@ class ControlServer:
         @app.patch("/tasks/{task_id}/config")
         async def patch_limits(
             task_id: str,
-            max_samples: int | None = None,
+            max_samples: str | None = None,
+            max_tasks: str | None = None,
             max_sandboxes: int | None = None,
             max_subprocesses: int | None = None,
             max_connections: int | None = None,
@@ -1026,6 +1498,7 @@ class ControlServer:
             log_shared: int | None = None,
             timeout: str | None = None,
             attempt_timeout: str | None = None,
+            stream_idle_timeout: str | None = None,
             max_retries: str | None = None,
             time_limit: str | None = None,
             token_limit: str | None = None,
@@ -1034,8 +1507,19 @@ class ControlServer:
             reason: str | None = None,
             dry_run: bool = False,
         ) -> Any:
+            # max_samples is declared str (it accepts the keyword `clear` —
+            # under adaptive connections an integer pins sample concurrency
+            # and `clear` unpins): minimum=1 because the apply layer raises
+            # on 0 (0 must 400 at the wire, not 500), and maximum=None
+            # because the knob has no upper bound, matching the static
+            # setpoint.
+            max_samples_knob, max_samples_error = _parse_override_knobs(
+                None, ("max_samples", max_samples), minimum=1
+            )
+            if max_samples_error is not None:
+                return max_samples_error
+            parsed_max_samples = max_samples_knob["max_samples"]
             if error := _limits_below_one(
-                ("max_samples", max_samples),
                 ("max_sandboxes", max_sandboxes),
                 ("max_subprocesses", max_subprocesses),
                 ("max_connections", max_connections),
@@ -1055,10 +1539,14 @@ class ControlServer:
                 MAX_GENERATE_CONFIG_OVERRIDE,
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
+                ("stream_idle_timeout", stream_idle_timeout),
                 ("max_retries", max_retries),
             )
             if retry_error is not None:
                 return retry_error
+            max_tasks_value, max_tasks_error = _parse_max_tasks(max_tasks)
+            if max_tasks_error is not None:
+                return max_tasks_error
             limit_knobs, limit_error = _parse_override_knobs(
                 MAX_SAMPLE_LIMIT_OVERRIDE,
                 ("time_limit", time_limit),
@@ -1070,7 +1558,8 @@ class ControlServer:
             try:
                 result = await task_limits(
                     task_id,
-                    max_samples=max_samples,
+                    max_samples=parsed_max_samples,
+                    max_tasks=max_tasks_value,
                     max_sandboxes=max_sandboxes,
                     max_subprocesses=max_subprocesses,
                     max_connections=max_connections,
@@ -1081,6 +1570,7 @@ class ControlServer:
                     log_shared=log_shared,
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
+                    stream_idle_timeout=retry_knobs["stream_idle_timeout"],
                     max_retries=retry_knobs["max_retries"],
                     time_limit=limit_knobs["time_limit"],
                     token_limit=limit_knobs["token_limit"],
@@ -1105,12 +1595,14 @@ class ControlServer:
         # because it does NOT cancel a running eval — that's a later-phase
         # directive.
         @app.post("/release")
-        async def release() -> dict[str, bool]:
+        async def release(
+            server: ControlServer = Depends(current_control_server),
+        ) -> dict[str, bool]:
             # `changed` lets the client report applied vs the idempotent
             # already-in-that-state no-op (the agent output contract).
             changed = keep_alive_intent()
             request_release()
-            await self.notify_park_change()
+            await server.notify_park_change()
             return {"ok": True, "keep_alive": False, "changed": changed}
 
         # Latches keep-alive ON for the process (the inverse of /release): it
@@ -1143,6 +1635,23 @@ class ControlServer:
         @app.post("/resume")
         async def process_resume(dry_run: bool = False) -> Any:
             return await resume_process(dry_run=dry_run)
+
+        # Per-model throughput across the whole run (process scope — it sits
+        # beside the model pause latch): recent output tok/s, requests/min,
+        # retries/min, backoff ratio, and active retry waits per model, plus
+        # cumulative totals (see design/model-throughput.md). Cheap shoveling:
+        # everything is materialized at write time in the throughput registry;
+        # the read sums a bounded ring per model plus one bounded pass over
+        # active samples. `window` (seconds) is type-validated by FastAPI
+        # (malformed → 422) and clamped server-side to the bucket horizon;
+        # unknown params are tolerated (GETs stay tolerant, per
+        # design/ctl/control-channel.md). Never 404s — an empty registry
+        # reports an empty model list.
+        @app.get("/models/throughput")
+        async def models_throughput(window: int = 60) -> Any:
+            from inspect_ai.model._throughput import throughput_report
+
+            return throughput_report(window=window)
 
         # Pause / resume dispatch for one model (the third latch — see
         # design/ctl/pause-resume.md "Model-scoped latch"): samples, queued
@@ -1192,8 +1701,6 @@ class ControlServer:
 
     async def start(self) -> None:
         """Bind the AF_UNIX socket, write the discovery file, start serving."""
-        import socket
-
         import uvicorn
 
         # Lock dir to 0700 + sweep stale entries.
@@ -1231,19 +1738,23 @@ class ControlServer:
 
         app = self._build_app()
         http_protocol = _peer_checked_http_protocol()
+        _install_concurrency_warning_filter()
         config = uvicorn.Config(
             app,
             log_config=None,
             log_level="warning",
             access_log=False,
             timeout_keep_alive=5,
+            limit_concurrency=_MAX_CONCURRENT_CONNECTIONS,
             http=http_protocol if http_protocol is not None else "auto",
         )
-        server = uvicorn.Server(config)
-        # Suppress uvicorn's signal handler installation — we're an
-        # embedded server, not the main process, so SIGINT/SIGTERM
-        # should not be intercepted here.
-        server.install_signal_handlers = lambda: None  # type: ignore[attr-defined,method-assign]
+        server = _prompt_exit_server_class()(config)
+        # Note uvicorn captures SIGINT/SIGTERM while serving on the main
+        # thread (`Server.capture_signals`): a signal first shuts this server
+        # down, then is re-raised for the eval's own handling. With the
+        # prompt exit above that detour costs milliseconds. (An earlier
+        # `install_signal_handlers = lambda: None` override targeted a hook
+        # uvicorn removed in 0.29 and never took effect here.)
         self._uvicorn_server = server
         self._serve_task = asyncio.create_task(
             server.serve(sockets=[sock]), name="inspect-ctl-server"

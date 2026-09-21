@@ -12,6 +12,7 @@ from __future__ import annotations
 # knob's advertised blast radius can't drift between the three surfaces.
 _KNOB_SCOPE: dict[str, str] = {
     "max_samples": "task",
+    "max_tasks": "process",
     "max_sandboxes": "process",
     "max_subprocesses": "process",
     "max_connections": "process",
@@ -20,6 +21,7 @@ _KNOB_SCOPE: dict[str, str] = {
     "log_shared": "task",
     "timeout": "process",
     "attempt_timeout": "process",
+    "stream_idle_timeout": "process",
     "max_retries": "process",
     "time_limit": "task",
     "token_limit": "task",

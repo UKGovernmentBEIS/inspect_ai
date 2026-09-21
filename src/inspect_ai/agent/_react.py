@@ -1,3 +1,4 @@
+from copy import copy
 from logging import getLogger
 from typing import Literal, Sequence
 
@@ -19,8 +20,9 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model import Model, ModelRefusalError, get_model
 from inspect_ai.model._trim import partition_messages, trim_messages
+from inspect_ai.review._policy import ReviewPolicy
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
@@ -62,6 +64,7 @@ def react(
     compaction: CompactionStrategy | None = None,
     truncation: Literal["auto", "disabled"] | MessageFilter = "disabled",
     approval: list[ApprovalPolicy] | None = None,
+    review: list[ReviewPolicy] | None = None,
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
 
@@ -112,6 +115,9 @@ def react(
        approval: Approval policies to use for tool calls within this agent.
           Temporarily replaces any active approval policies for the duration
           of tool execution.
+       review: Review policies to use for the results of tool calls within
+          this agent. Temporarily replaces any active review policies for the
+          duration of tool execution.
 
     Returns:
         ReAct agent.
@@ -137,6 +143,7 @@ def react(
             compaction=compaction,
             truncation=truncation,
             approval=approval,
+            review=review,
         )
 
     # if submit is True or None then use default AgentSubmit
@@ -167,8 +174,16 @@ def react(
             description=submit.description,
         )
         if not isinstance(submit.tool, ToolDef)
-        else submit.tool
+        else copy(submit.tool)
     )
+    # The submit result becomes the completion, so truncating it would score a
+    # truncation notice in place of the model's answer. Defaulted rather than
+    # forced: an explicit max_output on a caller's submit tool is their call.
+    # The copy above leaves their ToolDef alone, but note `as_tool()` writes
+    # tool attributes onto the shared underlying callable, so this (like the
+    # `name`/`description` above it) does reach a Tool they also use elsewhere.
+    if submit_tool.max_output is None:
+        submit_tool.max_output = 0
     tools.append(submit_tool)
 
     # resolve prompt / system message
@@ -267,7 +282,10 @@ def react(
                             if state.output.message.tool_calls:
                                 # call tool functions
                                 messages, output = await execute_tools(
-                                    state.messages, tools, approval=approval
+                                    state.messages,
+                                    tools,
+                                    approval=approval,
+                                    review=review,
                                 )
                                 state.messages.extend(messages)
                                 if output:
@@ -404,6 +422,7 @@ def react_no_submit(
     compaction: CompactionStrategy | None,
     truncation: Literal["auto", "disabled"] | MessageFilter,
     approval: list[ApprovalPolicy] | None,
+    review: list[ReviewPolicy] | None = None,
 ) -> Agent:
     # resolve tools
     tools = list(tools) if tools is not None else []
@@ -490,7 +509,10 @@ def react_no_submit(
                             if state.output.message.tool_calls:
                                 # call tool functions
                                 messages, output = await execute_tools(
-                                    state.messages, tools, approval=approval
+                                    state.messages,
+                                    tools,
+                                    approval=approval,
+                                    review=review,
                                 )
                                 state.messages.extend(messages)
                                 if output:
@@ -603,6 +625,10 @@ async def _handle_overflow(
             ):
                 state.messages.append(c_message)
             return state, True
+        except ModelRefusalError:
+            # a refused summary generation under fail_on_refusal fails the
+            # sample like any other refusal rather than degrading to overflow
+            raise
         except Exception as ex:
             # Falling back from configured compaction to the lossy overflow
             # filter is a real degradation — surface to operator stderr.
@@ -704,11 +730,18 @@ def _model_generate(
 
         attempts = 0
         while True:
-            # generate
-            output = await get_model(model).generate(input_messages, tools)
+            # generate (with fail_on_refusal set a refusal raises rather than
+            # returning; it still gets its retries, and the last one propagates)
+            try:
+                output = await get_model(model).generate(input_messages, tools)
+            except ModelRefusalError:
+                if retry_refusals is not None and attempts < retry_refusals:
+                    attempts += 1
+                    continue
+                raise
 
             # if it's a refusal see if we should retry
-            if output.stop_reason == "content_filter":
+            if not output.empty and output.stop_reason == "content_filter":
                 if retry_refusals is not None and attempts < retry_refusals:
                     attempts += 1
                     continue

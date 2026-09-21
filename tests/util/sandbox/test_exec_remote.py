@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, patch
 
 import anyio
 import pytest
+from tenacity.wait import wait_none
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
@@ -20,6 +21,7 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     _inject_container_tools_code,
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
+from inspect_ai.util._sandbox.environment import SandboxDefaultUser
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
@@ -89,12 +91,18 @@ def _no_events_context() -> Iterator[None]:
     yield
 
 
+def _mock_sandbox() -> AsyncMock:
+    sandbox = AsyncMock()
+    sandbox._tools_default_user = None
+    return sandbox
+
+
 def _make_sandbox_mock(responses: list[str]) -> AsyncMock:
     """Create a mock SandboxEnvironment whose exec() returns canned responses.
 
     Each call to sandbox.exec() pops the next response from the list.
     """
-    sandbox = AsyncMock()
+    sandbox = _mock_sandbox()
     sandbox.default_polling_interval.return_value = 5
     sandbox.no_events = _no_events_context
 
@@ -116,7 +124,7 @@ def _make_never_completing_sandbox() -> AsyncMock:
 
     Useful for testing timeout and cancellation behavior.
     """
-    sandbox = AsyncMock()
+    sandbox = _mock_sandbox()
     sandbox.default_polling_interval.return_value = 5
     sandbox.no_events = _no_events_context
 
@@ -163,6 +171,33 @@ class TestSingleUseIterator:
 # ============================================================================
 
 
+class TestPollRetryExhaustion:
+    async def test_poll_retry_exhaustion_reraises_underlying_error(self) -> None:
+        sandbox = _mock_sandbox()
+        sandbox.default_polling_interval.return_value = 5
+        sandbox.no_events = _no_events_context
+        sandbox.exec = AsyncMock(
+            side_effect=RuntimeError("command terminated with exit code 137")
+        )
+        proc = ExecRemoteProcess(sandbox, ["cmd"], ExecRemoteCommonOptions(), 5)
+
+        # The retry backoff would take ~30s to exhaust; zero out the wait the
+        # same way conftest's fast_retry_waits does for model retries. Patching
+        # asyncio.sleep would be a no-op under the trio variant (tenacity routes
+        # through its portable sleep helper), and with real sleeps the attempt
+        # count assertion becomes timing-sensitive.
+        with patch(
+            "inspect_ai.util._sandbox.exec_remote.wait_exponential_jitter",
+            new=lambda *a, **k: wait_none(),
+        ):
+            with pytest.raises(RuntimeError, match="exit code 137"):
+                await proc._poll()
+
+        # stop_after_attempt(5) pins the attempt count; keep the assertion
+        # exact so a stop-config regression is caught
+        assert sandbox.exec.call_count == 5
+
+
 class TestKill:
     async def test_kill_calls_rpc(self) -> None:
         sandbox = _make_sandbox_mock([_start_response(), _kill_response()])
@@ -173,7 +208,7 @@ class TestKill:
         assert sandbox.exec.call_count == 2
 
     async def test_kill_before_start_is_noop(self) -> None:
-        sandbox = AsyncMock()
+        sandbox = _mock_sandbox()
         proc = ExecRemoteProcess(sandbox, ["cmd"], ExecRemoteCommonOptions(), 5)
 
         await proc.kill()
@@ -232,7 +267,7 @@ class TestKill:
         Callers (e.g. bridge.py) rely on kill() being safe to call in finally
         blocks without disrupting subsequent cleanup like cancel_scope.cancel().
         """
-        sandbox = AsyncMock()
+        sandbox = _mock_sandbox()
         sandbox.default_polling_interval.return_value = 5
 
         call_count = 0
@@ -348,7 +383,7 @@ class TestTimeout:
 
     async def test_timeout_kills_process(self) -> None:
         """On timeout, the process should be killed."""
-        sandbox = AsyncMock()
+        sandbox = _mock_sandbox()
         sandbox.default_polling_interval.return_value = 5
         sandbox.no_events = _no_events_context
 
@@ -415,6 +450,29 @@ class TestPidAccess:
         proc._iteration_started = True
         with pytest.raises(RuntimeError, match="not been submitted"):
             await proc.__anext__()
+
+
+class TestUserParam:
+    _DEFAULT_USER = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/h")
+
+    async def _start_params(
+        self, options: ExecRemoteStreamingOptions
+    ) -> dict[str, Any]:
+        sandbox = _make_sandbox_mock([_start_response()])
+        sandbox._tools_default_user = self._DEFAULT_USER
+        await exec_remote_streaming(sandbox, ["cmd"], 5, options)
+        params: dict[str, Any] = json.loads(sandbox.exec.call_args.kwargs["input"])[
+            "params"
+        ]
+        return params
+
+    async def test_default_user_identity_sent_without_explicit_user(self) -> None:
+        params = await self._start_params(ExecRemoteStreamingOptions())
+        assert params["user"] == self._DEFAULT_USER._asdict()
+
+    async def test_explicit_user_wins(self) -> None:
+        params = await self._start_params(ExecRemoteStreamingOptions(user="nobody"))
+        assert params["user"] == "nobody"
 
 
 # ============================================================================
@@ -649,9 +707,13 @@ async def docker_sandbox(request):
 
     # Smoke test: verify the injected binary accepts the current RPC schema.
     # Fails when the binary predates host-side schema changes (e.g. ack_seq).
+    # Only skip on ValueError (response-validation/schema mismatch). RuntimeError
+    # — including poll-retry exhaustion, which is now reraised — must propagate
+    # so a genuinely broken docker exec fails loudly instead of silently skipping
+    # this whole integration suite.
     try:
         await exec_remote_awaitable(proxy, ["true"], proxy.default_polling_interval())
-    except (ValueError, RuntimeError):
+    except ValueError:
         await cleanup()
         pytest.skip("Injected binary incompatible with current host-side RPC schema")
 

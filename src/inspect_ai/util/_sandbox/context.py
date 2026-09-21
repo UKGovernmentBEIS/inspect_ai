@@ -10,6 +10,12 @@ from shortuuid import uuid
 from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
+from ._privileged import (
+    IMAGE_PATH_VARIABLE,
+    image_path_lookup,
+    pinned_shell_command,
+    privileged_exec,
+)
 from .environment import (
     SampleCleanup,
     SampleInit,
@@ -122,7 +128,7 @@ async def sandbox_with(
 async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
     # Lightweight check — avoids transferring file contents (Linux/macOS).
     try:
-        result = await environment.exec(["test", "-r", file])
+        result = await privileged_exec(environment, ["test", "-r", file], user=None)
         if result.success:
             return True
     except Exception:
@@ -159,7 +165,8 @@ def sandbox_file_detector(file: str, on_path: bool = False) -> Detector:
 
     async def detect_on_path(sandbox: SandboxEnvironment) -> bool:
         try:
-            return (await sandbox.exec(["which", file])).success
+            result = await image_path_lookup(sandbox, file, user=None)
+            return result.success
         except SandboxUnavailableError:
             # Treat an unavailable sandbox as no match so discovery can continue
             # with the remaining sandboxes. Suppress only SandboxUnavailableError;
@@ -224,8 +231,11 @@ async def sandbox_with_injection(
     return target_sandbox
 
 
-async def sandbox_connections() -> dict[str, SandboxConnection]:
-    environments = sandbox_environments_context_var.get(None)
+async def sandbox_connections(
+    environments: dict[str, SandboxEnvironment] | None = None,
+) -> dict[str, SandboxConnection]:
+    if environments is None:
+        environments = sandbox_environments_context_var.get(None)
     if environments:
         connections: dict[str, SandboxConnection] = {}
         for name, environment in environments.items():
@@ -288,6 +298,14 @@ async def init_sandbox_environments_sample(
         await sample_cleanup(task_name, config, environments, True)
         raise ex
 
+    except anyio.get_cancelled_exc_class() as ex:
+        # cancellation is not an Exception, and the caller only cleans up
+        # environments it was handed, which init never returns when cancelled
+        environments = unproxy_environments(environments)
+        with anyio.CancelScope(shield=True):
+            await sample_cleanup(task_name, config, environments, True)
+        raise ex
+
 
 async def cleanup_sandbox_environments_sample(
     type: str,
@@ -346,18 +364,27 @@ async def setup_sandbox_environment(
     # execute and then remove setup script (don't retry it on timeout
     # in case it is not idempotent)
     try:
-        await env.exec(["chmod", "+x", setup_file], timeout=120)
+        await privileged_exec(env, ["chmod", "+x", setup_file], user=None, timeout=120)
         timeout = int(
             os.environ.get("INSPECT_SANDBOX_SETUP_TIMEOUT", SANDBOX_SETUP_TIMEOUT)
         )
+        # The launcher (`env`, whose execvp falls back to `sh` for a script with
+        # no shebang) resolves through the pinned PATH, but the setup script is the
+        # task author's and runs with the image's own PATH, as it always has. No
+        # `pinned_env` here: that would replace the inherited PATH before the
+        # shell could save it.
         result = await env.exec(
-            ["env", setup_file], timeout=timeout, timeout_retry=False
+            pinned_shell_command(
+                f'exec env "PATH=${IMAGE_PATH_VARIABLE}" "$1"', setup_file
+            ),
+            timeout=timeout,
+            timeout_retry=False,
         )
         if not result.success:
             raise RuntimeError(
                 f"Failed to execute setup script for sample: {result.stderr}"
             )
-        await env.exec(["rm", setup_file], timeout=120)
+        await privileged_exec(env, ["rm", setup_file], user=None, timeout=120)
     except TimeoutError:
         raise RuntimeError("Timed out executing setup command in sandbox")
 

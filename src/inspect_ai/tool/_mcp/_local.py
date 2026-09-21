@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import os
 import sys
@@ -6,6 +7,7 @@ from logging import getLogger
 from pathlib import Path
 from types import TracebackType
 from typing import Any, AsyncIterator, Callable
+from weakref import WeakKeyDictionary
 
 import anyio
 from mcp.client.session import ClientSession, SamplingFnT
@@ -23,6 +25,7 @@ from mcp.types import (
 from mcp.types import Tool as MCPTool
 from typing_extensions import override
 
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util._json_rpc import (
     JSONRPCErrorMapper,
     JSONRPCParamsType,
@@ -86,6 +89,27 @@ class _McpErrorMapper(JSONRPCErrorMapper):
         return ToolError(message)
 
 
+def _current_task() -> object:
+    """The running task object, for use as a weak registry key.
+
+    anyio's `get_current_task()` returns a fresh `TaskInfo` per call whose hash
+    derives from `id()`, making it neither a stable nor a weak key. The backend
+    task objects are weak-referenceable and hashed by identity.
+    """
+    backend = current_async_backend()
+    if backend == "trio":
+        import trio.lowlevel
+
+        return trio.lowlevel.current_task()
+    elif backend == "asyncio":
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("MCP servers require a running asyncio task.")
+        return task
+    else:
+        raise RuntimeError("MCP servers require a running async event loop.")
+
+
 class MCPServerLocal(MCPServer):
     def __init__(
         self,
@@ -100,14 +124,9 @@ class MCPServerLocal(MCPServer):
         self._name = name
         self._events = events
         self._timeout = timeout
-        # Per-instance session table. Keyed on anyio task id, which is
-        # id(asyncio.current_task()) — a memory address that Python recycles
-        # once the task is GC'd. Storing this on the instance (rather than
-        # the class) means task-id collisions across different MCPServerLocal
-        # instances can't leak one sample's cached session — including its
-        # cached tool list — into another sample that happens to run on a
-        # reused task id.
-        self._task_sessions: dict[str, "MCPServerLocalSession"] = {}
+        self._task_sessions: WeakKeyDictionary[object, "MCPServerLocalSession"] = (
+            WeakKeyDictionary()
+        )
 
     @override
     async def __aenter__(self) -> MCPServer:
@@ -126,17 +145,31 @@ class MCPServerLocal(MCPServer):
     async def tools(self) -> list[Tool]:
         return await self._task_session().tools()
 
+    # create a separate MCPServer session per async task, keyed by the running
+    # task OBJECT, rather than per sample. A handoff/subagent's turn, including
+    # its own tools() resolution, runs in its own child task, so it gets a
+    # fresh connection (empty state, for a stateful server) rather than the
+    # parent's live session. That isolation is intentional (see CHANGELOG),
+    # not a safety requirement: concurrent call_tool on one ClientSession is
+    # safe in the mcp SDK.
+    #
+    # Keying by task id would be both stale and unbounded: anyio's
+    # TaskInfo.id is id()-derived, so an id is reusable once its task is
+    # collected, and a session created but never entered (a plain solver
+    # eval only calls tools()) is never evicted. Weak keys make entries die
+    # with their task instead.
     def _task_session(self) -> "MCPServerLocalSession":
-        task_id = anyio.get_current_task().id
-        session_key = f"{task_id}_{self._name}"
-        if session_key not in self._task_sessions:
-            self._task_sessions[session_key] = MCPServerLocalSession(
+        task = _current_task()
+        session = self._task_sessions.get(task)
+        if session is None:
+            session = MCPServerLocalSession(
                 self._client,
                 name=self._name,
                 events=self._events,
                 timeout=self._timeout,
             )
-        return self._task_sessions[session_key]
+            self._task_sessions[task] = session
+        return session
 
 
 class MCPServerLocalSession(MCPServer):
@@ -166,20 +199,31 @@ class MCPServerLocalSession(MCPServer):
         else:
             assert self._refcount == 0
             self._exit_stack = AsyncExitStack()
-            await self._exit_stack.__aenter__()
-            with trace_action(logger, "MCPServer", f"create client ({self._name})"):
-                read, write, *_ = await self._exit_stack.enter_async_context(
-                    self._client()
-                )
-            with trace_action(logger, "MCPServer", f"create session ({self._name})"):
-                self._session = await self._exit_stack.enter_async_context(
-                    ClientSession(read, write, sampling_callback=self._sampling_fn())
-                )
-            with trace_action(
-                logger, "MCPServer", f"initialize session ({self._name})"
-            ):
-                await self._session.initialize()
-            self._refcount = 1
+            try:
+                await self._exit_stack.__aenter__()
+                with trace_action(logger, "MCPServer", f"create client ({self._name})"):
+                    read, write, *_ = await self._exit_stack.enter_async_context(
+                        self._client()
+                    )
+                with trace_action(
+                    logger, "MCPServer", f"create session ({self._name})"
+                ):
+                    self._session = await self._exit_stack.enter_async_context(
+                        ClientSession(
+                            read, write, sampling_callback=self._sampling_fn()
+                        )
+                    )
+                with trace_action(
+                    logger, "MCPServer", f"initialize session ({self._name})"
+                ):
+                    await self._session.initialize()
+                self._refcount = 1
+            except BaseException:
+                # leave the object fully disconnected rather than half-built,
+                # so a retry in this task creates a fresh connection instead
+                # of adopting a broken exit_stack/session pair.
+                await self._close()
+                raise
 
         return self
 
@@ -196,20 +240,25 @@ class MCPServerLocalSession(MCPServer):
             with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
                 assert self._session is not None
                 assert self._exit_stack is not None
-                try:
-                    await self._exit_stack.aclose()
-                finally:
-                    self._session = None
-                    self._exit_stack = None
-                    # Drop the cached tool list so a reused session object
-                    # (e.g., if an outer cache hands this instance to a
-                    # different sample) re-fetches tools from the server on
-                    # next __aenter__ rather than returning a stale list.
-                    self._cached_tool_list = None
+                await self._close()
+
+    async def _close(self) -> None:
+        # Drop the transport and clear the cached tool list, so a session
+        # reused across two mcp_connection blocks in the same task (this
+        # object stays registered; only its connection closes) re-fetches
+        # from the server rather than serving tools bound to a connection
+        # that no longer exists.
+        try:
+            if self._exit_stack is not None:
+                await self._exit_stack.aclose()
+        finally:
+            self._session = None
+            self._exit_stack = None
+            self._cached_tool_list = None
 
     @override
     async def tools(self) -> list[Tool]:
-        if self._cached_tool_list:
+        if self._cached_tool_list is not None:
             mcp_tools = self._cached_tool_list
         else:
             async with self._client_session() as session:

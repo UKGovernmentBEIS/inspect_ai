@@ -46,6 +46,14 @@ def grouped(
         # Satisfy the type checker that the metric is a MetricProtocol
         metric_protocol = cast(MetricProtocol, metric)
 
+        # Own the empty case: an all-unscored task must still report the
+        # metric's shape (the aggregate key) rather than degrading to a bare
+        # NaN synthesized upstream (#5150, the #4718 precedent).
+        if not scores:
+            if not all:
+                return cast(Value, {})
+            return cast(Value, {all_label: float("nan")})
+
         # Slice the scores into groups
         scores_dict: dict[str, list[SampleScore]] = {}
         for sample_score in scores:

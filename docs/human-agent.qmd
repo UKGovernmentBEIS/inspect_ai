@@ -153,6 +153,8 @@ Or from the CLI, use the `-S` option:
 --solver human_cli -S user=myuser
 ```
 
+The `task` command's shell hook is appended to that user's `~/.bashrc` running as that user, so if the image ships a `.bashrc` it must be a regular file the user can write (for example, a Dockerfile `COPY` of a `.bashrc` needs `--chown` for the login user, otherwise installation fails with a permission error).
+
 ## Recording {#recording}
 
 By default, human agent terminal sessions are recorded using the LInux [script command](https://www.redhat.com/en/blog/linux-script-command). Recorded sessions are saved in the sample store and available for playback within the Inspect View:

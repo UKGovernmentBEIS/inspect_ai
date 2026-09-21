@@ -3,60 +3,84 @@
 # Evals get a `model_cards` array field (e.g., ["claude", "chatgpt", "gemini"]).
 # When a benchmark exists in both inspect_evals and harbor, prefer the
 # inspect_evals ID (don't list the harbor duplicate).
+#
+# IDs must match evals.json exactly. Nothing validates them, so an ID that
+# goes stale after an evals/harbor sync silently stops upweighting its eval
+# rather than erroring — re-check this file whenever eval IDs change.
 
-# Claude 4 series model cards & announcements
+# Claude 4 series model cards & announcements:
+#   - Claude Opus 4.6 + 4.7 model card & announcements
+#   - Claude Fable 5 & Claude Mythos 5 System Card, section 8 (Capabilities)
+#     https://www.anthropic.com/claude-fable-5-mythos-5-system-card
 claude:
-  - swe_bench              # SWE-bench Verified
-  - swebenchpro_1_0        # SWE-bench Pro
-  - swebench_multilingual_1_0  # SWE-bench Multilingual
-  - terminal_bench_2_0     # Terminal-Bench 2.0
-  - gpqa                   # GPQA Diamond
-  - mmmlu_1_0              # MMMLU
-  - browse_comp            # BrowseComp
-  - lab_bench              # LAB-Bench
-  - osworld                # OSWorld
-  - financeagent_public    # Finance Agent
-  - gdpval                 # GDPval-AA
-  - arc_agi_2_1_0          # ARC-AGI-2
-  - cybergym               # CyberGym
-  - cybench                # Cybench
-  - bbq                    # Bias Benchmark for QA
-  - hle                    # Humanity's Last Exam
-  - tau2                   # Tau2-bench
-  - aider_polyglot_1_0     # Aider Polyglot
-  - mmmu                   # MMMU
+  - swe_bench                  # SWE-bench Verified
+  - scale_ai_swe_bench_pro     # SWE-bench Pro
+  - terminal_bench_2           # Terminal-Bench 2.0
+  - terminal_bench_2_1         # Terminal-Bench 2.1
+  - gpqa                       # GPQA Diamond
+  - openai_mmmlu               # MMMLU
+  - browse_comp                # BrowseComp
+  - lab_bench                  # LAB-Bench
+  - osworld                    # OSWorld / OSWorld-Verified
+  - vals_financeagent          # Finance Agent
+  - gdpval                     # GDPval-AA
+  - arcprize_arc_agi_2         # ARC-AGI-2
+  - cybergym                   # CyberGym
+  - cybench                    # Cybench
+  - bbq                        # Bias Benchmark for QA
+  - hle                        # Humanity's Last Exam
+  - tau2                       # Tau2-bench
+  - aider_polyglot             # Aider Polyglot
+  - mmmu                       # MMMU
+  - healthbench                # HealthBench / HealthBench Professional
+  - kgmon_deepsearchqa         # DeepSearchQA
+  - bencalvert04_programbench  # ProgramBench
+  - harveyai_lab               # Legal Agent Benchmark (Harvey)
 
-# GPT 5 series announcements
+# GPT 5 series announcements:
+#   - GPT 5.4 announcement
+#   - GPT-5.6 launch post, capability benchmark table
+#     https://openai.com/index/gpt-5-6/
+#   - GPT-5.6 System Card (2026-07-09), sections 5 and 9
+#     https://deploymentsafety.openai.com/gpt-5-6
+# OpenAI splits capability results (launch post) from safety and preparedness
+# (system card), so both documents are needed. Anthropic instead reports
+# capabilities inside the system card itself, in its section 8.
 chatgpt:
-  - gdpval                 # GDPval
-  - financeagent_public    # FinanceAgent v1.1
-  - swebenchpro_1_0        # SWE-Bench Pro (Public)
-  - terminal_bench_2_0     # Terminal-Bench 2.0
-  - osworld                # OSWorld-Verified
-  - browse_comp            # BrowseComp
-  - tau2                   # Tau2-bench Telecom
-  - frontierscience        # Frontier Science Research
-  - gpqa                   # GPQA Diamond
-  - arc_agi_2_1_0          # ARC-AGI-2
-  - hle                    # Humanity's Last Exam
-  - swe_bench              # SWE-bench Verified
-  - mmmlu_1_0              # MMMLU
-  - mmmu                   # MMMU
-  - healthbench            # HealthBench
-  - aider_polyglot_1_0     # Aider Polyglot
-  - swe_lancer_diamond_ic  # SWE-Lancer IC Diamond
-  - aime2025               # AIME 2025
+  - gdpval                     # GDPval
+  - vals_financeagent          # FinanceAgent v1.1
+  - scale_ai_swe_bench_pro     # SWE-Bench Pro (Public)
+  - terminal_bench_2           # Terminal-Bench 2.0
+  - osworld                    # OSWorld-Verified
+  - browse_comp                # BrowseComp
+  - tau2                       # Tau2-bench Telecom
+  - frontierscience            # Frontier Science Research
+  - gpqa                       # GPQA Diamond
+  - arcprize_arc_agi_2         # ARC-AGI-2
+  - hle                        # Humanity's Last Exam
+  - swe_bench                  # SWE-bench Verified
+  - openai_mmmlu               # MMMLU
+  - mmmu                       # MMMU
+  - healthbench                # HealthBench
+  - aider_polyglot             # Aider Polyglot
+  - openai_swe_lancer_diamond_ic  # SWE-Lancer IC Diamond
+  - aime2025                   # AIME 2025
+  - cve_bench                  # CVE-Bench
+  - mle_bench                  # MLE-Bench Revised
+  - cybergym                   # CyberGym
+  - terminal_bench_2_1         # Terminal-Bench 2.1
+  - datacurve_deep_swe_1_1     # DeepSWE v1.1
 
 # Gemini 3.1 Pro
 gemini:
-  - arc_agi_2_1_0          # ARC-AGI-2
-  - gpqa                   # GPQA Diamond
-  - terminal_bench_2_0     # Terminal-Bench 2.0
-  - swe_bench              # SWE-bench Verified
-  - swebenchpro_1_0        # SWE-bench Pro
-  - livecodebench_1_0      # LiveCodeBench
-  - scicode                # SciCode
-  - gdpval                 # GDPval-AA
-  - tau2                   # Tau2-bench
-  - browse_comp            # BrowseComp
-  - mmmlu_1_0              # MMMLU
+  - arcprize_arc_agi_2         # ARC-AGI-2
+  - gpqa                       # GPQA Diamond
+  - terminal_bench_2           # Terminal-Bench 2.0
+  - swe_bench                  # SWE-bench Verified
+  - scale_ai_swe_bench_pro     # SWE-bench Pro
+  - livecodebench              # LiveCodeBench
+  - scicode                    # SciCode
+  - gdpval                     # GDPval-AA
+  - tau2                       # Tau2-bench
+  - browse_comp                # BrowseComp
+  - openai_mmmlu               # MMMLU

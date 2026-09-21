@@ -112,12 +112,13 @@ class Sample(BaseModel):
     """Setup script to run for sample (run within default SandboxEnvironment)."""
 
     checkpoint: CheckpointSampleConfig | None = Field(default=None)
-    """Checkpoint configuration for this sample. Per-sample configs are
-    restricted to the :class:`CheckpointSampleConfig` base class — the
-    eval-wide fields (``checkpoints_location``, ``retention``) live only on
-    :class:`CheckpointConfig` at the task / eval layers. Customize-only:
-    a sample config never enables checkpointing (that happens at the task
-    or eval layer) and is ignored when nothing enabled it."""
+    """Checkpoint configuration for this sample: capture paths and
+    snapshot-strategy selection per sandbox, trigger, and failure
+    tolerance. The eval-wide storage policy (``checkpoints_location``,
+    ``retention``) lives only on :class:`CheckpointConfig` at the task /
+    eval layers. Customize-only: a sample config never enables
+    checkpointing (that happens at the task or eval layer) and is
+    ignored when nothing enabled it."""
 
 
 def sample_input_len(sample: Sample) -> int:

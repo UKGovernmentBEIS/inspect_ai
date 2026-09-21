@@ -27,6 +27,7 @@ from ._edit import (
 )
 from ._file import (
     EvalLogInfo,
+    WriteEvalLogResult,
     list_eval_logs,
     list_eval_logs_async,
     read_eval_log,
@@ -39,6 +40,7 @@ from ._file import (
     write_eval_log_async,
     write_log_dir_manifest,
 )
+from ._headline import ResolvedHeadlineMetric, headline_metric
 from ._log import (
     ConnectionLimitChange,
     EvalConfig,
@@ -60,11 +62,14 @@ from ._log import (
     EvalStats,
     EvalStatus,
     EventsData,
+    HeadlineMetric,
 )
 from ._metric import recompute_metrics
 from ._recover import (
+    IncompleteAction,
     RecoverableEvalLog,
     RecoveryNotAvailable,
+    RecoveryThresholdExceeded,
     recover_eval_log,
     recoverable_eval_logs,
 )
@@ -104,6 +109,10 @@ __all__ = [
     "EvalStats",
     "EvalStatus",
     "EvalLogInfo",
+    "WriteEvalLogResult",
+    "HeadlineMetric",
+    "ResolvedHeadlineMetric",
+    "headline_metric",
     "Transcript",
     "TranscriptHistory",
     "TranscriptHistoryUnavailableError",
@@ -140,8 +149,10 @@ __all__ = [
     "uninvalidate_samples",
     "recover_eval_log",
     "recoverable_eval_logs",
+    "IncompleteAction",
     "RecoverableEvalLog",
     "RecoveryNotAvailable",
+    "RecoveryThresholdExceeded",
     "ConnectionLimitChange",
 ]
 

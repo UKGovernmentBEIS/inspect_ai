@@ -95,10 +95,10 @@ evals_df(
 ``` default
 <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 9 entries, 0 to 8
-Columns: 23 entries, eval_id to score_headline_value
+Columns: 25 entries, eval_set_id to score_headline_stderr
 ```
 
-This dataframe has 23 columns rather than the 51 we saw when using the default `evals_df()` congiruation, reflecting the explicit columns groups specified.
+This dataframe has 25 columns rather than the 51 we saw when using the default `evals_df()` congiruation, reflecting the explicit columns groups specified.
 
 You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:
 
@@ -417,7 +417,7 @@ if len(errors) > 0:
 | `EvalModel` | Model name, args, generation config, etc. |
 | `EvalDataset` | Dataset name, location, sample ids, etc. |
 | `EvalConfiguration` | Epochs, approval, sample limits, etc. |
-| `EvalResults` | Status, errors, samples completed, headline metric. |
+| `EvalResults` | Status, errors, samples completed, headline metric (see [`headline_metric`](metrics.qmd#headline-metric) to control which metric that is). |
 | `EvalScores` | All scores and metrics broken into separate columns. |
 
 The `eval_id` field is automatically included in all eval data frames. Additionally, a `log` field which includes the URI of the log file read from is included.

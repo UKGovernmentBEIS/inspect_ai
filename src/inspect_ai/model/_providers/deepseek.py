@@ -29,6 +29,13 @@ DEEPSEEK_EFFORT_MAP = {
     "xhigh": "max",
 }
 
+DEEPSEEK_RESPONSE_SCHEMA_WARNING = (
+    "DeepSeek does not support schema-enforced structured output, so the "
+    'response_schema for {model} is submitted as JSON mode ("json_object"). '
+    "The schema itself is not sent to the model — describe the expected JSON "
+    "shape in the prompt (which must also mention JSON)."
+)
+
 
 class DeepSeekAPI(OpenAICompatibleAPI):
     def __init__(
@@ -122,4 +129,20 @@ class DeepSeekAPI(OpenAICompatibleAPI):
             params["extra_body"] = extra_body
         elif effort in DEEPSEEK_EFFORT_MAP:
             params["reasoning_effort"] = DEEPSEEK_EFFORT_MAP[effort]
+        response_format = params.get("response_format")
+        if (
+            isinstance(response_format, dict)
+            and response_format.get("type") == "json_schema"
+        ):
+            # DeepSeek's JSON mode only accepts the "json_object" type; the
+            # OpenAI "json_schema" type is rejected with a 400 ("This
+            # response_format type is unavailable now").
+            # https://api-docs.deepseek.com/guides/json_mode
+            warn_once(
+                logger,
+                DEEPSEEK_RESPONSE_SCHEMA_WARNING.format(
+                    model=self.service_model_name()
+                ),
+            )
+            params["response_format"] = {"type": "json_object"}
         return params

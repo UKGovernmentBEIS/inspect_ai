@@ -1365,6 +1365,11 @@ class _TimeLimit(Limit, _Node):
         self._active_limit: float | None = None
         self._start_time: float | None = None
         self._end_time: float | None = None
+        # elapsed time carried from a prior attempt that counts toward
+        # reported usage but never the cancel-scope deadline — set by a
+        # scoring-only checkpoint resume (a normal resume backdates
+        # _start_time instead, so the deadline charges the prior attempt too)
+        self._prior_elapsed: float = 0.0
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
@@ -1372,9 +1377,14 @@ class _TimeLimit(Limit, _Node):
         # `self.limit` (not `self._limit`) so a sample started after a live
         # override was set opens its scope with the override already applied
         self._active_limit = self.limit
-        self._cancel_scope = anyio.move_on_after(self._active_limit)
+        self._cancel_scope = anyio.CancelScope()
         self._cancel_scope.__enter__()
+        # derive the deadline from _start_time (as _refresh_deadline does)
+        # rather than a separate clock read, so deadline, usage, and any
+        # later retune are all measured from the same instant
         self._start_time = anyio.current_time()
+        if self._active_limit is not None:
+            self._cancel_scope.deadline = self._start_time + self._active_limit
         return self
 
     def __exit__(
@@ -1454,8 +1464,8 @@ class _TimeLimit(Limit, _Node):
         if self._start_time is None:
             return 0.0
         if self._end_time is None:
-            return anyio.current_time() - self._start_time
-        return self._end_time - self._start_time
+            return anyio.current_time() - self._start_time + self._prior_elapsed
+        return self._end_time - self._start_time + self._prior_elapsed
 
 
 class _WorkingLimit(Limit, _Node):

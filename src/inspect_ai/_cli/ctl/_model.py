@@ -23,7 +23,7 @@ from ._group import (
 )
 from ._http import _resolve_target_server
 from ._mutate import _HELD_CAVEAT, _mutation_envelope, _pause_confirmation
-from ._render import _echo, _echo_raw, _sanitize_line
+from ._render import _echo, _echo_raw, _format_rate, _render_table, _sanitize_line
 
 
 @ctl_command.group("model", cls=_NounGroup)
@@ -103,6 +103,113 @@ def model_resume_command(
     required when several processes run.
     """
     _run_model_pause_resume(model, pid, verb="resume", dry_run=dry_run, as_json=as_json)
+
+
+@model_group.command("throughput")
+@click.argument("pid", required=False, type=int)
+@click.option(
+    "--window",
+    type=click.IntRange(min=1),
+    metavar="SECONDS",
+    default=60,
+    help=(
+        "Rate window in seconds (default 60; clamped server-side to the "
+        "10-minute horizon). Cumulative totals are unaffected."
+    ),
+)
+@_json_option(
+    "an `{as_of, window_seconds, models}` envelope with per-model rates "
+    "and cumulative totals"
+)
+def model_throughput_command(pid: int | None, window: int, as_json: bool) -> None:
+    """Show each model's effective throughput across the run.
+
+    One row per model the process has called, aggregated across every
+    sample and task: recent output tokens/sec, requests/min and
+    retries/min over `--window`, how many samples currently have a
+    generate sleeping in a retry wait, and cumulative scheduled backoff.
+    The "wait vs. switch" view for a throttled run — rates come from
+    completed generates, so a model whose every call is stuck in backoff
+    reads 0. PID is required when several processes run.
+    """
+    _run_model_throughput(pid, window=window, as_json=as_json)
+
+
+_MODEL_THROUGHPUT_ROUTE_MISSING = (
+    "This process is running an older inspect without the model throughput "
+    "endpoint; restart the eval to pick up the current version."
+)
+
+
+@_envelope_failures
+def _run_model_throughput(pid: int | None, *, window: int, as_json: bool) -> None:
+    """Read per-model run throughput (``GET /models/throughput``)."""
+    target = _resolve_target_server(pid)
+    result = _http._request_json(
+        str(target.socket_path),
+        "/models/throughput",
+        params={"window": window},
+        what=f"model throughput (pid {target.pid})",
+        not_found=(
+            f"Model throughput not available from pid {target.pid} "
+            "(older inspect version?)."
+        ),
+        not_found_missing_route=_MODEL_THROUGHPUT_ROUTE_MISSING,
+        pid=target.pid,
+    )
+
+    if as_json:
+        _echo_raw(json_lib.dumps(result, indent=2))
+        return
+
+    models = result.get("models") or []
+    if not models:
+        _echo(
+            f"No model traffic recorded in this run (pid {target.pid}). "
+            "Rates appear once a generate completes or a retry occurs."
+        )
+        return
+    _print_throughput_table(models)
+
+
+def _format_backoff(seconds: Any) -> str:
+    """Cumulative backoff cell: compact duration, or a dash when none."""
+    total = int(seconds or 0)
+    if total <= 0:
+        return "-"
+    hours, rem = divmod(total, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m"
+    if minutes:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
+
+
+def _print_throughput_table(models: list[dict[str, Any]]) -> None:
+    """Render the per-model throughput rows as an aligned table."""
+    rows = [
+        (
+            str(m.get("model", "?") or "?"),
+            _format_rate(m.get("output_tokens_per_second")),
+            _format_rate(m.get("requests_per_minute")),
+            _format_rate(m.get("retries_per_minute")),
+            str(m.get("retry_waits_active", 0) or 0),
+            _format_backoff((m.get("cumulative") or {}).get("retry_wait_seconds")),
+        )
+        for m in models
+    ]
+    _render_table(
+        (
+            "model",
+            "out tok/s",
+            "req/min",
+            "retries/min",
+            "in backoff",
+            "backoff (cum)",
+        ),
+        rows,
+    )
 
 
 _MODEL_PAUSE_ROUTE_MISSING = (

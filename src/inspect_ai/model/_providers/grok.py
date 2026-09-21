@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from collections.abc import Mapping
 from copy import copy
 from typing import Any, Literal, cast
 
@@ -12,6 +13,7 @@ from tenacity.wait import WaitBaseT
 from typing_extensions import override
 from xai_sdk import AsyncClient  # type: ignore
 from xai_sdk.chat import (  # type: ignore
+    Chunk,
     Response,
     ToolMode,
     chat_pb2,
@@ -39,7 +41,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import inline_media_data_uri
-from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._samples import sample_active, set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -51,8 +53,21 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._model import ModelAPI, RetryDecision
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.model._providers.util.util import model_base_url
+from inspect_ai.model._providers.util.util import (
+    model_base_url,
+    normalize_stream_arg,
+)
 from inspect_ai.model._retry import batch_admin_retry_config
+from inspect_ai.model._stream import (
+    NoStreamDataError,
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
@@ -77,6 +92,12 @@ XAI_BASE_URL = "XAI_BASE_URL"
 GROK_API_KEY = "GROK_API_KEY"
 GROK_BASE_URL = "GROK_BASE_URL"
 
+# xAI's prompt cache is per-server, and requests are otherwise load balanced
+# across servers. This header pins a conversation to one server so its turns
+# hit the cache the earlier turns populated.
+# https://docs.x.ai/developers/advanced-api-usage/prompt-caching/maximizing-cache-hits
+GROK_CONV_ID_HEADER = "x-grok-conv-id"
+
 # xAI model-name tokens for non-generative models (image/video generation,
 # embeddings) that must never be treated as a "latest" frontier chat model
 # by is_latest().
@@ -86,6 +107,33 @@ _NON_GENERATIVE_TOKENS = (
     "embedding",
     "tts",
 )
+
+
+def _client_metadata(metadata: Any) -> tuple[tuple[str, str], ...]:
+    """Normalize a caller-supplied `metadata` model arg to the SDK's shape.
+
+    `-M metadata=...` arrives as JSON, so it may be a mapping, or pairs may be
+    lists rather than the tuples `AsyncClient` expects. A mapping must be
+    handled explicitly: iterating one yields bare keys, which would unpack into
+    silently wrong header pairs.
+    """
+    if metadata is None:
+        return ()
+    if isinstance(metadata, Mapping):
+        metadata = metadata.items()
+    return tuple((str(key), str(value)) for key, value in metadata)
+
+
+def _grok_conv_id() -> str | None:
+    """Conversation id for xAI's cache server-affinity header.
+
+    A sample is Inspect's unit of conversation: every turn of its agent loop
+    shares a growing prefix, so pinning them to one server is what makes the
+    cache hit. Outside a sample there is no conversation to key on, so the
+    header is omitted and requests are load balanced as before.
+    """
+    active = sample_active()
+    return active.sample_uuid if active is not None else None
 
 
 def _sdk_supports_xhigh_effort() -> bool:
@@ -104,7 +152,7 @@ class GrokAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
-        streaming: bool = False,
+        streaming: bool | Literal["auto"] = "auto",
         disable_retry: bool = False,
         service_tier: str | None = None,
         **model_args: Any,
@@ -140,8 +188,9 @@ class GrokAPI(ModelAPI):
             model_base_url(self.base_url, [XAI_BASE_URL, GROK_BASE_URL]) or "api.x.ai"
         )
 
-        # save model args
-        self.streaming = streaming
+        # save model args (streaming unset/"auto" streams when the caller
+        # passes on_stream to generate; an explicit True/False overrides)
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
         self.disable_retry = disable_retry
         # fail fast when the SDK can't express service_tier rather than
         # TypeError-ing on every generate
@@ -161,6 +210,9 @@ class GrokAPI(ModelAPI):
                 ("grpc.enable_retries", 0),
                 ("grpc.service_config", "{}"),
             ]
+        # held apart from model_args so model_client() can extend rather than
+        # collide with it when adding the conversation id header
+        self.client_metadata = _client_metadata(model_args.pop("metadata", None))
         self.model_args = model_args
 
         # initialize batcher
@@ -218,11 +270,15 @@ class GrokAPI(ModelAPI):
         # is_at_least_grok_4() and the DB-miss branch of input_tokens_name()
         return "grok" not in name
 
-    def model_client(self) -> AsyncClient:
+    def model_client(self, conv_id: str | None = None) -> AsyncClient:
+        metadata = self.client_metadata
+        if conv_id is not None:
+            metadata += ((GROK_CONV_ID_HEADER, conv_id),)
         return AsyncClient(
             api_key=self.api_key,
             api_host=self.base_url,
             timeout=3600,
+            metadata=metadata or None,
             **self.model_args,
         )
 
@@ -269,6 +325,12 @@ class GrokAPI(ModelAPI):
             else grok_tool_choice,
             **grok_params,
         )
+        # batch requests share one long-lived client, so they can't carry a
+        # per-conversation header (and aren't multi-turn conversations anyway)
+        conv_id = None if self._batcher else _grok_conv_id()
+        if conv_id is not None:
+            request["metadata"] = {GROK_CONV_ID_HEADER: conv_id}
+
         if self._batcher and config.response_schema is not None:
             schema_model = json_schema_to_base_model(config.response_schema.json_schema)
             # Batch queue payloads are dict-shaped; encode full schema here so the
@@ -291,7 +353,7 @@ class GrokAPI(ModelAPI):
                 # used in the direct path below.
                 chat_response = await self._batcher.generate_for_request(request)
             else:
-                async with self.model_client() as client:
+                async with self.model_client(conv_id) as client:
                     # chat call
                     chat = client.chat.create(
                         model=self.service_model_name(),
@@ -309,9 +371,17 @@ class GrokAPI(ModelAPI):
                             )
                         )
                     # stream the reponse for improved connectivity for long requests
-                    elif self.streaming:
-                        async for chat_response, _ in chat.stream():
-                            pass
+                    elif self._resolve_streaming(config):
+                        report_model_stream_start()
+                        streamed_response: Response | None = None
+                        async for streamed_response, chunk in chat.stream():
+                            await _report_grok_stream_chunk(chunk)
+                        if streamed_response is None:
+                            raise NoStreamDataError(
+                                "No response chunks received from streaming "
+                                f"API for model {self.service_model_name()}"
+                            )
+                        chat_response = streamed_response
                     else:
                         chat_response = await chat.sample()
 
@@ -337,6 +407,20 @@ class GrokAPI(ModelAPI):
             else:
                 raise ex
 
+    def _resolve_streaming(self, config: GenerateConfig) -> bool:
+        """Whether to stream this generate call.
+
+        An explicit `streaming` model arg wins; "auto" streams when the
+        caller passed `on_stream` to `Model.generate()` — except when
+        logprobs are requested: xai_sdk's stream accumulator never carries
+        logprobs into the final response, so a display-only stream request
+        must not degrade results (explicit `streaming=true` keeps its
+        pre-existing lossy behavior).
+        """
+        if isinstance(self.streaming, bool):
+            return self.streaming
+        return model_stream_requested() and not config.logprobs
+
     def _resolve_batcher(self, config: GenerateConfig) -> None:
         if self._batcher or not (batch_config := normalized_batch_config(config.batch)):
             return
@@ -347,7 +431,12 @@ class GrokAPI(ModelAPI):
         self._batcher = GrokBatcher(
             self._batch_client,
             batch_config,
-            batch_admin_retry_config(self.model_name, config, self.should_retry),
+            batch_admin_retry_config(
+                self.model_name,
+                config,
+                self.should_retry,
+                qualified_model_name=self.qualified_model_name,
+            ),
         )
 
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -409,12 +498,21 @@ class GrokAPI(ModelAPI):
             self.is_at_least_grok_4()
             and _get_model_info_direct(self.canonical_name()) is None
         ):
-            return "grok/grok-4.6"
+            return "grok/grok-4.7"
         return super().input_tokens_name()
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
+        """Map an INVALID_ARGUMENT context-overflow error to a model_length output.
+
+        xAI's wording has varied ("prompt length" historically, the structured
+        code "[input_too_large]" currently). Don't match "exceeds budget" alone:
+        xAI uses budget language for reasoning-token limits too.
+        """
         details = ex.details() or ""
-        if "prompt length" in details:
+        details_lower = details.lower()
+        if any(
+            marker in details_lower for marker in ("prompt length", "input_too_large")
+        ):
             return ModelOutput.from_content(
                 model=self.model_name, content=details, stop_reason="model_length"
             )
@@ -505,8 +603,8 @@ class GrokAPI(ModelAPI):
             gconfig["response_format"] = "json_object"
 
         # grok-3-mini and grok-4-or-later variants (4-fast, 4.1, 4.20, 4.3,
-        # 4.5, 4.6, plus future/codename models) accept reasoning_effort. The
-        # *original* grok-4 reasons but rejects the parameter and must be
+        # 4.5, 4.6, 4.7, plus future/codename models) accept reasoning_effort.
+        # The *original* grok-4 reasons but rejects the parameter and must be
         # excluded.
         if config.reasoning_effort is not None and (
             self.is_grok_3_mini()
@@ -570,7 +668,7 @@ class GrokAPI(ModelAPI):
         server_tool_calls: list[chat_pb2.ToolCall] = []
         client_tool_calls: list[chat_pb2.ToolCall] = []
         for tool_call in response.tool_calls:
-            if get_tool_call_type(tool_call) == "client_side_tool":
+            if self._is_client_tool_call(tool_call, tools):
                 client_tool_calls.append(tool_call)
             else:
                 server_tool_calls.append(tool_call)
@@ -638,6 +736,71 @@ class GrokAPI(ModelAPI):
             return "grok" in tool.options.get("providers", {})
         else:
             return False
+
+    def _is_client_tool_call(
+        self, tool_call: chat_pb2.ToolCall, tools: list[ToolInfo]
+    ) -> bool:
+        """Whether a returned tool call is for a client-side function tool.
+
+        xAI sometimes types a call to a client function named
+        `code_execution` as its built-in code execution tool, even though
+        the request declared it as a plain function and the server did not
+        run it. Trusting the reported type would render the call as a
+        completed server tool use and never execute it. So when the request
+        sent no native code execution tool, a code-execution-typed call whose
+        name matches a tool sent as a function is treated as a call to that
+        function. Other server types keep their reported type: a native web
+        search call, for example, may legitimately share a name with a
+        client function.
+        """
+        tool_call_type = get_tool_call_type(tool_call)
+        if tool_call_type == "client_side_tool":
+            return True
+        if tool_call_type != "code_execution_tool" or any(
+            self._is_internal_code_execution_tool(tool) for tool in tools
+        ):
+            return False
+        return any(
+            tool.name == tool_call.function.name
+            and self._grok_tool(tool).HasField("function")
+            for tool in tools
+        )
+
+
+async def _report_grok_stream_chunk(chunk: Chunk) -> None:
+    """Report one streamed chunk to the model layer's stream observer.
+
+    Text and reasoning stream as fragments; tool calls arrive whole (id, name
+    and complete arguments in one chunk). Chunks carry the server's cumulative
+    usage; report it when present (a proto3 zero means "not reported"), else a
+    bare heartbeat for chunks with no content. Content deltas are gated on
+    `model_stream_requested()` (see `report_model_stream_delta`); the
+    usage/heartbeat progress channel runs regardless.
+    """
+    reported = False
+    if model_stream_requested():
+        if chunk.reasoning_content:
+            await report_model_stream_delta(
+                StreamReasoningEvent(reasoning=chunk.reasoning_content)
+            )
+            reported = True
+        if chunk.content:
+            await report_model_stream_delta(StreamTextEvent(text=chunk.content))
+            reported = True
+        for tool_call in chunk.tool_calls:
+            await report_model_stream_delta(
+                StreamToolCallEvent(
+                    id=tool_call.id,
+                    function=tool_call.function.name,
+                    arguments=tool_call.function.arguments,
+                )
+            )
+            reported = True
+    completion_tokens = chunk.proto.usage.completion_tokens
+    if completion_tokens > 0:
+        report_model_stream_progress(completion_tokens)
+    elif not reported:
+        report_model_stream_progress()
 
 
 def _tool_call_from_grok_call(

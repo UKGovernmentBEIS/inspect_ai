@@ -6,7 +6,7 @@ from typing import Any, Generator, cast
 from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.config import read_config_object
-from inspect_ai._util.file import exists
+from inspect_ai._util.file import exists, local_path
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.registry import create_registry_object, registry_lookup
 from inspect_ai.model._chat_message import ChatMessage
@@ -37,8 +37,11 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
     # compile policy into approvers and regexes for matching
     policy_matchers: list[tuple[list[str], Approver]] = []
     for policy in policies:
-        tools = [policy.tools] if isinstance(policy.tools, str) else policy.tools
-        globs = [f"{tool}*" for tool in tools]
+        tool_specs = [policy.tools] if isinstance(policy.tools, str) else policy.tools
+        tools: list[str] = []
+        for spec in tool_specs:
+            tools.extend([t.strip() for t in spec.split(",") if t.strip()])
+        globs = [tool if tool.endswith("*") else f"{tool}*" for tool in tools]
         policy_matchers.append((globs, policy.approver))
 
     # generator for policies that match a tool_call
@@ -138,6 +141,7 @@ def read_approval_policies(file: str) -> list[ApprovalPolicy]:
     Args:
         file: JSON or YAML config file with approval policies.
     """
+    file = local_path(file)
     if not exists(file):
         raise FileNotFoundError(f"Approval policy file not found: {file}")
     return approval_policies_from_config(file)
@@ -159,11 +163,13 @@ def approval_policies_from_config(
 
     # resolve config if its a string
     if isinstance(policy_config, str):
-        if exists(policy_config):
-            policy_config = read_policy_config(policy_config)
-        elif registry_lookup("approver", policy_config):
+        # decode file:// URIs; fsspec's exists() does not percent-decode
+        policy_path = local_path(policy_config)
+        if exists(policy_path):
+            policy_config = read_policy_config(policy_path)
+        elif registry_lookup("approver", policy_path):
             policy_config = ApprovalPolicyConfig(
-                approvers=[ApproverPolicyConfig(name=policy_config, tools="*")]
+                approvers=[ApproverPolicyConfig(name=policy_path, tools="*")]
             )
         else:
             raise ValueError(f"Invalid approval policy: {policy_config}")

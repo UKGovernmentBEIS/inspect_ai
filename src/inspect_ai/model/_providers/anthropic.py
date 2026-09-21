@@ -2,6 +2,7 @@ import functools
 import json
 import os
 import re
+import time
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
@@ -10,6 +11,7 @@ from typing import (
     Any,
     Iterable,
     Literal,
+    NamedTuple,
     Sequence,
     Tuple,
     TypeGuard,
@@ -17,6 +19,8 @@ from typing import (
     cast,
 )
 
+import anthropic
+import httpx2
 from anthropic import (
     APIConnectionError,
     APIStatusError,
@@ -137,12 +141,20 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
+from inspect_ai._util.http_defaults_httpx2 import (
+    DEFAULT_REQUEST_TIMEOUT,
+    default_async_client,
+    default_timeout,
+)
 from inspect_ai._util.images import inline_media_data, inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
-from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._samples import (
+    sample_active,
+    set_active_model_event_call,
+)
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
     is_result_cleared,
@@ -189,11 +201,24 @@ from .._providers._anthropic_citations import (
     to_inspect_citation,
 )
 from .._reasoning import effort_to_reasoning_tokens
+from .._stream import (
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
 from ._anthropic_batch import AnthropicBatcher
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
+    forced_tool_choice_degraded_metadata,
+    is_claude_fable_5_1_model,
+    is_forced_tool_choice,
     model_base_url,
+    normalize_stream_arg,
     require_azure_base_url,
     resolve_api_key,
 )
@@ -221,6 +246,19 @@ _DISABLED_THINKING_EFFORT_WARNING = (
     "anthropic model '{model}' rejects disabled thinking (reasoning_effort="
     "'none') combined with effort above 'high'; clamping effort to 'high'."
 )
+_FORCED_TOOL_CHOICE_WARNING = (
+    "anthropic model '{model}' does not support forced tool choice "
+    "(tool_choice 'any' or a specific tool returns a 400 error); using "
+    "tool_choice 'auto' instead."
+)
+_THINKING_DROPPED_WARNING = (
+    "anthropic model '{model}' dropped replayed thinking block(s) from the "
+    "request (reason: {reason}), so their reasoning is no longer visible to "
+    "the model. A prefix_binding_mismatch reason means earlier conversation "
+    "content (system prompt, tools, or messages) changed after the blocks "
+    "were produced. Per-request details are recorded in the model output "
+    "metadata under extra_body.input_transformations."
+)
 _MID_CONV_SYSTEM_HOISTED_WARNING = (
     "anthropic: {count} mid-conversation system message(s) were repositioned "
     "to the top-level system field because their placement violated the API "
@@ -235,7 +273,52 @@ _REMINDER_SYSTEM_HOISTED_WARNING = (
     "(tool results map to user-role messages), which strips prior thinking and "
     "cache context on tool-use continuations."
 )
+# A 5m cache entry's TTL clock starts at prefill of the request that wrote or
+# read it, so a gap exceeding the TTL means the entry has expired and the next
+# request rewrites the full prefix whatever TTL we pick — writing it at 1h then
+# costs only the write premium on tokens already being repaid, and protects the
+# rest of the sample from further expiry.
+CACHE_TTL_ESCALATION_GAP = 300.0  # seconds (= the default 5m cache TTL)
+
+# TTL sent on the request whose usage is currently being recorded, read back by
+# cache_write_ttl() for cost accounting: escalation state is sticky and shared,
+# so a sibling that escalates mid-flight (or a batched call, which never
+# escalates) would otherwise bill this request at a TTL it was not sent with.
+# Concurrent calls are separate tasks with their own context copies, and both
+# generate() and compact() (which delegates to generate) resolve before the
+# caller records usage in that same task.
+_cache_write_ttl: ContextVar[Literal["5m", "1h"] | None] = ContextVar(
+    "anthropic_cache_write_ttl", default=None
+)
+
+# `time.monotonic()` at the start of the most recent request issued in this
+# task. pause_turn/server-tool continuations re-send the same cache_control and
+# refresh the entry at their own prefill, so the gap baseline must come from the
+# last one, not from the start of generate().
+_last_request_start: ContextVar[float | None] = ContextVar(
+    "anthropic_last_request_start", default=None
+)
+
+
+@dataclass
+class _SampleCacheTtlState:
+    last_cached_request_start: float
+    """`time.monotonic()` at the start of the last request that read or wrote the prompt cache."""
+
+    escalated: bool = False
+    """Sticky flag: sample observed a >5m gap and now uses the 1h TTL."""
+
+
+class _ResolvedCacheTtl(NamedTuple):
+    ttl: Literal["5m", "1h"] | None
+    """TTL for this request's cache_control (None omits the ttl key = 5m)."""
+
+    request_start: float | None
+    """`time.monotonic()` at resolve time when sample gap tracking applied."""
+
+
 _CACHE_DIAGNOSIS_BETA = "cache-diagnosis-2026-04-07"
+_THINKING_BINDING_BETA = "thinking-binding-controls-2026-08-01"
 _CACHE_MISS_WARNING = (
     "anthropic cache diagnostics: cache miss detected (reason: {reason})."
 )
@@ -259,7 +342,7 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         streaming: bool | Literal["auto"] = "auto",
         betas: str | list[str] = [],
-        cache_ttl: Literal["5m", "1h"] | None = None,
+        cache_ttl: Literal["5m", "1h", "auto"] | None = None,
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -269,14 +352,15 @@ class AnthropicAPI(ModelAPI):
         else:
             self.service = None
 
-        # record steraming and betas prefs
-        self.streaming = streaming
+        # record streaming and betas prefs
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
         self.betas = betas if isinstance(betas, list) else [str(betas)]
 
-        # validate and record prompt cache ttl
-        if cache_ttl is not None and cache_ttl not in ("5m", "1h"):
+        # validate and record prompt cache ttl (None is equivalent to "auto")
+        if cache_ttl is not None and cache_ttl not in ("5m", "1h", "auto"):
             raise ValueError(
-                f"Invalid cache_ttl '{cache_ttl}': valid values are '5m' and '1h'."
+                f"Invalid cache_ttl '{cache_ttl}': valid values are '5m', '1h', "
+                "and 'auto'."
             )
         self.cache_ttl = cache_ttl
 
@@ -315,6 +399,40 @@ class AnthropicAPI(ModelAPI):
         self.model_args = model_args
         self.initialize()
 
+    def _http_default_args(self) -> dict[str, Any]:
+        """Model args with the shared HTTP defaults filled in.
+
+        A caller's own `http_client` is left alone. A caller's `timeout` is
+        kept as the request budget but still gets our client, so the connect
+        floor and pool settings apply.
+        """
+        # A copy, so every initialize() builds a fresh client: aclose() then
+        # initialize() is the auth-retry path in _model.py's before_retry, and
+        # a closed client fails every later request with the error class these
+        # defaults exist to prevent.
+        model_args = dict(self.model_args)
+        if "http_client" in model_args:
+            return model_args
+        # Handing httpx objects to an httpx2-based SDK is what broke every
+        # OpenAI request under openai 3.0.
+        sdk_timeout = getattr(anthropic, "DEFAULT_TIMEOUT", None)
+        if not isinstance(sdk_timeout, httpx2.Timeout):
+            return model_args
+        # The SDK gates its "streaming is required for long requests" guard on
+        # `client.timeout == DEFAULT_TIMEOUT`, so hand back that exact object
+        # unless an operator overrode the budget. Substituting an equivalent
+        # timeout turns an immediate ValueError into a request that stalls to
+        # the read deadline and then retries. The connect floor still reaches
+        # the wire: the event hook raises the deadline the SDK stamps.
+        timeout = default_timeout(
+            request_timeout=sdk_timeout.read or DEFAULT_REQUEST_TIMEOUT
+        )
+        model_args.setdefault(
+            "timeout", sdk_timeout if timeout.read == sdk_timeout.read else timeout
+        )
+        model_args["http_client"] = default_async_client()
+        return model_args
+
     def _create_client(
         self,
     ) -> (
@@ -323,6 +441,7 @@ class AnthropicAPI(ModelAPI):
         | AsyncAnthropicVertex
         | AsyncAnthropicFoundry
     ):
+        model_args = self._http_default_args()
         if self.is_bedrock():
             base_url = model_base_url(
                 self.base_url,
@@ -339,7 +458,7 @@ class AnthropicAPI(ModelAPI):
                 return AsyncAnthropicBedrock(
                     base_url=base_url,
                     aws_region=aws_region,
-                    **self.model_args,
+                    **model_args,
                 )
             except ValueError as ex:
                 # anthropic >= 1.0 raises when no AWS region is resolvable
@@ -356,7 +475,7 @@ class AnthropicAPI(ModelAPI):
                 region=region,
                 project_id=project_id,
                 base_url=base_url,
-                **self.model_args,
+                **model_args,
             )
         elif self.is_azure():
             # resolve base_url (required for Azure)
@@ -378,7 +497,7 @@ class AnthropicAPI(ModelAPI):
             return AsyncAnthropicFoundry(
                 base_url=base_url,
                 api_key=self.api_key,
-                **self.model_args,
+                **model_args,
             )
         else:
             base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
@@ -395,7 +514,7 @@ class AnthropicAPI(ModelAPI):
                     default_headers={
                         "anthropic-beta": "oauth-2025-04-20",
                     },
-                    **self.model_args,
+                    **model_args,
                 )
             # resolve api_key
             if not self.api_key:
@@ -405,14 +524,14 @@ class AnthropicAPI(ModelAPI):
             return AsyncAnthropic(
                 base_url=base_url,
                 api_key=self.api_key,
-                **self.model_args,
+                **model_args,
             )
 
     @override
     def initialize(self) -> None:
         super().initialize()
         self.client = self._create_client()
-        self._http_hooks = HttpxHooks(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client, api=self)
         self._batcher: AnthropicBatcher | None = None
 
     @override
@@ -428,6 +547,143 @@ class AnthropicAPI(ModelAPI):
     def is_azure(self) -> bool:
         return self.service == "azure"
 
+    def _resolve_cache_ttl(self, config: GenerateConfig) -> _ResolvedCacheTtl:
+        """Resolve the prompt-cache TTL for this request.
+
+        An explicit `cache_ttl` of "5m" or "1h" pins the TTL unconditionally.
+        Otherwise ("auto", the default) requests start on the standard 5m TTL
+        (returned as None so the `ttl` key is omitted from `cache_control`) and
+        the active sample is escalated to the 1h TTL — permanently, for the
+        remainder of the sample — once the gap since its last request that
+        actually touched the prompt cache exceeds the 5m TTL. At that point the
+        cache has already expired and the full prefix is being rewritten
+        regardless, so the 1h write premium applies only to tokens already
+        being repaid while protecting the rest of the sample (whose gaps have
+        proven able to outlive the 5m TTL).
+
+        Auto mode never escalates on non-first-party services (block-level
+        `ttl` support on Bedrock/Vertex/Azure is unverified, and auto is the
+        default — explicit "1h" still applies everywhere), when prompt caching
+        is disabled, for batched requests (batch queuing has no meaningful
+        inter-request gap), or outside a sample context.
+
+        Escalation is sample-wide, so a one-shot call that happens to run in an
+        escalated sample (a `model_graded_qa` grader, an approver, a compaction
+        summary) writes its unrelated prefix at 1h too. The gap is evidence
+        about the sample's pacing rather than about one prompt lineage, and
+        tracking lineages separately is not worth the bookkeeping.
+
+        The returned `request_start` is set only when gap tracking applied;
+        pass it to `_record_cache_ttl_refresh` with the response usage once the
+        request succeeds.
+        """
+        resolved = self._cache_ttl_for_request(config)
+        _cache_write_ttl.set(resolved.ttl)
+        return resolved
+
+    def _cache_ttl_state(self) -> dict[str, _SampleCacheTtlState] | None:
+        """Escalation state for the active sample, or None outside a sample.
+
+        Lives on the sample's `_AssistantInternal`, so its lifetime is the
+        sample's and it needs no pruning. Outside a sample that struct is a
+        process-global default instance, hence the `sample_active()` gate.
+        """
+        if sample_active() is None:
+            return None
+        return assistant_internal().cache_ttl
+
+    def _cache_ttl_for_request(self, config: GenerateConfig) -> _ResolvedCacheTtl:
+        if self.cache_ttl in ("5m", "1h"):
+            return _ResolvedCacheTtl(ttl=self.cache_ttl, request_start=None)
+        if (
+            self.service is not None
+            or config.cache_prompt is False
+            or normalized_batch_config(config.batch)
+        ):
+            return _ResolvedCacheTtl(ttl=None, request_start=None)
+        sample_state = self._cache_ttl_state()
+        if sample_state is None:
+            return _ResolvedCacheTtl(ttl=None, request_start=None)
+
+        now = time.monotonic()
+        state = sample_state.get(self.service_model_name())
+        if state is not None and not state.escalated:
+            gap = now - state.last_cached_request_start
+            if gap > CACHE_TTL_ESCALATION_GAP:
+                state.escalated = True
+                logger.info(
+                    f"anthropic prompt cache: gap of {gap:.0f}s since the last "
+                    f"cached request exceeded the {CACHE_TTL_ESCALATION_GAP:.0f}s "
+                    f"cache TTL for {self.service_model_name()}; using the 1h "
+                    "cache TTL for the remainder of the sample (cache writes "
+                    "billed at 2x base input price rather than 1.25x)."
+                )
+
+        return _ResolvedCacheTtl(
+            ttl="1h" if state is not None and state.escalated else None,
+            request_start=now,
+        )
+
+    def _record_cache_ttl_refresh(
+        self, resolved: _ResolvedCacheTtl, usage: ModelUsage | None
+    ) -> None:
+        """Advance the sample's cache baseline after a request that used the cache.
+
+        Only a response reporting a cache read or write proves an entry exists
+        whose TTL clock started at this request, so only those establish the
+        baseline a later gap is measured against. Requests that never reached
+        the API (rate limit, connection error) and those the server declined to
+        cache (a prefix below the model's minimum cacheable length, which
+        silently reports zero cache tokens) leave the baseline alone —
+        otherwise a long retry backoff or a stretch of short prompts would
+        escalate a sample whose first real cache write is still ahead of it,
+        billing that unavoidable write at 2x rather than 1.25x.
+
+        The cache entry the next request reads is written/refreshed at prefill
+        (near request start), so the baseline is a request's start time — and
+        specifically the *last* request issued, since pause_turn/server-tool
+        continuations each refresh the entry at their own prefill.
+
+        Residual: an attempt cancelled by an attempt/stream-idle timeout unwinds
+        before this runs, so a request that did prefill and write leaves the
+        baseline where it was and the retry measures its gap from further back
+        than it should. Erring that way only over-escalates; there is no usage
+        to prove caching happened on a response we never received.
+        """
+        if resolved.request_start is None:
+            return
+        if usage is None or not (
+            (usage.input_tokens_cache_write or 0)
+            or (usage.input_tokens_cache_read or 0)
+        ):
+            return
+        sample_state = self._cache_ttl_state()
+        if sample_state is None:
+            return
+        # a continuation chain's last prefill, when later than resolve time; a
+        # value left by an earlier generate in this task is necessarily earlier
+        request_start = max(resolved.request_start, _last_request_start.get() or 0.0)
+        key = self.service_model_name()
+        state = sample_state.get(key)
+        if state is None:
+            sample_state[key] = _SampleCacheTtlState(
+                last_cached_request_start=request_start
+            )
+        elif request_start > state.last_cached_request_start:
+            # ignore out-of-order completions from parallel calls in one sample
+            state.last_cached_request_start = request_start
+
+    @override
+    def cache_write_ttl(self) -> str | None:
+        # the TTL this call was sent with, not the sample's current escalation
+        # state — a sibling may have escalated while this one was in flight.
+        # Residual: server tools insert their own 5m cache write after tool
+        # results, which an escalated sample still bills at 1h; only mapping the
+        # ephemeral_5m/1h split from response usage would price those exactly.
+        if self.cache_ttl in ("5m", "1h"):
+            return self.cache_ttl
+        return _cache_write_ttl.get()
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -442,13 +698,16 @@ class AnthropicAPI(ModelAPI):
 
         # generate
         try:
+            resolved_cache_ttl = self._resolve_cache_ttl(config)
+            cache_ttl = resolved_cache_ttl.ttl
+
             (
                 system_param,
                 tools_param,
                 mcp_servers_param,
                 messages,
                 cache_prompt,
-            ) = await self.resolve_chat_input(input, tools, config)
+            ) = await self.resolve_chat_input(input, tools, config, cache_ttl)
 
             # prepare request params (assembled this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
@@ -462,14 +721,23 @@ class AnthropicAPI(ModelAPI):
             # per-block markers added in resolve_chat_input on those services.
             # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
             if cache_prompt and not (self.is_bedrock() or self.is_vertex()):
-                request["cache_control"] = cache_control_param(self.cache_ttl)
+                request["cache_control"] = cache_control_param(cache_ttl)
 
             # system messages and tools
             if system_param is not None:
                 request["system"] = system_param
             request["tools"] = tools_param
-            if len(tools_param) > 0 and not self.is_using_thinking(config):
-                request["tool_choice"] = message_tool_choice(tool_choice, config)
+            # with thinking active, tool_choice is omitted entirely (the API
+            # rejects forced tool choice with thinking; long-standing behavior
+            # for all Claude models)
+            tool_choice_degraded = False
+            if len(tools_param) > 0:
+                resolved_choice = self.resolved_tool_choice(tool_choice)
+                tool_choice_degraded = resolved_choice != tool_choice
+                if not self.is_using_thinking(config):
+                    request["tool_choice"] = message_tool_choice(
+                        resolved_choice, config
+                    )
 
             # additional options
             req, extra_body, headers, betas = self.completion_config(config)
@@ -484,6 +752,8 @@ class AnthropicAPI(ModelAPI):
                 self.is_claude_4() or self.is_claude_5() or self.is_claude_latest()
             ):
                 betas.append("interleaved-thinking-2025-05-14")
+
+            self.apply_thinking_block_binding(request, betas)
 
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
@@ -566,10 +836,12 @@ class AnthropicAPI(ModelAPI):
 
             model_call = set_active_model_event_call(request, model_call_filter)
 
-            # stream if we are using reasoning or >= 8192 max_tokens
+            # stream if the caller passed on_stream or (in auto mode) when
+            # using reasoning or >= 8192 max_tokens; an explicit streaming
+            # model arg overrides both
             streaming = (
-                self.auto_streaming(config)
-                if self.streaming == "auto"
+                (self.auto_streaming(config) or model_stream_requested())
+                if self.streaming is None
                 else self.streaming
             )
 
@@ -586,6 +858,13 @@ class AnthropicAPI(ModelAPI):
             model_call.set_response(response, self._http_hooks.end_request(request_id))
 
             _warn_refusal_without_fallback(self, config, output)
+
+            if tool_choice_degraded:
+                output.metadata = (
+                    output.metadata or {}
+                ) | forced_tool_choice_degraded_metadata(tool_choice)
+
+            self._record_cache_ttl_refresh(resolved_cache_ttl, output.usage)
 
             return output, model_call
 
@@ -771,6 +1050,9 @@ class AnthropicAPI(ModelAPI):
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
         """
+        # each continuation re-sends the same cache_control, so it refreshes the
+        # cache entry at its own prefill -- record it as the gap baseline
+        _last_request_start.set(time.monotonic())
         if pending_tool_uses is None:
             pending_tool_uses = dict()
         if pending_mcp_tool_uses is None:
@@ -792,7 +1074,10 @@ class AnthropicAPI(ModelAPI):
                     # TODO: In the future, we could pass max_retries and timeout
                     # from batch_config falling back to config
                     batch_admin_retry_config(
-                        self.model_name, config, self.should_retry
+                        self.model_name,
+                        config,
+                        self.should_retry,
+                        qualified_model_name=self.qualified_model_name,
                     ),
                 )
             head_message = await self._batcher.generate_for_request(request)
@@ -1140,6 +1425,50 @@ class AnthropicAPI(ModelAPI):
         # tier-named (opus/sonnet) models.
         return self.is_claude_sonnet_5() or self.is_claude_opus_5()
 
+    def apply_thinking_block_binding(
+        self, request: dict[str, Any], betas: list[str]
+    ) -> None:
+        """Opt into dropping prefix-mismatched thinking blocks on Fable 5.1.
+
+        Fable 5.1 binds thinking blocks to the request prefix that produced
+        them; solvers legitimately edit history, and without drop_block such an
+        edit fails the replay with a 400. Applied to every Fable 5.1 request —
+        not only those replaying thinking blocks — so the beta header stays
+        uniform across a task's requests (the batcher submits a single header
+        set per batch). Mythos 5.1 does not run the binding check, so it is
+        excluded. First-party API only for now: the binding-controls beta
+        arrives per model on bedrock/vertex (the header is rejected until
+        then) and is not offered on foundry — until those platforms enable it,
+        a history edit there will still 400. A caller-supplied
+        `extra_body.thinking` shallow-merges over the request body and
+        replaces this binding config.
+        """
+        if (
+            self.is_claude_fable_5_1_or_later()
+            and "mythos" not in self.model_family()
+            and not (self.is_bedrock() or self.is_vertex() or self.is_azure())
+        ):
+            betas.append(_THINKING_BINDING_BETA)
+            # thinking is always on for these models, so explicit adaptive
+            # (the server default) is accepted when the field was omitted
+            request.setdefault("thinking", {"type": "adaptive"})["block_binding"] = {
+                "prefix_mismatch_behavior": "drop_block"
+            }
+
+    def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
+        """Degrade forced tool choice to auto on models that reject it (400).
+
+        "auto" and "none" pass through unchanged; strict tool use with auto
+        remains the schema-enforcement path on Fable/Mythos 5.1.
+        """
+        if is_forced_tool_choice(tool_choice) and self.is_claude_fable_5_1_or_later():
+            warn_once(
+                logger,
+                _FORCED_TOOL_CHOICE_WARNING.format(model=self.service_model_name()),
+            )
+            return "auto"
+        return tool_choice
+
     def bridged_reasoning_tokens(self, config: GenerateConfig) -> int | None:
         """Effective `budget_tokens` for pre-4.6 Claude (uses extended thinking).
 
@@ -1213,6 +1542,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_claude_opus_5(self) -> bool:
         return self.is_claude_5() and "opus" in self.model_family()
+
+    def is_claude_fable_5_1_or_later(self) -> bool:
+        return is_claude_fable_5_1_model(self.model_family())
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -1345,9 +1677,24 @@ class AnthropicAPI(ModelAPI):
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
             retry_after = parse_retry_after_from_exception(ex)
-            # when streaming, anthropic does not set status_code == 529
-            # for overloaded or internal server errors so we check for them explicitly
-            if isinstance(ex.body, dict):
+            # An error event delivered mid-stream surfaces as an
+            # APIStatusError with status_code == 200 (the SDK builds it from
+            # the SSE error body, not an HTTP status), so the status-based
+            # checks below can't classify it — classify from the body's
+            # error type: these are the in-band analogues of 429/529/500/408.
+            # Scoped to status 200 so that a real HTTP error status (e.g. a
+            # proxy's 4xx wrapping an anthropic-format body) keeps failing
+            # fast via the status rules.
+            if ex.status_code == 200 and isinstance(ex.body, dict):
+                error_type = _error_type_from_body(ex.body)
+                if error_type == "rate_limit_error":
+                    return RetryDecision.rate_limit(retry_after=retry_after)
+                if error_type in ("overloaded_error", "api_error", "timeout_error"):
+                    return RetryDecision.transient(retry_after=retry_after)
+            if isinstance(ex.body, dict | str):
+                # message-based fallback for error bodies without a
+                # recognized type (a mid-stream error event whose data fails
+                # JSON parsing attaches the raw SSE string as the body)
                 body_str = str(ex.body).lower()
                 if "overloaded" in body_str or "internal server error" in body_str:
                     return RetryDecision.transient(retry_after=retry_after)
@@ -1458,6 +1805,7 @@ class AnthropicAPI(ModelAPI):
         input: list[ChatMessage],
         tools: list[ToolInfo],
         config: GenerateConfig,
+        cache_ttl: Literal["5m", "1h"] | None,
     ) -> Tuple[
         list[TextBlockParam] | None,
         list["ToolParamDef"],
@@ -1535,10 +1883,10 @@ class AnthropicAPI(ModelAPI):
         if cache_prompt:
             # system
             if system_param:
-                add_cache_control(system_param[-1], self.cache_ttl)
+                add_cache_control(system_param[-1], cache_ttl)
             # tools
             if tools_params:
-                add_cache_control(tools_params[-1], self.cache_ttl)
+                add_cache_control(tools_params[-1], cache_ttl)
             # mark the second-to-last cacheable block. auto-cache marks the
             # last; this write gives lookback a fallback when that block
             # changes (RAG, scorers, approvers, branching evals). harmless
@@ -1546,7 +1894,7 @@ class AnthropicAPI(ModelAPI):
             # suffices. Skip thinking/redacted_thinking blocks — the API
             # rejects cache_control on those.
             if message_params:
-                add_lookback_cache_control(message_params, self.cache_ttl)
+                add_lookback_cache_control(message_params, cache_ttl)
 
         normalize_document_citations(message_params)
 
@@ -2032,7 +2380,10 @@ def is_code_execution_tool(
     return param.get("name") == "code_execution" and not is_tool_param(param)
 
 
-_NON_CACHEABLE_BLOCK_TYPES = frozenset({"thinking", "redacted_thinking"})
+# Block types the API rejects `cache_control` on ("Extra inputs are not
+# permitted"): thinking blocks, and the server-side `fallback` block that
+# records a refused turn being served by a fallback model.
+_NON_CACHEABLE_BLOCK_TYPES = frozenset({"thinking", "redacted_thinking", "fallback"})
 
 
 def add_lookback_cache_control(
@@ -2041,9 +2392,9 @@ def add_lookback_cache_control(
     """Tag the second-to-last cacheable content block across `message_params`.
 
     Walks blocks in reverse (last message first), skipping
-    thinking/redacted_thinking (the API rejects `cache_control` on those with
-    `Extra inputs are not permitted`), and tags the second cacheable block
-    found. Tagging the *second*-to-last rather than the last gives lookback
+    thinking/redacted_thinking and server-side `fallback` blocks (the API
+    rejects `cache_control` on those with `Extra inputs are not permitted`),
+    and tags the second cacheable block found. Tagging the *second*-to-last rather than the last gives lookback
     caching a fallback when the final block changes (RAG, scorers, approvers,
     branching) — auto-cache already covers the very last block.
 
@@ -2656,8 +3007,15 @@ async def assistant_message_block_params(
     message: ChatMessageAssistant,
 ) -> list[MessageBlockParam]:
     block_params: list[MessageBlockParam] = []
+
+    # build block params per content item ("segments") so that client tool
+    # calls can be spliced back at their original interleaved positions below.
+    segments: list[list[MessageBlockParam]] = []
+    pending_span_params: list[MessageBlockParam] = []
     if isinstance(message.content, str):
-        block_params = [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
+        segments.append(
+            [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
+        )
     else:
         # server tool spans recorded for this message at generate time. server
         # tool blocks are opaque server artifacts (encrypted content, caller
@@ -2671,15 +3029,17 @@ async def assistant_message_block_params(
         )
         emitted: set[int] = set()
         for content in message.content:
+            segment: list[MessageBlockParam] = []
             span = _server_tool_span_for_content(content, record)
             if span is not None:
                 # emit the whole span verbatim at the position of its first
                 # content item (subsequent items of the same span emit nothing)
                 if id(span) not in emitted:
                     emitted.add(id(span))
-                    block_params.extend(_span_block_params(span, message))
+                    segment.extend(_span_block_params(span, message))
             else:
-                block_params.extend(await message_block_params(content))
+                segment.extend(await message_block_params(content))
+            segments.append(segment)
         # a span whose results never arrived (the turn ended first, e.g. a
         # client tool call cut in) has no content item to anchor it, so the
         # loop above never emits it. it must still be replayed: the API
@@ -2688,13 +3048,52 @@ async def assistant_message_block_params(
         # content qualify -- a span whose content items were removed by a
         # scaffold edit was deleted deliberately and stays dropped. with no
         # anchor, the span lands after the content-derived blocks rather than
-        # at its original wire position (which is not recorded); the API does
-        # not require intra-message position fidelity (client tool_use blocks
-        # are likewise always re-appended last, below).
+        # at its original wire position (which is not recorded).
         for span in record or []:
             if not span.content_ids and id(span) not in emitted:
                 emitted.add(id(span))
-                block_params.extend(_span_block_params(span, message))
+                pending_span_params.extend(_span_block_params(span, message))
+
+    # splice client tool_use blocks back at their recorded interleaved
+    # positions. a call recorded at position p (p content items preceded it in
+    # the original wire order) is emitted right after the first p content items,
+    # so a `[thinking, tool_use, thinking, tool_use]` turn round-trips with its
+    # thinking blocks still separated -- front-loading them (the result of
+    # appending all tool_use blocks last) is rejected on replay with "thinking
+    # ... blocks in the latest assistant message cannot be modified". Calls with
+    # no recorded position (str content, an older log, or another system's
+    # message) default to last, preserving the historical append-last behavior.
+    content_len = len(segments)
+    # Positions are recorded against a single message's content list. A
+    # collapsed message (combine_messages concatenates content and tool_calls,
+    # stamping metadata["combined_from"]) invalidates those offsets -- a
+    # position from the second message would splice into the first message's
+    # items -- so collapsed messages use the historical append-last placement.
+    combined = bool(message.metadata and "combined_from" in message.metadata)
+    tools_by_position: dict[int, list[MessageBlockParam]] = {}
+    for tool_call in message.tool_calls or []:
+        position = (
+            content_len
+            if combined
+            else assistant_internal().client_tool_call_positions.get(
+                tool_call.id, content_len
+            )
+        )
+        position = min(max(position, 0), content_len)
+        internal_name = _internal_name_from_tool_call(tool_call)
+        tools_by_position.setdefault(position, []).append(
+            ToolUseBlockParam(
+                type="tool_use",
+                id=tool_call.id,
+                name=internal_name or tool_call.function,
+                input=tool_call.arguments,
+            )
+        )
+    for position, segment in enumerate(segments):
+        block_params.extend(tools_by_position.get(position, []))
+        block_params.extend(segment)
+    block_params.extend(pending_span_params)
+    block_params.extend(tools_by_position.get(content_len, []))
 
     # move the first instance of thinking to the front (we only need to do this
     # for claude 3 models as we enable interleaved thinking for claude 4)
@@ -2711,24 +3110,14 @@ async def assistant_message_block_params(
         c for c in block_params if not c["type"] == "text" or len(c["text"]) > 0
     ]
 
-    # now add tools
-    for tool_call in message.tool_calls or []:
-        internal_name = _internal_name_from_tool_call(tool_call)
-        block_params.append(
-            ToolUseBlockParam(
-                type="tool_use",
-                id=tool_call.id,
-                name=internal_name or tool_call.function,
-                input=tool_call.arguments,
-            )
-        )
-
     # Ensure thinking blocks are not the final block in the message.
     # The API rejects messages where the last block is thinking/redacted_thinking.
-    # This can happen when the model uses its entire output budget on thinking
-    # and produces no text or tool calls.
-    if block_params and all(
-        c.get("type") in ("thinking", "redacted_thinking") for c in block_params
+    # This can happen when the model uses its entire output budget on thinking and
+    # produces no text or tool calls, or when a client tool call is spliced earlier
+    # in the turn (above) and leaves an interleaved thinking block as the last one.
+    if block_params and block_params[-1].get("type") in (
+        "thinking",
+        "redacted_thinking",
     ):
         block_params.append(TextBlockParam(type="text", text=NO_CONTENT))
 
@@ -2866,6 +3255,20 @@ class _AssistantInternal:
         default_factory=dict
     )
     tool_call_internal_names: dict[str, str | None] = field(default_factory=dict)
+    client_tool_call_positions: dict[str, int] = field(default_factory=dict)
+    """Client tool call position within its assistant message content, keyed by
+    tool use id.
+
+    The value is the number of content items (text/reasoning/server tool
+    results) that preceded the tool use in the original wire order. Recorded at
+    parse time and used by `assistant_message_block_params` to splice client
+    tool_use blocks back at their interleaved positions rather than appending
+    them last. Front-loading thinking blocks (the result of appending tool uses
+    last) is rejected on replay by the API with "thinking ... blocks in the
+    latest assistant message cannot be modified" (Claude 4+ interleaves thinking
+    with client tool calls in a single turn). Keyed by tool use id (like
+    `tool_call_internal_names`) so it survives the agent bridge and log
+    round-trip."""
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
     ] = field(default_factory=dict)
@@ -2875,6 +3278,14 @@ class _AssistantInternal:
     """Server tool spans keyed by member tool use id (for replay of messages
     whose id was rewritten, e.g. by the agent bridge -- server tool use ids
     survive the bridge whereas message ids do not)."""
+    cache_ttl: dict[str, _SampleCacheTtlState] = field(default_factory=dict)
+    """Prompt-cache TTL escalation state for "auto" mode, keyed by service model
+    name (two Anthropic models in one sample track their own caches).
+
+    Lives here because this struct is bound per sample, so the state's lifetime
+    is the sample's -- no registry, prune or cap needed. Deliberately absent
+    from `dump_anthropic_assistant_internal`: `time.monotonic()` is
+    process-local and meaningless once restored elsewhere."""
     containers: dict[str, str] = field(default_factory=dict)
     """Code execution container ids keyed by assistant message id.
 
@@ -2911,6 +3322,9 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
     )
     internal.tool_call_internal_names.update(
         cast("dict[str, str | None]", value.get("tool_call_internal_names", {}))
+    )
+    internal.client_tool_call_positions.update(
+        cast("dict[str, int]", value.get("client_tool_call_positions", {}))
     )
     internal.server_mcp_tool_uses.update(
         {
@@ -2975,6 +3389,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
     if not (
         internal.thinking_blocks
         or internal.tool_call_internal_names
+        or internal.client_tool_call_positions
         or internal.server_mcp_tool_uses
         or span_table
         or internal.containers
@@ -2985,6 +3400,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
         {
             "thinking_blocks": dict(internal.thinking_blocks),
             "tool_call_internal_names": dict(internal.tool_call_internal_names),
+            "client_tool_call_positions": dict(internal.client_tool_call_positions),
             "server_mcp_tool_uses": {
                 tool_use_id: list(use_result)
                 for tool_use_id, use_result in internal.server_mcp_tool_uses.items()
@@ -3262,15 +3678,22 @@ async def model_output_from_message(
         span_recorder=span_recorder,
     )
 
-    # count reasoning tokens (skip empty thinking text -- omitted summaries
-    # come back as "" and count_tokens rejects empty content with a 400)
-    reasoning_tokens = 0
-    if client and model:
-        for content_block in message.content:
-            if isinstance(content_block, ThinkingBlock) and content_block.thinking:
-                reasoning_tokens += await count_tokens(
-                    client, model, content_block.thinking
-                )
+    # reasoning tokens: prefer the count the API reports. Falling back to
+    # counting the thinking text costs an extra count_tokens round trip per
+    # thinking block, and undercounts -- it prices the summary rather than the
+    # reasoning it stands in for. (Skip empty thinking text: omitted summaries
+    # come back as "" and count_tokens rejects empty content with a 400.)
+    reported_details = message.usage.output_tokens_details
+    if reported_details is not None:
+        reasoning_tokens = reported_details.thinking_tokens
+    else:
+        reasoning_tokens = 0
+        if client and model:
+            for content_block in message.content:
+                if isinstance(content_block, ThinkingBlock) and content_block.thinking:
+                    reasoning_tokens += await count_tokens(
+                        client, model, content_block.thinking
+                    )
 
     # cache-diagnostics: tag the assistant message with the upstream id so a
     # subsequent turn can pass it as `diagnostics.previous_message_id`.
@@ -3374,6 +3797,24 @@ async def model_output_from_message(
     metadata: dict[str, Any] | None = (
         {"extra_body": dict(extra_body)} if extra_body else None
     )
+
+    # thinking block binding (Fable 5.1): with the thinking-binding
+    # beta, replayed thinking blocks the server dropped (e.g. after a history
+    # edit) are reported via input_transformations. Warn so callers know
+    # reasoning context was lost; the raw entries (including the message path
+    # of each dropped block) are captured under metadata["extra_body"] above.
+    for transformation in extra_body.get("input_transformations") or []:
+        if (
+            isinstance(transformation, dict)
+            and transformation.get("type") == "thinking_dropped"
+        ):
+            warn_once(
+                logger,
+                _THINKING_DROPPED_WARNING.format(
+                    model=message.model,
+                    reason=transformation.get("reason", "unspecified"),
+                ),
+            )
 
     # server-side refusal fallback: record a typed ModelFallback so log
     # analysis can detect a fallback without parsing assistant content. the
@@ -3706,6 +4147,13 @@ def content_and_tool_calls_from_assistant_content_blocks(
             assistant_internal().tool_call_internal_names[content_block.id] = (
                 internal_name
             )
+            # record where this client tool call sits in the content stream so
+            # the rebuild can splice it back at its interleaved position rather
+            # than front-loading the surrounding thinking blocks (see
+            # `_AssistantInternal.client_tool_call_positions`)
+            assistant_internal().client_tool_call_positions[content_block.id] = len(
+                content
+            )
             tool_calls.append(
                 ToolCall(
                     id=content_block.id,
@@ -4032,6 +4480,20 @@ def _warn_refusal_without_fallback(
     )
 
 
+def _error_type_from_body(body: dict[str, Any]) -> str | None:
+    """Extract the API error type from an error response body.
+
+    The SDK attaches the full error envelope as `ex.body` — for both
+    mid-stream SSE error events and non-streaming HTTP errors —
+    ({"type": "error", "error": {"type": "rate_limit_error", ...}}).
+    """
+    error = body.get("error")
+    if isinstance(error, dict):
+        error_type = error.get("type")
+        return error_type if isinstance(error_type, str) else None
+    return None
+
+
 def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
     """Strip reasoning blocks from a compacted assistant message.
 
@@ -4070,6 +4532,11 @@ async def _capture_compaction_from_stream(
     """
     compaction_content: str | None = None
     container: Container | None = None
+    # tool_use blocks by content index, so input_json_delta fragments can be
+    # attributed to their call id / function when reported as stream deltas
+    tool_blocks: dict[int, Any] = {}
+
+    report_model_stream_start()
 
     # Iterate through all streaming events to capture compaction_delta content
     async for event in stream:
@@ -4087,6 +4554,48 @@ async def _capture_compaction_from_stream(
             and getattr(event.delta, "type", None) == "compaction_delta"
         ):
             compaction_content = getattr(event.delta, "content", None)
+
+        # report the chunk to the model layer's stream observer: content
+        # deltas by kind (gated on model_stream_requested() — see
+        # report_model_stream_delta), cumulative output tokens from
+        # message_delta usage, and a bare heartbeat for everything else
+        if event.type == "content_block_start":
+            # tool_use / server_tool_use / mcp_tool_use all carry id + name
+            # and stream their input as input_json_delta fragments
+            if str(getattr(event.content_block, "type", "")).endswith("tool_use"):
+                tool_blocks[event.index] = event.content_block
+            report_model_stream_progress()
+        elif event.type == "content_block_delta":
+            if not model_stream_requested():
+                report_model_stream_progress()
+            # dispatch on the wire discriminator, not isinstance: the non-beta
+            # RawContentBlockDelta union has no compaction variant, so the SDK
+            # misparses compaction_delta as TextDelta(type="compaction_delta",
+            # text=None) -- an isinstance check would report it as text
+            elif event.delta.type == "text_delta":
+                await report_model_stream_delta(StreamTextEvent(text=event.delta.text))
+            elif event.delta.type == "thinking_delta":
+                await report_model_stream_delta(
+                    StreamReasoningEvent(reasoning=event.delta.thinking)
+                )
+            elif event.delta.type == "input_json_delta":
+                tool_block = tool_blocks.get(event.index)
+                await report_model_stream_delta(
+                    StreamToolCallEvent(
+                        id=getattr(tool_block, "id", None),
+                        function=getattr(tool_block, "name", None),
+                        arguments=event.delta.partial_json,
+                    )
+                )
+            else:
+                report_model_stream_progress()
+        elif event.type == "message_delta":
+            usage = getattr(event, "usage", None)
+            report_model_stream_progress(
+                getattr(usage, "output_tokens", None) if usage is not None else None
+            )
+        else:
+            report_model_stream_progress()
 
     # Get the final message snapshot
     message = stream.current_message_snapshot

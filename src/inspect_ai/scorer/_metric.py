@@ -14,7 +14,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
@@ -44,6 +44,24 @@ PARTIAL = "P"
 
 NOANSWER = "N"
 """Value to assign for no answer or refusal to answer."""
+
+ScoreReason = Literal[
+    # model under test
+    "invalid_response_format",  # output unparseable / violates requested format
+    "refusal",  # detected refusal to answer
+    "no_response",  # empty completion
+    # measurement instrument
+    "grader_failed",  # grader model failed (unparseable verdict, refusal, schema mismatch)
+    "scoring_failed",  # scorer could not run (missing logprobs, invalid config, no subscores)
+]
+"""Standard machine-readable reasons for abnormal scores.
+
+The first group attributes the failure to the model under test (kept
+fine-grained — refusal rate is a first-class quantity, distinct from format
+violations); the second to the measurement instrument, split by whether a
+grader model failed or the scorer itself could not run. Any custom string
+is also legal; the detail behind a coarse value belongs in `explanation`.
+"""
 
 
 Value = Union[
@@ -75,6 +93,9 @@ class ScoreEdit(BaseModel):
     explanation: str | None | Literal["UNCHANGED"] = "UNCHANGED"
     """New explanation for the score, or UNCHANGED to keep current explanation."""
 
+    reason: ScoreReason | str | None | Literal["UNCHANGED"] = "UNCHANGED"
+    """New reason for the score, or UNCHANGED to keep current reason."""
+
     metadata: dict[str, Any] | Literal["UNCHANGED"] = "UNCHANGED"
     """New metadata for the score, or UNCHANGED to keep current metadata.
 
@@ -105,16 +126,39 @@ class Score(BaseModel):
     explanation: str | None = Field(default=None)
     """Explanation of score (optional)."""
 
+    reason: ScoreReason | str | None = Field(default=None)
+    """Machine-readable reason for an abnormal score (optional)."""
+
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional metadata related to the score"""
 
     history: list[ScoreEdit] = Field(default_factory=list)
     """Edit history - users can access intermediate states."""
 
+    @model_validator(mode="before")
+    @classmethod
+    def _lift_unscored_reason(cls, data: Any) -> Any:
+        """Lift legacy ``metadata["unscored_reason"]`` into ``reason``.
+
+        Logs written before ``reason`` existed (#4048, 0.3.245+) record the
+        grade-parse failure mode in metadata. Read it into the field so new
+        readers see one channel; the metadata key is left in place so that
+        round-tripped logs don't differ.
+        """
+        if (
+            isinstance(data, dict)
+            and data.get("reason") is None
+            and isinstance(data.get("metadata"), dict)
+            and data["metadata"].get("unscored_reason") is not None
+        ):
+            data = {**data, "reason": data["metadata"]["unscored_reason"]}
+        return data
+
     @classmethod
     def unscored(
         cls,
         *,
+        reason: ScoreReason | str | None = None,
         answer: str | None = None,
         explanation: str | None = None,
         metadata: dict[str, Any] | None = None,
@@ -122,12 +166,13 @@ class Score(BaseModel):
         """Construct a Score that is preserved but excluded from metrics and reducers.
 
         Use this when a scorer cannot produce a value for a sample but you
-        still want to record context (answer, explanation, metadata). Sets
-        `value` to NaN, which is the canonical sentinel that aggregate
+        still want to record context (reason, answer, explanation, metadata).
+        Sets `value` to NaN, which is the canonical sentinel that aggregate
         metrics and reducers skip.
         """
         return cls(
             value=float("nan"),
+            reason=reason,
             answer=answer,
             explanation=explanation,
             metadata=metadata,
@@ -173,6 +218,28 @@ class Score(BaseModel):
             return self.value
         else:
             raise ValueError("This score is not a scalar")
+
+
+class Reference(BaseModel):
+    """Reference from a score to content in the scored transcript.
+
+    References are stored as a list of dicts under a score's
+    `metadata["scanner_references"]` key. Inspect View identifies scanner
+    scores by the presence of that key and renders cites in the score's
+    explanation (e.g. `[M22]`) as links to the referenced content.
+    """
+
+    type: Literal["message", "event"]
+    """Reference type."""
+
+    cite: str | None = Field(default=None)
+    """Cite text used when the entity was referenced (optional).
+
+    For example, a model may have pointed to a message using something like [M22], which is the cite.
+    """
+
+    id: str
+    """Reference id (message or event id)"""
 
 
 class SampleScore(BaseModel):
@@ -228,6 +295,13 @@ def value_to_float(
     numeric values are cast to float. Arrays and dictionaries
     give a warning and return 0.
 
+    The mapping uses ``==``, so a numeric or boolean input that
+    compares equal to a sentinel is mapped even when its type
+    differs (e.g. ``True == 1.0``). Score reducers apply the
+    returned function to the elements of list and dict values,
+    so custom numeric sentinels also map matching elements
+    inside those containers.
+
     Args:
        correct (Value): Value that represents a correct answer (1)
        incorrect (Value): Value that represents an incorrect answer (0)
@@ -239,14 +313,17 @@ def value_to_float(
     """
 
     def to_float(value: Value) -> float:
-        if isinstance(value, int | float | bool):
-            return float(value)
-        elif value == correct:
+        # check the (possibly numeric) correct/incorrect/partial/noanswer values
+        # before the numeric cast below, otherwise numeric custom values are
+        # cast to float and passed through rather than mapped to 1/0.5/0
+        if value == correct:
             return 1.0
         elif value == partial:
             return 0.5
         elif value == incorrect or value == noanswer:
-            return 0
+            return 0.0
+        elif isinstance(value, int | float | bool):
+            return float(value)
         elif isinstance(value, str):
             value = value.lower()
             if value in ["yes", "true"]:

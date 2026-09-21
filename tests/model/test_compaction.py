@@ -58,6 +58,13 @@ def system_msg(content: str, id: str) -> ChatMessageSystem:
     return ChatMessageSystem(content=content, id=id)
 
 
+# The `_fit_summarization_input` tests below pin an exact token budget, so their
+# payload sizes are only meaningful relative to the summarization prompt's own
+# size. Give them a fixed ~287-token prompt rather than the default one, so that
+# editing the default prompt can't silently retune their arithmetic.
+FIT_TEST_PROMPT = "Summarize the conversation so far in detail. " * 26 + "{addendums}"
+
+
 @pytest.fixture
 def memory_tool() -> ToolInfo:
     """Memory tool info for testing memory warning logic."""
@@ -116,6 +123,46 @@ async def test_threshold_absolute_float_above_one() -> None:
     result, summary = await compact.compact_input(messages)
     assert summary is None  # Under threshold, no compaction
     assert len(result) == 2
+
+
+async def test_threshold_context_window_registered_after_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fractional threshold picks up a context window registered after creation.
+
+    Providers that read the window from the server (vllm reads max_model_len
+    from /v1/models) only register it during their first generate(), while
+    agents create the compaction handler before their loop starts. Resolving
+    the threshold eagerly would pin it to the catalog value for the whole run.
+    """
+    import inspect_ai.model._model_info as _model_info
+    from inspect_ai.model import ModelInfo
+
+    strategy = CompactionSummary()  # fractional threshold (0.9)
+    model = get_model("mockllm/model")
+    prefix: list[ChatMessage] = [system_msg("S", "sys1")]
+
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("A" * 800, "msg1", source="input"),
+        assistant_msg("B" * 800, "msg2"),
+        user_msg("C" * 800, "msg3"),
+    ]
+
+    # control: against the default window these messages are nowhere near 90%
+    control = compaction(strategy, prefix=prefix, tools=None, model=model)
+    _, summary = await control.compact_input(list(messages))
+    assert summary is None
+
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    # registered only once the handler already exists
+    monkeypatch.setitem(
+        _model_info._custom_models, str(model), ModelInfo(context_length=500)
+    )
+
+    _, summary = await compact.compact_input(list(messages))
+    assert summary is not None
 
 
 # ==============================================================================
@@ -1545,7 +1592,7 @@ async def test_summary_elides_media_tool_output(
         _model_info._custom_models, str(model), ModelInfo(_input_tokens=2000)
     )
 
-    strategy = CompactionSummary()
+    strategy = CompactionSummary(prompt=FIT_TEST_PROMPT)
     image = ContentImage(image="data:image/png;base64," + "A" * 400)
     messages: list[ChatMessage] = [
         system_msg("S", "sys1"),
@@ -1590,7 +1637,7 @@ async def test_summary_truncation_preserves_content_structure(
         _model_info._custom_models, str(model), ModelInfo(_input_tokens=2000)
     )
 
-    strategy = CompactionSummary()
+    strategy = CompactionSummary(prompt=FIT_TEST_PROMPT)
     big_text = " ".join(f"word{i}" for i in range(1200))
     messages: list[ChatMessage] = [
         system_msg("S", "sys1"),
@@ -1719,7 +1766,7 @@ async def test_summary_fit_reserves_output_headroom(
         _model_info._custom_models, str(model), ModelInfo(_input_tokens=2000)
     )
 
-    strategy = CompactionSummary()
+    strategy = CompactionSummary(prompt=FIT_TEST_PROMPT)
     # sized to fit the 2000-token window but not the 1000-token fit target
     # that remains once output headroom is reserved
     big = " ".join(f"word{i}" for i in range(400))

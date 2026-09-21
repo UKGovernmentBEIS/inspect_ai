@@ -273,6 +273,7 @@ def _fake_service(method, monkeypatch, responses: list):
     service._name = "svc"
     service._methods = {"boom": method}
     service._requests_dir = "/req"
+    service._in_flight = set()
 
     request_json = json_module.dumps({"id": "r1", "method": "boom", "params": {}})
 
@@ -306,7 +307,7 @@ async def test_terminate_propagates_through_real_handler(monkeypatch):
 
     service = _fake_service(method, monkeypatch, responses)
     with pytest.raises(TerminateSampleError):
-        await service._handle_request_logging_errors("/req/r1.json")
+        await service._handle_request_tracked("/req/r1.json", "r1")
 
     # the RPC was answered exactly once before propagation
     assert len(responses) == 1
@@ -330,7 +331,7 @@ async def test_grouped_terminate_answers_rpc_then_propagates(monkeypatch):
 
     service = _fake_service(method, monkeypatch, responses)
     with pytest.raises(TerminateSampleError):
-        await service._handle_request_logging_errors("/req/r1.json")
+        await service._handle_request_tracked("/req/r1.json", "r1")
 
     assert len(responses) == 1
     assert responses[0][1] is not None and "Terminating" in responses[0][1]
@@ -344,7 +345,7 @@ async def test_ordinary_method_errors_still_swallowed(monkeypatch):
         raise RuntimeError("ordinary failure")
 
     service = _fake_service(method, monkeypatch, responses)
-    await service._handle_request_logging_errors("/req/r1.json")  # no raise
+    await service._handle_request_tracked("/req/r1.json", "r1")  # no raise
     assert len(responses) == 1
     assert responses[0][1] is not None and "ordinary failure" in responses[0][1]
 

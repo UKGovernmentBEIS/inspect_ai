@@ -171,3 +171,46 @@ def test_cloudflare_api_key_reported_to_override_hook(
     assert seen[0] == (CLOUDFLARE_API_KEY, "source-key")
     assert all(name == CLOUDFLARE_API_KEY for name, _ in seen)
     assert api.api_key == "overridden-key"
+
+
+# -- Prompt cache session affinity (x-session-affinity) ------------------------
+
+
+def _cloudflare_api(monkeypatch: pytest.MonkeyPatch, sample_uuid: str | None):
+    import inspect_ai.model._providers.cloudflare as cloudflare_module
+
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "test-account")
+    monkeypatch.setenv("CLOUDFLARE_API_KEY", "test-key")
+    monkeypatch.setattr(
+        cloudflare_module, "sample_cache_affinity_key", lambda: sample_uuid
+    )
+    return cloudflare_module.CloudFlareAPI(
+        model_name="@cf/meta/llama-3.1-8b-instruct-awq"
+    )
+
+
+@skip_if_no_openai_package
+def test_cloudflare_session_affinity_for_active_sample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sample's id pins its turns to one model instance so the cache hits."""
+    from inspect_ai.model import GenerateConfig
+    from inspect_ai.model._providers.cloudflare import SESSION_AFFINITY_HEADER
+
+    api = _cloudflare_api(monkeypatch, "sample-uuid-1")
+
+    assert api.request_headers(GenerateConfig()) == {
+        SESSION_AFFINITY_HEADER: "sample-uuid-1"
+    }
+
+
+@skip_if_no_openai_package
+def test_cloudflare_session_affinity_omitted_without_active_sample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Outside a sample there is no conversation to pin, so no header."""
+    from inspect_ai.model import GenerateConfig
+
+    api = _cloudflare_api(monkeypatch, None)
+
+    assert api.request_headers(GenerateConfig()) == {}

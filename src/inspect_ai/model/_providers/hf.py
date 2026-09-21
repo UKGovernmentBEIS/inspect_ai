@@ -54,6 +54,7 @@ from .._model_output import (
     TopLogprob,
 )
 from .util import ChatAPIHandler, HFHandler
+from .util.hidden_states import hidden_states_to_jsonable
 
 logger = getLogger(__name__)
 
@@ -308,7 +309,11 @@ class HuggingFaceAPI(ModelAPI):
                 total_tokens=response.total_tokens,
             ),
             time=response.time,
-            metadata={"hidden_states": response.hidden_states},
+            metadata=(
+                {"hidden_states": response.hidden_states}
+                if response.hidden_states is not None
+                else None
+            ),
         )
 
     @override
@@ -370,6 +375,10 @@ class HuggingFaceAPI(ModelAPI):
         tools_list: list[dict[str, Any]],
         chat_template: str | None,
     ) -> str:
+        # convert to dicts so templates that use dict methods
+        # (e.g. `message.get('reasoning')`) render correctly
+        messages = [message.model_dump(exclude_none=True) for message in hf_messages]
+
         template_args: dict[str, Any] = dict(
             add_generation_prompt=True,
             tokenize=False,
@@ -382,7 +391,7 @@ class HuggingFaceAPI(ModelAPI):
                 return cast(
                     str,
                     self.tokenizer.apply_chat_template(
-                        hf_messages,  # type: ignore[arg-type]
+                        messages,
                         chat_template=chat_template,
                         **template_args,
                     ),
@@ -395,7 +404,7 @@ class HuggingFaceAPI(ModelAPI):
                     return cast(
                         str,
                         self.tokenizer.apply_chat_template(
-                            hf_messages,  # type: ignore[arg-type]
+                            messages,
                             **template_args,
                         ),
                     )
@@ -405,7 +414,7 @@ class HuggingFaceAPI(ModelAPI):
         return cast(
             str,
             self.tokenizer.apply_chat_template(
-                hf_messages,  # type: ignore[arg-type]
+                messages,
                 **template_args,
             ),
         )
@@ -542,7 +551,7 @@ class GenerateOutput:
     output_tokens: int
     total_tokens: int
     logprobs: torch.Tensor | None
-    hidden_states: tuple[tuple[torch.Tensor]] | None
+    hidden_states: list[list[Any]] | None
     time: float
 
 
@@ -652,9 +661,12 @@ def process_batches() -> None:
                         output_tokens=output_tokens,
                         total_tokens=input_tokens + output_tokens,
                         logprobs=logprobs[i] if logprobs is not None else None,
-                        hidden_states=hidden_states
-                        if hidden_states is not None
-                        else None,
+                        # slice this sample out of the batch dimension and
+                        # materialize to lists here (off the event loop) so each
+                        # sample records only its own activations, once
+                        hidden_states=hidden_states_to_jsonable(
+                            hidden_states, sample_index=i
+                        ),
                         time=total_time,
                     )
                 )
