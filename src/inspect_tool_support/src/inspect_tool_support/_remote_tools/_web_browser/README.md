@@ -6,20 +6,23 @@ This directory contains an implementation for the Headless Browser Tool which ca
 
 #### 1. Start the Docker container
 
-A web server with the headless browser will be launched automatically on starting of the docker container and will be ready to receive client requests.
+The browser server is not started by the container entrypoint: the first command that needs it starts `inspect-tool-support server`, and later commands reuse that process.
 
 #### 2. Send the command
 
-Use the following format:
+Each command is a JSON-RPC request passed to the tool support CLI. Create a session first, then use the name it returns:
 
 ```
 # Inside the Docker container
-$ python web_client.py [COMMAND] [args]
+$ inspect-tool-support exec '{"jsonrpc": "2.0", "method": "web_new_session", "params": {"headful": false}, "id": 1}'
+{"jsonrpc": "2.0", "result": {"session_name": "WebBrowser"}, "id": 1}
+$ inspect-tool-support exec '{"jsonrpc": "2.0", "method": "web_go", "params": {"session_name": "WebBrowser", "url": "https://example.com"}, "id": 2}'
+{"jsonrpc": "2.0", "result": {"web_url": "https://example.com/", "web_at": "[14] heading \"Example Domain\" ...", "error": null}, "id": 2}
 ```
 
 ###### Commands
 
-The following commands are available at the moment:
+Every method below also takes `session_name` (the name returned by `web_new_session`); the parameters shown are the rest of the request's `params` object:
 
 * **web_go \<URL\>** - goes to the specified url.
 * **web_click \<ELEMENT_ID\>** - clicks on a given element. 
@@ -50,13 +53,13 @@ The following diagram describes the design and the intended usage of the tool:
 
 The tool consists of the following components:
 
-- [WebServer](web_server.py) - a server which launches a stateful session with the headless chromium browser and interacts with it through the [Playwright API](https://playwright.dev/python/docs/intro) upon receiving client commands. The server components are:
+- `inspect-tool-support server` ([_cli/server.py](../../_cli/server.py)) - a server which keeps stateful browser sessions alive, driving the headless chromium browser through the [Playwright API](https://playwright.dev/python/docs/intro) in response to JSON-RPC requests posted over a Unix domain socket. The server components are:
 
-  - _dm_env_servicer.py_ - an implementation for the gRPC Service based on [dm_env_rpc protocol](https://github.com/google-deepmind/dm_env_rpc).
-  - _web_environment.py_ - an environment which gets instantiated by the servicer and which launches the browser, stores its state and maps client commands to Playwright API.
-  - _playwright_crawler.py_ - a wrapper over the sync Playwright API.
+  - _json_rpc_methods.py_ - one handler per command, which validates the request params and forwards the call to the controller.
+  - _controller.py_ - `WebBrowserSessionController`, which owns browser session state and maps commands to the Playwright API.
+  - _playwright_crawler.py_ - a wrapper over the async Playwright API.
 
-- [WebClient](web_client.py) - a simple stateless client to interact with the server. When launched, the client:
+- `inspect-tool-support exec` ([_cli/main.py](../../_cli/main.py)) - a simple stateless client to interact with the server. When launched, the client:
   1. creates a connection with the server;
   2. sends user command to the server;
   3. receives the response in the form of observations and prints them to stdout;
