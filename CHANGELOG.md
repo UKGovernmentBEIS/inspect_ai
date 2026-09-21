@@ -9,6 +9,7 @@
 - Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
 - Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
 - Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
+- Recording an eval or model error no longer spends seconds syntax highlighting its traceback: the stored ANSI traceback keeps its frames and source snippets, without syntax colouring.
 
 ## 0.3.266 (19 September 2026)
 
@@ -52,7 +53,6 @@
 - Documents: Data URIs without parameters now retain their declared media type and receive the corresponding default filename.
 - Elicitation: long lines in `ask_user` prompts are no longer hard-wrapped by the console, so long commands copy out of the terminal intact.
 - Compaction: summary compaction now produces a more detailed, structured summary that preserves code snippets, user messages, and any security-relevant constraints stated earlier in the conversation.
-- Recording an eval or model error no longer spends seconds syntax highlighting its traceback: the stored ANSI traceback keeps its frames and source snippets, without syntax colouring.
 - Control Channel: `inspect ctl sample cancel` now works on a sample that is still initializing (e.g. waiting on sandbox provisioning) — the cancel applies the moment the sample starts, and `inspect ctl sample list` marks the pending cancel.
 - Control Channel: Starting and stopping the control server no longer adds ~200ms to every `eval()`, which dominated the wall time of very small evals during tests.
 - Control Channel: `INSPECT_EVAL_CTL_SERVER` is now honored by `eval()` and `eval_set()` called from Python, not only by the CLI.
