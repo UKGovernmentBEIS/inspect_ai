@@ -1,3 +1,7 @@
+## Unreleased
+
+- Added `read_eval_log_sample_summaries_async` and three other async log readers to the public `inspect_ai.log` exports.
+
 ## 0.3.266 (19 September 2026)
 
 - Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the "scorer couldn't be loaded" guidance rather than a raw traceback.
