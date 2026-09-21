@@ -4,7 +4,8 @@ meta:
     # Muse Spark models served by the Meta Model API (https://dev.meta.ai/docs).
     # Reasoning is always on; the default effort level is undocumented. The
     # `-contributor` aliases are the same model at a discounted rate in
-    # exchange for Meta using the data to improve its products.
+    # exchange for Meta using the data to improve its products. Meta does not
+    # publish a knowledge cutoff for these models, so none is recorded here.
     muse-spark-1.3:
       display_name: Muse Spark 1.3
       release_date: 2026-09-02

@@ -60,7 +60,9 @@ def _flag_refusal_stop(output: ModelOutput) -> None:
     first two already stop as `content_filter`; the last arrives as an
     ordinary `stop` that agent loops would treat as compliance, so promote it
     on both protocols. Keyed on the API's own refusal field, never on message
-    text.
+    text: a decline the model writes itself in prose carries no signal and is
+    left as an ordinary `stop`, so evals that care about it must score the
+    completion text.
     """
     for choice in output.choices:
         details = choice.stop_details
