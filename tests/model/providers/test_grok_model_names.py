@@ -79,10 +79,11 @@ def test_original_grok_4_omits_reasoning_effort(model_name: str) -> None:
     assert "reasoning_effort" not in params
 
 
-@pytest.mark.parametrize("model_name", CODENAME_MODELS + ["grok-5"])
+@pytest.mark.parametrize("model_name", CODENAME_MODELS + ["grok-5", "grok-4.99"])
 def test_unknown_models_alias_to_frontier_context_window(model_name: str) -> None:
     # input_tokens_name() aliases to the current frontier so the context window
-    # resolves instead of coming back empty
+    # resolves instead of coming back empty (or, for an unreleased point release
+    # like grok-4.99, instead of fuzzy-matching the original grok-4 entry)
     assert _api(model_name).input_tokens_name() == "grok/grok-4.7"
 
 
@@ -101,4 +102,11 @@ def test_older_families_not_aliased_to_frontier() -> None:
 
 def test_codename_context_window_resolves() -> None:
     model = get_model("grok/sherlock-think", api_key="test-key")
+    assert get_model_input_tokens(model) == 500000
+
+
+def test_unreleased_point_release_context_window_resolves() -> None:
+    # grok-4.99 has no model-info entry. Without a strict lookup the fuzzy
+    # matcher resolves it to the original grok-4 (256K) instead of the frontier.
+    model = get_model("grok/grok-4.99", api_key="test-key")
     assert get_model_input_tokens(model) == 500000

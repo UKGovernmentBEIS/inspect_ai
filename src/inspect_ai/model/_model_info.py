@@ -309,6 +309,25 @@ def _get_model_info_direct(model: str | Model) -> ModelInfo | None:
     return _get_model_info(model, resolve_provider=False)
 
 
+def _get_model_info_strict(model: str) -> ModelInfo | None:
+    """Look up model info by exact or case-normalized name only.
+
+    Unlike `_get_model_info_direct()`, this never falls back to fuzzy
+    matching. Providers use it to decide whether a model name is *known*
+    before aliasing an unknown one to the current frontier: the fuzzy
+    fallback resolves an unreleased point release (e.g. `grok-4.99`) to the
+    shorter same-prefix entry (`grok-4`), which reads as "known" and
+    silently gives the new model the old model's context window.
+    """
+    if model in _custom_models:
+        return _custom_models[model]
+    db = _get_model_info_db()
+    if model in db:
+        return db[model]
+    key = _get_lookup_index().get(_normalize_for_lookup(model))
+    return db[key] if key is not None else None
+
+
 def _get_custom_model_info(model: str) -> ModelInfo | None:
     """Look up model info registered with set_model_info(), if any."""
     return _custom_models.get(model)

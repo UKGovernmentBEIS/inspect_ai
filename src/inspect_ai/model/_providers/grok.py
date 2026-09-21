@@ -487,16 +487,19 @@ class GrokAPI(ModelAPI):
     @override
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens (context window)."""
-        from inspect_ai.model._model_info import _get_model_info_direct
+        from inspect_ai.model._model_info import _get_model_info_strict
 
         # Codename/predeployment models (is_latest() folds into
         # is_at_least_grok_4()) and grok-named models not yet in the model-info
         # database (future versions, unknown snapshots) alias to the current
         # frontier so the context window / compaction match. Bump when a newer
         # frontier ships. Mirrors the other providers' input_tokens_name().
+        # The strict lookup matters: the fuzzy lookup resolves an unreleased
+        # point release (grok-4.N) to the original grok-4 entry, so it would
+        # never report a miss here.
         if (
             self.is_at_least_grok_4()
-            and _get_model_info_direct(self.canonical_name()) is None
+            and _get_model_info_strict(self.canonical_name()) is None
         ):
             return "grok/grok-4.7"
         return super().input_tokens_name()

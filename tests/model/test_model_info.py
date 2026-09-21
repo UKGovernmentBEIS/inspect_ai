@@ -892,3 +892,45 @@ class TestDoesNotReinstantiateProvider:
         record_and_check_model_usage(model, usage)
         # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
         assert usage.total_cost == pytest.approx(0.007)
+
+
+class TestStrictLookup:
+    """_get_model_info_strict: exact / case-normalized match only, no fuzzy."""
+
+    def test_strict_misses_where_fuzzy_hits(self) -> None:
+        from inspect_ai.model._model_info import (
+            _get_model_info_direct,
+            _get_model_info_strict,
+        )
+
+        # the fuzzy fallback resolves an unreleased point release to the
+        # shorter same-prefix entry; the strict lookup must not
+        fuzzy = _get_model_info_direct("grok/grok-4.99")
+        assert fuzzy is not None and fuzzy.model == "Grok 4"
+        assert _get_model_info_strict("grok/grok-4.99") is None
+
+    def test_strict_exact_and_case_normalized(self) -> None:
+        from inspect_ai.model._model_info import _get_model_info_strict
+
+        exact = _get_model_info_strict("grok/grok-4.7")
+        assert exact is not None and exact.model == "Grok 4.7"
+        normalized = _get_model_info_strict("grok/GROK-4.7")
+        assert normalized is not None and normalized.model == "Grok 4.7"
+
+    def test_strict_honors_custom_registration(self) -> None:
+        from inspect_ai.model import ModelInfo
+        from inspect_ai.model._model_info import (
+            _custom_models,
+            _get_model_info_strict,
+            set_model_info,
+        )
+
+        name = "grok/grok-4.99-custom-strict"
+        set_model_info(
+            name, ModelInfo(organization="xAI", model="Custom", context_length=42)
+        )
+        try:
+            info = _get_model_info_strict(name)
+            assert info is not None and info.context_length == 42
+        finally:
+            _custom_models.pop(name, None)

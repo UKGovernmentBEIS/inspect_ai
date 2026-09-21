@@ -6,6 +6,7 @@
 - Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
 - Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
 - Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
+- Grok: Unreleased Grok 4.x point releases (e.g. a future `grok-4.8`) now get the current frontier model's context window instead of the original Grok 4's 256K window.
 
 ## 0.3.266 (19 September 2026)
 
