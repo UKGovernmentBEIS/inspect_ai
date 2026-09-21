@@ -8,6 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Literal
 
+from inspect_sandbox_tools._in_process_tools._text_editor import _run
 from inspect_sandbox_tools._in_process_tools._text_editor._run import (
     maybe_truncate,
     run,
@@ -29,9 +30,20 @@ async def view(path_str: str, view_range: list[int] | None = None) -> str:
     if path.is_dir():
         path_str = str(path).rstrip("/") + "/"
 
-        _, stdout, stderr = await run(
-            rf"find {path_str} -maxdepth 2 -not -path '*/\.*'"
-        )
+        try:
+            _, stdout, stderr = await run(
+                ["find", path_str, "-maxdepth", "2", "-not", "-path", r"*/\.*"]
+            )
+        except TimeoutError:
+            # TimeoutError is an OSError, but must retain its existing RPC failure.
+            raise
+        except OSError as exc:
+            # Any other launch failure (find missing, not executable, not loadable,
+            # or fork failing) is reported to the model, as the shell's stderr was.
+            raise ToolException(
+                f"Encountered error attempting to view {path}: {exc} "
+                f"(PATH={_run.SYSTEM_PATH})"
+            ) from exc
 
         if stderr:
             raise ToolException(
