@@ -427,7 +427,32 @@ non-`success` log as incomplete (`evalset.py:1837-1860`), so it never treats
 an incomplete merged log as done. The merge refuses to write a `success` log
 over an incomplete shard set and, unless told to, refuses an incomplete
 shard set altogether; when told to (the startup and periodic cases), it writes the
-`started` log (Ransom and JJ Allaire, 2026-09-18).
+`started` log (Ransom and JJ Allaire, 2026-09-18). `started` means
+incomplete because shards are still running or missing. An incomplete set
+with a failed shard is a different state, below.
+
+*Errored shards* (Ransom, 2026-09-21). A shard whose current attempt (the
+newest file in its `<k>/`) ended in `error` or `cancelled` is neither
+running nor missing: nothing will complete without a rerun. Its completed
+samples are valid and are merged, exactly as a retry reuses completed
+samples today. But the merged log is then written as `error`, never
+`started`, so nothing looks like it is still running: the failing shards'
+messages are collected in the provenance ledger (each shard's status at
+merge time is already recorded there) and the first becomes the merged
+log's own `error`. That status is also what makes `eval_set()` behave
+correctly: it retries an `error` log seeded with its completed samples and
+re-runs only the missing ones (see "Eval-set integration"). Once a rerun
+lands in the same `<k>/`, newest-wins drops the failed attempt from the set
+and the next merge clears the error. `success` still requires every current
+attempt to be `success` and the union to equal the intended selection.
+Sample-level errors inside a `success` shard (`sample.error` set, with
+`fail_on_error` off or under its threshold) merge as they are, and the
+recomputed metrics skip unscored samples as today. One difference from an
+unsharded run to state: a fractional `fail_on_error` threshold is evaluated
+per shard, so a task that tolerates ten percent failures can fail one shard
+and pass another at the same overall rate; the merge cannot restore the
+whole-task evaluation of that threshold, and the merged log's own error rate
+is what the whole-task view shows.
 
 **Provenance and ledger: a new header field.** Decision (Ransom,
 2026-09-21): the merged log carries a new typed `EvalSpec` field (not
@@ -531,6 +556,10 @@ handed to `_recover_crashed_log` (`evalset.py:1512`) as a crashed log; and
 field is present. Upside: merging an incomplete shard set at startup into a `started`
 log turns a sharded run into an ordinary resume; the missing samples are
 re-run by the normal retry path, unsharded unless the runner re-shards them.
+A shard set with a failed shard merges into an `error` log (see
+"Completeness"), which the set retries the same way, seeded with the merged
+samples; the retry's log is an ordinary unsharded log, and the merged log
+and its shards stay behind as the record of the sharded attempt.
 
 ### Notes for harnesses
 
@@ -665,7 +694,14 @@ Pydantic models. New boundaries:
   as attempts of one shard, newest taken.
 - Eval-set tests: startup over an incomplete shard set produces a `started` merged
   log that the set then resumes; `retry_cleanup` leaves shards alone; a
-  `started` merged log is re-merged, not recovered.
+  `started` merged log is re-merged, not recovered; a shard set with an
+  `error` shard merges into an `error` log that the set retries seeded with
+  the merged samples.
+- Errored-shard tests: an `error` or `cancelled` shard's completed samples
+  are merged and the merged log is `error`, never `started`, with the
+  shard's message in the ledger; a rerun in the same `<k>/` supersedes the
+  failed attempt and the next merge reaches `success`; sample-level errors
+  inside a `success` shard merge unchanged and metrics skip them.
 - A test that no reader path imports a header-named `task_file`.
 - Provenance field round-trip, and a check that unsharded logs and a log
   directory without any `*.shards/` companion are unaffected.
