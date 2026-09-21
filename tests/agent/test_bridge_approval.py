@@ -51,6 +51,7 @@ from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 TASK = "Tidy up the working directory."
@@ -531,6 +532,36 @@ async def test_sandbox_terminate_monitor_raises_for_the_task_group() -> None:
 # ---------------------------------------------------------------------------
 
 
+@tool
+def read_file(mock: AsyncMock) -> Tool:
+    """A typed host tool that hands the arguments it receives to `mock`.
+
+    `call_tool` validates arguments against the tool's schema before calling
+    it, so a bare `AsyncMock` (whose signature is `*args, **kwargs`) cannot be
+    bridged directly. The parameters cover every shape these tests send.
+    """
+
+    async def execute(
+        path: str | None = None,
+        mode: str | None = None,
+        offset: int | None = None,
+        raw: bool | None = None,
+    ) -> str:
+        """Read a file.
+
+        Args:
+            path: Path of the file to read.
+            mode: Mode to open the file in.
+            offset: Offset to start reading from.
+            raw: Whether to return raw bytes.
+        """
+        passed = {"path": path, "mode": mode, "offset": offset, "raw": raw}
+        result: str = await mock(**{k: v for k, v in passed.items() if v is not None})
+        return result
+
+    return execute
+
+
 def sandbox_bridge_with_tool(
     tool: AsyncMock, approval: list[ApprovalPolicy] | None
 ) -> SandboxAgentBridge:
@@ -542,7 +573,7 @@ def sandbox_bridge_with_tool(
         port=13131,
         model=None,
         approval=approval,
-        bridged_tools={"host": {"read_file": tool}},
+        bridged_tools={"host": {"read_file": read_file(tool)}},
     )
 
 
