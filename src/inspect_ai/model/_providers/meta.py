@@ -1,4 +1,5 @@
 import os
+import re
 from logging import getLogger
 from typing import Any
 
@@ -37,8 +38,9 @@ META_REASONING_NONE_WARNING = (
 )
 
 META_REASONING_MAX_WARNING = (
-    'reasoning_effort="max" is not yet available for {model} and will be '
-    'submitted as "xhigh".'
+    'reasoning_effort="max" is not available for {model} (the Meta Model API '
+    "offers it on standard-tier muse-spark-1.3 only) and will be submitted "
+    'as "xhigh".'
 )
 
 META_UNSUPPORTED_PARAM_WARNING = (
@@ -48,6 +50,17 @@ META_UNSUPPORTED_PARAM_WARNING = (
 # Chat Completions params the API rejects with a 400 (the Responses path
 # already omits these with a warning of its own).
 META_CHAT_UNSUPPORTED_PARAMS = ("stop", "logit_bias", "n")
+
+
+def supports_max_reasoning_effort(model: str) -> bool:
+    """Whether Meta accepts `reasoning_effort="max"` for `model`.
+
+    Meta documents `max` for standard-tier `muse-spark-1.3` only: not the
+    `-contributor` tier and not older versions (https://dev.meta.ai/docs/reasoning).
+    Later standard-tier versions are assumed to keep it.
+    """
+    match = re.fullmatch(r"muse-spark-(\d+)\.(\d+)", model.lower())
+    return match is not None and (int(match[1]), int(match[2])) >= (1, 3)
 
 
 def _flag_refusal_stop(output: ModelOutput) -> None:
@@ -143,6 +156,10 @@ class MetaAPI(OpenAICompatibleAPI):
     def should_stream(self, config: GenerateConfig) -> bool:
         return True
 
+    @override
+    def supports_max_reasoning_effort(self) -> bool:
+        return supports_max_reasoning_effort(self.service_model_name())
+
     def resolve_config(self, config: GenerateConfig) -> GenerateConfig:
         """Drop or remap generation options the API rejects with a 400."""
         model = self.service_model_name()
@@ -150,7 +167,10 @@ class MetaAPI(OpenAICompatibleAPI):
         if config.reasoning_effort == "none":
             warn_once(logger, META_REASONING_NONE_WARNING.format(model=model))
             updates["reasoning_effort"] = None
-        elif config.reasoning_effort == "max":
+        elif (
+            config.reasoning_effort == "max"
+            and not self.supports_max_reasoning_effort()
+        ):
             warn_once(logger, META_REASONING_MAX_WARNING.format(model=model))
             updates["reasoning_effort"] = "xhigh"
         for parameter in ("logprobs", "top_logprobs"):

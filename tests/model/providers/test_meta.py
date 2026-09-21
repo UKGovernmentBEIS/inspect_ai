@@ -1,4 +1,5 @@
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from test_helpers.utils import skip_if_no_meta
@@ -15,9 +16,11 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_output import StopDetails
 from inspect_ai.model._providers.meta import (
+    META_REASONING_MAX_WARNING,
     META_UNSUPPORTED_PARAM_WARNING,
     MetaAPI,
     _flag_refusal_stop,
+    supports_max_reasoning_effort,
 )
 from inspect_ai.tool import ToolFunction, ToolInfo, ToolParams
 from inspect_ai.util import json_schema
@@ -144,23 +147,52 @@ def test_meta_tool_choice_auto_untouched(mock_meta_env, _warn_once_messages):
     assert not _warn_once_messages
 
 
+# Meta documents `max` reasoning for standard-tier muse-spark-1.3 only
+MAX_REASONING_MODELS = ["muse-spark-1.3"]
+NO_MAX_REASONING_MODELS = [
+    "muse-spark-1.3-contributor",
+    "muse-spark-1.2",
+    "muse-spark-1.2-contributor",
+    "muse-spark-1.1",
+]
+
+
+@pytest.mark.parametrize(
+    "model,expected",
+    [(m, True) for m in MAX_REASONING_MODELS]
+    + [(m, False) for m in NO_MAX_REASONING_MODELS],
+)
+def test_meta_supports_max_reasoning_effort(mock_meta_env, model, expected):
+    assert supports_max_reasoning_effort(model) is expected
+    assert MetaAPI(model_name=model).supports_max_reasoning_effort() is expected
+
+
 def test_meta_resolve_config_reasoning_effort(mock_meta_env, _warn_once_messages):
     api = MetaAPI(model_name="muse-spark-1.3")
     assert (
         api.resolve_config(GenerateConfig(reasoning_effort="none")).reasoning_effort
         is None
     )
-    assert (
-        api.resolve_config(GenerateConfig(reasoning_effort="max")).reasoning_effort
-        == "xhigh"
-    )
-    for effort in ("minimal", "low", "medium", "high", "xhigh"):
+    # standard-tier 1.3 supports max, so it passes through like the others
+    for effort in ("minimal", "low", "medium", "high", "xhigh", "max"):
         assert (
             api.resolve_config(GenerateConfig(reasoning_effort=effort)).reasoning_effort
             == effort
         )
     assert any("cannot be disabled" in m for m in _warn_once_messages)
-    assert any('"max"' in m for m in _warn_once_messages)
+    assert not any('"max"' in m for m in _warn_once_messages)
+
+
+@pytest.mark.parametrize("model", NO_MAX_REASONING_MODELS)
+def test_meta_resolve_config_max_downgraded_without_support(
+    mock_meta_env, _warn_once_messages, model
+):
+    api = MetaAPI(model_name=model)
+    assert (
+        api.resolve_config(GenerateConfig(reasoning_effort="max")).reasoning_effort
+        == "xhigh"
+    )
+    assert META_REASONING_MAX_WARNING.format(model=model) in _warn_once_messages
 
 
 def test_meta_resolve_config_drops_logprobs(mock_meta_env, _warn_once_messages):
@@ -211,6 +243,66 @@ def test_meta_chat_tools_not_strict(mock_meta_env):
     api = MetaAPI(model_name="muse-spark-1.3", responses_api=False)
     tools = api.tools_to_openai([_tool()])
     assert tools[0]["function"]["strict"] is False
+
+
+@pytest.mark.parametrize("responses_api", [True, False], ids=["responses", "chat"])
+@pytest.mark.parametrize(
+    "model,expected",
+    [(m, "max") for m in MAX_REASONING_MODELS]
+    + [(m, "xhigh") for m in NO_MAX_REASONING_MODELS],
+)
+async def test_meta_max_reasoning_effort_in_request(
+    mock_meta_env, monkeypatch, responses_api, model, expected
+):
+    """The assembled request carries `max` only where Meta supports it.
+
+    Both protocols are checked at the SDK call: the Chat path is shaped by
+    `resolve_config`, the Responses path also by the shared request builder,
+    which maps `max` to `xhigh` unless the provider says it is supported.
+    """
+    from openai.types.chat import ChatCompletion
+    from openai.types.responses import Response
+
+    api = MetaAPI(model_name=model, responses_api=responses_api, stream=False)
+    if responses_api:
+        create = AsyncMock(
+            return_value=Response.model_construct(
+                id="resp_test",
+                model=model,
+                created_at=0.0,
+                object="response",
+                status="completed",
+                output=[],
+                tools=[],
+            )
+        )
+        monkeypatch.setattr(api.client.responses, "create", create)
+    else:
+        create = AsyncMock(
+            return_value=ChatCompletion(
+                id="chat_test",
+                model=model,
+                created=0,
+                object="chat.completion",
+                choices=[],
+            )
+        )
+        monkeypatch.setattr(api.client.chat.completions, "create", create)
+    try:
+        await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(reasoning_effort="max"),
+        )
+    finally:
+        await api.aclose()
+    request = create.call_args.kwargs
+    assert request["model"] == model
+    if responses_api:
+        assert request["reasoning"]["effort"] == expected
+    else:
+        assert request["reasoning_effort"] == expected
 
 
 async def test_meta_generate_applies_request_shaping(mock_meta_env, monkeypatch):
@@ -401,6 +493,17 @@ async def test_meta_live_generate():
     assert "pong" in output.completion.lower()
     assert output.stop_reason == "stop"
     assert output.usage is not None and output.usage.output_tokens > 0
+
+
+@skip_if_no_meta
+async def test_meta_live_max_reasoning_effort():
+    """Standard-tier 1.3 accepts `max`; the provider must not downgrade it."""
+    model = get_model(
+        "meta/muse-spark-1.3", config=GenerateConfig(reasoning_effort="max")
+    )
+    output = await model.generate("Reply with the single word: pong")
+    assert "pong" in output.completion.lower()
+    assert output.stop_reason == "stop"
 
 
 @skip_if_no_meta
