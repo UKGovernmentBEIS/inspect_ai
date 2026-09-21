@@ -1015,10 +1015,10 @@ class ClassifiedToolException(NamedTuple):
 
     Shared by the model tool path and the human agent tool path (#3053) so
     both produce identical ToolCallError types and partial results for the
-    same exception. Returns from
-    classify_tool_exception(); None means the exception is unexpected and
-    the caller decides its disposition (the model path fails the sample,
-    the human path surfaces a message and continues).
+    same exception. Returned from classify_tool_exception(); None means
+    the exception is unexpected, which — on both paths, to start — fails
+    the sample. Optional human recovery from an unexpected exception is
+    not implemented, and would be a separate, explicitly requested change.
     """
 
     error: ToolCallError

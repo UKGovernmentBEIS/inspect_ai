@@ -3,8 +3,9 @@
 These helpers are consumed by both the model tool path and the human agent
 tool path (human_cli tools=...), so the same exception or result produces
 identical classification, truncation, and content handling on both. The
-parametrized zoos here are the shared contract; path-specific dispositions
-(fail-the-sample vs surface-and-continue) are tested with each path.
+parametrized zoos here are the shared contract; classified exceptions are
+recoverable and unclassified (None) exceptions fail the sample, identically
+on both paths, exercised separately by each path's own tests.
 """
 
 import sys
@@ -25,6 +26,7 @@ from inspect_ai.tool import ToolError
 from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
+from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import raise_if_control_flow
 
@@ -97,6 +99,44 @@ def test_other_value_errors_unclassified():
     # are unexpected — the classifier stays policy-free and returns None
     # (the model call site applies its historical immediate-rethrow itself)
     assert classify_tool_exception(ValueError("unrelated"), "some_tool") is None
+
+
+@pytest.mark.parametrize(
+    "ex,has_partial_result",
+    [
+        (TimeoutError(), False),
+        (SandboxTimeoutError("timed out", truncated_output="partial"), True),
+        (UnicodeDecodeError("utf-8", b"", 0, 1, "invalid start byte"), False),
+        (ValueError("embedded null byte"), False),
+        (SandboxUnavailableError("container gone"), False),
+        (PermissionError(13, "Permission denied", "/etc/shadow"), False),
+        (FileNotFoundError(2, "No such file", "missing.txt"), False),
+        (IsADirectoryError(21, "Is a directory", "/tmp"), False),
+        (OutputLimitExceededError("1 KiB", "partial output"), True),
+        (LimitExceededError("token", value=1001, limit=1000), False),
+        (ToolParsingError("bad args"), False),
+        (ToolApprovalError("rejected"), False),
+        (ToolError("expected failure"), False),
+    ],
+)
+def test_result_sentinel_compatible_with_tool_call_error_contract(
+    ex, has_partial_result
+):
+    """Pin classify_tool_exception()'s result sentinel against #5464's contract.
+
+    #5464's tool_call_error() returns the equivalent classification as
+    MappedToolCallError(error, result: ToolResult | None), using None for
+    "no partial result" where this module uses "" (see the relationship
+    evidence comparing the two PRs). A future consolidation onto one
+    classifier only needs to translate that sentinel at each call site,
+    not change the classification logic — this pins that every case here
+    translates losslessly (`"" <-> None`) with the same partial-result
+    exceptions on both sides (SandboxTimeoutError and
+    OutputLimitExceededError).
+    """
+    classified = classify_tool_exception(ex, "some_tool")
+    assert classified is not None
+    assert (classified.result != "") == has_partial_result
 
 
 # ---------------------------------------------------------------------------
