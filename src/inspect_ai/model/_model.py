@@ -405,6 +405,16 @@ class ModelAPI(abc.ABC):
                 return info.family
         return self.service_model_name()
 
+    def cache_write_ttl(self) -> str | None:
+        """Prompt-cache TTL billed for cache writes in the current call context.
+
+        Consulted when recording usage after each generate/compact call ("1h"
+        bills cache writes at a higher rate than the default 5m). Providers
+        that bill cache writes at a TTL-dependent rate override this; the
+        TTL may vary per call, so it is a method rather than an attribute.
+        """
+        return None
+
     @abc.abstractmethod
     async def generate(
         self,
@@ -2966,10 +2976,8 @@ def record_and_check_model_usage(
     # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
     if info is not None and info.cost is not None:
         # providers with a configurable prompt-cache TTL (currently Anthropic)
-        # expose it on the ModelAPI; longer TTLs bill cache writes at a higher rate
-        total_cost = compute_model_cost(
-            info.cost, usage, getattr(model.api, "cache_ttl", None)
-        )
+        # report the billed TTL; longer TTLs bill cache writes at a higher rate
+        total_cost = compute_model_cost(info.cost, usage, model.api.cache_write_ttl())
         usage.total_cost = total_cost
 
     # record usage
