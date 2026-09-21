@@ -2,8 +2,14 @@ import asyncio
 import base64
 import json
 import os
+import pwd
+import shutil
 import stat
-from contextlib import suppress
+import subprocess
+import sys
+import tempfile
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, NamedTuple, cast
 
@@ -15,6 +21,7 @@ from inspect_sandbox_tools._util.json_rpc_chunking import (
     JSON_RPC_RESPONSE_MAX_BYTES_ENV,
     chunk_json_rpc_response_if_needed,
     handle_json_rpc_response_chunk_request,
+    open_chunk_spill,
 )
 
 
@@ -28,53 +35,6 @@ class _ReassembledResponse(NamedTuple):
 @pytest.fixture(autouse=True)
 def isolated_chunk_dir(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     monkeypatch.setattr(chunking, "_CHUNK_DIR", tmp_path / "chunks")
-
-
-def test_chunk_dir_accepts_secure_root_owner(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    chunking._CHUNK_DIR.mkdir(mode=0o1733)
-    stat_values = list(chunking._CHUNK_DIR.lstat())
-    stat_values[0] = stat.S_IFDIR | 0o1733
-    stat_values[4] = 0
-    root_owned = os.stat_result(stat_values)
-
-    monkeypatch.setattr(chunking.os, "fstat", lambda _fd: root_owned)
-    monkeypatch.setattr(chunking.os, "getuid", lambda: 1000)
-
-    def unexpected_chmod(_fd: int, _mode: int) -> None:
-        raise AssertionError("a non-owner must not chmod the shared directory")
-
-    monkeypatch.setattr(chunking.os, "fchmod", unexpected_chmod)
-
-    chunking.ensure_json_rpc_response_chunk_dir()
-
-
-@pytest.mark.skipif(not hasattr(os, "O_PATH"), reason="O_PATH is Linux-only")
-def test_chunk_dir_usable_by_non_owner_without_read_bit(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A 1733 root created by another identity denies us read; O_PATH still works."""
-    chunking._CHUNK_DIR.mkdir(mode=0o1733)
-    stat_values = list(chunking._CHUNK_DIR.lstat())
-    stat_values[0] = stat.S_IFDIR | 0o1733
-    stat_values[4] = 0
-    root_owned = os.stat_result(stat_values)
-    real_open = os.open
-    opens: list[int] = []
-
-    def open_without_read_permission(path: Any, flags: int, *args: Any) -> int:
-        opens.append(flags)
-        if not flags & os.O_PATH:
-            raise PermissionError(13, "Permission denied", str(path))
-        return real_open(path, flags, *args)
-
-    monkeypatch.setattr(chunking.os, "open", open_without_read_permission)
-    monkeypatch.setattr(chunking.os, "fstat", lambda _fd: root_owned)
-    monkeypatch.setattr(chunking.os, "getuid", lambda: 1000)
-
-    chunking.ensure_json_rpc_response_chunk_dir()
-    assert len(opens) == 2 and opens[1] & os.O_PATH
 
 
 def test_json_rpc_response_chunking_round_trips_large_stdout_and_stderr() -> None:
@@ -135,48 +95,29 @@ def test_json_rpc_response_chunking_leaves_small_response_unwrapped() -> None:
     )
 
 
-def test_json_rpc_response_chunks_use_private_uid_directory(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_chunks_live_in_the_tools_users_private_directory() -> None:
     response = json.dumps({"jsonrpc": "2.0", "id": 1, "result": "x" * 2000})
     first_response = chunk_json_rpc_response_if_needed({"id": 1}, response, 512)
     chunk = _chunk_metadata(first_response)
-    user_dir = chunking._CHUNK_DIR / str(os.getuid())
-    chunk_path = user_dir / f"{chunk['handle']}.jsonrpc"
+    chunk_path = chunking._CHUNK_DIR / f"{chunk['handle']}.jsonrpc"
 
-    assert stat.S_IMODE(user_dir.stat().st_mode) == 0o700
+    assert stat.S_IMODE(chunking._CHUNK_DIR.lstat().st_mode) == 0o700
     assert chunk_path.is_file()
+    assert stat.S_IMODE(chunk_path.lstat().st_mode) == 0o600
 
-    monkeypatch.setattr(chunking.os, "getuid", lambda: 0)
-    root_continuation = handle_json_rpc_response_chunk_request(
+    continuation = handle_json_rpc_response_chunk_request(
         {
             "id": 2,
             "params": {"handle": chunk["handle"], "offset": chunk["next_offset"]},
         },
         512,
     )
-
-    assert _chunk_metadata(root_continuation)["offset"] == chunk["next_offset"]
-    handle_json_rpc_response_chunk_request(
-        {"id": 3, "params": {"handle": chunk["handle"], "release": True}},
-        512,
+    assert _chunk_metadata(continuation)["offset"] == chunk["next_offset"]
+    release = handle_json_rpc_response_chunk_request(
+        {"id": 3, "params": {"handle": chunk["handle"], "release": True}}, 512
     )
-
-
-def test_frozen_chunk_dir_uses_hidden_sibling_of_tools_dir(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(chunking.sys, "frozen", True, raising=False)
-    monkeypatch.setattr(
-        chunking.sys,
-        "executable",
-        "/var/tmp/.da7be258e003d428/inspect-sandbox-tools",
-    )
-
-    assert (
-        chunking._default_chunk_dir()
-        == Path("/var/tmp/.da7be258e003d428-json-rpc-chunks").resolve()
-    )
+    assert json.loads(release) == {"jsonrpc": "2.0", "id": 3, "result": None}
+    assert not chunk_path.exists()
 
 
 def test_json_rpc_response_chunking_rejects_invalid_offsets() -> None:
@@ -279,6 +220,7 @@ def _reassemble(
     max_response_bytes: int,
     *,
     capsys: pytest.CaptureFixture[str] | None = None,
+    continuation: Callable[[dict[str, object]], str] | None = None,
 ) -> _ReassembledResponse:
     chunk = _chunk_metadata(first_response)
     handle = cast(str, chunk["handle"])
@@ -286,28 +228,36 @@ def _reassemble(
     offsets: list[int] = []
     frame_sizes = [len(first_response.encode("utf-8")) + 1]
 
+    def send(request: dict[str, object]) -> str:
+        if continuation is not None:
+            return continuation(request)
+        if capsys is not None:
+            return _exec_cli(request, capsys)
+        return handle_json_rpc_response_chunk_request(request, max_response_bytes)
+
     while True:
         offsets.append(cast(int, chunk["offset"]))
         response_bytes.extend(base64.b64decode(chunk["chunk"], validate=True))
         if chunk["done"]:
             break
-        request: dict[str, object] = {
-            "jsonrpc": "2.0",
-            "method": JSON_RPC_RESPONSE_CHUNK_METHOD,
-            "params": {"handle": handle, "offset": chunk["next_offset"]},
-            "id": 2,
-        }
-        next_response = (
-            _exec_cli(request, capsys)
-            if capsys is not None
-            else handle_json_rpc_response_chunk_request(request, max_response_bytes)
+        next_response = send(
+            {
+                "jsonrpc": "2.0",
+                "method": JSON_RPC_RESPONSE_CHUNK_METHOD,
+                "params": {"handle": handle, "offset": chunk["next_offset"]},
+                "id": 2,
+            }
         )
         frame_sizes.append(len(next_response.encode("utf-8")) + 1)
         chunk = _chunk_metadata(next_response)
 
-    handle_json_rpc_response_chunk_request(
-        {"id": 3, "params": {"handle": handle, "release": True}},
-        max_response_bytes,
+    send(
+        {
+            "jsonrpc": "2.0",
+            "method": JSON_RPC_RESPONSE_CHUNK_METHOD,
+            "params": {"handle": handle, "release": True},
+            "id": 3,
+        }
     )
     return _ReassembledResponse(
         response_bytes.decode("utf-8"), offsets, frame_sizes, handle
@@ -319,63 +269,13 @@ def _chunk_metadata(response: str) -> dict[str, Any]:
     return cast(dict[str, Any], payload[JSON_RPC_RESPONSE_CHUNK_FIELD])
 
 
-def test_chunk_dir_accepts_agent_owned_dir_when_running_as_root(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A tool call exec'd with `user=` can be the first to create the chunk dir.
-
-    A later tool call running as root must still work; otherwise a single
-    agent-user exec permanently breaks every subsequent root tool call.
-    """
-    chunking._CHUNK_DIR.mkdir(mode=0o1733)
-    stat_values = list(chunking._CHUNK_DIR.lstat())
-    stat_values[0] = stat.S_IFDIR | 0o1733
-    stat_values[4] = 1000  # created by an earlier exec running as the agent user
-    agent_owned = os.stat_result(stat_values)
-
-    monkeypatch.setattr(chunking.os, "fstat", lambda _fd: agent_owned)
-    monkeypatch.setattr(chunking.os, "getuid", lambda: 0)
-
-    chunking.ensure_json_rpc_response_chunk_dir()
-
-
-def test_chunk_dir_chmod_does_not_follow_a_swapped_symlink(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Root must not chmod through a symlink planted at the chunk dir path.
-
-    Tolerating an agent-owned chunk dir means the agent uid owns that entry and
-    can replace it between root's ownership check and the chmod that follows.
-    Patched `lstat` stands in for winning that race: it reports the directory as
-    it was before the swap, while the path on disk is already a symlink.
-    """
-    victim = tmp_path / "victim"
-    victim.mkdir(mode=0o700)
-    chunking._CHUNK_DIR.symlink_to(victim, target_is_directory=True)
-
-    stat_values = list(victim.lstat())
-    stat_values[0] = stat.S_IFDIR | 0o1733
-    stat_values[4] = 1000  # created by an earlier exec running as the agent user
-    pre_swap = os.stat_result(stat_values)
-
-    monkeypatch.setattr(type(chunking._CHUNK_DIR), "lstat", lambda _self: pre_swap)
-    monkeypatch.setattr(chunking.os, "getuid", lambda: 0)
-
-    # Refusing the swapped path is a fine outcome; widening the target is not.
-    with suppress(RuntimeError, OSError):
-        chunking.ensure_json_rpc_response_chunk_dir()
-
-    assert stat.S_IMODE(victim.stat().st_mode) == 0o700
-
-
 def test_small_response_unaffected_by_unusable_chunk_dir(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """An unusable chunk path must not break non-chunked requests.
 
-    The chunk dir lives at a well-known path in a world-writable location, so
-    sandbox code can pre-create it (e.g. as a plain file). Small responses
-    never touch the chunk dir and must keep working regardless of its state.
+    Small responses never touch chunk storage and must keep working whatever
+    state the tools user's own directory is in.
     """
     pytest.importorskip("jsonrpcserver")
     chunking._CHUNK_DIR.touch()
@@ -388,3 +288,287 @@ def test_small_response_unaffected_by_unusable_chunk_dir(
     payload = json.loads(response)
     assert payload["id"] == 1
     assert "result" in payload
+
+
+def _simulate_switch_away_from_tools_user() -> None:
+    """Take away what setuid would: the right to create or unlink in the directory."""
+    if os.geteuid() == 0:
+        pytest.skip("root is not subject to directory modes")
+    os.chmod(chunking._CHUNK_DIR, 0o500)
+
+
+def _simulate_switch_back_to_tools_user() -> None:
+    os.chmod(chunking._CHUNK_DIR, 0o700)
+
+
+def test_reserved_spill_is_written_after_directory_access_is_lost() -> None:
+    spill = open_chunk_spill()
+    _simulate_switch_away_from_tools_user()
+    try:
+        response = json.dumps({"jsonrpc": "2.0", "id": 1, "result": "y" * 4000})
+        first_response = chunk_json_rpc_response_if_needed(
+            {"id": 1}, response, 512, spill=spill
+        )
+        assert _chunk_metadata(first_response)["handle"] == spill.handle
+        assert spill.file.closed
+
+        # A small response closes an unneeded reservation without failing.
+        small = chunk_json_rpc_response_if_needed(
+            {"id": 2}, '{"jsonrpc":"2.0","id":2,"result":"ok"}', 512, spill=None
+        )
+        assert json.loads(small)["result"] == "ok"
+    finally:
+        _simulate_switch_back_to_tools_user()
+
+    reassembled = _reassemble(first_response, 512)
+    assert reassembled.text == response
+    assert not (chunking._CHUNK_DIR / f"{spill.handle}.jsonrpc").exists()
+
+
+def test_cli_reserves_the_spill_before_switching_user(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pytest.importorskip("jsonrpcserver")
+    import inspect_sandbox_tools._cli.main as main_module
+
+    reserved_at_switch: list[int] = []
+
+    def switch(_user: Any) -> None:
+        reserved_at_switch.append(len(list(chunking._CHUNK_DIR.glob("*.jsonrpc"))))
+        _simulate_switch_away_from_tools_user()
+
+    monkeypatch.setattr(
+        main_module, "switch_target", lambda user, can_switch_user: user
+    )
+    monkeypatch.setattr(main_module, "switch_user", switch)
+    monkeypatch.setattr(main_module, "get_home_dir", lambda _user: os.environ["HOME"])
+    monkeypatch.setenv(JSON_RPC_RESPONSE_MAX_BYTES_ENV, "4096")
+    target = tmp_path / "large.txt"
+    target.write_text("line\n" * 2000)
+    request = {
+        "jsonrpc": "2.0",
+        "method": "text_editor",
+        "id": 1,
+        "params": {
+            "command": "view",
+            "path": str(target),
+            "_run_as": {"uid": 12345, "gid": 12345, "groups": []},
+        },
+    }
+
+    try:
+        first_response = _exec_cli(request, capsys)
+    finally:
+        _simulate_switch_back_to_tools_user()
+    assert reserved_at_switch == [1]
+
+    reassembled = _reassemble(first_response, 4096, capsys=capsys)
+    assert json.loads(reassembled.text)["result"].count("line") >= 2000
+    assert list(chunking._CHUNK_DIR.glob("*.jsonrpc")) == []
+
+
+def _open_as(uid: int, gid: int, path: Path) -> int:
+    """Try to open ``path`` for reading as another uid; return the child's exit code."""
+    pid = os.fork()
+    if pid == 0:
+        try:
+            os.setgid(gid)
+            os.setuid(uid)
+            with open(path, "rb"):
+                os._exit(0)
+        except PermissionError:
+            os._exit(3)
+        except BaseException:
+            os._exit(4)
+    _, status = os.waitpid(pid, 0)
+    return os.waitstatus_to_exitcode(status)
+
+
+@pytest.mark.skipif(os.geteuid() != 0, reason="requires root to switch user")
+def test_root_cli_round_trips_a_chunked_response_produced_as_another_user() -> None:
+    """The real cross-uid path: the CLI switches to a sandbox user in-process.
+
+    Root reserves the spill file, the sandbox user's response is written through
+    the inherited descriptor, and root serves the continuations from its private
+    directory, which the sandbox user cannot enter.
+    """
+    pytest.importorskip("jsonrpcserver")
+    try:
+        agent = pwd.getpwnam("nobody")
+    except KeyError:
+        pytest.skip("no 'nobody' user")
+    workdir = Path(tempfile.mkdtemp())
+    workdir.chmod(0o1777)
+    target = workdir / "large.txt"
+    target.write_text("line\n" * 2000)
+    target.chmod(0o644)
+    env = {
+        **os.environ,
+        "TMPDIR": str(workdir),
+        JSON_RPC_RESPONSE_MAX_BYTES_ENV: "4096",
+    }
+
+    def cli(request: dict[str, object]) -> str:
+        result = subprocess.run(
+            [sys.executable, "-m", "inspect_sandbox_tools._cli.main", "exec"],
+            input=json.dumps(request),
+            text=True,
+            capture_output=True,
+            env=env,
+            timeout=60,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        return result.stdout.strip()
+
+    try:
+        first_response = cli(
+            {
+                "jsonrpc": "2.0",
+                "method": "text_editor",
+                "id": 1,
+                "params": {
+                    "command": "view",
+                    "path": str(target),
+                    "_run_as": {
+                        "uid": agent.pw_uid,
+                        "gid": agent.pw_gid,
+                        "groups": [],
+                    },
+                },
+            }
+        )
+        chunk_dir = workdir / "sandbox-tools" / "chunks"
+        chunk_path = chunk_dir / f"{_chunk_metadata(first_response)['handle']}.jsonrpc"
+        for entry, mode in ((chunk_dir, 0o700), (chunk_path, 0o600)):
+            info = entry.lstat()
+            assert info.st_uid == 0 and stat.S_IMODE(info.st_mode) == mode, entry
+        assert _open_as(agent.pw_uid, agent.pw_gid, chunk_path) == 3
+        assert not (workdir / ".inspect-sandbox-tools-json-rpc-chunks").exists()
+
+        reassembled = _reassemble(first_response, 4096, continuation=cli)
+
+        assert json.loads(reassembled.text)["result"].count("line") >= 2000
+        assert not chunk_path.exists()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def test_unusable_chunk_storage_fails_only_responses_that_need_chunking(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failed reservation before the switch is raised only if chunking is needed."""
+    pytest.importorskip("jsonrpcserver")
+    import inspect_sandbox_tools._cli.main as main_module
+
+    monkeypatch.setattr(
+        main_module, "switch_target", lambda user, can_switch_user: user
+    )
+    monkeypatch.setattr(main_module, "switch_user", lambda _user: None)
+    monkeypatch.setattr(main_module, "get_home_dir", lambda _user: os.environ["HOME"])
+    monkeypatch.setenv(JSON_RPC_RESPONSE_MAX_BYTES_ENV, "4096")
+    chunking._CHUNK_DIR.touch()
+    small = tmp_path / "small.txt"
+    small.write_text("small")
+    large = tmp_path / "large.txt"
+    large.write_text("line\n" * 2000)
+
+    def request(path: Path) -> dict[str, object]:
+        return {
+            "jsonrpc": "2.0",
+            "method": "text_editor",
+            "id": 1,
+            "params": {
+                "command": "view",
+                "path": str(path),
+                "_run_as": {"uid": 12345, "gid": 12345, "groups": []},
+            },
+        }
+
+    assert "small" in json.loads(_exec_cli(request(small), capsys))["result"]
+    with pytest.raises(RuntimeError, match="cannot be trusted: it is not a directory"):
+        _exec_cli(request(large), capsys)
+
+
+def test_chunk_is_removed_when_no_piece_fits() -> None:
+    response = json.dumps({"jsonrpc": "2.0", "id": 1, "result": "x" * 2000})
+
+    with pytest.raises(ValueError, match="too small"):
+        chunk_json_rpc_response_if_needed({"id": 1}, response, 64)
+
+    assert list(chunking._CHUNK_DIR.glob("*.jsonrpc")) == []
+
+
+def test_chunk_is_emptied_when_no_piece_fits_after_directory_access_is_lost() -> None:
+    """After the switch the file cannot be unlinked, so it is emptied and swept later."""
+    spill = open_chunk_spill()
+    path = chunking._CHUNK_DIR / f"{spill.handle}.jsonrpc"
+    response = json.dumps({"jsonrpc": "2.0", "id": 1, "result": "x" * 2000})
+    _simulate_switch_away_from_tools_user()
+    try:
+        with pytest.raises(ValueError, match="too small"):
+            chunk_json_rpc_response_if_needed({"id": 1}, response, 64, spill=spill)
+        assert path.exists() and path.stat().st_size == 0
+    finally:
+        _simulate_switch_back_to_tools_user()
+
+    stale = time.time() - chunking._CHUNK_TTL_SECONDS - 5
+    os.utime(path, (stale, stale))
+    open_chunk_spill().file.close()
+    assert not path.exists()
+
+
+def test_continuation_and_release_do_not_create_chunk_storage() -> None:
+    handle = "0" * 32
+    missing = handle_json_rpc_response_chunk_request(
+        {"id": 1, "params": {"handle": handle, "offset": 0}}, 512
+    )
+    assert json.loads(missing)["error"]["message"] == "chunk handle not found"
+    released = handle_json_rpc_response_chunk_request(
+        {"id": 2, "params": {"handle": handle, "release": True}}, 512
+    )
+    assert json.loads(released)["result"] is None
+    assert not chunking._CHUNK_DIR.exists()
+
+
+def test_continuation_refuses_a_symlink_at_the_chunk_path(tmp_path: Path) -> None:
+    response = json.dumps({"jsonrpc": "2.0", "id": 1, "result": "x" * 2000})
+    chunk = _chunk_metadata(chunk_json_rpc_response_if_needed({"id": 1}, response, 512))
+    chunk_path = chunking._CHUNK_DIR / f"{chunk['handle']}.jsonrpc"
+    secret = tmp_path / "secret"
+    secret.write_bytes(b"secret " * 100)
+    chunk_path.unlink()
+    chunk_path.symlink_to(secret)
+
+    continuation = json.loads(
+        handle_json_rpc_response_chunk_request(
+            {"id": 2, "params": {"handle": chunk["handle"], "offset": 0}}, 512
+        )
+    )
+
+    assert continuation["error"]["code"] == -32000
+    assert "symbolic link" in continuation["error"]["message"]
+    assert "secret" not in json.dumps(continuation)
+
+
+def test_stale_reservations_and_chunks_are_swept_on_the_next_reservation() -> None:
+    stale = time.time() - chunking._CHUNK_TTL_SECONDS - 5
+    unneeded = open_chunk_spill()
+    unneeded.file.close()
+    complete = open_chunk_spill()
+    complete.file.write(b"x")
+    complete.file.close()
+    for spill in (unneeded, complete):
+        os.utime(chunking._CHUNK_DIR / f"{spill.handle}.jsonrpc", (stale, stale))
+    fresh = open_chunk_spill()
+    fresh.file.close()
+
+    sweeper = open_chunk_spill()
+    sweeper.file.close()
+
+    names = {p.stem for p in chunking._CHUNK_DIR.glob("*.jsonrpc")}
+    assert names == {fresh.handle, sweeper.handle}
