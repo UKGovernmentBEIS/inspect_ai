@@ -393,10 +393,20 @@ whether the CLI should require an opt-in for the fallback).
 
 **Membership validation, strict.** Membership is by location, so a stray `.eval`
 file in the directory is a candidate member. Before combining, every member
-must agree on task identifier, `task_version`, model, plan and config with
-the selectors (`sample_id`, `limit`, `sample_shuffle`) excluded from the
-comparison, and epochs; `(id, epoch)` sets must be disjoint. The merge
-refuses on any mismatch rather than skipping the odd file.
+must have the same `task_identifier` (`evalset.py:2058`; decision: Ransom,
+2026-09-21), the same `epochs` and `epochs_reducer`, and `(id, epoch)` sets
+that are pairwise disjoint. The merge refuses on any mismatch rather than
+skipping the odd file. `task_identifier` is the right predicate because it
+is computed from a log header and already covers task file, name, args,
+model, solver plan, generate config, model args, model roles, task version
+and the execution limits while ignoring the dataset selectors (`sample_id`,
+`limit`, `sample_shuffle`) and runtime-only options; it is versioned; and it
+is what `eval_set()` uses to pair the merged log with its task afterwards,
+so a shard set is by construction a set of logs eval_set would treat as one
+task. Epochs and the reducer are not part of the identifier and shape the
+recomputed results, so they are checked explicitly. The identifier is
+computed at merge time with the running Inspect's `TASK_IDENTIFIER_VERSION`,
+so shards written by different Inspect versions compare consistently.
 
 **Completeness.** The merged log is `started` (a non-`success` status) until
 every shard is `success` and the union of members equals the intended
@@ -637,7 +647,8 @@ Pydantic models. New boundaries:
   `tests/test_eval_set.py`, all local: merge a complete shard set; refuse an
   incomplete one unless told to emit `started`; recomputed metrics equal an unsharded
   run's for a built-in metric and for a custom metric that reads `answer`;
-  a stray non-matching `.eval` in the shard directory refused; two overlapping shards
+  a stray `.eval` with a different `task_identifier`, or a matching identifier
+  but different `epochs` or `epochs_reducer`, refused; two overlapping shards
   refused.
 - Incremental tests: merge, grow a shard, merge again and see only the new
   members added; add a shard and see the status return to `started`; a
