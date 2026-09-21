@@ -143,7 +143,9 @@ Every configured monitor or protocol has an instance name: the key when it was c
 @dataclass(frozen=True)
 class BeforeGenerate:
     model: str
-    input: list[ChatMessage]
+    conversation: str           # links this agent's steps across compactions
+    input: list[ChatMessage]    # exactly what the model is sent
+    history: list[ChatMessage]  # the scaffold's full conversation, pre-compaction turns included
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     config: GenerateConfig
@@ -153,7 +155,9 @@ class BeforeGenerate:
 @dataclass(frozen=True)
 class AfterGenerate:
     model: str
-    input: list[ChatMessage]
+    conversation: str
+    input: list[ChatMessage]    # exactly what the model was sent
+    history: list[ChatMessage]
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     config: GenerateConfig
@@ -163,20 +167,24 @@ class AfterGenerate:
 
 @dataclass(frozen=True)
 class BeforeToolCall:
+    conversation: str
     message: str                # assistant text alongside the call
     call: ToolCall              # the call as it will execute
     view: ToolCallView
-    history: list[ChatMessage]
+    input: list[ChatMessage]    # the request that produced the call
+    history: list[ChatMessage]  # the scaffold's full conversation
     escalations: tuple[Reported[Decision], ...] = ()
 
 
 @dataclass(frozen=True)
 class AfterToolCall:
+    conversation: str
     message: str
     call: ToolCall              # the call as executed (after any `modify`)
     result: ChatMessageTool     # what the model will see, after truncation
     output: ToolResult          # the tool's untruncated return value
     view: ToolCallView
+    input: list[ChatMessage]    # the request that produced the call
     history: list[ChatMessage]
     escalations: tuple[Reported[Decision], ...] = ()
 
@@ -185,9 +193,11 @@ Step: TypeAlias = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCal
 """The union. Protocols annotate this to run at every stage."""
 ```
 
-Everything in `step` except `escalations` was written or shaped by the agent under observation and can carry prompt injection. Nothing in `context` came from the agent. Treat `step` as evidence and `context` as instructions.
+Everything in `step` except `conversation` and `escalations` was written or shaped by the agent under observation and can carry prompt injection. Nothing in `context` came from the agent. Treat `step` as evidence and `context` as instructions.
 
 `escalations` is filled only inside a `chain()`: when an earlier link returns `escalate`, its report is handed to the next link here, so a human at the end sees who is asking and why. It is empty everywhere else. The reports are written by monitors, but their explanations may quote agent text, so label them as prior verdicts if you render them into a prompt.
+
+`input` is exactly what the model was sent for this step's generate; `history` is the scaffold's full conversation, including turns a compaction has folded away. They differ whenever the scaffold edits what it sends (`react` inserts a composed system message; a bridge rewrites the request) and after any compaction, so neither is derived from the other, and the system prompt the model saw is `input[0]`. `conversation` links one agent's steps across compactions when several agents share a sample; `ModelEvent` and `CompactionEvent` carry the same id. See `sentinel.md`, "Two histories".
 
 `BeforeToolCall` and `AfterToolCall` are the `Approver` and `Reviewer` payloads with the same fields. `view` and `output` are optional under a proxy, which has no registered tool definitions to render a view from.
 
@@ -443,9 +453,10 @@ Which surfaces exist where:
 | Tool result as the model saw it | yes | next request only, lossy | yes | evidence |
 | Untruncated tool output | yes | no | no | evidence |
 | `ToolCallView` | yes | no | from events only | evidence |
-| History | yes | yes | yes | evidence |
+| Exact model input (`step.input`) | yes | yes, the request | exact from `ModelEvent`; approximate from messages after a compaction | evidence |
+| Full history, pre-compaction turns included (`step.history`) | yes | keyed store; else equals `input` | yes | evidence |
 | Reasoning | provider-dependent | whatever the wire carries | as logged | evidence |
-| System prompt | yes | yes, but written by the scaffold under observation | yes | evidence |
+| System prompt, as the model saw it (`step.input[0]`) | yes | yes, but written by the scaffold under observation | from events only | evidence |
 | Tool definitions, config | yes | yes | from events only | evidence |
 | Media | yes | yes | yes | evidence |
 | `target` | yes | never | yes | instruction |
@@ -894,6 +905,7 @@ class SentinelEvent(BaseEvent):
     name: str             # registry name of the factory, monitor or protocol
     path: str             # instance path, e.g. "attempt/internet_attempt"
     step_id: str          # triggering message id, assistant message id, or tool call id
+    conversation: str     # the agent conversation; shared with its ModelEvents and CompactionEvents
     stage: Literal["model_input", "model_output", "tool_call", "tool_result"]
     kind: Literal["observation", "decision"]
     suspicion: Suspicion | None

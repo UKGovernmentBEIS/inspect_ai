@@ -52,6 +52,8 @@ Both run before the tool call executes (the `step` they take is `BeforeToolCall`
 | `BeforeToolCall` | Before a tool call executes |
 | `AfterToolCall` | After a tool call executes, before the model sees the result |
 
+Every step carries both `input`, exactly what the model was sent for that generate, and `history`, the scaffold's full conversation including turns a compaction has folded away, since scaffolds edit what they send and neither list is derivable from the other. Each step also carries a `conversation` id, shared with the loop's `ModelEvent`s and `CompactionEvent`s, that links one agent's steps across compactions when several agents share a sample.
+
 The sentinel API will include a variety of view functions that help with presenting task context and agent actions to the monitor (e.g. like the `messages_as_str()` function in Inspect Scout).
 
 ### Actions

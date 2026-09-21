@@ -144,7 +144,9 @@ Each takes a single frozen dataclass rather than positional arguments, following
 @dataclass(frozen=True)
 class BeforeGenerate:
     model: str
-    input: list[ChatMessage]
+    conversation: str           # links this agent's steps across compactions
+    input: list[ChatMessage]    # exactly what the model is sent
+    history: list[ChatMessage]  # the scaffold's full conversation, pre-compaction turns included
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     config: GenerateConfig
@@ -154,7 +156,9 @@ class BeforeGenerate:
 @dataclass(frozen=True)
 class AfterGenerate:
     model: str
-    input: list[ChatMessage]
+    conversation: str
+    input: list[ChatMessage]    # exactly what the model was sent
+    history: list[ChatMessage]
     tools: list[ToolInfo]
     tool_choice: ToolChoice
     config: GenerateConfig
@@ -164,20 +168,24 @@ class AfterGenerate:
 
 @dataclass(frozen=True)
 class BeforeToolCall:
+    conversation: str
     message: str                # assistant text alongside the call
     call: ToolCall              # the call as it will execute
     view: ToolCallView
-    history: list[ChatMessage]
+    input: list[ChatMessage]    # the request that produced the call
+    history: list[ChatMessage]  # the scaffold's full conversation
     escalations: tuple[Reported[Decision], ...] = ()
 
 
 @dataclass(frozen=True)
 class AfterToolCall:
+    conversation: str
     message: str
     call: ToolCall              # the call as executed (after any `modify`)
     result: ChatMessageTool     # what the model will see, after truncation
     output: ToolResult          # the tool's untruncated return value
     view: ToolCallView
+    input: list[ChatMessage]    # the request that produced the call
     history: list[ChatMessage]
     escalations: tuple[Reported[Decision], ...] = ()
 
@@ -192,9 +200,19 @@ A monitor never annotates `Step`, since [its annotation is what selects the stag
 
 **Everything in `step` is agent-influenced; nothing in `context` is.** `call`, `message`, `history`, `view`, `result` and `output` are all written or shaped by the agent under observation and are therefore injection-bearing; the briefing is author-written, the store is the monitor's own, the host is the framework's. Splitting them across two arguments makes that boundary structural rather than a matter of field ordering, which is the most useful thing the framework can do about injection (see [It is the only input the agent did not write](#it-is-the-only-input-the-agent-did-not-write)). Which of these fields a given monitor is actually shown, and how they are rendered into its prompt, is the monitor's [view](#views).
 
-`escalations` is the one exception, and it is worth naming as such. It is filled by an [ordered composition](#two-compositions-concurrent-and-ordered): when an earlier link in a chain returns `escalate`, its report is handed to the next link here, so a human at the end of the chain sees who is asking and why. The reports are protocol-authored rather than agent-authored, but they may quote agent text in their explanations, so a monitor rendering them into its own prompt should label them as prior verdicts rather than as instructions. The field is per-step, which is why it lives on the payload and not on `Context`, and it is empty everywhere except inside a chain. Approval's equivalent is a block appended to `view.context`; a first-class field is used instead because `view` exists only on the tool stages and is absent under a proxy.
+`conversation` and `escalations` are the exceptions. The first is a framework-minted id and carries no text. The second is worth naming as such. It is filled by an [ordered composition](#two-compositions-concurrent-and-ordered): when an earlier link in a chain returns `escalate`, its report is handed to the next link here, so a human at the end of the chain sees who is asking and why. The reports are protocol-authored rather than agent-authored, but they may quote agent text in their explanations, so a monitor rendering them into its own prompt should label them as prior verdicts rather than as instructions. The field is per-step, which is why it lives on the payload and not on `Context`, and it is empty everywhere except inside a chain. Approval's equivalent is a block appended to `view.context`; a first-class field is used instead because `view` exists only on the tool stages and is absent under a proxy.
 
 `BeforeToolCall` and `AfterToolCall` are the `Approver` and `Reviewer` payloads. `AfterToolCall` is a faithful dataclass-ification of the merged `Reviewer.__call__`, which takes exactly `message`, `call`, `result`, `output`, `view` and `history` — this document predicted the shape from the PR and it survived contact with the merged code unchanged. The before/after naming earns its keep here: `BeforeToolCall` carries a `call: ToolCall` and `AfterGenerate` an `output: ModelOutput`, so a payload named for the object it wraps would collide with a field inside itself.
+
+#### Two histories: `input` and `history` {#two-histories}
+
+Every payload carries two message lists, and they are not the same list. `input` is exactly what the model was sent for the generate this step belongs to: the request itself at the generate stages, and the request that produced the call at the tool stages. `history` is the conversation as the scaffold holds it — `state.messages` in an eval — including every turn a compaction has since folded away.
+
+Two observations from the current approval-based monitor make the distinction load-bearing. Scaffolds edit what they send: `react` composes a system message from its prompt and inserts it, the bridge path rewrites the request, and a custom agent may transform the system or user message at the call, so the model's input is not `state.messages`, and a monitor reading the latter is not reading what the model read. Compaction pulls the two apart in the other direction: after a summary compaction the input is a summary plus recent turns, while the full trajectory — what "has this agent ever reached the internet" needs — exists only in the scaffold's history. Approvers today get the scaffold's messages (`execute_tools` passes its `conversation`) and never the input, so an approver cannot see the system prompt the model actually saw.
+
+The runner therefore has two obligations, and neither field is derived from the other. It carries the exact input through to the tool stages, which is free in-process because the tool loop follows the generate that produced the call. And it keeps the scaffold's full history available at every stage, whatever the model was shown. Both are evidence. The system prompt the model saw is `input[0]`, not `history[0]`. The [surfaces table](#the-surfaces) records where each is available: under a proxy `input` is the request, and `history` is what the proxy accumulated for the conversation, coinciding with `input` when there is no keyed store (`sentinel-deployment.md`).
+
+**Lineage.** Linking one agent's inputs across a compaction is not possible today by inspection. A `CompactionEvent` carries a `role` and a `source` but no reference to the conversation it compacted, a `ModelEvent` carries only its innermost span, and several agents can interleave their events in one sample. So every step carries `conversation: str`, an id minted by whichever loop owns the messages — `react`, the generate loop, a bridge — when that conversation starts and held for its life, and `SentinelEvent` records it. What this asks of core is that `ModelEvent` and `CompactionEvent` record the same id, so that "every input this agent was sent, in order, with the compactions between them" is a filter on one field rather than a heuristic over spans and timestamps. `sentinel-development.md` depends on it to rebuild `history` from events.
 
 ### The context
 
@@ -1282,6 +1300,9 @@ class SentinelEvent(BaseEvent):
     """The step examined: the triggering message id (BeforeGenerate), the assistant
     message id (AfterGenerate), or the tool call id (tool stages). See
     sentinel-development.md, "Step ids"."""
+    conversation: str
+    """The agent conversation this step belongs to; the same id the loop's
+    `ModelEvent`s and `CompactionEvent`s carry. See "Two histories"."""
     stage: Literal["model_input", "model_output", "tool_call", "tool_result"]
     kind: Literal["observation", "decision"]
     """Agrees with the registry type of `monitor` by construction."""
@@ -1296,7 +1317,7 @@ class SentinelEvent(BaseEvent):
 
 `decision` versus `outcome` is the layering made legible in the log: what this layer decided, and what the layer above did with it. Without both, a reader cannot tell an overruled decision from one that was never made — which is exactly what a reader of a nested configuration needs to see.
 
-`step_id` is what lets a report be matched to a label. It is recorded live, from ids that exist before the monitor runs, so a validation set built against replayed steps also matches the events an eval recorded — the two scan modes in `sentinel-development.md` share it.
+`conversation` is what lets a reader follow one agent through a sample that has several, and across that agent's compactions, without guessing from spans; see [Two histories](#two-histories). `step_id` is what lets a report be matched to a label. It is recorded live, from ids that exist before the monitor runs, so a validation set built against replayed steps also matches the events an eval recorded — the two scan modes in `sentinel-development.md` share it.
 
 `path` is #5423's `chain` field, generalised. That proposal tagged each `ApprovalEvent` with the name of the chain it belonged to; with arbitrary nesting a single parent name is not enough, and a path names the layer at every depth. `monitor` and `path` are both kept because a reader wants both questions answered: which code ran, and which configured instance it was.
 
@@ -1349,9 +1370,10 @@ What a monitor can be shown, where each thing comes from, and where it is availa
 | Tool result as the model sees it | `step.result` | yes | next request only (lossy) | yes; exact from `ToolEvent` | evidence |
 | Untruncated tool output | `step.output` | yes | **no** | **no** | evidence |
 | Tool call view (`ToolCallView`) | `step.view` | yes | **no** | from events only | evidence |
-| Conversation history | `step.history` / `step.input` | yes | yes (the request carries it) | yes | evidence |
+| Exact model input | `step.input` | yes | yes (the request) | exact from `ModelEvent`; approximate from messages after a compaction | evidence |
+| Full history, pre-compaction turns included | `step.history` | yes | keyed store; else equals `input` | yes | evidence |
 | Reasoning (`ContentReasoning`) | inside assistant messages | provider-dependent: full, summary, or redacted | whatever the wire carries | as logged | evidence |
-| System prompt | first message of history | yes | yes | yes | **see below** |
+| System prompt, as the model saw it | `step.input[0]` when present | yes | yes | from events only | **see below** |
 | Tool definitions, generate config | `step.tools`, `step.config` | yes | yes | from events only | evidence |
 | Media (images, audio, documents) | content parts | yes | yes | yes | evidence |
 | Prior escalations | `step.escalations` | yes | yes | recorded | prior verdicts |
@@ -1663,3 +1685,4 @@ ordered composition should be the default (no — see [Two compositions](#two-co
 19.  **Is the alias `ControlProtocol` or `Protocol`?** Bare `Protocol` collides with `typing.Protocol`, which this codebase imports constantly, and `ControlProtocol` is the safe name. The cost is that the decorator and the alias no longer pair the way `tool` and `Tool` do. Accepting the collision — a monitor author's file rarely defines structural types — is the alternative.
 20.  **Should `chain` and `concurrent` accept monitors at all?** They do here: a monitor in either is recorded and falls through, which is what gives a mixed top-level list a meaning. The alternative is `Protocols` only, with monitors reachable solely through a score-reading protocol; stricter, and it would make `Task(sentinel=[no_curl(), suspicion_monitor()])` a type error rather than a recorded-but-inert monitor.
 21.  **What is the umbrella called?** Settled: `sentinel`, for the feature, `Task(sentinel=)`, the package and the event, with `monitor` kept for the scorer and `protocol` for the decider as the control literature and ControlArena use them. `Task(monitor=)` held protocols and rules and never a bare monitor, and reviewers read it as "the monitor plus the protocol". Renaming the scorer instead (`observer`) would have broken the literature's pair; `ranger`, `warden` and `oversight` were the runners-up for the umbrella.
+22.  **Where does `conversation` come from, and is `history` eager?** The id wants minting by the loop that owns the messages, which is `react`, the generate loop and each bridge in-process, and the proxy's session key outside; whether `AgentState` should carry it, or the runner derive it from the agent span, is open. `history` on every payload is a reference to the scaffold's list in-process, but replay and a proxy must materialise it per step, which is O(n) per step over a long trajectory unless the runner hands out a shared, append-only view.

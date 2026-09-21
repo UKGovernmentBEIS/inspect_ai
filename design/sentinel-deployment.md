@@ -189,6 +189,8 @@ A proxy has no ContextVar, no sample identity and no `Store`. Two mechanisms rep
 
 **A keyed store in the proxy layer.** A session header plus a local store, carrying what the conversation does not: the monitor's own accumulated judgment.
 
+The request is `step.input` exactly, which is the one place a proxy beats an eval: nothing sits between the scaffold and the wire. What the request stops carrying once the agent compacts is the pre-compaction history, so `step.history` under a proxy is the keyed store's accumulation of what each request added for that session, with the session key doubling as the step's `conversation` id. Without a store, `history` is `input`, and a monitor that needs the full trajectory should declare it, so that a storeless deployment refuses it at configuration time rather than running it on a truncated view.
+
 ### The store is not merely a convenience
 
 Re-judging the whole trajectory on every request is O(n) work at turn n, so O(n²) across a conversation. When judging is an LLM call that is O(n²) *inference* — by turn 40 the monitor has spent more than the agent. The affordable shape is incremental: classify only the newest turn and fold the verdict into running state. Incremental monitoring requires somewhere to fold into.

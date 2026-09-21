@@ -74,6 +74,8 @@ The canonical reconstruction works from `list[ChatMessage]` alone, because that 
 | `BeforeToolCall` | each `tool_calls[i]` on an assistant message, with the message text and history to that point | `view` absent |
 | `AfterToolCall` | the `ChatMessageTool` whose `tool_call_id` matches, as `result`; history to that point | `output` (untruncated) absent |
 
+Messages give the two histories unevenly. A transcript's messages *are* `history`, the scaffold's full conversation with its pre-compaction turns, so that field is exact. `input` can only be approximated as the history to that point, which is right until the first compaction and wrong after it: the model was shown a summary plus recent turns, and the reconstruction shows it everything. A monitor measured on such a replay sees less in a live run than it was measured on, and the adapter should say so when the transcript carries compaction markers.
+
 `view` and `output` being absent is the case `sentinel.md` already requires monitors to tolerate for proxies, so a portable monitor replays from messages unchanged. Note the last row is *better* than the proxy's: a proxy never sees the final step's result because no further request carries it, whereas a transcript is complete.
 
 ``` python
@@ -93,6 +95,8 @@ def steps_from_messages(
 ### From events
 
 An eval log's events restore what messages lose. `ModelEvent` carries `input`, `tools`, `tool_choice`, `config` and `output` — `BeforeGenerate` and `AfterGenerate` field for field. `ToolEvent` carries `function`, `arguments`, `view`, `result` and the `truncated` range, which restores `view` and lets `result` be exactly what the model saw. The one thing an eval log does not hold is the untruncated tool `output`, so `AfterToolCall.output` stays optional in replay too.
+
+Events also restore `input` exactly, from `ModelEvent.input`, and let `history` be rebuilt per agent: walk the `ModelEvent`s and `CompactionEvent`s that share one `conversation` id in order, accumulating what each generate added and marking each compaction. That id is what `sentinel.md` asks core to record; without it the link between a pre- and a post-compaction event is a guess, because a span identifies the innermost scope rather than the agent, and a sample with several agents interleaves their events. That guess is the reconstruction difficulty the current approval-based monitor runs into, and it is why the id is a requirement rather than a convenience.
 
 `steps_from_events()` is therefore an *enrichment* of the messages reconstruction rather than a second algorithm: it walks the same message sequence and attaches the matching event's fields where one exists. That keeps step identity (below) independent of whether events were available, which is what lets one validation set serve both kinds of source.
 
@@ -263,6 +267,7 @@ Monitor inference in replay is charged to the scan, never to anything resembling
 ## What this asks of the other documents
 
 - **`sentinel.md` and `sentinel-reference.md`:** `SentinelEvent.step_id`, recorded live by the runner. Open question 5 (calibration) and open question 11 (monitors as scores) are answered here and retire there.
+- **Core:** `conversation` on `ModelEvent` and `CompactionEvent`, so the events reconstruction can rebuild one agent's `history` across compactions without a heuristic.
 - **`inspect-core.md`:** the events-based reconstruction wants `ModelEvent` and `ToolEvent` in core. Not required, but it is a concrete consumer for the first open question.
 - **Scout:** `Result.subject`; expansion of subject-bearing results into rows; `"sentinel"` in `EventType`; the read-mode scanner; `calibrate()`; and, later, a step-level labelling gesture in the transcript view.
 
