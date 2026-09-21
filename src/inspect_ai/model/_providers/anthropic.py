@@ -508,12 +508,11 @@ class AnthropicAPI(ModelAPI):
             # we must use one or the other — not both.
             auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
             if auth_token:
+                default_headers = self._oauth_default_headers(model_args)
                 return AsyncAnthropic(
                     base_url=base_url,
                     auth_token=auth_token,
-                    default_headers={
-                        "anthropic-beta": "oauth-2025-04-20",
-                    },
+                    default_headers=default_headers,
                     **model_args,
                 )
             # resolve api_key
@@ -1168,6 +1167,22 @@ class AnthropicAPI(ModelAPI):
             for b in headers.pop(key).split(",")
             if (beta := b.strip())
         ]
+
+    def _oauth_default_headers(self, model_args: dict[str, Any]) -> dict[str, str]:
+        """Default headers for the OAuth client, merging in the caller's own.
+
+        Popping the caller's `default_headers` out of `model_args` (rather
+        than letting it also flow through `**model_args`) avoids a duplicate
+        `default_headers` keyword argument. The OAuth beta is then combined
+        with any caller-supplied `anthropic-beta` (or `anthropic_beta`)
+        value, as `_beta_header_value` combines it for per-request betas.
+        """
+        headers: dict[str, str] = dict(model_args.pop("default_headers", None) or {})
+        caller_betas = self._pull_betas_from_headers(headers)
+        headers["anthropic-beta"] = ",".join(
+            dict.fromkeys(["oauth-2025-04-20", *caller_betas])
+        )
+        return headers
 
     def _beta_header_value(self, betas: list[str]) -> str:
         """Value for a per-request anthropic-beta header.
