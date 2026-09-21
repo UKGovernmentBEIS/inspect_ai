@@ -509,9 +509,7 @@ When falling back to the `python()` provider you should ensure that your `Task` 
 The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
 
 ::: callout-warning
-The `web_browser()` tool uses a headless browser for interacting with the web. However, as of 2026, many websites have incorporated defenses against headless browsers. Therefore if you want to do generalized web information retrieval you should strongly prefer the [web_search()](#sec-web-search) tool.
-
-If however you are using the web browser to interact with a local web application or specific sites you know don't block it then this warning isn't applicable.
+The `web_browser()` tool is deprecated and its implementation will be removed around November 2026. Calling `web_browser()` now logs a deprecation warning; after removal it will raise an error. Most websites now block headless browsers, so for web information retrieval use the [web_search()](#sec-web-search) tool. For interacting with web applications (local web apps, forms, multi-step flows) use the [computer()](#sec-computer) tool, or run a browser MCP server such as [Playwright MCP](https://github.com/microsoft/playwright-mcp) inside your sandbox with [`mcp_server_sandbox()`](tools-mcp.qmd#sandboxes). See [issue #5497](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5497) for details, and comment there if you rely on `web_browser()` in a way these paths do not cover.
 :::
 
 ### Configuration

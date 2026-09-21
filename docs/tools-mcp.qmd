@@ -236,6 +236,8 @@ def web_surfer() -> Agent:
 ```
 ````
 
+The `web_browser()` tool used above is [deprecated](tools-standard.qmd#sec-web-browser); it appears here only to illustrate `mcp_connection()`.
+
 Note that the `mcp_connection()` function can take an arbitrary list of `tools` and will discover and connect to any MCP-based `ToolSource` in the list. So if your agent takes a `tools` parameter you can just forward it on. For example:
 
 ``` python
