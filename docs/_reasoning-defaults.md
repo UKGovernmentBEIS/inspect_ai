@@ -13,6 +13,8 @@
 | deepseek/deepseek-reasoner | no effort scale |
 | deepseek/deepseek-v4-flash | high |
 | deepseek/deepseek-v4-pro | high |
+| fireworks/glm-5p3 | max |
+| fireworks/glm-5p3-flash | max |
 | google/gemini-3-flash-preview | medium |
 | google/gemini-3-pro | high |
 | google/gemini-3.1-flash-lite-preview | medium |
@@ -53,3 +55,9 @@
 | openai/gpt-5.6-sol | medium |
 | openai/gpt-5.6-terra | medium |
 | openai/gpt-6-astra | medium |
+| z-ai/glm-5.3 | max |
+| z-ai/glm-5.3-flash | max |
+| zai-org/GLM-5.3-FP8 | max |
+| zai-org/GLM-5.3-FP8-Lora | max |
+| zai-org/glm-5.3 | max |
+| zai-org/glm-5.3-flash | max |
