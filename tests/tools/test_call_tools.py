@@ -4,6 +4,7 @@ from datetime import date, time, timezone
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
+import pytest
 from pydantic import BaseModel
 from typing_extensions import TypedDict
 
@@ -472,6 +473,39 @@ async def test_mixed_content_and_str_list_does_not_crash():
     # as list[Content]
     assert isinstance(messages[-1].content, str)
     assert "RAW STRING" in messages[-1].content
+
+
+@tool
+def value_error_tool():
+    async def execute() -> str:
+        """Raise a ValueError unrelated to null bytes."""
+        raise ValueError("ordinary value error")
+
+    return execute
+
+
+async def test_other_value_error_escapes_the_tool_call_handler():
+    """A `ValueError` other than the null-byte case is not captured as a tool failure.
+
+    Pins the pre-existing shape so the shared `tool_call_error` mapping stays
+    behaviour-neutral: the exception escapes the per-call handler (the sample
+    fails) and the event is finalised by the stage's cancellation handling
+    rather than recorded as a captured failure with no error.
+    """
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    tool_def = ToolDef(value_error_tool())
+    call = make_call("value_error_tool", {})
+    with pytest.raises(ValueError, match="ordinary value error"):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+        )
+
+    (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    assert event.failed is True
+    assert event.error is not None
+    assert event.error.type == "cancelled"
 
 
 async def test_tool_event_message_id_for_multiple_calls():
