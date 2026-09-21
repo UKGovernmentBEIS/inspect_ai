@@ -1180,6 +1180,18 @@ async def test_probe_is_bounded_by_the_provider_timeout_without_retry() -> None:
             id="unparsable-caps",
         ),
         pytest.param(
+            root_probe_result(uid="garbled"),
+            "ambiguous",
+            "could not be parsed",
+            id="unparsable-uid",
+        ),
+        pytest.param(
+            root_probe_result(setgroups="garbled"),
+            "ambiguous",
+            "could not be parsed",
+            id="unparsable-setgroups",
+        ),
+        pytest.param(
             ExecResult(
                 success=True,
                 returncode=0,

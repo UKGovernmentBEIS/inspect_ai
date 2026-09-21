@@ -221,9 +221,9 @@ _AMBIGUOUS_ROOT_ACCESS_WARNING = (
     "exec_remote and the sandbox agent bridge) therefore runs as the sandbox's "
     "default user, the same user the agent's own commands run as. That is expected "
     "for sandboxes that cannot run as root; if root is in fact available, that "
-    "tooling is not isolated from the agent's code. The check is recorded as a "
-    "sandbox exec event at the start of the sample and under 'Sandbox Tools' in the "
-    "trace log."
+    "tooling is not isolated from the agent's code. The check is recorded under "
+    "'Sandbox Tools' in the trace log and, when the provider returned output, as a "
+    "sandbox exec event at the start of the sample."
 )
 
 
@@ -415,11 +415,13 @@ def _root_access_verdict(probe: ExecResult[str]) -> RootAccess:
             f"{probe.stderr or probe.stdout!r}",
         )
     try:
-        uid = fields["Uid"].split()[0]
-        if uid != "0":
+        uid = int(fields["Uid"].split()[0])
+        if uid != 0:
             return RootAccess("unusable", f"commands run as uid {uid}, not as root")
         cap_eff, setgroups = fields["CapEff"].strip(), fields["setgroups"].strip()
         caps = int(cap_eff, 16)
+        if setgroups not in ("allow", "deny"):
+            raise ValueError(setgroups)
     except (IndexError, ValueError):
         return RootAccess(
             "ambiguous", f"root probe output could not be parsed: {probe.stdout!r}"
