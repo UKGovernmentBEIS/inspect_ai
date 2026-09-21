@@ -236,14 +236,12 @@ its directory makes it an ordinary partial log.
 - **The name is the identity.** There is no separate identifier: the shards
   of `<name>.eval` are the `.eval` files under `<name>.shards/`, and the
   merge's idempotence lookup is a name derivation in both directions (`<name>.shards/` implies
-  `<name>.eval`, and `<name>.eval` implies `<name>.shards/`). The shard manifest
-  sits at `<name>.shards/manifest.json` (name still phase 2) and holds the
-  intended `(id, epoch)` selection (or "the whole dataset") and the task
-  identity the launcher expects; every merge re-reads it, and it is also how
-  adding shards later is expressed. A count or id list passed to the CLI merge is
-  the hand-driven override (open question 2). Headers alone cannot supply
-  completeness for a subset selection: each shard records only its own
-  `dataset.sample_ids`, and `dataset.samples` is the full dataset size.
+  `<name>.eval`, and `<name>.eval` implies `<name>.shards/`). Nothing else is
+  written into `<name>.shards/` by the design: no manifest or index file
+  (decision: Ransom, 2026-09-21). The intended selection the merge checks
+  completeness against is a parameter of the merge, supplied by whoever
+  calls it (see "Completeness"), and after the first merge it is carried by
+  the merged log's provenance field.
 - **Writer surface.** Workers run with `--log-dir <dir>/<name>.shards/<k>/`
   (`eval(log_dir=...)`, `inspect eval --log-dir`, or the selection protocol's
   per-worker `log_dir` override, `eval_set_overrides.py:164`). The recorder
@@ -297,9 +295,9 @@ its directory makes it an ordinary partial log.
   same style would place shards at `<root>/<name>.shards/<k>/`, which is how
   JJ's harness would keep its per-shard prefixes separate from the log
   directory. It costs symmetry: with an override the merge cannot derive the
-  shard root from `<name>.eval` alone, so the root must reach it through the
-  shard manifest or a CLI argument. Whether this is Step 1 or later is open
-  question 6.
+  shard root from `<name>.eval` alone, so the root must reach it as a merge
+  parameter for the first merge and from the merged log's provenance field
+  after that. Whether this is Step 1 or later is open question 5.
 
 ### The listing exclusion
 
@@ -360,7 +358,7 @@ recompute it. Recomputation needs the task's metric code importable: a
 runner or an `eval_set()` process has it; a CLI merge from a laptop may not,
 and then `resolve_scorers_info`'s `task_file` fallback imports log-named code
 exactly as recovery does today. The merge records which of the two it did
-and fails rather than store metrics from a lossy input (open question 4 on
+and fails rather than store metrics from a lossy input (open question 3 on
 whether the CLI should require an opt-in for the fallback).
 
 **Membership validation, strict.** Membership is by location, so a stray `.eval`
@@ -371,15 +369,25 @@ comparison, and epochs; `(id, epoch)` sets must be disjoint. The merge
 refuses on any mismatch rather than skipping the odd file.
 
 **Completeness.** The merged log is `started` (a non-`success` status) until
-every shard is `success` and the union of members equals the manifest's
-intended selection; then `success`. `eval_set()` already classifies any
+every shard is `success` and the union of members equals the intended
+`(id, epoch)` selection; then `success`. The intended selection is a merge
+parameter, not a file: headers alone cannot supply it for a subset run (each
+shard records only its own `dataset.sample_ids`, and `dataset.samples` is
+the full dataset size), and every caller of the merge already knows it. The
+launcher assigned the ids, so it passes them at the end-of-run merge and
+again, enlarged, when it adds shards later. `eval_set()` computes the
+selection from the task's dataset and selectors, as `log_samples_complete`
+does today. The CLI merge takes an id list or a count as an option. After
+the first merge the merged log's provenance field records the selection it
+merged against, so any later merge, by any caller, reads it from there. A
+first merge with no selection supplied is complete only for a whole-dataset
+run (the union's size equals `dataset.samples`); otherwise it writes
+`started`, or refuses, per the rule below. `eval_set()` already classifies any
 non-`success` log as incomplete (`evalset.py:1837-1860`), so it never treats
 an incomplete merged log as done. The merge refuses to write a `success` log
 over an incomplete shard set and, unless told to, refuses an incomplete
 shard set altogether; when told to (the startup and periodic cases), it writes the
-`started` log (Ransom and JJ Allaire, 2026-09-18). For a whole-dataset selection
-the union's size is checked against `dataset.samples`; for a subset the
-manifest is the authority.
+`started` log (Ransom and JJ Allaire, 2026-09-18).
 
 **Provenance and ledger: a new header field.** Decision (Ransom,
 2026-09-21): the merged log carries a new typed `EvalSpec` field (not
@@ -422,9 +430,9 @@ have grown, and additional shards added later.
   the surviving copy. Two *different* shards both holding the same
   `(id, epoch)` in one pass, neither superseding the other, is a disjointness
   violation and the merge refuses. Newest-wins is a recommendation (open
-  question 3).
+  question 2).
 - *Adding shards.* Adding shards later changes the intended selection. The
-  launcher rewrites the manifest; every merge re-reads it; the merged
+  launcher passes the enlarged selection to the next merge, and the merged
   field records the selection it last merged against. A shard set that grows
   after the merged log reached `success` makes that log incomplete again, so
   the next merge returns it to `started` until the new shards land, and says
@@ -490,7 +498,7 @@ re-run by the normal retry path, unsharded unless the runner re-shards them.
   the upload. Writing `--log-dir` straight to the shared
   `<dir>/<name>.shards/<k>/` prefix restores all three. A harness that wants
   its shard prefixes elsewhere than beside the merged log would use the
-  `shards_location` override (open question 6).
+  `shards_location` override (open question 5).
 - `limit` and `sample_id` are mutually exclusive in `eval()`
   (`eval.py:907`), so a harness that shards a *subset* of a dataset must
   resolve the subset to ids first and hand each worker its `sample_id` list.
@@ -509,35 +517,28 @@ assumes.
    `<name>.shards/` itself listable) versus direct children of the listed
    root only (precise, but a parent-directory viewer lists every run's
    shards).
-2. **Completeness input.** A launcher-written shard manifest with the intended
-   `(id, epoch)` selection (recommended: it names the missing samples, which
-   the resume path needs, and detects a wrong member) versus a shard count
-   passed to the merge (proves N `success` shards exist and relies on
-   disjointness for coverage). The design assumes the manifest, with the
-   count as the CLI override.
-3. **Conflict policy.** Newest wins when a retried shard re-runs an already
+2. **Conflict policy.** Newest wins when a retried shard re-runs an already
    merged sample (recommended, matching the retry rule) versus refusing.
-4. **CLI merge and the `task_file` fallback.** Whether a CLI merge may follow
+3. **CLI merge and the `task_file` fallback.** Whether a CLI merge may follow
    `resolve_scorers_info`'s fallback to import the log's `task_file` when the
    metric code is not installed, as recovery does today, or must require an
    explicit opt-in. Recommendation: allow it with a visible notice, since the
    CLI is run deliberately on a directory the user chose, and revisit with
    the general policy under "Not this design".
-5. **Step 2's place.** Now that the merge is incremental there are two routes
+4. **Step 2's place.** Now that the merge is incremental there are two routes
    to live whole-task metrics: the summaries-only rollup (cheap per tick, a
    value-only approximation that must be labelled as such) or the
    incremental merge on a timer (exact, a merged-zip rewrite per tick,
    reducible by S3 composition). Whether Step 2 remains a separate step,
    becomes "run the merge on a timer", or is skipped for Step 3.
-6. **`shards_location` override: Step 1 or later.** The checkpoint-style
+5. **`shards_location` override: Step 1 or later.** The checkpoint-style
    override (`<root>/<name>.shards/<k>/`) is how JJ's harness would keep
    per-shard prefixes away from the log directory. It is cheap to add to the
    layout helper, but it breaks name-only derivation: the merge must then
-   learn the root from the manifest or a CLI argument. Recommendation:
-   Step 1, with the root recorded in the manifest and in the merged log's
-   provenance field, so the CLI merge given only `<name>.eval` still finds
-   the shards.
-7. **Forming `<name>`.** The design assumes the `{created}_{task}_{id}` log
+   learn the root as a merge parameter on the first merge. Recommendation:
+   Step 1, with the root recorded in the merged log's provenance field, so
+   a later CLI merge given only `<name>.eval` still finds the shards.
+6. **Forming `<name>`.** The design assumes the `{created}_{task}_{id}` log
    file shape, with `{id}` a freshly minted task id that becomes the merged
    log's `eval.task_id`, and a stable `eval_id` minted at the first merge.
    Confirm, or choose a different shape for launcher-minted names.
@@ -578,15 +579,16 @@ Pydantic models. New boundaries:
   hostile file, and the merge refuses rather than skips. The name
   derivation between `<name>.eval` and `<name>.shards/` is a string rule on
   a basename, not a pointer read from a file, so it introduces no new path
-  input; the override root (open question 6) does, and is validated like
+  input; the override root (open question 5) does, and is validated like
   any other configured location.
-- **The shard manifest** is untrusted input to the merge and is parsed with a
-  strict model.
+- **The intended selection** reaches the merge as a parameter or from the
+  merged log's own header, never from a separate file in the shard
+  directory, so the directory holds only `.eval` files and their buffers.
 - **Recomputation executes code the log names.** The merge is the only place
   metrics are recomputed, and it runs only as a trusted Python step
   (launcher, `eval_set()` startup, CLI); no reader path (viewer server,
   `read_eval_log`, `evals_df`) recomputes or follows the `task_file`
-  fallback. Open question 4 covers the CLI's use of that fallback.
+  fallback. Open question 3 covers the CLI's use of that fallback.
 - **The listing exclusion** hides shards from enumeration but grants nothing;
   a viewer listing `<name>.shards/` or `<name>.shards/<k>/` directly is
   authorized per file as today (`_validate_read`).
@@ -689,14 +691,25 @@ Kept for the record and as the rationale for the design above.
   `value`, but wrong for custom metrics that read other fields (see
   "Constraints"). Rejected for the merge; still the basis of the Step 2
   rollup variant, labelled as an approximation.
-- **Shard count as the completeness input.** See open question 2.
+- **A launcher-written manifest in `<name>.shards/`** holding the intended
+  selection, task identity and override root. Dropped (Ransom, 2026-09-21):
+  every caller of the merge already knows the intended selection (the
+  launcher assigned the ids, `eval_set()` derives it from the task, the CLI
+  takes it as an option) and the merged log's provenance field carries it
+  after the first merge, so the file would serve only a first CLI merge on a
+  subset run by someone other than the launcher. That case writes `started`
+  or takes the selection on the command line. Reconsider if such merges turn
+  out to be common.
+- **Shard count as the completeness input.** Proves N `success` shards exist
+  and relies on disjointness for coverage; kept only as the CLI's cheaper
+  option beside an id list, since it cannot name missing samples.
 - **Direct-child listing rule.** See open question 1.
 - **A periodic full merge as originally rejected (2026-09-18).** The
   objections were a full rewrite per tick, reading running shards through
   their journals, and needing a `started` status. The incremental-merge
   decision answers the last two and keeps the first as the recorded cost
   shape; the rewrite cost is why the summaries rollup remains a candidate
-  for Step 2 (open question 5).
+  for Step 2 (open question 4).
 
 ## Not this design
 
@@ -714,7 +727,7 @@ Kept for the record and as the rationale for the design above.
   the public `recompute_metrics` and `edit_score`, and recovery including
   recovery triggered during eval-set resume and eval retry, on any log;
   whether those operations should require an opt-in before importing
-  log-named code is a separate question (open question 4 is the merge's
+  log-named code is a separate question (open question 3 is the merge's
   slice of it).
 - `EvalDataset.samples` records the full dataset size while `sample_ids` is
   the slice; the pair is the only present hint that a log is partial and its
