@@ -29,7 +29,7 @@ If you are not using VS Code, you can also run Inspect View directly from the co
 $ inspect view
 ```
 
-By default, `inspect view` will use the configured log directory of the environment it is run from (e.g. `./logs`). You can specify an alternate log directory using `--log-dir` ,for example:
+By default, `inspect view` will use the configured log directory of the environment it is run from (e.g. `./logs`). You can specify an alternate log directory using `--log-dir`, for example:
 
 ``` bash
 $ inspect view --log-dir ./experiment-logs
