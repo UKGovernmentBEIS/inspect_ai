@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Grok: Support for Grok 4.7 (model info database entry with its 500K context window and `high` default reasoning effort).
+- Bugfix: `bash_session` no longer sends the literal string "None" to the shell when `type_submit` is called without `input`.
 - Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
 - Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
 - Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
