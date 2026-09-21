@@ -5,7 +5,9 @@ the options (now under "Alternatives not taken"); the phased direction below
 was agreed by Ransom and JJ Allaire on 2026-09-18 and refined by Ransom on
 2026-09-21, including the shard layout: shards live in a companion directory
 beside the merged log, `<dir>/<name>.shards/<k>/`, mirroring sandbox
-checkpointing's `<name>.checkpoints/` (Ransom, 2026-09-21). No API
+checkpointing's `<name>.checkpoints/` (Ransom, 2026-09-21). The first
+implementation ships no launcher: merging is done through a Python API, a
+CLI command, or `eval_set()` at startup (Ransom, 2026-09-21). No API
 signatures or implementation plan yet; those are the next document. Open
 decisions are listed under "Open questions".
 Issue: https://github.com/meridianlabs-ai/inspect_ai/issues/509.
@@ -200,12 +202,16 @@ its own.
 - **Step 1.** Shards are written as separate `.eval` files under the
   merged log's companion directory, `<dir>/<name>.shards/<k>/`, and merged
   into the canonical log `<dir>/<name>.eval` by a trusted, incremental merge
-  run by the launcher at end of run, by `eval_set()` at startup, and by a
-  new CLI command. Fully opt-in.
+  exposed as a Python API and a new CLI command, and run by `eval_set()` at
+  startup. Inspect ships no launcher in the first implementation (Ransom,
+  2026-09-21): whoever starts the workers, a runner such as JJ's harness or
+  a shell script, calls the API or the CLI when its workers finish, or
+  leaves the merge to the next `eval_set()` over the directory. Fully
+  opt-in.
   While shards run, what is missing is the whole-task rollup, not
   per-sample liveness: each shard is a normal in-progress log with its own
-  sample buffer, and the viewer shows it live when pointed at the shard
-  directory.
+  sample buffer, listed and shown live by the viewer as today (Step 1 adds
+  no listing exclusion; see "Listing").
 - **Step 2.** Live whole-task metrics during the run: a periodic rollup of
   shard headers and summaries into a stored rollup (Ransom,
   2026-09-18), or, now that the merge is incremental, the merge itself run on
@@ -299,47 +305,71 @@ its directory makes it an ordinary partial log.
   parameter for the first merge and from the merged log's provenance field
   after that. Whether this is Step 1 or later is open question 5.
 
-### The listing exclusion
+### Listing: no exclusion in Step 1
 
-This is where shards differ from checkpoints: exclusion is by rule, not by
-content. A `<name>.checkpoints/` directory is invisible to listing only
-because it holds no `.eval` files; a `<name>.shards/` directory holds them
-from their first byte, so every enumerator must skip anything under a
-`*.shards/` directory or the shards appear as N logs while running. All
-enumerators funnel through `_filter_log_files` (see "Current behaviour"),
-so the rule has one home. Re-checked against that list: `list_eval_logs`
-and `list_eval_logs_async` (and through them the viewer server's `/logs` and
-`/log-files` and the eval-set directory scan), the dataframe directory
-expansion, `convert_eval_logs` and `bundle_log_dir`'s listing manifest all
-pass through the filter; `bundle_log_dir` also copies the directory's
-contents, and whether it skips `*.shards/` bytes or carries them along
-unlisted is a phase-2 detail (wasteful, not incorrect). The filter must be
-given the listed root, and the rule is stated relative to it: **a file is
+Decision (Ransom, 2026-09-21): Step 1 adds no listing exclusion. Shards
+under `<name>.shards/<k>/` are listed as ordinary partial logs beside the
+merged log by every enumerator, exactly as unrecognised shards are listed
+today. The merged log is plainly a rollup that may lag the shards, and the
+parent view is never blank: a sharded run shows its running shards from the
+first byte, and one more row once the first merge lands.
+
+Why not hide them: any exclusion rule, unconditional or conditional on the
+merged log existing, creates a state where the merged log is stale (new
+samples in a shard, or a shard added later, not yet merged) and the ongoing
+work is invisible from the parent view. That confusion is worse than the
+clutter it removes. The layout makes deferral safe: shards sit under
+`*.shards/` from their first write, so an exclusion added later is one
+change in the shared filter (`_filter_log_files`, which every enumerator
+passes through; see "Current behaviour"), with no files to move and no
+compatibility break. The candidate rule, if it is ever wanted, is "a file is
 excluded when its path relative to the listed root contains a component
-ending in `.shards`** (any depth below the root, per the current
-recommendation). Listing `<dir>/<name>.shards/` or
-`<dir>/<name>.shards/<k>/` directly still shows the shards, since nothing
-below that root carries the suffix. A viewer or `evals_df` pointed at a
-*parent* of many run directories (the common `inspect view --log-dir ./logs`)
-hides every run's shards. Keying on the `.shards` suffix also avoids
-colliding with a user directory named `shards`; a collision now needs a
-user directory whose name ends in `.shards` and holds `.eval` files, and
-those stay readable by direct path or by listing that directory. Shards are
-found for merging by a dedicated scan of `<name>.shards/*/`, never through
-the listing. Any-depth versus direct-child remains open question 1.
+ending in `.shards`", keyed on the suffix so a user directory named `shards`
+is unaffected; open question 1 records it as deferred.
+
+What listing shards beside the merged log costs, stated so the affected
+tools are pointed at merged logs:
+
+- **Viewer.** N shard rows plus one merged row per task, the clutter the
+  issue started from, but with the whole-task row present the shard rows
+  are extra, not wrong. Pointing the viewer at the merged log, or deleting
+  shards after a verified merge (the explicit option under "Shard
+  disposition"), clears it.
+- **`evals_df`.** Dedupes by `eval_id` (`analysis/_dataframe/evals/table.py:160`)
+  and the merged log has its own, so a directory of sharded runs gives N+1
+  rows per task. Filter on the provenance field, which only merged logs
+  carry, or pass merged logs explicitly; a helper for that is a later
+  nicety.
+- **`samples_df`.** Unaffected: it dedupes on sample `uuid`
+  (`analysis/_dataframe/samples/table.py:365,430`) and the merge copies
+  samples with their uuids, so no sample is doubled.
+- **Scout and other downstream readers** that do not dedupe by sample
+  `uuid` see each merged sample twice unless pointed at merged logs. This is
+  the one correctness cost and the first reason to revisit the exclusion.
+- **`eval_set()`** is unaffected because it skips shards itself (see
+  "Eval-set integration"); that skip is required for correctness regardless
+  of the general listing decision.
+
+Shards are found for merging by a dedicated scan of `<name>.shards/*/`,
+never through the listing.
 
 ### The merge
 
 The merge is the only writer of the merged log and the only place metrics
 are recomputed.
 
-**Ownership.** Decision (Ransom, 2026-09-18): launcher-owned by default. One
-process launches the workers, watches for the shard logs to complete, and
-merges; that matches the external-runner protocol, whose runner already owns
-the directory's eval-set metadata and knows when each worker exits, and it
-is the process most likely to have the task's code importable. Its single
-point of failure (the launcher dying before the merge) is covered by the
-`eval_set()`-startup merge and the CLI. The merge is built idempotent and
+**Ownership.** Decision (Ransom, 2026-09-18, refined 2026-09-21): the merge
+belongs to whoever launches the workers, but Inspect ships no launcher in
+the first implementation. Step 1 therefore provides the merge as a Python
+API and a CLI command (names are phase 2) plus the `eval_set()`-startup
+merge, and the external launcher calls one of them: one process launches the
+workers, watches for the shard logs to complete, and calls the merge. That
+matches the external-runner protocol, whose runner already owns the
+directory's eval-set metadata and knows when each worker exits, and it is
+the process most likely to have the task's code importable. Inspect itself
+does nothing at end of run; a launcher that forgets, or dies before the
+merge, is covered by the `eval_set()`-startup merge and by running the CLI
+by hand. The merge is built idempotent and
 deterministic (the output is `<name>.eval` for the companion `<name>.shards/`
 and nothing else, "merge whatever is new"), so a worker can also be told to
 attempt the merge on exit and a duplicate
@@ -352,8 +382,8 @@ byte-equivalent output to one key is tolerated by S3's per-object atomic put
 and by a local atomic rename.
 
 **Trust.** Confirmed (Ransom, 2026-09-21): the merged log is created only by
-a trusted Python step (launcher at end of run, `eval_set()` at startup, the
-CLI). The viewer, `list_eval_logs` and the dataframe layer never create or
+a trusted Python step (the Python API or CLI, called by the launcher or by
+hand, or `eval_set()` at startup). The viewer, `list_eval_logs` and the dataframe layer never create or
 recompute it. Recomputation needs the task's metric code importable: a
 runner or an `eval_set()` process has it; a CLI merge from a laptop may not,
 and then `resolve_scorers_info`'s `task_file` fallback imports log-named code
@@ -374,8 +404,8 @@ every shard is `success` and the union of members equals the intended
 parameter, not a file: headers alone cannot supply it for a subset run (each
 shard records only its own `dataset.sample_ids`, and `dataset.samples` is
 the full dataset size), and every caller of the merge already knows it. The
-launcher assigned the ids, so it passes them at the end-of-run merge and
-again, enlarged, when it adds shards later. `eval_set()` computes the
+launcher assigned the ids, so it passes them when it calls the merge API or
+CLI at the end of its run, and again, enlarged, when it adds shards later. `eval_set()` computes the
 selection from the task's dataset and selectors, as `log_samples_complete`
 does today. The CLI merge takes an id list or a count as an option. After
 the first merge the merged log's provenance field records the selection it
@@ -454,15 +484,16 @@ have grown, and additional shards added later.
   offsets must be recomputed for the new central directory. Baseline first;
   composition when measured merges of large logs justify it. Inspect already
   has a multipart upload helper to build on (`_util/asyncfiles.py:240`).
-- *Triggers.* The launcher merge, the `eval_set()`-startup merge and the CLI
-  are the same operation: "merge whatever is new", idempotent, deterministic,
+- *Triggers.* The Python API, the CLI that wraps it and the
+  `eval_set()`-startup merge are the same operation: "merge whatever is new", idempotent, deterministic,
   keyed on the merged log's basename (given either `<name>.eval` or
   `<name>.shards/` it finds the other), safe to run at any time and any
   number of times.
 
-**Shard disposition.** Merged shards stay in `<name>.shards/`, which the
-listing already excludes, until the merged log is verified; delete is an
-explicit option, never the default, because it is the one choice that cannot
+**Shard disposition.** Merged shards stay in `<name>.shards/`, listed
+beside the merged log (see "Listing"), until the merged log is verified;
+delete is an explicit option, never the default, and also the way to clear
+the extra rows once a run is done, because it is the one choice that cannot
 be undone after a bad merge (Ransom, 2026-09-18, restated under the companion
 layout). This is the second difference from checkpoints, whose retention
 default is to delete the companion on success (`retention:
@@ -478,8 +509,12 @@ shard, not a transfer through the client.
 and runs the incremental merge for each before any pairing, at the point
 where it lists the directory today (`evalset.py:1043-1060`). The merged log
 `<name>.eval` then takes part in pairing as an ordinary log; shards
-themselves are invisible to pairing, completeness and `retry_cleanup`
-because they live under `<name>.shards/`. Two hazards: a `started`
+themselves are skipped by pairing and completeness through `eval_set()`'s
+own path-based skip of anything under a `*.shards/` component. That skip is
+required regardless of the general listing decision, or today's
+misbehaviour (first-matching pairing, count-based completeness) returns;
+`retry_cleanup` would leave shards alone in any case, since each has its
+own `task_id`. Two hazards: a `started`
 merged log must be recognised by its provenance field and re-merged, not
 handed to `_recover_crashed_log` (`evalset.py:1512`) as a crashed log; and
 `log_samples_complete` must not classify a merged log by count alone once the
@@ -503,20 +538,23 @@ re-run by the normal retry path, unsharded unless the runner re-shards them.
   (`eval.py:907`), so a harness that shards a *subset* of a dataset must
   resolve the subset to ids first and hand each worker its `sample_id` list.
 - Runner protocols that already watch workers (the capture/selection runner,
-  `inspect_steward` per `eval_set_manifest.py`) get launcher-owned merging by
-  setting each worker's `log_dir` and merging when the workers exit.
+  `inspect_steward` per `eval_set_manifest.py`) own the merge by setting each
+  worker's `log_dir` and calling the merge API or CLI when the workers exit;
+  Inspect does not merge at end of run on its own in the first
+  implementation.
 
 ## Open questions
 
 Decisions Ransom has not yet made, each with the recommendation the design
 assumes.
 
-1. **Listing exclusion rule.** Exclude files under any `*.shards/` component
-   at any depth below the listed root (recommended: it covers viewing a
-   parent of many run directories and needs the root only to keep
-   `<name>.shards/` itself listable) versus direct children of the listed
-   root only (precise, but a parent-directory viewer lists every run's
-   shards).
+1. **Listing exclusion (deferred).** Step 1 has none (Ransom, 2026-09-21;
+   see "Listing"). If experience shows the extra rows or downstream double
+   counting matter, the candidates are a rule keyed on a `.shards` path
+   component below the listed root (any depth versus direct child) and a
+   variant that hides shards only once the merged log exists; every variant
+   hides ongoing work behind a stale merged log, which is why none ships
+   first.
 2. **Conflict policy.** Newest wins when a retried shard re-runs an already
    merged sample (recommended, matching the retry rule) versus refusing.
 3. **CLI merge and the `task_file` fallback.** Whether a CLI merge may follow
@@ -551,12 +589,12 @@ assumes.
   logs are unchanged; the field is absent on them.
 - Old Inspect versions read a merged log as an ordinary log: `EvalSpec` sets
   no extra-field policy (`_log.py:1120`), so pydantic's default drops the
-  unknown field on read. Lacking the listing exclusion, they list shards as N
-  ordinary partial logs, which is today's behaviour.
-- The listing rule (skip files under a `*.shards/` component below the listed
-  root) is one change in `_filter_log_files` that every enumerator inherits;
-  callers must pass the listed root. `<name>.checkpoints/` directories need
-  no rule, since they hold no `.eval` files.
+  unknown field on read. They list shards as N ordinary partial logs beside
+  the merged log, exactly as current versions do in Step 1.
+- If a listing exclusion is added later, it is one change in
+  `_filter_log_files` that every enumerator inherits (callers would pass the
+  listed root); no files move. `<name>.checkpoints/` directories need no
+  rule either way, since they hold no `.eval` files.
 - `log_basename` moves from `util/_checkpoint/_layout/` to a neutral module
   so `log/` can use it without depending on the checkpoint package; the
   checkpoint helper keeps calling it, so its behaviour is unchanged.
@@ -585,13 +623,13 @@ Pydantic models. New boundaries:
   merged log's own header, never from a separate file in the shard
   directory, so the directory holds only `.eval` files and their buffers.
 - **Recomputation executes code the log names.** The merge is the only place
-  metrics are recomputed, and it runs only as a trusted Python step
-  (launcher, `eval_set()` startup, CLI); no reader path (viewer server,
+  metrics are recomputed, and it runs only as a trusted Python step (the
+  API or CLI called by the launcher or by hand, `eval_set()` startup); no
+  reader path (viewer server,
   `read_eval_log`, `evals_df`) recomputes or follows the `task_file`
   fallback. Open question 3 covers the CLI's use of that fallback.
-- **The listing exclusion** hides shards from enumeration but grants nothing;
-  a viewer listing `<name>.shards/` or `<name>.shards/<k>/` directly is
-  authorized per file as today (`_validate_read`).
+- **Listing shards beside the merged log** changes no authorization: every
+  file, shard or merged, is authorized per file as today (`_validate_read`).
 
 ## Testing
 
@@ -605,11 +643,10 @@ Pydantic models. New boundaries:
   members added; add a shard and see the status return to `started`; a
   retried sample replaced by the newer copy; a fully merged shard not
   reopened.
-- Listing tests: shards under `<name>.shards/<k>/` absent from
-  `list_eval_logs`, `evals_df`, the viewer listing and a bundle of the parent
-  directory; present when `<name>.shards/` or `<name>.shards/<k>/` is listed
-  directly; a directory named `shards` (no suffix) with `.eval` files still
-  listed; a `*.shards/` directory above the listed root unaffected.
+- Listing tests: shards under `<name>.shards/<k>/` listed by
+  `list_eval_logs`, `evals_df` and the viewer listing beside the merged log;
+  `samples_df` over the directory yields each sample once; `eval_set()`
+  startup over the directory pairs only the merged log.
 - Layout tests: `<name>.eval` and `<name>.shards/` derive each other in both
   directions through the shared `log_basename`; `<name>-recovered.eval` maps
   to `<name>.shards/`; the checkpoint helper's results are unchanged after
@@ -703,7 +740,11 @@ Kept for the record and as the rationale for the design above.
 - **Shard count as the completeness input.** Proves N `success` shards exist
   and relies on disjointness for coverage; kept only as the CLI's cheaper
   option beside an id list, since it cannot name missing samples.
-- **Direct-child listing rule.** See open question 1.
+- **A listing exclusion in Step 1** (a `.shards` path-component rule at any
+  depth or direct child, or one conditional on the merged log existing).
+  Deferred (Ransom, 2026-09-21): every variant creates a state where a stale
+  merged log hides ongoing work in the shards; see "Listing" and open
+  question 1.
 - **A periodic full merge as originally rejected (2026-09-18).** The
   objections were a full rewrite per tick, reading running shards through
   their journals, and needing a `started` status. The incremental-merge
