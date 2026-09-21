@@ -235,8 +235,25 @@ class HangingSetupSandbox(SandboxEnvironment):
         raise NotImplementedError
 
 
-async def test_sandbox_setup_cancelled_cleans_up_sample() -> None:
-    """Cancelling a sample during its setup-script phase still tears its sandbox down.
+class HangingCopySandbox(HangingSetupSandbox):
+    """Variant whose ``write_file`` blocks, to cancel from inside the file-copy phase."""
+
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        self.started.set()
+        await anyio.sleep_forever()
+
+
+@pytest.mark.parametrize(
+    ("sandbox_type", "files"),
+    [
+        pytest.param(HangingSetupSandbox, {}, id="setup-script"),
+        pytest.param(HangingCopySandbox, {"file.txt": b"contents"}, id="file-copy"),
+    ],
+)
+async def test_sandbox_setup_cancelled_cleans_up_sample(
+    sandbox_type: type[HangingSetupSandbox], files: dict[str, bytes]
+) -> None:
+    """Cancelling a sample during file copy or its setup script still tears its sandbox down.
 
     Cancellation is not an ``Exception``, so it must get its own cleanup path in
     ``init_sandbox_environments_sample``: the caller only cleans up environments
@@ -244,28 +261,26 @@ async def test_sandbox_setup_cancelled_cleans_up_sample() -> None:
     cleanup must also be shielded, or the cancellation that triggered it would
     interrupt it at its first checkpoint.
     """
-    HangingSetupSandbox.reset()
+    sandbox_type.reset()
 
     async def cancel_once_setup_started(scope: anyio.CancelScope) -> None:
-        await HangingSetupSandbox.started.wait()
+        await sandbox_type.started.wait()
         scope.cancel()
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(cancel_once_setup_started, tg.cancel_scope)
         with pytest.raises(anyio.get_cancelled_exc_class()):
             await init_sandbox_environments_sample(
-                sandboxenv_type=HangingSetupSandbox,
+                sandboxenv_type=sandbox_type,
                 task_name="task",
                 config=None,
-                files={},
+                files=files,
                 setup=b"#!/usr/bin/env bash\n\ntrue\n",
                 metadata={},
             )
 
-    assert len(HangingSetupSandbox.created) == 1
-    assert HangingSetupSandbox.cleanups == [
-        ({"default": HangingSetupSandbox.created[0]}, True)
-    ]
+    assert len(sandbox_type.created) == 1
+    assert sandbox_type.cleanups == [({"default": sandbox_type.created[0]}, True)]
 
 
 def test_is_dockerfile():
