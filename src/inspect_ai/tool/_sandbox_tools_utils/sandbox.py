@@ -32,13 +32,10 @@ from inspect_ai.util._sandbox._cli import (
 from inspect_ai.util._sandbox._framework_directory import (
     FrameworkDirectoryError,
     FrameworkDirectoryNotFoundError,
-    FrameworkDirectoryUnavailableError,
-    FrameworkDirectoryUserError,
     ensure_framework_directory,
     exec_in_framework_directory,
     expected_uid_for,
     stat_in_framework_directory,
-    try_ensure_framework_directory_as_root,
     verify_framework_directory,
 )
 from inspect_ai.util._sandbox._privileged import privileged_shell
@@ -47,11 +44,15 @@ from inspect_ai.util._sandbox.context import (
     sandbox_with_injection,
 )
 from inspect_ai.util._sandbox.environment import (
+    RootAccess,
     SandboxDefaultUser,
     SandboxEnvironment,
+    SandboxUnavailableError,
 )
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
+from inspect_ai.util._subprocess import ExecResult
 
 from ._build_config import (
     SandboxToolsBuildConfig,
@@ -129,30 +130,21 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
     regular file. A merely readable launcher is not enough: a tree owned by another
     principal could substitute its own launcher.
 
-    The tools user is known once an injection has run on this sandbox object (root
-    when the sandbox can exec as root, otherwise the default user). Before that (a
-    fresh object attached to a sandbox that may already hold an installation) the
-    check runs as root first, because a root-owned 0700 tree cannot even be entered
-    by the default user; a trustworthy root installation found that way is adopted
-    by recording root as the tools user. Only when the sandbox cannot exec as root
-    at all (it refuses the user, or silently runs the command as someone else) is the
-    default user's view consulted. A trustworthy installation found there is used for
-    this call, but the default user is recorded as the tools user only when the root
-    failure was definitive: the helper's uid-mismatch verdict, which says the provider
-    ran the command as someone else and will keep doing so. A provider exception or a
-    failing exit status may be transient on a root-capable sandbox, and pinning on it
-    would let a tree the agent planted under its own uid be adopted for the rest of
-    the sample; instead the next call probes root again, root sees the planted tree as
-    a violation, and injection fails loud. The cost falls only on providers that
-    refuse root by exception: one failing root exec per tool call until injection
-    runs on this object and records the tools user itself. When the default user's
-    view finds an existing installation, injection never runs on this object, so
-    the extra exec repeats for the object's lifetime.
+    The check runs as the tools user only: the user an injection on this sandbox
+    object already recorded, or else the one the sandbox's root-access decision
+    selects (see ``_tools_user_for``). A trustworthy installation found that way (a
+    fresh object attached to a sandbox that already holds one) is adopted by
+    recording that user. The default user's view is never consulted on a sandbox
+    whose root is usable: a root exec failure there reads as "not installed", and
+    the injection that follows fails loud rather than installing as the default
+    user, so a tree the agent planted under its own uid can never be adopted
+    because root happened to fail.
 
-    The probe records no transcript events: it repeats on every tool call and its
+    The check records no transcript events: it repeats on every tool call and its
     argv carries the whole verification script, so logging it would add kilobytes
-    of identical shell to the transcript per call (the injection itself, which runs
-    once per sandbox, is still recorded).
+    of identical shell to the transcript per call. The injection and the one-off
+    root probe (see ``resolve_root_access``), which each run once per sandbox, are
+    still recorded.
 
     Raises:
         SandboxDefaultUserError: A trustworthy root installation was found but the
@@ -178,29 +170,33 @@ async def _detect_sandbox_tools(sandbox: SandboxEnvironment) -> bool:
     if sandbox._tools_user_resolved or sandbox._tools_user is not None:
         return await _tools_installed_as(sandbox, sandbox._tools_user)
 
-    try:
-        installed = await _tools_installed_as(sandbox, "root")
-    except FrameworkDirectoryUnavailableError:
-        raise
-    except Exception as ex:
-        # Broad catch is deliberate: providers signal "cannot exec as root" by
-        # raising provider-specific exception types or by a failing exit status
-        # (which the helper reports as a RuntimeError when its check never ran).
-        # Only the uid-mismatch verdict is a definitive "this sandbox has no root";
-        # anything else may be transient, so it must not pin the tools user (see
-        # the docstring above).
-        trace_message(
-            logger,
-            TRACE_SANDBOX_TOOLS,
-            f"root tools detection failed; checking as default user: {ex}",
-        )
-        installed = await _tools_installed_as(sandbox, None)
-        if installed and isinstance(ex, FrameworkDirectoryUserError):
-            await _set_tools_user(sandbox, None)
-        return installed
+    user = await _tools_user_for(sandbox)
+    installed = await _tools_installed_as(sandbox, user)
     if installed:
-        await _set_tools_user(sandbox, "root")
+        await _set_tools_user(sandbox, user)
     return installed
+
+
+async def _tools_user_for(sandbox: SandboxEnvironment) -> str | None:
+    """The user the sandbox tools install and run as (``None`` = default user).
+
+    Applies the sandbox's recorded root-access decision (``resolve_root_access``):
+    root when usable, otherwise the default user, including when the probe gave no
+    verdict, since some providers report "cannot exec as root" only that way (that
+    case is warned once the default user is recorded; see ``_set_tools_user``). A
+    probe that could not run or did not complete is an error here rather than a
+    reason to fall back.
+    """
+    access = await resolve_root_access(sandbox)
+    if access.state == "usable":
+        return "root"
+    if access.state in ("unusable", "ambiguous"):
+        return None
+    raise SandboxInjectionError(
+        "Failed to inject sandbox tools into sandbox: cannot choose the user for "
+        f"the tools because the {access.reason}",
+        cause=access.error,
+    )
 
 
 def _without_sandbox_events(
@@ -216,16 +212,30 @@ def _without_sandbox_events(
     return nullcontext()
 
 
+_AMBIGUOUS_ROOT_ACCESS_WARNING = (
+    "Sandbox tools: the sandbox gave no answer to whether it can run commands as "
+    "root, so the tools run as its default user. If root is in fact available "
+    "there, the tools are not protected from the code running in the sandbox. "
+    "Details are in the trace log under 'Sandbox Tools'."
+)
+
+
 async def _set_tools_user(sandbox: SandboxEnvironment, user: str | None) -> None:
     """Record which user the sandbox tools run as (``None`` = default user).
 
     With a root tools user, also capture the default exec identity so tool calls
-    without an explicit user can run as it (see ``_detect_default_user``).
+    without an explicit user can run as it (see ``_detect_default_user``). A default
+    user chosen because the root probe gave no verdict is warned here, once per
+    process: this is where that fallback takes effect, for a sandbox the tools
+    actually use, rather than for every sandbox detection merely visits.
     """
     default_user = await _detect_default_user(sandbox) if user == "root" else None
     sandbox._tools_user = user
     sandbox._tools_user_resolved = True
     sandbox._tools_default_user = default_user
+    access = sandbox._root_access
+    if user is None and access is not None and access.state == "ambiguous":
+        warn_once(logger, _AMBIGUOUS_ROOT_ACCESS_WARNING)
 
 
 async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> bool:
@@ -255,30 +265,34 @@ async def _tools_installed_as(sandbox: SandboxEnvironment, user: str | None) -> 
 
 async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
     try:
+        user = await _tools_user_for(sandbox)
+
         info = await detect_sandbox_os(sandbox)
         musl = info.get("libc") == "musl"
 
         async with _open_executable_for_arch(info["architecture"], musl) as (name, f):
             gz_bytes = f.read()  # gzipped tar of the PyInstaller --onedir tree
 
-        # Prepare the install dir as root if possible; fall back to the default user
-        # for rootless sandboxes (where user-switching will be disabled,
-        # auto-detected by the server). Either way the directory is verified to be a
-        # real directory owned by that user with mode 0700 before anything is
-        # extracted into it. A root-owned 0700 tree prevents access by other,
-        # non-root users, but not by a process running in the sandbox as root. In a
-        # rootless sandbox the agent shares the tools user's uid, so a directory that
-        # uid owns is tightened to 0700 rather than refused: older releases left
-        # rootless installs at 0755 (on the host, for the `local` sandbox).
-        if await _create_tools_dir_as_root(sandbox):
-            await _set_tools_user(sandbox, "root")
+        # Prepare the install dir as the tools user: verified to be a real directory
+        # owned by that user with mode 0700 before anything is extracted into it. A
+        # root-owned 0700 tree prevents access by other, non-root users, but not by
+        # a process running in the sandbox as root; as root nothing is repaired, and
+        # a failing root exec here is an error, never a reason to install as the
+        # default user instead. In a rootless sandbox the agent shares the tools
+        # user's uid, so a directory that uid owns is tightened to 0700 rather than
+        # refused: older releases left rootless installs at 0755 (on the host, for
+        # the `local` sandbox).
+        if user == "root":
+            await ensure_framework_directory(
+                sandbox, SANDBOX_TOOLS_DIR, user="root", expected_uid=0
+            )
         else:
             await ensure_framework_directory(
                 sandbox, SANDBOX_TOOLS_DIR, user=None, repair_mode=True
             )
-            await _set_tools_user(sandbox, None)
+        await _set_tools_user(sandbox, user)
 
-        await _extract_tools_tree(sandbox, name, gz_bytes, sandbox._tools_user)
+        await _extract_tools_tree(sandbox, name, gz_bytes, user)
 
         # Re-verify immediately before the launcher runs with the tools user's
         # authority. Extraction targets the verified directory object, so this
@@ -286,18 +300,17 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         await verify_framework_directory(
             sandbox,
             SANDBOX_TOOLS_DIR,
-            user=sandbox._tools_user,
-            expected_uid=expected_uid_for(sandbox._tools_user),
+            user=user,
+            expected_uid=expected_uid_for(user),
         )
 
-        # Start the server as root so it can setuid to any user for exec_remote.
-        # If root isn't available, fall back to the sandbox's default user —
-        # user-switching will be disabled (auto-detected by the server).
-        result = await sandbox.exec(
-            [SANDBOX_CLI, "start-server"], user=sandbox._tools_user
-        )
+        # As root the server can setuid to any user for exec_remote; as the
+        # default user, user-switching is disabled (auto-detected by the server).
+        result = await sandbox.exec([SANDBOX_CLI, "start-server"], user=user)
         if not result.success:
             raise RuntimeError(f"Failed to start sandbox tools server: {result.stderr}")
+    except SandboxInjectionError:
+        raise
     except Exception as e:
         raise SandboxInjectionError(
             f"Failed to inject sandbox tools into sandbox: {str(e) or type(e).__name__}",
@@ -305,9 +318,17 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         ) from e
 
 
-# Root is only useful if it can switch users; e.g. `cap_drop: [ALL]` leaves root
-# without CAP_SETGID/CAP_SETUID, and a user namespace may deny setgroups(), so the
-# tools must run as the default user instead. Prints CapEff then the setgroups mode.
+ROOT_ACCESS_PROBE_TIMEOUT = 60
+"""Seconds the root probe may run before the provider times it out.
+
+Applied through the provider's own ``timeout`` (with no retry), so time spent queued
+behind other sandbox commands on a busy host does not count against it.
+"""
+
+# Prints Uid and CapEff from /proc/self/status, then the setgroups mode. Shell
+# builtins only, so it needs nothing from the image beyond /bin/sh. Root is only
+# useful if it can switch users: `cap_drop: [ALL]` leaves it without
+# CAP_SETGID/CAP_SETUID, and a user namespace may deny setgroups().
 _ROOT_PROBE_CMD = (
     'while read k v; do case "$k" in Uid:|CapEff:) echo "$k $v";; esac; done'
     " < /proc/self/status;"
@@ -315,56 +336,100 @@ _ROOT_PROBE_CMD = (
     ' echo "setgroups: $s"'
 )
 _SWITCH_USER_CAPS = (1 << 6) | (1 << 7)  # CAP_SETGID | CAP_SETUID
+_ROOT_PROBE_FIELDS = {"Uid", "CapEff", "setgroups"}
 
 
-async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
-    """Prepare the tools dir as root; False if the tools cannot run as root.
+async def resolve_root_access(sandbox: SandboxEnvironment) -> RootAccess:
+    """The sandbox's recorded root-access decision, probing and recording it if absent.
 
-    Root is unusable for the tools when the sandbox cannot exec as root at all or
-    when root there cannot switch users (the server must setuid for
-    ``exec_remote``), so the capability probe runs first and nothing is created
-    when it fails. Once root is known usable the directory is created or adopted
-    through :func:`try_ensure_framework_directory_as_root`, which pins uid 0 and
-    re-raises a contract violation rather than reading it as "no root".
+    Sample init calls this for every sandbox after the trusted files and setup and
+    before Inspect begins solver/agent execution, so the agent's own commands cannot
+    influence the outcome; a sandbox used without sample init is probed on first use
+    instead. The decision is never revisited (a probe run after the agent's commands
+    could be made to fail by them). An eval's recording proxy shares it with the
+    provider object behind it, which ``as_type()`` hands out, in both directions: a
+    decision that object already carries is adopted (a provider may return one
+    object under several names), and a fresh probe is recorded on both. In an eval
+    the probe is one ``SandboxEvent`` in the sample's init span: the durable record
+    of which sandbox reached which verdict, for a security-relevant decision.
     """
+    if sandbox._root_access is None:
+        inner = (
+            sandbox._sandbox if isinstance(sandbox, SandboxEnvironmentProxy) else None
+        )
+        # belt and suspenders in case the provider forgot to call __init__
+        recorded: RootAccess | None = getattr(inner, "_root_access", None)
+        if recorded is not None:
+            sandbox._root_access = recorded
+            return recorded
+        access = await _probe_root_access(sandbox)
+        trace_message(
+            logger, TRACE_SANDBOX_TOOLS, f"root access {access.state}: {access.reason}"
+        )
+        sandbox._root_access = access
+        if inner is not None:
+            inner._root_access = access
+    return sandbox._root_access
+
+
+async def _probe_root_access(sandbox: SandboxEnvironment) -> RootAccess:
+    """Probe ``sandbox`` for usable root. Never raises: every outcome is a result."""
     try:
-        probe = await privileged_shell(sandbox, _ROOT_PROBE_CMD, user="root")
-        fields = _fields(probe.stdout)
-        if not probe.success or not fields.keys() >= {"Uid", "CapEff", "setgroups"}:
-            raise RuntimeError(f"root probe failed: {probe.stderr or probe.stdout!r}")
+        probe = await privileged_shell(
+            sandbox,
+            _ROOT_PROBE_CMD,
+            user=_root_probe_user(sandbox),
+            timeout=ROOT_ACCESS_PROBE_TIMEOUT,
+            timeout_retry=False,
+        )
+    except (SandboxUnavailableError, TimeoutError) as ex:
+        return RootAccess("failed", f"root probe did not complete: {ex}", ex)
     except Exception as ex:
-        # Broad catch is deliberate: providers signal "cannot exec as root" by
-        # raising provider-specific exception types (or a failing exit status), so
-        # no narrower type is available. Trade-off: any other probe failure selects
-        # the rootless install.
-        trace_message(
-            logger,
-            TRACE_SANDBOX_TOOLS,
-            f"root sandbox tools dir probe failed; falling back to default user: {ex}",
+        # Broad catch is deliberate: providers signal "cannot exec as root" with
+        # provider-specific exception types, so no narrower type is available.
+        return RootAccess(
+            "ambiguous", f"root probe raised {type(ex).__name__}: {ex}", ex
         )
-        return False
-    if fields["Uid"].split()[0] != "0":
-        trace_message(
-            logger,
-            TRACE_SANDBOX_TOOLS,
-            "sandbox does not run commands as root; using default user",
-        )
-        return False
-    cap_eff, setgroups = fields["CapEff"].strip(), fields["setgroups"].strip()
-    if (
-        int(cap_eff, 16) & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS
-        or setgroups != "allow"
-    ):
-        trace_message(
-            logger,
-            TRACE_SANDBOX_TOOLS,
-            f"root cannot switch users (CapEff {cap_eff}, setgroups {setgroups}); "
-            "falling back to default user",
-        )
-        return False
-    return await try_ensure_framework_directory_as_root(
-        sandbox, SANDBOX_TOOLS_DIR, trace_tag=TRACE_SANDBOX_TOOLS
+    return _root_access_verdict(probe)
+
+
+def _root_probe_user(sandbox: SandboxEnvironment) -> str | None:
+    """``root``, except for the built-in local provider.
+
+    ``LocalSandboxEnvironment`` ignores ``user`` (and warns whenever one is given)
+    and runs everything as the current user, so its own identity is the verdict.
+    """
+    inner = (
+        sandbox._sandbox if isinstance(sandbox, SandboxEnvironmentProxy) else sandbox
     )
+    return None if isinstance(inner, LocalSandboxEnvironment) else "root"
+
+
+def _root_access_verdict(probe: ExecResult[str]) -> RootAccess:
+    """Read the probe's output; valid Uid, CapEff and setgroups fields are a verdict."""
+    fields = _fields(probe.stdout)
+    if not fields.keys() >= _ROOT_PROBE_FIELDS:
+        return RootAccess(
+            "ambiguous",
+            f"root probe produced no verdict (exit status {probe.returncode}): "
+            f"{probe.stderr or probe.stdout!r}",
+        )
+    try:
+        uid = fields["Uid"].split()[0]
+        if uid != "0":
+            return RootAccess("unusable", f"commands run as uid {uid}, not as root")
+        cap_eff, setgroups = fields["CapEff"].strip(), fields["setgroups"].strip()
+        caps = int(cap_eff, 16)
+    except (IndexError, ValueError):
+        return RootAccess(
+            "ambiguous", f"root probe output could not be parsed: {probe.stdout!r}"
+        )
+    if caps & _SWITCH_USER_CAPS != _SWITCH_USER_CAPS or setgroups != "allow":
+        return RootAccess(
+            "unusable",
+            f"root cannot switch users (CapEff {cap_eff}, setgroups {setgroups})",
+        )
+    return RootAccess("usable", "commands run as uid 0 and root can switch users")
 
 
 # Shell builtins only: numeric ids from /proc so uids with no passwd entry work.
