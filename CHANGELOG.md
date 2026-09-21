@@ -1,6 +1,17 @@
 ## Unreleased
 
 - Agent Bridge: An unexpected exception from a host tool called through `sandbox_agent_bridge(bridged_tools=...)` now fails the sample as a native tool exception does, and malformed arguments are reported to the model as a parsing error.
+- Grok: Support for Grok 4.7.
+- Bugfix: `bash_session` no longer sends the literal string "None" to the shell when `type_submit` is called without `input`.
+- Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
+- Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
+- Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
+- Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
+
+## 0.3.266 (19 September 2026)
+
+- Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the "scorer couldn't be loaded" guidance rather than a raw traceback.
+- Control channel: the `inspect ctl task score` interim-metrics payload now reports each entry's originating scorer under `scorer` and the score's name under `name` (previously `scorer` held the score name). This lets consumers disambiguate scores from dict-valued scorers — where several scorers can share a score name — and reconstruct the `EvalScore` needed to resolve a task's headline metric. Breaking for clients that read the old `scorer` field as the score name.
 
 ## 0.3.265 (17 September 2026)
 
