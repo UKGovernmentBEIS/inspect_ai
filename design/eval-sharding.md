@@ -423,7 +423,9 @@ the first merge the merged log's provenance field records the selection it
 merged against, so any later merge, by any caller, reads it from there. A
 first merge with no selection supplied is complete only for a whole-dataset
 run (the union's size equals `dataset.samples`); otherwise it writes
-`started`, or refuses, per the rule below. `eval_set()` already classifies any
+`started`, or refuses, per the rule below, and a merged log written that way
+stays `started` until some later merge is given the selection, because the
+provenance field has none to hand on. `eval_set()` already classifies any
 non-`success` log as incomplete (`evalset.py:1837-1860`), so it never treats
 an incomplete merged log as done. The merge refuses to write a `success` log
 over an incomplete shard set and, unless told to, refuses an incomplete
@@ -462,8 +464,9 @@ companion directory (derivable from the name, recorded so a moved or renamed
 merged log still says where it came from), the intended selection last
 merged against,
 and one entry per shard `<k>` with its file name, `eval_id`, the number of
-samples merged from it, its status at merge time, and its mtime or ETag. The
-merged log's
+samples merged from it, its status at merge time, its error message when
+that status is `error` or `cancelled` (see "Errored shards"), and its mtime
+or ETag. The merged log's
 own `samples/` members are the set of merged `(id, epoch)` samples. With
 this, a fully merged `success` shard is skipped without opening it, a grown
 shard is re-read only for the members the merged log lacks, and the ledger
@@ -560,7 +563,17 @@ re-run by the normal retry path, unsharded unless the runner re-shards them.
 A shard set with a failed shard merges into an `error` log (see
 "Completeness"), which the set retries the same way, seeded with the merged
 samples; the retry's log is an ordinary unsharded log, and the merged log
-and its shards stay behind as the record of the sharded attempt.
+and its shards stay behind as the record of the sharded attempt. One
+interaction is unresolved and is open question 2: `as_previous_tasks` gives
+the retry the prior log's `task_id` (`evalset.py:1464-1505`, `PreviousTask(id=eval_log.eval.task_id)`),
+so the retry log and the merged log share a `task_id`, and
+`latest_completed_task_eval_logs` then treats them as attempts of one another:
+with `retry_cleanup` on it deletes the older non-`started` one, and because
+the startup merge rewrites `<name>.eval` with a fresh mtime on every pass
+that finds something new, "older" can be the successful retry log rather
+than the merged log. The
+"stays behind as the record" statement above holds only once that
+interaction is settled.
 
 ### Notes for harnesses
 
@@ -587,7 +600,7 @@ and its shards stay behind as the record of the sharded attempt.
 ## Open questions
 
 Decisions Ransom has not yet made, each with the recommendation the design
-assumes. Questions resolved on 2026-09-21 (listing exclusion, conflict
+assumes where it has one. Questions resolved on 2026-09-21 (listing exclusion, conflict
 policy, the CLI merge's use of the `task_file` fallback, the
 `shards_location` override, the shape of `<name>`) are recorded where they
 apply in "Design" and under "Alternatives not taken".
@@ -598,6 +611,20 @@ apply in "Design" and under "Alternatives not taken".
    incremental merge on a timer (exact, a merged-zip rewrite per tick,
    reducible by S3 composition). Whether Step 2 remains a separate step,
    becomes "run the merge on a timer", or is skipped for Step 3.
+2. **The merged log's `task_id` under an eval-set retry.** A gap the
+   decisions leave open, not a new proposal. `as_previous_tasks` gives a
+   retry the prior log's `task_id`, so an `error` or `started` merged log
+   that `eval_set()` retries shares its `task_id` with the retry log, and
+   `latest_completed_task_eval_logs` treats the two as attempts of one
+   another: `retry_cleanup` deletes the older non-`started` one, and each
+   startup re-merge refreshes the merged log's mtime, so the successful retry
+   log can be the one deleted. Options: the merge stamps a `task_id` that
+   the retry does not inherit (a merged log is not a prior attempt of its
+   own retry); or `eval_set()` excludes logs carrying the provenance field
+   from cleanup and from being the `PreviousTask` id source while still
+   seeding from them; or accept that after a successful retry the merged
+   log is the redundant copy and cleanup may remove it, and drop the "stays
+   behind as the record" statement. The design does not choose.
 
 ## Compatibility
 
