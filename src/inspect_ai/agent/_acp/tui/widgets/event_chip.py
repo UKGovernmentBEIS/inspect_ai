@@ -385,8 +385,8 @@ class _TracebackBlock(Widget):
         # bakes the full ``rich.traceback.Traceback`` output (frame
         # summaries + source-line context, not syntax highlighted) into
         # ANSI escape codes, so parsing them back with ``Text.from_ansi``
-        # gives us the same styled rendering Inspect's own console
-        # display produces. ``Text`` carries only foreground styles
+        # gives us the frame styling of Inspect's stored traceback
+        # rendering. ``Text`` carries only foreground styles
         # from the ANSI codes, so the chip's tinted error band shows
         # through cleanly. If the wire only had the plain traceback
         # (no escape codes), ``from_ansi`` still produces a readable

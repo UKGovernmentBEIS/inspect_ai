@@ -15,12 +15,6 @@ def _raise_value_error() -> None:
     raise ValueError("test error message")
 
 
-def _recurse(depth: int) -> None:
-    if depth == 0:
-        raise ValueError("bottom")
-    _recurse(depth - 1)
-
-
 def _exc_info(
     fn: Callable[..., None], *args: object
 ) -> tuple[type[BaseException], BaseException, TracebackType | None]:
@@ -67,14 +61,3 @@ def test_format_traceback_ansi_skips_syntax_highlighting():
     # ... but without the per-token styling a pygments lexer would add
     highlighted = _render_highlighted(exc_type, exc_value, exc_tb)
     assert len(_SGR.findall(ansi)) < len(_SGR.findall(highlighted))
-
-
-def test_format_traceback_ansi_caps_frames():
-    # deeper than the ANSI frame cap, shallower than rich's default cap of 100
-    exc_type, exc_value, exc_tb = _exc_info(_recurse, 60)
-    text, ansi = format_traceback(exc_type, exc_value, exc_tb)
-
-    assert "frames hidden" in ansi
-    # the plain text traceback is not capped
-    assert "frames hidden" not in text
-    assert "_recurse" in text

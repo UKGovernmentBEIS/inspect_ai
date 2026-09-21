@@ -21,10 +21,6 @@ from inspect_ai._util.text import truncate_lines
 _traceback_cache: OrderedDict[str, tuple[str, str]] = OrderedDict()
 _TRACEBACK_CACHE_MAX_SIZE = 32
 
-# Frame cap for the stored ANSI traceback. Keeps a runaway stack (e.g. a
-# RecursionError) from rendering, and storing, a hundred source snippets.
-_TRACEBACK_ANSI_MAX_FRAMES = 40
-
 
 def tool_result_display(
     text: str, max_lines: int = 100, style: str | Style = ""
@@ -80,7 +76,6 @@ def rich_traceback(
     exc_value: BaseException,
     exc_traceback: TracebackType | None,
     highlight_code: bool = True,
-    max_frames: int = 100,
 ) -> RenderableType:
     """Rich renderable for an exception traceback.
 
@@ -91,8 +86,6 @@ def rich_traceback(
         highlight_code: Syntax highlight frame source snippets. Highlighting
             lexes each frame's whole source file, so pass `False` when the
             output will not be shown on a terminal at render time.
-        max_frames: Maximum frames to show (the middle of the stack is elided);
-            0 for no limit. Defaults to rich's own default of 100.
     """
     traceback_cls = Traceback if highlight_code else _PlainCodeTraceback
     rich_tb = traceback_cls.from_exception(
@@ -102,7 +95,6 @@ def rich_traceback(
         suppress=[click, asyncio, tenacity, sys.modules[PKG_NAME]],
         show_locals=os.environ.get("INSPECT_TRACEBACK_LOCALS", None) == "1",
         width=CONSOLE_DISPLAY_WIDTH,
-        max_frames=max_frames,
     )
     return rich_tb
 
@@ -161,8 +153,7 @@ def format_traceback(
 
     The ANSI variant is stored in the log (`EvalError.traceback_ansi`) rather
     than shown on a terminal at render time, so its frame source snippets are
-    not syntax highlighted and at most `_TRACEBACK_ANSI_MAX_FRAMES` frames are
-    shown. The plain text variant is complete.
+    not syntax highlighted.
     """
     traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
 
@@ -180,13 +171,7 @@ def format_traceback(
         with open(os.devnull, "w") as f:
             console = Console(record=True, file=f, legacy_windows=True)
             console.print(
-                rich_traceback(
-                    exc_type,
-                    exc_value,
-                    exc_traceback,
-                    highlight_code=False,
-                    max_frames=_TRACEBACK_ANSI_MAX_FRAMES,
-                )
+                rich_traceback(exc_type, exc_value, exc_traceback, highlight_code=False)
             )
             traceback_ansi = console.export_text(styles=True)
     else:
