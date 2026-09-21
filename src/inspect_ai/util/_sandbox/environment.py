@@ -126,7 +126,7 @@ class SandboxConnection(BaseModel):
 
 
 class SandboxDefaultUser(NamedTuple):
-    """Identity of the user `exec()` runs as when no `user` is given."""
+    """The sandbox's default user: who `exec()` runs as when no `user` is given."""
 
     uid: int
     gid: int
@@ -140,7 +140,7 @@ RootAccessState = Literal["usable", "unusable", "ambiguous", "failed"]
 
 @dataclass(frozen=True)
 class RootAccess:
-    """Whether the sandbox tools may run as root in a sandbox.
+    """Whether the injected sandbox tools may run as root in a sandbox.
 
     Decided once per sandbox, before Inspect begins solver/agent execution, from a
     probe of the identity and capabilities a ``user="root"`` exec actually gets:
@@ -150,7 +150,8 @@ class RootAccess:
       provider that runs ``user="root"`` as another uid).
     - ``ambiguous``: no verdict. The provider raised, or the output lacked valid
       probe fields. Some providers report "cannot exec as root" only this way, so
-      the tools still fall back to the default user, but warn.
+      the tools still fall back to the sandbox's default user (see
+      ``SandboxDefaultUser``), but warn.
     - ``failed``: the probe could not run (``SandboxUnavailableError``) or timed
       out. That says nothing about root, so the tools surface the error instead.
     """
@@ -179,8 +180,9 @@ class SandboxEnvironment(abc.ABC):
         # None` alone cannot say this because None also means "default user".
         self._tools_user_resolved: bool = False
         self._tools_default_user: SandboxDefaultUser | None = None
-        # Recorded once at sample init (or on first use outside an eval) by
-        # `resolve_root_access` in `inspect_ai.tool._sandbox_tools_utils.sandbox`.
+        # Whether the injected sandbox tools may run as root here; recorded once at
+        # sample init (or on first use outside an eval) by `resolve_root_access` in
+        # `inspect_ai.tool._sandbox_tools_utils.sandbox`.
         self._root_access: RootAccess | None = None
 
     @abc.abstractmethod

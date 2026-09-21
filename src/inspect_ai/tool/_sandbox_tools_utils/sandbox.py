@@ -214,9 +214,10 @@ def _without_sandbox_events(
 
 _AMBIGUOUS_ROOT_ACCESS_WARNING = (
     "Sandbox tools: the sandbox gave no answer to whether it can run commands as "
-    "root, so the tools run as its default user. If root is in fact available "
-    "there, the tools are not protected from the code running in the sandbox. "
-    "Details are in the trace log under 'Sandbox Tools'."
+    "root, so the tools run as the sandbox's default user (the user a sandbox "
+    "command runs as when none is given). If root is in fact available there, the "
+    "tools are not protected from the code running in the sandbox. Details are in "
+    "the trace log under 'Sandbox Tools'."
 )
 
 
