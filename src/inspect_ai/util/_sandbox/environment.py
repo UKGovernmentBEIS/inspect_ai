@@ -126,13 +126,41 @@ class SandboxConnection(BaseModel):
 
 
 class SandboxDefaultUser(NamedTuple):
-    """Identity of the user `exec()` runs as when no `user` is given."""
+    """The sandbox's default user: who `exec()` runs as when no `user` is given."""
 
     uid: int
     gid: int
     groups: list[int]
     home: str | None
     """HOME as exec() sees it; None when unset (the passwd home applies)."""
+
+
+RootAccessState = Literal["usable", "unusable", "ambiguous", "failed"]
+
+
+@dataclass(frozen=True)
+class RootAccess:
+    """Whether the injected sandbox tools may run as root in a sandbox.
+
+    Decided once per sandbox, before Inspect begins solver/agent execution, from a
+    probe of the identity and capabilities a ``user="root"`` exec actually gets:
+
+    - ``usable``: uid 0 with CAP_SETUID and CAP_SETGID and ``setgroups`` allowed.
+    - ``unusable``: the probe ran and reported anything else (``cap_drop: [ALL]``, a
+      provider that runs ``user="root"`` as another uid).
+    - ``ambiguous``: no verdict. The provider raised, or the output lacked valid
+      probe fields. Some providers report "cannot exec as root" only this way, so
+      the tools still fall back to the sandbox's default user (see
+      ``SandboxDefaultUser``), but warn.
+    - ``failed``: the probe could not run (``SandboxUnavailableError``) or timed
+      out. That says nothing about root, so the tools surface the error instead.
+    """
+
+    state: RootAccessState
+    reason: str
+    """Why the probe reached ``state``, for traces and error messages."""
+    error: Exception | None = None
+    """The probe's exception when it raised (always set for ``failed``)."""
 
 
 class SandboxEnvironment(abc.ABC):
@@ -142,14 +170,21 @@ class SandboxEnvironment(abc.ABC):
     filesystem context to copy samples files into and resolve relative paths to.
     """
 
+    # Whether the injected sandbox tools may run as root here; recorded once at
+    # sample init (or on first use outside an eval) by `resolve_root_access` in
+    # `inspect_ai.tool._sandbox_tools_utils.sandbox`. A class-level default rather
+    # than an `__init__` assignment because several providers (k8s among them) do
+    # not call `SandboxEnvironment.__init__`.
+    _root_access: RootAccess | None = None
+
     def __init__(self) -> None:
         self._inject_lock = anyio.Lock()
         self._tools_injected: bool = False
         self._tools_user: str | None = None
-        # True once the sandbox-tools user has been decided for this object (root
-        # or, for a rootless sandbox, the default user), so the detector stops
-        # probing root on every tool call. `_tools_user is None` alone cannot say
-        # this because None also means "default user".
+        # True once the sandbox-tools user has been recorded for this object (root
+        # or, for a rootless sandbox, the default user), so the detector checks as
+        # that user without re-deriving it on every tool call. `_tools_user is
+        # None` alone cannot say this because None also means "default user".
         self._tools_user_resolved: bool = False
         self._tools_default_user: SandboxDefaultUser | None = None
 

@@ -64,6 +64,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
                 sandbox.directory.cleanup()
 
     def __init__(self) -> None:
+        super().__init__()
         self.directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self._sandbox_tools_dir = Path(self.directory.name) / "sandbox-tools"
         self._sandbox_tools_used = False
