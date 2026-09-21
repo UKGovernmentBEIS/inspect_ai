@@ -516,12 +516,35 @@ def test_dataset_checkpoint_missing_and_null_are_none(
     assert [sample.checkpoint for sample in samples] == [None, None]
 
 
-@pytest.mark.parametrize("value", ["not json", "[1, 2]", 5, ["a"]])
+@pytest.mark.parametrize(
+    "value", ["not json", "[1, 2]", 5, ["a"], {"max_consecutive_failures": "x"}]
+)
 def test_dataset_checkpoint_malformed_rejected(value: object) -> None:
     from inspect_ai.dataset._util import record_to_sample_fn
 
     rec2sample = record_to_sample_fn(FieldSpec())
-    with pytest.raises(ValueError, match="checkpoint"):
+    with pytest.raises(ValueError, match="checkpoint") as exc_info:
+        rec2sample({"input": "x", "checkpoint": value})
+
+    message = str(exc_info.value)
+    assert "sample checkpoint configuration" in message
+    assert "FieldSpec(checkpoint=...)" in message
+    assert "custom sample_fields converter" in message
+
+
+@pytest.mark.parametrize("serialized", [False, True])
+def test_dataset_checkpoint_nested_nan_rejected(serialized: bool) -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    checkpoint = {"max_consecutive_failures": float("nan")}
+    # Missing whole configurations are allowed, but invalid settings must match
+    # Sample's validation rather than silently falling back to task defaults.
+    with pytest.raises(ValueError, match="max_consecutive_failures"):
+        Sample.model_validate({"input": "x", "checkpoint": checkpoint})
+
+    value = json_module.dumps(checkpoint) if serialized else checkpoint
+    rec2sample = record_to_sample_fn(FieldSpec())
+    with pytest.raises(ValueError, match="max_consecutive_failures"):
         rec2sample({"input": "x", "checkpoint": value})
 
 

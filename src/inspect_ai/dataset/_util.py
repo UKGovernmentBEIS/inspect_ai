@@ -269,19 +269,18 @@ def read_checkpoint(checkpoint: Any | None) -> CheckpointSampleConfig | None:
     if is_none_or_nan(checkpoint):
         return None
 
-    if isinstance(checkpoint, str):
-        if not checkpoint.strip():
-            return None
-        try:
-            checkpoint = json.loads(checkpoint)
-        except ValueError as ex:
-            raise ValueError(f"Could not parse 'checkpoint' field: {ex}") from ex
-
     try:
+        if isinstance(checkpoint, str):
+            if not checkpoint.strip():
+                return None
+            checkpoint = json.loads(checkpoint)
+
         return _CHECKPOINT_ADAPTER.validate_python(checkpoint)
-    except ValidationError as ex:
+    except ValueError as ex:
         raise ValueError(
-            f"Could not parse 'checkpoint' into CheckpointSampleConfig: {ex}"
+            "Could not parse 'checkpoint' field as a sample checkpoint configuration. "
+            "If this column contains other data, remap it with FieldSpec(checkpoint=...) "
+            f"or use a custom sample_fields converter. Details: {ex}"
         ) from ex
 
 

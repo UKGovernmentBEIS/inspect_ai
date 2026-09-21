@@ -9,6 +9,7 @@
 - Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
 - Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
 - Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
+- Datasets: Loading preserves sample `checkpoint` settings and rejects invalid values; unrelated `checkpoint` columns require field remapping or a custom converter.
 
 ## 0.3.266 (19 September 2026)
 
@@ -49,7 +50,6 @@
 - Datasets: `csv_dataset()` now honors the dialect's delimiter when no explicit delimiter is supplied, including tab-separated and registered custom dialects.
 - Datasets: `csv_dataset()` now loads UTF-8 files with a byte-order mark, including Excel CSV exports, without requiring an explicit encoding.
 - Datasets: `file_dataset()` now reads `.tsv` and `.tab` files as tab-delimited instead of rejecting them.
-- Datasets: default loading now preserves a sample's serializable `checkpoint` settings, including zero and empty overrides.
 - Documents: Data URIs without parameters now retain their declared media type and receive the corresponding default filename.
 - Elicitation: long lines in `ask_user` prompts are no longer hard-wrapped by the console, so long commands copy out of the terminal intact.
 - Compaction: summary compaction now produces a more detailed, structured summary that preserves code snippets, user messages, and any security-relevant constraints stated earlier in the conversation.
