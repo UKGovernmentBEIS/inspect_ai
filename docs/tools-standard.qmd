@@ -238,7 +238,7 @@ The `text_editor()` tool enables viewing, creating and editing text files. The t
 
 ### Configuration
 
-The text editor tools requires the use of a [Sandbox Environment](sandboxing.qmd). Like `bash()`, it runs as the sandbox's default user unless a `user` is specified.
+The text editor tools requires the use of a [Sandbox Environment](sandboxing.qmd). Like `bash()`, it runs as the sandbox's default user unless a `user` is specified. Viewing a directory runs the sandbox's `find`, which must be installed in `/usr/sbin`, `/usr/bin`, `/sbin` or `/bin`.
 
 ### Task Setup
 
