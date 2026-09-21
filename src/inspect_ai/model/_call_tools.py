@@ -194,10 +194,10 @@ async def _execute_tools_impl(
             except Exception as ex:
                 # shared classification with the human agent tool path — the
                 # same exception yields the same ToolCallError on both paths
-                classified = classify_tool_exception(ex, call.function)
+                classified = tool_call_error(ex, call.function)
                 if classified is not None:
                     tool_error = classified.error
-                    if classified.result != "":
+                    if classified.result is not None:
                         result = classified.result
                 elif isinstance(ex, ValueError):
                     # historical model-path behavior: ordinary ValueErrors
@@ -1010,25 +1010,23 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
         return input
 
 
-class ClassifiedToolException(NamedTuple):
-    """A tool-execution exception classified as an expected tool failure.
+class MappedToolCallError(NamedTuple):
+    """A tool-execution exception mapped to the error the model/human sees.
 
     Shared by the model tool path and the human agent tool path (#3053) so
     both produce identical ToolCallError types and partial results for the
-    same exception. Returned from classify_tool_exception(); None means
-    the exception is unexpected, which — on both paths, to start — fails
-    the sample. Optional human recovery from an unexpected exception is
-    not implemented, and would be a separate, explicitly requested change.
+    same exception. Returned from tool_call_error(); None means the
+    exception is unexpected, which — on both paths, to start — fails the
+    sample. Optional human recovery from an unexpected exception is not
+    implemented, and would be a separate, explicitly requested change.
     """
 
     error: ToolCallError
-    result: ToolResult = ""
+    result: ToolResult | None = None
 
 
-def classify_tool_exception(
-    ex: Exception, function: str
-) -> ClassifiedToolException | None:
-    """Classify a tool-execution exception as an expected tool failure.
+def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
+    """Map a tool-execution exception to the error the caller reports.
 
     Callers must normalize exception groups (inner_exception()) first.
     Control-flow exceptions are classified where they have a tool-error
@@ -1042,19 +1040,19 @@ def classify_tool_exception(
         function: Tool function name (used in messages).
 
     Returns:
-        ClassifiedToolException with the error (and any partial result,
-        e.g. truncated output from a sandbox timeout), or None if the
-        exception is unexpected.
+        MappedToolCallError with the error (and any partial result, e.g.
+        truncated output from a sandbox timeout, or None if there is no
+        partial result), or None if the exception is unexpected.
     """
     if isinstance(ex, TimeoutError):
-        return ClassifiedToolException(
+        return MappedToolCallError(
             error=ToolCallError("timeout", "Command timed out before completing."),
             result=ex.truncated_output
             if isinstance(ex, SandboxTimeoutError) and ex.truncated_output
-            else "",
+            else None,
         )
     elif isinstance(ex, UnicodeDecodeError):
-        return ClassifiedToolException(
+        return MappedToolCallError(
             error=ToolCallError(
                 "unicode_decode",
                 f"Error decoding bytes to {ex.encoding}: {ex.reason}",
@@ -1065,7 +1063,7 @@ def classify_tool_exception(
         # when a command or argument string contains '\x00'. Surface it as
         # a tool error so the model can recover instead of crashing the sample.
         # (Other ValueErrors are unexpected — callers apply their own policy.)
-        return ClassifiedToolException(
+        return MappedToolCallError(
             error=ToolCallError(
                 "parsing",
                 f"An argument to tool '{function}' contained an embedded null byte.",
@@ -1076,48 +1074,88 @@ def classify_tool_exception(
         # surfacing sandbox unavailability as a failed tool call. Evals
         # that need it to be terminal can enforce that policy in their
         # agent logic.
-        return ClassifiedToolException(
-            error=ToolCallError("sandbox_unavailable", str(ex))
-        )
+        return MappedToolCallError(error=ToolCallError("sandbox_unavailable", str(ex)))
     elif isinstance(ex, PermissionError):
         err = f"{ex.strerror or str(ex)}."
         if isinstance(ex.filename, str):
             err = f"{err} Filename '{ex.filename}'."
-        return ClassifiedToolException(error=ToolCallError("permission", err))
+        return MappedToolCallError(error=ToolCallError("permission", err))
     elif isinstance(ex, FileNotFoundError):
         if isinstance(ex.filename, str):
             err = f"File '{ex.filename}' was not found."
         else:
             err = ex.strerror or str(ex)
-        return ClassifiedToolException(error=ToolCallError("file_not_found", err))
+        return MappedToolCallError(error=ToolCallError("file_not_found", err))
     elif isinstance(ex, IsADirectoryError):
         err = f"{ex.strerror or str(ex)}."
         if isinstance(ex.filename, str):
             err = f"{err} Filename '{ex.filename}'."
-        return ClassifiedToolException(error=ToolCallError("is_a_directory", err))
+        return MappedToolCallError(error=ToolCallError("is_a_directory", err))
     elif isinstance(ex, OutputLimitExceededError):
-        return ClassifiedToolException(
+        return MappedToolCallError(
             error=ToolCallError(
                 "limit",
                 f"The tool exceeded its output limit of {ex.limit_str}.",
             ),
+            # Note the sentinel here is "" (not None): a limit-truncated
+            # result of zero bytes is still a known ("no output") partial
+            # result, distinct from "no partial result available" (None).
             result=ex.truncated_output or "",
         )
     elif isinstance(ex, LimitExceededError):
-        return ClassifiedToolException(
+        return MappedToolCallError(
             error=ToolCallError(
                 "limit",
                 f"The tool exceeded its {ex.type} limit of {ex.limit_str}.",
             )
         )
     elif isinstance(ex, ToolParsingError):
-        return ClassifiedToolException(error=ToolCallError("parsing", ex.message))
+        return MappedToolCallError(error=ToolCallError("parsing", ex.message))
     elif isinstance(ex, ToolApprovalError):
-        return ClassifiedToolException(error=ToolCallError("approval", ex.message))
+        return MappedToolCallError(error=ToolCallError("approval", ex.message))
     elif isinstance(ex, ToolError):
-        return ClassifiedToolException(error=ToolCallError("unknown", ex.message))
+        return MappedToolCallError(error=ToolCallError("unknown", ex.message))
     else:
         return None
+
+
+class ClassifiedToolException(NamedTuple):
+    """A tool-execution exception classified as an expected tool failure.
+
+    Compatibility adapter for #3053's human agent tool path, which passes
+    `result` straight into `resolve_tool_content()` and needs the "no
+    partial result" sentinel to be `""`, not `None`. `tool_call_error()`
+    is the single classification implementation; this wraps it and
+    translates only that sentinel — it does not re-derive classification.
+    """
+
+    error: ToolCallError
+    result: ToolResult = ""
+
+
+def classify_tool_exception(
+    ex: Exception, function: str
+) -> ClassifiedToolException | None:
+    """Classify a tool-execution exception as an expected tool failure.
+
+    Thin adapter over tool_call_error() for #3053: translates its `None`
+    "no partial result" sentinel to `""`. See ClassifiedToolException.
+
+    Args:
+        ex: The (normalized) exception raised by tool execution.
+        function: Tool function name (used in messages).
+
+    Returns:
+        ClassifiedToolException with the error (and any partial result,
+        e.g. truncated output from a sandbox timeout), or None if the
+        exception is unexpected.
+    """
+    mapped = tool_call_error(ex, function)
+    if mapped is None:
+        return None
+    return ClassifiedToolException(
+        error=mapped.error, result=mapped.result if mapped.result is not None else ""
+    )
 
 
 ToolResultContent = (
