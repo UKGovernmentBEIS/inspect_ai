@@ -16,7 +16,6 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_output import StopDetails
 from inspect_ai.model._providers.meta import (
-    META_REASONING_MAX_WARNING,
     META_UNSUPPORTED_PARAM_WARNING,
     MetaAPI,
     _flag_refusal_stop,
@@ -192,7 +191,7 @@ def test_meta_resolve_config_max_downgraded_without_support(
         api.resolve_config(GenerateConfig(reasoning_effort="max")).reasoning_effort
         == "xhigh"
     )
-    assert META_REASONING_MAX_WARNING.format(model=model) in _warn_once_messages
+    assert not any('"max"' in m for m in _warn_once_messages)
 
 
 def test_meta_resolve_config_drops_logprobs(mock_meta_env, _warn_once_messages):

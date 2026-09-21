@@ -37,12 +37,6 @@ META_REASONING_NONE_WARNING = (
     'reasoning_effort="none"); the model default will be used instead.'
 )
 
-META_REASONING_MAX_WARNING = (
-    'reasoning_effort="max" is not available for {model} (the Meta Model API '
-    "offers it on standard-tier muse-spark-1.3 only) and will be submitted "
-    'as "xhigh".'
-)
-
 META_UNSUPPORTED_PARAM_WARNING = (
     "The {parameter} parameter is not supported by {model} and will be ignored."
 )
@@ -161,7 +155,11 @@ class MetaAPI(OpenAICompatibleAPI):
         return supports_max_reasoning_effort(self.service_model_name())
 
     def resolve_config(self, config: GenerateConfig) -> GenerateConfig:
-        """Drop or remap generation options the API rejects with a 400."""
+        """Drop or remap generation options the API rejects with a 400.
+
+        Dropped options warn; `max` remapped to `xhigh` does not, matching the
+        OpenAI and OpenRouter providers.
+        """
         model = self.service_model_name()
         updates: dict[str, Any] = {}
         if config.reasoning_effort == "none":
@@ -171,7 +169,6 @@ class MetaAPI(OpenAICompatibleAPI):
             config.reasoning_effort == "max"
             and not self.supports_max_reasoning_effort()
         ):
-            warn_once(logger, META_REASONING_MAX_WARNING.format(model=model))
             updates["reasoning_effort"] = "xhigh"
         for parameter in ("logprobs", "top_logprobs"):
             if getattr(config, parameter) is not None:
