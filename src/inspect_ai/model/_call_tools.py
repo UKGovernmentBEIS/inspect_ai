@@ -1016,9 +1016,11 @@ class MappedToolCallError(NamedTuple):
     Shared by the model tool path and the human agent tool path (#3053) so
     both produce identical ToolCallError types and partial results for the
     same exception. Returned from tool_call_error(); None means the
-    exception is unexpected, which — on both paths, to start — fails the
-    sample. Optional human recovery from an unexpected exception is not
-    implemented, and would be a separate, explicitly requested change.
+    exception is unexpected. The agreed contract is that both paths fail
+    the sample on an unexpected exception, but this is implemented and
+    tested only for the model path so far: #3053's caller change to apply
+    that disposition on the human agent path, and its corresponding tests,
+    remain outstanding.
     """
 
     error: ToolCallError

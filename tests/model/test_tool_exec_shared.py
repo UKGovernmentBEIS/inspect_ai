@@ -3,9 +3,12 @@
 These helpers are consumed by both the model tool path and the human agent
 tool path (human_cli tools=...), so the same exception or result produces
 identical classification, truncation, and content handling on both. The
-parametrized zoos here are the shared contract; classified exceptions are
-recoverable and unclassified (None) exceptions fail the sample, identically
-on both paths, exercised separately by each path's own tests.
+parametrized zoos here are the shared contract: classified exceptions are
+recoverable and unclassified (None) exceptions fail the sample. The
+fail-the-sample disposition for unclassified exceptions is agreed for both
+paths but is exercised here, and by the model path's own tests, only for
+the model path; #3053's corresponding caller change and tests for the
+human agent path remain outstanding.
 """
 
 import sys
