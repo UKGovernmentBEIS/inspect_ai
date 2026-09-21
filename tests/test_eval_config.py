@@ -81,7 +81,6 @@ def test_run_config_rejects_unknown_eval_config_field():
         RunConfigInput.model_validate({"eval_config": {"limit": 10, "bad_field": 1}})
 
 
-
 def test_run_config_preserves_approval_policy_type(tmp_path: Path):
     params = RunConfigInput.model_validate(
         {
@@ -107,6 +106,7 @@ def test_run_config_preserves_approval_policy_type(tmp_path: Path):
         **params,
     )[0]
     assert log.eval.config.approval == params["approval"]
+
 
 def test_eval_config_task():
     log = eval(
