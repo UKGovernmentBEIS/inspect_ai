@@ -167,12 +167,13 @@ class SandboxAgentBridge(AgentBridge):
             return have_tool_approval()
 
     def request_fail(self, error: Exception) -> None:
-        """Fail the sample with `error` from a bridged generation.
+        """Fail the sample with `error` from a bridged generation or tool call.
 
-        A sandbox bridge's generations run in the sandbox service task, where
-        `_handle_request` turns exceptions into RPC error responses rather than
-        letting them propagate (only `LimitExceededError` is special-cased). So
-        raising from a generation would never reach the sample runner.
+        A sandbox bridge's generations and host tool calls run in the sandbox
+        service task, where `_handle_request` turns exceptions into RPC error
+        responses rather than letting them propagate (only `LimitExceededError`
+        is special-cased). So raising from one would never reach the sample
+        runner.
 
         Instead, store the error and signal the monitor task in
         `sandbox_agent_bridge`'s task group, which raises it on the agent's side

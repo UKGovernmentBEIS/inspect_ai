@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Awaitable, Callable, Sequence, cast
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import anyio
 import pytest
@@ -573,6 +573,84 @@ async def test_handle_request_oversized_raise_writes_error_and_removes_file() ->
     assert request_file in fake.removed
     assert fake.calls[0] == ["cat", "--", request_file]
     _assert_no_shell_interpolation(fake.calls)
+
+
+@pytest.mark.parametrize("grouped", [False, True], ids=["bare", "grouped"])
+async def test_handle_request_bridged_tool_limit_keeps_service_handling(
+    grouped: bool,
+) -> None:
+    """A bridged host tool's `LimitExceededError` reaches the dispatcher unchanged.
+
+    The dispatcher ends the sample for a bare `LimitExceededError` (pre-existing
+    behaviour) and treats anything else, including a task-group
+    `ExceptionGroup` wrapping one, as a plain RPC error. The bridge's `call_tool`
+    classifies the unwrapped exception but must re-raise the original, or a
+    grouped limit would newly end the sample.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.sandbox.service import call_tool
+    from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+    from inspect_ai.tool import tool
+    from inspect_ai.util._limit import LimitExceededError
+
+    @tool
+    def limited():
+        async def execute(text: str) -> str:
+            """Exceed a limit, directly or from a child task.
+
+            Args:
+                text: Ignored.
+            """
+
+            async def child() -> None:
+                raise LimitExceededError("token", value=2, limit=1)
+
+            if grouped:
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(child)
+            await child()
+            return text
+
+        return execute
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        bridged_tools={"srv": {"limited": limited()}},
+    )
+    request_id = "11111111-2222-3333-4444-555555555555"
+    fake = _RequestReadSandbox(
+        cat_stdout=json.dumps(
+            {
+                "id": request_id,
+                "method": "call_tool",
+                "params": {
+                    "server": "srv",
+                    "tool": "limited",
+                    "arguments": {"text": "hi"},
+                },
+            }
+        )
+    )
+    service = _service_with_dirs(fake)
+    service.add_method("call_tool", call_tool(bridge))
+    request_file = f"{service._requests_dir}/{request_id}.json"
+
+    # a MagicMock rather than a bare stub: the log handler reads other
+    # attributes of the active sample when the dispatcher logs the error
+    active = MagicMock()
+    with patch("inspect_ai.log._samples.sample_active", return_value=active):
+        await service._handle_request(request_file)
+
+    response = json.loads(fake.writes[f"{service._responses_dir}/{request_id}.json"])
+    assert response["result"] is None
+    assert response["error"] is not None
+    assert not bridge._failure_requested.is_set()
+    assert active.limit_exceeded.call_count == (0 if grouped else 1)
 
 
 async def test_write_response_goes_through_the_verified_responses_dir() -> None:

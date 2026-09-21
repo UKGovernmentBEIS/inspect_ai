@@ -51,6 +51,7 @@ from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 TASK = "Tidy up the working directory."
@@ -531,6 +532,36 @@ async def test_sandbox_terminate_monitor_raises_for_the_task_group() -> None:
 # ---------------------------------------------------------------------------
 
 
+@tool
+def read_file(mock: AsyncMock) -> Tool:
+    """A typed host tool that hands the arguments it receives to `mock`.
+
+    `call_tool` validates arguments against the tool's schema before calling
+    it, so a bare `AsyncMock` (whose signature is `*args, **kwargs`) cannot be
+    bridged directly. The parameters cover every shape these tests send.
+    """
+
+    async def execute(
+        path: str | None = None,
+        mode: str | None = None,
+        offset: int | None = None,
+        raw: bool | None = None,
+    ) -> str:
+        """Read a file.
+
+        Args:
+            path: Path of the file to read.
+            mode: Mode to open the file in.
+            offset: Offset to start reading from.
+            raw: Whether to return raw bytes.
+        """
+        passed = {"path": path, "mode": mode, "offset": offset, "raw": raw}
+        result: str = await mock(**{k: v for k, v in passed.items() if v is not None})
+        return result
+
+    return execute
+
+
 def sandbox_bridge_with_tool(
     tool: AsyncMock, approval: list[ApprovalPolicy] | None
 ) -> SandboxAgentBridge:
@@ -542,20 +573,26 @@ def sandbox_bridge_with_tool(
         port=13131,
         model=None,
         approval=approval,
-        bridged_tools={"host": {"read_file": tool}},
+        bridged_tools={"host": {"read_file": read_file(tool)}},
     )
 
 
-async def test_forged_host_tool_call_is_rejected_before_execution() -> None:
+async def test_ungranted_host_tool_call_executes_under_approval() -> None:
+    """The execution-grant check in `call_tool` is disabled pending #5428.
+
+    Scaffolds present bridged tools to their model under names the grant
+    resolution does not recognise, so the check denied every approved call; until
+    #5428 lands a host tool call with no matching grant executes.
+    """
     tool = AsyncMock(return_value="secret")
     bridge = sandbox_bridge_with_tool(
         tool, [ApprovalPolicy(auto_approver("approve"), "*")]
     )
 
-    with pytest.raises(PermissionError, match="was not approved for execution"):
-        await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
+    result = await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
 
-    tool.assert_not_awaited()
+    assert result == "secret"
+    tool.assert_awaited_once_with(path="/secret")
 
 
 async def test_approved_host_tool_call_has_one_exact_execution_grant() -> None:
@@ -571,10 +608,14 @@ async def test_approved_host_tool_call_has_one_exact_execution_grant() -> None:
 
     execute = call_host_tool(bridge)
     assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
-    with pytest.raises(PermissionError, match="was not approved for execution"):
-        await execute("host", "read_file", {"path": "notes.txt"})
-
     tool.assert_awaited_once_with(path="notes.txt")
+
+    assert bridge.consume_tool_execution_grant(
+        "host", "read_file", {"path": "notes.txt"}
+    )
+    assert not bridge.consume_tool_execution_grant(
+        "host", "read_file", {"path": "notes.txt"}
+    )
 
 
 async def test_host_tool_execution_grant_binds_arguments() -> None:
@@ -588,10 +629,12 @@ async def test_host_tool_execution_grant_binds_arguments() -> None:
 
     await run_bridge([tool_calls_output(call)], bridge=bridge)
 
-    with pytest.raises(PermissionError, match="was not approved for execution"):
-        await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
-
-    tool.assert_not_awaited()
+    assert not bridge.consume_tool_execution_grant(
+        "host", "read_file", {"path": "/secret"}
+    )
+    assert bridge.consume_tool_execution_grant(
+        "host", "read_file", {"path": "notes.txt"}
+    )
 
 
 async def test_host_tool_grant_matches_regardless_of_argument_key_order() -> None:
@@ -733,9 +776,11 @@ async def test_host_tool_grant_distinguishes_bool_from_number() -> None:
     await run_bridge([tool_calls_output(call)], bridge=bridge)
 
     execute = call_host_tool(bridge)
-    with pytest.raises(PermissionError, match="was not approved for execution"):
-        await execute("host", "read_file", {"raw": 1})
     assert await execute("host", "read_file", {"raw": True}) == "contents"
+    tool.assert_awaited_once_with(raw=True)
+
+    assert not bridge.consume_tool_execution_grant("host", "read_file", {"raw": 1})
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"raw": True})
 
 
 async def test_multi_choice_response_truncated_under_approval() -> None:
@@ -807,12 +852,17 @@ async def test_host_tool_grant_binds_to_approver_modified_arguments() -> None:
     await run_bridge([tool_calls_output(call)], bridge=bridge)
 
     execute = call_host_tool(bridge)
-    # the model's original arguments are not what the approver approved
-    with pytest.raises(PermissionError, match="was not approved for execution"):
-        await execute("host", "read_file", {"path": "original.txt"})
-    # the modified arguments are the approved action
     assert await execute("host", "read_file", {"path": "rewritten.txt"}) == "contents"
     tool.assert_awaited_once_with(path="rewritten.txt")
+
+    # the model's original arguments are not what the approver approved
+    assert not bridge.consume_tool_execution_grant(
+        "host", "read_file", {"path": "original.txt"}
+    )
+    # the modified arguments are the approved action
+    assert bridge.consume_tool_execution_grant(
+        "host", "read_file", {"path": "rewritten.txt"}
+    )
 
 
 async def test_host_tool_call_without_approval_policy_remains_available() -> None:
