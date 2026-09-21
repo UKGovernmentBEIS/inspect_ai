@@ -14,6 +14,7 @@ import logging
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, Literal, cast
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import anyio
@@ -1389,6 +1390,55 @@ async def test_empty_marked_system_block_matches_hints_removed_baseline(
 
 
 @pytest.mark.anyio
+async def test_empty_marked_user_block_matches_hints_removed_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # R1 (2026-09-21 review): an empty marked block on an ordinary user
+    # message is just as unrepresentable as one on a leading system
+    # message — `message_block_params` would substitute a NO_CONTENT
+    # placeholder and attach cache_control to it. The whole request must
+    # fall back, including an otherwise-valid second mark elsewhere in the
+    # same message.
+    input: list[ChatMessage] = [
+        ChatMessageUser(
+            content=[
+                ContentText(text="", cache_breakpoint=True),
+                ContentText(text="varying", cache_breakpoint=True),
+            ]
+        ),
+    ]
+    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
+    baseline = await _generate_request(
+        _auto_api(), _strip_marks(input), GenerateConfig(), monkeypatch
+    )
+    _assert_matches_hints_removed_baseline(request, baseline)
+    # the fallback is ordinary automatic caching (which may itself tag a
+    # lookback block) — not a request with zero marks; the baseline
+    # comparison above is what proves the fallback was clean.
+
+
+@pytest.mark.anyio
+async def test_empty_marked_assistant_block_matches_hints_removed_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # same as above, on an assistant message
+    input: list[ChatMessage] = [
+        ChatMessageUser(content="hi"),
+        ChatMessageAssistant(
+            content=[
+                ContentText(text="", cache_breakpoint=True),
+                ContentText(text="reply", cache_breakpoint=True),
+            ]
+        ),
+    ]
+    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
+    baseline = await _generate_request(
+        _auto_api(), _strip_marks(input), GenerateConfig(), monkeypatch
+    )
+    _assert_matches_hints_removed_baseline(request, baseline)
+
+
+@pytest.mark.anyio
 async def test_trailing_empty_marked_system_block_matches_hints_removed_baseline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1826,3 +1876,74 @@ async def test_legacy_pickled_content_text_without_cache_breakpoint_attribute(
     # must not raise AttributeError
     request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
     assert request["system"][-1]["cache_control"] == CACHE
+
+
+# ---------------------------------------------------------------------------
+# R3 (2026-09-21 review): count_tokens converts via message_param() directly,
+# bypassing the eligibility gate generation uses — verified live that
+# Anthropic's count_tokens endpoint rejects an over-budget mark count and a
+# tool-result mark exactly like generation would, so the hints must be
+# stripped before conversion for counting too.
+# ---------------------------------------------------------------------------
+
+
+async def _count_tokens_request(
+    api: AnthropicAPI,
+    input: list[ChatMessage],
+    monkeypatch: pytest.MonkeyPatch,
+    config: GenerateConfig | None = None,
+) -> dict[str, Any]:
+    mock_count = AsyncMock(return_value=SimpleNamespace(input_tokens=1))
+    monkeypatch.setattr(api.client.messages, "count_tokens", mock_count)
+    await api.count_tokens(input, config)
+    return dict(mock_count.call_args.kwargs)
+
+
+@pytest.mark.anyio
+async def test_count_tokens_strips_over_budget_marks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 5 marks would be rejected by count_tokens with the same 400 generation
+    # gets ("A maximum of 4 blocks with cache_control may be provided"),
+    # verified live; must not reach the wire.
+    content: list[Content] = [
+        ContentText(text=f"doc-{i}", cache_breakpoint=True) for i in range(5)
+    ]
+    request = await _count_tokens_request(
+        _auto_api(), [ChatMessageUser(content=content)], monkeypatch
+    )
+    assert tagged(request["messages"]) == []
+
+
+@pytest.mark.anyio
+async def test_count_tokens_strips_tool_result_mark(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a mark on tool-result content would be rejected by count_tokens with
+    # the same 400 generation gets ("cache_control may not be specified
+    # within tool_result.content"), verified live; must not reach the wire.
+    request = await _count_tokens_request(
+        _auto_api(), _tool_result_input(), monkeypatch
+    )
+    messages = request["messages"]
+    tool_result = messages[_tool_result_positions(messages)[0][0]]["content"][
+        _tool_result_positions(messages)[0][1]
+    ]
+    assert "cache_control" not in tool_result
+    assert all("cache_control" not in block for block in tool_result["content"])
+
+
+@pytest.mark.anyio
+async def test_count_tokens_strips_marks_regardless_of_cache_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # count_tokens ignores cache_prompt entirely (it's not a generation
+    # call), so marks must be stripped unconditionally, including when the
+    # caller explicitly passed cache_prompt=False
+    request = await _count_tokens_request(
+        _auto_api(),
+        [ChatMessageUser(content=[ContentText(text="rubric", cache_breakpoint=True)])],
+        monkeypatch,
+        GenerateConfig(cache_prompt=False),
+    )
+    assert tagged(request["messages"]) == []

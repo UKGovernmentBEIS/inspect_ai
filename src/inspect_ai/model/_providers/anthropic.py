@@ -905,6 +905,21 @@ class AnthropicAPI(ModelAPI):
             for m in input
         ]
 
+        # `message_param` below assumes every `ContentText.cache_breakpoint`
+        # mark it sees has already been validated by
+        # `_can_honor_cache_breakpoints` (as `resolve_chat_input` does for
+        # generation) — it does no hoisting or budget checking of its own.
+        # Token counting never calls that gate, so an over-budget mark count
+        # or a mark inside tool-result content would otherwise reach
+        # Anthropic's count_tokens endpoint unchanged and be rejected with
+        # the same 400 generation would reject it with (verified live).
+        # Anthropic's docs say token counting doesn't use caching anyway, so
+        # stripping the hints here doesn't change the counted result — it
+        # just keeps counting (and compaction, which counts message subsets)
+        # working for every input generation accepts, marked or not.
+        if _has_cache_breakpoint_hints(input):
+            input = _strip_cache_breakpoints(input)
+
         # Check for content requiring beta opt-ins before conversion
         has_compaction = _messages_contain_compaction(input)
         has_fallback = _input_has_fallback(input)
@@ -2861,11 +2876,14 @@ def _can_honor_cache_breakpoints(input: list[ChatMessage]) -> bool:
     Checked once, up front, before any conversion — the whole request falls
     back to normal automatic caching (every mark stripped) rather than
     honoring some marks and not others. A mark is supported on a leading
-    system message or on an ordinary user/assistant message block; a mark
-    is not supported (conservative fallback, not every placement) on a
-    mid-conversation system message or a tool result, since Anthropic has
-    no way to mark a boundary inside either without relocating or widening
-    it.
+    system message or on an ordinary, non-empty user/assistant message
+    block; a mark is not supported (conservative fallback, not every
+    placement) on a mid-conversation system message, on a tool result
+    (Anthropic has no way to mark a boundary inside either without
+    relocating or widening it), or on an empty text block on any role
+    (Anthropic rejects an empty text block outright, so it is replaced with
+    a placeholder before conversion — marking it would attach the caller's
+    boundary to that placeholder instead of their real content).
 
     The caller's own mark count must also fit Anthropic's per-request
     cache-breakpoint budget on its own, before any automatic system/tools
@@ -2877,6 +2895,19 @@ def _can_honor_cache_breakpoints(input: list[ChatMessage]) -> bool:
     if _count_cache_breakpoints(input) > MAX_CACHE_BREAKPOINTS:
         return False
 
+    # a mark on an empty text block can't be honored on any role: Anthropic
+    # rejects an empty text block outright, so `message_block_params`
+    # substitutes a NO_CONTENT placeholder for it — marking that block would
+    # silently attach cache_control to the placeholder instead of the
+    # caller's real (absent) content.
+    if any(
+        isinstance(block, ContentText) and _cache_breakpoint(block) and not block.text
+        for message in input
+        if isinstance(message.content, list)
+        for block in message.content
+    ):
+        return False
+
     i = 0
     while i < len(input) and isinstance(input[i], ChatMessageSystem):
         leading = cast(ChatMessageSystem, input[i])
@@ -2884,11 +2915,6 @@ def _can_honor_cache_breakpoints(input: list[ChatMessage]) -> bool:
             text_blocks = [
                 block for block in leading.content if isinstance(block, ContentText)
             ]
-            if any(
-                _cache_breakpoint(block) and not block.text for block in text_blocks
-            ):
-                # an empty block can't itself carry cache_control
-                return False
             marked = [
                 idx for idx, block in enumerate(text_blocks) if _cache_breakpoint(block)
             ]
