@@ -1,10 +1,10 @@
-# Developing monitors
+# Developing sentinels
 
-How a monitor gets built, measured and calibrated before it is trusted to act. The mechanism is Inspect Scout: a monitor becomes a scanner over the steps of a transcript, and Scout's validation sets, metrics and viewer become the monitor's feedback loop.
+How the monitors in a sentinel get built, measured and calibrated before they are trusted to act. The mechanism is Inspect Scout: a monitor becomes a scanner over the steps of a transcript, and Scout's validation sets, metrics and viewer become the monitor's feedback loop.
 
 Status: design sketch. The Python is illustrative. Scout facts are measured against `inspect_scout` at 2026-09-09; Inspect facts against this branch.
 
-**Related design documents.** `monitor.md` defines the protocol this document develops against, and `monitor-reference.md` is its reference form. `monitor-deployment.md` defines the proxy deployment, whose view of a transcript turns out to be the same one offline replay has. `inspect-core.md` covers the package split this document depends on.
+**Related design documents.** `sentinel.md` defines the protocol this document develops against, and `sentinel-reference.md` is its reference form. `sentinel-deployment.md` defines the proxy deployment, whose view of a transcript turns out to be the same one offline replay has. `inspect-core.md` covers the package split this document depends on.
 
 ## Goal
 
@@ -24,7 +24,7 @@ Scout already does the first four for *scanners* — validation sets with splits
 
 ``` python
 from inspect_scout import scan, transcripts_from
-from inspect_scout.monitor import as_scanner
+from inspect_scout.sentinel import as_scanner
 
 validation = "exfil-steps.csv"
 
@@ -40,32 +40,32 @@ scan(
 Three things fall out of this that the rest of the document works through:
 
 - **Offline replay is a third deployment**, beside the eval and the proxy, and it has a fidelity table like the other two. Reconstruction from a messages-only transcript is *the same projection* the proxy and the bridged agent already use, so one function serves all three.
-- **The recorded reports finally have a consumer.** `monitor.md` records every report, including the ones a protocol ignored, on the argument that they are the benign distribution calibration needs. Scout is where that distribution gets read.
-- **Threshold calibration is a scan plus a percentile.** `monitor.md`'s open question 5 — where a protocol's thresholds come from — has an answer that needs no new machinery.
+- **The recorded reports finally have a consumer.** `sentinel.md` records every report, including the ones a protocol ignored, on the argument that they are the benign distribution calibration needs. Scout is where that distribution gets read.
+- **Threshold calibration is a scan plus a percentile.** `sentinel.md`'s open question 5 — where a protocol's thresholds come from — has an answer that needs no new machinery.
 
 ## Packages
 
-`inspect_monitor` is its own distribution depending only on `inspect_core` (see `inspect-core.md`). The chain is:
+`inspect_sentinel` is its own distribution depending only on `inspect_core` (see `inspect-core.md`). The chain is:
 
 ```
-inspect_core  ←  inspect_monitor  ←  inspect_ai  ←  inspect_scout
+inspect_core  ←  inspect_sentinel  ←  inspect_ai  ←  inspect_scout
 ```
 
-Scout already depends on Inspect, so it gets `inspect_monitor` transitively and the adapter lives in Scout with no new dependency. What goes where:
+Scout already depends on Inspect, so it gets `inspect_sentinel` transitively and the adapter lives in Scout with no new dependency. What goes where:
 
 | Where | What | Why there |
 |------------------------|------------------------|------------------------|
-| `inspect_monitor` | `steps_from_messages()`; the `ReplayStep` record; `Context` from a transcript's info; an in-process `Host`; `replay_monitor()` | needs only core types, and is also what a monitor's unit tests want |
+| `inspect_sentinel` | `steps_from_messages()`; the `ReplayStep` record; `Context` from a transcript's info; an in-process `Host`; `replay_monitor()` | needs only core types, and is also what a monitor's unit tests want |
 | `inspect_ai` | `steps_from_events()` — enrichment of the messages-only reconstruction with `view`, truncation, `tools`, `config` from `ModelEvent` and `ToolEvent` | the event types are not in core today |
-| `inspect_scout` | `as_scanner()`; the `subject` field on `Result` and row expansion; the read-mode scanner over recorded `MonitorEvent`s; `calibrate()`; viewer work | consumes monitors; owns validation and the view |
+| `inspect_scout` | `as_scanner()`; the `subject` field on `Result` and row expansion; the read-mode scanner over recorded `SentinelEvent`s; `calibrate()`; viewer work | consumes monitors; owns validation and the view |
 
-The middle row is pressure on `inspect-core.md`'s first open question. If `ModelEvent` and `ToolEvent` move down, the events-based reconstruction moves down with them and `inspect_monitor` can replay an eval log at full fidelity on its own. Nothing in this document requires that; it only gets tidier.
+The middle row is pressure on `inspect-core.md`'s first open question. If `ModelEvent` and `ToolEvent` move down, the events-based reconstruction moves down with them and `inspect_sentinel` can replay an eval log at full fidelity on its own. Nothing in this document requires that; it only gets tidier.
 
 ## Reconstructing steps
 
 ### From messages
 
-The canonical reconstruction works from `list[ChatMessage]` alone, because that is what every source has — an eval log, a Scout transcript from another agent framework, a proxy request. It is exactly the projection `agent/_bridge/_approval.py` performs on a model response and `monitor-deployment.md` describes for a proxy:
+The canonical reconstruction works from `list[ChatMessage]` alone, because that is what every source has — an eval log, a Scout transcript from another agent framework, a proxy request. It is exactly the projection `agent/_bridge/_approval.py` performs on a model response and `sentinel-deployment.md` describes for a proxy:
 
 | Stage | Reconstructed from | Fidelity |
 |------------------------|------------------------|------------------------|
@@ -74,7 +74,7 @@ The canonical reconstruction works from `list[ChatMessage]` alone, because that 
 | `BeforeToolCall` | each `tool_calls[i]` on an assistant message, with the message text and history to that point | `view` absent |
 | `AfterToolCall` | the `ChatMessageTool` whose `tool_call_id` matches, as `result`; history to that point | `output` (untruncated) absent |
 
-`view` and `output` being absent is the case `monitor.md` already requires monitors to tolerate for proxies, so a portable monitor replays from messages unchanged. Note the last row is *better* than the proxy's: a proxy never sees the final step's result because no further request carries it, whereas a transcript is complete.
+`view` and `output` being absent is the case `sentinel.md` already requires monitors to tolerate for proxies, so a portable monitor replays from messages unchanged. Note the last row is *better* than the proxy's: a proxy never sees the final step's result because no further request carries it, whereas a transcript is complete.
 
 ``` python
 @dataclass(frozen=True)
@@ -113,7 +113,7 @@ An eval log's events restore what messages lose. `ModelEvent` carries `input`, `
 Replay reproduces the monitor's *reports*, not its *effects*. A `reject` in replay does not change the transcript; the agent already did what it did. This is the right limitation for measuring a classifier — precision and recall are about reports — but it means two things cannot be back-tested offline:
 
 - **Interventions.** Whether rejecting call 7 would have led the agent somewhere better is a question for a live eval, not a replay.
-- **Humans.** `human()`, a protocol with no children, cannot be replayed. The useful substitute is to *replay the recorded human decision* when the transcript carries a `MonitorEvent` for that step with `authoritative=True`, so a chain can be back-tested against the answers a person actually gave; otherwise `human()` abstains in replay.
+- **Humans.** `human()`, a protocol with no children, cannot be replayed. The useful substitute is to *replay the recorded human decision* when the transcript carries a `SentinelEvent` for that step with `authoritative=True`, so a chain can be back-tested against the answers a person actually gave; otherwise `human()` abstains in replay.
 
 ## Step ids
 
@@ -128,7 +128,7 @@ Per-step validation needs each step to have an id that exists in a messages-only
 
 One wrinkle: a rejected call followed by a regenerate produces two `BeforeGenerate` steps behind the same last message. That stage takes an ordinal suffix on repeat — `{message_id}:2` — and the other three stages are clean. Within one monitor's stage, ids are unique per transcript; a `BeforeToolCall` monitor and an `AfterToolCall` monitor both key by tool call id, but validation sets are per scanner so there is no collision.
 
-**Consequence for `monitor.md`:** `MonitorEvent` gains `step_id: str`, recorded by the runner live, so the read-mode scanner emits results with the same subjects the replay scanner does.
+**Consequence for `sentinel.md`:** `SentinelEvent` gains `step_id: str`, recorded by the runner live, so the read-mode scanner emits results with the same subjects the replay scanner does.
 
 ## The scan unit and the validation unit
 
@@ -142,7 +142,7 @@ Three grains of label are in play, and they do not need three scan units:
 
 Four ways of getting the step grain into Scout were considered:
 
-- **A `Step` scanner input type.** First-class, and the view could render it natively. But `monitor.md` says monitors should be incremental, so nearly every real monitor is stateful across steps and needs its transcript's steps *in order with one store*. Scout's input model does not promise sequential in-order invocation within a transcript, so the new type would also need a new ordering guarantee. It buys less than it looks.
+- **A `Step` scanner input type.** First-class, and the view could render it natively. But `sentinel.md` says monitors should be incremental, so nearly every real monitor is stateful across steps and needs its transcript's steps *in order with one store*. Scout's input model does not promise sequential in-order invocation within a transcript, so the new type would also need a new ordering guarantee. It buys less than it looks.
 - **A `Sequence[Step]` input per transcript.** Preserves order, but the ids on a sequence input are the whole list, so validation cannot address one step.
 - **A resultset per transcript, validated by label.** No Scout change, but label validation is presence-or-absence per label, so "step 7 was flagged and should not have been" is not expressible.
 - **Keep the transcript as the scan unit; make the result the validation unit.** Chosen.
@@ -156,7 +156,7 @@ as_scanner(monitor, unit="step")        # one Result per step; subject = step id
 as_scanner(monitor, unit="transcript")  # one Result; transcript id, as today
 ```
 
-State stays where `monitor.md` already puts it; Scout's parallelism across transcripts is untouched; and the transcript-grain form is the same adapter reducing to one result by max suspicion or strongest decision, with `references` to the flagged steps.
+State stays where `sentinel.md` already puts it; Scout's parallelism across transcripts is untouched; and the transcript-grain form is the same adapter reducing to one result by max suspicion or strongest decision, with `references` to the flagged steps.
 
 ### What Scout changes
 
@@ -201,15 +201,15 @@ Both consume the same validation set, because both key results by step id.
 | Mode | What runs | When |
 |------------------------|------------------------|------------------------|
 | **replay** | reconstruct steps, run the monitor, one result per step | you changed the prompt, the model, or the monitor's logic |
-| **read** | walk the transcript's recorded `MonitorEvent`s, one result per event | you want to know how the monitor behaved in the run it was attached to |
+| **read** | walk the transcript's recorded `SentinelEvent`s, one result per event | you want to know how the monitor behaved in the run it was attached to |
 
-Read mode costs no inference and is what makes "run the eval observe-only, then look" a real workflow rather than a slogan. It is also the only mode that sees `outcome` — what the protocol actually did with the report — so "how often did `defer_to_trusted` defer" is a read-mode query. Scout's `EventType` literal gains `"monitor"` so the transcript loader can filter for these events.
+Read mode costs no inference and is what makes "run the eval observe-only, then look" a real workflow rather than a slogan. It is also the only mode that sees `outcome` — what the protocol actually did with the report — so "how often did `defer_to_trusted` defer" is a read-mode query. Scout's `EventType` literal gains `"sentinel"` so the transcript loader can filter for these events.
 
 Read mode also gives the honest check on replay itself: replay the monitor over a log it was attached to, and the two modes should agree wherever the monitor is deterministic. Where they do not, the reconstruction is wrong, and that is a test worth shipping.
 
 ## The workflow
 
-1. **Write** the monitor as `monitor.md` describes. Its unit tests use `replay_monitor()` from `inspect_monitor` over a handful of message lists — no Scout, no eval.
+1. **Write** the monitor as `sentinel.md` describes. Its unit tests use `replay_monitor()` from `inspect_sentinel` over a handful of message lists — no Scout, no eval.
 2. **Replay** it over a corpus with `as_scanner()` and look at what it flags in Scout View.
 3. **Label** from the results view — each step is a row — building a validation set with `dev` and `test` splits. Scout's existing case editor does this; steps appear as results rows, so no new labelling gesture is required for the first version.
 4. **Validate**: precision, recall, F1, balanced accuracy over the `dev` split. Change the prompt; bump the monitor's version; re-scan; compare. This is Scout's existing loop.
@@ -221,7 +221,7 @@ Steps 2–4 are exactly what a scanner author does today. The monitor-specific p
 
 ## Calibration
 
-`monitor.md` insists thresholds live in protocols, not monitors, because a threshold needs a benign score distribution and a monitor looking at one step has never seen one. This is where the distribution comes from.
+`sentinel.md` insists thresholds live in protocols, not monitors, because a threshold needs a benign score distribution and a monitor looking at one step has never seen one. This is where the distribution comes from.
 
 **From a benign corpus.** Replay an `Observation` monitor over transcripts known to be benign. The results dataframe's `value` column *is* the benign distribution. A budget becomes a threshold by percentile: "audit the top 1%" is the 99th percentile of that column, per dimension when suspicion is structured.
 
@@ -232,16 +232,16 @@ A helper closes the loop:
 ``` python
 thresholds = calibrate(results, budget=0.01)          # percentile per dimension
 thresholds = calibrate(results, target_recall=0.95)   # from labels
-Task(monitor=threshold(suspicion_monitor(), reject_at=thresholds["sabotage"]))
+Task(sentinel=threshold(suspicion_monitor(), reject_at=thresholds["sabotage"]))
 ```
 
-It is ordinary pandas over a Scout results dataframe and lives in Scout. What matters more than the helper is that the *inputs* to it — recorded scores, including ones a protocol ignored — are produced by the runner as a matter of course, which is why `monitor.md` records them.
+It is ordinary pandas over a Scout results dataframe and lives in Scout. What matters more than the helper is that the *inputs* to it — recorded scores, including ones a protocol ignored — are produced by the runner as a matter of course, which is why `sentinel.md` records them.
 
 The calibration corpus should be held out from the validation set's `test` split, and a threshold derived from one model's scores is not a threshold for another model's; both are ordinary ML hygiene rather than framework concerns, but the docs should say them.
 
 ## Monitors as scores
 
-`monitor.md`'s open question 11 asks whether a monitor can produce a `Score` beside the task's own scores. It can, without touching scoring:
+`sentinel.md`'s open question 11 asks whether a monitor can produce a `Score` beside the task's own scores. It can, without touching scoring:
 
 ``` python
 Task(scorer=[my_task_scorer(), as_scorer(as_scanner(suspicion_monitor(), unit="transcript"))])
@@ -262,17 +262,17 @@ Monitor inference in replay is charged to the scan, never to anything resembling
 
 ## What this asks of the other documents
 
-- **`monitor.md` and `monitor-reference.md`:** `MonitorEvent.step_id`, recorded live by the runner. Open question 5 (calibration) and open question 11 (monitors as scores) are answered here and retire there.
+- **`sentinel.md` and `sentinel-reference.md`:** `SentinelEvent.step_id`, recorded live by the runner. Open question 5 (calibration) and open question 11 (monitors as scores) are answered here and retire there.
 - **`inspect-core.md`:** the events-based reconstruction wants `ModelEvent` and `ToolEvent` in core. Not required, but it is a concrete consumer for the first open question.
-- **Scout:** `Result.subject`; expansion of subject-bearing results into rows; `"monitor"` in `EventType`; the read-mode scanner; `calibrate()`; and, later, a step-level labelling gesture in the transcript view.
+- **Scout:** `Result.subject`; expansion of subject-bearing results into rows; `"sentinel"` in `EventType`; the read-mode scanner; `calibrate()`; and, later, a step-level labelling gesture in the transcript view.
 
 ## Open questions
 
 1. **Does `subject` belong on `Result` or on `ResultReport`?** The result is what a scanner author constructs, so it is the natural home; but expansion is a recorder concern, and a subject the recorder then copies into `input_ids` is a small duplication. Result, unless the recorder has a reason.
 2. **What does an expanded row's `input` hold?** Parent transcript id plus subject is the proposal; whether the view needs the step's messages materialised for rendering is a viewer question.
-3. **Should `unit="transcript"` reduce by max or by strongest?** Max suspicion for observations and strongest decision are the obvious defaults and match `monitor.md`'s composition rules; a protocol may want the outermost layer's decision instead, which the adapter can take from its own report.
+3. **Should `unit="transcript"` reduce by max or by strongest?** Max suspicion for observations and strongest decision are the obvious defaults and match `sentinel.md`'s composition rules; a protocol may want the outermost layer's decision instead, which the adapter can take from its own report.
 4. **Replaying a bridged agent's log.** A `claude_code` or `codex` transcript has no `ToolEvent`s of Inspect's own, so replay is messages-only even from an eval log. That is fine — it is the deployment those monitors face anyway — but the fidelity table should say so.
-5. **Does replay honour `portable=True`?** Running a portable monitor through the same restricted `Host` the proxy would use is the enforcement `monitor-deployment.md` argues for, and replay is the cheapest place to do it. Probably yes, as an option on `as_scanner()`.
+5. **Does replay honour `portable=True`?** Running a portable monitor through the same restricted `Host` the proxy would use is the enforcement `sentinel-deployment.md` argues for, and replay is the cheapest place to do it. Probably yes, as an option on `as_scanner()`.
 6. **Step-level labelling in the transcript view.** Results rows suffice for a first version; a "this tool call was bad" gesture on the transcript itself is the natural way to build step sets and needs Scout View work.
 7. **Splits and calibration.** Whether `calibrate()` should refuse to read a split that is also used for validation, or merely document the hygiene.
 8. **Sub-section splitting and stateful monitors.** Splitting a compaction segment resets the per-transcript store at each cut. Whether the adapter should refuse to split for a monitor that declares state, seed each sub-section with a summary of the prior one, or simply document the fidelity loss.

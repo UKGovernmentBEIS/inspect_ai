@@ -1,8 +1,8 @@
-# Inspect Monitors
+# Inspect Sentinel
 
 ## Overview
 
-Inspect Monitors is a package for defining, developing, and deploying monitors: functions that watch agents and intervene in their execution. Key design elements include:
+Inspect Sentinel is a package for defining, developing, and deploying sentinels: functions that watch agents and intervene in their execution. Key design elements include:
 
 1.  A single interface that encompasses monitoring tool calls and model generations, with execution either before or after steps.
 2.  A division between monitors, which observe and report a suspicion score, and protocols, which decide on an action similar to the current Inspect tool call approval interface (e.g. continue, modify, reject, escalate, terminate). A protocol with no monitors is a simple rule.
@@ -11,6 +11,8 @@ Inspect Monitors is a package for defining, developing, and deploying monitors: 
 5.  Development tools for validating, calibrating, and backtesting monitors on test or production transcripts.
 
 The purpose of this document is to solicit feedback on the core concepts and Python API used to implement monitors and protocols.
+
+On naming: *sentinel* is the umbrella, for the feature and for a configured tree passed as `Task(sentinel=)`, which is always a protocol with its monitors. Inside it, *monitor* and *protocol* keep the senses the AI-control literature (and ControlArena) give them: the monitor scores, the protocol decides. An earlier draft used "monitor" for both the umbrella and the scorer, and readers took `Task(monitor=)` to mean "the monitor plus the protocol"; renaming the umbrella keeps the literature's pair intact.
 
 ## Monitors and Protocols
 
@@ -38,7 +40,7 @@ def suspicion_monitor(model: str | None = None) -> Monitor:
 
     return check
 
-Task(monitor=threshold(suspicion_monitor(), reject_at=0.8))
+Task(sentinel=threshold(suspicion_monitor(), reject_at=0.8))
 ```
 
 Both run before the tool call executes (the `step` they take is `BeforeToolCall`). There are four different steps that a monitor or protocol could choose to target:
@@ -50,7 +52,7 @@ Both run before the tool call executes (the `step` they take is `BeforeToolCall`
 | `BeforeToolCall` | Before a tool call executes |
 | `AfterToolCall` | After a tool call executes, before the model sees the result |
 
-The monitor API will include a variety of view functions that help with presenting task context and agent actions to the monitor (e.g. like the `messages_as_str()` function in Inspect Scout).
+The sentinel API will include a variety of view functions that help with presenting task context and agent actions to the monitor (e.g. like the `messages_as_str()` function in Inspect Scout).
 
 ### Actions
 
@@ -68,7 +70,7 @@ A monitor never returns an action. It records an `Observation` for a protocol to
 
 ### Context
 
-In addition to the data associated with a tool call or generation, monitors and protocols are passed a `Context` that includes task and sample information, a place to store state, and an interface to the monitor host (which could either be Inspect AI or a proxy server):
+In addition to the data associated with a tool call or generation, monitors and protocols are passed a `Context` that includes task and sample information, a place to store state, and an interface to the sentinel host (which could either be Inspect AI or a proxy server):
 
 ``` python
 @dataclass(frozen=True)
@@ -160,7 +162,7 @@ def threshold(
 
 ## Deployment
 
-Monitors can be developed, refined, and deployed within Inspect AI, and for many applications this will be sufficient. However, in some scenarios you may want to run monitors in a network proxy in front of the model API, where the agent cannot bypass them and where they cover all agent traffic (e.g. coding agents). A proxy has no `Task`, no sample, and no `Store`, and the traffic is not necessarily Inspect's, so the monitor interface is designed so that the same monitor runs in both places.
+Sentinels can be developed, refined, and deployed within Inspect AI, and for many applications this will be sufficient. However, in some scenarios you may want to run sentinels in a network proxy in front of the model API, where the agent cannot bypass them and where they cover all agent traffic (e.g. coding agents). A proxy has no `Task`, no sample, and no `Store`, and the traffic is not necessarily Inspect's, so the sentinel interface is designed so that the same monitor runs in both places.
 
 ### Proxy Steps
 
@@ -180,9 +182,9 @@ The goal is to enable two deployment modes for proxy servers:
 1.  Sidecar (a Python service beside the proxy); or
 2.  Embedded (CPython compiled to WASM inside the proxy)
 
-Both modes depend on monitors being lightweight. `inspect_monitor` depends only on `inspect_core`, a new package holding the wire types (`ChatMessage`, `ModelOutput`, `ToolCall`, `ToolInfo`) and the registry primitives, so that a monitor author, a proxy, or a WASM build never pulls in the full Inspect framework.
+Both modes depend on sentinels being lightweight. `inspect_sentinel` depends only on `inspect_core`, a new package holding the wire types (`ChatMessage`, `ModelOutput`, `ToolCall`, `ToolInfo`) and the registry primitives, so that a monitor author, a proxy, or a WASM build never pulls in the full Inspect framework.
 
-Even if you are deploying monitors inside Inspect AI to start with, the API will verify that your code will travel well to a proxy without Inspect dependencies. Note that you can opt out of this checking with `@monitor(portable=False)`.
+Even if you are deploying sentinels inside Inspect AI to start with, the API will verify that your code will travel well to a proxy without Inspect dependencies. Note that you can opt out of this checking with `@monitor(portable=False)`.
 
 ## Development
 
@@ -190,7 +192,7 @@ Inspect Scout will provide a feedback loop for monitor development (validation s
 
 ``` python
 from inspect_scout import scan, transcripts_from
-from inspect_scout.monitor import as_scanner
+from inspect_scout.sentinel import as_scanner
 
 scan(
     scanners=[as_scanner(suspicion_monitor("openai/gpt-4o-mini"))],
@@ -202,7 +204,7 @@ scan(
 The typical workflow:
 
 1.  Replay the monitor over a corpus and review what it flags in Scout View.
-2.  Label steps as should-flag or should-not-flag directly from the results view, building a validation set with dev and test splits. Each step has a stable id (the tool call id, or the message id), so labels apply to replayed steps and to the `MonitorEvent`s an eval recorded.
+2.  Label steps as should-flag or should-not-flag directly from the results view, building a validation set with dev and test splits. Each step has a stable id (the tool call id, or the message id), so labels apply to replayed steps and to the `SentinelEvent`s an eval recorded.
 3.  Validate using precision, recall, F1, and balanced accuracy over the dev split. Change the prompt, bump the version, re-scan, compare.
 4.  Calibrate by replaying an `Observation` monitor over known-benign transcripts. The score column of the results is the benign distribution, so a budget (e.g. "audit the top 1%") becomes a threshold by percentile.
 

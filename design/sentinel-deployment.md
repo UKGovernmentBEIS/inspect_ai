@@ -1,12 +1,12 @@
-# Running monitors outside the eval process
+# Running sentinels outside the eval process
 
-Companion to `monitor.md`, which defines monitors (which observe) and protocols (which decide). This document covers deploying one where there is no eval: inside a proxy on the wire in front of a model API.
+Companion to `sentinel.md`, which defines monitors (which observe) and protocols (which decide). This document covers deploying a sentinel where there is no eval: inside a proxy on the wire in front of a model API.
 
 Status: measured where marked, reasoned elsewhere.
 
 ## Why bother
 
-A monitor enforced at the network boundary is tamper-resistant in a way an in-process one is not — the agent cannot bypass it — and it covers all agent traffic rather than only what an eval generates. There is no `Task`, no sample, no `Store`, and the traffic is not necessarily Inspect's.
+A sentinel enforced at the network boundary is tamper-resistant in a way an in-process one is not — the agent cannot bypass it — and it covers all agent traffic rather than only what an eval generates. There is no `Task`, no sample, no `Store`, and the traffic is not necessarily Inspect's.
 
 That deployment restricts the protocol sharply, which is why the constraints belong in the design rather than in a later integration note.
 
@@ -115,7 +115,7 @@ class HostResponse(Protocol):
 
 The same surface whether the host is Envoy via proxy-wasm, a Go runtime, or ordinary Python in-process where these are normal implementations.
 
-A monitor reaches it as `context.host` (`monitor.md`, "The context"), never by import. That is what keeps a monitor a pure function of its two arguments, and it is why the ABI is small enough to be worth specifying: everything a monitor can do to the outside world is enumerable from one Protocol.
+A monitor reaches it as `context.host` (`sentinel.md`, "The context"), never by import. That is what keeps a monitor a pure function of its two arguments, and it is why the ABI is small enough to be worth specifying: everything a monitor can do to the outside world is enumerable from one Protocol.
 
 ### Why `fetch` is a primitive, not an escape hatch
 
@@ -140,7 +140,7 @@ async def rpc(host: Host, endpoint: str, method: str, params: Any) -> Any:
 
 `fetch` takes an endpoint *name* that host configuration resolves to a URL, auth and transport. This is the security-critical part of the design.
 
-A monitor reads model completions, tool arguments and tool output — all agent-controlled text, and a prompt-injection surface (see `monitor.md`, "Inference, budget, and injection"). A monitor that can then make arbitrary outbound HTTP calls is a confused deputy sitting on the network boundary: **unrestricted egress turns the monitor into an exfiltration channel**, and the payload it would exfiltrate is the conversation it was given privileged access to.
+A monitor reads model completions, tool arguments and tool output — all agent-controlled text, and a prompt-injection surface (see `sentinel.md`, "Inference, budget, and injection"). A monitor that can then make arbitrary outbound HTTP calls is a confused deputy sitting on the network boundary: **unrestricted egress turns the monitor into an exfiltration channel**, and the payload it would exfiltrate is the conversation it was given privileged access to.
 
 Naming the endpoints closes that:
 
@@ -160,7 +160,7 @@ A host that wants to allow arbitrary URLs can still register a `"*"`-style endpo
 
 ### Should `generate` just be `fetch`?
 
-It could be — `fetch("model", ...)` — but keeping it distinct is better. Model calls carry token accounting, model roles, provider retry/backoff, and the limit-suspension semantics approvers already have (`monitor.md`, "Inference, budget, and injection"). Collapsing them into a generic HTTP call loses all of that, and the host would have to re-derive it from the endpoint name.
+It could be — `fetch("model", ...)` — but keeping it distinct is better. Model calls carry token accounting, model roles, provider retry/backoff, and the limit-suspension semantics approvers already have (`sentinel.md`, "Inference, budget, and injection"). Collapsing them into a generic HTTP call loses all of that, and the host would have to re-derive it from the endpoint name.
 
 ### Two further notes
 
@@ -169,7 +169,7 @@ It could be — `fetch("model", ...)` — but keeping it distinct is better. Mod
 
 ### Where the protocol runs
 
-`monitor.md` splits the monitor (observes, reports) from the protocol (authorizes, acts). That split survives the trip, and it is mostly good news here: the leaf monitor stays a pure function of one exchange, while everything stateful — thresholds, budget, aggregation — belongs to the protocol, which is also the thing that owns the keyed store described above.
+`sentinel.md` splits the monitor (observes, reports) from the protocol (authorizes, acts). That split survives the trip, and it is mostly good news here: the leaf monitor stays a pure function of one exchange, while everything stateful — thresholds, budget, aggregation — belongs to the protocol, which is also the thing that owns the keyed store described above.
 
 The split is one of types, `@monitor` and `@protocol`, but both are plain functions of `(context, step)`, and that matters here in one specific way. The portability verdict is per function, so a composition is exactly as portable as its least portable member — a leaf monitor calling `get_model()` disqualifies the protocol that wraps it, and a protocol reaching for task-scoped state disqualifies itself while leaving its leaves deployable. Both directions are visible to the same static check, which would not have been true had protocols been a separate kind of object with their own affordances.
 
@@ -179,7 +179,7 @@ Three notes:
 
 - **`audit` travels most cleanly of all.** Routing a suspicious exchange to a human review queue is an ordinary thing for a proxy to do, and arguably more natural in production than in an eval. Unlike `terminate`, which crosses as a best-effort effect, an audit request is fully honoured on the proxy side — because auditing is a flag on a report rather than an action on the exchange.
 - **Budget allocation needs an episode.** Ctrl-Z spends 1% of actions per episode with exponential decay. A proxy has no episode boundary, only a conversation, so the budget becomes per-conversation (keyed as above) or a rate over time. That is a protocol design choice, not a framework one.
-- **Observe-only is the right proxy default for scores**, for the same reason it is in an eval, and more so: a threshold nobody calibrated, acting on the network boundary, can break production traffic. The asymmetry `monitor.md` draws between rules and monitors holds here too — a rule deployed to refuse a call is doing what a proxy filter has always done, and needs no threshold; a monitor's score needs one, and a proxy is the last place to guess it.
+- **Observe-only is the right proxy default for scores**, for the same reason it is in an eval, and more so: a threshold nobody calibrated, acting on the network boundary, can break production traffic. The asymmetry `sentinel.md` draws between rules and monitors holds here too — a rule deployed to refuse a call is doing what a proxy filter has always done, and needs no threshold; a monitor's score needs one, and a proxy is the last place to guess it.
 
 ## State
 
@@ -238,9 +238,9 @@ That machinery is therefore coupled to the transcript, and a proxy has no transc
 
 ### Consequence for the protocol
 
-State reaches a monitor as an argument and only as an argument. `context.store_as(...)` survives here — the dispatcher builds one context per conversation and hands the monitor whatever it loaded for the key. An ambient accessor would not, since a proxy has nothing to bind to, which is one reason `monitor.md` declines to provide one.
+State reaches a monitor as an argument and only as an argument. `context.store_as(...)` survives here — the dispatcher builds one context per conversation and hands the monitor whatever it loaded for the key. An ambient accessor would not, since a proxy has nothing to bind to, which is one reason `sentinel.md` declines to provide one.
 
-The same holds for effects. `context.host` is how a monitor reaches inference, keyed storage and outbound JSON, and routing them through an argument rather than an import is what makes the monitor a pure function of `(context, step)` — which is the property everything in this document depends on. Since `monitor.md` made monitors annotated functions, that is now the literal signature rather than a description of one.
+The same holds for effects. `context.host` is how a monitor reaches inference, keyed storage and outbound JSON, and routing them through an argument rather than an import is what makes the monitor a pure function of `(context, step)` — which is the property everything in this document depends on. Since `sentinel.md` made monitors annotated functions, that is now the literal signature rather than a description of one.
 
 The qualification is the factory closure. `@monitor` decorates a factory, and anything it captures is created once per configuration and shared by every invocation — which is fine for configuration (a threshold, a model name) and wrong for anything accumulated. In an eval that yields a silent cross-sample race; in a proxy, state that a second replica does not have. The keyed store is the only durable place, and it arrives through `context`.
 
@@ -327,7 +327,7 @@ So: one bundle holding every selected module, with the module as the unit of *in
 
 ### Selection stays an explicit list
 
-`monitor.md` declines to provide glob selection over registry names, on the grounds that grouping is rarer than it looks. That has a consequence here worth naming, because it runs the safe direction.
+`sentinel.md` declines to provide glob selection over registry names, on the grounds that grouping is rarer than it looks. That has a consequence here worth naming, because it runs the safe direction.
 
 Enablement is an explicit list in both deployments. A bundle may therefore contain a module whose monitors the proxy never wires up — benign, since that is unused code in an artifact rather than an unenabled monitor quietly running. The dangerous direction is the inverse: a selection mechanism that resolves to a monitor the bundle does not contain, so the eval tests five and the deployment runs four with nothing reporting the difference. A pattern language could do that. An explicit list cannot.
 

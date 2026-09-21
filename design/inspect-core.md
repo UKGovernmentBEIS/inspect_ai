@@ -7,10 +7,10 @@ Exploratory design. Status: measured where marked, reasoned elsewhere.
 Make Inspect's core data types — `ChatMessage`, `Content`, `ToolCall`, `ToolInfo`, `ModelOutput` — depend on almost nothing, so they can be
 
 - imported by lightweight consumers (log readers, dataframe/analysis code, sibling packages) without paying for the eval framework,
-- compiled into a WASM module of tolerable size (see `monitor-deployment.md`),
+- compiled into a WASM module of tolerable size (see `sentinel-deployment.md`),
 - published as a versioned cross-language schema that hosts written in Go, Rust or TypeScript can target.
 
-This came out of the monitor design, but nothing here is monitor-specific.
+This came out of the sentinel design, but nothing here is monitor-specific.
 
 ## The measurement
 
@@ -117,7 +117,7 @@ Three details:
 
 ### Annotation-driven registration needs nothing extra
 
-`@monitor` deduces its stage from the type annotation on the monitor's second parameter (`monitor.md`). That adds no dependency: `typing.get_type_hints` is stdlib, and it is already how `@tool` works — `tool/_tool_info.py:118` builds the whole `ToolInfo` from annotations. The leaf needs `typing` and the payload types, both of which it has by construction.
+`@monitor` deduces its stage from the type annotation on the monitor's second parameter (`sentinel.md`). That adds no dependency: `typing.get_type_hints` is stdlib, and it is already how `@tool` works — `tool/_tool_info.py:118` builds the whole `ToolInfo` from annotations. The leaf needs `typing` and the payload types, both of which it has by construction.
 
 The related static pass — enumerating `@monitor` functions in a file without importing it, which a deployment bundler wants — is also nearly free, but not via the shipped helper. `_util/decorator.py::parse_decorators` is pure `ast` over top-level `FunctionDef` nodes, except that it imports `_util.file` for S3 support, and `_util/file.py` pulls `fsspec` and `s3fs`. So the concept (\~40 lines of stdlib `ast`) belongs in the leaf; the existing function does not, until that import is severed or a local-path-only variant is split out.
 
@@ -200,7 +200,7 @@ And note what codegen does *not* do: it gives hosts the target shape, not the ma
 
 ## Open questions
 
-1.  **Scope of `inspect_core`.** Which types exactly? The seven analyzed here are the monitor's needs; a log reader wants `EvalLog` and the event types, which reach further. `monitor-development.md` adds a concrete consumer for `ModelEvent` and `ToolEvent`: replaying a monitor over an eval log at full fidelity needs them, and without them in core that reconstruction lives in `inspect_ai` rather than `inspect_monitor`.
+1.  **Scope of `inspect_core`.** Which types exactly? The seven analyzed here are the monitor's needs; a log reader wants `EvalLog` and the event types, which reach further. `sentinel-development.md` adds a concrete consumer for `ModelEvent` and `ToolEvent`: replaying a monitor over an eval log at full fidelity needs them, and without them in core that reconstruction lives in `inspect_ai` rather than `inspect_sentinel`.
 2.  **Is it a separate distribution or a subpackage?** A separate wheel lets a Go-host author depend on it without `inspect_ai`; a subpackage is far less release machinery. The WASM case wants the former.
 3.  **How far to chase the four-package floor.** Removing `rich`, `platformdirs`, `anyio` and `jsonlines` means the types stop using `warn_once` and friends. Worth it for a constrained build, possibly not otherwise.
 4.  **Does `inspect_api` ship the Google provider conversions** given the heavier dependency, or are they an optional extra?
