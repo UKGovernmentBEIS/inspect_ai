@@ -1,3 +1,8 @@
+## Unreleased
+
+- Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
+- Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
+
 ## 0.3.266 (19 September 2026)
 
 - Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the "scorer couldn't be loaded" guidance rather than a raw traceback.
@@ -76,8 +81,6 @@
 - Sandbox tools: `bash_session()`, `text_editor()`, `exec_remote()` and sandboxed MCP servers now run as the sandbox's default user instead of always as root; the three tools accept `user="root"` to restore the old behavior.
 - Sandbox Tools: Binaries downloaded from S3 that fail SHA256 verification or lack a pinned digest are now rejected instead of run with a warning; `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` has been removed.
 - Sandbox tools: Fixed a race during injection that let a non-root sandbox user replace the tools archive before root unpacked it.
-- Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
-- Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
 - Docker: Timed commands no longer run an agent-planted timeout executable from the sandbox's PATH with elevated privileges.
 - Sandboxes: A sandbox user can no longer make Inspect's own commands run a program it planted on the image `PATH`; images must provide `/bin/sh` and the coreutils Inspect uses (including `zstd` for existing `.tar.zst` checkpoints) in the system `bin`/`sbin` directories, not `/usr/local`.
 - Inspect View: Requests for unreadable log headers now return 403 instead of 500.
