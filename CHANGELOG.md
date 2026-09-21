@@ -2,6 +2,7 @@
 
 - Anthropic: Prompts can mark a stable prefix for caching while allowing the remaining text to change.
 - OpenAI: GPT-5.6 and later support explicit prompt-cache boundaries; other models retain automatic caching.
+- Agent Bridge: An unexpected exception from a host tool called through `sandbox_agent_bridge(bridged_tools=...)` now fails the sample as a native tool exception does, and malformed arguments are reported to the model as a parsing error.
 - Grok: Support for Grok 4.7.
 - Bugfix: `bash_session` no longer sends the literal string "None" to the shell when `type_submit` is called without `input`.
 - Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
