@@ -53,6 +53,7 @@ from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
     apply_initial_system_checkpoint,
+    count_cache_breakpoints,
     openai_handle_bad_request,
     openai_handle_stream_error,
     openai_media_filter,
@@ -60,6 +61,7 @@ from .._openai import (
 )
 from .._openai_responses import (
     ResponsesModelInfo,
+    message_bypasses_content_conversion,
     model_usage_from_response_usage,
     openai_responses_chat_choices,
     openai_responses_inputs,
@@ -160,9 +162,18 @@ async def generate_responses(
     # `resolve_explicit_prompt_cache` for the gating (model, budget, position,
     # cache_prompt) — any condition failing falls back to the model's normal
     # implicit caching for the whole request rather than honoring part of a
-    # marked layout.
+    # marked layout. `resolve_explicit_prompt_cache` only sees message
+    # *roles*, so a mark on a user message that the Responses API replays
+    # natively (a compaction marker or a stashed Codex agent_message,
+    # neither of which goes through per-block content conversion) would
+    # otherwise be counted as representable and then silently dropped while
+    # marks elsewhere in the same request are still honored — check that
+    # bypass path explicitly too.
     explicit_cache = resolve_explicit_prompt_cache(
         input, model_name, config.cache_prompt
+    ) and not any(
+        message_bypasses_content_conversion(m) and count_cache_breakpoints([m]) > 0
+        for m in input
     )
     if explicit_cache:
         # retain a checkpoint at the end of the initial system/developer

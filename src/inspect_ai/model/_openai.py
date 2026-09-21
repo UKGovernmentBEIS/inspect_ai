@@ -194,6 +194,23 @@ def supports_explicit_prompt_cache(model_name: str) -> bool:
 _CACHE_BREAKPOINT_SUPPORTED_ROLES = {"user", "system"}
 
 
+def _cache_breakpoint(block: ContentText) -> bool:
+    """Whether `block` requests an explicit cache breakpoint.
+
+    Reads via `getattr` rather than direct attribute access: `cache_breakpoint`
+    was added to `ContentText` after it shipped, and Inspect's local response
+    cache persists pickled `ModelOutput` objects (including their message
+    content) across process restarts and version upgrades, with a default
+    lifetime of one week. Unpickling reconstructs an object's `__dict__`
+    directly, bypassing pydantic's validators and default-filling, so a
+    `ContentText` pickled before this field existed genuinely lacks the
+    attribute on unpickling — a plain `.cache_breakpoint` read would raise
+    `AttributeError` on the very next (even uncached) model call that replays
+    it. A missing attribute means unmarked, the same as `None`.
+    """
+    return bool(getattr(block, "cache_breakpoint", None))
+
+
 def count_cache_breakpoints(
     messages: list[ChatMessage],
     roles: Collection[str] | None = None,
@@ -215,7 +232,7 @@ def count_cache_breakpoints(
         if (roles is None or message.role in roles)
         if isinstance(message.content, list)
         for content in message.content
-        if isinstance(content, ContentText) and content.cache_breakpoint
+        if isinstance(content, ContentText) and _cache_breakpoint(content)
         if not require_text or content.text
     )
 
@@ -397,7 +414,7 @@ async def _openai_system_content(
     if isinstance(message.content, str) or not cache_breakpoints:
         return message.text
     if not any(
-        isinstance(c, ContentText) and c.cache_breakpoint for c in message.content
+        isinstance(c, ContentText) and _cache_breakpoint(c) for c in message.content
     ):
         return message.text
     parts: list[ChatCompletionContentPartTextParam] = []
@@ -408,7 +425,7 @@ async def _openai_system_content(
         # append even an empty block's text so the join below reproduces the
         # same blank-line separator the flattened `message.text` would.
         run.append(c.text)
-        if c.cache_breakpoint and run:
+        if _cache_breakpoint(c) and run:
             part = ChatCompletionContentPartTextParam(type="text", text="\n".join(run))
             part["prompt_cache_breakpoint"] = {"mode": "explicit"}
             parts.append(part)
@@ -419,6 +436,13 @@ async def _openai_system_content(
             parts.append(
                 ChatCompletionContentPartTextParam(type="text", text=trailing_text)
             )
+        elif parts:
+            # every block after the last mark is empty (e.g. ["a"(marked), ""]
+            # flattens to "a\n", not "a"). An empty text part can't stand on
+            # its own (the API rejects it), so fold the separator(s) that
+            # message.text would still contribute into the previous part
+            # rather than silently dropping them and shortening the prompt.
+            parts[-1]["text"] += "\n" * len(run)
     return parts
 
 
@@ -431,7 +455,7 @@ async def openai_chat_completion_part(
         if (
             cache_breakpoints
             and isinstance(content, ContentText)
-            and content.cache_breakpoint
+            and _cache_breakpoint(content)
         ):
             part["prompt_cache_breakpoint"] = {"mode": "explicit"}
         return part

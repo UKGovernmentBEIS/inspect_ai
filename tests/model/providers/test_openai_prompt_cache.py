@@ -366,6 +366,35 @@ async def test_completions_initial_system_preserves_empty_separator() -> None:
 
 
 @pytest.mark.anyio
+async def test_completions_trailing_empty_block_after_caller_mark_preserves_separator() -> (
+    None
+):
+    # R3: system content ["a"(marked), ""] flattens to "a\n" when unmarked.
+    # Marking "a" (either by the caller directly, or via the automatic
+    # initial-system checkpoint landing on the last non-empty block) must
+    # not drop the trailing empty block's separator and shorten the prompt
+    # to just "a".
+    input: list[ChatMessage] = [
+        ChatMessageSystem(
+            content=[
+                ContentText(text="a", cache_breakpoint=True),
+                ContentText(text=""),
+            ]
+        ),
+        ChatMessageUser(content="hi"),
+    ]
+    request = await _completions_request("gpt-5.6", input)
+    assert request["prompt_cache_options"] == {"mode": "explicit"}
+    assert request["messages"][0]["content"] == [
+        {
+            "type": "text",
+            "text": "a\n",
+            "prompt_cache_breakpoint": {"mode": "explicit"},
+        }
+    ]
+
+
+@pytest.mark.anyio
 async def test_completions_tools_only_no_initial_checkpoint_added() -> None:
     # no leading system/developer block exists (a tools-only prompt); there
     # is no representable boundary to mark, so nothing is added
@@ -380,6 +409,35 @@ async def test_completions_tools_only_no_initial_checkpoint_added() -> None:
     request = await _completions_request("gpt-5.6", input)
     assert request["prompt_cache_options"] == {"mode": "explicit"}
     assert _tagged_text_parts(request["messages"]) == [(0, 0)]
+
+
+def _legacy_content_text(text: str) -> ContentText:
+    """A `ContentText` with `cache_breakpoint` genuinely absent from `__dict__`.
+
+    Reproduces what unpickling an object persisted (by Inspect's local
+    response cache) before the field existed actually produces: pickle's
+    default `__setstate__` restores `__dict__` verbatim and skips
+    pydantic's validators/default-filling, so the attribute is missing
+    outright, not merely `None`.
+    """
+    block = ContentText(text=text)
+    del block.__dict__["cache_breakpoint"]
+    assert "cache_breakpoint" not in block.__dict__
+    return block
+
+
+@pytest.mark.anyio
+async def test_legacy_pickled_content_text_without_cache_breakpoint_attribute() -> None:
+    # R2: a ContentText predating this field must not raise AttributeError
+    # when replayed through a later (even uncached) model call
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content=[_legacy_content_text("rubric")]),
+        ChatMessageUser(content="task"),
+        ChatMessageAssistant(content=[_legacy_content_text("prior answer")]),
+        ChatMessageUser(content="follow-up"),
+    ]
+    request = await _completions_request("gpt-5.6", input)
+    assert "prompt_cache_options" not in request
 
 
 # ---------------------------------------------------------------------------
@@ -542,6 +600,79 @@ async def test_responses_mark_on_assistant_message_falls_back_whole_request() ->
         ),
         ChatMessageAssistant(
             content=[ContentText(text="prior answer", cache_breakpoint=True)]
+        ),
+    ]
+    request = await _responses_request("gpt-5.6", input)
+    assert "prompt_cache_options" not in request
+    assert _tagged_input_texts(request["input"]) == []
+
+
+@pytest.mark.anyio
+async def test_responses_mark_on_compaction_marker_falls_back_whole_request() -> None:
+    # R4: a compaction marker message is replayed natively (as a
+    # "compaction" item), bypassing the per-block content conversion that
+    # actually emits prompt_cache_breakpoint. A mark on that message's
+    # content — role="user", so the role-based eligibility check alone
+    # would call it representable — must still force the whole request
+    # back to implicit rather than being silently dropped while the other
+    # user message's mark is promoted to explicit.
+    from inspect_ai._util.content import ContentData
+
+    compaction_message = ChatMessageUser(
+        content=[
+            ContentText(text="stale", cache_breakpoint=True),
+            ContentData(
+                data={
+                    "compaction_metadata": {
+                        "type": "openai_compact",
+                        "id": "comp_1",
+                        "encrypted_content": "enc",
+                    }
+                }
+            ),
+        ]
+    )
+    input: list[ChatMessage] = [
+        compaction_message,
+        ChatMessageUser(
+            content=[
+                ContentText(text="user rubric", cache_breakpoint=True),
+                ContentText(text="item"),
+            ]
+        ),
+    ]
+    request = await _responses_request("gpt-5.6", input)
+    assert "prompt_cache_options" not in request
+    assert _tagged_input_texts(request["input"]) == []
+
+
+@pytest.mark.anyio
+async def test_responses_mark_on_agent_message_internal_falls_back_whole_request() -> (
+    None
+):
+    # R4: a stashed Codex agent_message is replayed verbatim too, bypassing
+    # the same conversion path
+    agent_message_item: dict[str, Any] = {
+        "type": "agent_message",
+        "role": "assistant",
+        "content": [{"type": "input_text", "text": "hi"}],
+    }
+    bridged_message = ChatMessageUser(
+        content=[
+            ContentText(
+                text="stale",
+                cache_breakpoint=True,
+                internal={"agent_message": agent_message_item},
+            )
+        ]
+    )
+    input: list[ChatMessage] = [
+        bridged_message,
+        ChatMessageUser(
+            content=[
+                ContentText(text="user rubric", cache_breakpoint=True),
+                ContentText(text="item"),
+            ]
         ),
     ]
     request = await _responses_request("gpt-5.6", input)
