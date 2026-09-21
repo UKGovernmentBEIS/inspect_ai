@@ -104,6 +104,106 @@ class ExecuteToolsResult(NamedTuple):
     """Model output if a generation occurred within the conversation."""
 
 
+class MappedToolCallError(NamedTuple):
+    """A tool call exception the model sees as a `ToolCallError`."""
+
+    error: ToolCallError
+    """The error reported in the tool message."""
+
+    result: ToolResult | None
+    """Output the model still receives alongside the error (e.g. truncated output), or `None` to leave the result as is."""
+
+
+def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
+    """Map an exception raised by a tool call to the error the model sees.
+
+    A fixed set of exception types are the model's problem: the call is reported
+    to it as a `ToolCallError` and the sample continues. For anything else
+    `None` is returned and the exception is the eval's fault (the sample fails).
+    This is the single definition of that set: `execute_tools` applies it to
+    native calls and the sandbox agent bridge classifies host tool exceptions
+    with it.
+
+    Args:
+       ex: The exception, already unwrapped from any `ExceptionGroup`.
+       function: Name of the tool that was called (used in messages).
+    """
+    if isinstance(ex, TimeoutError):
+        return MappedToolCallError(
+            ToolCallError("timeout", "Command timed out before completing."),
+            ex.truncated_output
+            if isinstance(ex, SandboxTimeoutError) and ex.truncated_output
+            else None,
+        )
+    elif isinstance(ex, UnicodeDecodeError):
+        return MappedToolCallError(
+            ToolCallError(
+                "unicode_decode",
+                f"Error decoding bytes to {ex.encoding}: {ex.reason}",
+            ),
+            None,
+        )
+    elif isinstance(ex, ValueError):
+        # CPython's subprocess module raises ValueError("embedded null byte")
+        # when a command or argument string contains '\x00'. Surface it as
+        # a tool error so the model can recover instead of crashing the sample.
+        if "embedded null byte" in str(ex):
+            return MappedToolCallError(
+                ToolCallError(
+                    "parsing",
+                    f"An argument to tool '{function}' contained an embedded null byte.",
+                ),
+                None,
+            )
+        return None
+    elif isinstance(ex, SandboxUnavailableError):
+        # Preserve the tool loop's existing non-terminal behavior while
+        # surfacing sandbox unavailability as a failed tool call. Evals
+        # that need it to be terminal can enforce that policy in their
+        # agent logic.
+        return MappedToolCallError(ToolCallError("sandbox_unavailable", str(ex)), None)
+    elif isinstance(ex, PermissionError):
+        err = f"{ex.strerror or str(ex)}."
+        if isinstance(ex.filename, str):
+            err = f"{err} Filename '{ex.filename}'."
+        return MappedToolCallError(ToolCallError("permission", err), None)
+    elif isinstance(ex, FileNotFoundError):
+        if isinstance(ex.filename, str):
+            err = f"File '{ex.filename}' was not found."
+        else:
+            err = ex.strerror or str(ex)
+        return MappedToolCallError(ToolCallError("file_not_found", err), None)
+    elif isinstance(ex, IsADirectoryError):
+        err = f"{ex.strerror or str(ex)}."
+        if isinstance(ex.filename, str):
+            err = f"{err} Filename '{ex.filename}'."
+        return MappedToolCallError(ToolCallError("is_a_directory", err), None)
+    elif isinstance(ex, OutputLimitExceededError):
+        return MappedToolCallError(
+            ToolCallError(
+                "limit",
+                f"The tool exceeded its output limit of {ex.limit_str}.",
+            ),
+            ex.truncated_output or "",
+        )
+    elif isinstance(ex, LimitExceededError):
+        return MappedToolCallError(
+            ToolCallError(
+                "limit",
+                f"The tool exceeded its {ex.type} limit of {ex.limit_str}.",
+            ),
+            None,
+        )
+    elif isinstance(ex, ToolParsingError):
+        return MappedToolCallError(ToolCallError("parsing", ex.message), None)
+    elif isinstance(ex, ToolApprovalError):
+        return MappedToolCallError(ToolCallError("approval", ex.message), None)
+    elif isinstance(ex, ToolError):
+        return MappedToolCallError(ToolCallError("unknown", ex.message), None)
+    else:
+        return None
+
+
 async def execute_tools(
     messages: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
@@ -217,69 +317,18 @@ async def _execute_tools_impl(
                     inner_ex = inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
-            except TimeoutError as ex:
-                tool_error = ToolCallError(
-                    "timeout", "Command timed out before completing."
-                )
-                if isinstance(ex, SandboxTimeoutError) and ex.truncated_output:
-                    result = ex.truncated_output
-            except UnicodeDecodeError as ex:
-                tool_error = ToolCallError(
-                    "unicode_decode",
-                    f"Error decoding bytes to {ex.encoding}: {ex.reason}",
-                )
-            except ValueError as ex:
-                # CPython's subprocess module raises ValueError("embedded null byte")
-                # when a command or argument string contains '\x00'. Surface it as
-                # a tool error so the model can recover instead of crashing the sample.
-                if "embedded null byte" in str(ex):
-                    tool_error = ToolCallError(
-                        "parsing",
-                        f"An argument to tool '{call.function}' contained an embedded null byte.",
-                    )
-                else:
-                    raise
-            except SandboxUnavailableError as ex:
-                # Preserve the tool loop's existing non-terminal behavior while
-                # surfacing sandbox unavailability as a failed tool call. Evals
-                # that need it to be terminal can enforce that policy in their
-                # agent logic.
-                tool_error = ToolCallError("sandbox_unavailable", str(ex))
-            except PermissionError as ex:
-                err = f"{ex.strerror or str(ex)}."
-                if isinstance(ex.filename, str):
-                    err = f"{err} Filename '{ex.filename}'."
-                tool_error = ToolCallError("permission", err)
-            except FileNotFoundError as ex:
-                if isinstance(ex.filename, str):
-                    err = f"File '{ex.filename}' was not found."
-                else:
-                    err = ex.strerror or str(ex)
-                tool_error = ToolCallError("file_not_found", err)
-            except IsADirectoryError as ex:
-                err = f"{ex.strerror or str(ex)}."
-                if isinstance(ex.filename, str):
-                    err = f"{err} Filename '{ex.filename}'."
-                tool_error = ToolCallError("is_a_directory", err)
-            except OutputLimitExceededError as ex:
-                tool_error = ToolCallError(
-                    "limit",
-                    f"The tool exceeded its output limit of {ex.limit_str}.",
-                )
-                result = ex.truncated_output or ""
-            except LimitExceededError as ex:
-                tool_error = ToolCallError(
-                    "limit",
-                    f"The tool exceeded its {ex.type} limit of {ex.limit_str}.",
-                )
-            except ToolParsingError as ex:
-                tool_error = ToolCallError("parsing", ex.message)
-            except ToolApprovalError as ex:
-                tool_error = ToolCallError("approval", ex.message)
-            except ToolError as ex:
-                tool_error = ToolCallError("unknown", ex.message)
             except Exception as ex:
-                tool_exception = ex
+                mapped = tool_call_error(ex, call.function)
+                if mapped is not None:
+                    tool_error = mapped.error
+                    if mapped.result is not None:
+                        result = mapped.result
+                elif isinstance(ex, ValueError):
+                    # pre-existing: a ValueError other than the null-byte case
+                    # escapes the per-call handler rather than being captured
+                    raise
+                else:
+                    tool_exception = ex
 
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
