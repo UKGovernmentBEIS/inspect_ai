@@ -498,7 +498,7 @@ class GrokAPI(ModelAPI):
             self.is_at_least_grok_4()
             and _get_model_info_direct(self.canonical_name()) is None
         ):
-            return "grok/grok-4.6"
+            return "grok/grok-4.7"
         return super().input_tokens_name()
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
@@ -603,8 +603,8 @@ class GrokAPI(ModelAPI):
             gconfig["response_format"] = "json_object"
 
         # grok-3-mini and grok-4-or-later variants (4-fast, 4.1, 4.20, 4.3,
-        # 4.5, 4.6, plus future/codename models) accept reasoning_effort. The
-        # *original* grok-4 reasons but rejects the parameter and must be
+        # 4.5, 4.6, 4.7, plus future/codename models) accept reasoning_effort.
+        # The *original* grok-4 reasons but rejects the parameter and must be
         # excluded.
         if config.reasoning_effort is not None and (
             self.is_grok_3_mini()
