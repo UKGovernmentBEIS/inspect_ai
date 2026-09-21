@@ -51,6 +51,7 @@ from inspect_ai.util._checkpoint import (
     checkpointer,
 )
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
+from inspect_ai.util._checkpoint._restore_scope import remove_existing_symlinks_command
 from inspect_ai.util._checkpoint._triggers import CheckpointTriggerKind
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_impl import (
@@ -67,8 +68,11 @@ from inspect_ai.util._checkpoint.config import (
 )
 from inspect_ai.util._checkpoint.hydrate import HydrationResult, _HostHydrationResult
 from inspect_ai.util._checkpoint.report import ResumeReport
+from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
 from inspect_ai.util._restic import ResticBackupSummary
+from inspect_ai.util._sandbox._privileged import pinned_command, pinned_shell_command
 from inspect_ai.util._store import Store
+from inspect_ai.util._subprocess import ExecResult
 
 
 def _write_transcript_files(store: TranscriptEventStore, work_dir: Path) -> None:
@@ -763,6 +767,57 @@ def test_validate_resume_state_allows_unreadable_interior_checkpoint_entry(
     _validate_resume_state(events, str(sample_root), 3)
 
 
+def test_warn_if_sample_dir_renamed_fires_once_per_process(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Passthrough ids never warn; the first renamed id warns, later ones only trace."""
+    from inspect_ai.util._checkpoint import hydrate as hydrate_mod
+
+    monkeypatch.setattr(hydrate_mod, "_sample_dir_rename_warned", False)
+    with caplog.at_level(logging.WARNING, logger="inspect_ai"):
+        hydrate_mod._warn_if_sample_dir_renamed("plain-id")
+        hydrate_mod._warn_if_sample_dir_renamed(42)
+        assert not [
+            r
+            for r in caplog.records
+            if "is not used as its checkpoint directory name" in r.getMessage()
+        ]
+
+        hydrate_mod._warn_if_sample_dir_renamed("task/1")
+        hydrate_mod._warn_if_sample_dir_renamed("task/2")
+        hydrate_mod._warn_if_sample_dir_renamed("task/1")
+
+    warnings = [
+        r.getMessage()
+        for r in caplog.records
+        if "is not used as its checkpoint directory name" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert "'task/1'" in warnings[0]
+    assert "task/2" not in warnings[0]
+    assert hydrate_mod._sample_dir_rename_warned is True
+
+
+def test_validate_resume_state_ignores_names_outside_checkpoint_file_form(
+    tmp_path: Path,
+) -> None:
+    """Validation lists ``ckpt-*.json`` with the same regex as the scanner.
+
+    A stray ``ckpt-1.json`` (parseable by ``int`` but not the zero-padded
+    form the writer emits) is ignored, even when its content id disagrees
+    with its name, rather than tripping the file-id mismatch check on a
+    file ``scan_latest_committed_checkpoint`` never counts.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    (sample_root / "ckpt-1.json").write_text(_make_checkpoint(7).model_dump_json())
+    events = _checkpoint_resume_events(2)
+
+    _validate_resume_state(events, str(sample_root), 2)
+
+
 def test_validate_resume_state_accepts_failed_fire_retry_span(
     tmp_path: Path,
 ) -> None:
@@ -1275,6 +1330,54 @@ async def test_fire_writes_restic_config_and_checkpoint_files(
     assert (context / "events_data.json").is_file()
     assert (context / "attachments.json").is_file()
     assert (context / "store.json").is_file()
+
+
+async def test_fire_with_traversal_sample_id_stays_inside_eval_dir(
+    active_sample: _FakeActiveSample, tmp_path: Path
+) -> None:
+    """A dataset id with `/` and `..` checkpoints inside the eval dir and is resumable.
+
+    Everything the checkpointer materializes (restic config, checkpoint
+    files, context) must land under the eval checkpoints dir, and the
+    resume lookup must find it under the same name the write path used.
+    """
+    from inspect_ai.util._checkpoint._layout import sample_checkpoints_dir
+    from inspect_ai.util._checkpoint._layout._paths import sample_dir_segment
+    from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+    from inspect_ai.util._checkpoint.resume import resolve_resume_checkpoint
+
+    hostile_id = "../../escape/me"
+    active_sample.sample.id = hostile_id
+    active_sample.epoch = 0
+    active_sample.checkpoint = ResolvedCheckpointConfig(trigger=TurnInterval(every=1))
+    active_sample.checkpointer = create_checkpointer(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=hostile_id,
+        epoch=0,
+    )
+
+    async with checkpointer() as cp:
+        await cp.tick()  # informational boundary, no fire
+        await cp.tick()  # turn 1 elapsed, fires (ckpt-1)
+
+    log = Path(active_sample.log_location)
+    eval_dir = log.parent / f"{log.stem}.checkpoints"
+    sample_dir = eval_dir / f"{sample_dir_segment(hostile_id)}__0"
+    assert sample_dir.is_dir()
+    assert (sample_dir / "restic" / "restic-config.json").is_file()
+    assert (sample_dir / "ckpt-00001.json").is_file()
+    assert (sample_dir / "context" / "events.json").is_file()
+    # Nothing was relocated to where the raw id would have pointed.
+    assert not (log.parent / "escape").exists()
+    assert not (tmp_path / "escape").exists()
+    assert not (tmp_path.parent / "escape").exists()
+    # The eval dir holds exactly this sample's dir.
+    assert [p.name for p in eval_dir.iterdir()] == [sample_dir.name]
+
+    # Resume detection derives the same name and finds the checkpoint.
+    assert await resolve_resume_checkpoint(str(eval_dir), hostile_id, 0) is not None
+    assert sample_checkpoints_dir(str(eval_dir), hostile_id, 0) == str(sample_dir)
 
 
 # === nested re-entry: sub-agent loops (agent-as-tool / handoff / deepagent) ==
@@ -2891,7 +2994,9 @@ class _StubStrategy:
             )
         )
 
-    async def restore(self, env: object, ref: object, ctx: object) -> None:
+    async def restore(
+        self, env: object, paths: object, ref: object, ctx: object
+    ) -> None:
         pass
 
     async def discard_orphans(self, committed: object, ctx: object) -> None:
@@ -2956,3 +3061,205 @@ async def test_fire_routes_sandbox_snapshot_through_strategy(
     )
     details = checkpoint.sandboxes["default"]
     assert (details.model_extra or {}).get("strategy") == "archive"
+
+
+# --- sandbox hydration: restore gating and home ownership ---------------
+
+
+class _RecordingStrategy(_StubStrategy):
+    """Records the resume-side calls in order, with what ``restore`` received."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls: list[str] = []
+        self.restored: list[tuple[object, object]] = []
+        self.commands_before_setup: list[list[str]] = []
+
+    async def setup(self, env: object, ctx: object) -> None:
+        self.calls.append("setup")
+        if isinstance(env, _RecordingSandbox):
+            self.commands_before_setup = list(env.commands)
+
+    async def discard_orphans(self, committed: object, ctx: object) -> None:
+        self.calls.append("discard_orphans")
+
+    async def restore(
+        self, env: object, paths: object, ref: object, ctx: object
+    ) -> None:
+        self.calls.append("restore")
+        self.restored.append((paths, ref))
+
+
+class _RecordingSandbox:
+    """Sandbox fake that records ``exec`` commands and answers the owner probes.
+
+    With ``home_exists`` the home dir stats as uid 1001; without it,
+    ``stat`` and ``test -e`` fail and ``id -u`` (as the default user)
+    answers 1000.
+    """
+
+    def __init__(self, home_exists: bool = True) -> None:
+        self.commands: list[list[str]] = []
+        self.home_exists = home_exists
+
+    async def exec(
+        self, cmd: list[str], user: str | None = None, **kwargs: object
+    ) -> ExecResult[str]:
+        self.commands.append(cmd)
+        if _pinned(cmd, ["stat", "-L", "-c", "%u"]) or _pinned(cmd, ["test", "-e"]):
+            if not self.home_exists:
+                return ExecResult(
+                    success=False, returncode=1, stdout="", stderr="No such file"
+                )
+            return ExecResult(success=True, returncode=0, stdout="1001\n", stderr="")
+        if cmd == pinned_command(["id", "-u"]):
+            assert user is None, "the default user's uid is read as the default user"
+            return ExecResult(success=True, returncode=0, stdout="1000\n", stderr="")
+        return ExecResult(success=True, returncode=0, stdout="", stderr="")
+
+
+def _pinned(cmd: list[str], argv: list[str]) -> bool:
+    """``cmd`` is ``privileged_exec``'s argv for ``argv``, or for a longer argv starting with it."""
+    prefix = pinned_command(argv)
+    return cmd[: len(prefix)] == prefix
+
+
+def _symlink_pass(*roots: str) -> list[str]:
+    """The core's pre-``setup`` exec deleting the image's symlinks under ``roots``."""
+    return pinned_shell_command("set -e\n" + remove_existing_symlinks_command(roots))
+
+
+def _sandbox_checkpoint(checkpoint_id: int, sandboxes: dict[str, str]) -> Checkpoint:
+    return Checkpoint(
+        checkpoint_id=checkpoint_id,
+        trigger="turn",
+        turn=checkpoint_id,
+        created_at=datetime.now(timezone.utc),
+        duration_ms=0,
+        size_bytes=0,
+        host=SnapshotDetails(snapshot_id="host", size_bytes=0, duration_ms=0),
+        sandboxes={
+            name: SnapshotDetails(snapshot_id=sid, size_bytes=0, duration_ms=0)
+            for name, sid in sandboxes.items()
+        },
+    )
+
+
+async def _hydrate_one_sandbox(
+    strategy: _RecordingStrategy,
+    env: _RecordingSandbox,
+    paths: SandboxBackupPaths,
+    committed: list[Checkpoint],
+) -> None:
+    from inspect_ai.util._checkpoint._snapshot import (
+        SandboxSnapshotSession,
+        SnapshotContext,
+    )
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+    from inspect_ai.util._checkpoint.hydrate import _hydrate_sandbox
+
+    session = SandboxSnapshotSession(
+        strategy=strategy,
+        context=SnapshotContext(
+            sandbox_name="default",
+            storage_dir="/nowhere/sandboxes/default/archive",
+            storage_subpath="sandboxes/default/archive",
+            secret="test-pwd",
+            resuming=True,
+        ),
+        paths=paths,
+    )
+    with patch("inspect_ai.util._checkpoint.hydrate.sandbox", return_value=env):
+        await _hydrate_sandbox(
+            name="default",
+            session=session,
+            resume=ResumeCheckpoint(attempt="resume"),
+            committed_checkpoints=committed,
+            action="Checkpoint Hydrate",
+        )
+
+
+async def test_hydrate_sandbox_refuses_resume_without_committed_record() -> None:
+    """No committed checkpoint records this sandbox: nothing is restored or discarded."""
+    strategy = _RecordingStrategy()
+    env = _RecordingSandbox()
+    with pytest.raises(
+        RuntimeError, match="no committed checkpoint records a snapshot"
+    ):
+        await _hydrate_one_sandbox(
+            strategy,
+            env,
+            SandboxBackupPaths(include=["/root"], home="/root"),
+            [_sandbox_checkpoint(1, {"other": "o1"})],
+        )
+    assert strategy.calls == ["setup"]
+    assert env.commands == [
+        pinned_command(["stat", "-L", "-c", "%u", "/root"]),
+        _symlink_pass("/root"),
+    ]
+
+
+async def test_hydrate_sandbox_reowns_auto_home_around_restore() -> None:
+    """Auto-home: read the owner before the restore, re-own under it after.
+
+    The owner is read from the untouched image, before the symlink pass
+    (a home dir that is itself an image symlink stats through to its
+    target's owner), and the pass runs before ``setup`` so nothing the
+    strategy places is written through an image symlink.
+    """
+    strategy = _RecordingStrategy()
+    env = _RecordingSandbox()
+    paths = SandboxBackupPaths(include=["/home/agent"], home="/home/agent")
+    committed = [
+        _sandbox_checkpoint(1, {"default": "d1"}),
+        _sandbox_checkpoint(2, {"default": "d2"}),
+    ]
+    await _hydrate_one_sandbox(strategy, env, paths, committed)
+
+    assert strategy.calls == ["setup", "discard_orphans", "restore"]
+    [(restored_paths, ref)] = strategy.restored
+    assert restored_paths is paths
+    assert isinstance(ref, SnapshotDetails) and ref.snapshot_id == "d2"
+    assert env.commands == [
+        pinned_command(["stat", "-L", "-c", "%u", "/home/agent"]),
+        _symlink_pass("/home/agent"),
+        pinned_shell_command(
+            "find /home/agent -xdev ! -user 1001 -exec chown -h 1001 {} +"
+        ),
+    ]
+    assert strategy.commands_before_setup == env.commands[:2]
+
+
+async def test_hydrate_sandbox_reowns_missing_home_to_default_user() -> None:
+    """A home dir the image never created is owned by the default user after restore."""
+    strategy = _RecordingStrategy()
+    env = _RecordingSandbox(home_exists=False)
+    paths = SandboxBackupPaths(include=["/home/agent"], home="/home/agent")
+    await _hydrate_one_sandbox(
+        strategy, env, paths, [_sandbox_checkpoint(1, {"default": "d1"})]
+    )
+    assert strategy.calls == ["setup", "discard_orphans", "restore"]
+    assert env.commands == [
+        pinned_command(["stat", "-L", "-c", "%u", "/home/agent"]),
+        pinned_command(["test", "-e", "/home/agent"]),
+        pinned_command(["id", "-u"]),
+        _symlink_pass("/home/agent"),
+        pinned_shell_command(
+            "find /home/agent -xdev ! -user 1000 -exec chown -h 1000 {} +"
+        ),
+    ]
+
+
+async def test_hydrate_sandbox_keeps_recorded_ownership_for_configured_paths() -> None:
+    """Configured roots: no owner probe or re-own, only the pre-``setup`` symlink pass."""
+    strategy = _RecordingStrategy()
+    env = _RecordingSandbox()
+    await _hydrate_one_sandbox(
+        strategy,
+        env,
+        SandboxBackupPaths(include=["/data", "/data/sub", "/srv"]),
+        [_sandbox_checkpoint(1, {"default": "d1"})],
+    )
+    assert strategy.calls == ["setup", "discard_orphans", "restore"]
+    assert env.commands == [_symlink_pass("/data", "/srv")]
+    assert strategy.commands_before_setup == env.commands

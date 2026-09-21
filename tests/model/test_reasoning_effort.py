@@ -740,7 +740,7 @@ def test_openrouter_max_clamped_to_xhigh(effort, expected):
 # by test_grok_xhigh_clamped_on_older_sdk below).
 
 
-@pytest.mark.parametrize("model_name", ["grok-4.3", "grok-4.5", "grok-4.6"])
+@pytest.mark.parametrize("model_name", ["grok-4.3", "grok-4.5", "grok-4.6", "grok-4.7"])
 @pytest.mark.parametrize(
     "effort,expected",
     [
@@ -797,13 +797,14 @@ def test_grok_4_original_excluded_from_reasoning_effort():
     for name in ("grok-4", "grok-4-latest", "grok-4-0709"):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert api.is_grok_4_original(), f"{name} should be detected as original"
-    # grok-4.3 / 4-fast / 4.20 / 4.5 / 4.6 are NOT the original
+    # grok-4.3 / 4-fast / 4.20 / 4.5 / 4.6 / 4.7 are NOT the original
     for name in (
         "grok-4.3",
         "grok-4-fast-reasoning",
         "grok-4.20",
         "grok-4.5",
         "grok-4.6",
+        "grok-4.7",
     ):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert not api.is_grok_4_original(), f"{name} must not be original"

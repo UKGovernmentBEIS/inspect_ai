@@ -16,7 +16,7 @@ Schema changes require a version bump and corresponding golden-test updates
 
 import hashlib
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Iterable
 
 from pydantic import BaseModel
 from pydantic_core import to_json
@@ -24,7 +24,7 @@ from pydantic_core import to_json
 from inspect_ai._eval.eval_set_overrides import EvalSetOverrides
 from inspect_ai._eval.task import Epochs
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
-from inspect_ai._eval.task.resolved import ResolvedTask
+from inspect_ai._eval.task.resolved import ResolvedTask, resolved_task_names
 from inspect_ai._eval.task.run import plan_agent_name, resolve_plan
 from inspect_ai._eval.task.task import resolve_epochs, resolve_task_epochs
 from inspect_ai._eval.task.util import resolve_task_sample_ids, sample_id_filter
@@ -189,6 +189,7 @@ def samples_selected(
     limit: int | tuple[int, int] | None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None,
     task: str | None = None,
+    task_names: Iterable[str] | None = None,
 ) -> int:
     """Number of dataset samples a `limit` or a `sample_id` selects.
 
@@ -222,16 +223,18 @@ def samples_selected(
         limit: Eval limit (first n samples, or [start, stop] range).
         sample_id: Sample id pattern(s) selected, if any.
         task: The task's registry name, for resolving `task:id` selectors. `None` skips that resolution, which is right only where the caller has already done it.
+        task_names: Names of every task in the run, so a `prefix:` that names none of them is read as part of the id (see `resolve_task_sample_ids`).
 
     Returns:
         Number of samples that would run.
     """
     if sample_id is not None:
         if task is not None:
-            sample_id = resolve_task_sample_ids(task, sample_id)
-            if not sample_id:
+            resolved = resolve_task_sample_ids(task, sample_id, task_names)
+            if resolved is None or resolved == []:
                 # every selector named some other task
                 return 0
+            sample_id = resolved
         matcher = sample_id_filter(sample_id)
         return sum(
             1
@@ -280,6 +283,7 @@ def build_eval_set_capture(
     eval_epochs = resolve_epochs(epochs)
 
     capture_tasks: list[EvalSetCaptureTask] = []
+    task_names = resolved_task_names(resolved_tasks)
     for task in resolved_tasks:
         epoch_count = resolve_task_epochs(task.task, eval_epochs).epochs
 
@@ -310,7 +314,7 @@ def build_eval_set_capture(
                 sequence=task.sequence,
                 identifier=task_identifier(task, eval_set_args),
                 samples=samples_selected(
-                    task.task.dataset, limit, sample_id, task.task.name
+                    task.task.dataset, limit, sample_id, task.task.name, task_names
                 ),
                 epochs=epoch_count,
             )

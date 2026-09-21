@@ -405,6 +405,16 @@ class ModelAPI(abc.ABC):
                 return info.family
         return self.service_model_name()
 
+    def cache_write_ttl(self) -> str | None:
+        """Prompt-cache TTL billed for cache writes in the current call context.
+
+        Consulted when recording usage after each generate/compact call ("1h"
+        bills cache writes at a higher rate than the default 5m). Providers
+        that bill cache writes at a TTL-dependent rate override this; the
+        TTL may vary per call, so it is a method rather than an attribute.
+        """
+        return None
+
     @abc.abstractmethod
     async def generate(
         self,
@@ -1032,6 +1042,16 @@ class Model:
             transcript()._event_updated(event)
 
             _stamp_redacted_reasoning_tokens(output)
+
+            # fail the sample on a refusal if requested. Raised here, after the
+            # ModelEvent is complete (so the transcript shows the refusal and
+            # then the error) and after usage/refusal accounting has run.
+            if (
+                config.fail_on_refusal
+                and not output.empty
+                and output.stop_reason == "content_filter"
+            ):
+                raise ModelRefusalError(output, str(self), self.role)
 
             # return output
             return output
@@ -1915,15 +1935,19 @@ class Model:
 
         # otherwise merge operational config so its inherited everywhere
         else:
-            base_config = base_config.merge(
-                GenerateConfig(
-                    max_connections=active_config.max_connections,
-                    adaptive_connections=active_config.adaptive_connections,
-                    max_retries=active_config.max_retries,
-                    timeout=active_config.timeout,
-                    cache=active_config.cache,
-                )
+            inherited = GenerateConfig(
+                max_connections=active_config.max_connections,
+                adaptive_connections=active_config.adaptive_connections,
+                max_retries=active_config.max_retries,
+                timeout=active_config.timeout,
+                cache=active_config.cache,
             )
+            # fail_on_refusal is also inherited from the active (task/eval-wide)
+            # config, but unlike the operational fields above the role's own
+            # setting wins, so a role can opt out of an eval-wide setting.
+            if base_config.fail_on_refusal is None:
+                inherited.fail_on_refusal = active_config.fail_on_refusal
+            base_config = base_config.merge(inherited)
 
         # merge passed config
         return base_config.merge(config or GenerateConfig())
@@ -2050,6 +2074,19 @@ or return ``None`` to allow default processing to continue.
 """
 
 
+ModelResolver: TypeAlias = Callable[[str], "Model | str | None"]
+"""Dynamic per-request model resolver for the agent bridge.
+
+Receives the requested model name and returns the ``Model`` (or model spec
+string) to use instead, or ``None`` to defer to the bridge's normal resolution
+(aliases / fallback / ``get_model``). On a provider-specific bridge endpoint the
+name is first qualified by that provider, so the resolver receives e.g.
+``openai/gpt-5.1`` rather than a bare ``gpt-5.1``. Lets a bridge express a routing
+*policy* (e.g. route every request to the model under test) without enumerating
+every possible model name as an alias.
+"""
+
+
 class AttemptTimeoutError(RuntimeError):
     def __init__(self, timeout: int | None) -> None:
         super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")
@@ -2089,6 +2126,46 @@ class ModelGenerateError(RuntimeError):
         super().__init__(message)
         self.status_code = status_code
         self.provider_message = provider_message
+
+
+class ModelRefusalError(Exception):
+    """A model refused a request and `fail_on_refusal` is set.
+
+    Raised by `Model.generate()` after a generation ends with
+    `stop_reason="content_filter"` when the resolved `GenerateConfig` has
+    `fail_on_refusal=True`. It is a plain `Exception` rather than a limit so
+    the sample runner records it as a sample error (the sample is not scored
+    and counts toward `fail_on_error`).
+
+    The message has a stable `Model refusal` prefix, then the model, role and
+    refusal category when known, then the start of the refusal text.
+    """
+
+    def __init__(
+        self, output: ModelOutput, model: str, role: str | None = None
+    ) -> None:
+        self.output = output
+        """The refused generation (its `stop_details` carry the category)."""
+        self.model = model
+        """Model that refused."""
+        self.role = role
+        """Model role, if the model was resolved via a role."""
+        super().__init__(_model_refusal_message(output, model, role))
+
+
+def _model_refusal_message(
+    output: ModelOutput, model: str, role: str | None, max_completion: int = 200
+) -> str:
+    details = [model]
+    if role:
+        details.append(f"role {role}")
+    stop_details = output.choices[0].stop_details if not output.empty else None
+    if stop_details is not None and stop_details.category:
+        details.append(f"category {stop_details.category}")
+    completion = output.completion.strip()
+    if len(completion) > max_completion:
+        completion = completion[:max_completion].rstrip() + "..."
+    return f"Model refusal ({', '.join(details)}): {completion}"
 
 
 class ModelName:
@@ -2899,10 +2976,8 @@ def record_and_check_model_usage(
     # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
     if info is not None and info.cost is not None:
         # providers with a configurable prompt-cache TTL (currently Anthropic)
-        # expose it on the ModelAPI; longer TTLs bill cache writes at a higher rate
-        total_cost = compute_model_cost(
-            info.cost, usage, getattr(model.api, "cache_ttl", None)
-        )
+        # report the billed TTL; longer TTLs bill cache writes at a higher rate
+        total_cost = compute_model_cost(info.cost, usage, model.api.cache_write_ttl())
         usage.total_cost = total_cost
 
     # record usage

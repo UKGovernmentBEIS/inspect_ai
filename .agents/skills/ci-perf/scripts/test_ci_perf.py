@@ -250,6 +250,56 @@ def test_closed_and_deferred_findings_are_not_retriggered(
     )
 
 
+def test_only_open_non_deferred_issues_are_returned(
+    snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    issues_by_number = {
+        1: {"state": "open", "labels": []},
+        2: {"state": "closed", "labels": []},
+        3: {"state": "open", "labels": [{"name": "deferred"}]},
+    }
+    writes: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(publisher, "issues", lambda: [])
+    monkeypatch.setattr(publisher, "tracking_issue", lambda known=None: {"number": 8})
+    monkeypatch.setattr(publisher, "comments", lambda number: [])
+    monkeypatch.setattr(
+        publisher,
+        "gh",
+        lambda *args: {
+            "number": int(args[1].rsplit("/", 1)[1]),
+            "html_url": f"https://github.com/meridianlabs-ai/inspect_ai/issues/{args[1].rsplit('/', 1)[1]}",
+            "title": "Slow job",
+            **issues_by_number[int(args[1].rsplit("/", 1)[1])],
+        },
+    )
+    monkeypatch.setattr(
+        publisher, "api", lambda path, fields: writes.append((path, fields))
+    )
+    urls = publish(
+        [
+            {
+                "key": f"slow-job-{number}",
+                "title": "Slow job",
+                "body": "Evidence",
+                "existing_issue": number,
+            }
+            for number in issues_by_number
+        ],
+        summarize(snapshot),
+        "Report",
+        "https://github.com/meridianlabs-ai/actions/actions/runs/123",
+    )
+    assert urls == ["https://github.com/meridianlabs-ai/inspect_ai/issues/1"]
+    tracking_comment = next(
+        fields["body"] for path, fields in writes if path == "issues/8/comments"
+    )
+    for number in issues_by_number:
+        assert (
+            f"https://github.com/meridianlabs-ai/inspect_ai/issues/{number}"
+            in tracking_comment
+        )
+
+
 @pytest.mark.parametrize("title", ["Slow job", "Unrelated issue"])
 def test_existing_issue_identity_and_empty_body(
     title: str, snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
@@ -511,6 +561,72 @@ def test_collection_repeated_page_is_bounded(monkeypatch: pytest.MonkeyPatch) ->
     with pytest.raises(RuntimeError, match="all three"):
         collector.fetch_runs("owner/repo", 2)
     assert calls == 6
+
+
+def test_untrusted_head_repository_runs_are_dropped_before_any_fetch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import collect_ci_data as collector
+
+    started, updated = "2026-09-09T00:00:00Z", "2026-09-09T00:10:00Z"
+
+    def run(run_id: int, head_repo: str | None) -> dict[str, Any]:
+        return {
+            "id": run_id,
+            "name": "Build",
+            "head_branch": "topic",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "run_started_at": started,
+            "updated_at": updated,
+            "head_repository": {"full_name": head_repo} if head_repo else None,
+        }
+
+    fetched = [
+        run(1, "UKGovernmentBEIS/inspect_ai"),
+        run(2, "outsider/inspect_ai"),
+        run(3, "meridianlabs-ai/inspect_ai"),
+        run(4, None),
+    ]
+    requested: list[str] = []
+
+    def fake_api(path: str) -> Any:
+        requested.append(path)
+        run_id = int(path.split("/runs/")[1].split("/")[0])
+        job = {
+            "id": run_id * 10,
+            "name": "test (3.11)",
+            "conclusion": "success",
+            "started_at": started,
+            "completed_at": updated,
+            "steps": [],
+        }
+        return {"jobs": [job]}
+
+    def fake_log(path: str) -> str:
+        requested.append(path)
+        return "1.50s call tests/a.py::test_a\n== 1 passed in 1.50s =="
+
+    monkeypatch.setattr(collector, "fetch_runs", lambda repo, limit, days: fetched)
+    monkeypatch.setattr(collector, "gh_api", fake_api)
+    monkeypatch.setattr(collector, "gh_api_text", fake_log)
+    out, summary_out = tmp_path / "raw.json", tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys, "argv", ["collect", "--out", str(out), "--summary-out", str(summary_out)]
+    )
+    collector.main()
+
+    result = json.loads(out.read_text())
+    assert [r["id"] for r in result["runs"]] == [1, 3]
+    assert result["run_count"] == 2
+    assert result["excluded_untrusted_runs"] == 2
+    assert set(result["pytest_durations"]) == {"1/test (3.11)", "3/test (3.11)"}
+    assert not [p for p in requested if "/runs/2/" in p or "/jobs/20/" in p]
+    assert not [p for p in requested if "/runs/4/" in p or "/jobs/40/" in p]
+    assert "excluded 2 from untrusted head repositories" in capsys.readouterr().err
+    assert (
+        json.loads(summary_out.read_text())["workflow_wall_seconds"]["Build"]["n"] == 2
+    )
 
 
 def test_invalid_distribution_timings_are_counted_and_excluded(
