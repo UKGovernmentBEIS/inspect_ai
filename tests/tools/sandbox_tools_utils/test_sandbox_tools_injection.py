@@ -1116,7 +1116,7 @@ async def test_probe_is_bounded_by_the_provider_timeout_without_retry() -> None:
     """
     sandbox = CannedSandbox.returning(root_probe_result())
     await sandbox_tools._probe_root_access(sandbox)
-    assert sandbox.timeouts == [(sandbox_tools.ROOT_ACCESS_PROBE_TIMEOUT, False)]
+    assert sandbox.timeouts == [(sandbox_tools._ROOT_ACCESS_PROBE_TIMEOUT, False)]
 
 
 @pytest.mark.parametrize(

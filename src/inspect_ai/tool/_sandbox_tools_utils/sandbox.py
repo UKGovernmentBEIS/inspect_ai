@@ -212,12 +212,18 @@ def _without_sandbox_events(
     return nullcontext()
 
 
+# The tool list must stay in step with the callers of sandbox_with_injected_tools().
 _AMBIGUOUS_ROOT_ACCESS_WARNING = (
-    "Sandbox tools: the sandbox gave no answer to whether it can run commands as "
-    "root, so the tools run as the sandbox's default user (the user a sandbox "
-    "command runs as when none is given). If root is in fact available there, the "
-    "tools are not protected from the code running in the sandbox. Details are in "
-    "the trace log under 'Sandbox Tools'."
+    "Sandbox tools: a sandbox's root check returned no result (the sandbox provider "
+    "raised an error or produced no output), so Inspect could not tell whether it "
+    "can run commands as root. Everything that runs through the tooling Inspect "
+    "installs into the sandbox (bash_session, text_editor, sandbox MCP servers, "
+    "exec_remote and the sandbox agent bridge) therefore runs as the sandbox's "
+    "default user, the same user the agent's own commands run as. That is expected "
+    "for sandboxes that cannot run as root; if root is in fact available, that "
+    "tooling is not isolated from the agent's code. The check is recorded as a "
+    "sandbox exec event at the start of the sample and under 'Sandbox Tools' in the "
+    "trace log."
 )
 
 
@@ -274,15 +280,9 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         async with _open_executable_for_arch(info["architecture"], musl) as (name, f):
             gz_bytes = f.read()  # gzipped tar of the PyInstaller --onedir tree
 
-        # Prepare the install dir as the tools user: verified to be a real directory
-        # owned by that user with mode 0700 before anything is extracted into it. A
-        # root-owned 0700 tree prevents access by other, non-root users, but not by
-        # a process running in the sandbox as root; as root nothing is repaired, and
-        # a failing root exec here is an error, never a reason to install as the
-        # default user instead. In a rootless sandbox the agent shares the tools
-        # user's uid, so a directory that uid owns is tightened to 0700 rather than
-        # refused: older releases left rootless installs at 0755 (on the host, for
-        # the `local` sandbox).
+        # Repair a wrong-mode directory only in the rootless install: the agent
+        # already shares that uid, and older releases left such installs at 0755
+        # (including on the host, for the `local` sandbox).
         if user == "root":
             await ensure_framework_directory(
                 sandbox, SANDBOX_TOOLS_DIR, user="root", expected_uid=0
@@ -319,7 +319,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         ) from e
 
 
-ROOT_ACCESS_PROBE_TIMEOUT = 60
+_ROOT_ACCESS_PROBE_TIMEOUT = 60
 """Seconds the root probe may run before the provider times it out.
 
 Applied through the provider's own ``timeout`` (with no retry), so time spent queued
@@ -380,7 +380,7 @@ async def _probe_root_access(sandbox: SandboxEnvironment) -> RootAccess:
             sandbox,
             _ROOT_PROBE_CMD,
             user=_root_probe_user(sandbox),
-            timeout=ROOT_ACCESS_PROBE_TIMEOUT,
+            timeout=_ROOT_ACCESS_PROBE_TIMEOUT,
             timeout_retry=False,
         )
     except (SandboxUnavailableError, TimeoutError) as ex:
