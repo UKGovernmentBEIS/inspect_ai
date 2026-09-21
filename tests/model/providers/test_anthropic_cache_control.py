@@ -1005,12 +1005,12 @@ def _input_with_marks(marked: int) -> list[ChatMessage]:
 
 
 @pytest.mark.anyio
-async def test_cache_breakpoints_over_budget_falls_back_to_automatic(
+async def test_cache_breakpoints_over_budget_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # system + tools + 2 explicit markers is the ceiling
     api = _auto_api()
-    requests = _capture_requests(api, monkeypatch)
+    _capture_requests(api, monkeypatch)
     tools = [ToolInfo(name="f", description="a tool")]
 
     await api.generate(
@@ -1020,21 +1020,39 @@ async def test_cache_breakpoints_over_budget_falls_back_to_automatic(
         config=GenerateConfig(),
     )
     # 5 explicit marks alone exceed the budget even with every automatic
-    # marker dropped. Anthropic rejects a request over the budget, so this
-    # must fall back to normal automatic caching for the whole request
-    # rather than raising or sending a truncated explicit layout.
+    # marker dropped. Silently resuming automatic caching would cache-write
+    # the varying tail the caller marked to avoid — the opposite of what
+    # was asked for — so this raises a clear error instead, naming the
+    # supplied count and the limit.
+    with pytest.raises(ValueError, match=r"5.*[Aa]nthropic allows at most 4"):
+        await api.generate(
+            input=_input_with_marks(5),
+            tools=tools,
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoints_at_budget_still_works_with_tools_dropped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 4 explicit marks fit the caller's own budget on their own; system and
+    # tools automatic markers are dropped to make room rather than raising
+    api = _auto_api()
+    requests = _capture_requests(api, monkeypatch)
+    tools = [ToolInfo(name="f", description="a tool")]
+
     await api.generate(
-        input=_input_with_marks(5),
+        input=_input_with_marks(4),
         tools=tools,
         tool_choice="auto",
         config=GenerateConfig(),
     )
-    request = requests[-1]
-    # normal automatic caching: lookback marks the second-to-last cacheable
-    # block (doc-4, index 4 of 6), not any of the caller's discarded marks
-    assert tagged(request["messages"]) == [(0, 4)]
-    assert request["system"][-1]["cache_control"] == CACHE
-    assert request["tools"][-1]["cache_control"] == CACHE
+    request = requests[0]
+    assert "cache_control" not in request["tools"][-1]
+    assert "cache_control" not in request["system"][-1]
+    assert len(tagged(request["messages"])) == 4
 
 
 @pytest.mark.anyio
@@ -1428,27 +1446,20 @@ async def test_trailing_empty_marked_system_block_with_user_mark_matches_baselin
 
 
 @pytest.mark.anyio
-async def test_five_system_marks_over_budget_matches_hints_removed_baseline(
+async def test_five_system_marks_over_budget_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # more than Anthropic's 4-breakpoint budget: the fallback payload must
-    # be a single joined block with automatic caching, matching the
-    # hints-removed baseline, not five separately marked blocks with
-    # cache_control removed.
+    # more than Anthropic's 4-breakpoint budget: raise rather than silently
+    # resuming automatic caching (which would cache-write content the marks
+    # were meant to keep out of the cached prefix)
     input: list[ChatMessage] = [
         ChatMessageSystem(
             content=[ContentText(text=str(i), cache_breakpoint=True) for i in range(5)]
         ),
         ChatMessageUser(content="q"),
     ]
-    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
-    baseline = await _generate_request(
-        _auto_api(), _strip_marks(input), GenerateConfig(), monkeypatch
-    )
-    _assert_matches_hints_removed_baseline(request, baseline)
-    assert request["system"] == [
-        {"type": "text", "text": "0\n1\n2\n3\n4", "cache_control": CACHE}
-    ]
+    with pytest.raises(ValueError, match=r"5.*[Aa]nthropic allows at most 4"):
+        await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
 
 
 @pytest.mark.anyio
@@ -1778,3 +1789,40 @@ async def test_live_ordinary_unmarked_caching_with_tools_and_tool_result() -> No
     assert (response1.usage.input_tokens_cache_write or 0) > 0
     assert (response2.usage.input_tokens_cache_read or 0) > 0
     assert "72" in response2.completion
+
+
+# ---------------------------------------------------------------------------
+# R2: an older pickled ContentText predating `cache_breakpoint` must not
+# raise AttributeError when replayed through a later (even uncached) call.
+# ---------------------------------------------------------------------------
+
+
+def _legacy_content_text(text: str) -> ContentText:
+    """A `ContentText` with `cache_breakpoint` genuinely absent from `__dict__`.
+
+    Reproduces what unpickling an object persisted before the field existed
+    actually produces: pickle's default `__setstate__` restores `__dict__`
+    verbatim and skips pydantic's validators/default-filling, so the
+    attribute is missing outright, not merely `None`.
+    """
+    block = ContentText(text=text)
+    del block.__dict__["cache_breakpoint"]
+    assert "cache_breakpoint" not in block.__dict__
+    return block
+
+
+@pytest.mark.anyio
+async def test_legacy_pickled_content_text_without_cache_breakpoint_attribute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    legacy_system = _legacy_content_text("rubric")
+    legacy_assistant = _legacy_content_text("prior answer")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content=[legacy_system]),
+        ChatMessageUser(content="task"),
+        ChatMessageAssistant(content=[legacy_assistant]),
+        ChatMessageUser(content="follow-up"),
+    ]
+    # must not raise AttributeError
+    request = await _generate_request(_auto_api(), input, GenerateConfig(), monkeypatch)
+    assert request["system"][-1]["cache_control"] == CACHE

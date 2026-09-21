@@ -1821,7 +1821,11 @@ class AnthropicAPI(ModelAPI):
         # _resolve_chat_input_explicit when caching is enabled and every hint
         # can be honored (see _can_honor_cache_breakpoints); otherwise all
         # hints are stripped on a copy and the same automatic path runs
-        # instead — never a partial honoring or a caller mutation.
+        # instead — never a partial honoring or a caller mutation. A caller
+        # that marked more breakpoints than Anthropic allows gets a clear
+        # error rather than a silent return to automatic caching, since that
+        # would resume caching the varying tail the marks were meant to
+        # avoid — the opposite of what the caller asked for.
         if _has_cache_breakpoint_hints(input):
             cache_prompt = (
                 config.cache_prompt if isinstance(config.cache_prompt, bool) else True
@@ -1834,10 +1838,18 @@ class AnthropicAPI(ModelAPI):
                     or "claude-instant" in model_name
                 ):
                     cache_prompt = False
-            if cache_prompt and _can_honor_cache_breakpoints(input):
-                return await self._resolve_chat_input_explicit(
-                    input, tools, config, cache_ttl
-                )
+            if cache_prompt:
+                marked = _count_cache_breakpoints(input)
+                if marked > MAX_CACHE_BREAKPOINTS:
+                    raise ValueError(
+                        f"Request has {marked} ContentText.cache_breakpoint marks; "
+                        f"Anthropic allows at most {MAX_CACHE_BREAKPOINTS} cache "
+                        "breakpoints per request."
+                    )
+                if _can_honor_cache_breakpoints(input):
+                    return await self._resolve_chat_input_explicit(
+                        input, tools, config, cache_ttl
+                    )
             input = _strip_cache_breakpoints(input)
 
         # Convert orphaned tool results to text messages before processing
@@ -2774,9 +2786,26 @@ def _convert_orphaned_tool_results(
     return result
 
 
+def _cache_breakpoint(block: ContentText) -> bool:
+    """Whether `block` requests an explicit cache breakpoint.
+
+    Reads via `getattr` rather than direct attribute access: `cache_breakpoint`
+    was added to `ContentText` after it shipped, and Inspect's local response
+    cache persists pickled `ModelOutput` objects (including their message
+    content) across process restarts and version upgrades, with a default
+    lifetime of one week. Unpickling reconstructs an object's `__dict__`
+    directly, bypassing pydantic's validators and default-filling, so a
+    `ContentText` pickled before this field existed genuinely lacks the
+    attribute on unpickling — a plain `.cache_breakpoint` read would raise
+    `AttributeError` on the very next (even uncached) model call that
+    replays it. A missing attribute means unmarked, the same as `None`.
+    """
+    return bool(getattr(block, "cache_breakpoint", None))
+
+
 def _message_has_cache_breakpoint(message: ChatMessage) -> bool:
     return isinstance(message.content, list) and any(
-        isinstance(block, ContentText) and block.cache_breakpoint
+        isinstance(block, ContentText) and _cache_breakpoint(block)
         for block in message.content
     )
 
@@ -2798,7 +2827,7 @@ def _count_cache_breakpoints(messages: list[ChatMessage]) -> int:
         for message in messages
         if isinstance(message.content, list)
         for block in message.content
-        if isinstance(block, ContentText) and block.cache_breakpoint
+        if isinstance(block, ContentText) and _cache_breakpoint(block)
     )
 
 
@@ -2818,7 +2847,7 @@ def _strip_cache_breakpoints(messages: list[ChatMessage]) -> list[ChatMessage]:
         content = cast(list[Content], message.content)
         stripped_content: list[Content] = [
             block.model_copy(update={"cache_breakpoint": None})
-            if isinstance(block, ContentText) and block.cache_breakpoint
+            if isinstance(block, ContentText) and _cache_breakpoint(block)
             else block
             for block in content
         ]
@@ -2836,9 +2865,14 @@ def _can_honor_cache_breakpoints(input: list[ChatMessage]) -> bool:
     is not supported (conservative fallback, not every placement) on a
     mid-conversation system message or a tool result, since Anthropic has
     no way to mark a boundary inside either without relocating or widening
-    it. The total must also fit Anthropic's per-request cache-breakpoint
-    budget on its own, before any automatic system/tools breakpoint is even
-    considered (those are always droppable to make room).
+    it.
+
+    The caller's own mark count must also fit Anthropic's per-request
+    cache-breakpoint budget on its own, before any automatic system/tools
+    breakpoint is even considered (those are always droppable to make
+    room) — `resolve_chat_input` checks and raises on that before ever
+    calling this function, so an over-budget request never reaches here;
+    the check is repeated as a defensive invariant for any other caller.
     """
     if _count_cache_breakpoints(input) > MAX_CACHE_BREAKPOINTS:
         return False
@@ -2850,11 +2884,13 @@ def _can_honor_cache_breakpoints(input: list[ChatMessage]) -> bool:
             text_blocks = [
                 block for block in leading.content if isinstance(block, ContentText)
             ]
-            if any(block.cache_breakpoint and not block.text for block in text_blocks):
+            if any(
+                _cache_breakpoint(block) and not block.text for block in text_blocks
+            ):
                 # an empty block can't itself carry cache_control
                 return False
             marked = [
-                idx for idx, block in enumerate(text_blocks) if block.cache_breakpoint
+                idx for idx, block in enumerate(text_blocks) if _cache_breakpoint(block)
             ]
             if marked:
                 trailing = text_blocks[marked[-1] + 1 :]
@@ -3062,7 +3098,7 @@ def system_content_blocks(
             else []
         )
     if not any(
-        isinstance(block, ContentText) and block.cache_breakpoint
+        isinstance(block, ContentText) and _cache_breakpoint(block)
         for block in message.content
     ):
         text = message.text
@@ -3077,7 +3113,7 @@ def system_content_blocks(
         # reproduces the same blank-line separator `message.text` would
         # produce for the same run of blocks.
         run.append(block.text)
-        if block.cache_breakpoint:
+        if _cache_breakpoint(block):
             text_block = TextBlockParam(type="text", text="\n".join(run))
             add_cache_control(text_block, cache_ttl)
             blocks.append(text_block)
@@ -5085,7 +5121,7 @@ async def message_block_params(
         )
 
         text_block = TextBlockParam(type="text", text=text, citations=citations)
-        if content.cache_breakpoint:
+        if _cache_breakpoint(content):
             add_cache_control(text_block, _cache_write_ttl.get())
         return [text_block]
     elif isinstance(content, ContentImage):
