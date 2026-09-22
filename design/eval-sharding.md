@@ -275,7 +275,10 @@ its directory makes it an ordinary partial log.
   merge and preserved by later passes, so incremental merges present as one
   log to `evals_df` and the viewer. The name-building logic in
   `FileRecorder._log_file_key` takes an `EvalSpec`; the launcher has none
-  yet, so the builder is factored to take the name, id and time directly.
+  yet, so the builder is factored to take the task name, id, time and model
+  directly (the current builder also substitutes `{model}` into the pattern,
+  `_recorders/file.py:171`, and the factored one must keep that input so a
+  custom `INSPECT_EVAL_LOG_FILE_PATTERN` yields the same name either way).
 - **Single owner of the suffix rule.** `log_basename` is today the single
   owner of the `.eval` and `-recovered` stripping that both the durable
   `<name>.checkpoints/` directory and the ephemeral working directory
@@ -339,12 +342,22 @@ tools are pointed at merged logs:
   rows per task. Filter on the provenance field, which only merged logs
   carry, or pass merged logs explicitly; a helper for that is a later
   nicety.
-- **`samples_df`.** Unaffected: it dedupes on sample `uuid`
-  (`analysis/_dataframe/samples/table.py:365,430`) and the merge copies
-  samples with their uuids, so no sample is doubled.
+- **`samples_df`.** Partly protected: it dedupes on sample `uuid`
+  (`analysis/_dataframe/samples/table.py:365,429-431`, first row wins) and
+  the merge copies samples with their uuids, so a sample that appears in a
+  shard and in the merged log is counted once. It is not protected against
+  *superseded attempts*: when `<name>.shards/<k>/` retains an old attempt
+  beside its retry, the old attempt's sample has a different `uuid` for the
+  same `(id, epoch)`, the merged log holds only the new one (newest wins,
+  below), but a directory read still lists the old file and returns both
+  rows (the reviewer's probe: two directory rows, one merged-only row). The
+  current logical sample set is the merged log's alone; a caller that needs
+  it must pass the merged log, not the directory.
 - **Scout and other downstream readers** that do not dedupe by sample
-  `uuid` see each merged sample twice unless pointed at merged logs. This is
-  the one correctness cost and the first reason to revisit the exclusion.
+  `uuid` see each merged sample twice unless pointed at merged logs, and
+  every reader, `samples_df` included, sees superseded attempts in a
+  directory read. These are the correctness costs of listing shards and the
+  first reason to revisit the exclusion.
 - **`eval_set()`** is unaffected because it skips shards itself (see
   "Eval-set integration"); that skip is required for correctness regardless
   of the general listing decision.
@@ -370,15 +383,22 @@ does nothing at end of run; a launcher that forgets, or dies before the
 merge, is covered by the `eval_set()`-startup merge and by running the CLI
 by hand. The merge is built idempotent and
 deterministic (the output is `<name>.eval` for the companion `<name>.shards/`
-and nothing else, "merge whatever is new"), so a worker can also be told to
-attempt the merge on exit and a duplicate
-attempt is harmless; the distributed model is thus a configuration, not a
-different design. A create-if-absent conditional write is not available
-uniformly (Inspect's S3 writer supports `IfMatch` replacement of a known
-ETag, `_recorders/eval.py:753-761`, S3-only through boto), so idempotence,
-not a lock, is what makes concurrent attempts safe: two writers producing
-byte-equivalent output to one key is tolerated by S3's per-object atomic put
-and by a local atomic rename.
+and nothing else, "merge whatever is new"), so repeating it *serially* is
+harmless: a second pass over unchanged shards changes nothing, and a worker
+can be told to attempt the merge on exit. What idempotence does not give is
+safety for *overlapping* merges, and the design has no answer for that yet
+(open question 3). Two merges can overlap whenever shards are still growing:
+writer A reads shard members `{1}`, writer B reads `{1, 2}` and publishes,
+then A publishes last, and the canonical log is valid but regressed, with
+B's samples, ledger entries and metrics gone. The two outputs are not
+byte-equivalent, and two overlapping *first* merges would each mint an
+`eval_id`. Inspect's publication primitives do not prevent this: the local
+writer replaces unconditionally (`os.replace`,
+`_util/atomic_write.py:209`), and the S3 writer checks an ETag only when the
+caller supplies one (`_recorders/eval.py:742-761`); atomic replacement
+prevents a torn file, not a stale one. Until this is settled, the
+distributed model (workers attempting the merge on exit) is a configuration
+only where the caller serialises the attempts itself.
 
 **Trust.** Confirmed (Ransom, 2026-09-21): the merged log is created only by
 a trusted Python step (the Python API or CLI, called by the launcher or by
@@ -495,8 +515,10 @@ have grown, and additional shards added later.
   "newest" by the shard's `created` time, with the sample's `completed_at`
   as the tie-break within a shard. The merged log's dedupe by `(id, epoch)`
   handles the replacement mechanically (later member of the same name wins),
-  and the sample `uuid` changes with the re-run, so `samples_df` sees only
-  the surviving copy. Two *different* shards both holding the same
+  and the sample `uuid` changes with the re-run, so a reader of the merged
+  log sees only the surviving copy; a directory read that includes the
+  retained old attempt still sees both (see "Listing"). Two *different*
+  shards both holding the same
   `(id, epoch)` in one pass, neither superseding the other, is a disjointness
   violation and the merge refuses. Newest-wins is the decision (Ransom,
   2026-09-21).
@@ -526,8 +548,8 @@ have grown, and additional shards added later.
 - *Triggers.* The Python API, the CLI that wraps it and the
   `eval_set()`-startup merge are the same operation: "merge whatever is new", idempotent, deterministic,
   keyed on the merged log's basename (given either `<name>.eval` or
-  `<name>.shards/` it finds the other), safe to run at any time and any
-  number of times.
+  `<name>.shards/` it finds the other), safe to repeat any number of times
+  as long as the runs do not overlap; overlapping runs are open question 3.
 
 **Shard disposition.** Merged shards stay in `<name>.shards/`, listed
 beside the merged log (see "Listing"), until the merged log is verified;
@@ -625,6 +647,24 @@ apply in "Design" and under "Alternatives not taken".
    seeding from them; or accept that after a successful retry the merged
    log is the redundant copy and cleanup may remove it, and drop the "stays
    behind as the record" statement. The design does not choose.
+3. **Stale publication by overlapping merges.** A requirement the chosen
+   ownership leaves unmet, not a change to it. Any two of the merge's
+   callers (the API or CLI from a launcher, `eval_set()` startup, a worker
+   attempting the merge on exit) can overlap while shards grow, and the one
+   that read the older snapshot can publish last, regressing the canonical
+   log; two overlapping first merges would also mint two `eval_id`s.
+   Idempotence does not prevent this, and neither publication primitive
+   does: the local writer replaces unconditionally
+   (`_util/atomic_write.py:209`) and the S3 writer checks an ETag only when
+   given one (`_recorders/eval.py:742-761`). Options: compare-and-swap
+   publication where the storage offers it (`IfMatch` on S3 with the ETag
+   read at the start of the merge, an equivalent stat-and-replace check
+   locally), with a refused publish re-running as a fresh merge; a merge
+   lock in the companion directory, with the S3 caveat that
+   create-if-absent is not available uniformly; or a documented rule that
+   callers serialise merges themselves (one launcher, no worker-side
+   attempts, `eval_set()` startup only when no launcher is running). The
+   design does not choose; the Testing section pins whichever is chosen.
 
 ## Compatibility
 
@@ -690,10 +730,19 @@ Pydantic models. New boundaries:
   members added; add a shard and see the status return to `started`; a
   retried sample replaced by the newer copy; a fully merged shard not
   reopened.
+- Overlap tests, pinning whatever open question 3 decides: two first merges
+  started together over the same shards yield one `eval_id` and one
+  canonical log; a merge that read an older snapshot of the shards and
+  publishes after a merge that read a newer one does not regress the
+  canonical log (its samples, ledger and status survive), or is refused.
 - Listing tests: shards under `<name>.shards/<k>/` listed by
   `list_eval_logs`, `evals_df` and the viewer listing beside the merged log;
-  `samples_df` over the directory yields each sample once; `eval_set()`
-  startup over the directory pairs only the merged log.
+  `samples_df` over a directory whose shards hold no superseded attempts
+  yields each sample once (uuid dedupe across shard and merged log), and over
+  a directory where `<k>/` retains an old attempt beside its retry yields
+  both attempts' rows while `samples_df` over the merged log alone yields
+  the surviving row only; `eval_set()` startup over the directory pairs only
+  the merged log.
 - Layout tests: `<name>.eval` and `<name>.shards/` derive each other in both
   directions through the shared `log_basename`; `<name>-recovered.eval` maps
   to `<name>.shards/`; the checkpoint helper's results are unchanged after
@@ -743,7 +792,10 @@ Kept for the record and as the rationale for the design above.
   shard does, but two near-simultaneous finishers can both see a complete
   shard set, the largest transfer lands on an arbitrary worker at the end of a
   one-sample-per-machine job, and every worker must have the metric code.
-  Retained as a configuration of the idempotent merge, not as the default.
+  Retained as a possible configuration of the merge, not as the default, and
+  only once overlapping merges are made safe (open question 3): two workers
+  finishing together are exactly the overlap that can publish a stale
+  canonical log.
 - **A shard marker in the header.** A new `EvalSpec` field on every shard
   naming the merged log, index, count and intended selection. Rejected
   (2026-09-21) in favour of the directory convention: the header field would
