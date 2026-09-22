@@ -76,11 +76,8 @@ async def test_reasoning_claude_opus_5():
 @pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_reasoning_claude_opus_5_5():
-    # Opus 5.5 always thinks and rejects an explicit reasoning_tokens budget,
-    # so drive thinking via reasoning_effort only. It defaults thinking.display
-    # to 'omitted' while Inspect requests 'summarized', so a non-empty
-    # summarized reasoning block must come back — and reasoning must not leak
-    # into the visible response text.
+    # same shape as the Opus 5 test above: reasoning_effort only (no
+    # budget), summarized reasoning must come back and not leak into text
     model = get_model("anthropic/claude-opus-5-5")
     output = await model.generate(
         "Solve 3*x^3-5*x=1",

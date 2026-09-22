@@ -84,9 +84,7 @@ anthropic:
       context_length: 1000000
       output_tokens: 128000
       reasoning: True
-      # Adaptive thinking is always on (unlike Opus 5, it can't be disabled);
-      # effort controls depth, and the server-side default effort is `medium`
-      # (Opus 5's is `high`).
+      # Adaptive thinking is always on (can't be disabled, unlike Opus 5).
       # https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5
       reasoning_effort_default: medium
       versions:

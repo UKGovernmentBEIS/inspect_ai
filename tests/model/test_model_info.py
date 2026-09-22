@@ -574,10 +574,7 @@ class TestGetModelInputTokens:
         model = get_model("anthropic/claude-opus-5-5")
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
-        # the snapshot, cutoff and effort default prove the explicit 5.5
-        # registration resolved (a fuzzy match of the opus-5 base entry would
-        # report the same input tokens but the base snapshot and a `high`
-        # effort default)
+        # distinguishes the explicit entry from a fuzzy match of opus-5
         info = get_model_info("anthropic/claude-opus-5-5")
         assert info is not None
         assert info.snapshot == "20260922"

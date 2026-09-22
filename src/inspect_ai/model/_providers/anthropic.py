@@ -2022,10 +2022,8 @@ class AnthropicAPI(ModelAPI):
                     "Claude Sonnet 5, or Claude Opus 5 (e.g. claude-opus-4-8, "
                     "claude-sonnet-5, or claude-opus-5)."
                 )
-            # Opus 5.5 on the Claude API and Vertex accepts only the
-            # `computer_toolset_20260801` toolset (not yet implemented here).
-            # Bedrock still accepts computer_20251124; Foundry is undocumented,
-            # so a rejection there surfaces as the API's own error.
+            # Bedrock still accepts computer_20251124 on Opus 5.5; Foundry is
+            # undocumented, so a rejection there surfaces as the API's own error.
             if self.is_claude_opus_5_5_or_later() and not (
                 self.is_bedrock() or self.is_azure()
             ):

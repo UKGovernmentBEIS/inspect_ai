@@ -2061,7 +2061,7 @@ async def test_anthropic_no_thinking_dropped_warning_when_empty(
 @pytest.mark.anyio
 @skip_if_no_anthropic
 @pytest.mark.parametrize("model_name", ["claude-fable-5-1", "claude-opus-5-5"])
-async def test_anthropic_fable_5_1_thinking_drop_reported_live(
+async def test_anthropic_bound_thinking_drop_reported_live(
     model_name: str,
     _warn_once_messages: list[str],
 ) -> None:
