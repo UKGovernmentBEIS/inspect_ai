@@ -3,10 +3,10 @@
 Status: proposed, 2026-09-15. Issue: none (task from Ransom). Author: agent
 (Claude), reviewed by Codex; see the PR.
 
-All `path:line` references are to `main` at `ba590d512` unless a different
-tree is named. Viewer references are to the `ts-mono` submodule at the commit
-that tree pins (`02f2c5ad`), under `src/inspect_ai/_view/ts-mono/`. This
-design builds on PR #5428 (`bridge-host-tools-require-proposal`, head
+All `path:line` references are to `main` at `472cf7dd2` (2026-09-22, which
+includes #5464) unless a different tree is named. Viewer references are to
+the `ts-mono` submodule at the commit that tree pins (`02f2c5ad`), under
+`src/inspect_ai/_view/ts-mono/`. This design builds on PR #5428 (`bridge-host-tools-require-proposal`, head
 `c3879e5dd` on 2026-09-16, in review as this is written and still moving),
 which makes execution grants unconditional and resolves proposals against
 the tools the scaffold declared; the grant behaviour described here is
@@ -18,24 +18,29 @@ the tools the scaffold declared; the grant behaviour described here is
 a sandboxed scaffold as MCP servers on the in-container model proxy. A
 `tools/call` from the scaffold becomes a `call_tool` request in the bridge's
 sandbox service, and the host runs the tool function in the Inspect process
-(`src/inspect_ai/agent/_bridge/sandbox/service.py:219-265`). Since #4944,
-when an approval policy is active the call must consume a one-shot execution
-grant minted from an approved generation
-(`src/inspect_ai/agent/_bridge/sandbox/types.py:91-159`); #5428 makes the
-grant a requirement for every call, with or without a policy, unless the
-server's `BridgedToolsSpec` sets `require_proposal=False`.
+(`src/inspect_ai/agent/_bridge/sandbox/service.py:225-292`). #4944 added
+one-shot execution grants minted from an approved generation
+(`src/inspect_ai/agent/_bridge/sandbox/types.py:91-163`); on `main` the
+execution-edge check is disabled pending #5428 (`service.py:254-257`),
+because scaffolds present bridged tools to the model under names the grant
+resolution did not recognise, and #5428 re-enables it for every call, with
+or without a policy, resolving proposals against the tools the scaffold
+declared, unless the server's `BridgedToolsSpec` sets
+`require_proposal=False`. #5464 (merged 2026-09-21) made the host call
+validate arguments and classify exceptions as a native call does, failing
+the sample on an unexpected one.
 
 Nothing on this path writes a transcript event. The only trace of a host
 tool execution is the `ModelEvent` of the generation that proposed it, if
-one did; a denied call leaves a `warn_once` in the Python log and nothing in
-the transcript (`service.py:237-244`). `in_bridge_model_generate()`
+one did; a denial (once #5428 lands) leaves a `warn_once` in the Python log
+and nothing in the transcript. `in_bridge_model_generate()`
 documents that bridged scaffolds emit no `ToolEvent` because they run their
 own tools (`src/inspect_ai/agent/_bridge/util.py:365-369`). That reasoning
 does not cover a tool Inspect itself executes on the host.
 
 Host tool executions are actions Inspect takes on the sample's behalf. The
 native path records every executed call, including rejected and failed
-ones, as a `ToolEvent` (`src/inspect_ai/model/_call_tools.py:334-343`,
+ones, as a `ToolEvent` (`src/inspect_ai/model/_call_tools.py:383-392`,
 `:424-430`). The bridge path should record the same, so that the eval log,
 the viewer, ACP clients, dataframes and scanners see what the host did and
 when.
@@ -68,11 +73,13 @@ Goals:
   `max_tool_output` or the tool's own `ToolDef.max_output` when either is
   explicitly set; the native implicit 16 KiB default is not applied.
 - No change to what the scaffold receives for calls that execute today,
-  with three deliberate exceptions listed under Compatibility: arguments
-  that are not a JSON object, and arguments nested deeper than the native
-  bound, are now rejected before execution; a string result over an
-  explicitly configured output limit is delivered truncated with the native
-  wrapper text. The approval and grant decision is unchanged.
+  with two deliberate exceptions listed under Compatibility: arguments
+  nested deeper than the native bound are rejected before execution (a
+  non-object already fails #5464's schema validation), and a string result
+  over an explicitly configured output limit is delivered truncated with
+  the native wrapper text. The approval and grant decision, #5464's
+  argument validation and its sample failure on an unexpected exception
+  are unchanged.
 
 Non-goals:
 
@@ -80,9 +87,10 @@ Non-goals:
   the sandbox). Those remain visible only through `ModelEvent` inputs.
 - The execution contract itself (which calls run): that is #5428. This
   design records what that contract decided.
-- Argument schema validation, dataclass coercion, or `ToolDef.viewer`
-  support for bridged host tools. The bridge path calls
-  `tool_fn(**arguments)` directly today and keeps doing so.
+- Dataclass and pydantic coercion of arguments (`tool_params`), or
+  `ToolDef.viewer` support, for bridged host tools. #5464 validates the
+  arguments against the tool's schema and then forwards them as sent; this
+  design keeps that.
 - Tool result review for host tools. Native `execute_tools` runs the
   `review` policies after a tool executes and before the model sees the
   result; the bridge path runs none, and this design does not change that
@@ -95,7 +103,7 @@ Non-goals:
 
 - The scaffold's MCP client posts `tools/call` to the in-container proxy,
   which forwards `server`, `tool` and `arguments` to the host service
-  (`src/inspect_sandbox_tools/src/inspect_sandbox_tools/_agent_bridge/proxy.py:2170-2183`).
+  (`src/inspect_sandbox_tools/src/inspect_sandbox_tools/_agent_bridge/proxy.py:2207-2220`).
   MCP `tools/call` carries no model tool-call id, so the host cannot learn
   the proposing call's id from the request; pairing has to come from state
   the host recorded when it handed the proposal to the scaffold.
@@ -108,36 +116,52 @@ Non-goals:
   shared `_SpanCell`). Verified by a spike that spawned a task inside a span:
   the task's `current_span_id()` was the agent span and
   `in_bridge_model_generate()` was `False` there.
-- `call_tool` (`service.py:219-265`) checks the server (`:227`) and tool
-  (`:231`), then denies unless no approval is active or a grant matches
-  (`:234-244`), raising `PermissionError("... was not approved for
-  execution")`. It then awaits `tool_fn(**arguments)` (`:247`) with the
-  arguments exactly as the scaffold sent them (a non-object fails inside
-  the call with a `TypeError`; nesting is unbounded) and returns a plain
-  string verbatim, MCP content blocks for image results, or
-  `to_json_str_safe(result)` otherwise (`:253-263`). Nothing bounds the
-  size of that result: the eval's `max_tool_output` and a tool's own
-  `ToolDef.max_output` are not consulted, so a bridged `bash()` delivers
-  its whole output where the native path would have truncated it.
+- `call_tool` (`service.py:225-292`) checks the server (`:247-248`) and tool
+  (`:251-252`). The execution-grant check is disabled pending #5428
+  (`:254-257`), so no call is denied on `main` today. It validates
+  `arguments` against the tool's declared schema with `validate_tool_input`
+  and raises `ToolParsingError` on a failure (`:260-264`), which covers a
+  non-object, a missing or extra property and a wrong type; it then awaits
+  `tool_fn(**arguments)` with the arguments as the scaffold sent them
+  (`:265`; nesting is not bounded) and returns a plain string verbatim, MCP
+  content blocks for image results, or `to_json_str_safe(result)` otherwise
+  (`:280-290`). Nothing bounds the size of that result: the eval's
+  `max_tool_output` and a tool's own `ToolDef.max_output` are not consulted,
+  so a bridged `bash()` delivers its whole output where the native path
+  would have truncated it.
+- Exceptions (#5464). `call_tool` unwraps any task-group `ExceptionGroup`
+  with `inner_exception` and classifies the result with `tool_call_error`
+  (`:271-274`), the same function `execute_tools` uses. A mapped exception
+  (one the model would see as a `ToolCallError` natively) simply propagates.
+  An unmapped one is a bug in the eval's tool: `bridge.request_fail(inner_ex)`
+  is called, so the bridge's monitor task raises it in the bridge task group
+  (`bridge.py:283-294`) and the sample fails at once, as it does natively,
+  subject to `fail_on_error` and retries; the original exception still
+  propagates so the RPC unwinds. In both cases the exception that leaves
+  `call_tool` is the original object.
 - Any exception becomes an RPC error string `Error calling method call_tool:
   <str(ex)>` (`util/_sandbox/service.py:562-581`; tracebacks are
   deliberately kept host-side), which the proxy returns as JSON-RPC error
-  `-32603` (`proxy.py:2192-2195`). The message the scaffold sees is the
+  `-32603` (`proxy.py:2229-2232`). The message the scaffold sees is the
   exception's own text: a `TimeoutError("tool-specific timeout")` reaches
   it as that string. `LimitExceededError` is special-cased: the service
   calls `active.limit_exceeded(ex)` and answers an error
-  (`util/_sandbox/service.py:552-560`).
+  (`util/_sandbox/service.py:552-560`). For an unmapped exception the
+  teardown #5464 triggers may pre-empt delivery of the reply; the scaffold's
+  turn is over either way.
 
 ### Grants
 
-On `main` (`ba590d512`):
+On `main` (`472cf7dd2`):
 
-- `_ToolExecutionGrant(server, tool, arguments)` (`types.py:201-211`) is
+- `_ToolExecutionGrant(server, tool, arguments)` (`types.py:206-216`) is
   minted per approved call in `register_tool_execution_grants`
   (`types.py:91-139`), called from `bridge_generate` after approval and
   before the response is returned to the scaffold (`util.py:600-604`). The
   method returns early when no approval policy is active (`types.py:107`).
-- `consume_tool_execution_grant` returns a `bool` (`types.py:141-159`).
+- `consume_tool_execution_grant` returns a `bool` (`types.py:141-163`) and
+  is not called: `call_tool`'s grant check is commented out pending #5428
+  (`service.py:254-257`), so approved and unapproved calls both execute.
 - The grant deque is bounded at 1024 entries (`types.py:33`, `:76-78`) and
   is not registered with the checkpointer, so grants do not survive a
   checkpoint restore.
@@ -190,11 +214,11 @@ After #5428 (the tree this design targets):
 ### Native `ToolEvent` mechanics the design mirrors
 
 - Two-phase emission. The pending event is constructed per call before any
-  tool span exists (`_call_tools.py:424-430`), so `BaseEvent.model_post_init`
+  tool span exists (`_call_tools.py:473-479`), so `BaseEvent.model_post_init`
   stamps it with the enclosing span (`src/inspect_ai/event/_base.py:35-48`).
   It is then emitted inside `span(name=call.function, type="tool")`
-  (`:789-790`; denials at `:728-731`), and finalised with `_set_result` and
-  `transcript()._event_updated(event)` (`:504-518`). The resulting shape,
+  (`:838-839`; denials at `:728-731`), and finalised with `_set_result` and
+  `transcript()._event_updated(event)` (`:552-567`). The resulting shape,
   verified by running a mockllm eval whose tool called
   `transcript().info()`: the stream is `span_begin(tool)`, `tool`, nested
   events, `span_end`; the `ToolEvent.span_id` equals the tool span's
@@ -209,18 +233,18 @@ After #5428 (the tree this design targets):
 - `ToolEvent._set_result` computes `completed` and `working_time = wall −
   waiting_time` (`src/inspect_ai/event/_tool.py:70-115`); the caller
   measures waiting time from `sample_waiting_time()` before and after
-  (`_call_tools.py:423`, `:503`).
+  (`_call_tools.py:472`, `:503`).
 - Exceptions from the tool body map to `ToolCallError` types
-  (`_call_tools.py:220-284`): timeout, unicode_decode, parsing (embedded
+  (`_call_tools.py:107-190`): timeout, unicode_decode, parsing (embedded
   null byte), sandbox_unavailable, permission, file_not_found,
   is_a_directory, limit, parsing, approval, unknown (`ToolError`). The
   mapping rewrites messages (a `TimeoutError` becomes "Command timed out
   before completing."). Anything else sets `failed=True` and propagates.
 - A per-call cancel scope is exposed through `event._set_cancel_fn`
-  (`:492`); operator cancel records `ToolCallError("timeout", "Command
+  (`:541`); operator cancel records `ToolCallError("timeout", "Command
   timed out before completing.")` (`:549-556`).
 - The execution observer is told about the in-flight call
-  (`:201`, `:359`), which is how ACP's turn cancel finds and marks it.
+  (`:301`, `:408`), which is how ACP's turn cancel finds and marks it.
 - After a successful execution the tool result reviewers run
   (`_apply_tool_review`, `:357-368`, `:798`): the `review` policies from
   `Task(review=)`, `eval(review=)` and `react(review=)` see the call and
@@ -228,15 +252,15 @@ After #5428 (the tree this design targets):
   escalate. Nothing on the bridge path calls them; `_bridge/_approval.py`
   applies approvers only.
 - String results are truncated before they reach the model or the event:
-  `truncate_tool_output` (`_call_tools.py:1309-1333`) applies the tool's
+  `truncate_tool_output` (`_call_tools.py:1358-1382`) applies the tool's
   `ToolDef.max_output` if declared, else `active_generate_config().max_tool_output`,
   else 16 KiB, replaces the text with a wrapper ("The output of your call
   to X was too long to be displayed. Here is a truncated version: …") and
-  the event records `truncated=(raw_bytes, limit)` (`:314-326`). List
+  the event records `truncated=(raw_bytes, limit)` (`:363-375`). List
   results (`list[Content]`) are not truncated. `ToolDef(tool)` recovers a
   `max_output` declared on the tool (`src/inspect_ai/tool/_tool_def.py:97`).
 - Model-provided arguments are bounded to `MAX_TOOL_CALL_ARGUMENTS_DEPTH`
-  (100) before execution (`_call_tools.py:742`, `:1348-1360`) because
+  (100) before execution (`_call_tools.py:791`, `:1348-1360`) because
   pydantic-core and log condensation only tolerate bounded nesting;
   unbounded depth "would crash sample logging rather than the sample
   itself".
@@ -477,7 +501,7 @@ including the checkpointer's `_SpanCell`.
 
 New module `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`; `call_tool`
 in `service.py` becomes a thin wrapper that delegates to it, so the RPC
-method table (`service.py:107`) and the existing tests' import
+method table (`service.py:113`) and the existing tests' import
 (`tests/agent/test_bridge_approval.py:24`) are unchanged.
 
 ```python
@@ -492,24 +516,30 @@ async def execute_host_tool(
 Control flow, in order:
 
 1. **Resolve.** Two distinct rejections, each keeping today's `ValueError`
-   text (`service.py:227-232`). Unknown server: record a completed event
+   text (`service.py:247-252`). Unknown server: record a completed event
    with `error=ToolCallError("parsing", "Unknown bridged tools server:
    <server>")`, fresh id, `function=tool`, `metadata.bridge.server` the
    name as sent, then raise `ValueError` with that same message. Unknown
    tool on a known server: the same with `error=ToolCallError("parsing",
    "Unknown tool '<tool>' in server '<server>'")`. Both mirror the native
-   "Tool X not found" parsing error (`_call_tools.py:750`); the messages
+   "Tool X not found" parsing error (`_call_tools.py:799`); the messages
    the scaffold receives are byte-identical to today's.
-2. **Check arguments.** `arguments` must be a JSON object and must pass
-   `_exceeds_max_depth` (`_call_tools.py:1364`). Otherwise record a
-   `parsing` event with `arguments={}` and the offending shape described in
-   the error message, and raise `ValueError` with that message. **This is a
-   behaviour change**: today a non-object fails inside `tool_fn(**arguments)`
-   with a `TypeError` whose text reaches the scaffold, and a deeper-than-100
-   object executes. The bound is the one native applies to model-provided
-   arguments for the same reason (`_call_tools.py:1348-1360`): the recorded
-   arguments enter the log, and unbounded nesting crashes sample logging.
-   Listed under Compatibility (decision: Ransom, 2026-09-15).
+2. **Check arguments.** Two checks, both recorded as a completed `parsing`
+   event with a fresh id and raised as `ToolParsingError` so the scaffold
+   receives the same model-facing RPC error #5464 produces today. First the
+   depth bound: `arguments` must pass `_exceeds_max_depth`
+   (`_call_tools.py:1413`), else the event has `arguments={}` and the
+   native depth message (`_max_depth_parse_error`), and the call is rejected
+   before validation. **This is the one behaviour change here**: today a
+   deeper-than-100 object is validated and executed. The bound is the one
+   native applies to model-provided arguments for the same reason
+   (`_call_tools.py:1397-1409`): the recorded arguments enter the log, and
+   unbounded nesting crashes sample logging (decision: Ransom, 2026-09-15).
+   Then #5464's schema validation, unchanged: `validate_tool_input` against
+   `ToolDef(tool_fn).parameters` (`service.py:260-264`); a failure (a
+   non-object, a missing or extra property, a wrong type) records the
+   validation message on the event with the arguments as sent, and raises
+   as today.
 3. **Match the proposal.** `grant = bridge.consume_tool_execution_grant(server,
    tool, arguments)`.
 4. **Deny.** If the server is not in `bridge.proposal_exempt_servers` and
@@ -519,7 +549,7 @@ Control flow, in order:
    bridged generation (a bridged host tool runs once per proposed call)">)`,
    `failed=None`, and raise the same `PermissionError` #5428 raises, keeping
    its `warn_once`. `permission` is the type the native path assigns to a
-   `PermissionError` raised by a tool body (`_call_tools.py:248-250`) and it
+   `PermissionError` raised by a tool body (`_call_tools.py:165-169`) and it
    renders in the viewer, which suppresses `approval`-typed errors expecting
    a paired `ApprovalEvent` that a denial does not have (no approver ran).
    The type is also the accurate one: the agent has no permission to run a
@@ -547,10 +577,15 @@ Control flow, in order:
                        result = await tool_fn(**arguments)
                except anyio.get_cancelled_exc_class():
                    finalise(error=ToolCallError("cancelled", ...)); raise   # outer cancel only
-               except LimitExceededError as ex:
-                   finalise(error=ToolCallError("limit", ...)); raise
                except Exception as ex:
-                   finalise(*mapped(ex)); raise                            # original exception
+                   inner_ex = inner_exception(ex)                          # as #5464
+                   mapped = tool_call_error(inner_ex, tool)
+                   if mapped is None:
+                       finalise(failed=True)                                # native shape
+                       bridge.request_fail(inner_ex)                        # as #5464
+                   else:
+                       finalise(error=mapped.error, result=mapped.result)
+                   raise                                                    # the original
            if scope.cancel_called:
                finalise(error=ToolCallError("timeout", ...))
                raise ToolError("Command timed out before completing.")
@@ -558,7 +593,7 @@ Control flow, in order:
    ```
 
    `observer` is `sample_active().execution_observer` or the null observer,
-   as in `_call_tools.py:189-196`. `finalise` is
+   as in `_call_tools.py:289-296`. `finalise` is
    `event._set_result(result=..., truncated=None, error=..., waiting_time=
    sample_waiting_time() - waiting_start, agent=None, failed=..., message_id=
    None, agent_span_id=getattr(tool_fn, "agent_span_id", None))` followed by
@@ -568,7 +603,7 @@ Control flow, in order:
    path publishes a single `timeout` update; an outer cancellation (bridge
    teardown, sample limit) propagates through the scope to the `except` and
    publishes a single `cancelled` update.
-6. **Return** the serialized result as `service.py:253-263` does today,
+6. **Return** the serialized result as `service.py:280-290` does today,
    except that a string result over the output limit is the truncated
    wrapper text recorded on the event.
 
@@ -576,21 +611,21 @@ Single-shot events (steps 1, 2, 4) have no proposal, so they are
 constructed under the span current in the service task, given
 `pending=None`, finalised with `_set_result(..., waiting_time=0.0)` and
 recorded once with `transcript()._event(event)` inside their own `tool`
-span, the shape the native denial path produces (`_call_tools.py:728-731`).
+span, the shape the native denial path produces (`_call_tools.py:777-780`).
 
 ### The recorded result
 
 `result` is the `ToolResult` the tool returned, massaged as the native path
-does for the event (`_call_tools.py:284-333`): a `str` verbatim; a single
+does for the event (`_call_tools.py:333-382`): a `str` verbatim; a single
 `Content` wrapped in a list; a list of `Content` as is; anything else as
 `to_json_str_safe(result)`, the string the bridge sends today
-(`service.py:263`).
+(`service.py:290`).
 
 A string result is then bounded as native bounds it, but only when a limit
 was configured: `limit = ToolDef(tool_fn).max_output` if declared, else
 `active_generate_config().max_tool_output` if set (the service task inherits
 the eval's config; the `ToolDef` lookup is the one `list_tools` already
-performs per request, `service.py:180`). When `limit` is `None` nothing is
+performs per request, `service.py:186`). When `limit` is `None` nothing is
 truncated, so an eval that never set a limit delivers and records the whole
 result exactly as today; the native path's implicit 16 KiB fallback is
 deliberately not applied to bridged tools, because it would silently change
@@ -616,51 +651,51 @@ the log already carries.
 
 ### Error mapping
 
-The exception-to-`ToolCallError` mapping that was the `except` chain at
-`_call_tools.py:220-284` is a helper in `src/inspect_ai/model/_call_tools.py`
-(landed with this document, see Implementation plan PR A):
+The exception-to-`ToolCallError` mapping is `tool_call_error` in
+`src/inspect_ai/model/_call_tools.py:107-117`, landed by #5464 (merged
+2026-09-21, `d109dc168`), which factored it out of the `except` chain in
+`call_tool_task` so that `execute_tools` (`:320-331`) and the bridge's
+`call_tool` (`service.py:271-274`) classify with one definition:
 
 ```python
-class ToolCallFailure(NamedTuple):
-    error: ToolCallError
-    result: ToolResult
-    """Partial output to record (a timeout's truncated output, else "")."""
+class MappedToolCallError(NamedTuple):
+    error: ToolCallError      # the error reported in the tool message
+    result: ToolResult | None # output the model still receives (e.g. truncated
+                              # output), or None to leave the result as is
 
-def tool_call_failure(ex: Exception, function: str) -> ToolCallFailure | None:
-    """The `ToolCallError` the native path records for `ex`; None when the
-    exception is not a tool failure and must propagate."""
+def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
+    ...  # None: the exception is the eval's fault and the sample fails
 ```
 
-The native `call_tool_task` calls it (behaviour-preserving refactor; the
-`ValueError` re-raise for anything but an embedded null byte and the
-`failed=True` path for unmapped exceptions stay in the caller). The host
-path uses the mapping **for the event only** and always re-raises the
-original exception, so the RPC error text the scaffold receives is
-unchanged for every failure that exists today:
+#5464 also settled what happens over the bridge: a mapped exception
+propagates as the RPC error the scaffold reads as tool output, an unmapped
+one is signalled through `bridge.request_fail(inner_ex)` so the sample fails
+as it would natively, and in every case the original exception is what
+leaves `call_tool`, so the sandbox service dispatcher sees what it saw
+before (a bare `LimitExceededError` still reaches its limit branch,
+`util/_sandbox/service.py:552-560`). This design keeps all of that and adds
+the event:
 
-- Mapped failure: `error=failure.error`, `result=failure.result`,
-  `failed=None`; re-raise `ex`. The event shows the native wording ("Command
-  timed out before completing.") while the scaffold still sees
-  `str(ex)`; the two are deliberately not unified, because changing the
-  wire text is out of scope.
-- `LimitExceededError`: record `ToolCallError("limit", ...)`, re-raise `ex`
-  so `_handle_request` still calls `active.limit_exceeded(ex)`
-  (`util/_sandbox/service.py:552-560`).
-- Unmapped exception: `error=ToolCallError("unknown", str(ex))`,
-  `failed=True`; re-raise `ex`. The native path leaves `error=None` here
-  because the exception goes on to fail the sample; over the bridge it does
-  not today (the service converts it to an RPC error), so the message is
-  recorded on the event instead. Whether an unmapped host tool exception
-  should also fail the sample, as it does natively, is a pre-existing
-  question about the bridge service that this design leaves alone (see
-  "Not this design"); the event fields above are the same either way, and
-  the `ToolEvent` docstring notes that on a host event `failed=True` does
-  not imply the sample errored.
+- Mapped exception: `error=mapped.error`, `result=mapped.result` when it is
+  not `None` (a timeout's or output-limit's truncated output), else the
+  result stays `""`; `failed=None`; re-raise the original. The event shows
+  the native wording ("Command timed out before completing.") while the
+  scaffold still sees `str(ex)`, as today; the two are deliberately not
+  unified, because changing the wire text is out of scope.
+- `LimitExceededError`: mapped to `limit` by `tool_call_error`; re-raise the
+  original so the dispatcher still calls `active.limit_exceeded(ex)` for a
+  bare one.
+- Unmapped exception: `failed=True`, `error=None`, the native shape
+  (`_call_tools.py:326-331`), then `bridge.request_fail(inner_ex)` exactly
+  where #5464 calls it (after the event is finalised, before the re-raise),
+  and re-raise the original. The sample fails through `_monitor_failure`
+  (`bridge.py:283-294`); the message reaches the log as the sample error,
+  so it is not duplicated onto the event.
 - Operator cancel (`scope.cancel_called`): `error=ToolCallError("timeout",
   "Command timed out before completing.")`, `failed=None`, the contract at
-  `_call_tools.py:549-556`; raise `ToolError` with that message. This path
+  `_call_tools.py:598-605`; raise `ToolError` with that message. This path
   does not exist today (there is nothing to cancel), so the message is new
-  rather than changed.
+  rather than changed; `ToolError` is mapped, so it does not fail the sample.
 - Outer cancellation: `error=ToolCallError("cancelled", "Host tool call was
   cancelled before completing.")`, `failed=None`; re-raise. `_set_result`
   and `_event_updated` are synchronous, so this runs inside the
@@ -752,10 +787,10 @@ classification a native tool that generates gets.
 ### Message linkage
 
 `ToolEvent.message_id` is the id of the `ChatMessageTool` the model saw
-(`_call_tools.py:512`). For a host call the scaffold builds that message
+(`_call_tools.py:561`). For a host call the scaffold builds that message
 itself and sends it back in a later request, where `apply_message_ids`
 assigns an id by content hash (`util.py:894-902`,
-`src/inspect_ai/agent/_bridge/types.py:250-274`). That id does not exist
+`src/inspect_ai/agent/_bridge/types.py:271-295`). That id does not exist
 when the event is finalised, so `message_id` is `None`. Consumers cope: the
 viewer's tool label lookup falls back to the tool id
 (`transcript/ToolEventView.tsx:94-98`), and messages-tab navigation from a
@@ -766,7 +801,7 @@ arrives would need a second `_event_updated` on a completed event, which
 re-delivers it to hooks; that is left out (see "Not this design").
 
 `agent` is `None` (bridged tools are not handoffs). `agent_span_id` mirrors
-`_call_tools.py:794`.
+`_call_tools.py:843`.
 
 ### Working time and limits
 
@@ -906,13 +941,14 @@ either way.
 
 | Outcome | `id` | `metadata.bridge.function` | `error` | `failed` | `metadata.bridge.grant` | RPC/MCP result to scaffold |
 |---|---|---|---|---|---|---|
-| Executed, grant consumed | proposing `ToolCall.id` | as the model saw it | mapped failure or `None` | `True` only for an unmapped exception | `consumed` | unchanged; on failure the original exception text |
+| Executed, grant consumed | proposing `ToolCall.id` | as the model saw it | mapped failure or `None` | `True` only for an unmapped exception (the sample then fails, #5464) | `consumed` | unchanged; on failure the original exception text |
 | Executed on an exempt server, no grant | fresh | `null` | as above | as above | `exempt` | unchanged |
 | Executed, string result over a configured output limit | as executed | as executed | `None` | `None` | as executed | **changed**: the native truncation wrapper text; event `truncated=(raw, limit)` |
 | Denied (server requires a proposal, none matched) | fresh | `null` | `permission` | `None` | `denied` | unchanged from #5428 (`PermissionError` text) |
 | Unknown server | fresh | `null` | `parsing` | `None` | `null` | unchanged ("Unknown bridged tools server: <server>") |
 | Unknown tool on a known server | fresh | `null` | `parsing` | `None` | `null` | unchanged ("Unknown tool '<tool>' in server '<server>'") |
-| Arguments not an object, or nested over 100 deep | fresh | `null` | `parsing` | `None` | `null` | **changed**: `ValueError` text instead of a `TypeError` text or execution |
+| Arguments fail #5464's schema validation | fresh | `null` | `parsing` | `None` | `null` | unchanged (`ToolParsingError` text) |
+| Arguments nested over 100 deep | fresh | `null` | `parsing` | `None` | `null` | **changed**: the native depth `ToolParsingError` instead of execution |
 | Tool raised `LimitExceededError` | as executed | as executed | `limit` | `None` | as executed | unchanged (limit handling and error text) |
 | Operator cancel | as executed | as executed | `timeout` | `None` | as executed | new: MCP error "Command timed out before completing." |
 | Bridge teardown mid-call | as executed | as executed | `cancelled` | `None` | as executed | none (request abandoned, as today) |
@@ -982,18 +1018,17 @@ viewer it is a failed tool panel; in `events_df` it is a row with
   where today they are inline in both cases. Readers of this version resolve
   the references; an older inspect reading a newer log shows the
   `attachment://` string in that result. Text results are unchanged.
-- **Scaffold-facing behaviour.** Three cases behave differently:
-  arguments that are not a JSON object (today: a `TypeError` from
-  `tool_fn(**arguments)`; after: a `ValueError` before execution);
-  arguments nested deeper than 100 containers (today: executed; after:
-  rejected with the native depth error); and a string result larger than
-  an explicitly configured limit (today: delivered whole; after: the native
+- **Scaffold-facing behaviour.** Two cases behave differently: arguments
+  nested deeper than 100 containers (today: validated and executed; after:
+  rejected with the native depth `ToolParsingError`, an MCP `-32603` error
+  no known scaffold triggers), and a string result larger than an
+  explicitly configured limit (today: delivered whole; after: the native
   truncation wrapper when the eval set `max_tool_output` or the tool
-  declares `ToolDef.max_output`; no implicit default). The first two are
-  MCP `-32603` errors either way and no known scaffold sends them. The
-  third only affects evals that configured a limit, which now applies to
-  their bridged tools as it already applies to their native ones; an eval
-  that never set one sees no change.
+  declares `ToolDef.max_output`; no implicit default). The second only
+  affects evals that configured a limit, which now applies to their bridged
+  tools as it already applies to their native ones; an eval that never set
+  one sees no change. #5464's behaviour (schema validation, unmapped
+  exceptions fail the sample) is unchanged.
 - **Generated TypeScript types.** None to regenerate; `metadata` is already
   typed as an open object.
 - **Public API and CLI.** `SandboxAgentBridge.consume_tool_execution_grant`
@@ -1123,9 +1158,12 @@ tests do, and subscribe a recorder to count emissions):
 - Unknown server: `parsing` event with the server name as sent, and the
   `ValueError` raised carries exactly "Unknown bridged tools server:
   <server>". Unknown tool on a known server: `parsing` event and exactly
-  "Unknown tool '<tool>' in server '<server>'". Non-object arguments and
-  arguments nested 101 deep: `parsing` event, `ValueError` raised, tool not
-  awaited; arguments nested 100 deep execute.
+  "Unknown tool '<tool>' in server '<server>'". Arguments nested 101 deep:
+  `parsing` event with the native depth message, `ToolParsingError` raised,
+  tool not awaited; arguments nested 100 deep execute. Arguments that fail
+  #5464's schema validation (a list, a missing property): `parsing` event
+  carrying the validation message and the arguments as sent,
+  `ToolParsingError` raised as today.
 - Two identical proposals in flight (same tool, same arguments, ids `a`
   then `b`): the first execution pairs with `a` and the second with `b`,
   deterministically, so a later change to the grant store cannot silently
@@ -1135,10 +1173,15 @@ tests do, and subscribe a recorder to count emissions):
   there is no cap beyond the service's request read limit, by decision
   (the same input already reaches `ModelEvent` inputs unbounded).
 - Failure paths: tool raises `ToolError`, `PermissionError`,
-  `TimeoutError("tool-specific timeout")`, an unmapped exception, and
-  `LimitExceededError`. Assert the mapped `error` and `failed` on the
-  event, and that the exception propagated to the caller is the original
-  object with its original message (RPC text preservation).
+  `TimeoutError("tool-specific timeout")`, a `SandboxTimeoutError` with
+  truncated output, an unmapped exception, and `LimitExceededError`. Assert
+  the mapped `error` and `result` on the event, `failed is True` and
+  `error is None` for the unmapped one with `bridge.request_fail` called
+  with the unwrapped exception (and not called for the mapped ones), and
+  that the exception propagated to the caller is the original object with
+  its original message (RPC text preservation). A `ToolError` raised inside
+  an `anyio` task group in the tool is classified from the unwrapped
+  exception and does not fail the sample.
 - Cancellation: operator cancel via `event._cancel()` from a sibling task
   while the tool awaits an `anyio.Event`; assert `error.type == "timeout"`,
   the RPC raises `ToolError`, and the transcript recorder saw exactly one
@@ -1222,17 +1265,14 @@ fixture proves no change.
 
 ## Implementation plan
 
-Three inspect_ai PRs plus the ts-mono companion. The first two are
-standalone, behaviour-preserving or policy-only changes to shared code that
-review more easily on their own; the third is the design proper and depends
-on both and on #5428.
-
-**PR A: extract the native error mapping** (`src/inspect_ai/model/_call_tools.py`,
-`tests/tools/test_call_tools.py`). Lands with this document in #5427
-(decision: Ransom, 2026-09-16). `ToolCallFailure` and `tool_call_failure`
-replace the `except` chain in `call_tool_task` with no behaviour change; the
-parametrised test covers every mapped exception type, the `None` cases, and
-that a plain `ValueError` still propagates out of `execute_tools`.
+Two inspect_ai PRs plus the ts-mono companion. The first is a standalone,
+behaviour-preserving change to shared log code that reviews more easily on
+its own; the second is the design proper and depends on it and on #5428.
+The extraction of the native error mapping that an earlier revision listed
+as PR A landed independently in #5464 (`tool_call_error`,
+`MappedToolCallError`, 2026-09-21) together with the bridge classifying host
+tool exceptions and validating arguments; this design builds on it and adds
+nothing to it.
 
 **PR B: tool result media follow the logging policy**
 (`src/inspect_ai/log/_condense.py`, `tests/log/test_log_attachments.py`,
@@ -1240,7 +1280,7 @@ that a plain `ValueError` still propagates out of `execute_tools`.
 add the round-trip tests. Fixes the existing `log_images=False` gap for
 native tool events on its own.
 
-**PR C: record host tool events** (after #5428, PR B and this PR):
+**PR C: record host tool events** (after #5428 and PR B):
 
 1. **Grant record carries the proposal and span**
    (`src/inspect_ai/agent/_bridge/types.py`,
@@ -1262,8 +1302,9 @@ native tool events on its own.
 3. **Record host tool events** (new
    `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`; `service.py`
    delegates; `src/inspect_ai/event/_tool.py` docstring for
-   `metadata.bridge`; `util.py:365-369` docstring). Includes the argument
-   checks and the output truncation under an explicit limit. Unit tests
+   `metadata.bridge`; `util.py:365-369` docstring). Includes the depth check
+   ahead of #5464's schema validation and the output truncation under an
+   explicit limit. Unit tests
    from the Testing section, including the event tree, cancellation counts
    (direct, outer, and ACP `cancel_current_turn`), RPC text preservation,
    truncation and trio.
@@ -1303,7 +1344,7 @@ together with the Python change, as cross-repo PRs normally do.
   (`Task(review=)`, `eval(review=)`, `react(review=)`) does not cover a
   bridged host tool today: native `execute_tools` runs `_apply_tool_review`
   after execution and before the model sees the result
-  (`_call_tools.py:357-368`), the bridge path never does, and `ReviewEvent`s
+  (`_call_tools.py:406-417`), the bridge path never does, and `ReviewEvent`s
   are therefore absent for host calls. Covering them means running the
   reviewer at the execution edge in `host_tool.py`, before the result is
   returned to the scaffold, and deciding what `terminate` (the sample ends
@@ -1324,16 +1365,11 @@ together with the Python change, as cross-repo PRs normally do.
   time.
 - **A viewer badge** rendering `metadata.bridge` (host execution, denied,
   exempt) on the tool panel.
-- **Unmapped host tool exceptions do not fail the sample.** Natively an
-  exception outside the mapped set ends the sample; over the bridge the
-  service turns it into an RPC error and the sample continues
-  (`util/_sandbox/service.py:562-581`). Pre-existing and independent of
-  recording, so left for its own issue, meridianlabs-ai/inspect_ai#500
-  (decision: Ransom, 2026-09-16). The
-  mechanism, if wanted, is `bridge.request_fail(ex)` after finalising the
-  event (`types.py:169-187`, `bridge.py:283-294`), the pattern
-  `_forward_provider_errors` uses for refusals; the interactions with
-  `fail_on_error` and error retries need working through there.
+- **Unmapped host tool exceptions failing the sample** was
+  meridianlabs-ai/inspect_ai#500, fixed by #5464 (merged 2026-09-21):
+  `call_tool` now signals an unmapped exception through
+  `bridge.request_fail` so the sample ends as it would natively. This
+  design keeps that behaviour and only adds the event alongside it.
 - **A closed-span fallback for captured spans**: tracking `SpanEndEvent`s
   through a bridge-side transcript subscription so an execution whose
   proposal's span has since closed is placed under the current span
