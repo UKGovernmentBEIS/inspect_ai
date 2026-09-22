@@ -215,15 +215,8 @@ class OpenAICompatibleAPI(ModelAPI):
         tools, tool_choice, config = self.resolve_tools(tools, tool_choice, config)
 
         if self.responses_api:
-            # supports_explicit_prompt_cache defaults to False here
-            # (deliberately not passed): this shared path also serves
-            # OpenRouter, Together, and any other OpenAI-compatible provider
-            # configured with responses_api=True. A model name matching
-            # OpenAI's gpt-5.6+ pattern says nothing about whether the
-            # actual endpoint accepts prompt_cache_options/
-            # prompt_cache_breakpoint — that's unverified for these
-            # providers, so ContentText.cache_breakpoint marks stay
-            # unsupported (implicit caching only) here.
+            # supports_explicit_prompt_cache intentionally left False: other
+            # OpenAI-compatible providers' support for these fields is unverified.
             return await generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,

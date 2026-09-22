@@ -298,15 +298,11 @@ def _extract_agent_message_from_internal(
 def message_bypasses_content_conversion(message: ChatMessage) -> bool:
     """Whether `message` takes a native-replay path in the Responses API.
 
-    A compaction marker or a stashed Codex `agent_message` is replayed
-    verbatim (see `_extract_compaction_from_content_data` /
-    `_extract_agent_message_from_internal`) instead of being converted
-    block-by-block through `_openai_responses_content_list_param` — the
-    function that actually emits `prompt_cache_breakpoint`. A
-    `ContentText.cache_breakpoint` mark on such a message's content can
-    never be honored, so `resolve_chat_input`'s role-based eligibility check
-    (which only sees this is a `user`-role message) must not be the last
-    word on whether the request's marked layout is representable.
+    A compaction marker or stashed Codex `agent_message` is replayed
+    verbatim instead of being converted through
+    `_openai_responses_content_list_param` — the function that emits
+    `prompt_cache_breakpoint` — so a mark on such a message can never be
+    honored, regardless of its (eligible) role.
     """
     return message.role == "user" and (
         _extract_compaction_from_content_data(message.content) is not None

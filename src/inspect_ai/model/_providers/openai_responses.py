@@ -159,24 +159,13 @@ async def generate_responses(
         else NOT_GIVEN
     )
 
-    # explicit cache breakpoints (ContentText.cache_breakpoint): see
-    # `resolve_explicit_prompt_cache` for the gating (model, budget, position,
-    # cache_prompt) — any condition failing falls back to the model's normal
-    # implicit caching for the whole request rather than honoring part of a
-    # marked layout. `resolve_explicit_prompt_cache` only sees message
-    # *roles*, so a mark on a user message that the Responses API replays
-    # natively (a compaction marker or a stashed Codex agent_message,
-    # neither of which goes through per-block content conversion) would
-    # otherwise be counted as representable and then silently dropped while
-    # marks elsewhere in the same request are still honored — check that
-    # bypass path explicitly too. `generate_responses` is also called by
-    # `OpenAICompatibleAPI` (OpenRouter, Together, etc. with
-    # `responses_api=True`) whose endpoints have not been verified to accept
-    # `prompt_cache_options`/`prompt_cache_breakpoint` at all — the model-name
-    # pattern `resolve_explicit_prompt_cache` matches (`gpt-5.6`, `gpt-6-*`)
-    # says nothing about which endpoint is being called, so
-    # `supports_explicit_prompt_cache` gates that: only the direct OpenAI
-    # provider passes `True`.
+    # explicit cache breakpoints (ContentText.cache_breakpoint): any
+    # ineligible condition falls back to normal implicit caching for the
+    # whole request. Also reject a mark on a message replayed natively
+    # (compaction/agent_message) — resolve_explicit_prompt_cache only sees
+    # roles, not this bypass. supports_explicit_prompt_cache gates callers
+    # other than the direct OpenAI provider (e.g. OpenRouter), whose
+    # endpoints' support for these fields is unverified.
     explicit_cache = (
         supports_explicit_prompt_cache
         and resolve_explicit_prompt_cache(input, model_name, config.cache_prompt)

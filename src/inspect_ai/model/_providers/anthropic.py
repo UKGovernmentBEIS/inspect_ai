@@ -711,15 +711,11 @@ class AnthropicAPI(ModelAPI):
             # prepare request params (assembled this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
 
-            # automatic caching for messages (system/tools use explicit breakpoints;
-            # `auto_cache` is False when caching is off, or when the request
-            # carries explicit ContentText.cache_breakpoint marks of its own).
-            # Per Anthropic's docs, the top-level `cache_control` field is only
-            # supported on the direct Claude API and Azure AI Foundry (preview);
-            # "support for Amazon Bedrock and Google Vertex AI is coming later." On
-            # those services it is rejected as
-            # `cache_control: Extra inputs are not permitted`. Fall back to the
-            # per-block markers added in resolve_chat_input on those services.
+            # automatic caching for messages (system/tools use explicit
+            # breakpoints; `auto_cache` is False when caching is off or the
+            # request has its own explicit breakpoints). Top-level
+            # `cache_control` is rejected on Bedrock/Vertex, which fall back
+            # to per-block markers instead.
             # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
             if auto_cache and not (self.is_bedrock() or self.is_vertex()):
                 request["cache_control"] = cache_control_param(cache_ttl)
@@ -904,18 +900,10 @@ class AnthropicAPI(ModelAPI):
             for m in input
         ]
 
-        # `message_param` below assumes every `ContentText.cache_breakpoint`
-        # mark it sees has already been validated by
-        # `_can_honor_cache_breakpoints` (as `resolve_chat_input` does for
-        # generation) — it does no hoisting or budget checking of its own.
-        # Token counting never calls that gate, so an over-budget mark count
-        # or a mark inside tool-result content would otherwise reach
-        # Anthropic's count_tokens endpoint unchanged and be rejected with
-        # the same 400 generation would reject it with (verified live).
-        # Anthropic's docs say token counting doesn't use caching anyway, so
-        # stripping the hints here doesn't change the counted result — it
-        # just keeps counting (and compaction, which counts message subsets)
-        # working for every input generation accepts, marked or not.
+        # count_tokens skips the eligibility gate generation uses, so an
+        # invalid mark (over budget, or on a tool result) would otherwise
+        # reach Anthropic unchanged and get the same 400 generation would
+        # (verified live). Caching hints don't affect the counted result.
         if _has_cache_breakpoint_hints(input):
             input = _strip_cache_breakpoints(input)
 
@@ -1188,11 +1176,8 @@ class AnthropicAPI(ModelAPI):
     def _oauth_default_headers(self, model_args: dict[str, Any]) -> dict[str, str]:
         """Default headers for the OAuth client, merging in the caller's own.
 
-        Popping the caller's `default_headers` out of `model_args` (rather
-        than letting it also flow through `**model_args`) avoids a duplicate
-        `default_headers` keyword argument. The OAuth beta is then combined
-        with any caller-supplied `anthropic-beta` (or `anthropic_beta`)
-        value, as `_beta_header_value` combines it for per-request betas.
+        Pops `default_headers` out of `model_args` to avoid passing it twice,
+        and merges the OAuth beta with any caller-supplied `anthropic-beta`.
         """
         headers: dict[str, str] = dict(model_args.pop("default_headers", None) or {})
         caller_betas = self._pull_betas_from_headers(headers)
@@ -1845,17 +1830,12 @@ class AnthropicAPI(ModelAPI):
         list[MessageParam],
         bool,
     ]:
-        # a request with no ContentText.cache_breakpoint marks skips straight
-        # to the original conversion and automatic-caching path below. A
-        # request that does carry hints is only routed to
-        # _resolve_chat_input_explicit when caching is enabled and every hint
-        # can be honored (see _can_honor_cache_breakpoints); otherwise all
-        # hints are stripped on a copy and the same automatic path runs
-        # instead — never a partial honoring or a caller mutation. A caller
-        # that marked more breakpoints than Anthropic allows gets a clear
-        # error rather than a silent return to automatic caching, since that
-        # would resume caching the varying tail the marks were meant to
-        # avoid — the opposite of what the caller asked for.
+        # explicit hints route to _resolve_chat_input_explicit only when
+        # caching is enabled and every hint can be honored; otherwise they
+        # are stripped and the automatic path below runs instead. An
+        # over-budget mark count raises rather than falling back, since
+        # falling back would resume caching the tail the marks meant to
+        # exclude.
         if _has_cache_breakpoint_hints(input):
             cache_prompt = (
                 config.cache_prompt if isinstance(config.cache_prompt, bool) else True
@@ -1992,24 +1972,12 @@ class AnthropicAPI(ModelAPI):
         """Resolve `input` when it carries honorable caller `ContentText.cache_breakpoint` marks.
 
         Only reached once `resolve_chat_input` has confirmed caching is
-        enabled and `_can_honor_cache_breakpoints(input)`, so at least one
-        mark is guaranteed to survive conversion below — explicit
-        breakpoints always outnumber zero and automatic caching (system,
-        tools, and message lookback/final markers) is suppressed in favor of
-        the caller's own boundaries.
+        enabled and `_can_honor_cache_breakpoints(input)`. Automatic caching
+        (system, tools, message lookback/final markers) is suppressed in
+        favor of the caller's own boundaries.
         """
-        # Convert orphaned tool results to text messages before processing
-        # (handles case where native compaction summarized away tool_use
-        # blocks). A mark on an orphaned result would not survive that
-        # flattening, but a marked tool result is already unsupported and
-        # stripped by `_can_honor_cache_breakpoints`, so no mark can be lost
-        # here.
         input = _convert_orphaned_tool_results(input)
 
-        # extract system messages, as in the automatic path. A mark on a
-        # mid-conversation system message is already unsupported and
-        # stripped above, so the split can never relocate or lose a caller
-        # mark.
         messages: list[ChatMessage]
         if self.supports_mid_conversation_system():
             system_messages, messages = _split_for_mid_conversation_system(input)
@@ -2038,9 +2006,8 @@ class AnthropicAPI(ModelAPI):
             self.mcp_server_param(mcp_server) for mcp_server in mcp_servers
         ]
 
-        # system messages, preserving per-block boundaries and explicit
-        # breakpoints (a stable block followed by a varying one must not
-        # be flattened into a single cached string)
+        # preserve per-block boundaries so a stable block isn't flattened
+        # together with a varying one into a single cached string
         system_param: list[TextBlockParam] | None = None
         if len(system_messages) > 0:
             system_param = [
@@ -2053,38 +2020,25 @@ class AnthropicAPI(ModelAPI):
         else:
             system_param = None
 
-        # explicit breakpoints (ContentText.cache_breakpoint) replace the
-        # heuristic message breakpoints: lookback would spend a slot on a
-        # block the caller didn't choose, and auto-cache would
-        # cache-write the varying tail the caller deliberately left
-        # unmarked.
+        # explicit breakpoints replace the heuristic message/lookback
+        # breakpoints, so the caller's chosen boundaries stand alone
         explicit_message_breakpoints = count_message_cache_control(message_params)
         explicit_system_breakpoints = (
             count_block_list_cache_control(system_param) if system_param else 0
         )
 
-        # system: an explicit mark already places the boundary the caller
-        # wants; the automatic last-block mark would otherwise cache the
-        # (deliberately unmarked) varying tail on every call, same as
-        # auto-cache versus a marked message.
+        # auto-mark system/tools only when the caller didn't already mark them
         auto_system = bool(system_param) and not explicit_system_breakpoints
         if auto_system and system_param:
             add_cache_control(system_param[-1], cache_ttl)
-        # tools
         auto_tools = bool(tools_params)
         if auto_tools:
             add_cache_control(tools_params[-1], cache_ttl)
 
-        # a caller-honored explicit breakpoint (message or system) already
-        # places the boundary the request wants; adding the automatic
-        # message-lookback marker past it would write a cache entry the
-        # caller deliberately didn't ask for, so it is never added here.
-
-        # explicit (caller) breakpoints take slot priority over the
-        # automatic system/tools markers: `_can_honor_cache_breakpoints`
-        # already bounded the caller's own marks to `MAX_CACHE_BREAKPOINTS`,
-        # so dropping both automatic markers (if present) is always enough
-        # room.
+        # explicit (caller) breakpoints take slot priority: drop the
+        # automatic system/tools markers first if over budget —
+        # `_can_honor_cache_breakpoints` already bounded the caller's own
+        # marks to MAX_CACHE_BREAKPOINTS, so this is always enough room.
         breakpoints = (
             explicit_message_breakpoints
             + count_block_list_cache_control(system_param or [])
@@ -2819,16 +2773,10 @@ def _convert_orphaned_tool_results(
 def _cache_breakpoint(block: ContentText) -> bool:
     """Whether `block` requests an explicit cache breakpoint.
 
-    Reads via `getattr` rather than direct attribute access: `cache_breakpoint`
-    was added to `ContentText` after it shipped, and Inspect's local response
-    cache persists pickled `ModelOutput` objects (including their message
-    content) across process restarts and version upgrades, with a default
-    lifetime of one week. Unpickling reconstructs an object's `__dict__`
-    directly, bypassing pydantic's validators and default-filling, so a
-    `ContentText` pickled before this field existed genuinely lacks the
-    attribute on unpickling — a plain `.cache_breakpoint` read would raise
-    `AttributeError` on the very next (even uncached) model call that
-    replays it. A missing attribute means unmarked, the same as `None`.
+    Uses `getattr` since Inspect's local response cache persists pickled
+    `ModelOutput` objects across version upgrades; unpickling bypasses
+    pydantic defaults, so a `ContentText` pickled before this field existed
+    genuinely lacks the attribute. A missing attribute means unmarked.
     """
     return bool(getattr(block, "cache_breakpoint", None))
 
@@ -2841,12 +2789,7 @@ def _message_has_cache_breakpoint(message: ChatMessage) -> bool:
 
 
 def _has_cache_breakpoint_hints(messages: list[ChatMessage]) -> bool:
-    """Cheap presence check for any `ContentText.cache_breakpoint` mark.
-
-    Used at the entry to `resolve_chat_input` to route a request with no
-    hints straight to the original automatic path, untouched by the rest of
-    this module's explicit-breakpoint logic.
-    """
+    """Cheap presence check for any `ContentText.cache_breakpoint` mark."""
     return any(_message_has_cache_breakpoint(message) for message in messages)
 
 
@@ -2864,10 +2807,7 @@ def _count_cache_breakpoints(messages: list[ChatMessage]) -> int:
 def _strip_cache_breakpoints(messages: list[ChatMessage]) -> list[ChatMessage]:
     """Copy of `messages` with every `ContentText.cache_breakpoint` mark removed.
 
-    Non-mutating: `messages` and its content are never modified in place.
-    Messages without a mark are returned unchanged (same object); only a
-    message that actually carries one is copied, along with the specific
-    content blocks that need it cleared.
+    Non-mutating: only messages that actually carry a mark are copied.
     """
     result: list[ChatMessage] = []
     for message in messages:
@@ -2888,33 +2828,18 @@ def _strip_cache_breakpoints(messages: list[ChatMessage]) -> list[ChatMessage]:
 def _can_honor_cache_breakpoints(input: list[ChatMessage]) -> bool:
     """Whether every `ContentText.cache_breakpoint` mark in `input` can be honored.
 
-    Checked once, up front, before any conversion — the whole request falls
-    back to normal automatic caching (every mark stripped) rather than
-    honoring some marks and not others. A mark is supported on a leading
-    system message or on an ordinary, non-empty user/assistant message
-    block; a mark is not supported (conservative fallback, not every
-    placement) on a mid-conversation system message, on a tool result
-    (Anthropic has no way to mark a boundary inside either without
-    relocating or widening it), or on an empty text block on any role
-    (Anthropic rejects an empty text block outright, so it is replaced with
-    a placeholder before conversion — marking it would attach the caller's
-    boundary to that placeholder instead of their real content).
-
-    The caller's own mark count must also fit Anthropic's per-request
-    cache-breakpoint budget on its own, before any automatic system/tools
-    breakpoint is even considered (those are always droppable to make
-    room) — `resolve_chat_input` checks and raises on that before ever
-    calling this function, so an over-budget request never reaches here;
-    the check is repeated as a defensive invariant for any other caller.
+    Checked once, up front — the whole request falls back to normal
+    automatic caching (every mark stripped) rather than honoring some marks
+    and not others. Supported: a leading system message, or an ordinary
+    non-empty user/assistant block. Not supported: a mid-conversation system
+    message, a tool result (no way to mark a boundary inside either), or an
+    empty text block (Anthropic rejects those outright and Inspect
+    substitutes a placeholder, so a mark there would attach to the
+    placeholder instead of real content).
     """
     if _count_cache_breakpoints(input) > MAX_CACHE_BREAKPOINTS:
         return False
 
-    # a mark on an empty text block can't be honored on any role: Anthropic
-    # rejects an empty text block outright, so `message_block_params`
-    # substitutes a NO_CONTENT placeholder for it — marking that block would
-    # silently attach cache_control to the placeholder instead of the
-    # caller's real (absent) content.
     if any(
         isinstance(block, ContentText) and _cache_breakpoint(block) and not block.text
         for message in input
@@ -2936,11 +2861,8 @@ def _can_honor_cache_breakpoints(input: list[ChatMessage]) -> bool:
             if marked:
                 trailing = text_blocks[marked[-1] + 1 :]
                 if len(trailing) == 1 and not trailing[0].text:
-                    # a lone trailing empty block is dropped by
-                    # `system_content_blocks` rather than sent as its own
-                    # (invalid, empty) text block, which would silently lose
-                    # the separator it contributes to the unmarked text —
-                    # fall back for the whole request instead.
+                    # a lone trailing empty block would be dropped as an
+                    # invalid empty text block, losing its separator
                     return False
         i += 1
 
@@ -2971,9 +2893,8 @@ def _split_system_as_reminders(
     tool-result turn restarts the assistant loop and strips prior thinking /
     cache context on tool-use continuations, so those reminders are hoisted.
 
-    A mid-conversation system message carrying an explicit
-    `cache_breakpoint` mark is never relocated here: `_can_honor_cache_breakpoints`
-    disqualifies (and strips) any such mark before this function runs.
+    A mid-conversation `cache_breakpoint` mark is disqualified and stripped
+    by `_can_honor_cache_breakpoints` before this runs, so none reach here.
     """
     top: list[ChatMessageSystem] = []
     i = 0
@@ -3030,10 +2951,8 @@ def _split_for_mid_conversation_system(
     merging consecutive mid-conversation systems and hoisting any in invalid
     positions back to the top-level field.
 
-    A mid-conversation system message carrying an explicit
-    `cache_breakpoint` mark is never merged or hoisted here:
-    `_can_honor_cache_breakpoints` disqualifies (and strips) any such mark
-    before this function runs.
+    A mid-conversation `cache_breakpoint` mark is disqualified and stripped
+    by `_can_honor_cache_breakpoints` before this runs, so none reach here.
     """
     # 1. Pull leading contiguous block.
     top: list[ChatMessageSystem] = []
@@ -3120,17 +3039,10 @@ def system_content_blocks(
 ) -> list[TextBlockParam]:
     r"""`message`'s content as text blocks.
 
-    Preserves the prior single flattened block whenever no block in
-    `message` carries an explicit `cache_breakpoint` mark, so unmarked
-    requests keep their existing wire representation. When a mark is
-    present, blocks are split only at the marked boundaries — runs of
-    unmarked text on either side of a mark stay joined with `"\n"`, the same
-    separator the flattened representation used, including the blank line
-    an empty unmarked block contributes to that join.
-
-    A marked-but-empty block (which can't itself carry `cache_control`) is
-    already disqualified by `_can_honor_cache_breakpoints` before this
-    function runs, so every mark reaching here has non-empty text.
+    Unmarked requests keep the prior single flattened block. When a
+    `cache_breakpoint` mark is present, blocks are split only at the marked
+    boundaries — unmarked runs on either side stay joined with `"\n"`, same
+    as the flattened representation.
     """
     if isinstance(message.content, str):
         return (
@@ -3150,9 +3062,6 @@ def system_content_blocks(
     for block in message.content:
         if not isinstance(block, ContentText):
             continue
-        # append even an empty unmarked block's text so the join below
-        # reproduces the same blank-line separator `message.text` would
-        # produce for the same run of blocks.
         run.append(block.text)
         if _cache_breakpoint(block):
             text_block = TextBlockParam(type="text", text="\n".join(run))
@@ -3161,10 +3070,8 @@ def system_content_blocks(
             run = []
     if run:
         trailing_text = "\n".join(run)
-        # a fully-empty trailing run (every block in it was empty and
-        # unmarked) can't be sent as its own text block — the API rejects
-        # empty text content parts — so drop it rather than emit one, same
-        # as an unmarked all-empty message returns no blocks above.
+        # the API rejects empty text content parts, so drop a fully-empty
+        # trailing run rather than emit one
         if trailing_text:
             blocks.append(TextBlockParam(type="text", text=trailing_text))
     return blocks
@@ -3192,9 +3099,6 @@ async def message_param(message: ChatMessage) -> MessageParam:
         assert isinstance(message, ChatMessageSystem)
         if isinstance(message.content, str):
             return MessageParam(role="system", content=message.content or NO_CONTENT)
-        # a mid-conversation system message carrying a `cache_breakpoint` mark
-        # is already disqualified (and stripped) by `_can_honor_cache_breakpoints`
-        # before this function runs, so every block here is unmarked.
         text_blocks: list[TextBlockParam] = [
             TextBlockParam(type="text", text=block.text)
             for block in message.content
@@ -3224,11 +3128,6 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 for item in await message_block_params(content)
             ]
 
-        # A marked tool result is already disqualified (and stripped) by
-        # `_can_honor_cache_breakpoints` before this function runs — Anthropic
-        # has no way to mark a boundary before the end of a tool_result, and
-        # a marked tool result falls back to normal automatic caching for
-        # the whole request rather than being supported at every placement.
         return MessageParam(
             role="user",
             content=[

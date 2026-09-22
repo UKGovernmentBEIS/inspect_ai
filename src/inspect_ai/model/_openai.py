@@ -183,30 +183,20 @@ def supports_explicit_prompt_cache(model_name: str) -> bool:
     return version is not None and version >= (5, 6)
 
 
-# The only message roles whose content this provider actually emits
-# `prompt_cache_breakpoint` for: user messages (both APIs, per-content-part),
-# and system messages (rendered per-block for both the Chat Completions
-# system/developer role and the Responses developer role — see
-# `_openai_system_content` and `_openai_responses_content_param`). Assistant
-# and tool-result content are not threaded a `cache_breakpoints` flag and stay
-# unsupported. Keep in sync with those call sites — `resolve_explicit_prompt_cache`
-# uses this to detect a mark in an unsupported position.
+# Roles this provider actually emits `prompt_cache_breakpoint` for (user,
+# system/developer). Keep in sync with `_openai_system_content` and
+# `_openai_responses_content_param` — `resolve_explicit_prompt_cache` uses
+# this to detect a mark in an unsupported position.
 _CACHE_BREAKPOINT_SUPPORTED_ROLES = {"user", "system"}
 
 
 def _cache_breakpoint(block: ContentText) -> bool:
     """Whether `block` requests an explicit cache breakpoint.
 
-    Reads via `getattr` rather than direct attribute access: `cache_breakpoint`
-    was added to `ContentText` after it shipped, and Inspect's local response
-    cache persists pickled `ModelOutput` objects (including their message
-    content) across process restarts and version upgrades, with a default
-    lifetime of one week. Unpickling reconstructs an object's `__dict__`
-    directly, bypassing pydantic's validators and default-filling, so a
-    `ContentText` pickled before this field existed genuinely lacks the
-    attribute on unpickling — a plain `.cache_breakpoint` read would raise
-    `AttributeError` on the very next (even uncached) model call that replays
-    it. A missing attribute means unmarked, the same as `None`.
+    Uses `getattr` since Inspect's local response cache persists pickled
+    `ModelOutput` objects across version upgrades; unpickling bypasses
+    pydantic defaults, so a `ContentText` pickled before this field existed
+    genuinely lacks the attribute. A missing attribute means unmarked.
     """
     return bool(getattr(block, "cache_breakpoint", None))
 
@@ -245,21 +235,14 @@ def resolve_explicit_prompt_cache(
     """Whether `messages` should switch this request to OpenAI's explicit prompt-cache mode.
 
     True only when every `ContentText.cache_breakpoint` mark in `messages` is
-    in a position this provider actually emits `prompt_cache_breakpoint` for
-    (currently: non-empty user and system message text blocks) and the model
-    is gpt-5.6+ and `cache_prompt` hasn't disabled caching. A mark in an
-    unsupported position (assistant, tool content, or an empty text block
-    that can't itself carry the marker) must not silently be dropped while
-    the rest of the marked layout is still honored — that would violate the
-    caller's request that caching stop exactly at the marked boundary — so
-    any such mark forces the whole request back to normal implicit caching
-    instead.
+    in a supported position (non-empty user/system text blocks), the model
+    is gpt-5.6+, and `cache_prompt` hasn't disabled caching. Any mark in an
+    unsupported position (assistant, tool content, empty text block) forces
+    the whole request back to normal implicit caching, rather than honoring
+    some marks and silently dropping others.
 
-    OpenAI's guide distinguishes a per-request write budget (four writes)
-    from a much larger lookup history (the first two and latest fifty
-    explicit markers); it does not document a hard cap on the number of
-    `prompt_cache_breakpoint` marks a request may supply, so none is applied
-    here.
+    No cap is applied on the number of marks: OpenAI documents a per-request
+    write budget but not a hard limit on `prompt_cache_breakpoint` count.
     """
     if cache_prompt is False:
         return False
@@ -277,25 +260,15 @@ def resolve_explicit_prompt_cache(
 def apply_initial_system_checkpoint(messages: list[ChatMessage]) -> list[ChatMessage]:
     """Add an automatic checkpoint at the end of the initial system/developer block.
 
-    Only called once a request has already switched to explicit mode (some
-    caller mark exists, and `resolve_explicit_prompt_cache` found the whole
-    layout representable). The caller's own mark(s) place their boundary, but
-    the leading system/developer block plus preceding tool definitions form a
-    cumulative prefix that would otherwise have no boundary of its own to
-    reuse when a later marked block changes. Marking the end of that block
-    gives it one, cumulatively covering the tools that precede it.
+    Only called once a request has already switched to explicit mode. The
+    caller's own mark(s) place their boundary, but the leading
+    system/developer block plus preceding tools form a cumulative prefix
+    with no boundary of its own — marking the end of that block gives it
+    one.
 
-    Does nothing — and leaves `messages` unchanged — when:
-
-    - there is no leading system/developer block (e.g. a tools-only prompt:
-      the native limitation is that there is no representable boundary to
-      mark, not something prompt content can work around), or
-    - nothing follows that block (no boundary to retain a prefix for), or
-    - the block already carries a caller mark of its own (a caller's earlier
-      system mark takes priority over its own varying suffix — this must not
-      add a second, later boundary past it).
-
-    Returns a new list; never mutates the input messages or their content.
+    Does nothing when there's no leading system/developer block, nothing
+    follows it, or it already carries a caller mark. Returns a new list;
+    never mutates the input.
     """
     i = 0
     while i < len(messages) and isinstance(messages[i], ChatMessageSystem):
@@ -403,13 +376,10 @@ async def _openai_system_content(
 ) -> str | list[ChatCompletionContentPartTextParam]:
     r"""`message`'s content for a Chat Completions system/developer/user-role message.
 
-    Keeps the existing flattened-string wire shape unless a breakpoint is
-    actually being honored (`cache_breakpoints` and at least one block is
-    marked). When honored, blocks are split only at the marked boundaries —
-    runs of unmarked text on either side of a mark stay joined with the same
-    `"\n"` separator the flattened representation used, including the blank
-    line an empty unmarked block contributes to that join — so an unmarked
-    request keeps its prior wire shape exactly.
+    Keeps the flattened-string wire shape unless a breakpoint is actually
+    honored. When honored, blocks are split only at the marked boundaries —
+    unmarked runs on either side stay joined with `"\n"`, same as the
+    flattened representation.
     """
     if isinstance(message.content, str) or not cache_breakpoints:
         return message.text
@@ -422,8 +392,6 @@ async def _openai_system_content(
     for c in message.content:
         if not isinstance(c, ContentText):
             continue
-        # append even an empty block's text so the join below reproduces the
-        # same blank-line separator the flattened `message.text` would.
         run.append(c.text)
         if _cache_breakpoint(c) and run:
             part = ChatCompletionContentPartTextParam(type="text", text="\n".join(run))
@@ -437,11 +405,8 @@ async def _openai_system_content(
                 ChatCompletionContentPartTextParam(type="text", text=trailing_text)
             )
         elif parts:
-            # every block after the last mark is empty (e.g. ["a"(marked), ""]
-            # flattens to "a\n", not "a"). An empty text part can't stand on
-            # its own (the API rejects it), so fold the separator(s) that
-            # message.text would still contribute into the previous part
-            # rather than silently dropping them and shortening the prompt.
+            # an empty text part can't stand on its own (the API rejects
+            # it), so fold its separator(s) into the previous part instead
             parts[-1]["text"] += "\n" * len(run)
     return parts
 

@@ -80,11 +80,9 @@ async def generate_completions(
     else:
         system_role = "system"
 
-    # explicit cache breakpoints (ContentText.cache_breakpoint): see
-    # `resolve_explicit_prompt_cache` for the gating (model, budget, position,
-    # cache_prompt) — any condition failing falls back to the model's normal
-    # implicit caching for the whole request rather than honoring part of a
-    # marked layout.
+    # explicit cache breakpoints (ContentText.cache_breakpoint); any
+    # ineligible condition falls back to normal implicit caching for the
+    # whole request — see resolve_explicit_prompt_cache
     explicit_cache = resolve_explicit_prompt_cache(
         input, openai_api.api_model_name(), config.cache_prompt
     )

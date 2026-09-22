@@ -29,7 +29,7 @@ class ContentText(ContentBase):
     """Citations supporting the text block."""
 
     cache_breakpoint: bool | None = Field(default=None)
-    """Place an explicit prompt-cache breakpoint after this block (the prefix up to and including it is cached). When any block in the request carries a breakpoint, the provider adds no automatic message breakpoints of its own. Supported on the leading system message and on ordinary user/assistant message blocks; not supported on a mid-conversation system message, on a tool result, or on an empty text block. If the marked layout can't be represented exactly, or the model doesn't support explicit breakpoints, the provider silently falls back to its normal automatic (or implicit) caching instead of relocating or widening the mark — except that Anthropic raises an error rather than falling back when the request supplies more breakpoints than it allows, since resuming automatic caching would reintroduce exactly the caching the marks were meant to avoid. Anthropic Claude API (at most 4 per request total, including automatic system/tool breakpoints, which are dropped first to make room for explicit marks) and OpenAI `gpt-5.6`+ (on user and system/developer message text blocks; no fixed cap on the number of marks) only."""
+    """Place an explicit prompt-cache boundary after this block, replacing the provider's automatic breakpoints for the whole request. Unsupported placements (e.g. tool results, mid-conversation system messages, empty blocks) or models fall back to normal automatic caching. Anthropic Claude API and OpenAI `gpt-5.6`+ only."""
 
 
 class ContentReasoning(ContentBase):
