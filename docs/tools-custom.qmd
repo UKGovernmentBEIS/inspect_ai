@@ -128,7 +128,7 @@ Only opt a tool in to parallel execution after auditing it for concurrent-safety
 
 ### Halting on Error
 
-Some tools issue calls within a single turn that depend on the success of the calls before them (for example, the GUI actions of the `computer()` tool). Such tools can declare `@tool(halt_on_error=True)`: when one call fails with a tool error, the remaining calls to that tool in the same assistant message are not executed, and each is reported to the model as `Not executed: an earlier <tool> action in this turn failed.` Calls to other tools in the same message are unaffected.
+Some tools issue calls within a single turn that depend on the success of the calls before them (for example, the GUI actions of the `computer()` tool). Such tools can declare `@tool(halt_on_error=True)`: when one call fails with a tool error, the remaining calls to that tool in the same assistant message are not executed, and each is reported to the model as `Not executed: an earlier <tool> action in this turn failed.` Calls to other tools in the same message are unaffected. A `halt_on_error` tool always runs serially (it is never parallel-eligible), since later calls must wait for earlier ones to succeed.
 
 
 ## Output Size {#sec-tool-output-size}

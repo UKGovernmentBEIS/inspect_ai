@@ -433,10 +433,12 @@ async def _execute_tools_impl(
         StreamItem = tuple[ExecuteToolsResult, ToolEvent, Exception | None]
 
         # Determine each call's parallel eligibility from its ToolDef.
-        # Unknown tools default to serial.
+        # Unknown tools default to serial. A halt_on_error tool runs serially
+        # regardless: its later calls must not start until an earlier one has
+        # succeeded.
         def is_parallel(call: ToolCall) -> bool:
             tdef = next((t for t in tdefs if t.name == call.function), None)
-            return bool(tdef and tdef.parallel)
+            return bool(tdef and tdef.parallel and not tdef.halt_on_error)
 
         # Partition tool_calls into ordered execution stages. Consecutive
         # parallel-safe calls coalesce into one concurrent stage; each

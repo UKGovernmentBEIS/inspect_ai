@@ -293,11 +293,11 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
 
 ### Computer Use {#anthropic-computer-use}
 
-When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. Claude Opus 5.5 (on the Claude API, Vertex, and Foundry), Fable 5/5.1, and Mythos 5/5.1 use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`), which is the only computer use path for those models. Other models, including Opus 5, Sonnet 5, Opus 4.8, and Opus 5.5 on Bedrock, keep the legacy `computer_20251124` tool.
+When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. Claude Opus 5.5 (on the Claude API and Vertex), Fable 5/5.1, and Mythos 5/5.1 use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`), which is the only computer use path for those models. Other models, including Opus 5, Sonnet 5, Opus 4.8, and Opus 5.5 on Bedrock or Foundry, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so Fable and Mythos models have no computer use path on Bedrock or Foundry (Inspect raises an error rather than sending an unsupported tool).
 
 With the toolset, each computer action arrives as its own tool call. Inspect executes the actions in one assistant turn in order and stops at the first failure, reporting the remaining actions to the model as not executed. Logs record each action as a `computer` tool call with an `action` argument, exactly as with the legacy tool.
 
-Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it. The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later; for example, to use it with Opus 5:
+Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it. The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
 
 ``` bash
 inspect eval computer.py --model anthropic/claude-opus-5 -M computer_toolset=true

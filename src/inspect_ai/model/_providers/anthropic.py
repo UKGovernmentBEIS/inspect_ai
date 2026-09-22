@@ -1588,18 +1588,30 @@ class AnthropicAPI(ModelAPI):
 
         Auto mode (no `computer_toolset` model arg) uses the toolset only where
         the legacy `computer_20251124` tool is rejected or was never supported:
-        Opus 5.5 off Bedrock (Bedrock still accepts the legacy tool), and
-        Fable/Mythos 5.x plus any other non-Sonnet/Opus Claude 5 model. Every
-        other model keeps the legacy tool, matching prior behavior.
+        Opus 5.5 on the Claude API and Vertex (Bedrock and Foundry still accept
+        the legacy tool), and Fable/Mythos 5.x plus any other non-Sonnet/Opus
+        Claude 5 model. Every other model keeps the legacy tool, matching prior
+        behavior.
         """
         if self.computer_toolset is not None:
             return self.computer_toolset
         return self.computer_toolset_required()
 
+    def computer_toolset_available(self) -> bool:
+        """Whether this platform offers the computer toolset at all.
+
+        Per Anthropic's computer-use docs, platforms other than the Claude API
+        and Google Cloud (Vertex) currently offer only the earlier tool
+        versions. Claude Platform on AWS is reached through the plain client
+        (no service prefix) and is indistinguishable from the Claude API here.
+        """
+        return not (self.is_bedrock() or self.is_azure())
+
     def computer_toolset_required(self) -> bool:
-        """Whether the toolset is the only computer use path for this model/platform."""
+        """Whether the legacy computer tool is rejected or unsupported for this model."""
         if self.is_claude_opus_5_5():
-            return not self.is_bedrock()
+            # Bedrock and Foundry keep accepting the legacy tool on Opus 5.5
+            return self.computer_toolset_available()
         return self.is_claude_5() and not (
             self.is_claude_sonnet_5() or self.is_claude_opus_5()
         )
@@ -2065,6 +2077,21 @@ class AnthropicAPI(ModelAPI):
                 )
                 return None
             if self.computer_use_toolset():
+                if not self.computer_toolset_available():
+                    if self.computer_toolset:
+                        raise PrerequisiteError(
+                            f"Anthropic's computer toolset (computer_toolset_20260801) "
+                            f"is only offered on the Claude API and Vertex, not for "
+                            f"'{self.service_model_name()}' on this platform. Remove "
+                            "computer_toolset=true to use the legacy computer tool."
+                        )
+                    raise PrerequisiteError(
+                        f"Computer use is not supported by the model "
+                        f"'{self.service_model_name()}' on this platform: it never "
+                        "supported the legacy computer tool (computer_20251124) and "
+                        "Anthropic's computer toolset (computer_toolset_20260801) is "
+                        "only offered on the Claude API and Vertex."
+                    )
                 # the toolset is documented for Opus 4.8, Sonnet 5, Opus 5/5.5
                 # and Fable/Mythos 5.x (so a forced opt-in on older models errors)
                 if not self.is_claude_4_8_or_later():
@@ -2080,8 +2107,8 @@ class AnthropicAPI(ModelAPI):
                 # inspect computer tool always supports it, so no configs.
                 return BetaComputerToolset20260801Param(type=COMPUTER_TOOLSET_TYPE)
             # legacy path forced (computer_toolset=false) where the legacy tool
-            # is rejected (Opus 5.5 off Bedrock) or was never supported
-            # (Fable/Mythos 5.x)
+            # is rejected (Opus 5.5 on the Claude API / Vertex) or was never
+            # supported (Fable/Mythos 5.x)
             if self.computer_toolset_required():
                 raise PrerequisiteError(
                     f"The legacy computer tool (computer_20251124) is not supported "

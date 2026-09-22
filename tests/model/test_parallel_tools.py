@@ -881,3 +881,37 @@ async def test_halt_on_error_not_triggered_by_other_tools_errors():
     tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
     assert tool_msgs[0].error is not None
     assert tool_msgs[1].error is None and tool_msgs[1].content == "L1"
+
+
+@tool(parallel=True, halt_on_error=True)
+def parallel_halting_action():
+    async def parallel_halting_action(label: str, fail: bool = False) -> str:
+        """Return the label, or fail with a ToolError.
+
+        Args:
+            label: The label to echo back.
+            fail: Whether to raise a ToolError instead of returning.
+        """
+        if fail:
+            raise ToolError(f"{label} failed")
+        return label
+
+    return parallel_halting_action
+
+
+async def test_halt_on_error_implies_serial_execution():
+    """halt_on_error wins over parallel=True: later calls never start after a failure."""
+    calls = [
+        call("parallel_halting_action", "ph-c0", label="L0", fail=True),
+        call("parallel_halting_action", "ph-c1", label="L1"),
+    ]
+    messages, _ = await execute_tools(
+        [assistant(*calls)], [ToolDef(parallel_halting_action())]
+    )
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert tool_msgs[0].error is not None
+    assert tool_msgs[1].error is not None
+    assert (
+        tool_msgs[1].error.message
+        == "Not executed: an earlier parallel_halting_action action in this turn failed."
+    )

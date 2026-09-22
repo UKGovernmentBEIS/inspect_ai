@@ -82,7 +82,8 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
     GUI actions issued in one assistant turn depend on each other, so a failed
     action halts the remaining computer actions in that turn (they are reported
     to the model as not executed). This is also the batch contract of
-    Anthropic's computer toolset.
+    Anthropic's computer toolset, whose exact not-executed text names the tool,
+    so keep the tool's registered name `computer` when using it with Claude.
 
     Args:
       max_screenshots: The maximum number of screenshots to play

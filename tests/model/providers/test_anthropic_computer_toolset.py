@@ -84,18 +84,18 @@ def first_block(param: MessageParam) -> dict[str, Any]:
 @pytest.mark.parametrize(
     "model_name,expected_type",
     [
-        # Opus 5.5: the legacy tool is rejected on the Claude API, Vertex and
-        # Foundry, still accepted on Bedrock (where prior behavior is kept)
+        # Opus 5.5: the legacy tool is rejected on the Claude API and Vertex;
+        # Bedrock and Foundry offer only the legacy tool (prior behavior kept)
         ("claude-opus-5-5", TOOLSET),
         ("vertex/claude-opus-5-5", TOOLSET),
-        ("azure/claude-opus-5-5", TOOLSET),
+        ("azure/claude-opus-5-5", LEGACY),
         ("bedrock/anthropic.claude-opus-5-5", LEGACY),
         # Fable/Mythos 5.x never supported the legacy tool
         ("claude-fable-5", TOOLSET),
         ("claude-fable-5-1", TOOLSET),
         ("claude-mythos-5", TOOLSET),
         ("claude-mythos-5-1", TOOLSET),
-        ("bedrock/anthropic.claude-fable-5-1", TOOLSET),
+        ("vertex/claude-fable-5-1", TOOLSET),
         # forward-compat: an unknown Claude 5 codename gets the toolset
         ("claude-saga-5", TOOLSET),
         # everything else keeps the legacy tool (prior behavior)
@@ -121,12 +121,49 @@ def test_computer_use_mode_by_model_and_platform(
         "claude-opus-5",
         "claude-sonnet-5",
         "claude-opus-4-8",
-        "bedrock/anthropic.claude-opus-5-5",
         "vertex/claude-sonnet-5",
     ],
 )
 def test_computer_toolset_model_arg_forces_toolset(model_name: str) -> None:
     assert computer_param(model_name, computer_toolset=True)["type"] == TOOLSET
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "bedrock/anthropic.claude-opus-5-5",
+        "azure/claude-opus-5",
+        "bedrock/anthropic.claude-sonnet-5",
+    ],
+)
+def test_computer_toolset_model_arg_rejected_off_claude_api_and_vertex(
+    model_name: str,
+) -> None:
+    """Bedrock and Foundry offer only the legacy tool, so forcing the toolset errors."""
+    with pytest.raises(PrerequisiteError) as exc_info:
+        computer_param(model_name, computer_toolset=True)
+    message = str(exc_info.value.message)
+    assert "only offered on the Claude API and Vertex" in message
+    assert "computer_toolset=true" in message
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "bedrock/anthropic.claude-fable-5-1",
+        "azure/claude-mythos-5",
+        "bedrock/anthropic.claude-saga-5",
+    ],
+)
+def test_no_computer_use_path_on_bedrock_or_foundry_for_toolset_only_models(
+    model_name: str,
+) -> None:
+    """Neither mode is supported: legacy never was, and the toolset is not offered there."""
+    with pytest.raises(PrerequisiteError) as exc_info:
+        computer_param(model_name)
+    message = str(exc_info.value.message)
+    assert "Computer use is not supported" in message
+    assert "only offered on the Claude API and Vertex" in message
 
 
 @pytest.mark.parametrize("model_name", ["claude-opus-4-6", "claude-sonnet-4-5"])
