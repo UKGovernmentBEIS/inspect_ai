@@ -881,6 +881,11 @@ def raising_tool(error: Exception):
 
 
 def _bridge_with_tools(tools: list) -> "SandboxAgentBridge":
+    """A bridge whose `srv` tools are called directly, outside any model turn.
+
+    These tests exercise the service callback itself, so the server opts out of
+    the proposal requirement (`require_proposal=False` on a `BridgedToolsSpec`).
+    """
     from inspect_ai.agent._agent import AgentState
     from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
     from inspect_ai.tool._tool_def import ToolDef
@@ -893,6 +898,7 @@ def _bridge_with_tools(tools: list) -> "SandboxAgentBridge":
         port=13131,
         model=None,
         bridged_tools={"srv": {ToolDef(t).name: t for t in tools}},
+        proposal_exempt_servers={"srv"},
     )
 
 
@@ -1124,7 +1130,9 @@ def test_sandbox_bridge_host_tool_exception_ends_the_sample() -> None:
             async with sandbox_agent_bridge(
                 bridged_tools=[
                     BridgedToolsSpec(
-                        name="srv", tools=[raising_tool(KeyError("missing"))]
+                        name="srv",
+                        tools=[raising_tool(KeyError("missing"))],
+                        require_proposal=False,
                     )
                 ]
             ) as bridge:
@@ -1159,7 +1167,9 @@ def test_sandbox_bridge_host_tool_error_does_not_end_the_sample() -> None:
             async with sandbox_agent_bridge(
                 bridged_tools=[
                     BridgedToolsSpec(
-                        name="srv", tools=[raising_tool(ToolError("tool says no"))]
+                        name="srv",
+                        tools=[raising_tool(ToolError("tool says no"))],
+                        require_proposal=False,
                     )
                 ]
             ) as bridge:

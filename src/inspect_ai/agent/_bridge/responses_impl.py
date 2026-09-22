@@ -287,13 +287,20 @@ async def inspect_responses_api_request_impl(
     # deferred namespace tools (e.g. codex multi_agent) are not declared in the
     # top-level `tools` array; they are discovered via tool_search and appear as
     # namespace entries inside tool_search_output items in the conversation.
-    # Harvest those too so outgoing function calls carry the right `namespace`.
+    # Harvest those too so outgoing function calls carry the right `namespace`,
+    # and as declarations for grant resolution (they were declared to the model).
+    discovered_declarations: list[ToolInfo] = []
     if isinstance(input, list):
         for item in input:
             if isinstance(item, dict) and is_tool_search_output(item):
                 for discovered in item.get("tools", []) or []:
                     if is_namespace_tool_param(discovered):
                         _harvest_tool_namespaces(discovered, tool_namespaces)
+                    discovered_declarations.extend(
+                        _discovered_tool_declarations(
+                            discovered, web_search, code_execution, bridge
+                        )
+                    )
 
     debug_log("SCAFFOLD INPUT", input)
 
@@ -319,7 +326,13 @@ async def inspect_responses_api_request_impl(
 
     # if there is a bridge filter give it a shot first
     output, c_message = await bridge_generate(
-        bridge, model, messages, tools, tool_choice, config
+        bridge,
+        model,
+        messages,
+        tools,
+        tool_choice,
+        config,
+        extra_declarations=discovered_declarations,
     )
     if c_message is not None:
         messages.append(c_message)
@@ -347,6 +360,53 @@ async def inspect_responses_api_request_impl(
     debug_log("SCAFFOLD RESPONSE", response)
 
     return response
+
+
+def _discovered_tool_declarations(
+    discovered: Any,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
+    bridge: AgentBridge,
+) -> list[ToolInfo]:
+    """The declarations a `tool_search_output` entry makes to the model.
+
+    A tool discovered through `tool_search` is declared to the model by this
+    entry rather than by the request's tools array, so the grant resolver must
+    see it too (`bridge_generate(extra_declarations=)`), carrying the served
+    description, the schema and the namespace (`RESPONSES_NAMESPACE`) exactly as
+    a top-level declaration would. Conversion goes through
+    `tools_from_responses_tool`, which needs a schema: entries listed by name
+    only (Codex's deferred ``multi_agent`` tools) declare nothing a call could
+    be matched to and are skipped. Nothing here reaches the model or changes
+    what the scaffold receives.
+    """
+
+    def declarable(entry: Any) -> bool:
+        return isinstance(entry, dict) and "parameters" in entry
+
+    if is_namespace_tool_param(discovered):
+        inner = [
+            {**entry, "description": entry.get("description")}
+            for entry in discovered.get("tools", []) or []
+            if declarable(entry)
+        ]
+        if not inner:
+            return []
+        discovered = {**discovered, "tools": inner}
+    elif declarable(discovered):
+        discovered = {**discovered, "description": discovered.get("description")}
+    else:
+        return []
+    return [
+        tool
+        for tool in tools_from_responses_tool(
+            cast(ToolParam, discovered),
+            web_search,
+            code_execution,
+            bridge.allow_remote_mcp,
+        )
+        if isinstance(tool, ToolInfo)
+    ]
 
 
 def _harvest_tool_namespaces(

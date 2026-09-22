@@ -486,8 +486,15 @@ async def bridge_generate(
     tools: Sequence[ToolInfo | Tool],
     tool_choice: ToolChoice | None,
     config: GenerateConfig,
+    extra_declarations: Sequence[ToolInfo] = (),
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Generate model output through the agent bridge.
+
+    `extra_declarations` are tools the scaffold declared to the model outside the
+    request's tools array (Responses tools discovered through `tool_search`, which
+    reach the model inside a `tool_search_output` item). They take part only in
+    resolving execution grants for the calls in the response; they are not sent
+    to the model.
 
     If a filter is configured, it will be called on each attempt (including retries).
     The filter can either return a ModelOutput directly or modify the generation inputs.
@@ -603,7 +610,7 @@ async def bridge_generate(
         reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
         if reviewed.rejection is None:
             bridge.register_tool_execution_grants(
-                reviewed.output.message.tool_calls or [], tools
+                reviewed.output.message.tool_calls or [], [*tools, *extra_declarations]
             )
             return reviewed.output, c_message
 
