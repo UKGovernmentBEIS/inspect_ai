@@ -1,6 +1,6 @@
 from enum import IntEnum
 from functools import lru_cache
-from typing import TYPE_CHECKING, NamedTuple, NoReturn, Sequence, Set
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
 
 from shortuuid import uuid
 
@@ -36,6 +36,16 @@ if TYPE_CHECKING:
     # cycles back through partially-initialized modules). Same reason
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
+
+
+class DispatchedCall(NamedTuple):
+    """A bridged tool call the model made through a scaffold's dispatcher function."""
+
+    target: ToolCall
+    """The call to the bridged tool itself, under the dispatcher call's id."""
+
+    dispatch: Callable[[dict[str, Any]], dict[str, Any]]
+    """Arguments for the dispatcher call that make the target call with the given ones."""
 
 
 class AgentBridge:
@@ -206,6 +216,17 @@ class AgentBridge:
         base implementation has nothing to register. Sandbox bridges override this
         to bind later service requests to the calls approval actually reviewed.
         """
+
+    def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
+        """The bridged tool call that `call` makes through a dispatcher, if any.
+
+        Some scaffolds reach every bridged tool through one function whose arguments
+        name the target. Approval reviews such a call as the target call, so policies
+        match the bridged tool's own name and approvers see (and modify) its own
+        arguments. In-process bridges have no bridged tools, so nothing is
+        dispatched; `SandboxAgentBridge` overrides this.
+        """
+        return None
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model
