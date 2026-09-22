@@ -387,7 +387,7 @@ and nothing else, "merge whatever is new"), so repeating it *serially* is
 harmless: a second pass over unchanged shards changes nothing, and a worker
 can be told to attempt the merge on exit. What idempotence does not give is
 safety for *overlapping* merges, and the design has no answer for that yet
-(open question 3). Two merges can overlap whenever shards are still growing:
+(open question 2). Two merges can overlap whenever shards are still growing:
 writer A reads shard members `{1}`, writer B reads `{1, 2}` and publishes,
 then A publishes last, and the canonical log is valid but regressed, with
 B's samples, ledger entries and metrics gone. The two outputs are not
@@ -490,8 +490,12 @@ or ETag. The merged log's
 own `samples/` members are the set of merged `(id, epoch)` samples. With
 this, a fully merged `success` shard is skipped without opening it, a grown
 shard is re-read only for the members the merged log lacks, and the ledger
-travels with the log: deleting the merged log correctly forces a merge from
-scratch, and the merged log stays the whole truth for `<name>`. The field
+travels with the log, and the merged log stays the whole truth for
+`<name>`. Deleting a merged log deletes its companion `<name>.shards/` with
+it (decision: Ransom, 2026-09-22, mirroring checkpoints): a merged log with
+no shards is complete on its own, and shards with no merged log would only
+be re-merged into one at the next `eval_set()` startup. Every path that
+removes a merged log (`retry_cleanup`, an explicit delete) removes both. The field
 is absent on unsharded logs. It is a public log-schema change: the JSON
 schema and the `ts-mono` generated types change even though the viewer
 ignores the field until Step 3, so Step 1 needs a coordinated `ts-mono`
@@ -549,7 +553,7 @@ have grown, and additional shards added later.
   `eval_set()`-startup merge are the same operation: "merge whatever is new", idempotent, deterministic,
   keyed on the merged log's basename (given either `<name>.eval` or
   `<name>.shards/` it finds the other), safe to repeat any number of times
-  as long as the runs do not overlap; overlapping runs are open question 3.
+  as long as the runs do not overlap; overlapping runs are open question 2.
 
 **Shard disposition.** Merged shards stay in `<name>.shards/`, listed
 beside the merged log (see "Listing"), until the merged log is verified;
@@ -560,7 +564,8 @@ layout). This is the second difference from checkpoints, whose retention
 default is to delete the companion on success (`retention:
 Literal["delete", "retain"] = "delete"`, `util/_checkpoint/config.py:233`);
 shards flip the default because re-merge after a merge bug and adding shards later
-both need the shards to still exist. No move is needed. For reference, an
+both need the shards to still exist. When the merged log itself is deleted,
+the shards go with it (see "Provenance and ledger"). No move is needed. For reference, an
 S3 move would be a server-side copy plus a delete, one API round trip per
 shard, not a transfer through the client.
 
@@ -584,21 +589,40 @@ log turns a sharded run into an ordinary resume; the missing samples are
 re-run by the normal retry path, unsharded unless the runner re-shards them.
 A shard set with a failed shard merges into an `error` log (see
 "Completeness"), which the set retries the same way, seeded with the merged
-samples; the retry's log is an ordinary unsharded log, and the merged log
-and its shards stay behind as the record of the sharded attempt. One
-interaction is unresolved and is open question 2: `as_previous_tasks` gives
-the retry the prior log's `task_id` (`evalset.py:1464-1505`, `PreviousTask(id=eval_log.eval.task_id)`),
-so the retry log and the merged log share a `task_id`, and
-`latest_completed_task_eval_logs` then treats them as attempts of one another:
-with `retry_cleanup` on it deletes the older non-`started` one, and because
-the startup merge rewrites `<name>.eval` with a fresh mtime on every pass
-that finds something new, "older" can be the successful retry log rather
-than the merged log. The
-"stays behind as the record" statement above holds only once that
-interaction is settled.
+samples; the retry's log is an ordinary unsharded log. `as_previous_tasks`
+gives the retry the prior log's `task_id` (`evalset.py:1464-1505`,
+`PreviousTask(id=eval_log.eval.task_id)`), so the retry log and the merged
+log share a `task_id` and `latest_completed_task_eval_logs` treats them as
+attempts of one another. Two rules make that safe (decision: Ransom,
+2026-09-22):
+
+- *Cleanup deletes the companion with the merged log.* Under
+  `retry_cleanup`, removing the merged log also removes `<name>.shards/`
+  (see "Provenance and ledger"). Without this the next startup would find
+  the companion with no merged log, re-merge it under the same `task_id`,
+  and the regenerated merged log, now the newer file, would cause the
+  successful retry log to be deleted at the following cleanup.
+- *The unsharded `success` log wins regardless of mtime.* When a
+  provenance-bearing merged log and an unsharded log share a `task_id`,
+  cleanup keeps the unsharded `success` log and removes the merged log with
+  its shards, whatever the two files' mtimes. Mtime is the wrong ordering
+  here: a startup re-merge rewrites `<name>.eval` whenever a straggler shard
+  lands, so the merged log can be newer than the retry seeded from it, and
+  the retry holds re-run samples the merged log lacks.
+
+So after a successful retry the merged log and shards are the redundant
+copy and, with `retry_cleanup` on, are removed; with `retry_cleanup=False`
+everything stays, as today. A retry should not run while shards can still
+grow, and `eval_set()` cannot tell; the launcher hands the directory to
+`eval_set()` only after its workers are done (see "Notes for harnesses").
 
 ### Notes for harnesses
 
+- Hand the log directory to `eval_set()` only after every worker has exited.
+  `eval_set()` retries an `error` or `started` merged log seeded from its
+  samples, and cannot tell whether shards are still growing; a retry that
+  overlaps a straggler shard is the case that makes the merged log newer
+  than the retry log (see "Eval-set integration").
 - Harnesses that stage logs on local disk and upload at the end (JJ's
   benchmark harness proposal): `--log-shared` syncs the sample buffer into a
   `.buffer` directory inside the log directory itself (`filestore.py:662`,
@@ -624,8 +648,10 @@ interaction is settled.
 Decisions Ransom has not yet made, each with the recommendation the design
 assumes where it has one. Questions resolved on 2026-09-21 (listing exclusion, conflict
 policy, the CLI merge's use of the `task_file` fallback, the
-`shards_location` override, the shape of `<name>`) are recorded where they
-apply in "Design" and under "Alternatives not taken".
+`shards_location` override, the shape of `<name>`) and on 2026-09-22 (the
+merged log's `task_id` under an eval-set retry, see "Eval-set integration")
+are recorded where they apply in "Design" and under "Alternatives not
+taken".
 
 1. **Step 2's place.** Now that the merge is incremental there are two routes
    to live whole-task metrics: the summaries-only rollup (cheap per tick, a
@@ -633,21 +659,7 @@ apply in "Design" and under "Alternatives not taken".
    incremental merge on a timer (exact, a merged-zip rewrite per tick,
    reducible by S3 composition). Whether Step 2 remains a separate step,
    becomes "run the merge on a timer", or is skipped for Step 3.
-2. **The merged log's `task_id` under an eval-set retry.** A gap the
-   decisions leave open, not a new proposal. `as_previous_tasks` gives a
-   retry the prior log's `task_id`, so an `error` or `started` merged log
-   that `eval_set()` retries shares its `task_id` with the retry log, and
-   `latest_completed_task_eval_logs` treats the two as attempts of one
-   another: `retry_cleanup` deletes the older non-`started` one, and each
-   startup re-merge refreshes the merged log's mtime, so the successful retry
-   log can be the one deleted. Options: the merge stamps a `task_id` that
-   the retry does not inherit (a merged log is not a prior attempt of its
-   own retry); or `eval_set()` excludes logs carrying the provenance field
-   from cleanup and from being the `PreviousTask` id source while still
-   seeding from them; or accept that after a successful retry the merged
-   log is the redundant copy and cleanup may remove it, and drop the "stays
-   behind as the record" statement. The design does not choose.
-3. **Stale publication by overlapping merges.** A requirement the chosen
+2. **Stale publication by overlapping merges.** A requirement the chosen
    ownership leaves unmet, not a change to it. Any two of the merge's
    callers (the API or CLI from a launcher, `eval_set()` startup, a worker
    attempting the merge on exit) can overlap while shards grow, and the one
@@ -730,7 +742,7 @@ Pydantic models. New boundaries:
   members added; add a shard and see the status return to `started`; a
   retried sample replaced by the newer copy; a fully merged shard not
   reopened.
-- Overlap tests, pinning whatever open question 3 decides: two first merges
+- Overlap tests, pinning whatever open question 2 decides: two first merges
   started together over the same shards yield one `eval_id` and one
   canonical log; a merge that read an older snapshot of the shards and
   publishes after a merge that read a newer one does not regress the
@@ -749,10 +761,14 @@ Pydantic models. New boundaries:
   the move; two files in one `<k>/` (original plus `-recovered`) are treated
   as attempts of one shard, newest taken.
 - Eval-set tests: startup over an incomplete shard set produces a `started` merged
-  log that the set then resumes; `retry_cleanup` leaves shards alone; a
-  `started` merged log is re-merged, not recovered; a shard set with an
-  `error` shard merges into an `error` log that the set retries seeded with
-  the merged samples.
+  log that the set then resumes; `retry_cleanup` leaves the shards of a
+  surviving merged log alone; a `started` merged log is re-merged, not
+  recovered; a shard set with an `error` shard merges into an `error` log
+  that the set retries seeded with the merged samples; after a successful
+  retry, cleanup removes the merged log and its `<name>.shards/` together
+  and keeps the retry log even when the merged log has the newer mtime; a
+  second startup after that cleanup finds nothing to re-merge; with
+  `retry_cleanup=False` both logs and the shards remain.
 - Errored-shard tests: an `error` or `cancelled` shard's completed samples
   are merged and the merged log is `error`, never `started`, with the
   shard's message in the ledger; a rerun in the same `<k>/` supersedes the
@@ -793,7 +809,7 @@ Kept for the record and as the rationale for the design above.
   shard set, the largest transfer lands on an arbitrary worker at the end of a
   one-sample-per-machine job, and every worker must have the metric code.
   Retained as a possible configuration of the merge, not as the default, and
-  only once overlapping merges are made safe (open question 3): two workers
+  only once overlapping merges are made safe (open question 2): two workers
   finishing together are exactly the overlap that can publish a stale
   canonical log.
 - **A shard marker in the header.** A new `EvalSpec` field on every shard
