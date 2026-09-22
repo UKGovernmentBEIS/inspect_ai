@@ -374,7 +374,7 @@ scaffold ──tools/call──▶ proxy ──call_tool RPC──▶ service ta
                                                   │ grant = consume_tool_execution_grant(...)
                                                   │ deny if grant is None and the server requires a proposal (#5428)
                                                   │ under parent_span(grant.span_id):
-                                                  │   ToolEvent(id = grant.call.id | fresh, pending)   ← stamped with the parent
+                                                  │   ToolEvent(id = grant.proposal.take_id() | fresh, pending)   ← stamped with the parent
                                                   │   span(type="tool"): transcript()._event(event)
                                                   │     observer.track_tool_call + CancelScope
                                                   │     result = await tool_fn(**arguments)          ← nested events inside the tool span
@@ -387,16 +387,21 @@ scaffold ──tools/call──▶ proxy ──call_tool RPC──▶ service ta
 `src/inspect_ai/agent/_bridge/sandbox/types.py`, on top of #5428:
 
 ```python
+class _Proposal:
+    """One model tool call that minted grants; shared by every grant it minted."""
+    __slots__ = ("call", "span_id", "paired")
+    call: ToolCall          # id, function as the model saw it, view
+    span_id: str | None     # span to place executions under when it differs from
+                            # the span current at registration (a sink
+                            # re-attributed the proposing ModelEvent); None means
+                            # "the span current when the call executes"
+    paired: bool            # whether an execution has already taken call.id
+
 class _ToolExecutionGrant(NamedTuple):
     server: str
     tool: str
     arguments: dict[str, Any]
-    call: ToolCall
-    """The proposing model tool call (id, function as the model saw it, view)."""
-    span_id: str | None
-    """Span to place the execution under when it differs from the span current
-    at registration (a sink re-attributed the proposing ModelEvent); None
-    means "the span current when the call executes"."""
+    proposal: _Proposal
 ```
 
 - `register_tool_execution_grants(calls, tools, *, span_id: str | None =
@@ -407,10 +412,14 @@ class _ToolExecutionGrant(NamedTuple):
   because `bridge_generate` is shared by in-process and sandbox bridges and
   calls the hook for every generation, including ones without tool calls; a
   keyword only the override accepted would raise `TypeError` on every
-  in-process generation. The override stores the proposing `call` and the
-  span with each grant it registers. Registration policy (served-content
-  resolution, unconditional, one grant per indistinct target, bounded
-  store) is #5428's and is not changed here. For Antigravity the stored
+  in-process generation. The override builds one `_Proposal` per call it
+  resolves and stores a reference to it on every grant that call mints
+  (one for a normal call, several for indistinguishable targets), so the
+  proposal record lives exactly as long as its grants: it is dropped with
+  the last grant consumed or evicted, and no state outside the bounded
+  deque grows with the number of host calls. Registration policy
+  (served-content resolution, unconditional, one grant per indistinct
+  target, bounded store) is #5428's and is not changed here. For Antigravity the stored
   `call` is the `call_mcp_tool` dispatcher call, so `metadata.bridge.function`
   reads `call_mcp_tool` and `view` is the dispatcher's; `arguments` on the
   event are the inner `Arguments` as executed, which is what the grant
@@ -420,16 +429,18 @@ class _ToolExecutionGrant(NamedTuple):
   same proposing `call`, and if the scaffold executes more than one of them
   the events must not share an id: `ToolEvent.id` is what ACP's card state,
   the viewer's approval and navigation maps, the control server's
-  cancellation and `InterruptEvent` cross-references key on. The bridge
-  therefore keeps `_paired_proposals: set[str]` beside the grant store. On
-  consumption, if `grant.call.id` is not in the set, the event takes the
-  proposing id and the set records it; otherwise the event gets a fresh id.
-  `metadata.bridge.proposal_id` carries `grant.call.id` on every consumed
-  grant, so the second and later executions still name the proposal they
-  came from, and placement under the proposal's span applies to all of
-  them. The set is bounded by the grant store's size in practice (an id
-  enters it only when a grant is consumed) and is not tracked across a
-  checkpoint restore, as the grants are not. This case is expected to be
+  cancellation and `InterruptEvent` cross-references key on. The "first
+  execution takes the proposing id" state is the `paired` flag on the
+  `_Proposal` those grants share: on consumption, if `grant.proposal.paired`
+  is `False`, the event takes `proposal.call.id` and the flag is set;
+  otherwise the event gets a fresh id. Nothing is kept once the proposal's
+  last grant is gone, so a long eval retains no pairing state per call, and
+  a later proposal that happens to reuse an earlier call id is a new
+  `_Proposal` with its own flag. `metadata.bridge.proposal_id` carries
+  `proposal.call.id` on every consumed grant, so the second and later
+  executions still name the proposal they came from, and placement under
+  the proposal's span applies to all of them. Like the grants, the flag is
+  not tracked across a checkpoint restore. This case is expected to be
   rare: one proposal names one function, and it arises only when an eval
   bridges two servers whose tools share a description and the scaffold
   executes on both.
@@ -564,10 +575,12 @@ Control flow, in order:
    (`_call_tools.py:1397-1409`): the recorded arguments enter the log, and
    unbounded nesting crashes sample logging (decision: Ransom, 2026-09-15).
    Then #5464's schema validation, unchanged: `validate_tool_input` against
-   `ToolDef(tool_fn).parameters` (`service.py:260-264`); a failure (a
-   non-object, a missing or extra property, a wrong type) records the
-   validation message on the event with the arguments as sent, and raises
-   as today.
+   `ToolDef(tool_fn).parameters` (`service.py:260-264`); a failure records
+   the validation message on the event and raises as today. `ToolEvent.arguments`
+   is a dict, so an object-shaped failure (a missing or extra property, a
+   wrong type) records the arguments as sent, and a non-object (a list, a
+   string) records `{}`; the message the scaffold receives is unchanged
+   either way.
 3. **Match the proposal.** `grant = bridge.consume_tool_execution_grant(server,
    tool, arguments)`.
 4. **Deny.** If the server is not in `bridge.proposal_exempt_servers` and
@@ -588,13 +601,13 @@ Control flow, in order:
    ```python
    with parent_span(grant.span_id if grant else None):
        event = ToolEvent(                                  # stamped with the parent span
-           id=bridge.paired_event_id(grant) if grant else uuid(),  # proposing id once per proposal, else fresh
+           id=grant.proposal.take_id() if grant else uuid(),  # proposing id once per proposal, else fresh
            function=tool,                                  # the registered ToolDef name, always
            arguments=arguments,                            # as executed
-           view=grant.call.view if grant else None,
+           view=grant.proposal.call.view if grant else None,
            pending=True,
-           metadata={"bridge": {..., "function": grant.call.function if grant else None,
-                                "proposal_id": grant.call.id if grant else None}},
+           metadata={"bridge": {..., "function": grant.proposal.call.function if grant else None,
+                                "proposal_id": grant.proposal.call.id if grant else None}},
        )
        waiting_start = sample_waiting_time()
        async with span(name=tool, type="tool"):            # parent = the event's span
@@ -762,9 +775,10 @@ No new field. `BaseEvent.metadata` (`_base.py:29`) carries:
   equals `ToolEvent.id` except for the second and later executions of a
   proposal that #5428 granted to several indistinguishable targets, which
   get a fresh `id`; `null` when no proposal matched.
-- `grant`: `"consumed"` (a proposal matched: `id` is the proposing call's id
-  and the event sits in that proposal's span), `"denied"` (server requires a
-  proposal and none matched), `"exempt"` (server registered with
+- `grant`: `"consumed"` (a proposal matched: the event sits in that
+  proposal's span, `proposal_id` names it, and `id` is the proposing call's
+  id for the first execution of that proposal), `"denied"` (server requires
+  a proposal and none matched), `"exempt"` (server registered with
   `require_proposal=False`, no proposal matched, executed anyway), or
   `null` for events recorded before the grant check (unknown tool, bad
   arguments). Approval decisions are not repeated here; they are already
@@ -1218,6 +1232,13 @@ tests do, and subscribe a recorder to count emissions):
   `grant == "consumed"`, and both under the proposal's span. ACP: exactly
   one update to the synthesised card plus one separate start and update.
   The viewer fixture below adds this case.
+- Pairing state does not grow: register and consume 1,100 one-target
+  proposals in sequence (more than `_MAX_TOOL_EXECUTION_GRANTS`); after
+  each, the deque is empty and the bridge holds no other per-proposal
+  state (assert by `gc.get_referrers` on a sample `_Proposal`, or by
+  `sys.getsizeof`-independent attribute inspection: the bridge has no
+  attribute whose length grows); a later proposal reusing an earlier
+  call id pairs normally.
 - Combined-invalid requests: an unknown server with `arguments` that is a
   list, and a known tool with a list: the first records the unknown-server
   `parsing` event with `arguments == {}` and raises the unknown-server
@@ -1227,10 +1248,13 @@ tests do, and subscribe a recorder to count emissions):
   the event as sent and `condense_sample` turns it into an attachment;
   there is no cap beyond the service's request read limit, by decision
   (the same input already reaches `ModelEvent` inputs unbounded). A
-  `@pytest.mark.slow` Docker case sends a 64 MiB argument through the
-  proxy, asserts the sample completes with the event recorded and
-  condensed, and records peak RSS in the test log; the deliberate exposure
-  is one extra in-memory copy of the arguments for the event's lifetime.
+  `@pytest.mark.slow` Docker case sends a 120 MiB argument through the
+  proxy (near the 150 MiB read limit), asserts the sample completes with
+  the event recorded and condensed, and fails if peak RSS growth over the
+  baseline exceeds four times the argument size (the request read, the
+  parsed JSON, the event's reference and the condensation copy); the
+  deliberate exposure is one extra in-memory copy of the arguments for the
+  event's lifetime, and the bound turns that claim into a check.
 - Failure paths: tool raises `ToolError`, `PermissionError`,
   `TimeoutError("tool-specific timeout")`, a `SandboxTimeoutError` with
   truncated output, an unmapped exception, and `LimitExceededError`. Assert
@@ -1353,9 +1377,11 @@ native tool events on its own.
    parameters, and pass it from `bridge_generate`; add `call` and `span_id` to
    `_ToolExecutionGrant`, return the record from
    `consume_tool_execution_grant`, store grants for exempt servers, add
-   `_paired_proposals` and `paired_event_id()`, add `_SpanCapturingSink`
-   and the capture in `bridge_generate`, update the grant check in
-   `call_tool` to the new return type. Invert
+   `_Proposal` (with `take_id()`) shared by a call's grants, add
+   `_SpanCapturingSink` and the capture in `bridge_generate`, update the
+   grant check in `call_tool` to the new return type. Re-check #5428's
+   landed head first: it has changed its grant contract three times during
+   this design's review, and this step is written against `9559183f89`. Invert
    `test_opted_out_server_stores_no_grants`; add the span-capture tests;
    confirm the in-process `bridge_generate` tests still pass.
 2. **Span parent helper** (`src/inspect_ai/util/_span.py`, `tests/util/`):
