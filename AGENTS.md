@@ -65,10 +65,10 @@ section in the PR description. What to disclose, and how it's read:
   review that didn't happen — a fabricated or content-free review claim
   ("reviewed, looks good") is worse than disclosing none.
 
-Keep the disclosure focused on outcomes: give the pass count, group fixed
-findings briefly, and give a one-line reason for each dismissed finding. Link
-detailed review notes if needed instead of writing a chronological pass log
-or repeating validation results.
+Keep the disclosure focused on outcomes. For multiple passes, use a short
+bullet per round with its focus, findings, and disposition; give a one-line
+reason for each dismissed finding. Link detailed review notes if needed, and
+do not repeat validation results or re-explain earlier findings in each round.
 
 Example:
 
@@ -239,7 +239,8 @@ Docker, and Trio runs. In `### Validation`, report the commands run and their
 outcomes, including passed, failed, and skipped counts where applicable. Tie
 each relevant test group briefly to the important behavior or compatibility
 claim it covers; do not list every test case or assertion when the tests or CI
-show that detail. Identify anything not run and why. Report results for the
+show that detail. Use a compact table when comparing SDK versions, models, or
+platforms. Identify anything not run and why. Report results for the
 current PR head; when the branch changes, refresh results affected by the
 change rather than leaving historical runs to appear current. If an agent
 worked on the PR, fill in `### Agent review` as described above. Human-only

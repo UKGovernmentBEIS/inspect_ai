@@ -15,10 +15,12 @@ unrelated project sequencing elsewhere. -->
 ### Validation
 <!-- List commands and results (passed, failed, skipped). Briefly say which key
 behaviors or compatibility risks they cover and what remains untested, with
-reasons. Link test files or CI logs instead of listing every case or assertion. -->
+reasons. Use a small table for version or platform comparisons. Link test
+files or CI logs instead of listing every case or assertion. -->
 
 ### Agent review
 <!-- If an agent worked on this PR, give the authoring tool, reviewer model/tool,
 fresh-context pass count, and findings fixed or dismissed with brief reasons.
-Summarize outcomes; link detailed review notes instead of a pass-by-pass diary.
-If no review ran, say so. Human-only PRs may omit this section. -->
+For multiple passes, a short bullet per round works well: focus, findings,
+disposition. Link detailed notes instead of repeating test results. If no
+review ran, say so. Human-only PRs may omit this section. -->
