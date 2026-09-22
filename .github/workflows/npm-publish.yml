@@ -69,7 +69,6 @@ jobs:
       - name: Bump to prerelease version
         if: ${{ inputs.prerelease }}
         run: |
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
           TIMESTAMP=$(date +%s)
           npm version patch --no-git-tag-version
           NEW_VERSION=$(node -p "require('./package.json').version")
