@@ -456,6 +456,15 @@ async def _execute_tools_impl(
                 stages.append([i])
                 i += 1
 
+        def halts_on_error(call: ToolCall) -> bool:
+            tdef = next((t for t in tdefs if t.name == call.function), None)
+            return bool(tdef and tdef.halt_on_error)
+
+        # Tools (by name) whose earlier call in this message failed with a
+        # tool error and which declare halt_on_error: their remaining calls
+        # are not executed.
+        halted_functions: set[str] = set()
+
         result_messages: list[ChatMessage] = []
         result_output: ModelOutput | None = None
 
@@ -478,6 +487,54 @@ async def _execute_tools_impl(
                     pending=True,
                 )
                 stage_results[idx] = None
+
+            # Calls to a halted tool are not executed. Synthesise their
+            # results now (the post-stage splice below places them in
+            # declared order) and finalise their events.
+            skipped: set[int] = {
+                idx for idx in stage if tool_calls[idx].function in halted_functions
+            }
+            for idx in sorted(skipped):
+                call = tool_calls[idx]
+                event = stage_events[idx]
+                tool_message = ChatMessageTool(
+                    content="",
+                    function=call.function,
+                    tool_call_id=call.id,
+                    error=ToolCallError(
+                        "cancelled",
+                        f"Not executed: an earlier {call.function} action in "
+                        "this turn failed.",
+                    ),
+                )
+                skipped_event = ToolEvent(
+                    id=call.id,
+                    function=call.function,
+                    arguments=call.arguments,
+                    result=tool_result_content(tool_message.content),
+                    truncated=None,
+                    view=call.view,
+                    error=tool_message.error,
+                )
+                stage_results[idx] = (
+                    ExecuteToolsResult(messages=[tool_message], output=None),
+                    skipped_event,
+                    None,
+                )
+                event._set_result(
+                    result=skipped_event.result,
+                    truncated=skipped_event.truncated,
+                    error=skipped_event.error,
+                    waiting_time=0,
+                    agent=None,
+                    failed=None,
+                    message_id=tool_message.id,
+                )
+                transcript()._event(event)
+                transcript().info(
+                    f"Tool call '{call.function}' was not executed because an "
+                    "earlier call to it in this turn failed."
+                )
 
             async def run_one(
                 idx: int,
@@ -648,6 +705,8 @@ async def _execute_tools_impl(
             try:
                 async with anyio.create_task_group() as outer_tg:
                     for idx in stage:
+                        if idx in skipped:
+                            continue
                         outer_tg.start_soon(
                             run_one,
                             idx,
@@ -732,6 +791,24 @@ async def _execute_tools_impl(
                         result_messages.extend(result.messages)
                         if result.output is not None:
                             result_output = result.output
+
+            # A tool error from a halt_on_error tool halts that tool's
+            # remaining calls in this message (an unhandled exception is
+            # re-raised below and ends execution outright).
+            for idx in stage:
+                stream_item = stage_results[idx]
+                if (
+                    idx in skipped
+                    or stream_item is None
+                    or not halts_on_error(tool_calls[idx])
+                ):
+                    continue
+                result, _, _ = stream_item
+                if any(
+                    isinstance(m, ChatMessageTool) and m.error is not None
+                    for m in result.messages[:1]
+                ):
+                    halted_functions.add(tool_calls[idx].function)
 
             # If anything in the stage raised, re-raise after updating the
             # events so the transcript captures partial state cleanly.

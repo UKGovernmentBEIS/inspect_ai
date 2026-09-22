@@ -1522,22 +1522,19 @@ def _computer_tool_info() -> ToolInfo:
     "model_name",
     ["claude-fable-5", "claude-mythos-5", "claude-fable-5-1", "claude-saga-5"],
 )
-def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
-    """Undocumented Claude 5 models error on computer use rather than degrade.
+def test_anthropic_claude_5_computer_use_toolset(model_name: str) -> None:
+    """Claude 5 models without legacy computer use get the computer toolset.
 
-    Covers Fable/Mythos and forward-compat codename variants. Sonnet 5 and
-    Opus 5 are supported and covered by test_anthropic_computer_use_tool_version.
+    Covers Fable/Mythos and forward-compat codename variants (the legacy
+    `computer_20251124` tool was never supported for these). Sonnet 5 and
+    Opus 5 keep the legacy tool and are covered by
+    test_anthropic_computer_use_tool_version; the full mode matrix lives in
+    test_anthropic_computer_toolset.py.
     """
-    from inspect_ai._util.error import PrerequisiteError
-
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    with pytest.raises(PrerequisiteError) as exc_info:
-        api.computer_use_tool_param(_computer_tool_info())
-    # PrerequisiteError stores the message on .message (it doesn't call super().__init__);
-    # .message is a RenderableType, so coerce to str for the substring checks.
-    message = str(exc_info.value.message)
-    assert "Computer use is not supported" in message
-    assert model_name in message
+    param = api.computer_use_tool_param(_computer_tool_info())
+    assert param is not None
+    assert param["type"] == "computer_toolset_20260801"
 
 
 @pytest.mark.parametrize(

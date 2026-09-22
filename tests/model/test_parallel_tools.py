@@ -744,3 +744,140 @@ async def test_parallel_pending_events_coexist_with_distinct_uuids() -> None:
     tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
     assert [m.tool_call_id for m in tool_msgs] == ["coexist-a", "coexist-b"]
     assert [m.content for m in tool_msgs] == ["a", "b"]
+
+
+# -- halt_on_error ----------------------------------------------------------
+# A tool whose calls within one turn depend on the calls before them (e.g.
+# GUI actions) declares halt_on_error: once one call fails with a tool error,
+# its remaining calls in the same assistant message are not executed.
+
+
+@tool(halt_on_error=True)
+def halting_action():
+    async def halting_action(label: str, fail: bool = False) -> str:
+        """Return the label, or fail with a ToolError.
+
+        Args:
+            label: The label to echo back.
+            fail: Whether to raise a ToolError instead of returning.
+        """
+        if fail:
+            raise ToolError(f"{label} failed")
+        return label
+
+    return halting_action
+
+
+NOT_EXECUTED = "Not executed: an earlier halting_action action in this turn failed."
+
+
+def _tool_events(call_ids: list[str]) -> dict[str, ToolEvent]:
+    from inspect_ai.log._transcript import transcript
+
+    return {
+        e.id: e
+        for e in transcript().events
+        if isinstance(e, ToolEvent) and e.id in call_ids
+    }
+
+
+async def test_halt_on_error_default_is_false():
+    assert ToolDef(serial_echo()).halt_on_error is False
+
+
+async def test_halt_on_error_opt_in():
+    assert ToolDef(halting_action()).halt_on_error is True
+
+
+async def test_halt_on_error_skips_remaining_calls_to_the_tool():
+    """After a tool error, later calls to the tool are reported as not executed."""
+    tdef = ToolDef(halting_action())
+    ids = ["halt-c0", "halt-c1", "halt-c2", "halt-c3"]
+    calls = [
+        call("halting_action", ids[0], label="L0"),
+        call("halting_action", ids[1], label="L1", fail=True),
+        call("halting_action", ids[2], label="L2"),
+        call("halting_action", ids[3], label="L3"),
+    ]
+    messages, _ = await execute_tools([assistant(*calls)], [tdef])
+
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert [m.tool_call_id for m in tool_msgs] == ids
+    assert tool_msgs[0].error is None and tool_msgs[0].content == "L0"
+    assert tool_msgs[1].error is not None
+    assert tool_msgs[1].error.message == "L1 failed"
+    for skipped in tool_msgs[2:]:
+        assert skipped.error is not None
+        assert skipped.error.type == "cancelled"
+        assert skipped.error.message == NOT_EXECUTED
+
+    events = _tool_events(ids)
+    assert set(events) == set(ids)
+    for call_id in ids[2:]:
+        event = events[call_id]
+        assert event.pending is None or event.pending is False
+        assert event.error is not None and event.error.message == NOT_EXECUTED
+        assert event.failed is None
+
+
+async def test_halt_on_error_leaves_other_tools_running():
+    """Only the failed tool's later calls are skipped; other tools still run."""
+    calls = [
+        call("halting_action", "mix-c0", label="L0", fail=True),
+        call("serial_echo", "mix-c1", label="echo"),
+        call("halting_action", "mix-c2", label="L2"),
+    ]
+    messages, _ = await execute_tools(
+        [assistant(*calls)], [ToolDef(halting_action()), ToolDef(serial_echo())]
+    )
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert [m.tool_call_id for m in tool_msgs] == ["mix-c0", "mix-c1", "mix-c2"]
+    assert tool_msgs[0].error is not None
+    assert tool_msgs[1].error is None and tool_msgs[1].content == "echo"
+    assert tool_msgs[2].error is not None
+    assert tool_msgs[2].error.message == NOT_EXECUTED
+
+
+async def test_halt_on_error_not_triggered_without_error():
+    calls = [call("halting_action", f"ok-c{i}", label=f"L{i}") for i in range(3)]
+    messages, _ = await execute_tools([assistant(*calls)], [ToolDef(halting_action())])
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert [m.content for m in tool_msgs] == ["L0", "L1", "L2"]
+    assert all(m.error is None for m in tool_msgs)
+
+
+async def test_halt_on_error_triggered_by_parsing_error():
+    """A tool call that fails argument parsing counts as a failed action."""
+    calls = [
+        call("halting_action", "parse-c0"),  # missing required `label`
+        call("halting_action", "parse-c1", label="L1"),
+    ]
+    messages, _ = await execute_tools([assistant(*calls)], [ToolDef(halting_action())])
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert tool_msgs[0].error is not None and tool_msgs[0].error.type == "parsing"
+    assert tool_msgs[1].error is not None
+    assert tool_msgs[1].error.message == NOT_EXECUTED
+
+
+async def test_halt_on_error_not_triggered_by_other_tools_errors():
+    """A failure in a tool without halt_on_error does not halt anything."""
+    calls = [
+        call("serial_raise_tool_error_for_halt", "other-c0"),
+        call("halting_action", "other-c1", label="L1"),
+    ]
+
+    @tool
+    def serial_raise_tool_error_for_halt():
+        async def serial_raise_tool_error_for_halt() -> str:
+            """Raise a ToolError."""
+            raise ToolError("boom")
+
+        return serial_raise_tool_error_for_halt
+
+    messages, _ = await execute_tools(
+        [assistant(*calls)],
+        [ToolDef(serial_raise_tool_error_for_halt()), ToolDef(halting_action())],
+    )
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert tool_msgs[0].error is not None
+    assert tool_msgs[1].error is None and tool_msgs[1].content == "L1"

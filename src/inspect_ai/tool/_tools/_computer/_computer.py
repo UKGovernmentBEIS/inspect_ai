@@ -53,6 +53,7 @@ _COMPUTER_TOOL_PARAMETERS: frozenset[str] = frozenset(
         "scroll_direction",
         "start_coordinate",
         "text",
+        "repeat",
         "press_enter",
         "actions",
     ]
@@ -72,11 +73,16 @@ def is_computer_tool_info(tool: ToolInfo) -> bool:
     )
 
 
-@tool
+@tool(halt_on_error=True)
 def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool:
     """Desktop computer tool.
 
     See documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-computer>.
+
+    GUI actions issued in one assistant turn depend on each other, so a failed
+    action halts the remaining computer actions in that turn (they are reported
+    to the model as not executed). This is also the batch contract of
+    Anthropic's computer toolset.
 
     Args:
       max_screenshots: The maximum number of screenshots to play
@@ -99,6 +105,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         scroll_direction: Literal["up", "down", "left", "right"] | None = None,
         start_coordinate: list[int] | None = None,
         text: str | None = None,
+        repeat: int | None = None,
         press_enter: bool | None = None,
         actions: list[dict[str, object]] | None = None,
     ) -> ToolResult:
@@ -151,6 +158,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
           scroll_direction (Literal["up", "down", "left", "right] | None): The direction to scroll the screen. Required only by `action=scroll`.
           start_coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen from which to initiate a drag. Required only by `action=left_click_drag`.
           text (str | None): The text to type or the key to press. Required when action is "key" or "type".
+          repeat (int | None): The number of times to press the key. Used only by `action=key`. Defaults to 1.
           press_enter (bool): If True and action is "type", press Return after typing. Defaults to False.
           actions (list[dict] | None): A list of action dicts to execute sequentially (OpenAI multi-action format).
 
@@ -170,6 +178,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                     scroll_direction,
                     start_coordinate,
                     text,
+                    repeat,
                     press_enter,
                 )
             ]
@@ -197,10 +206,15 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         )
         start_coordinate = cast(list[int] | None, args.get("start_coordinate"))
         region = cast(list[int] | None, args.get("region"))
+        repeat = cast(int | None, args.get("repeat"))
 
         match action:
             case "key":
-                return await common.press_key(not_none(text, "text"), timeout=timeout)
+                key = not_none(text, "text")
+                result = await common.press_key(key, timeout=timeout)
+                for _ in range(1, repeat or 1):
+                    result = await common.press_key(key, timeout=timeout)
+                return result
             case "hold_key":
                 return await common.hold_key(
                     not_none(text, "text"),
@@ -289,6 +303,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         scroll_direction: Literal["up", "down", "left", "right"] | None,
         start_coordinate: list[int] | None,
         text: str | None,
+        repeat: int | None,
         press_enter: bool | None,
     ) -> dict[str, object]:
         return {
@@ -302,6 +317,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                 scroll_direction=scroll_direction,
                 start_coordinate=start_coordinate,
                 text=text,
+                repeat=repeat,
                 press_enter=press_enter,
             ).items()
             if v is not None
