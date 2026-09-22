@@ -237,8 +237,8 @@ Docker, and Trio runs. Write `### Validation` as a short decision summary:
 lead with the evidence that proves the change or checks compatibility beyond
 routine CI, such as a before/after reproduction, another SDK version, or a
 live provider run. For non-gated local runs CI cannot show, give the command,
-environment, and passed, failed, and skipped counts. Link routine green CI
-once rather than copying every job result. Report failures, including local
+environment, and passed, failed, and skipped counts. Routine green CI is
+visible on the PR; omit it from the description. Report CI failures and local
 failures that differ from CI, with a brief cause and baseline comparison.
 State what remains untested and why. Keep exact gated commands and counts in
 `### Slow tests`; give only their conclusion in `### Validation`. Use a table

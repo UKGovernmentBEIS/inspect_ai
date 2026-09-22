@@ -15,7 +15,8 @@ unrelated project sequencing elsewhere. -->
 ### Validation
 <!-- Lead with evidence CI cannot provide: a before/after reproduction, another
 SDK or platform, or live tests. Give commands and results for non-gated local
-runs. Link routine green CI once; report failures and gaps. If you add
+runs. Omit routine green CI, which is visible on the PR; report failures,
+discrepancies, and gaps. If you add
 "Slow tests," use one bullet per run with command, environment, and counts,
 plus a "Not run" bullet; give only the conclusion here. Do not repeat job
 lists or test-case inventories. -->
