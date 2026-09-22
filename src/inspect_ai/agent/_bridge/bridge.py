@@ -445,6 +445,32 @@ def init_anthropic_request_patch() -> None:
             stream_cls=stream_cls,
         )
 
+    async def prepare_request_options(
+        client: AsyncAPIClient, options: FinalRequestOptions
+    ) -> FinalRequestOptions:
+        """Prepare the request body the way the SDK would before sending it.
+
+        anthropic >= 1.8.0 prepares the body inside `request()`, below the
+        bridge's interception point, so run its `_copy_and_prepare()`. Older
+        SDKs prepare at the resource layer but defer `extra_body` to
+        `_build_request()`, so merge and clean it here and clear `extra_json`
+        so it isn't merged again.
+        """
+        copy_and_prepare = getattr(client, "_copy_and_prepare", None)
+        if copy_and_prepare is not None:
+            prepared: FinalRequestOptions = await copy_and_prepare(options)
+            return prepared
+
+        json_data = cast(dict[str, Any], options.json_data)
+        if options.extra_json:
+            json_data = json_data | dict(options.extra_json)
+        return options.model_copy(
+            update={
+                "json_data": strip_omitted_params(json_data, (Omit, NotGiven)),
+                "extra_json": None,
+            }
+        )
+
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
     if original_request is None:
@@ -470,18 +496,14 @@ def init_anthropic_request_patch() -> None:
         ):
             # must also be an explicit request for an inspect model
             json_data = cast(dict[str, Any], options.json_data)
-            # anthropic >= 1.0 removed temperature/top_p/top_k from the method
-            # signatures, so callers send them via extra_body — which the SDK
-            # carries in options.extra_json and merges into the body only in
-            # _build_request, below this interception point. merge here so
-            # the bridge sees those fields.
             if options.extra_json:
                 json_data = json_data | dict(options.extra_json)
-            json_data = strip_omitted_params(json_data, (Omit, NotGiven))
             if targets_inspect_model(json_data):
                 if stream:
                     raise_stream_error()
 
+                options = await prepare_request_options(self, options)
+                json_data = cast(dict[str, Any], options.json_data)
                 is_beta = "beta" in options.url
                 result = await inspect_anthropic_api_request(
                     json_data,
@@ -492,12 +514,7 @@ def init_anthropic_request_patch() -> None:
                     beta=is_beta,
                 )
                 return await finalize_bridge_response(
-                    self,
-                    cast_to,
-                    options.model_copy(update={"json_data": json_data}),
-                    stream,
-                    stream_cls,
-                    result,
+                    self, cast_to, options, stream, stream_cls, result
                 )
 
         # otherwise just delegate
@@ -599,13 +616,10 @@ def strip_omitted_params(
 ) -> dict[str, Any]:
     """Drop the SDK's `omit` / `not_given` sentinels from a request body.
 
-    Stainless SDKs (anthropic >= 1.8.0) strip these placeholders for
-    unspecified `create()` parameters inside `request()` itself, below the
-    bridge's interception point, so the patched `request()` must do it before
-    parsing the body — and before handing the options to `_build_request()`,
-    whose JSON encoder cannot serialize them. Recurses like the SDK does, so a
-    caller-supplied nested sentinel is dropped too. A no-op on SDKs that still
-    strip at the resource layer.
+    For SDKs that don't prepare the body inside `request()`: they strip
+    sentinels at the resource layer, but not from a caller's `extra_body`,
+    which `_build_request()`'s JSON encoder cannot serialize. Recurses like the
+    SDK does, so a nested sentinel is dropped too.
     """
 
     def strip(value: Any) -> Any:

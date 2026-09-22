@@ -1,3 +1,6 @@
+import base64
+import json
+from pathlib import Path
 from textwrap import dedent
 from typing import Any, Literal, cast
 
@@ -1327,21 +1330,22 @@ def _anthropic_message_json() -> dict[str, Any]:
 @pytest.mark.anyio
 @skip_if_no_anthropic_package
 @pytest.mark.parametrize("raw_response", [False, True])
-async def test_anthropic_bridge_strips_sdk_sentinels(
-    monkeypatch: pytest.MonkeyPatch, raw_response: bool
+async def test_anthropic_bridge_prepares_sdk_request(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, raw_response: bool
 ) -> None:
-    """Unspecified create() params arrive as Omit/NotGiven and must not reach the bridge.
+    """The bridge sees the request body the SDK would have sent.
 
-    Drives the patched `request()` directly with a body shaped the way
-    anthropic >= 1.8.0 hands it over (sentinels still present), so the test
-    is independent of the installed SDK version. With `raw_response` the
-    cleaned body must also be what `_build_request()` serializes.
+    anthropic >= 1.8.0 prepares the body inside `request()`, below the
+    bridge's interception point: unspecified params arrive as sentinels, and
+    iterators, pydantic models, mappings and file inputs arrive unconverted.
+    Driven through the public `messages.create()` so it covers whichever SDK
+    is installed.
     """
+    from collections import UserDict
+
+    import anthropic
     from anthropic import AsyncAnthropic
-    from anthropic._constants import RAW_RESPONSE_HEADER
-    from anthropic._models import FinalRequestOptions
-    from anthropic._types import NotGiven, Omit
-    from anthropic.types import Message
+    from anthropic.types import Message, TextBlock, ToolParam
 
     from inspect_ai.agent._bridge import bridge as bridge_mod
 
@@ -1353,31 +1357,77 @@ async def test_anthropic_bridge_strips_sdk_sentinels(
         return Message.model_validate(_anthropic_message_json())
 
     monkeypatch.setattr(bridge_mod, "inspect_anthropic_api_request", fake_request)
-    body: dict[str, Any] = {
-        "model": "inspect",
-        "max_tokens": 16,
-        "messages": [{"role": "user", "content": "hi"}],
-        "tool_choice": Omit(),
-        "thinking": Omit(),
-        "metadata": {"user_id": NotGiven()},
-        "service_tier": Omit(),
+    image = tmp_path / "image.png"
+    image.write_bytes(b"png")
+    # UserDict and pydantic content aren't in the typed MessageParam union but
+    # are accepted at runtime
+    messages: list[Any] = [
+        {
+            "role": "user",
+            "content": [
+                UserDict({"type": "text", "text": "hi"}),
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": image,
+                    },
+                },
+            ],
+        },
+        {
+            "role": "assistant",
+            "content": [TextBlock(type="text", text="hello")],
+        },
+        {"role": "user", "content": "again"},
+    ]
+    tool: ToolParam = {
+        "name": "lookup",
+        "description": "Look something up",
+        "input_schema": {"type": "object", "properties": {}},
     }
-    headers = {RAW_RESPONSE_HEADER: "true"} if raw_response else {}
-    options = FinalRequestOptions(
-        method="post", url="/v1/messages", json_data=body, headers=headers
-    )
     token = bridge_mod._patch_config.set(bridge_mod.PatchConfig(enabled=True))
     try:
         async with AsyncAnthropic(api_key="test") as client:
-            result = await client.request(Message, options)
+            api = client.messages.with_raw_response if raw_response else client.messages
+            result = await api.create(
+                model="inspect",
+                max_tokens=16,
+                messages=iter(messages),
+                tools=iter([tool]),
+                extra_body={
+                    "temperature": 0.5,
+                    "metadata": {"user_id": anthropic.omit},
+                },
+            )
     finally:
         bridge_mod._patch_config.reset(token)
 
-    assert set(captured) == {"model", "max_tokens", "messages", "metadata"}
-    # nested sentinels are dropped too (the SDK strips at every level)
+    # unspecified params (tool_choice, thinking, ...) are dropped, including
+    # sentinels nested in extra_body
+    assert set(captured) == {
+        "model",
+        "max_tokens",
+        "messages",
+        "tools",
+        "temperature",
+        "metadata",
+    }
     assert captured["metadata"] == {}
+    assert captured["tools"] == [tool]
+    user, assistant, _ = captured["messages"]
+    assert user["content"][0] == {"type": "text", "text": "hi"}
+    assert user["content"][1]["source"]["data"] == base64.b64encode(b"png").decode()
+    assert assistant["content"][0]["text"] == "hello"
+
     if raw_response:
-        message = await cast(Any, result).parse()
+        raw = cast(Any, result)
+        # the response wrapper carries the prepared request, not drained iterators
+        request_body = json.loads(raw.http_request.content)
+        assert len(request_body["messages"]) == 3
+        assert request_body["metadata"] == {}
+        message = await raw.parse()
     else:
         message = result
     assert isinstance(message, Message)
