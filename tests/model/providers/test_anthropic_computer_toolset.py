@@ -640,3 +640,20 @@ async def test_forced_computer_tool_choice_kept_with_legacy_tool() -> None:
     assert captured["tool_choice"] == {"type": "tool", "name": "computer"}
     assert isinstance(output, ModelOutput)
     assert not (output.metadata or {}).get("tool_choice_degraded")
+
+
+def test_inbound_member_name_wins_over_an_action_key_in_input() -> None:
+    """Member inputs carry no `action` field; if one appears, the member name wins."""
+    init_sample_anthropic_assistant_internal()
+    block = ToolUseBlock(
+        type="tool_use",
+        id="toolu_1",
+        name="left_click",
+        input={"coordinate": [1, 2], "action": "type"},
+        toolset_name="computer",
+    )
+    _, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        [block], [computer_tool_info()]
+    )
+    assert tool_calls is not None
+    assert tool_calls[0].arguments == {"coordinate": [1, 2], "action": "left_click"}
