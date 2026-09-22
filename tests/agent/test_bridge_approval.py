@@ -54,7 +54,10 @@ from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import GenerateInput, Model, get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
-from inspect_ai.model._openai_responses import TOOL_SEARCH_NAME
+from inspect_ai.model._openai_responses import (
+    TOOL_SEARCH_NAME,
+    tool_search_output_tools,
+)
 from inspect_ai.tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_choice import ToolChoice
@@ -2382,25 +2385,46 @@ async def test_ordinary_tool_search_result_of_strings_is_ignored(sandbox: bool) 
     tool.assert_not_awaited()
 
 
-async def test_native_discovery_skips_entries_that_are_not_objects() -> None:
+@pytest.mark.parametrize(
+    "invalid_entry",
+    [
+        "note-one",
+        7,
+        {"type": "telepathy", "name": "read_minds"},
+        {"type": "function", "name": "read_file"},
+    ],
+    ids=["string", "number", "unknown-type", "incomplete-function"],
+)
+async def test_native_discovery_the_encoder_rejects_declares_nothing(
+    invalid_entry: Any,
+) -> None:
+    """Grants follow the wire: the encoder validates the list as a whole.
+
+    One invalid entry makes the replayed `tool_search_output` carry no tools, so
+    the model was told nothing about `host/read_file`; the valid entry beside it
+    is not salvaged for grants and the call is denied.
+    """
+    discovered = [invalid_entry, discovered_read_file_namespace()]
+    as_the_model_sees_it = ChatMessageTool(
+        tool_call_id="ts_1", function=TOOL_SEARCH_NAME, content=json.dumps(discovered)
+    )
+    assert tool_search_output_tools(as_the_model_sees_it) == []
+
     tool = AsyncMock(return_value="contents")
     call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
     bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
 
     await inspect_responses_api_request(
-        responses_request_with_tool_search(
-            ["note-one", discovered_read_file_namespace()]
-        ),
+        responses_request_with_tool_search(discovered),
         None,
         internal_web_search_providers(),
         default_code_execution_providers(),
         bridge,
     )
 
-    execute = call_host_tool(bridge)
-    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
     with pytest.raises(PermissionError, match="was not proposed by the model"):
-        await execute("host", "read_file", {"path": "notes.txt"})
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
 
 
 async def test_undiscovered_and_undeclared_call_is_still_denied() -> None:

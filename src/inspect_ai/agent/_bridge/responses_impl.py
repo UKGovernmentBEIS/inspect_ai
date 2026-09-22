@@ -137,6 +137,7 @@ from inspect_ai.model._openai_responses import (
     responses_model_usage,
     to_inspect_citation,
     tool_call_from_openai_tool_search_call,
+    tool_search_output_tools,
     tool_use_to_code_interpreter_param,
     tool_use_to_mcp_call_param,
     tool_use_to_mcp_list_tools_param,
@@ -380,9 +381,11 @@ def _declarations_in_input(
     replay it as a `tool_search_output` item (the bridge seeds that cache from
     the inbound item). An ordinary tool's result is never one, however the tool
     is named, so a function called ``tool_search`` cannot declare a host tool
-    through its output. A native result that is not a JSON list, or an entry in
-    it that is not an object (a filter's or the scaffold's rewrite), declares
-    nothing.
+    through its output. The discovered tools are exactly the list the encoder
+    replays to the model (`tool_search_output_tools`): validated as a whole, so
+    a result with any invalid entry (a filter's or the scaffold's rewrite)
+    declares nothing, just as the model is then told nothing; no entry is
+    salvaged for grants alone.
     """
     cached_calls = assistant_internal().tool_calls
     declarations: list[ToolInfo] = []
@@ -392,15 +395,7 @@ def _declarations_in_input(
         call = cached_calls.get(message.tool_call_id or "")
         if call is None or call["type"] != "tool_search_call":
             continue
-        try:
-            discovered_tools = json.loads(message.text)
-        except ValueError:
-            continue
-        if not isinstance(discovered_tools, list):
-            continue
-        for discovered in discovered_tools:
-            if not isinstance(discovered, dict):
-                continue
+        for discovered in tool_search_output_tools(message):
             declarations.extend(
                 _discovered_tool_declarations(
                     discovered, web_search, code_execution, bridge
