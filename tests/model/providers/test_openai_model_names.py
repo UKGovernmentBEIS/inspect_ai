@@ -179,35 +179,31 @@ def test_gpt_5_helpers_are_version_based() -> None:
     assert is_gpt_6_model("gpt-6-luna") is True
 
 
-# -- always_reasons: Astra is the only GPT-6 model that rejects `none` effort --
+# -- always_reasons_model: Astra is the only GPT-6 model that rejects `none`
+# effort (OpenAIAPI / ModelInfo .always_reasons() is covered in
+# tests/model/test_reasoning_effort.py) --
 
 
 @pytest.mark.parametrize(
-    "model_name",
-    ["gpt-6-astra", "GPT-6-Astra", "openai.gpt-6-astra", "my-gpt-6-astra-deployment"],
-)
-def test_gpt_6_astra_always_reasons(model_name: str) -> None:
-    assert always_reasons_model(model_name) is True
-    assert _api(model_name).always_reasons() is True
-
-
-@pytest.mark.parametrize(
-    "model_name",
+    "model_name,expected",
     [
-        "gpt-6-sol",
-        "gpt-6-luna",
-        "GPT-6-Sol",
-        "openai.gpt-6-luna",
-        "my-gpt-6-sol-deployment",
-        "gpt-6",
-        "gpt-7",
-        "gpt-5.6-sol",
-        "gpt-5.6-luna",
+        ("gpt-6-astra", True),
+        ("GPT-6-Astra", True),
+        ("openai.gpt-6-astra", True),  # bedrock api_model_name prefix
+        ("my-gpt-6-astra-deployment", True),  # azure deployment name
+        ("gpt-6-sol", False),
+        ("gpt-6-luna", False),
+        ("GPT-6-Sol", False),
+        ("openai.gpt-6-luna", False),
+        ("my-gpt-6-sol-deployment", False),
+        ("gpt-6", False),
+        ("gpt-7", False),
+        ("gpt-5.6-sol", False),
+        ("gpt-5.6-luna", False),
     ],
 )
-def test_gpt_6_sol_luna_can_disable_reasoning(model_name: str) -> None:
-    assert always_reasons_model(model_name) is False
-    assert _api(model_name).always_reasons() is False
+def test_always_reasons_model_helper(model_name: str, expected: bool) -> None:
+    assert always_reasons_model(model_name) is expected
 
 
 @pytest.mark.parametrize("model_name", CODENAME_MODELS)

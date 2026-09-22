@@ -970,6 +970,19 @@ def test_openai_responses_gpt_6_sol_luna_effort_drops_sampling_params(
     _assert_sampling_params_dropped(params)
 
 
+@pytest.mark.parametrize("model_name", ["o3", "gpt-5"])
+@pytest.mark.parametrize("effort", [None, "none"])
+def test_openai_responses_always_reasoning_models_drop_sampling_params(
+    model_name, effort
+):
+    # o-series and gpt-5.0 can't turn reasoning off either; they share the
+    # always_reasons() gate with Astra
+    params = _responses_params_for(
+        model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
+    )
+    _assert_sampling_params_dropped(params)
+
+
 @pytest.mark.parametrize(
     "model_name", ["gpt-6-astra", "openai.gpt-6-astra", "my-gpt-6-astra-deployment"]
 )
@@ -987,25 +1000,13 @@ def test_openai_responses_gpt_6_astra_drops_sampling_params_regardless_of_effort
         assert params["reasoning"]["effort"] == effort
 
 
-@pytest.mark.parametrize(
-    "model_name,expected",
-    [
-        ("gpt-6-astra", True),
-        ("gpt-6-sol", True),
-        ("gpt-6-luna", True),
-        ("gpt-6", True),
-        ("gpt-5.6-sol", False),
-        ("gpt-5", False),
-    ],
-)
-def test_openai_compatible_model_info_gpt_6_family(model_name, expected):
-    from inspect_ai.model._openai import is_gpt_6_model
+@pytest.mark.parametrize("model_name", ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"])
+def test_openai_compatible_model_info_gpt_6_is_gpt_5_plus(model_name):
     from inspect_ai.model._providers.openai_compatible import ModelInfo
 
     info = ModelInfo(model_family=model_name)
-    assert is_gpt_6_model(model_name) is expected
     assert info.is_gpt_5() is True
-    assert info.is_gpt_5_plus() is (model_name != "gpt-5")
+    assert info.is_gpt_5_plus() is True
 
 
 @pytest.mark.parametrize(
