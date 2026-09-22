@@ -5,19 +5,22 @@
 <!-- Lead with what users can now do or observe. Add implementation detail where it helps review. -->
 
 ### Compatibility and migration
-<!-- Consider public APIs, CLI behavior, configuration, provider and extension
-interfaces, events, logs, and other persisted formats. Include behavior changes
-even when signatures or schemas stay the same. Who could be affected? Will
-existing code and previously written data still work? If users or downstream
-packages must change anything, give the migration steps and any version or
-rollout constraints. If none apply, say "None" and briefly explain why. -->
+<!-- Start with who must change what, or "No migration required." Then list
+material changes to existing behavior, APIs, configuration, integrations, or
+persisted data by affected user or integration. Include behavior changes even
+without signature changes. Keep user-relevant limitations here; summarize
+unchanged behavior briefly. Put implementation details, test names, and
+unrelated project sequencing elsewhere. -->
 
 ### Validation
-<!-- Give commands and outcomes, including passed, failed, and skipped counts
-where applicable. Cover the compatibility claims above. State what could not
-be run and why. -->
+<!-- List commands and results (passed, failed, skipped). Briefly say which key
+behaviors or compatibility risks they cover and what remains untested, with
+reasons. Use a small table for version or platform comparisons. Link test
+files or CI logs instead of listing every case or assertion. -->
 
 ### Agent review
-<!-- If an agent worked on this PR, disclose the authoring tool and the review:
-reviewer model/tool, fresh-context passes, findings fixed or dismissed (with
-reasons), or explicitly state that no review ran. Otherwise, omit this section. -->
+<!-- If an agent worked on this PR, give the authoring tool, reviewer model/tool,
+fresh-context pass count, and findings fixed or dismissed with brief reasons.
+For multiple passes, a short bullet per round works well: focus, findings,
+disposition. Link detailed notes instead of repeating test results. If no
+review ran, say so. Human-only PRs may omit this section. -->

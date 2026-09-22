@@ -65,6 +65,11 @@ section in the PR description. What to disclose, and how it's read:
   review that didn't happen — a fabricated or content-free review claim
   ("reviewed, looks good") is worse than disclosing none.
 
+Keep the disclosure focused on outcomes. For multiple passes, use a short
+bullet per round with its focus, findings, and disposition; give a one-line
+reason for each dismissed finding. Link detailed review notes if needed, and
+do not repeat validation results or re-explain earlier findings in each round.
+
 Example:
 
 ```
@@ -192,6 +197,9 @@ A test that skipped did not run. Say so rather than counting it. If you ran
 nothing, say that, so a maintainer with the keys or Docker runs the tests
 before merge.
 
+Summarize live behavior and remaining gaps; link detailed logs instead of
+narrating every request or tool call.
+
 ## Subsystem Documentation
 
 Additional files provide context when working in specific areas:
@@ -211,26 +219,33 @@ Lead with the user-facing problem and outcome; for a long description, keep
 those first two sections short and put detailed design or review notes below
 the required sections. Link the issue or give a reproduction when applicable.
 Fill in compatibility and migration before validation, so reviewers can assess
-whether the tests cover the risks. Describe affected public APIs, CLI behavior,
-configuration, provider and extension interfaces, events, logs, and other
-persisted formats, including behavior changes without signature or schema
-changes. Say who is affected, whether existing code and data still work, and
-what users or downstream packages must do. A bare "No" is insufficient when
-a PR touches a public contract or persisted data: name the affected producers
-and consumers, and explain the compatibility boundary. For changes with no
-compatibility impact, say "None" with a brief reason.
+whether the tests cover the risks. Lead with the action required of existing
+users or downstream packages, or say "No migration required." Then describe
+only material effects on existing behavior, public APIs, CLI behavior,
+configuration, provider and extension interfaces, events, logs, or persisted
+formats, grouped by affected user or integration. Include behavior changes
+without signature or schema changes. Explain the compatibility boundary and,
+for a public contract, name the affected producers and consumers. Summarize
+unchanged behavior briefly rather than listing every unaffected path. Move
+implementation-only protocol mechanics, test names, project sequencing, and
+unrelated out-of-scope work to the result, validation, or a linked design
+document. Keep limitations that affect existing users in this section.
+A bare "No" is insufficient when a public contract or persisted data changes.
 
 For code changes, run focused tests for the changed behavior and relevant
 neighboring paths, as well as `make check` and `make test`. Follow "Gated
 tests" above and the `slow-tests` skill for applicable slow, live-provider,
 Docker, and Trio runs. In `### Validation`, report the commands run and their
 outcomes, including passed, failed, and skipped counts where applicable. Tie
-the evidence to the compatibility claims and identify anything not run and
-why. Report results for the current PR head; when the branch changes, refresh
-results affected by the change rather than leaving historical runs to appear
-current. If an agent worked on the PR, fill in `### Agent review` as described
-above. Human-only PRs may omit that section. Keep the `### Slow tests` section
-for changes in gated-test areas, as described above.
+each relevant test group briefly to the important behavior or compatibility
+claim it covers; do not list every test case or assertion when the tests or CI
+show that detail. Use a compact table when comparing SDK versions, models, or
+platforms. Identify anything not run and why. Report results for the
+current PR head; when the branch changes, refresh results affected by the
+change rather than leaving historical runs to appear current. If an agent
+worked on the PR, fill in `### Agent review` as described above. Human-only
+PRs may omit that section. Keep the `### Slow tests` section for changes in
+gated-test areas, as described above.
 
 Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
 
