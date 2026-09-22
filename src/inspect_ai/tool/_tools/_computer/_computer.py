@@ -43,6 +43,10 @@ Action = Literal[
 
 ActionFunction = Callable[[str], ToolResult | Awaitable[ToolResult]]
 
+# upper bound for `repeat` on the `key` action (Anthropic's documented range);
+# each press is a separate sandbox round trip, so the bound also caps runtime
+MAX_KEY_REPEAT = 100
+
 _COMPUTER_TOOL_PARAMETERS: frozenset[str] = frozenset(
     [
         "action",
@@ -53,6 +57,7 @@ _COMPUTER_TOOL_PARAMETERS: frozenset[str] = frozenset(
         "scroll_direction",
         "start_coordinate",
         "text",
+        "repeat",
         "press_enter",
         "actions",
     ]
@@ -99,6 +104,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         scroll_direction: Literal["up", "down", "left", "right"] | None = None,
         start_coordinate: list[int] | None = None,
         text: str | None = None,
+        repeat: int | None = None,
         press_enter: bool | None = None,
         actions: list[dict[str, object]] | None = None,
     ) -> ToolResult:
@@ -151,6 +157,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
           scroll_direction (Literal["up", "down", "left", "right] | None): The direction to scroll the screen. Required only by `action=scroll`.
           start_coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen from which to initiate a drag. Required only by `action=left_click_drag`.
           text (str | None): The text to type or the key to press. Required when action is "key" or "type".
+          repeat (int | None): The number of times to press the key (1-100). Used only by `action=key`. Defaults to 1.
           press_enter (bool): If True and action is "type", press Return after typing. Defaults to False.
           actions (list[dict] | None): A list of action dicts to execute sequentially (OpenAI multi-action format).
 
@@ -170,6 +177,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                     scroll_direction,
                     start_coordinate,
                     text,
+                    repeat,
                     press_enter,
                 )
             ]
@@ -200,7 +208,12 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
 
         match action:
             case "key":
-                return await common.press_key(not_none(text, "text"), timeout=timeout)
+                key = not_none(text, "text")
+                repeat = _parse_repeat(args.get("repeat"))
+                result = await common.press_key(key, timeout=timeout)
+                for _ in range(1, repeat):
+                    result = await common.press_key(key, timeout=timeout)
+                return result
             case "hold_key":
                 return await common.hold_key(
                     not_none(text, "text"),
@@ -289,6 +302,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         scroll_direction: Literal["up", "down", "left", "right"] | None,
         start_coordinate: list[int] | None,
         text: str | None,
+        repeat: int | None,
         press_enter: bool | None,
     ) -> dict[str, object]:
         return {
@@ -302,6 +316,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                 scroll_direction=scroll_direction,
                 start_coordinate=start_coordinate,
                 text=text,
+                repeat=repeat,
                 press_enter=press_enter,
             ).items()
             if v is not None
@@ -347,6 +362,36 @@ def _computer_model_input(max_screenshots: int) -> ToolCallModelInput:
             return input_content
 
     return model_input
+
+
+def _parse_repeat(value: object) -> int:
+    """Validate a `key` action's `repeat` before any key is pressed.
+
+    Values arriving through the `actions` list bypass the top-level integer
+    conversion, so accept what that conversion accepts (ints, integral floats,
+    numeric strings) and reject everything else, then enforce the 1-100 range.
+    """
+    if value is None:
+        return 1
+    repeat: int | None = None
+    if isinstance(value, bool):
+        repeat = None
+    elif isinstance(value, int):
+        repeat = value
+    elif isinstance(value, float) and value.is_integer():
+        repeat = int(value)
+    elif isinstance(value, str):
+        try:
+            repeat = int(value)
+        except ValueError:
+            repeat = None
+    if repeat is None:
+        raise ToolParsingError(f"repeat must be an integer (got {value!r})")
+    if not 1 <= repeat <= MAX_KEY_REPEAT:
+        raise ToolParsingError(
+            f"repeat must be between 1 and {MAX_KEY_REPEAT} (got {repeat})"
+        )
+    return repeat
 
 
 T = TypeVar("T")
