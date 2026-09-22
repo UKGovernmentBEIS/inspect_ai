@@ -49,7 +49,7 @@ changes, run at least one code review pass in a fresh context on a strong
 agent involvement in the PR description; one issue per PR — no bundled
 drive-by changes.
 
-As part of disclosing agent involvement, include an `### Agent review`
+As part of disclosing agent involvement, fill in the `### Agent review`
 section in the PR description. What to disclose, and how it's read:
 
 - **Disclose**: what model/tool reviewed, whether the review ran in a fresh
@@ -106,6 +106,16 @@ Example:
 - **File Paths**: All code that handles file paths must support `s3://` URLs, `file://` URIs, and plain local paths. Use `filesystem()` from `inspect_ai._util.file` for filesystem operations and `local_path()` to resolve `file://` URIs to local paths before passing to APIs that only accept local paths (e.g. `ZipFile`).
 
 - **Respect existing patterns**: Respect existing code patterns when modifying files. Run linting before committing changes.
+
+## Writing for users and reviewers
+
+Use concise, direct language in PR descriptions, documentation, changelog
+entries, review notes, error messages, and code comments. State the behavior,
+evidence, and any action a reader must take plainly. Use established project
+terms; do not invent a term when an existing one is accurate, and define a
+new term when it is needed. Avoid metaphors, slogans, rhetorical questions,
+and decorative prose. Keep the details needed to assess compatibility,
+limitations, and validation.
 
 ## Suppression gate
 
@@ -169,8 +179,8 @@ tests that cover the change locally, and the PR description must report the
 run. The `slow-tests` skill (`.agents/skills/slow-tests/SKILL.md`) says which
 flags and directories go with which change and what each class needs.
 
-Report the run under "Other information" in the PR description, in a
-`### Slow tests` section with:
+Report the run in the PR description, in a `### Slow tests` section after
+`### Validation`, with:
 
 - the exact command(s) run
 - what ran, per class or provider, with the passed and skipped counts from
@@ -196,7 +206,31 @@ Additional files provide context when working in specific areas:
 
 These conventions apply to every PR, whoever authors it. External contributions must also satisfy the contribution policy above.
 
-Write the PR description using the template at `.github/pull_request_template.md` (fill in its sections — the "This PR contains" checklist, current vs. new behavior, breaking changes, other info). Include the `### Agent review` section described in the contribution policy above (put it under "Other information"). Please include a sufficiently detailed description of the PR, including briefly noting the user facing experience that triggered the fix or change.
+Write the PR description using the template at `.github/pull_request_template.md`.
+Lead with the user-facing problem and outcome; for a long description, keep
+those first two sections short and put detailed design or review notes below
+the required sections. Link the issue or give a reproduction when applicable.
+Fill in compatibility and migration before validation, so reviewers can assess
+whether the tests cover the risks. Describe affected public APIs, CLI behavior,
+configuration, provider and extension interfaces, events, logs, and other
+persisted formats, including behavior changes without signature or schema
+changes. Say who is affected, whether existing code and data still work, and
+what users or downstream packages must do. A bare "No" is insufficient when
+a PR touches a public contract or persisted data: name the affected producers
+and consumers, and explain the compatibility boundary. For changes with no
+compatibility impact, say "None" with a brief reason.
+
+For code changes, run focused tests for the changed behavior and relevant
+neighboring paths, as well as `make check` and `make test`. Follow "Gated
+tests" above and the `slow-tests` skill for applicable slow, live-provider,
+Docker, and Trio runs. In `### Validation`, report the commands run and their
+outcomes, including passed, failed, and skipped counts where applicable. Tie
+the evidence to the compatibility claims and identify anything not run and
+why. Report results for the current PR head; when the branch changes, refresh
+results affected by the change rather than leaving historical runs to appear
+current. If an agent worked on the PR, fill in `### Agent review` as described
+above. Human-only PRs may omit that section. Keep the `### Slow tests` section
+for changes in gated-test areas, as described above.
 
 Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
 
