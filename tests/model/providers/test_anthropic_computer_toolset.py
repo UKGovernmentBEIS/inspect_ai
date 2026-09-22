@@ -90,7 +90,7 @@ def first_block(param: MessageParam) -> dict[str, Any]:
         ("vertex/claude-opus-5-5", TOOLSET),
         ("azure/claude-opus-5-5", LEGACY),
         ("bedrock/anthropic.claude-opus-5-5", LEGACY),
-        # Fable/Mythos 5.x never supported the legacy tool
+        # Fable/Mythos 5.x default to the toolset where it is offered
         ("claude-fable-5", TOOLSET),
         ("claude-fable-5-1", TOOLSET),
         ("claude-mythos-5", TOOLSET),
@@ -155,15 +155,11 @@ def test_computer_toolset_model_arg_rejected_off_claude_api_and_vertex(
         "bedrock/anthropic.claude-saga-5",
     ],
 )
-def test_no_computer_use_path_on_bedrock_or_foundry_for_toolset_only_models(
+def test_fable_mythos_fall_back_to_legacy_off_claude_api_and_vertex(
     model_name: str,
 ) -> None:
-    """Neither mode is supported: legacy never was, and the toolset is not offered there."""
-    with pytest.raises(PrerequisiteError) as exc_info:
-        computer_param(model_name)
-    message = str(exc_info.value.message)
-    assert "Computer use is not supported" in message
-    assert "only offered on the Claude API and Vertex" in message
+    """Bedrock/Foundry offer only the legacy tool, which Fable/Mythos accept."""
+    assert computer_param(model_name)["type"] == LEGACY
 
 
 @pytest.mark.parametrize("model_name", ["claude-opus-4-6", "claude-sonnet-4-5"])
@@ -182,6 +178,9 @@ def test_computer_toolset_model_arg_rejected_on_unsupported_model(
     [
         ("bedrock/anthropic.claude-opus-5-5", LEGACY),
         ("claude-opus-5", LEGACY),
+        # Fable/Mythos accept the legacy tool (computer-use docs, earlier tool versions)
+        ("claude-fable-5-1", LEGACY),
+        ("vertex/claude-mythos-5", LEGACY),
     ],
 )
 def test_computer_toolset_false_keeps_legacy_where_supported(
@@ -190,9 +189,7 @@ def test_computer_toolset_false_keeps_legacy_where_supported(
     assert computer_param(model_name, computer_toolset=False)["type"] == expected_type
 
 
-@pytest.mark.parametrize(
-    "model_name", ["claude-opus-5-5", "vertex/claude-opus-5-5", "claude-fable-5-1"]
-)
+@pytest.mark.parametrize("model_name", ["claude-opus-5-5", "vertex/claude-opus-5-5"])
 def test_computer_toolset_false_rejected_where_legacy_unsupported(
     model_name: str,
 ) -> None:
@@ -573,3 +570,73 @@ def test_inbound_member_without_computer_tool_keeps_member_name() -> None:
             arguments={"action": "left_click", "coordinate": [1, 2]},
         )
     ]
+
+
+async def test_forced_computer_tool_choice_degrades_to_auto_with_toolset() -> None:
+    """The toolset has no tool named `computer` to force, so the choice becomes auto."""
+    from inspect_ai.tool import ToolFunction
+
+    api = anthropic_api("claude-opus-5", computer_toolset=True)
+    captured: dict[str, Any] = {}
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    init_sample_anthropic_assistant_internal()
+    with patch.object(api, "_perform_request_and_continuations", fake_perform):
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Take a screenshot.")],
+            tools=[computer_tool_info()],
+            tool_choice=ToolFunction(name="computer"),
+            config=GenerateConfig(max_tokens=64),
+        )
+    assert captured["tool_choice"]["type"] == "auto"
+    assert isinstance(output, ModelOutput) and output.metadata is not None
+    assert output.metadata["tool_choice_degraded"] == {
+        "requested": {"type": "tool", "name": "computer"},
+        "used": {"type": "auto"},
+    }
+
+
+async def test_forced_computer_tool_choice_kept_with_legacy_tool() -> None:
+    from inspect_ai.tool import ToolFunction
+
+    api = anthropic_api("claude-opus-5")
+    captured: dict[str, Any] = {}
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    init_sample_anthropic_assistant_internal()
+    with patch.object(api, "_perform_request_and_continuations", fake_perform):
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Take a screenshot.")],
+            tools=[computer_tool_info()],
+            tool_choice=ToolFunction(name="computer"),
+            config=GenerateConfig(max_tokens=64),
+        )
+    assert captured["tool_choice"] == {"type": "tool", "name": "computer"}
+    assert isinstance(output, ModelOutput)
+    assert not (output.metadata or {}).get("tool_choice_degraded")

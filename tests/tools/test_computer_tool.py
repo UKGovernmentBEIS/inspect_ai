@@ -8,7 +8,7 @@ from inspect_ai.tool._tools._computer import _common
 
 
 def test_computer_tool_is_serial_and_halts_on_error() -> None:
-    """GUI actions in one turn are order-dependent: never parallel, halt on error."""
+    """GUI actions in one turn are order-dependent: halt on error (and stay serial)."""
     tdef = ToolDef(computer())
     assert tdef.parallel is False
     assert tdef.halt_on_error is True

@@ -253,6 +253,11 @@ _FORCED_TOOL_CHOICE_WARNING = (
     "(tool_choice 'any' or a specific tool returns a 400 error); using "
     "tool_choice 'auto' instead."
 )
+_COMPUTER_TOOLSET_TOOL_CHOICE_WARNING = (
+    "anthropic model '{model}' declares the computer tool as Anthropic's "
+    "computer toolset, which cannot be forced with tool_choice (the API "
+    "rejects a tool choice naming the toolset); using tool_choice 'auto' instead."
+)
 _THINKING_DROPPED_WARNING = (
     "anthropic model '{model}' dropped replayed thinking block(s) from the "
     "request (reason: {reason}), so their reasoning is no longer visible to "
@@ -749,6 +754,21 @@ class AnthropicAPI(ModelAPI):
             tool_choice_degraded = False
             if len(tools_param) > 0:
                 resolved_choice = self.resolved_tool_choice(tool_choice)
+                # the computer toolset has no tool named `computer` to force
+                # (the API rejects a tool choice naming the toolset or a
+                # member), so degrade a forced computer tool choice to auto
+                if (
+                    isinstance(resolved_choice, ToolFunction)
+                    and resolved_choice.name == INTERNAL_COMPUTER_TOOL_NAME
+                    and any(is_computer_toolset(tool) for tool in tools_param)
+                ):
+                    warn_once(
+                        logger,
+                        _COMPUTER_TOOLSET_TOOL_CHOICE_WARNING.format(
+                            model=self.service_model_name()
+                        ),
+                    )
+                    resolved_choice = "auto"
                 tool_choice_degraded = resolved_choice != tool_choice
                 if not self.is_using_thinking(config):
                     request["tool_choice"] = message_tool_choice(
@@ -1586,16 +1606,30 @@ class AnthropicAPI(ModelAPI):
     def computer_use_toolset(self) -> bool:
         """Whether the computer tool is declared as Anthropic's computer toolset.
 
-        Auto mode (no `computer_toolset` model arg) uses the toolset only where
-        the legacy `computer_20251124` tool is rejected or was never supported:
-        Opus 5.5 on the Claude API and Vertex (Bedrock and Foundry still accept
-        the legacy tool), and Fable/Mythos 5.x plus any other non-Sonnet/Opus
-        Claude 5 model. Every other model keeps the legacy tool, matching prior
-        behavior.
+        Auto mode (no `computer_toolset` model arg) uses the toolset where the
+        legacy `computer_20251124` tool is rejected (Opus 5.5 on the Claude API
+        and Vertex) and, where the platform offers it, for Fable/Mythos 5.x and
+        any other non-Sonnet/Opus Claude 5 model. Every other model keeps the
+        legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock and
+        Foundry, which offer only the legacy tool.
         """
         if self.computer_toolset is not None:
             return self.computer_toolset
-        return self.computer_toolset_required()
+        return self.computer_toolset_required() or (
+            self.computer_toolset_preferred() and self.computer_toolset_available()
+        )
+
+    def computer_toolset_preferred(self) -> bool:
+        """Whether the toolset is the default computer use path where offered.
+
+        Fable/Mythos 5.x (and any other non-Sonnet/Opus Claude 5 codename)
+        default to the toolset, which is GA for them on the Claude API and
+        Vertex; they also accept the legacy tool, so `computer_toolset=false`
+        and platforms without the toolset fall back to it.
+        """
+        return self.is_claude_5() and not (
+            self.is_claude_sonnet_5() or self.is_claude_opus_5()
+        )
 
     def computer_toolset_available(self) -> bool:
         """Whether this platform offers the computer toolset at all.
@@ -1608,13 +1642,13 @@ class AnthropicAPI(ModelAPI):
         return not (self.is_bedrock() or self.is_azure())
 
     def computer_toolset_required(self) -> bool:
-        """Whether the legacy computer tool is rejected or unsupported for this model."""
-        if self.is_claude_opus_5_5():
-            # Bedrock and Foundry keep accepting the legacy tool on Opus 5.5
-            return self.computer_toolset_available()
-        return self.is_claude_5() and not (
-            self.is_claude_sonnet_5() or self.is_claude_opus_5()
-        )
+        """Whether the legacy computer tool is rejected for this model/platform.
+
+        Only Opus 5.5 on the Claude API and Vertex rejects `computer_20251124`;
+        Bedrock and Foundry keep accepting it there, and every other model
+        listed for the legacy tool (Fable/Mythos 5.x included) still accepts it.
+        """
+        return self.is_claude_opus_5_5() and self.computer_toolset_available()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -2077,20 +2111,14 @@ class AnthropicAPI(ModelAPI):
                 )
                 return None
             if self.computer_use_toolset():
+                # only reachable when forced: auto mode never picks the toolset
+                # on a platform that does not offer it
                 if not self.computer_toolset_available():
-                    if self.computer_toolset:
-                        raise PrerequisiteError(
-                            f"Anthropic's computer toolset (computer_toolset_20260801) "
-                            f"is only offered on the Claude API and Vertex, not for "
-                            f"'{self.service_model_name()}' on this platform. Remove "
-                            "computer_toolset=true to use the legacy computer tool."
-                        )
                     raise PrerequisiteError(
-                        f"Computer use is not supported by the model "
-                        f"'{self.service_model_name()}' on this platform: it never "
-                        "supported the legacy computer tool (computer_20251124) and "
-                        "Anthropic's computer toolset (computer_toolset_20260801) is "
-                        "only offered on the Claude API and Vertex."
+                        f"Anthropic's computer toolset (computer_toolset_20260801) "
+                        f"is only offered on the Claude API and Vertex, not for "
+                        f"'{self.service_model_name()}' on this platform. Remove "
+                        "computer_toolset=true to use the legacy computer tool."
                     )
                 # the toolset is documented for Opus 4.8, Sonnet 5, Opus 5/5.5
                 # and Fable/Mythos 5.x (so a forced opt-in on older models errors)
@@ -2107,8 +2135,7 @@ class AnthropicAPI(ModelAPI):
                 # inspect computer tool always supports it, so no configs.
                 return BetaComputerToolset20260801Param(type=COMPUTER_TOOLSET_TYPE)
             # legacy path forced (computer_toolset=false) where the legacy tool
-            # is rejected (Opus 5.5 on the Claude API / Vertex) or was never
-            # supported (Fable/Mythos 5.x)
+            # is rejected (Opus 5.5 on the Claude API / Vertex)
             if self.computer_toolset_required():
                 raise PrerequisiteError(
                     f"The legacy computer tool (computer_20251124) is not supported "
