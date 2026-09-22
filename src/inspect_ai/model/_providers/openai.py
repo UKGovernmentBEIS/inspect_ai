@@ -37,9 +37,9 @@ from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
+    always_reasons_model,
     is_gpt_5_model,
     is_gpt_5_plus_model,
-    is_gpt_6_model,
     is_latest_model,
     is_o_series_model,
     openai_classify_retry,
@@ -475,10 +475,8 @@ class OpenAIAPI(ModelAPI):
     def is_gpt_5_plus(self) -> bool:
         return is_gpt_5_plus_model(self.model_family()) or self.is_latest()
 
-    def is_gpt_6(self) -> bool:
-        # strict version check: whether a codename rejects sampling params is
-        # unknown, so codenames keep the gpt-5.x behavior here
-        return is_gpt_6_model(self.model_family())
+    def always_reasons(self) -> bool:
+        return always_reasons_model(self.model_family())
 
     def is_gpt_5_pro(self) -> bool:
         name = self.model_family()
@@ -490,8 +488,8 @@ class OpenAIAPI(ModelAPI):
         )
 
     def reasons_by_default(self) -> bool:
-        # strict version check (like is_gpt_6): whether a codename reasons by
-        # default is unknown, and is_latest() also matches computer-use-preview
+        # strict version check, no codename fold-in: whether a codename reasons
+        # by default is unknown, and is_latest() also matches computer-use-preview
         return (
             reasons_by_default_model(self.model_family()) and not self.is_gpt_5_chat()
         )

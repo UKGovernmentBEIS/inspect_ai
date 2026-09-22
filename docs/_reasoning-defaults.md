@@ -8,6 +8,7 @@
 | anthropic/claude-opus-4-7 | adaptive |
 | anthropic/claude-opus-4-8 | high |
 | anthropic/claude-opus-5 | high |
+| anthropic/claude-opus-5-5 | medium |
 | anthropic/claude-sonnet-4-6 | adaptive |
 | anthropic/claude-sonnet-5 | high |
 | deepseek/deepseek-reasoner | no effort scale |
@@ -55,6 +56,8 @@
 | openai/gpt-5.6-sol | medium |
 | openai/gpt-5.6-terra | medium |
 | openai/gpt-6-astra | medium |
+| openai/gpt-6-luna | medium |
+| openai/gpt-6-sol | medium |
 | z-ai/glm-5.3 | max |
 | z-ai/glm-5.3-flash | max |
 | zai-org/GLM-5.3-FP8 | max |
