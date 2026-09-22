@@ -8,7 +8,7 @@ from pydantic_core import to_jsonable_python
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -158,6 +158,10 @@ class SandboxAgentBridge(AgentBridge):
                 return True
         return False
 
+    def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
+        """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
+        return _dispatched_call(self.bridged_tools, call)
+
     def tool_approval_required(self) -> bool:
         """Return whether explicit or ambient approval governs host tool calls."""
         from inspect_ai.agent._bridge._approval import bridge_approval_scope
@@ -167,12 +171,13 @@ class SandboxAgentBridge(AgentBridge):
             return have_tool_approval()
 
     def request_fail(self, error: Exception) -> None:
-        """Fail the sample with `error` from a bridged generation.
+        """Fail the sample with `error` from a bridged generation or tool call.
 
-        A sandbox bridge's generations run in the sandbox service task, where
-        `_handle_request` turns exceptions into RPC error responses rather than
-        letting them propagate (only `LimitExceededError` is special-cased). So
-        raising from a generation would never reach the sample runner.
+        A sandbox bridge's generations and host tool calls run in the sandbox
+        service task, where `_handle_request` turns exceptions into RPC error
+        responses rather than letting them propagate (only `LimitExceededError`
+        is special-cased). So raising from one would never reach the sample
+        runner.
 
         Instead, store the error and signal the monitor task in
         `sandbox_agent_bridge`'s task group, which raises it on the agent's side
@@ -240,6 +245,40 @@ def _resolve_bridged_tools(
         for tool in tools
         if function in _candidate_functions(server, tool)
     ]
+
+
+def _dispatched_call(
+    bridged_tools: dict[str, dict[str, Tool]], call: ToolCall
+) -> DispatchedCall | None:
+    """The bridged tool call a dispatcher call stands for, if it is one.
+
+    Some scaffolds expose every MCP tool through one function whose arguments
+    name the target. The one such shape in the wild is Antigravity's
+    ``call_mcp_tool(ServerName, ToolName, Arguments)``: string ``ServerName`` and
+    ``ToolName`` naming a registered bridged tool and an object ``Arguments``
+    denote that tool with those arguments. Anything else is not a dispatched call
+    and is reviewed as the call it is: a dispatcher with another name or other
+    parameter names, a target that is not a bridged tool, and in particular an
+    ordinary call whose own arguments happen to carry these fields (the function
+    name is checked first, so no other tool's call can borrow a bridged tool's
+    policy by naming it in its arguments).
+    """
+    if call.function != "call_mcp_tool":
+        return None
+    server = call.arguments.get("ServerName")
+    tool = call.arguments.get("ToolName")
+    arguments = call.arguments.get("Arguments")
+    if (
+        isinstance(server, str)
+        and isinstance(tool, str)
+        and isinstance(arguments, dict)
+        and tool in bridged_tools.get(server, {})
+    ):
+        return DispatchedCall(
+            target=ToolCall(id=call.id, function=tool, arguments=arguments),
+            dispatch=lambda modified: {**call.arguments, "Arguments": modified},
+        )
+    return None
 
 
 def _json_equal(a: Any, b: Any) -> bool:

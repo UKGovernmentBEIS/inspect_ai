@@ -977,7 +977,11 @@ def _render_score_result(
                 f"{key}={value}" for key, value in (entry.get("metrics") or {}).items()
             )
             reducer = f"/{entry['reducer']}" if entry.get("reducer") else ""
-            _echo(_sanitize_line(f"  {entry.get('scorer')}{reducer}: {pairs}"))
+            scorer = entry.get("scorer")
+            name = entry.get("name")
+            # a dict-valued scorer names its scores for its value keys; show both
+            label = scorer if not name or name == scorer else f"{scorer}/{name}"
+            _echo(_sanitize_line(f"  {label}{reducer}: {pairs}"))
     if status.get("interrupted"):
         _echo(f"Note: pass interrupted — {_sanitize_line(str(status['interrupted']))}.")
     if status.get("error"):

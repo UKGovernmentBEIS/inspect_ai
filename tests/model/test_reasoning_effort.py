@@ -14,6 +14,8 @@ Covers:
   MiniMax M2 (which reject them), while other models (deepseek/glm/kimi and MiniMax
   M3) accept and pass through `none`/`xhigh`/`max`.
 - OpenRouter: `max` is remapped to `xhigh` (OpenRouter does not accept `max`).
+- OpenAI-compatible providers: `supports_max_reasoning_effort()` recognizes OpenAI
+  families by default and a subclass's override reaches the Responses request.
 """
 
 import logging
@@ -710,6 +712,93 @@ def test_openai_supports_max_reasoning_effort(model_name, expected):
     assert api.supports_max_reasoning_effort() is expected
 
 
+# -- OpenAI-compatible providers: `max` support hook reaches the Responses request --
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("gpt-5.6", True),
+        ("gpt-5.5", False),
+        ("foo-bar-22", False),  # no codename/latest detection for compatible services
+        ("muse-spark-1.3", False),
+    ],
+)
+def test_openai_compatible_supports_max_reasoning_effort(model_name, expected):
+    from inspect_ai.model._providers.openai_compatible import (
+        ModelInfo,
+        OpenAICompatibleAPI,
+    )
+
+    api = OpenAICompatibleAPI(
+        model_name=f"svc/{model_name}",
+        base_url="https://example.invalid/v1",
+        api_key="test-key",
+    )
+    assert api.supports_max_reasoning_effort() is expected
+    assert ModelInfo(model_name).supports_max_reasoning_effort() is expected
+
+
+@pytest.mark.parametrize("supports_max", [True, False])
+def test_openai_compatible_model_info_max_override(supports_max):
+    from inspect_ai.model._providers.openai_compatible import ModelInfo
+
+    info = ModelInfo("gpt-5.5", supports_max_reasoning_effort=supports_max)
+    assert info.supports_max_reasoning_effort() is supports_max
+    info = ModelInfo("gpt-5.6", supports_max_reasoning_effort=supports_max)
+    assert info.supports_max_reasoning_effort() is supports_max
+
+
+@pytest.mark.parametrize(
+    "override,expected",
+    [(True, "max"), (False, "xhigh")],
+)
+async def test_openai_compatible_max_support_reaches_responses_request(
+    monkeypatch, override, expected
+):
+    """A subclass's `supports_max_reasoning_effort()` decides what is sent."""
+    from unittest.mock import AsyncMock
+
+    from openai.types.responses import Response
+
+    from inspect_ai.model import ChatMessageUser
+    from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+
+    class SupportsMaxAPI(OpenAICompatibleAPI):
+        def supports_max_reasoning_effort(self) -> bool:
+            return override
+
+    api = SupportsMaxAPI(
+        model_name="svc/some-model",
+        base_url="https://example.invalid/v1",
+        api_key="test-key",
+        responses_api=True,
+        stream=False,
+    )
+    create = AsyncMock(
+        return_value=Response.model_construct(
+            id="resp_test",
+            model="some-model",
+            created_at=0.0,
+            object="response",
+            status="completed",
+            output=[],
+            tools=[],
+        )
+    )
+    monkeypatch.setattr(api.client.responses, "create", create)
+    try:
+        await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(reasoning_effort="max"),
+        )
+    finally:
+        await api.aclose()
+    assert create.call_args.kwargs["reasoning"]["effort"] == expected
+
+
 # -- OpenRouter max -> xhigh clamp --
 
 
@@ -740,7 +829,7 @@ def test_openrouter_max_clamped_to_xhigh(effort, expected):
 # by test_grok_xhigh_clamped_on_older_sdk below).
 
 
-@pytest.mark.parametrize("model_name", ["grok-4.3", "grok-4.5", "grok-4.6"])
+@pytest.mark.parametrize("model_name", ["grok-4.3", "grok-4.5", "grok-4.6", "grok-4.7"])
 @pytest.mark.parametrize(
     "effort,expected",
     [
@@ -797,13 +886,14 @@ def test_grok_4_original_excluded_from_reasoning_effort():
     for name in ("grok-4", "grok-4-latest", "grok-4-0709"):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert api.is_grok_4_original(), f"{name} should be detected as original"
-    # grok-4.3 / 4-fast / 4.20 / 4.5 / 4.6 are NOT the original
+    # grok-4.3 / 4-fast / 4.20 / 4.5 / 4.6 / 4.7 are NOT the original
     for name in (
         "grok-4.3",
         "grok-4-fast-reasoning",
         "grok-4.20",
         "grok-4.5",
         "grok-4.6",
+        "grok-4.7",
     ):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert not api.is_grok_4_original(), f"{name} must not be original"
