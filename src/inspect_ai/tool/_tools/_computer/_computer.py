@@ -88,6 +88,8 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
     to the model as not executed). This is also the batch contract of
     Anthropic's computer toolset, whose exact not-executed text names the tool,
     so keep the tool's registered name `computer` when using it with Claude.
+    To keep executing later actions after a failure, wrap the tool as
+    `ToolDef(computer(), halt_on_error=False)`.
 
     Args:
       max_screenshots: The maximum number of screenshots to play
@@ -211,17 +213,13 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         )
         start_coordinate = cast(list[int] | None, args.get("start_coordinate"))
         region = cast(list[int] | None, args.get("region"))
-        repeat = cast(int | None, args.get("repeat"))
 
         match action:
             case "key":
                 key = not_none(text, "text")
-                if repeat is not None and not 1 <= repeat <= MAX_KEY_REPEAT:
-                    raise ToolParsingError(
-                        f"repeat must be between 1 and {MAX_KEY_REPEAT} (got {repeat})"
-                    )
+                repeat = _parse_repeat(args.get("repeat"))
                 result = await common.press_key(key, timeout=timeout)
-                for _ in range(1, repeat or 1):
+                for _ in range(1, repeat):
                     result = await common.press_key(key, timeout=timeout)
                 return result
             case "hold_key":
@@ -372,6 +370,36 @@ def _computer_model_input(max_screenshots: int) -> ToolCallModelInput:
             return input_content
 
     return model_input
+
+
+def _parse_repeat(value: object) -> int:
+    """Validate a `key` action's `repeat` before any key is pressed.
+
+    Values arriving through the `actions` list bypass the top-level integer
+    conversion, so accept what that conversion accepts (ints, integral floats,
+    numeric strings) and reject everything else, then enforce the 1-100 range.
+    """
+    if value is None:
+        return 1
+    repeat: int | None = None
+    if isinstance(value, bool):
+        repeat = None
+    elif isinstance(value, int):
+        repeat = value
+    elif isinstance(value, float) and value.is_integer():
+        repeat = int(value)
+    elif isinstance(value, str):
+        try:
+            repeat = int(value)
+        except ValueError:
+            repeat = None
+    if repeat is None:
+        raise ToolParsingError(f"repeat must be an integer (got {value!r})")
+    if not 1 <= repeat <= MAX_KEY_REPEAT:
+        raise ToolParsingError(
+            f"repeat must be between 1 and {MAX_KEY_REPEAT} (got {repeat})"
+        )
+    return repeat
 
 
 T = TypeVar("T")
