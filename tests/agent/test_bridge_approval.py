@@ -2162,7 +2162,7 @@ def discovered_read_file_namespace() -> dict[str, Any]:
 
 
 def responses_request_with_tool_search(
-    discovered: list[dict[str, Any]],
+    discovered: list[Any],
 ) -> dict[str, Any]:
     """A Responses request whose top-level tools declare only `tool_search`."""
     return {
@@ -2338,6 +2338,127 @@ async def test_discovery_added_by_a_filter_grants_once() -> None:
     with pytest.raises(PermissionError, match="was not proposed by the model"):
         await execute("host", "read_file", {"path": "notes.txt"})
     tool.assert_awaited_once_with(path="notes.txt")
+
+
+def responses_request_with_ordinary_tool_search_result(output: Any) -> dict[str, Any]:
+    """A request whose ordinary function tool happens to be named `tool_search`.
+
+    Its result replays as a `function_call_output`, not a native
+    `tool_search_output`; the model's own `read_file` is a local tool.
+    """
+    return {
+        "model": BRIDGE_MODEL,
+        "tools": [
+            {
+                "type": "function",
+                "name": TOOL_SEARCH_NAME,
+                "description": "Search the notes.",
+                "parameters": params("query").model_dump(exclude_none=True),
+                "strict": False,
+            },
+            {
+                "type": "function",
+                "name": "read_file",
+                "description": "Read a file inside the sandbox.",
+                "parameters": params("path").model_dump(exclude_none=True),
+                "strict": False,
+            },
+        ],
+        "input": [
+            {"role": "user", "content": TASK},
+            {
+                "type": "function_call",
+                "id": "fc_notes",
+                "call_id": "fc_notes_1",
+                "name": TOOL_SEARCH_NAME,
+                "arguments": json.dumps({"query": "file tools"}),
+                "status": "completed",
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "fc_notes_1",
+                "output": json.dumps(output),
+            },
+        ],
+    }
+
+
+async def test_ordinary_result_from_a_tool_named_tool_search_declares_nothing() -> None:
+    """Only a native tool-search result is discovery; an ordinary tool's output is not.
+
+    The output carries the host tool's declaration, but the model's `read_file`
+    is the local one, so `host/read_file` is not proposed.
+    """
+    tool = AsyncMock(return_value="contents")
+    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
+
+    await inspect_responses_api_request(
+        responses_request_with_ordinary_tool_search_result(
+            [discovered_read_file_namespace()]
+        ),
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+@pytest.mark.parametrize("sandbox", [True, False], ids=["sandbox", "in-process"])
+async def test_ordinary_tool_search_result_of_strings_is_ignored(sandbox: bool) -> None:
+    """An ordinary result that is not tool declarations must not break the request."""
+    tool = AsyncMock(return_value="contents")
+    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    outputs = [tool_calls_output(call)]
+    bridge: AgentBridge = (
+        sandbox_responses_bridge(tool, outputs)
+        if sandbox
+        else AgentBridge(
+            AgentState(messages=[]),
+            model_aliases={
+                BRIDGE_MODEL: get_model("mockllm/model", custom_outputs=outputs)
+            },
+        )
+    )
+
+    response = await inspect_responses_api_request(
+        responses_request_with_ordinary_tool_search_result(["note-one", "note-two"]),
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    assert [item.type for item in response.output] == ["message", "function_call"]
+    if isinstance(bridge, SandboxAgentBridge):
+        with pytest.raises(PermissionError, match="was not proposed by the model"):
+            await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+async def test_native_discovery_skips_entries_that_are_not_objects() -> None:
+    tool = AsyncMock(return_value="contents")
+    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
+
+    await inspect_responses_api_request(
+        responses_request_with_tool_search(
+            ["note-one", discovered_read_file_namespace()]
+        ),
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "notes.txt"})
 
 
 async def test_undiscovered_and_undeclared_call_is_still_denied() -> None:

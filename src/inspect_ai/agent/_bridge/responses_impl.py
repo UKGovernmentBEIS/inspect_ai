@@ -294,7 +294,9 @@ async def inspect_responses_api_request_impl(
         for item in input:
             if isinstance(item, dict) and is_tool_search_output(item):
                 for discovered in item.get("tools", []) or []:
-                    if is_namespace_tool_param(discovered):
+                    if isinstance(discovered, dict) and is_namespace_tool_param(
+                        discovered
+                    ):
                         _harvest_tool_namespaces(discovered, tool_namespaces)
 
     debug_log("SCAFFOLD INPUT", input)
@@ -365,21 +367,30 @@ def _declarations_in_input(
     code_execution: CodeExecutionProviders | None,
     bridge: AgentBridge,
 ) -> list[ToolInfo]:
-    """The tools declared to the model by `tool_search` results in `messages`.
+    """The tools declared to the model by native `tool_search` results in `messages`.
 
     `messages_from_responses_input` carries each `tool_search_output` item as a
-    `ChatMessageTool` for `TOOL_SEARCH_NAME` whose content is the discovered
-    tools as JSON; this reads them back (`_discovered_tool_declarations`).
-    `bridge_generate` calls it on the input of each generation attempt, so the
-    declarations are the ones the model saw after compaction and any filter
-    rewrite, not the request's. A tool-search result that is not a JSON list
-    (a filter's or the scaffold's rewrite) declares nothing.
+    `ChatMessageTool` whose content is the discovered tools as JSON; this reads
+    them back (`_discovered_tool_declarations`). `bridge_generate` calls it on
+    the input of each generation attempt, so the declarations are the ones the
+    model saw after compaction and any filter rewrite, not the request's.
+
+    A result counts as native discovery only when the call it answers is cached
+    as a ``tool_search_call``, the same provenance the Responses encoder uses to
+    replay it as a `tool_search_output` item (the bridge seeds that cache from
+    the inbound item). An ordinary tool's result is never one, however the tool
+    is named, so a function called ``tool_search`` cannot declare a host tool
+    through its output. A native result that is not a JSON list, or an entry in
+    it that is not an object (a filter's or the scaffold's rewrite), declares
+    nothing.
     """
+    cached_calls = assistant_internal().tool_calls
     declarations: list[ToolInfo] = []
     for message in messages:
-        if not isinstance(message, ChatMessageTool):
+        if not isinstance(message, ChatMessageTool) or message.error is not None:
             continue
-        if message.function != TOOL_SEARCH_NAME or message.error is not None:
+        call = cached_calls.get(message.tool_call_id or "")
+        if call is None or call["type"] != "tool_search_call":
             continue
         try:
             discovered_tools = json.loads(message.text)
@@ -388,6 +399,8 @@ def _declarations_in_input(
         if not isinstance(discovered_tools, list):
             continue
         for discovered in discovered_tools:
+            if not isinstance(discovered, dict):
+                continue
             declarations.extend(
                 _discovered_tool_declarations(
                     discovered, web_search, code_execution, bridge
