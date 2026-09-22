@@ -476,12 +476,7 @@ class OpenAIAPI(ModelAPI):
         return is_gpt_5_plus_model(self.model_family()) or self.is_latest()
 
     def always_reasons(self) -> bool:
-        # strict name check: codenames keep the gpt-5.x sampling-param behavior
-        return (
-            self.is_o_series()
-            or (self.is_gpt_5() and not self.is_gpt_5_plus())
-            or always_reasons_model(self.model_family())
-        )
+        return always_reasons_model(self.model_family())
 
     def is_gpt_5_pro(self) -> bool:
         name = self.model_family()

@@ -179,14 +179,21 @@ def test_gpt_5_helpers_are_version_based() -> None:
     assert is_gpt_6_model("gpt-6-luna") is True
 
 
-# -- always_reasons_model: Astra is the only GPT-6 model that rejects `none`
-# effort (OpenAIAPI / ModelInfo .always_reasons() is covered in
-# tests/model/test_reasoning_effort.py) --
+# -- always_reasons_model: o-series, gpt-5.0, and GPT-6 Astra can't turn
+# reasoning off with `none`; Sol and Luna can. OpenAIAPI / ModelInfo
+# .always_reasons() delegate to it (covered in tests/model/test_reasoning_effort.py) --
 
 
 @pytest.mark.parametrize(
     "model_name,expected",
     [
+        ("o3", True),
+        ("o4-mini", True),
+        ("gpt-5", True),
+        ("gpt-5-mini", True),
+        ("gpt-5.1", False),
+        ("gpt-4o", False),
+        ("computer-use-preview", False),
         ("gpt-6-astra", True),
         ("GPT-6-Astra", True),
         ("openai.gpt-6-astra", True),  # bedrock api_model_name prefix

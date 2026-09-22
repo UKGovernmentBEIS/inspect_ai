@@ -582,11 +582,7 @@ class ModelInfo(ResponsesModelInfo):
         return is_gpt_5_plus_model(self.model_family)
 
     def always_reasons(self) -> bool:
-        return (
-            self.is_o_series()
-            or (self.is_gpt_5() and not self.is_gpt_5_plus())
-            or always_reasons_model(self.model_family)
-        )
+        return always_reasons_model(self.model_family)
 
     def is_gpt_5(self) -> bool:
         return is_gpt_5_model(self.model_family)
