@@ -7,6 +7,7 @@
 - Bugfix: Approval policies in run-config files now load correctly instead of failing evaluation startup with an `AttributeError`.
 - Added `read_eval_log_sample_summaries_async` and three other async log readers to the public `inspect_ai.log` exports.
 - Meta: New `meta` provider for Muse Spark models on the Meta Model API, which streams by default, preserves model reasoning across turns, and reports policy-blocked prompts as content filter stops.
+- OpenAI: Support for GPT-6 Sol (`gpt-6-sol`) and GPT-6 Luna (`gpt-6-luna`), including `reasoning_effort="none"`, which these models accept (GPT-6 Astra does not).
 - OpenAI: Responses API requests no longer fail validation when a compatible service omits `model` from its response.
 - Agent Bridge: An unexpected exception from a host tool called through `sandbox_agent_bridge(bridged_tools=...)` now fails the sample as a native tool exception does, and malformed arguments are reported to the model as a parsing error.
 - Grok: Support for Grok 4.7.
@@ -16,6 +17,7 @@
 - Anthropic: Fixed model construction failing with a `default_headers` TypeError when `ANTHROPIC_AUTH_TOKEN` is set and the caller supplies its own default headers.
 - Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
 - Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
+- Anthropic: Support for Claude Opus 5.5 (`claude-opus-5-5`): thinking can't be disabled, forced tool choice degrades to auto, and computer use is not yet supported on the Claude API and Vertex.
 
 ## 0.3.266 (19 September 2026)
 
