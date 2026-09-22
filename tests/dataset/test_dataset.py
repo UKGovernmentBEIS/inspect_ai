@@ -3,7 +3,7 @@ import inspect
 import json as json_module
 import os
 from pathlib import Path
-from typing import Type, TypeVar
+from typing import Callable, Type, TypeVar
 from unittest.mock import Mock
 
 import pytest
@@ -23,6 +23,14 @@ from inspect_ai.dataset import (
 )
 from inspect_ai.dataset._util import read_choices
 from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.util import (
+    ArchiveSnapshots,
+    CheckpointConfig,
+    CheckpointSampleConfig,
+    Manual,
+    SandboxSnapshotConfig,
+)
+from inspect_ai.util._checkpoint.config import merge_checkpoint_configs
 
 T_ds = TypeVar("T_ds")
 
@@ -371,7 +379,8 @@ def test_dataset_nan_fields_treated_as_missing() -> None:
     with pytest.raises(ValueError, match="No input in dataset"):
         rec2sample({"input": float("nan"), "target": "4"})
 
-    # NaN choices, setup, sandbox, files, metadata should be treated as missing (None)
+    # NaN choices, setup, sandbox, files, metadata, checkpoint should be treated
+    # as missing (None). The HuggingFace fake loader path shares this mapper.
     sample = rec2sample(
         {
             "input": "x",
@@ -381,6 +390,7 @@ def test_dataset_nan_fields_treated_as_missing() -> None:
             "sandbox": float("nan"),
             "files": float("nan"),
             "metadata": float("nan"),
+            "checkpoint": float("nan"),
         }
     )
     assert not isinstance(sample, list)
@@ -391,6 +401,275 @@ def test_dataset_nan_fields_treated_as_missing() -> None:
     assert sample.metadata is None, (
         f"expected None for metadata, got {sample.metadata!r}"
     )
+    assert sample.checkpoint is None, (
+        f"expected None for checkpoint, got {sample.checkpoint!r}"
+    )
+
+
+def _write_checkpoint_records(path: Path, records: list[dict]) -> None:
+    if path.suffix == ".jsonl":
+        path.write_text("".join(json_module.dumps(r) + "\n" for r in records))
+    else:
+        path.write_text(json_module.dumps(records))
+
+
+@pytest.mark.parametrize(
+    "loader,suffix",
+    [
+        (json_dataset, ".json"),
+        (json_dataset, ".jsonl"),
+        (file_dataset, ".json"),
+        (file_dataset, ".jsonl"),
+    ],
+)
+def test_dataset_checkpoint_settings_preserved(
+    tmp_path: Path, loader: Callable[[str], Dataset], suffix: str
+) -> None:
+    # A serialized sample's checkpoint settings must survive default loading, so
+    # the real merge sees the sample's zero and empty-list overrides instead of
+    # the task defaults.
+    sample = Sample(
+        input="Run the sample task",
+        id="s1",
+        metadata={"phase": "train"},
+        checkpoint=CheckpointSampleConfig(
+            sandbox_paths={
+                "default": SandboxSnapshotConfig(paths=[], strategy=ArchiveSnapshots())
+            },
+            max_consecutive_failures=0,
+        ),
+    )
+    text = sample.model_dump_json()
+    dataset_file = tmp_path / f"dataset{suffix}"
+    dataset_file.write_text(text + ("\n" if suffix == ".jsonl" else ""))
+
+    loaded = loader(str(dataset_file))[0]
+    direct = Sample.model_validate_json(text)
+    assert loaded.checkpoint == direct.checkpoint
+    assert loaded.id == "s1"
+    assert loaded.metadata == {"phase": "train"}
+
+    resolved = merge_checkpoint_configs(
+        task=CheckpointConfig(
+            trigger=Manual(),
+            sandbox_paths={"default": ["/workspace"]},
+            max_consecutive_failures=7,
+        ),
+        sample=loaded.checkpoint,
+    )
+    assert resolved is not None
+    assert resolved.max_consecutive_failures == 0
+    assert resolved.sandbox_paths == {"default": []}
+    assert resolved.sandbox_strategy_config("default") == ArchiveSnapshots()
+
+    # A sample-only config must not enable checkpointing.
+    assert merge_checkpoint_configs(task=None, sample=loaded.checkpoint) is None
+
+
+@pytest.mark.parametrize("suffix", [".json", ".jsonl"])
+@pytest.mark.parametrize(
+    "checkpoint",
+    [
+        pytest.param({}, id="empty-object"),
+        pytest.param({"sandbox_paths": {}}, id="empty-sandbox-paths"),
+        pytest.param(
+            {"max_consecutive_failures": 0, "sandbox_paths": {}},
+            id="zero-and-empty-paths",
+        ),
+    ],
+)
+def test_dataset_checkpoint_empty_overrides_preserved(
+    tmp_path: Path, suffix: str, checkpoint: dict
+) -> None:
+    dataset_file = tmp_path / f"dataset{suffix}"
+    _write_checkpoint_records(dataset_file, [{"input": "x", "checkpoint": checkpoint}])
+
+    loaded = json_dataset(str(dataset_file))[0]
+    assert loaded.checkpoint is not None
+
+    resolved = merge_checkpoint_configs(
+        task=CheckpointConfig(
+            trigger=Manual(), sandbox_paths={"default": ["/workspace"]}
+        ),
+        sample=loaded.checkpoint,
+    )
+    assert resolved is not None
+    if "sandbox_paths" in checkpoint:
+        assert resolved.sandbox_paths == {}
+    else:
+        assert resolved.sandbox_paths == {"default": ["/workspace"]}
+    if checkpoint.get("max_consecutive_failures") == 0:
+        assert resolved.max_consecutive_failures == 0
+
+
+@pytest.mark.parametrize("suffix", [".json", ".jsonl"])
+def test_dataset_checkpoint_missing_and_null_are_none(
+    tmp_path: Path, suffix: str
+) -> None:
+    dataset_file = tmp_path / f"dataset{suffix}"
+    _write_checkpoint_records(
+        dataset_file, [{"input": "x"}, {"input": "x", "checkpoint": None}]
+    )
+
+    samples = json_dataset(str(dataset_file))
+
+    assert [sample.checkpoint for sample in samples] == [None, None]
+
+
+@pytest.mark.parametrize(
+    "value", ["not json", "[1, 2]", 5, ["a"], {"max_consecutive_failures": "x"}]
+)
+def test_dataset_checkpoint_malformed_rejected(value: object) -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    rec2sample = record_to_sample_fn(FieldSpec())
+    with pytest.raises(ValueError, match="checkpoint") as exc_info:
+        rec2sample({"input": "x", "checkpoint": value})
+
+    message = str(exc_info.value)
+    assert "sample checkpoint configuration" in message
+    assert "FieldSpec(checkpoint=...)" in message
+    assert "custom sample_fields converter" in message
+
+
+@pytest.mark.parametrize("serialized", [False, True])
+def test_dataset_checkpoint_nested_nan_rejected(serialized: bool) -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    checkpoint = {"max_consecutive_failures": float("nan")}
+    # Missing whole configurations are allowed, but invalid settings must match
+    # Sample's validation rather than silently falling back to task defaults.
+    with pytest.raises(ValueError, match="max_consecutive_failures"):
+        Sample.model_validate({"input": "x", "checkpoint": checkpoint})
+
+    value = json_module.dumps(checkpoint) if serialized else checkpoint
+    rec2sample = record_to_sample_fn(FieldSpec())
+    with pytest.raises(ValueError, match="max_consecutive_failures"):
+        rec2sample({"input": "x", "checkpoint": value})
+
+
+@pytest.mark.parametrize(
+    "checkpoint",
+    [
+        pytest.param({"max_consecutive_failures": "x"}, id="invalid-failure-count"),
+        pytest.param(
+            {"sandbox_paths": {"default": {"strategy": {"name": "nope"}}}},
+            id="unknown-snapshot-strategy",
+        ),
+    ],
+)
+def test_dataset_checkpoint_invalid_known_fields_rejected(
+    tmp_path: Path, checkpoint: dict
+) -> None:
+    dataset_file = tmp_path / "data.jsonl"
+    _write_checkpoint_records(dataset_file, [{"input": "x", "checkpoint": checkpoint}])
+
+    with pytest.raises(ValueError, match="checkpoint"):
+        json_dataset(str(dataset_file))
+
+
+def test_dataset_checkpoint_field_spec_mapping(tmp_path: Path) -> None:
+    dataset_file = tmp_path / "data.jsonl"
+    dataset_file.write_text(
+        json_module.dumps(
+            {
+                "question": "2+2",
+                "answer": "4",
+                # an invalid default checkpoint key must not be consumed once
+                # the FieldSpec remaps checkpoint to "ckpt"
+                "checkpoint": "not-valid",
+                "ckpt": {"max_consecutive_failures": 0},
+            }
+        )
+        + "\n"
+    )
+
+    dataset = json_dataset(
+        str(dataset_file),
+        sample_fields=FieldSpec(input="question", target="answer", checkpoint="ckpt"),
+    )
+
+    assert dataset[0].input == "2+2"
+    assert dataset[0].target == "4"
+    assert dataset[0].checkpoint == CheckpointSampleConfig(max_consecutive_failures=0)
+
+
+def test_dataset_checkpoint_custom_converter_owns_conversion(tmp_path: Path) -> None:
+    dataset_file = tmp_path / "data.json"
+    dataset_file.write_text(
+        json_module.dumps([{"input": "x", "target": "y", "checkpoint": "not-valid"}])
+    )
+
+    def to_sample(_record: dict) -> Sample:
+        # A custom converter owns conversion; the loader must neither parse nor
+        # reject the record's invalid checkpoint field.
+        return Sample(
+            input="chosen",
+            checkpoint=CheckpointSampleConfig(max_consecutive_failures=0),
+        )
+
+    dataset = json_dataset(str(dataset_file), sample_fields=to_sample)
+
+    assert dataset[0].input == "chosen"
+    assert dataset[0].checkpoint == CheckpointSampleConfig(max_consecutive_failures=0)
+
+
+def test_dataset_checkpoint_merge_precedence_preserved() -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    loaded = record_to_sample_fn(FieldSpec())(
+        {"input": "x", "checkpoint": {"max_consecutive_failures": 3}}
+    )
+    assert not isinstance(loaded, list)
+
+    eval_wins = merge_checkpoint_configs(
+        task=CheckpointConfig(trigger=Manual(), max_consecutive_failures=7),
+        sample=loaded.checkpoint,
+        eval_=CheckpointConfig(max_consecutive_failures=9),
+    )
+    assert eval_wins is not None and eval_wins.max_consecutive_failures == 9
+
+    sample_wins = merge_checkpoint_configs(
+        task=CheckpointConfig(trigger=Manual(), max_consecutive_failures=7),
+        sample=loaded.checkpoint,
+    )
+    assert sample_wins is not None and sample_wins.max_consecutive_failures == 3
+
+
+def test_csv_checkpoint_json_object_string(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    with csv_file.open("w", newline="") as f:
+        writer = csv_module.writer(f)
+        writer.writerow(["input", "target", "checkpoint"])
+        writer.writerow(
+            [
+                "2+2",
+                "4",
+                json_module.dumps(
+                    {"max_consecutive_failures": 0, "sandbox_paths": {"default": []}}
+                ),
+            ]
+        )
+
+    sample = csv_dataset(str(csv_file))[0]
+
+    assert sample.checkpoint is not None
+    assert sample.checkpoint.max_consecutive_failures == 0
+    assert sample.checkpoint.sandbox_paths == {"default": []}
+
+
+def test_csv_empty_checkpoint_cell_is_missing(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("input,target,checkpoint\n2+2,4,\n")
+
+    assert csv_dataset(str(csv_file))[0].checkpoint is None
+
+
+def test_csv_null_checkpoint_cell_is_missing(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text("input,target,checkpoint\n2+2,4,null\n")
+
+    assert csv_dataset(str(csv_file))[0].checkpoint is None
 
 
 def test_dataset_zero_seed() -> None:
