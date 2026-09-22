@@ -63,7 +63,8 @@ def test_init_cli_env_quoted_commas_preserved(monkeypatch):
         [
             'NO_PROXY="localhost,127.0.0.1"',
             "CUDA_VISIBLE_DEVICES='0,1'",
-        ]
+        ],
+        preserve_quoted_commas=True,
     )
     init_cli_env(env_args)
 
