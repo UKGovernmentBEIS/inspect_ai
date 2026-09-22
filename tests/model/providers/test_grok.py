@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import AsyncIterator
+import importlib
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any, cast
@@ -907,52 +908,94 @@ class _Answer(BaseModel):
     text: str
 
 
+def _track_grok_clients(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Record every real xai_sdk AsyncClient the provider creates, and its close."""
+    import inspect_ai.model._providers.grok as grok_module
+
+    # xai_sdk ships no type stubs; going through import_module keeps mypy out of it
+    real_client: Any = importlib.import_module("xai_sdk").AsyncClient
+    clients: list[Any] = []
+
+    def recording_client(**kwargs: Any) -> Any:
+        client = real_client(**kwargs)
+        real_close = client.close
+
+        async def close() -> None:
+            client.closed = True
+            await real_close()
+
+        client.closed = False
+        client.close = close
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(grok_module, "AsyncClient", recording_client)
+    return clients
+
+
+def _assert_client_closed(clients: list[Any]) -> None:
+    """The cancelled operation's client was closed and its channel shut down."""
+    assert len(clients) == 1
+    (client,) = clients
+    assert client.closed
+    assert client._api_channel.get_state() == grpc.ChannelConnectivity.SHUTDOWN
+
+
+def _sleeping_grok_api(target: str) -> Any:
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    return GrokAPI(
+        model_name="grok-4.5",
+        api_key="test-key",
+        base_url=target,
+        streaming=False,
+        use_insecure_channel=True,
+    )
+
+
+_PARSE_CONFIG = GenerateConfig(
+    response_schema=ResponseSchema(name="answer", json_schema=json_schema(_Answer))
+)
+
+
 @skip_if_trio
 @pytest.mark.parametrize(
-    "config",
+    "operation",
     [
-        pytest.param(GenerateConfig(), id="sample"),
-        pytest.param(
-            GenerateConfig(
-                response_schema=ResponseSchema(
-                    name="answer", json_schema=json_schema(_Answer)
-                )
-            ),
-            id="parse",
-        ),
+        pytest.param(lambda api: _generate_once(api, GenerateConfig()), id="sample"),
+        pytest.param(lambda api: _generate_once(api, _PARSE_CONFIG), id="parse"),
+        pytest.param(lambda api: api.count_text_tokens("hello"), id="tokens"),
     ],
 )
 async def test_grok_unary_call_cancelled_by_fail_after_raises_timeout(
-    config: GenerateConfig,
+    operation: Callable[[Any], Awaitable[Any]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A unary gRPC call cut off by an anyio deadline reports the timeout.
 
     grpc.aio answers a cancelled unary call with a fresh, message-less
     CancelledError that anyio does not recognise as its own, so without the
     provider's guard the bare cancellation escapes instead of TimeoutError.
+    The provider's client is still closed on the way out.
     """
-    from inspect_ai.model._providers.grok import GrokAPI
-
+    clients = _track_grok_clients(monkeypatch)
     async with _sleeping_grpc_server() as target:
-        api = GrokAPI(
-            model_name="grok-4.5",
-            api_key="test-key",
-            base_url=target,
-            streaming=False,
-            use_insecure_channel=True,
-        )
+        api = _sleeping_grok_api(target)
         with pytest.raises(TimeoutError):
             with anyio.fail_after(1):
-                await _generate_once(api, config)
+                await operation(api)
+        _assert_client_closed(clients)
 
 
 @skip_if_trio
-async def test_grok_unary_call_attempt_timeout_is_retryable() -> None:
+async def test_grok_unary_call_attempt_timeout_is_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A stalled unary Grok call hit by `attempt_timeout` ends as AttemptTimeoutError.
 
     That is the retryable outcome; without the guard the attempt ends in a bare
     cancellation that the retry loop never sees.
     """
+    clients = _track_grok_clients(monkeypatch)
     async with _sleeping_grpc_server() as target:
         model = get_model(
             "grok/grok-4.5",
@@ -967,3 +1010,4 @@ async def test_grok_unary_call_attempt_timeout_is_retryable() -> None:
                 "hello", config=GenerateConfig(attempt_timeout=1, max_retries=0)
             )
         assert isinstance(excinfo.value.last_attempt.exception(), AttemptTimeoutError)
+        _assert_client_closed(clients)
