@@ -603,10 +603,21 @@ def strip_omitted_params(
     unspecified `create()` parameters inside `request()` itself, below the
     bridge's interception point, so the patched `request()` must do it before
     parsing the body — and before handing the options to `_build_request()`,
-    whose JSON encoder cannot serialize them. Sentinels only appear at the top
-    level of the body. A no-op on SDKs that still strip at the resource layer.
+    whose JSON encoder cannot serialize them. Recurses like the SDK does, so a
+    caller-supplied nested sentinel is dropped too. A no-op on SDKs that still
+    strip at the resource layer.
     """
-    return {k: v for k, v in json_data.items() if not isinstance(v, sentinels)}
+
+    def strip(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                k: strip(v) for k, v in value.items() if not isinstance(v, sentinels)
+            }
+        if isinstance(value, list):
+            return [strip(v) for v in value if not isinstance(v, sentinels)]
+        return value
+
+    return cast(dict[str, Any], strip(json_data))
 
 
 def targets_inspect_model(json_data: dict[str, Any]) -> bool:

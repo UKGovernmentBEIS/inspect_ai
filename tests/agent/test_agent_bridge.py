@@ -1359,7 +1359,7 @@ async def test_anthropic_bridge_strips_sdk_sentinels(
         "messages": [{"role": "user", "content": "hi"}],
         "tool_choice": Omit(),
         "thinking": Omit(),
-        "metadata": NotGiven(),
+        "metadata": {"user_id": NotGiven()},
         "service_tier": Omit(),
     }
     headers = {RAW_RESPONSE_HEADER: "true"} if raw_response else {}
@@ -1373,7 +1373,9 @@ async def test_anthropic_bridge_strips_sdk_sentinels(
     finally:
         bridge_mod._patch_config.reset(token)
 
-    assert set(captured) == {"model", "max_tokens", "messages"}
+    assert set(captured) == {"model", "max_tokens", "messages", "metadata"}
+    # nested sentinels are dropped too (the SDK strips at every level)
+    assert captured["metadata"] == {}
     if raw_response:
         message = await cast(Any, result).parse()
     else:
