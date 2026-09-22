@@ -64,7 +64,7 @@ def mock_stdio_streams(monkeypatch):
         writer = _aio.StreamWriter(_NullTransport(), _NoopProtocol(), None, loop)
         return reader, writer
 
-    monkeypatch.setattr("inspect_ai._cli.acp.stdio_streams", _mock)
+    monkeypatch.setattr("acp.stdio.stdio_streams", _mock)
 
 
 @pytest.fixture
