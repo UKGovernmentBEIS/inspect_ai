@@ -1292,16 +1292,6 @@ class SandboxManager:
                     self._lifecycle = None
 
 
-async def startup_sandbox_environments(
-    tasks: list[ResolvedTask],
-    config: EvalConfig,
-    cleanup: bool,
-) -> Callable[[], Awaitable[None]]:
-    manager = SandboxManager(config, cleanup)
-    await manager.start(tasks, resolved_task_names(tasks))
-    return manager.shutdown
-
-
 def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
     return [
         TaskSpec(
