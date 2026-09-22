@@ -1636,8 +1636,8 @@ class AnthropicAPI(ModelAPI):
 
         Per Anthropic's computer-use docs, platforms other than the Claude API
         and Google Cloud (Vertex) currently offer only the earlier tool
-        versions. Claude Platform on AWS is reached through the plain client
-        (no service prefix) and is indistinguishable from the Claude API here.
+        versions. (Claude Platform on AWS also offers only those, but this
+        provider has no client for it, so it needs no case here.)
         """
         return not (self.is_bedrock() or self.is_azure())
 
@@ -4320,7 +4320,8 @@ def content_and_tool_calls_from_assistant_content_blocks(
                 tool_name, internal_name = _names_for_computer_toolset_call(
                     content_block.name, tools
                 )
-                arguments = {"action": content_block.name} | arguments
+                # the member name is authoritative for `action`
+                arguments = arguments | {"action": content_block.name}
             else:
                 (tool_name, internal_name) = _names_for_tool_call(
                     content_block.name, tools
