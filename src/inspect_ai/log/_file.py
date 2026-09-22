@@ -996,7 +996,7 @@ def read_eval_log_sample_summaries(
     # don't mix trio and asyncio
     if current_async_backend() == "trio":
         raise RuntimeError(
-            "read_eval_log_sample_summaries cannot be called from a trio async context (please use read_eval_log_sample_summaries_asymc instead)"
+            "read_eval_log_sample_summaries cannot be called from a trio async context (please use read_eval_log_sample_summaries_async instead)"
         )
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox

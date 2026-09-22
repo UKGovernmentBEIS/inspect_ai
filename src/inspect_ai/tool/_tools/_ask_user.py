@@ -1,11 +1,5 @@
 from typing import Any
 
-from acp.schema import (
-    ElicitationMultiSelectPropertySchema,
-    ElicitationOtherPropertySchema,
-    ElicitationSchema,
-    OtherMultiSelectItems,
-)
 from pydantic import ValidationError
 
 from inspect_ai._util.json import to_json_str_safe
@@ -103,6 +97,15 @@ def ask_user() -> Tool:
           ToolError: On declined, cancelled, or invalid schema. The error
             message includes pydantic validation details — adjust and retry.
         """
+        # Deferred: `acp.schema` is expensive to import and `inspect_ai.tool`
+        # is loaded by `import inspect_ai`; only pay for it on first use.
+        from acp.schema import (
+            ElicitationMultiSelectPropertySchema,
+            ElicitationOtherPropertySchema,
+            ElicitationSchema,
+            OtherMultiSelectItems,
+        )
+
         try:
             validated = ElicitationSchema.model_validate(
                 _normalize_schema_types(schema)

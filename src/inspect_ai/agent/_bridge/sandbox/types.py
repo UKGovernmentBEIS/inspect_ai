@@ -9,7 +9,7 @@ from pydantic_core import to_jsonable_python
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -121,8 +121,9 @@ class SandboxAgentBridge(AgentBridge):
         call the scaffold declared no tool for denotes nothing; otherwise its
         declaration is matched to a bridged tool by description, then by input
         schema shape, whatever the scaffold renamed the tool to; failing that, a
-        dispatcher call whose arguments name a bridged server and tool
-        (Antigravity's shape) denotes that tool. A call that still denotes more
+        dispatcher call (Antigravity's ``call_mcp_tool``, recognised by that
+        function name and its argument shape, `_dispatched_call`) denotes the
+        bridged tool its arguments name. A call that still denotes more
         than one bridged tool (they share a description the schema shape cannot
         separate; `warn_indistinct_tools` names them at setup) gets a grant for
         each of them, all bound to the call's arguments, so the scaffold's
@@ -240,13 +241,18 @@ class SandboxAgentBridge(AgentBridge):
                 return True
         return False
 
-    def request_fail(self, error: Exception) -> None:
-        """Fail the sample with `error` from a bridged generation.
+    def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
+        """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
+        return _dispatched_call(self.bridged_tools, call)
 
-        A sandbox bridge's generations run in the sandbox service task, where
-        `_handle_request` turns exceptions into RPC error responses rather than
-        letting them propagate (only `LimitExceededError` is special-cased). So
-        raising from a generation would never reach the sample runner.
+    def request_fail(self, error: Exception) -> None:
+        """Fail the sample with `error` from a bridged generation or tool call.
+
+        A sandbox bridge's generations and host tool calls run in the sandbox
+        service task, where `_handle_request` turns exceptions into RPC error
+        responses rather than letting them propagate (only `LimitExceededError`
+        is special-cased). So raising from one would never reach the sample
+        runner.
 
         Instead, store the error and signal the monitor task in
         `sandbox_agent_bridge`'s task group, which raises it on the agent's side
@@ -316,7 +322,8 @@ def _proposed_call(
     denotes nothing. The call's declaration is matched to a bridged tool by the
     content the bridge served for it in `tools/list`
     (`_resolve_by_served_content`); when nothing matches, the call may be a
-    dispatcher call naming its target in its arguments (`_dispatched_call`).
+    dispatcher call, recognised by its function name and argument shape
+    (`_dispatched_call`), denoting the bridged tool its arguments name.
     """
     declarations = declared.get(call.function)
     if not declarations:
@@ -324,7 +331,13 @@ def _proposed_call(
     targets = _resolve_by_served_content(served, declarations)
     if targets:
         return _ProposedCall(targets, dict(call.arguments))
-    return _dispatched_call(bridged_tools, call)
+    dispatched = _dispatched_call(bridged_tools, call)
+    if dispatched is None:
+        return _NO_PROPOSAL
+    return _ProposedCall(
+        [_BridgedToolId(server=dispatched.server, tool=dispatched.target.function)],
+        dispatched.target.arguments,
+    )
 
 
 def _resolve_by_served_content(
@@ -425,17 +438,25 @@ def _same_schema_shape(served: ToolInfo, declaration: ToolInfo) -> bool:
 
 def _dispatched_call(
     bridged_tools: dict[str, dict[str, Tool]], call: ToolCall
-) -> _ProposedCall:
+) -> DispatchedCall | None:
     """The bridged tool call a dispatcher call stands for, if it is one.
 
     Some scaffolds expose every MCP tool through one function whose arguments
-    name the target, so the call's declaration carries the scaffold's own
-    description and matches no bridged tool by content. The one such shape in
-    the wild is Antigravity's ``call_mcp_tool(ServerName, ToolName, Arguments)``:
-    string ``ServerName`` and ``ToolName`` naming a registered bridged tool and an
-    object ``Arguments`` denote that tool with those arguments. A dispatcher with
-    other parameter names is unsupported, and its calls are denied.
+    name the target. The one such shape in the wild is Antigravity's
+    ``call_mcp_tool(ServerName, ToolName, Arguments)``: string ``ServerName`` and
+    ``ToolName`` naming a registered bridged tool and an object ``Arguments``
+    denote that tool with those arguments. Anything else is not a dispatched call
+    and is reviewed as the call it is: a dispatcher with another name or other
+    parameter names, a target that is not a bridged tool, and in particular an
+    ordinary call whose own arguments happen to carry these fields (the function
+    name is checked first, so no other tool's call can borrow a bridged tool's
+    policy, or mint an execution grant for it, by naming it in its arguments).
+    Both approval (`SandboxAgentBridge.dispatched_call`) and grant resolution
+    (`_proposed_call`) recognise a dispatcher call through this one function, so
+    they cannot disagree about what is one.
     """
+    if call.function != "call_mcp_tool":
+        return None
     server = call.arguments.get("ServerName")
     tool = call.arguments.get("ToolName")
     arguments = call.arguments.get("Arguments")
@@ -445,8 +466,12 @@ def _dispatched_call(
         and isinstance(arguments, dict)
         and tool in bridged_tools.get(server, {})
     ):
-        return _ProposedCall([_BridgedToolId(server=server, tool=tool)], arguments)
-    return _NO_PROPOSAL
+        return DispatchedCall(
+            server=server,
+            target=ToolCall(id=call.id, function=tool, arguments=arguments),
+            dispatch=lambda modified: {**call.arguments, "Arguments": modified},
+        )
+    return None
 
 
 def _json_equal(a: Any, b: Any) -> bool:
