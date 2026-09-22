@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: Approval policies in run-config files now load correctly instead of failing evaluation startup with an `AttributeError`.
 - Added `read_eval_log_sample_summaries_async` and three other async log readers to the public `inspect_ai.log` exports.
 - Meta: New `meta` provider for Muse Spark models on the Meta Model API, which streams by default, preserves model reasoning across turns, and reports policy-blocked prompts as content filter stops.
 - OpenAI: Responses API requests no longer fail validation when a compatible service omits `model` from its response.
