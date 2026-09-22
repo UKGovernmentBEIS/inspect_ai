@@ -44,6 +44,7 @@ from inspect_ai._util.generate_config_args import (
     config_from_locals,
 )
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
+from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.log import IncompleteAction
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
@@ -121,6 +122,7 @@ LOG_IMAGES_HELP = (
 )
 LOG_MODEL_API_HELP = "Log raw model api requests and responses. Note that error requests/responses are always logged."
 LOG_REFUSALS_HELP = "Log warnings for model refusals."
+FAIL_ON_REFUSAL_HELP = "Fail a sample (with a ModelRefusalError) when a model refuses a request (stop_reason 'content_filter'). Applies to every model used by the eval, including model roles (a role's own setting wins). Note that with the default --fail-on-error the first refusal fails the whole eval; combine with --no-fail-on-error or --continue-on-fail to keep running. Use --no-fail-on-refusal to override a task or model config that enables it."
 LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems)."
 LOG_SHARED_HELP = "Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds)."
 NO_SCORE_HELP = (
@@ -379,6 +381,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_APPROVAL",
         help="Config file for tool call approval.",
+    )
+    @click.option(
+        "--review",
+        type=str,
+        envvar="INSPECT_EVAL_REVIEW",
+        help="Config file for tool result review.",
     )
     @click.option(
         "--notification",
@@ -862,6 +870,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_FALLBACK_MODELS",
     )
     @click.option(
+        "--fail-on-refusal/--no-fail-on-refusal",
+        type=bool,
+        is_flag=True,
+        default=None,
+        help=FAIL_ON_REFUSAL_HELP,
+        envvar="INSPECT_EVAL_FAIL_ON_REFUSAL",
+    )
+    @click.option(
         "--verbosity",
         type=click.Choice(["low", "medium", "high"]),
         help='Constrains the verbosity of the model\'s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)',
@@ -1112,6 +1128,7 @@ def _eval_command_impl(
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
+    review: str | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -1152,6 +1169,7 @@ def _eval_command_impl(
     max_tool_output: int | None,
     cache_prompt: str | None,
     fallback_models: str | None,
+    fail_on_refusal: bool | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
@@ -1245,6 +1263,7 @@ def _eval_command_impl(
         metadata=metadata,
         trace=trace,
         approval=approval,
+        review=review,
         notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1404,6 +1423,7 @@ def eval_set_command(
     solver: str | None,
     trace: bool | None,
     approval: str | None,
+    review: str | None,
     notification: bool | str | None,
     model: str | None,
     model_base_url: str | None,
@@ -1470,6 +1490,7 @@ def eval_set_command(
     max_tool_output: int | None,
     cache_prompt: str | None,
     fallback_models: str | None,
+    fail_on_refusal: bool | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
@@ -1583,6 +1604,7 @@ def eval_set_command(
             metadata=metadata,
             trace=trace,
             approval=approval,
+            review=review,
             notification=notification,
             sandbox=sandbox,
             no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1738,6 +1760,8 @@ class RunConfigInput(BaseModel):
 
         # Eval config — combine epochs + epochs_reducer into Epochs
         ec = self.eval_config.model_dump(exclude_none=True)
+        if "approval" in ec:
+            ec["approval"] = ApprovalPolicyConfig.model_validate(ec["approval"])
         epochs = ec.pop("epochs", None)
         epochs_reducer = ec.pop("epochs_reducer", None)
         if epochs is not None:
@@ -1905,6 +1929,7 @@ def eval_exec(
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
+    review: str | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -2087,6 +2112,7 @@ def eval_exec(
             metadata=eval_metadata,
             trace=trace,
             approval=approval,
+            review=review,
             notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,

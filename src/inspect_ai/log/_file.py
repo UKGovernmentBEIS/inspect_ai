@@ -228,7 +228,7 @@ async def _list_eval_logs_async(
     # async filesystem if we can
     fs = filesystem(log_dir, fs_options)
     if fs.is_s3() and not fs_options:
-        # S3: list via the shared async filesystem (one warm aioboto3 client +
+        # S3: list via the shared async filesystem (one warm aiobotocore client +
         # connection pool, reused across requests when the view server binds it).
         # iter_files(detail=True) is a single list_objects_v2 sweep that returns
         # FileInfo (name/size/mtime) — no separate existence precheck or per-file
@@ -996,7 +996,7 @@ def read_eval_log_sample_summaries(
     # don't mix trio and asyncio
     if current_async_backend() == "trio":
         raise RuntimeError(
-            "read_eval_log_sample_summaries cannot be called from a trio async context (please use read_eval_log_sample_summaries_asymc instead)"
+            "read_eval_log_sample_summaries cannot be called from a trio async context (please use read_eval_log_sample_summaries_async instead)"
         )
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox

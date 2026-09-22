@@ -6,11 +6,18 @@ from pydantic import JsonValue, TypeAdapter
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
-from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
-from inspect_ai.model._call_tools import get_tools_info
+from inspect_ai.model._call_tools import (
+    get_tools_info,
+    tool_call_error,
+    validate_tool_input,
+)
+from inspect_ai.model._model import ModelRefusalError
+from inspect_ai.tool._tool import ToolParsingError
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
@@ -29,7 +36,9 @@ JSON_VALUE_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
 GenerateMethod = Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]
 
 
-def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
+def _forward_provider_errors(
+    generate: GenerateMethod, bridge: SandboxAgentBridge
+) -> GenerateMethod:
     """Convert a failed generate into a forwardable provider-error result.
 
     Any exception from the wrapped generate is returned (not raised) under
@@ -39,6 +48,11 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
 
     `LimitExceededError` is deliberately excluded so message/token/cost limit
     hit during generation properly end the sample.
+
+    A `ModelRefusalError` (`fail_on_refusal`) must also end the sample, but the
+    sandbox service dispatcher would swallow a re-raise into an RPC error, so it
+    is signalled through `bridge.request_fail` (raised on the agent's side by the
+    bridge's monitor task) while the scaffold still gets an error reply.
     """
 
     async def generate_forwarding_errors(
@@ -48,6 +62,11 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
             return await generate(json_data)
         except LimitExceededError:
             raise
+        except ModelRefusalError as ex:
+            bridge.request_fail(ex)
+            # no non-provider-error warning: the failure is reported once, by
+            # the sample error the monitor task raises
+            return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
         except Exception as ex:
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the
@@ -79,16 +98,16 @@ async def run_model_service(
         name=MODEL_SERVICE,
         methods={
             "generate_completions": _forward_provider_errors(
-                generate_completions(bridge)
+                generate_completions(bridge), bridge
             ),
             "generate_responses": _forward_provider_errors(
-                generate_responses(web_search, code_execution, bridge)
+                generate_responses(web_search, code_execution, bridge), bridge
             ),
             "generate_anthropic": _forward_provider_errors(
-                generate_anthropic(web_search, code_execution, bridge)
+                generate_anthropic(web_search, code_execution, bridge), bridge
             ),
             "generate_google": _forward_provider_errors(
-                generate_google(web_search, code_execution, bridge)
+                generate_google(web_search, code_execution, bridge), bridge
             ),
             "list_tools": list_tools(bridge),
             "call_tool": call_tool(bridge),
@@ -206,7 +225,21 @@ def _mcp_tool_result_content(
 def call_tool(
     bridge: SandboxAgentBridge,
 ) -> Callable[[str, str, dict[str, JsonValue]], Awaitable[JsonValue]]:
-    """Execute a bridged tool and return result."""
+    """Execute a bridged tool and return result.
+
+    Arguments are validated against the tool's schema as for a native call, so
+    a scaffold's malformed arguments surface as a `ToolParsingError` the model
+    can recover from; they are otherwise forwarded as the scaffold sent them.
+    Exceptions are classified after unwrapping any task-group
+    `ExceptionGroup`, as `execute_tools` does, and with the same
+    `tool_call_error` mapping. Those a native call would show the model
+    propagate unchanged as the RPC error the scaffold reads as tool output. Any other exception is a bug in the eval's
+    tool, which natively fails the sample: the unwrapped exception is
+    signalled through `bridge.request_fail` so the bridge's monitor task ends
+    the sample at once, and the original still propagates so the RPC unwinds
+    with an error reply (the teardown may pre-empt its delivery; the
+    scaffold's turn is over either way).
+    """
 
     async def execute(
         server: str, tool: str, arguments: dict[str, JsonValue]
@@ -218,20 +251,27 @@ def call_tool(
         if tool not in server_tools:
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
-        if bridge.tool_approval_required() and not bridge.consume_tool_execution_grant(
-            server, tool, arguments
-        ):
-            warn_once(
-                logger,
-                f"Denied host tool call '{server}/{tool}': no approved "
-                "execution grant matched it.",
-            )
-            raise PermissionError(
-                f"Host tool call '{server}/{tool}' was not approved for execution"
-            )
-
+        # The execution-grant check (bridge.consume_tool_execution_grant) is
+        # disabled pending #5428: scaffolds present bridged tools to their model
+        # under names the grant resolution does not recognise, so every approved
+        # call was denied here. Approval still runs at generate time.
         tool_fn = server_tools[tool]
-        result = await tool_fn(**arguments)
+        try:
+            validation_errors = validate_tool_input(
+                arguments, ToolDef(tool_fn).parameters
+            )
+            if validation_errors:
+                raise ToolParsingError(validation_errors)
+            result = await tool_fn(**arguments)
+        except Exception as ex:
+            # classify the unwrapped exception, but let the original propagate:
+            # the service dispatcher special-cases a bare LimitExceededError
+            # (ending the sample), and unwrapping a grouped one would newly
+            # route it there
+            inner_ex = inner_exception(ex)
+            if tool_call_error(inner_ex, tool) is None:
+                bridge.request_fail(inner_ex)
+            raise
 
         # Plain strings are returned verbatim (the MCP `tools/call` text part
         # carries them as-is). For anything else, use pydantic_core.to_json so

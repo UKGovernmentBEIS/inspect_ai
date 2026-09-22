@@ -15,9 +15,13 @@ from __future__ import annotations
 
 import logging
 import sys
+import tempfile
 import zipfile
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, BinaryIO
+
+import anyio
+import anyio.from_thread
 
 if TYPE_CHECKING:
     import zstandard
@@ -193,3 +197,127 @@ _install_multiframe_patches()
 
 
 __all__ = ["zipfile_compress_kwargs"]
+
+
+# ---------------------------------------------------------------------------
+# Archive rewriting helpers
+#
+# An append-mode ZipFile never removes bytes: a member "pruned" from the
+# central directory, or superseded by a later write under the same name, stays
+# in the member area as dead bytes. These helpers measure that and rewrite an
+# archive down to its live members. They know nothing about eval logs; the
+# recorders decide which members are live and when a rewrite is worth it.
+
+
+def copy_live_members(
+    src: zipfile.ZipFile,
+    dst: zipfile.ZipFile,
+    exclude: frozenset[str] = frozenset(),
+    *,
+    cancellable: bool = False,
+) -> None:
+    """Copy each name's last member from ``src`` to ``dst``, streaming.
+
+    Dedupes by member name, last entry winning — a duplicate name is how a
+    writer supersedes a member (read-by-name resolves to the last entry), and
+    copying every info would write those superseded bytes twice. Opening the
+    destination entry with the source ``ZipInfo`` preserves the original
+    compression type / date_time / external_attr; the data still round-trips
+    through decompress + recompress, streamed in chunks so a large member
+    never sits in memory whole. Blocking — run in a worker thread when called
+    from the event loop. ``cancellable`` requires an AnyIO worker and checks
+    its host task's cancellation between chunks.
+    """
+    infos = {info.filename: info for info in src.infolist()}
+    for info in infos.values():
+        if info.filename in exclude:
+            continue
+        with (
+            src.open(info, "r") as reader,
+            dst.open(info, "w", force_zip64=True) as writer,
+        ):
+            while True:
+                if cancellable:
+                    anyio.from_thread.check_cancelled()
+                chunk = reader.read(1024 * 1024)
+                if not chunk:
+                    break
+                writer.write(chunk)
+
+
+def compact_zip(src_file: BinaryIO, live: frozenset[str]) -> BinaryIO:
+    """Copy the live members of a closed zip temp file into a fresh temp file.
+
+    Live means the last member under each name in ``live``; pruned and
+    superseded members are left behind. Take ``live`` from the writer's
+    in-memory central directory rather than the file's: ``ZipFile.close``
+    rewrites the on-disk directory only after a write, so a directory-only
+    prune since the last write is not on disk yet and the closed file's
+    directory may still list pruned members. Blocking (decompress +
+    recompress of every member) — run in a worker thread created by AnyIO.
+    Cancellation is checked between chunks and closes the incomplete output
+    before propagating to the caller.
+    """
+    src_file.seek(0)
+    out: BinaryIO = tempfile.TemporaryFile()
+    try:
+        with (
+            zipfile.ZipFile(src_file, "r") as src,
+            zipfile.ZipFile(out, "w", **zipfile_compress_kwargs) as dst,
+        ):
+            copy_live_members(
+                src, dst, exclude=frozenset(src.namelist()) - live, cancellable=True
+            )
+    except BaseException:
+        out.close()
+        raise
+    return out
+
+
+def zip_needs_rewrite(file: BinaryIO, is_live: Callable[[str], bool]) -> bool:
+    """Whether an archive holds members ``is_live`` rejects, or bytes no member accounts for.
+
+    Answers "can this file be adopted as-is, or must it be rewritten to shed
+    what it should not carry" without inflating any member: a member outside
+    the live set, or a gap between members (a pruned member's leftover
+    bytes, which ordinary readers no longer list but still recoverable from
+    the file), both require a rewrite. Walks exact local header lengths —
+    estimating from central-directory extras can miss small gaps, especially
+    with ZIP64 — and conservatively requires a rewrite for data descriptors
+    or any layout it cannot verify. Blocking local I/O — run in a worker
+    thread.
+    """
+    file.seek(0)
+    with zipfile.ZipFile(file, "r") as archive:
+        if any(not is_live(name) for name in archive.NameToInfo):
+            return True
+        end = 0
+        for info in sorted(archive.NameToInfo.values(), key=lambda i: i.header_offset):
+            if info.header_offset != end or info.flag_bits & 0x08:
+                return True
+            file.seek(info.header_offset)
+            header = file.read(30)
+            if len(header) != 30 or header[:4] != b"PK\x03\x04":
+                return True
+            name_length = int.from_bytes(header[26:28], "little")
+            extra_length = int.from_bytes(header[28:30], "little")
+            end += 30 + name_length + extra_length + info.compress_size
+        return end != archive.start_dir
+
+
+def zip_dead_bytes(archive: zipfile.ZipFile) -> int:
+    """Bytes of the member area no live member accounts for (0 for a fresh archive).
+
+    The member area runs from offset 0 to ``start_dir`` (where the central
+    directory is written at close); whatever the live members' local headers
+    and compressed data don't cover is dead — pruned or superseded members,
+    including any inherited when the archive was copied from another. A local
+    header is reconstructed as ``FileHeader(zip64=True)``: exact for members
+    written with ``force_zip64``, and 20 bytes over for ``writestr`` members,
+    so the count is if anything an under-estimate.
+    """
+    live = sum(
+        len(info.FileHeader(zip64=True)) + info.compress_size
+        for info in archive.NameToInfo.values()
+    )
+    return max(0, archive.start_dir - live)

@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from inspect_ai.approval import Approver
     from inspect_ai.hooks._hooks import Hooks
     from inspect_ai.model import ModelAPI
+    from inspect_ai.review import Reviewer
     from inspect_ai.scorer import Metric, Scorer, ScoreReducer
     from inspect_ai.solver import Plan, Solver
     from inspect_ai.tool import Tool
@@ -41,6 +42,7 @@ RegistryType = Literal[
     "agent",
     "approver",
     "hooks",
+    "reviewer",
     "metric",
     "modelapi",
     "plan",
@@ -335,6 +337,12 @@ def registry_create(type: Literal["agent"], name: str, **kwargs: Any) -> Agent: 
 def registry_create(
     type: Literal["approver"], name: str, **kwargs: Any
 ) -> Approver: ...
+
+
+@overload
+def registry_create(
+    type: Literal["reviewer"], name: str, **kwargs: Any
+) -> "Reviewer": ...
 
 
 @overload

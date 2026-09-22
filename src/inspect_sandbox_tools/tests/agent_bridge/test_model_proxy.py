@@ -337,8 +337,8 @@ async def test_model_proxy_multiple_methods_same_path(
             data = await response.json()
             assert data["method"] == "GET"
 
-        # Test POST
-        async with session.post(f"{base_url}/resource") as response:
+        # Test POST (every POST route takes a JSON object body)
+        async with session.post(f"{base_url}/resource", json={}) as response:
             assert response.status == 200
             data = await response.json()
             assert data["method"] == "POST"
@@ -738,6 +738,31 @@ async def proxy_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
                         "total_tokens": 50,
                     },
                 }
+            elif "test_custom_tool_call" in str(input_data):
+                # Return a ResponseCustomToolCall. The installed OpenAI SDK's
+                # ResponseCustomToolCall has no `status` field, so — unlike the
+                # other mocked output items above — this dict intentionally
+                # omits "status" to mirror what real host serialization produces.
+                return {
+                    "id": "resp_custom_tool_call",
+                    "object": "response",
+                    "created_at": 1234567890,
+                    "model": json_data.get("model", "gpt-4o"),
+                    "output": [
+                        {
+                            "id": "custom_1",
+                            "type": "custom_tool_call",
+                            "call_id": "call_custom123",
+                            "name": "my_custom_tool",
+                            "input": "custom tool input payload",
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 20,
+                        "output_tokens": 10,
+                        "total_tokens": 30,
+                    },
+                }
             elif "test_mcp_call" in str(input_data):
                 # Return an McpCall
                 return {
@@ -934,7 +959,6 @@ async def test_model_proxy_responses_non_streaming(
     ("path", "invalid_body", "valid_body"),
     [
         ("/v1/responses", {}, {"model": "gpt-4o", "input": "Hello"}),
-        ("/v1/responses", [], {"model": "gpt-4o", "input": "Hello"}),
         (
             "/v1/responses",
             {"model": []},
@@ -943,11 +967,6 @@ async def test_model_proxy_responses_non_streaming(
         (
             "/v1/chat/completions",
             {},
-            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
-        ),
-        (
-            "/v1/chat/completions",
-            [],
             {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
         ),
         (
@@ -1172,6 +1191,90 @@ async def test_model_proxy_responses_streaming_with_tool_calls(
 
     # Verify the function arguments were streamed correctly
     assert json.loads(function_arguments) == {"location": "San Francisco"}
+
+
+def _parse_sse_events(body: str) -> list[dict[str, Any]]:
+    """Parse raw SSE wire text into a list of decoded `data:` JSON payloads.
+
+    Used where a real client SDK's typed event models would silently drop a
+    field they don't declare (as the installed OpenAI SDK's
+    ``ResponseCustomToolCall`` does for ``status``), which would mask the
+    exact regression this fix addresses.
+    """
+    events = []
+    for chunk in body.split("\n\n"):
+        for line in chunk.splitlines():
+            if line.startswith("data:"):
+                events.append(json.loads(line[len("data:") :].strip()))
+    return events
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("input_trigger", "item_type", "item_id", "call_id"),
+    [
+        ("test_web_search: dispatch me", "function_call", "web_search_1", "call_ws123"),
+        (
+            "test_custom_tool_call: dispatch me",
+            "custom_tool_call",
+            "custom_1",
+            "call_custom123",
+        ),
+    ],
+)
+async def test_model_proxy_responses_streaming_output_item_done_is_completed(
+    proxy_server: tuple[AsyncHTTPServer, str],
+    input_trigger: str,
+    item_type: str,
+    item_id: str,
+    call_id: str,
+) -> None:
+    """`response.output_item.done` must carry `status: "completed"` on the wire.
+
+    A streaming client such as opencode's AI SDK requires this field to
+    register and dispatch the tool call; without it, the call is silently
+    ignored and the agent stalls. The OpenAI Python SDK's typed
+    `ResponseCustomToolCall` model has no `status` field, so parsing this
+    response through that client would hide a regression here -- this test
+    reads the raw SSE payload instead so the actual wire shape is checked,
+    for both the function-call and custom-tool-call item types.
+    """
+    _server, base_url = proxy_server
+
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}/v1/responses",
+            json={"model": "gpt-4o", "input": input_trigger, "stream": True},
+        ) as response:
+            assert response.status == 200
+            body = await response.text()
+
+    events = _parse_sse_events(body)
+    done_events = [
+        e["item"]
+        for e in events
+        if e.get("type") == "response.output_item.done"
+        and e.get("item", {}).get("type") == item_type
+    ]
+
+    assert len(done_events) == 1
+    done_item = done_events[0]
+    assert done_item["status"] == "completed"
+    # Item identity and call_id (used to match the eventual tool result) must
+    # survive unchanged -- the completion status is added, not substituted
+    # for `call_id` or the item `id`.
+    assert done_item["id"] == item_id
+    assert done_item["call_id"] == call_id
+
+    if item_type == "custom_tool_call":
+        # The custom tool's input must also make it through unmodified so the
+        # dispatched call actually runs with the model's real arguments.
+        input_done = [
+            e for e in events if e.get("type") == "response.custom_tool_call_input.done"
+        ]
+        assert len(input_done) == 1
+        assert input_done[0]["item_id"] == item_id
+        assert input_done[0]["input"] == "custom tool input payload"
 
 
 @pytest.mark.asyncio
@@ -2825,3 +2928,203 @@ async def test_anthropic_streaming_provider_error_emits_sse_error() -> None:
     assert "event: error" in text
     assert "rate_limit_error" in text
     assert "overloaded" in text
+
+
+# ---------- No cross-origin access ----------
+
+
+def _assert_no_cross_origin_headers(headers: Any) -> None:
+    """The proxy has no browser clients, so no response may grant cross-origin access."""
+    offending = [k for k in headers if k.lower().startswith("access-control-")]
+    assert offending == [], offending
+
+
+_BROWSER_HEADERS = {"Origin": "http://example.test"}
+
+
+@pytest.fixture
+async def proxy_server_recording_bridge() -> AsyncGenerator[
+    tuple[str, list[tuple[str, dict[str, Any]]]], None
+]:
+    """The model proxy over a bridge stub that records every call it receives."""
+    from inspect_sandbox_tools._agent_bridge.proxy import model_proxy_server
+
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def recording_bridge(
+        method: str, json_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        calls.append((method, json_data))
+        return {"error": {"message": "unexpected bridge call"}}
+
+    server = await model_proxy_server(
+        port=0, call_bridge_model_service_async=recording_bridge
+    )
+    server.server = await asyncio.start_server(
+        server._handle_client, server.host, server.port
+    )
+    port = server.server.sockets[0].getsockname()[1]
+    try:
+        yield f"http://127.0.0.1:{port}", calls
+    finally:
+        server.server.close()
+        await server.server.wait_closed()
+
+
+_POST_ROUTES = [
+    "/v1beta/models/inspect:generateContent",
+    "/models/inspect:generateContent",
+    "/v1/chat/completions",
+    "/v1/responses",
+    "/v1/messages",
+    "/mcp/test-server",
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", _POST_ROUTES)
+async def test_preflight_free_post_never_reaches_the_bridge(
+    proxy_server_recording_bridge: tuple[str, list[tuple[str, dict[str, Any]]]],
+    path: str,
+) -> None:
+    """A cross-origin POST a browser sends without a preflight is rejected unserved.
+
+    `fetch(url, {mode: "no-cors", method: "POST", body: "{}"})` arrives with a
+    `text/plain` content type. The Google routes take the model from the URL,
+    so without this check they would generate on such a request.
+    """
+    base_url, calls = proxy_server_recording_bridge
+    headers = {**_BROWSER_HEADERS, "Content-Type": "text/plain;charset=UTF-8"}
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}{path}", data=b"{}", headers=headers
+        ) as response:
+            assert response.status == 415
+            _assert_no_cross_origin_headers(response.headers)
+            body = await response.json()
+            assert body["error"]["code"] == 415
+    assert calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", _POST_ROUTES)
+@pytest.mark.parametrize("data", [b"", b"[]", b"not json"])
+async def test_json_post_without_object_body_never_reaches_the_bridge(
+    proxy_server_recording_bridge: tuple[str, list[tuple[str, dict[str, Any]]]],
+    path: str,
+    data: bytes,
+) -> None:
+    """A JSON POST whose body is empty, not an object, or unparseable is rejected."""
+    base_url, calls = proxy_server_recording_bridge
+    headers = {"Content-Type": "application/json"}
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}{path}", data=data, headers=headers
+        ) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["error"]["code"] == 400
+    assert calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/v1/chat/completions", "/mcp/test-server"])
+async def test_options_request_is_refused_without_cross_origin_grant(
+    proxy_server: tuple[AsyncHTTPServer, str], path: str
+) -> None:
+    """OPTIONS (a browser preflight) gets 405 naming the served methods, and no grant."""
+    _, base_url = proxy_server
+    headers = {**_BROWSER_HEADERS, "Access-Control-Request-Method": "POST"}
+    async with ClientSession() as session:
+        async with session.options(f"{base_url}{path}", headers=headers) as response:
+            assert response.status == 405
+            assert response.headers["Allow"] == "GET, POST"
+            _assert_no_cross_origin_headers(response.headers)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        (
+            "/v1/chat/completions",
+            {
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "Hello"}],
+            },
+        ),
+        (
+            "/mcp/test-server",
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+        ),
+    ],
+)
+async def test_json_post_with_origin_has_no_cross_origin_headers(
+    proxy_server: tuple[AsyncHTTPServer, str], path: str, body: dict[str, Any]
+) -> None:
+    """A JSON POST carrying an Origin header is served without a cross-origin grant."""
+    _, base_url = proxy_server
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}{path}", json=body, headers=_BROWSER_HEADERS
+        ) as response:
+            assert response.status == 200
+            _assert_no_cross_origin_headers(response.headers)
+            await response.json()
+
+
+@pytest.mark.asyncio
+async def test_streamed_response_has_no_cross_origin_headers(
+    proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """An SSE response streamed by the proxy carries no cross-origin grant."""
+    _, base_url = proxy_server
+    body = {
+        "model": "gpt-4o",
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": True,
+    }
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}/v1/chat/completions", json=body, headers=_BROWSER_HEADERS
+        ) as response:
+            assert response.status == 200
+            assert response.headers["Content-Type"].startswith("text/event-stream")
+            _assert_no_cross_origin_headers(response.headers)
+            text = await response.text()
+    assert "data: [DONE]" in text
+
+
+@pytest.mark.asyncio
+async def test_relayed_upstream_response_has_no_cross_origin_headers(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """A response relayed verbatim from an upstream carries no cross-origin grant."""
+    server, base_url = http_server
+    upstream_body = b"relayed body"
+
+    @server.route("/relay", method="GET")
+    async def relay_handler(_request: dict[str, Any]) -> dict[str, Any]:
+        reader = asyncio.StreamReader()
+        reader.feed_data(upstream_body)
+        reader.feed_eof()
+        return {
+            "_relay": {
+                "status": 200,
+                "reason": "OK",
+                "headers_list": [
+                    ("Content-Type", "text/plain"),
+                    ("Content-Length", str(len(upstream_body))),
+                ],
+                "reader": reader,
+                "content_length": len(upstream_body),
+            }
+        }
+
+    async with ClientSession() as session:
+        async with session.get(
+            f"{base_url}/relay", headers=_BROWSER_HEADERS
+        ) as response:
+            assert response.status == 200
+            assert await response.read() == upstream_body
+            _assert_no_cross_origin_headers(response.headers)
