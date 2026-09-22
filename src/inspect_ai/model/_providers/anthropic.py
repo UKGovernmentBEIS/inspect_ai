@@ -219,9 +219,11 @@ from .util import (
     environment_prerequisite_error,
     forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
+    is_claude_opus_5_5_model,
     is_forced_tool_choice,
     model_base_url,
     normalize_stream_arg,
+    rejects_forced_tool_choice,
     require_azure_base_url,
     resolve_api_key,
 )
@@ -1463,7 +1465,9 @@ class AnthropicAPI(ModelAPI):
 
         Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5) run adaptive thinking by
         default and accept `disabled` to turn it off (on Opus 5 only at effort
-        `high` or below — see completion_config).
+        `high` or below — see completion_config). Fable/Mythos 5 and Opus 5.5
+        always think and reject `disabled` (400), so `"none"` leaves thinking
+        on for them (the field is omitted).
         """
         if not self.is_claude_4_7_or_later():
             # pre-4.7 models default to no thinking, so `"none"` is honored by
@@ -1472,6 +1476,9 @@ class AnthropicAPI(ModelAPI):
         if not self.is_claude_5():
             # Opus 4.7 / 4.8 (and future 4.x minors)
             return True
+        if self.is_claude_opus_5_5_or_later():
+            # unlike Opus 5, Opus 5.5 can't disable thinking at any effort
+            return False
         # Claude 5: only tier-named models accept `disabled`. Fable/Mythos also
         # always think but reject `disabled` (400) — as do unknown codename
         # Claude 5 models, which are assumed to follow Fable rather than the
@@ -1481,25 +1488,26 @@ class AnthropicAPI(ModelAPI):
     def apply_thinking_block_binding(
         self, request: dict[str, Any], betas: list[str]
     ) -> None:
-        """Opt into dropping prefix-mismatched thinking blocks on Fable 5.1.
+        """Opt into dropping prefix-mismatched thinking blocks on Fable 5.1 / Opus 5.5.
 
-        Fable 5.1 binds thinking blocks to the request prefix that produced
-        them; solvers legitimately edit history, and without drop_block such an
-        edit fails the replay with a 400. Applied to every Fable 5.1 request —
-        not only those replaying thinking blocks — so the beta header stays
-        uniform across a task's requests (the batcher submits a single header
-        set per batch). Mythos 5.1 does not run the binding check, so it is
-        excluded. First-party API only for now: the binding-controls beta
-        arrives per model on bedrock/vertex (the header is rejected until
-        then) and is not offered on foundry — until those platforms enable it,
-        a history edit there will still 400. A caller-supplied
-        `extra_body.thinking` shallow-merges over the request body and
-        replaces this binding config.
+        Fable 5.1 and Opus 5.5 bind thinking blocks to the request prefix that
+        produced them; solvers legitimately edit history, and without
+        drop_block such an edit fails the replay with a 400. Applied to every
+        request for these models — not only those replaying thinking blocks —
+        so the beta header stays uniform across a task's requests (the batcher
+        submits a single header set per batch). Mythos 5.1 does not run the
+        binding check, so it is excluded. First-party API only for now: the
+        binding-controls beta arrives per model on bedrock/vertex (the header
+        is rejected until then) and is not offered on foundry — until those
+        platforms enable it, a history edit there will still 400. A
+        caller-supplied `extra_body.thinking` shallow-merges over the request
+        body and replaces this binding config.
         """
-        if (
-            self.is_claude_fable_5_1_or_later()
-            and "mythos" not in self.model_family()
-            and not (self.is_bedrock() or self.is_vertex() or self.is_azure())
+        binds_thinking = (
+            self.is_claude_fable_5_1_or_later() and "mythos" not in self.model_family()
+        ) or self.is_claude_opus_5_5_or_later()
+        if binds_thinking and not (
+            self.is_bedrock() or self.is_vertex() or self.is_azure()
         ):
             betas.append(_THINKING_BINDING_BETA)
             # thinking is always on for these models, so explicit adaptive
@@ -1512,9 +1520,11 @@ class AnthropicAPI(ModelAPI):
         """Degrade forced tool choice to auto on models that reject it (400).
 
         "auto" and "none" pass through unchanged; strict tool use with auto
-        remains the schema-enforcement path on Fable/Mythos 5.1.
+        remains the schema-enforcement path on Fable/Mythos 5.1 and Opus 5.5.
         """
-        if is_forced_tool_choice(tool_choice) and self.is_claude_fable_5_1_or_later():
+        if is_forced_tool_choice(tool_choice) and rejects_forced_tool_choice(
+            self.model_family()
+        ):
             warn_once(
                 logger,
                 _FORCED_TOOL_CHOICE_WARNING.format(model=self.service_model_name()),
@@ -1599,10 +1609,9 @@ class AnthropicAPI(ModelAPI):
     def is_claude_fable_5_1_or_later(self) -> bool:
         return is_claude_fable_5_1_model(self.model_family())
 
-    def is_claude_opus_5_5(self) -> bool:
-        # local predicate: PR dragonstyle/opus-5-5-support adds Opus 5.5 model
-        # info and its own helper; swap to that helper when rebasing onto it.
-        return re.search(r"claude-opus-5-5(?![0-9])", self.model_family()) is not None
+    def is_claude_opus_5_5_or_later(self) -> bool:
+        """Opus 5.5 or a later point release (a subset of is_claude_opus_5)."""
+        return is_claude_opus_5_5_model(self.model_family())
 
     def computer_use_toolset(self) -> bool:
         """Whether the computer tool is declared as Anthropic's computer toolset.
@@ -1649,7 +1658,7 @@ class AnthropicAPI(ModelAPI):
         Bedrock and Foundry keep accepting it there, and every other model
         listed for the legacy tool (Fable/Mythos 5.x included) still accepts it.
         """
-        return self.is_claude_opus_5_5() and self.computer_toolset_available()
+        return self.is_claude_opus_5_5_or_later() and self.computer_toolset_available()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -1764,7 +1773,7 @@ class AnthropicAPI(ModelAPI):
             return "anthropic/claude-opus-4-6"  # 1MM
         elif self.is_claude_latest():
             # Unknown future version: assume the current 1M frontier.
-            return "anthropic/claude-opus-5"  # 1MM
+            return "anthropic/claude-opus-5-5"  # 1MM
         elif (
             self.is_claude_5() and _get_model_info_direct(self.canonical_name()) is None
         ):
@@ -1774,7 +1783,7 @@ class AnthropicAPI(ModelAPI):
             # Claude 5 models (Opus/Sonnet/Fable/Mythos and their point
             # releases, which fuzzy-match their base entry) fall through to the
             # database below.
-            return "anthropic/claude-opus-5"  # 1MM
+            return "anthropic/claude-opus-5-5"  # 1MM
         else:
             return super().input_tokens_name()
 
@@ -2155,7 +2164,8 @@ class AnthropicAPI(ModelAPI):
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
             # computer_20251124 is supported by Claude Opus 5, Sonnet 5,
-            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5
+            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5 (and by Opus 5.5 on
+            # Bedrock and Foundry, where the toolset is not offered)
             if self.is_claude_frontier() or (
                 self.is_claude_4_5() and self.is_claude_4_opus()
             ):
@@ -4900,8 +4910,9 @@ def message_stop_reason(message: Message) -> tuple[StopReason, bool]:
 def message_stop_details(message: Message) -> StopDetails | None:
     """Extract refusal detail from an Anthropic `Message.stop_details` (Opus 4.7+).
 
-    Anthropic reports a single named category (`cyber`/`bio`); it is mirrored into
-    `categories` so callers can read the list uniformly across providers.
+    Anthropic reports a single named category (`cyber`/`bio`/`reasoning_extraction`);
+    it is mirrored into `categories` so callers can read the list uniformly across
+    providers.
     """
     details = getattr(message, "stop_details", None)
     if details is None:

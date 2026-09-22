@@ -1368,7 +1368,7 @@ def _make_mock_model_info():
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = False
     model_info.is_gpt_5_plus.return_value = False
-    model_info.is_gpt_6.return_value = False
+    model_info.always_reasons.return_value = False
     model_info.reasons_by_default.return_value = False
     model_info.is_gpt_5_pro.return_value = False
     model_info.is_gpt_5_chat.return_value = False
@@ -2726,6 +2726,8 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
         ("gpt-5", True),
         ("gpt-5.6-sol", True),
         ("gpt-6-astra", True),
+        ("gpt-6-sol", True),
+        ("gpt-6-luna", True),
         ("my-gpt-6-deployment", True),
         ("gpt-35-turbo", False),
         ("gpt-4", False),
