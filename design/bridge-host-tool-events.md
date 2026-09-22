@@ -7,10 +7,11 @@ All `path:line` references are to `main` at `472cf7dd2` (2026-09-22, which
 includes #5464) unless a different tree is named. Viewer references are to
 the `ts-mono` submodule at the commit that tree pins (`02f2c5ad`), under
 `src/inspect_ai/_view/ts-mono/`. This design builds on PR #5428 (`bridge-host-tools-require-proposal`, head
-`c3879e5dd` on 2026-09-16, in review as this is written and still moving),
+`9559183f89` on 2026-09-22, in review as this is written and still moving),
 which makes execution grants unconditional and resolves proposals against
-the tools the scaffold declared; the grant behaviour described here is
-#5428's at that head, cited by function name rather than line.
+the tools the scaffold declared by the content the bridge served for them;
+the grant behaviour described here is #5428's at that head, cited by
+function name rather than line.
 
 ## Why
 
@@ -25,8 +26,8 @@ execution-edge check is disabled pending #5428 (`service.py:254-257`),
 because scaffolds present bridged tools to the model under names the grant
 resolution did not recognise, and #5428 re-enables it for every call, with
 or without a policy, resolving proposals against the tools the scaffold
-declared, unless the server's `BridgedToolsSpec` sets
-`require_proposal=False`. #5464 (merged 2026-09-21) made the host call
+declared by the description and schema the bridge served, unless the
+server's `BridgedToolsSpec` sets `require_proposal=False`. #5464 (merged 2026-09-21) made the host call
 validate arguments and classify exceptions as a native call does, failing
 the sample on an unexpected one.
 
@@ -170,10 +171,12 @@ After #5428 (the tree this design targets):
 
 - `AgentBridge.register_tool_execution_grants(calls, tools)` is the hook,
   with `tools` the declarations the scaffold made to the model in the
-  request that produced the response; `bridge_generate` passes
-  `original_tools`. The base is a no-op and `AgentBridge.grants_tool_execution`
-  is `False`; `SandboxAgentBridge` sets it `True` and overrides the hook.
-- The override records a grant for every bridged-tool call in every response
+  request that produced the response, as this attempt generated with them
+  (a filter may have rewritten them; `bridge_generate` passes that `tools`
+  value, not the pre-filter original). The base is a no-op and
+  `AgentBridge.grants_tool_execution` is `False`; `SandboxAgentBridge` sets
+  it `True` and overrides the hook.
+- The override records grants for every bridged-tool call in every response
   handed to the scaffold, whether or not a policy is active, except for
   servers in `SandboxAgentBridge.proposal_exempt_servers` (those registered
   with `BridgedToolsSpec(require_proposal=False)`, called "exempt servers"
@@ -181,27 +184,28 @@ After #5428 (the tree this design targets):
   `BridgedToolsSpec`: the named MCP server the in-container proxy exposes at
   `/mcp/<spec.name>` for that spec's tools (`bridge.py:271-280`), not the
   model or the sandbox.
-- Resolution is declaration-aware (`_proposed_call`): a call to a name the
-  scaffold never declared denotes nothing; a Codex Responses API namespace
-  on the declaration pins the server; a bridged tool the scaffold
-  unmistakably declared under another name (a namespaced declaration, or a
-  qualified candidate name carrying the description the bridge served in
-  `tools/list`, `_claims`) is not matched under a bare name, so a
-  scaffold-local tool cannot stand in for it; Antigravity's single
-  `call_mcp_tool(ServerName, ToolName, Arguments)` dispatcher is recognised
-  by name and declared parameters, and the target and the granted arguments
-  come from the call's `ServerName`, `ToolName` and `Arguments`. A call that
-  still denotes more than one bridged tool registers no grant (fail closed,
-  with a warning).
-- `_candidate_functions` reproduces each scaffold's model-facing name for a
-  bridged tool: Claude Code (`mcp__<server>__<tool>`, sanitised), Codex CLI
-  (the bare sanitised name inside a `mcp__<server>` namespace, and the older
-  flat `mcp__<server>__<tool>`, at both the 64-byte and 128-byte caps with
-  the SHA-1 suffix), Gemini CLI (`mcp_<server>_<tool>` with the 63-character
-  collapse, and the older `<server>__<tool>`), OpenCode (`<server>_<tool>`),
-  Kimi Code (`mcp__<server>__<tool>` with underscore collapsing and the
-  FNV-1a suffix over 64 characters), plus the bare name for a pass-through
-  scaffold. Antigravity has no per-tool function.
+- Resolution is by served content (`_proposed_call`,
+  `_resolve_by_served_content`): the called name is ignored, because every
+  scaffold renames MCP tools under its own scheme. The call's declaration
+  (looked up by name among `tools`; a call to a name the scaffold never
+  declared denotes nothing) is matched to a bridged tool by the description
+  the bridge served for it in `tools/list`, exact after trimming or a
+  truncation of at least 64 characters, and when several bridged tools
+  match, by input-schema shape (the served property and required names as
+  a subset of the declaration's) to break the tie. Failing that, a
+  dispatcher call whose arguments name a bridged server and tool
+  (Antigravity's `call_mcp_tool(ServerName, ToolName, Arguments)`,
+  `_dispatched_call`) denotes that tool with the inner `Arguments`. Tools
+  that still cannot be told apart (same description, schema shape cannot
+  separate them; `warn_indistinct_tools` names them at setup) each get a
+  grant bound to the call's arguments, so one proposal authorises one
+  execution of each of them.
+- This is scaffold-agnostic. #5428 verified that Claude Code, Codex CLI
+  (both its naming forms), Gemini CLI, OpenCode, Kimi Code and Antigravity
+  forward the MCP description to their models unchanged (or truncated), so
+  no per-scaffold name reproduction lives in core any more; a scaffold that
+  rewrote descriptions beyond truncation would have its proposals
+  unrecognised and its host calls denied.
 - `call_tool` denies unless the server is exempt or a grant is consumed;
   `tool_approval_required()` is removed. The denial is still a
   `PermissionError`, now reading "Host tool call '<server>/<tool>' was not
@@ -398,18 +402,37 @@ class _ToolExecutionGrant(NamedTuple):
 - `register_tool_execution_grants(calls, tools, *, span_id: str | None =
   None)` keeps #5428's two positional parameters and adds the keyword, on
   both the base `AgentBridge` hook (`src/inspect_ai/agent/_bridge/types.py`)
-  and the sandbox override; `bridge_generate` passes `original_tools` as
-  today and the captured span. The base change is required because
-  `bridge_generate` is shared by in-process and sandbox bridges and calls
-  the hook for every generation, including ones without tool calls; a
+  and the sandbox override; `bridge_generate` passes the attempt's filtered
+  `tools` as today and the captured span. The base change is required
+  because `bridge_generate` is shared by in-process and sandbox bridges and
+  calls the hook for every generation, including ones without tool calls; a
   keyword only the override accepted would raise `TypeError` on every
-  in-process generation. The override stores the resolved `call` and the
-  span with each grant. Registration policy (declaration-aware resolution,
-  unconditional, ambiguity fails closed, bounded store) is #5428's and is
-  not changed here. For Antigravity the stored `call` is the
-  `call_mcp_tool` dispatcher call, so `metadata.bridge.function` reads
-  `call_mcp_tool` and `view` is the dispatcher's; `arguments` on the event
-  are the inner `Arguments` as executed, which is what the grant binds.
+  in-process generation. The override stores the proposing `call` and the
+  span with each grant it registers. Registration policy (served-content
+  resolution, unconditional, one grant per indistinct target, bounded
+  store) is #5428's and is not changed here. For Antigravity the stored
+  `call` is the `call_mcp_tool` dispatcher call, so `metadata.bridge.function`
+  reads `call_mcp_tool` and `view` is the dispatcher's; `arguments` on the
+  event are the inner `Arguments` as executed, which is what the grant
+  binds.
+- One proposal, several grants. When #5428 registers a grant for each of
+  several indistinguishable targets, every one of those records carries the
+  same proposing `call`, and if the scaffold executes more than one of them
+  the events must not share an id: `ToolEvent.id` is what ACP's card state,
+  the viewer's approval and navigation maps, the control server's
+  cancellation and `InterruptEvent` cross-references key on. The bridge
+  therefore keeps `_paired_proposals: set[str]` beside the grant store. On
+  consumption, if `grant.call.id` is not in the set, the event takes the
+  proposing id and the set records it; otherwise the event gets a fresh id.
+  `metadata.bridge.proposal_id` carries `grant.call.id` on every consumed
+  grant, so the second and later executions still name the proposal they
+  came from, and placement under the proposal's span applies to all of
+  them. The set is bounded by the grant store's size in practice (an id
+  enters it only when a grant is consumed) and is not tracked across a
+  checkpoint restore, as the grants are not. This case is expected to be
+  rare: one proposal names one function, and it arises only when an eval
+  bridges two servers whose tools share a description and the scaffold
+  executes on both.
 - `consume_tool_execution_grant(server, tool, arguments) ->
   _ToolExecutionGrant | None` returns the matched record instead of `bool`.
   Matching is unchanged (`_json_equal`, one-shot, oldest first).
@@ -423,21 +446,20 @@ class _ToolExecutionGrant(NamedTuple):
   `test_opted_out_server_stores_no_grants` inverts accordingly (decision:
   Ransom, 2026-09-15).
 - Pairing limits. Attribution inherits #5428's matching, so it is exact for
-  every scaffold #5428 resolves (Claude Code, Codex CLI in both its naming
-  forms, Gemini CLI in both, OpenCode, Kimi Code, Antigravity through its
-  dispatcher) and absent for a scaffold whose scheme `_candidate_functions`
-  does not reproduce (its calls are denied, or on an exempt server execute
-  unpaired). One case can attach the wrong proposal's `id` and span to an
-  event while `server`, `tool` and `arguments` stay exact: two proposals in
-  flight for the same tool with identical arguments are consumed in
-  proposal order rather than the scaffold's execution order, so their ids
-  may be swapped between two otherwise identical events. The scaffold-local
-  collision the round-1 text described (a local tool with a bridged tool's
-  bare name minting a grant) is closed by #5428's declaration-aware
-  resolution except for a pass-through scaffold that declares a local tool
-  and a bridged tool under the same bare name, which is a naming conflict
-  in the scaffold itself; the bridged-tools docs already ask for unique
-  names.
+  every scaffold that forwards the served description unchanged or
+  truncated (the six #5428 verified: Claude Code, Codex CLI in both its
+  naming forms, Gemini CLI, OpenCode, Kimi Code, and Antigravity through
+  its dispatcher) and absent for a scaffold that rewrites descriptions (its
+  calls are denied, or on an exempt server execute unpaired). One case can
+  attach the wrong proposal's `id` and span to an event while `server`,
+  `tool` and `arguments` stay exact: two proposals in flight for the same
+  tool with identical arguments are consumed in proposal order rather than
+  the scaffold's execution order, so their ids may be swapped between two
+  otherwise identical events. A scaffold-local tool can only mint a grant
+  for a bridged tool by carrying that tool's served description, which is
+  not a naming collision but a duplicated tool; the bridged-tools docs ask
+  for unique names and #5428's `warn_indistinct_tools` flags duplicated
+  descriptions at setup.
 
 Capturing the proposing event's span, in `bridge_generate`
 (`src/inspect_ai/agent/_bridge/util.py:562`):
@@ -450,8 +472,9 @@ Capturing the proposing event's span, in `bridge_generate`
   nothing is installed (installing one would disable partial-output
   publishing, `_model.py:1394-1401`); the `ModelEvent` was stamped with
   `current_span_id()` in this same task.
-- After approval, `register_tool_execution_grants(calls, original_tools,
-  span_id=captured)` where `captured` is the remembered span if it differs
+- After approval, `register_tool_execution_grants(calls, tools,
+  span_id=captured)`, `tools` being what #5428 passes today, where
+  `captured` is the remembered span if it differs
   from `current_span_id()` at that moment, else `None`. Storing only a
   differing span keeps executions under the checkpointer's rotating
   `checkpoint N` span when no re-attribution happened: a stored checkpoint
@@ -523,7 +546,12 @@ Control flow, in order:
    tool on a known server: the same with `error=ToolCallError("parsing",
    "Unknown tool '<tool>' in server '<server>'")`. Both mirror the native
    "Tool X not found" parsing error (`_call_tools.py:799`); the messages
-   the scaffold receives are byte-identical to today's.
+   the scaffold receives are byte-identical to today's. Resolution runs
+   before any look at `arguments`, so on a request that is invalid in both
+   ways the resolution error wins; `ToolEvent.arguments` requires a dict, so
+   when `arguments` is not one the event records `{}` and the error message
+   is unchanged (the shape is not described, to keep the wire text
+   byte-identical).
 2. **Check arguments.** Two checks, both recorded as a completed `parsing`
    event with a fresh id and raised as `ToolParsingError` so the scaffold
    receives the same model-facing RPC error #5464 produces today. First the
@@ -560,12 +588,13 @@ Control flow, in order:
    ```python
    with parent_span(grant.span_id if grant else None):
        event = ToolEvent(                                  # stamped with the parent span
-           id=grant.call.id if grant else uuid(),          # shortuuid, as for event uuids
+           id=bridge.paired_event_id(grant) if grant else uuid(),  # proposing id once per proposal, else fresh
            function=tool,                                  # the registered ToolDef name, always
            arguments=arguments,                            # as executed
            view=grant.call.view if grant else None,
            pending=True,
-           metadata={"bridge": {..., "function": grant.call.function if grant else None}},
+           metadata={"bridge": {..., "function": grant.call.function if grant else None,
+                                "proposal_id": grant.call.id if grant else None}},
        )
        waiting_start = sample_waiting_time()
        async with span(name=tool, type="tool"):            # parent = the event's span
@@ -635,7 +664,7 @@ Ransom, 2026-09-15). When a limit applies,
 text, which is both what the scaffold receives over MCP and what the event
 records, with `truncated=(raw_bytes, limit)`; otherwise `truncated=None`.
 Delivered and recorded results are always the same bytes. List results are
-not truncated, as native. This is the third scaffold-facing change (see
+not truncated, as native. This is the second scaffold-facing change (see
 Compatibility); for evals that configure a limit it also bounds the inline
 copy of the result in the log, which `walk_tool_event` never condenses into
 an attachment.
@@ -712,6 +741,7 @@ No new field. `BaseEvent.metadata` (`_base.py:29`) carries:
     "server": "calc",
     "tool": "calculator_add",
     "function": "mcp__calc__calculator_add",
+    "proposal_id": "toolu_01",
     "grant": "consumed"
   }
 }
@@ -724,10 +754,14 @@ No new field. `BaseEvent.metadata` (`_base.py:29`) carries:
   kind mapping (`_tool_kind_for(event.function)`) sees the bare name.
 - `function`: the model-facing name the proposing call used, which
   scaffolds rewrite (Claude Code's `mcp__calc__calculator_add`, OpenCode's
-  `calc_calculator_add`, and so on, per #5428's `_candidate_functions`);
-  `null` when no proposal matched. This is "the function name as the
-  model saw it", kept out of `ToolEvent.function` so the same tool is not
-  recorded under two spellings in one transcript.
+  `calc_calculator_add`, Antigravity's `call_mcp_tool`, and so on); `null`
+  when no proposal matched. This is "the function name as the model saw
+  it", kept out of `ToolEvent.function` so the same tool is not recorded
+  under two spellings in one transcript.
+- `proposal_id`: the proposing `ToolCall.id` on every consumed grant. It
+  equals `ToolEvent.id` except for the second and later executions of a
+  proposal that #5428 granted to several indistinguishable targets, which
+  get a fresh `id`; `null` when no proposal matched.
 - `grant`: `"consumed"` (a proposal matched: `id` is the proposing call's id
   and the event sits in that proposal's span), `"denied"` (server requires a
   proposal and none matched), `"exempt"` (server registered with
@@ -871,6 +905,10 @@ actions, and the native path has no switch either.
   registered tool name) only feeds the update's content and kind. Today the ordering would be: synth start,
   update (real event pending), update (real event completed), update
   (message settle); after the change the last update is gone.
+- A second execution of a multi-target proposal carries a fresh id, so it
+  maps as its own start and update while the first execution updated the
+  synthesised card; a client that reads `metadata.bridge.proposal_id` can
+  group them, ACP itself does not. The same holds on replay.
 - Unpaired host events (fresh id) map as their own start and update. With
   #5428 an unmatched call executes only on an exempt server; a proposal that
   failed to match there (ambiguous name, arguments the scaffold altered)
@@ -904,7 +942,11 @@ node
 (`transcript/ToolEventView.tsx:67`, `:106`, `:179`;
 `transform/toolApprovals.ts:44`). Approvals of paired host calls therefore
 move from flat rows into the tool panel. Denials render as a failed tool
-panel with the permission message.
+panel with the permission message. For a proposal that executed on several
+indistinguishable targets, the approval pairs with and navigation from the
+result message resolves to the first execution (the one carrying the
+proposing id); later ones render as ordinary tool panels whose
+`metadata.bridge.proposal_id` names the proposal.
 
 Two rules regress for a bridged turn that mixes host and scaffold-run tool
 calls, because both are keyed on "is there any tool event here" rather than
@@ -941,7 +983,7 @@ either way.
 
 | Outcome | `id` | `metadata.bridge.function` | `error` | `failed` | `metadata.bridge.grant` | RPC/MCP result to scaffold |
 |---|---|---|---|---|---|---|
-| Executed, grant consumed | proposing `ToolCall.id` | as the model saw it | mapped failure or `None` | `True` only for an unmapped exception (the sample then fails, #5464) | `consumed` | unchanged; on failure the original exception text |
+| Executed, grant consumed | proposing `ToolCall.id` (fresh, with `metadata.bridge.proposal_id`, for a second execution of the same proposal) | as the model saw it | mapped failure or `None` | `True` only for an unmapped exception (the sample then fails, #5464) | `consumed` | unchanged; on failure the original exception text |
 | Executed on an exempt server, no grant | fresh | `null` | as above | as above | `exempt` | unchanged |
 | Executed, string result over a configured output limit | as executed | as executed | `None` | `None` | as executed | **changed**: the native truncation wrapper text; event `truncated=(raw, limit)` |
 | Denied (server requires a proposal, none matched) | fresh | `null` | `permission` | `None` | `denied` | unchanged from #5428 (`PermissionError` text) |
@@ -973,8 +1015,9 @@ viewer it is a failed tool panel; in `events_df` it is a row with
   completed `ModelEvent` needs a second `_event_updated`, which re-delivers
   it to hooks.
 - **Emitting the tool event through `ModelEventSink`.** Would let a sink
-  place the event itself, but widens a `ModelEvent`-only protocol whose one
-  implementer lives outside this repo. Reading the span the sink assigned
+  place the event itself, but widens a `ModelEvent`-only protocol whose two
+  implementers live outside this repo (inspect_swe's `LiveConsumer` and
+  `CodexConsumer`). Reading the span the sink assigned
   through a private wrapper gives the same placement without changing the
   protocol, so that is what the design does.
 - **Placing every host event under the service task's current span.** Zero
@@ -1168,10 +1211,26 @@ tests do, and subscribe a recorder to count emissions):
   then `b`): the first execution pairs with `a` and the second with `b`,
   deterministically, so a later change to the grant store cannot silently
   alter the documented oldest-first pairing.
+- One proposal, two indistinguishable targets (two servers serving a tool
+  with the same description and schema; #5428 registers two grants for one
+  call `p`): executing both yields a first event with `id == "p"` and a
+  second with a fresh id, both with `metadata.bridge.proposal_id == "p"`,
+  `grant == "consumed"`, and both under the proposal's span. ACP: exactly
+  one update to the synthesised card plus one separate start and update.
+  The viewer fixture below adds this case.
+- Combined-invalid requests: an unknown server with `arguments` that is a
+  list, and a known tool with a list: the first records the unknown-server
+  `parsing` event with `arguments == {}` and raises the unknown-server
+  `ValueError`; the second records the schema-validation message with
+  `arguments == {}` and raises `ToolParsingError`. Neither awaits the tool.
 - Large arguments on a denied call: a 1 MiB string argument is recorded on
   the event as sent and `condense_sample` turns it into an attachment;
   there is no cap beyond the service's request read limit, by decision
-  (the same input already reaches `ModelEvent` inputs unbounded).
+  (the same input already reaches `ModelEvent` inputs unbounded). A
+  `@pytest.mark.slow` Docker case sends a 64 MiB argument through the
+  proxy, asserts the sample completes with the event recorded and
+  condensed, and records peak RSS in the test log; the deliberate exposure
+  is one extra in-memory copy of the arguments for the event's lifetime.
 - Failure paths: tool raises `ToolError`, `PermissionError`,
   `TimeoutError("tool-specific timeout")`, a `SandboxTimeoutError` with
   truncated output, an unmapped exception, and `LimitExceededError`. Assert
@@ -1251,10 +1310,12 @@ Docker (slow), `tests/tools/test_tools_bridge.py`; these run in PR CI's
   returns all 4 KiB.
 
 Viewer, ts-mono: vitest cases for the coverage-keyed `showToolCalls` and
-`recentInputMessages` rules over two fixtures: a bridged turn at the top
-level mixing a paired host tool event and a scaffold-run call, and an
+`recentInputMessages` rules over three fixtures: a bridged turn at the top
+level mixing a paired host tool event and a scaffold-run call; an
 `agent` span containing the proposing `ModelEvent`, the host tool span and
-event, and the next `ModelEvent` whose input carries the result message.
+event, and the next `ModelEvent` whose input carries the result message;
+and a proposal executed on two indistinguishable targets (one event with
+the proposing id, one with a fresh id and `proposal_id`).
 Assert: the scaffold-run call still renders inline, its result is still
 surfaced, the host call is omitted inline and rendered once as a tool
 panel with an empty child list followed by a sibling `tool` span node
@@ -1292,8 +1353,9 @@ native tool events on its own.
    parameters, and pass it from `bridge_generate`; add `call` and `span_id` to
    `_ToolExecutionGrant`, return the record from
    `consume_tool_execution_grant`, store grants for exempt servers, add
-   `_SpanCapturingSink` and the capture in `bridge_generate`, update the
-   grant check in `call_tool` to the new return type. Invert
+   `_paired_proposals` and `paired_event_id()`, add `_SpanCapturingSink`
+   and the capture in `bridge_generate`, update the grant check in
+   `call_tool` to the new return type. Invert
    `test_opted_out_server_stores_no_grants`; add the span-capture tests;
    confirm the in-process `bridge_generate` tests still pass.
 2. **Span parent helper** (`src/inspect_ai/util/_span.py`, `tests/util/`):
@@ -1315,7 +1377,7 @@ native tool events on its own.
    `docs/agent-bridge.qmd` Transcript section and the bridged-tools section
    for the argument checks and output limit, `CHANGELOG.md`).
 6. **Viewer companion** (ts-mono PR): coverage-keyed `showToolCalls` and
-   tool-message hiding at the timeline level, with the two fixtures. Lands
+   tool-message hiding at the timeline level, with the three fixtures. Lands
    together with PR C through the submodule pointer bump, per
    `.agents/skills/land-ts-mono/SKILL.md` (decision: Ransom, 2026-09-15), so
    no release carries host tool events without the viewer rules.
@@ -1338,8 +1400,9 @@ together with the Python change, as cross-repo PRs normally do.
   proposed, with a per-spec opt-out) is #5428, in review alongside this
   design. This design assumes it and adds only the `ToolCall` and span to
   its grant record.
-- **Parity of the host path with native execution**: `validate_tool_input`,
-  `tool_params` coercion, `ToolDef.viewer` for the event's `view`.
+- **Parity of the host path with native execution** beyond what #5464
+  landed: `tool_params` coercion of arguments, `ToolDef.viewer` for the
+  event's `view`.
 - **Tool result review for host tools.** A `review` policy
   (`Task(review=)`, `eval(review=)`, `react(review=)`) does not cover a
   bridged host tool today: native `execute_tools` runs `_apply_tool_review`
@@ -1373,7 +1436,7 @@ together with the Python change, as cross-repo PRs normally do.
 - **A closed-span fallback for captured spans**: tracking `SpanEndEvent`s
   through a bridge-side transcript subscription so an execution whose
   proposal's span has since closed is placed under the current span
-  instead. Not needed for the known sink (its sub-agent spans outlive the
-  sub-agent's calls) and both trees nest by `span_id` regardless.
+  instead. Not needed for either known sink (their sub-agent spans outlive
+  the sub-agent's calls) and both trees nest by `span_id` regardless.
 - **Scaffold-run tool calls** remain without `ToolEvent`s; the
   `in_bridge_model_generate` synthesis in ACP stays for them.
