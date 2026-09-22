@@ -9,6 +9,7 @@ gets full frontier behavior (responses API, reasoning options, etc.).
 import pytest
 
 from inspect_ai.model._openai import (
+    always_reasons_model,
     is_gpt_5_model,
     is_gpt_5_plus_model,
     is_gpt_6_model,
@@ -113,13 +114,20 @@ def test_is_latest_model_helper_handles_bedrock_prefix() -> None:
     assert is_latest_model("openai.gpt-5.5") is False
 
 
-# -- GPT-6 (gpt-6-astra) --
+# -- GPT-6 (gpt-6-astra, gpt-6-sol, gpt-6-luna) --
 #
 # Family detection is version-based ("gpt-5 or greater"), so a new major version
 # inherits frontier behavior without a code change per release.
 
 # gpt-7 does not exist; it guards that the next major version needs no code change
-GPT_6_MODELS = ["gpt-6-astra", "gpt-6", "GPT-6-Astra", "gpt-7"]
+GPT_6_MODELS = [
+    "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
+    "gpt-6",
+    "GPT-6-Astra",
+    "gpt-7",
+]
 
 
 @pytest.mark.parametrize("model_name", GPT_6_MODELS)
@@ -170,6 +178,46 @@ def test_gpt_5_helpers_are_version_based() -> None:
     assert is_gpt_5_plus_model("gpt-6") is True
     assert is_gpt_6_model("gpt-5.6-sol") is False
     assert is_gpt_6_model("gpt-6-astra") is True
+    assert is_gpt_6_model("gpt-6-sol") is True
+    assert is_gpt_6_model("gpt-6-luna") is True
+
+
+# -- always_reasons: Astra is the only GPT-6 model that rejects `none` effort --
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    ["gpt-6-astra", "GPT-6-Astra", "openai.gpt-6-astra", "my-gpt-6-astra-deployment"],
+)
+def test_gpt_6_astra_always_reasons(model_name: str) -> None:
+    assert always_reasons_model(model_name) is True
+    assert _api(model_name).always_reasons() is True
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "gpt-6-sol",
+        "gpt-6-luna",
+        "GPT-6-Sol",
+        "openai.gpt-6-luna",
+        "my-gpt-6-sol-deployment",
+        "gpt-6",
+        "gpt-7",
+        "gpt-5.6-sol",
+        "gpt-5.6-luna",
+    ],
+)
+def test_gpt_6_sol_luna_can_disable_reasoning(model_name: str) -> None:
+    assert always_reasons_model(model_name) is False
+    assert _api(model_name).always_reasons() is False
+
+
+@pytest.mark.parametrize("model_name", CODENAME_MODELS)
+def test_codename_models_do_not_always_reason(model_name: str) -> None:
+    # whether a codename rejects sampling params is unknown, so codenames keep
+    # the gpt-5.x behavior (`none` effort re-enables sampling params)
+    assert _api(model_name).always_reasons() is False
 
 
 def test_gpt_6_input_tokens_name_unchanged() -> None:

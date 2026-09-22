@@ -153,15 +153,32 @@ def is_gpt_5_model(model_name: str) -> bool:
 
 
 def is_gpt_5_plus_model(model_name: str) -> bool:
-    """gpt-5.1 or later: reasoning can be turned off with `none` effort (until gpt-6, see `is_gpt_6_model`)."""
+    """gpt-5.1 or later: reasoning can be turned off with `none` effort (except the models in `always_reasons_model`)."""
     version = openai_gpt_version(model_name)
     return version is not None and version >= (5, 1)
 
 
 def is_gpt_6_model(model_name: str) -> bool:
-    """gpt-6 or later: always reasons, so sampling params are rejected outright."""
+    """gpt-6 or any later major version (family detection only; see `always_reasons_model` for which members can't disable reasoning)."""
     version = openai_gpt_version(model_name)
     return version is not None and version >= (6, 0)
+
+
+# searched rather than anchored (like `_GPT_VERSION_RE`) so hosting prefixes
+# (`openai.gpt-6-astra`) and Azure deployment names (`my-gpt-6-astra-deployment`)
+# resolve too
+_ALWAYS_REASONS_RE = re.compile(r"gpt-6-astra")
+
+
+def always_reasons_model(model_name: str) -> bool:
+    """GPT-family models whose reasoning can't be turned off with `none` effort.
+
+    The API rejects `none` with an error and, since reasoning is always on,
+    rejects sampling params (`temperature`, `top_p`, logprobs) outright. Within
+    GPT-6 only Astra behaves this way; Sol and Luna accept `none` like gpt-5.1+
+    (see https://developers.openai.com/api/docs/guides/reasoning).
+    """
+    return _ALWAYS_REASONS_RE.search(model_name.lower()) is not None
 
 
 def is_o_series_model(model_name: str) -> bool:
