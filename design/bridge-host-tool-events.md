@@ -7,11 +7,11 @@ All `path:line` references are to `main` at `472cf7dd2` (2026-09-22, which
 includes #5464) unless a different tree is named. Viewer references are to
 the `ts-mono` submodule at the commit that tree pins (`02f2c5ad`), under
 `src/inspect_ai/_view/ts-mono/`. This design builds on PR #5428 (`bridge-host-tools-require-proposal`, head
-`9559183f89` on 2026-09-22, in review as this is written and still moving),
-which makes execution grants unconditional and resolves proposals against
-the tools the scaffold declared by the content the bridge served for them;
-the grant behaviour described here is #5428's at that head, cited by
-function name rather than line.
+`e5e3cab8f`, the head Ransom called stable on 2026-09-22), which makes
+execution grants unconditional and resolves proposals against the tools the
+scaffold declared by the content the bridge served for them; the grant
+behaviour described here is #5428's at that head, cited by function name
+rather than line.
 
 ## Why
 
@@ -167,13 +167,19 @@ On `main` (`472cf7dd2`):
   is not registered with the checkpointer, so grants do not survive a
   checkpoint restore.
 
-After #5428 (the tree this design targets):
+After #5428 (the tree this design targets, head `e5e3cab8f`):
 
 - `AgentBridge.register_tool_execution_grants(calls, tools)` is the hook,
   with `tools` the declarations the scaffold made to the model in the
-  request that produced the response, as this attempt generated with them
-  (a filter may have rewritten them; `bridge_generate` passes that `tools`
-  value, not the pre-filter original). The base is a no-op and
+  request that produced the response. `bridge_generate` builds that list
+  from two sources: the attempt's `tools` as generated with (a filter may
+  have rewritten them), plus `declared_in_input(input_messages)`, the tools
+  a Responses scaffold declared inside the conversation rather than the
+  request's tools array (tools discovered through `tool_search`, which the
+  model sees in a `tool_search_output` result), extracted from the input the
+  model actually generated from. It passes `[*tools, *declared_in_input(...)]`
+  as one sequence; the in-input declarations take part only in resolving
+  grants and are never sent to the model. The base is a no-op and
   `AgentBridge.grants_tool_execution` is `False`; `SandboxAgentBridge` sets
   it `True` and overrides the hook.
 - The override records grants for every bridged-tool call in every response
@@ -185,27 +191,42 @@ After #5428 (the tree this design targets):
   `/mcp/<spec.name>` for that spec's tools (`bridge.py:271-280`), not the
   model or the sandbox.
 - Resolution is by served content (`_proposed_call`,
-  `_resolve_by_served_content`): the called name is ignored, because every
-  scaffold renames MCP tools under its own scheme. The call's declaration
-  (looked up by name among `tools`; a call to a name the scaffold never
-  declared denotes nothing) is matched to a bridged tool by the description
-  the bridge served for it in `tools/list`, exact after trimming or a
-  truncation of at least 64 characters, and when several bridged tools
-  match, by input-schema shape (the served property and required names as
-  a subset of the declaration's) to break the tie. Failing that, a
-  dispatcher call whose arguments name a bridged server and tool
-  (Antigravity's `call_mcp_tool(ServerName, ToolName, Arguments)`,
-  `_dispatched_call`) denotes that tool with the inner `Arguments`. Tools
-  that still cannot be told apart (same description, schema shape cannot
-  separate them; `warn_indistinct_tools` names them at setup) each get a
-  grant bound to the call's arguments, so one proposal authorises one
-  execution of each of them.
+  `_resolve_by_served_content`, against `SandboxAgentBridge.served_tools`,
+  the `ToolInfo` the bridge served per bridged tool in `tools/list`): the
+  called name is ignored, because every scaffold renames MCP tools under its
+  own scheme. The call's declaration (looked up by name among the
+  declarations; a call to a name the scaffold never declared denotes
+  nothing) is matched to a bridged tool by the served description, exact
+  after trimming or a truncation of at least 64 characters, and when several
+  bridged tools match, by input-schema shape (the served property and
+  required names as a subset of the declaration's) to break the tie. Failing
+  that, the call may be a dispatcher call (`_dispatched_call`): recognised
+  by its function name first, `call_mcp_tool`, and only then by its argument
+  shape (string `ServerName` and `ToolName` naming a registered bridged tool
+  and an object `Arguments`), denoting that tool with the inner `Arguments`.
+  The name gate is what stops an ordinary call whose arguments happen to
+  carry those fields from minting a grant for, or borrowing the approval
+  policy of, a bridged tool; approval and grant resolution share the one
+  function so they cannot disagree. Tools that still cannot be told apart
+  (same description, schema shape cannot separate them;
+  `warn_indistinct_tools` names them at setup) each get a grant bound to the
+  call's arguments, so one proposal authorises one execution of each of
+  them.
 - This is scaffold-agnostic. #5428 verified that Claude Code, Codex CLI
-  (both its naming forms), Gemini CLI, OpenCode, Kimi Code and Antigravity
-  forward the MCP description to their models unchanged (or truncated), so
-  no per-scaffold name reproduction lives in core any more; a scaffold that
-  rewrote descriptions beyond truncation would have its proposals
-  unrecognised and its host calls denied.
+  (both its naming forms, and tools it discovers through `tool_search`),
+  Gemini CLI, OpenCode, Kimi Code and Antigravity forward the MCP
+  description to their models unchanged (or truncated), so no per-scaffold
+  name reproduction lives in core any more; a scaffold that rewrote
+  descriptions beyond truncation would have its proposals unrecognised and
+  its host calls denied.
+- Pinned by #5428's tests in `tests/agent/test_bridge_approval.py`, which
+  PR C carries forward unchanged: `test_tool_discovered_through_tool_search_is_granted`
+  (an in-input declaration mints a grant),
+  `test_ordinary_call_with_dispatcher_shaped_arguments_mints_no_grant` and
+  `test_dispatcher_shaped_arguments_do_not_borrow_another_tools_policy` (the
+  name gate), `test_dispatcher_call_grants_the_named_target_with_its_arguments`,
+  and `test_opted_out_server_stores_no_grants` (which this design inverts,
+  see below).
 - `call_tool` denies unless the server is exempt or a grant is consumed;
   `tool_approval_required()` is removed. The denial is still a
   `PermissionError`, now reading "Host tool call '<server>/<tool>' was not
@@ -373,7 +394,7 @@ scaffold ──tools/call──▶ proxy ──call_tool RPC──▶ service ta
                                                   │ resolve server/tool; arguments must be an object within the depth bound
                                                   │ grant = consume_tool_execution_grant(...)
                                                   │ deny if grant is None and the server requires a proposal (#5428)
-                                                  │ under parent_span(grant.span_id):
+                                                  │ under parent_span(grant.proposal.span_id):
                                                   │   ToolEvent(id = grant.proposal.take_id() | fresh, pending)   ← stamped with the parent
                                                   │   span(type="tool"): transcript()._event(event)
                                                   │     observer.track_tool_call + CancelScope
@@ -397,6 +418,10 @@ class _Proposal:
                             # "the span current when the call executes"
     paired: bool            # whether an execution has already taken call.id
 
+    def take_id(self) -> str:
+        """The event id for the next execution of this proposal: call.id the
+        first time, a fresh shortuuid after."""
+
 class _ToolExecutionGrant(NamedTuple):
     server: str
     tool: str
@@ -407,8 +432,11 @@ class _ToolExecutionGrant(NamedTuple):
 - `register_tool_execution_grants(calls, tools, *, span_id: str | None =
   None)` keeps #5428's two positional parameters and adds the keyword, on
   both the base `AgentBridge` hook (`src/inspect_ai/agent/_bridge/types.py`)
-  and the sandbox override; `bridge_generate` passes the attempt's filtered
-  `tools` as today and the captured span. The base change is required
+  and the sandbox override; `bridge_generate` passes the same declarations
+  list it builds today (the attempt's filtered `tools` plus
+  `declared_in_input(input_messages)`) and the captured span, so a tool
+  discovered through `tool_search` still mints a grant and the dispatcher
+  name gate is untouched. The base change is required
   because `bridge_generate` is shared by in-process and sandbox bridges and
   calls the hook for every generation, including ones without tool calls; a
   keyword only the override accepted would raise `TypeError` on every
@@ -483,9 +511,10 @@ Capturing the proposing event's span, in `bridge_generate`
   nothing is installed (installing one would disable partial-output
   publishing, `_model.py:1394-1401`); the `ModelEvent` was stamped with
   `current_span_id()` in this same task.
-- After approval, `register_tool_execution_grants(calls, tools,
-  span_id=captured)`, `tools` being what #5428 passes today, where
-  `captured` is the remembered span if it differs
+- After approval, `register_tool_execution_grants(calls, declarations,
+  span_id=captured)`, `declarations` being the `[*tools, *declared_in_input(...)]`
+  list #5428 builds today, where `captured` is the remembered span if it
+  differs
   from `current_span_id()` at that moment, else `None`. Storing only a
   differing span keeps executions under the checkpointer's rotating
   `checkpoint N` span when no re-attribution happened: a stored checkpoint
@@ -599,7 +628,7 @@ Control flow, in order:
 5. **Execute.**
 
    ```python
-   with parent_span(grant.span_id if grant else None):
+   with parent_span(grant.proposal.span_id if grant else None):
        event = ToolEvent(                                  # stamped with the parent span
            id=grant.proposal.take_id() if grant else uuid(),  # proposing id once per proposal, else fresh
            function=tool,                                  # the registered ToolDef name, always
@@ -1218,9 +1247,10 @@ tests do, and subscribe a recorder to count emissions):
   "Unknown tool '<tool>' in server '<server>'". Arguments nested 101 deep:
   `parsing` event with the native depth message, `ToolParsingError` raised,
   tool not awaited; arguments nested 100 deep execute. Arguments that fail
-  #5464's schema validation (a list, a missing property): `parsing` event
-  carrying the validation message and the arguments as sent,
-  `ToolParsingError` raised as today.
+  #5464's schema validation: an object-shaped failure (a missing property)
+  records the validation message and the arguments as sent, a non-object
+  (a list) records the message and `arguments == {}` (the combined-invalid
+  case below); `ToolParsingError` raised as today.
 - Two identical proposals in flight (same tool, same arguments, ids `a`
   then `b`): the first execution pairs with `a` and the second with `b`,
   deterministically, so a later change to the grant store cannot silently
@@ -1232,6 +1262,12 @@ tests do, and subscribe a recorder to count emissions):
   `grant == "consumed"`, and both under the proposal's span. ACP: exactly
   one update to the synthesised card plus one separate start and update.
   The viewer fixture below adds this case.
+- A proposal declared in the input (a Responses `tool_search` discovery,
+  the shape `test_tool_discovered_through_tool_search_is_granted` builds)
+  pairs like any other: the event carries the discovered call's id and
+  `metadata.bridge.function` its model-facing name. An ordinary call whose
+  arguments carry `ServerName`/`ToolName`/`Arguments` mints no grant, so
+  the host call it names is denied and recorded `denied`.
 - Pairing state does not grow: register and consume 1,100 one-target
   proposals in sequence (more than `_MAX_TOOL_EXECUTION_GRANTS`); after
   each, the deque is empty and the bridge holds no other per-proposal
@@ -1374,16 +1410,20 @@ native tool events on its own.
    `tests/agent/test_bridge_approval.py`). Add the `span_id: str | None =
    None` keyword to the base `AgentBridge.register_tool_execution_grants`
    hook and the sandbox override, after #5428's `(calls, tools)`
-   parameters, and pass it from `bridge_generate`; add `call` and `span_id` to
-   `_ToolExecutionGrant`, return the record from
-   `consume_tool_execution_grant`, store grants for exempt servers, add
-   `_Proposal` (with `take_id()`) shared by a call's grants, add
-   `_SpanCapturingSink` and the capture in `bridge_generate`, update the
-   grant check in `call_tool` to the new return type. Re-check #5428's
-   landed head first: it has changed its grant contract three times during
-   this design's review, and this step is written against `9559183f89`. Invert
-   `test_opted_out_server_stores_no_grants`; add the span-capture tests;
-   confirm the in-process `bridge_generate` tests still pass.
+   parameters, and pass it from `bridge_generate` alongside the
+   `[*tools, *declared_in_input(...)]` list it already builds; add
+   `_Proposal` (call, span_id, paired, `take_id()`) and replace nothing else
+   on `_ToolExecutionGrant` but add the `proposal` reference shared by a
+   call's grants; return the record from `consume_tool_execution_grant`;
+   store grants for exempt servers; add `_SpanCapturingSink` and the
+   capture in `bridge_generate`; update the grant check in `call_tool` to
+   the new return type. Leave `_proposed_call`, `_dispatched_call` and its
+   `call_mcp_tool` name gate untouched. Re-check #5428's landed head first:
+   this step is written against `e5e3cab8f`, the head Ransom called stable
+   on 2026-09-22. Invert `test_opted_out_server_stores_no_grants`; keep
+   `test_tool_discovered_through_tool_search_is_granted` and the dispatcher
+   name-gate tests passing; add the span-capture tests; confirm the
+   in-process `bridge_generate` tests still pass.
 2. **Span parent helper** (`src/inspect_ai/util/_span.py`, `tests/util/`):
    `parent_span()` with a test that a constructed event and a nested
    `span()` take the given parent and the previous value is restored.
