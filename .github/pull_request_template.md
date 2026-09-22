@@ -13,11 +13,12 @@ unchanged behavior briefly. Put implementation details, test names, and
 unrelated project sequencing elsewhere. -->
 
 ### Validation
-<!-- Give commands and outcomes, including passed, failed, and skipped counts
-where applicable. Cover the compatibility claims above. State what could not
-be run and why. -->
+<!-- List commands and results (passed, failed, skipped). Briefly say which key
+behaviors or compatibility risks they cover and what remains untested, with
+reasons. Link test files or CI logs instead of listing every case or assertion. -->
 
 ### Agent review
-<!-- If an agent worked on this PR, disclose the authoring tool and the review:
-reviewer model/tool, fresh-context passes, findings fixed or dismissed (with
-reasons), or explicitly state that no review ran. Otherwise, omit this section. -->
+<!-- If an agent worked on this PR, give the authoring tool, reviewer model/tool,
+fresh-context pass count, and findings fixed or dismissed with brief reasons.
+Summarize outcomes; link detailed review notes instead of a pass-by-pass diary.
+If no review ran, say so. Human-only PRs may omit this section. -->

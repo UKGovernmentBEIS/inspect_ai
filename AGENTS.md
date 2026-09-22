@@ -65,6 +65,11 @@ section in the PR description. What to disclose, and how it's read:
   review that didn't happen — a fabricated or content-free review claim
   ("reviewed, looks good") is worse than disclosing none.
 
+Keep the disclosure focused on outcomes: give the pass count, group fixed
+findings briefly, and give a one-line reason for each dismissed finding. Link
+detailed review notes if needed instead of writing a chronological pass log
+or repeating validation results.
+
 Example:
 
 ```
@@ -192,6 +197,9 @@ A test that skipped did not run. Say so rather than counting it. If you ran
 nothing, say that, so a maintainer with the keys or Docker runs the tests
 before merge.
 
+Summarize live behavior and remaining gaps; link detailed logs instead of
+narrating every request or tool call.
+
 ## Subsystem Documentation
 
 Additional files provide context when working in specific areas:
@@ -229,12 +237,14 @@ neighboring paths, as well as `make check` and `make test`. Follow "Gated
 tests" above and the `slow-tests` skill for applicable slow, live-provider,
 Docker, and Trio runs. In `### Validation`, report the commands run and their
 outcomes, including passed, failed, and skipped counts where applicable. Tie
-the evidence to the compatibility claims and identify anything not run and
-why. Report results for the current PR head; when the branch changes, refresh
-results affected by the change rather than leaving historical runs to appear
-current. If an agent worked on the PR, fill in `### Agent review` as described
-above. Human-only PRs may omit that section. Keep the `### Slow tests` section
-for changes in gated-test areas, as described above.
+each relevant test group briefly to the important behavior or compatibility
+claim it covers; do not list every test case or assertion when the tests or CI
+show that detail. Identify anything not run and why. Report results for the
+current PR head; when the branch changes, refresh results affected by the
+change rather than leaving historical runs to appear current. If an agent
+worked on the PR, fill in `### Agent review` as described above. Human-only
+PRs may omit that section. Keep the `### Slow tests` section for changes in
+gated-test areas, as described above.
 
 Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
 
