@@ -62,3 +62,31 @@ async def test_textual_transcript_view_uses_resident_events(monkeypatch) -> None
 
     assert rendered_events is transcript.history.resident_events
     assert rendered_events == [sample_init, resident]
+
+
+def test_render_tool_event_hides_only_operator_cancelled_events() -> None:
+    """Skipped halt_on_error calls share the `cancelled` error type but stay visible."""
+    from inspect_ai._display.textual.widgets.transcript import render_tool_event
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.tool._tool_call import ToolCallError
+
+    operator_cancelled = ToolEvent(
+        id="a",
+        function="computer",
+        arguments={},
+        result="",
+        error=ToolCallError("cancelled", "Tool call cancelled by operator."),
+        failed=True,
+    )
+    skipped = ToolEvent(
+        id="b",
+        function="computer",
+        arguments={},
+        result="",
+        error=ToolCallError(
+            "cancelled", "Not executed: an earlier computer action in this turn failed."
+        ),
+        failed=None,
+    )
+    assert render_tool_event(operator_cancelled) is None
+    assert render_tool_event(skipped) is not None
