@@ -714,12 +714,15 @@ jobs:
               - '!docs/**'
               - '!design/**'
               - '!**/*.md'
+            # pyproject.toml uses this file as package metadata.
+            package_readme:
+              - 'README.md'
       - uses: actions/checkout@v7
-        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
         with:
           fetch-depth: 0
           fetch-tags: true
           filter: "blob:none"
 
       - uses: hynek/build-and-inspect-python-package@v2
-        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
