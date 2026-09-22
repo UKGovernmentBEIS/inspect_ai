@@ -1690,6 +1690,11 @@ def converse_reasoning_content(
     if reasoning.redacted:
         redacted_content = redacted_content_bytes(reasoning) or None
         if redacted_content is None:
+            warn_once(
+                logger,
+                "bedrock: dropping a redacted reasoning block with no "
+                "replayable content from the message history.",
+            )
             return None
         return ConverseReasoningContent(redactedContent=redacted_content)
     if not reasoning.reasoning:
@@ -1726,12 +1731,14 @@ async def converse_contents(
                     # opaque state that would reach the model as base64
                     # attributes on an empty <think> tag
                     if not c.redacted:
-                        # same reason the carrier is stripped even when there
-                        # is text: reasoning_to_think_tag encodes `internal`
-                        # into an attribute the model would then read
+                        # reasoning_to_think_tag renders `signature` and
+                        # `internal` as tag attributes, so both would reach
+                        # the model as literal prompt text. Bedrock populates
+                        # neither, but reasoning replayed from another
+                        # provider carries them.
                         emulated = (
-                            c.model_copy(update={"internal": None})
-                            if c.internal is not None
+                            c.model_copy(update={"internal": None, "signature": None})
+                            if c.internal is not None or c.signature is not None
                             else c
                         )
                         result.append(

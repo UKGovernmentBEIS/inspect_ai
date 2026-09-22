@@ -243,6 +243,21 @@ async def test_redacted_reasoning_with_unusable_bytes_is_dropped(
     assert all(b.reasoningContent is None for b in blocks)
 
 
+async def test_foreign_redacted_payload_is_never_sent_as_text() -> None:
+    """A redacted block from another provider carries no Bedrock bytes.
+
+    OpenAI and Anthropic put their encrypted payload in `reasoning` itself.
+    Replaying that as `reasoningText` is the field these models reject, so
+    the block must be dropped rather than repurposed.
+    """
+    reasoning = ContentReasoning(reasoning="OPENAI_ENCRYPTED_PAYLOAD", redacted=True)
+
+    blocks = await converse_contents([reasoning, ContentText(text="150")])
+
+    assert [b.text for b in blocks] == ["150"]
+    assert all(b.reasoningContent is None for b in blocks)
+
+
 async def test_empty_reasoning_text_is_never_replayed() -> None:
     """An empty reasoningText.text must never reach the wire.
 
@@ -351,6 +366,24 @@ async def test_emulated_think_tag_omits_the_redacted_carrier() -> None:
     assert "visible part" in blocks[0].text
     assert "internal=" not in blocks[0].text
     assert encoded not in blocks[0].text
+
+
+async def test_emulated_think_tag_omits_a_foreign_signature() -> None:
+    """A signature from another provider must not reach the model either.
+
+    `reasoning_to_think_tag` renders `signature` as a tag attribute on the
+    same footing as `internal`. Bedrock never populates it, but reasoning
+    replayed from the native Anthropic or OpenAI providers does.
+    """
+    signature = "ErUBCkYIBxgCKkDQ8vN2mS1pXqz9fLkYHb3wRt7cJvM0aAeN4Uu5oPdI6sTg"
+    reasoning = ContentReasoning(reasoning="visible part", signature=signature)
+
+    blocks = await converse_contents([reasoning], emulate_reasoning=True)
+
+    assert blocks[0].text is not None
+    assert "visible part" in blocks[0].text
+    assert "signature=" not in blocks[0].text
+    assert signature not in blocks[0].text
 
 
 # --------------------------------------------------------------- streaming
@@ -510,6 +543,33 @@ def _validate_against_service_model(request: dict[str, object]) -> None:
         pytest.param(
             ContentReasoning(reasoning="", redacted=True), id="redacted-no-bytes"
         ),
+        # cross-provider shapes: a redacted block from OpenAI or Anthropic
+        # carries its payload in `reasoning`, which must never be replayed as
+        # reasoningText -- that is the field these models reject
+        pytest.param(
+            ContentReasoning(reasoning="OPENAI_ENCRYPTED_PAYLOAD", redacted=True),
+            id="redacted-foreign-payload",
+        ),
+        pytest.param(
+            ContentReasoning(
+                reasoning="",
+                redacted=False,
+                internal={
+                    REDACTED_CONTENT_KEY: base64.b64encode(REDACTED_BYTES).decode()
+                },
+            ),
+            id="not-redacted-empty-text-with-bytes",
+        ),
+        pytest.param(
+            ContentReasoning(
+                reasoning="text",
+                redacted=False,
+                internal={
+                    REDACTED_CONTENT_KEY: base64.b64encode(REDACTED_BYTES).decode()
+                },
+            ),
+            id="not-redacted-text-with-bytes",
+        ),
     ],
 )
 async def test_replayed_request_passes_botocore_validation(
@@ -529,10 +589,12 @@ async def test_replayed_request_passes_botocore_validation(
 
 
 async def test_empty_reasoning_block_would_fail_validation() -> None:
-    """Guards the helper above: an empty union block is genuinely invalid.
+    """Pins that an empty union block is genuinely invalid to botocore.
 
-    Without this, `test_replayed_request_passes_botocore_validation` would
-    still pass if the replay path silently emitted empty blocks.
+    Scope: this covers an empty *block* only. botocore accepts an empty
+    `reasoningText.text` -- only the live API rejects it -- so the guard
+    against that regression is
+    `test_empty_reasoning_text_is_never_replayed`, not this.
     """
     from botocore.exceptions import ParamValidationError
 
