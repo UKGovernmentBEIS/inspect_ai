@@ -270,11 +270,11 @@ def _register_bridged_tools(
     Tools are registered in bridge.bridged_tools for execution by the service.
     Returns an MCPServerConfigHTTP with URL pointing to the MCP HTTP endpoint.
     """
-    # Build tool registry for this server
-    tools_dict = {ToolDef(tool).name: tool for tool in spec.tools}
-    bridge.bridged_tools[spec.name] = tools_dict
-    if not spec.require_proposal:
-        bridge.proposal_exempt_servers.add(spec.name)
+    bridge.register_bridged_tools(
+        spec.name,
+        {ToolDef(tool).name: tool for tool in spec.tools},
+        require_proposal=spec.require_proposal,
+    )
 
     # Return MCP config with HTTP URL
     return MCPServerConfigHTTP(

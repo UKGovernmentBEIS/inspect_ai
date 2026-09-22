@@ -846,23 +846,6 @@ async def test_empty_declared_description_resolves_an_empty_served_one() -> None
     assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
 
 
-async def test_empty_descriptions_are_told_apart_by_schema_shape() -> None:
-    bridge = sandbox_bridge_with_servers(
-        {
-            "a": {"read_file": served_tool(AsyncMock(), " ", ("path",))},
-            "b": {"read_file": served_tool(AsyncMock(), " ", ("path", "encoding"))},
-        }
-    )
-
-    bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
-        declare("read_file", description="", parameters=("path",)),
-    )
-
-    assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
-    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
-
-
 async def test_local_tool_with_a_bridged_tools_description_grants_it() -> None:
     """Chosen behaviour: content is the identity, so an identically described local tool is the same tool.
 
@@ -882,45 +865,25 @@ async def test_local_tool_with_a_bridged_tools_description_grants_it() -> None:
     assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
 
 
-def two_tools_one_description(
-    parameters_a: tuple[str, ...], parameters_b: tuple[str, ...]
-) -> SandboxAgentBridge:
+def two_tools_one_description() -> SandboxAgentBridge:
     return sandbox_bridge_with_servers(
         {
-            "a": {"read_file": served_tool(AsyncMock(), parameters=parameters_a)},
-            "b": {"read_file": served_tool(AsyncMock(), parameters=parameters_b)},
+            "a": {"read_file": served_tool(AsyncMock())},
+            "b": {"read_file": served_tool(AsyncMock())},
         }
     )
 
 
-async def test_same_description_is_told_apart_by_schema_shape() -> None:
-    """Served property names must all appear in the declaration (a subset check).
-
-    The declaration names only `path`, so tool b, served with `path` and
-    `encoding`, cannot be what the scaffold declared; tool a can.
-    """
-    bridge = two_tools_one_description(("path",), ("path", "encoding"))
+async def test_declared_schema_does_not_affect_matching() -> None:
+    """Scaffolds rewrite schemas (Gemini CLI adds `wait_for_previous`), so only the description counts."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
 
     bridge.register_tool_execution_grants(
         [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
-        declare("read_file", parameters=("path",)),
+        declare("read_file", parameters=("path", "encoding", "wait_for_previous")),
     )
 
-    assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
-    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
-
-
-async def test_schema_shape_tolerates_properties_the_scaffold_added() -> None:
-    """Gemini CLI adds `wait_for_previous` to every schema; extra declared names are fine."""
-    bridge = two_tools_one_description(("path",), ("path", "encoding"))
-
-    bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
-        declare("read_file", parameters=("path", "wait_for_previous")),
-    )
-
-    assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
-    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
 
 
 async def test_same_description_and_schema_grants_each_once() -> None:
@@ -929,7 +892,7 @@ async def test_same_description_and_schema_grants_each_once() -> None:
     Whichever the scaffold's `tools/call` targets runs once with the proposed
     arguments; a second call to the same tool, or other arguments, is denied.
     """
-    bridge = two_tools_one_description(("path",), ("path",))
+    bridge = two_tools_one_description()
 
     bridge.register_tool_execution_grants(
         [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
@@ -963,7 +926,7 @@ def capture_bridge_warnings(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
 def test_setup_warns_once_naming_every_tool_sharing_a_description(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    bridge = two_tools_one_description(("path",), ("path",))
+    bridge = two_tools_one_description()
 
     bridge.warn_indistinct_tools()
 
@@ -974,20 +937,22 @@ def test_setup_warns_once_naming_every_tool_sharing_a_description(
 
 
 @pytest.mark.usefixtures("capture_bridge_warnings")
-def test_setup_warns_about_an_empty_description(
+def test_setup_warns_about_tools_sharing_an_empty_description(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """`ToolDef` rejects a missing description, so a whitespace-only one is the empty case."""
     bridge = sandbox_bridge_with_servers(
-        {"host": {"read_file": served_tool(AsyncMock(), description=" ")}}
+        {
+            "a": {"read_file": served_tool(AsyncMock(), description=" ")},
+            "b": {"read_file": served_tool(AsyncMock(), description="\n")},
+        }
     )
 
     bridge.warn_indistinct_tools()
 
     warnings = [r.getMessage() for r in caplog.records]
     assert len(warnings) == 1
-    assert "empty description" in warnings[0] and "host/read_file" in warnings[0]
-    assert "Give them a docstring" in warnings[0]
+    assert "a/read_file" in warnings[0] and "b/read_file" in warnings[0]
 
 
 @pytest.mark.usefixtures("capture_bridge_warnings")
@@ -1072,57 +1037,34 @@ async def test_truncation_shorter_than_the_minimum_prefix_does_not_resolve() -> 
     assert len(bridge._tool_execution_grants) == 0
 
 
-async def test_non_latin_suffix_is_text_not_a_truncation_marker() -> None:
-    """Only non-alphanumeric characters are markers; letters of any script are text."""
+async def test_rewritten_tail_longer_than_a_marker_does_not_resolve() -> None:
+    """A truncation marker is short; a longer tail after the common prefix is a rewrite."""
     bridge = sandbox_bridge_with_servers(
-        {
-            "host": {
-                "read_file": served_tool(AsyncMock(), "A" * 64 + " actual host tool")
-            }
-        }
+        {"host": {"read_file": served_tool(AsyncMock(), LONG)}}
     )
 
     bridge.register_tool_execution_grants(
         [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
-        declare("read_file", description="A" * 64 + "工具"),
+        declare(
+            "read_file",
+            description=LONG[:2048] + " (the scaffold's own note on this tool)",
+        ),
     )
 
     assert len(bridge._tool_execution_grants) == 0
 
 
-def two_tools_sharing_a_prefix(
-    parameters_a: tuple[str, ...], parameters_b: tuple[str, ...]
-) -> SandboxAgentBridge:
+def two_tools_sharing_a_prefix() -> SandboxAgentBridge:
     return sandbox_bridge_with_servers(
         {
-            "a": {
-                "read_file": served_tool(
-                    AsyncMock(), LONG + " Text files only.", parameters_a
-                )
-            },
-            "b": {
-                "read_file": served_tool(
-                    AsyncMock(), LONG + " Any file type.", parameters_b
-                )
-            },
+            "a": {"read_file": served_tool(AsyncMock(), LONG + " Text files only.")},
+            "b": {"read_file": served_tool(AsyncMock(), LONG + " Any file type.")},
         }
     )
 
 
-async def test_truncation_matching_two_tools_falls_to_the_schema_tiebreaker() -> None:
-    bridge = two_tools_sharing_a_prefix(("path",), ("path", "encoding"))
-
-    bridge.register_tool_execution_grants(
-        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
-        declare("read_file", description=LONG[:2048] + "… [truncated]"),
-    )
-
-    assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
-    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
-
-
-async def test_truncation_matching_two_tools_of_one_shape_grants_both() -> None:
-    bridge = two_tools_sharing_a_prefix(("path",), ("path",))
+async def test_truncation_matching_two_tools_grants_both() -> None:
+    bridge = two_tools_sharing_a_prefix()
 
     bridge.register_tool_execution_grants(
         [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
