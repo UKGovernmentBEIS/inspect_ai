@@ -220,14 +220,17 @@ a PR touches a public contract or persisted data: name the affected producers
 and consumers, and explain the compatibility boundary. For changes with no
 compatibility impact, say "None" with a brief reason.
 
-In `### Validation`, report the commands run and their outcomes, including
-passed, failed, and skipped counts where applicable. Tie the evidence to the
-compatibility claims and identify anything not run and why. Report results
-for the current PR head; when the branch changes, refresh results affected by
-the change rather than leaving historical runs to appear current. If an agent
-worked on the PR, fill in `### Agent review` as described above. Human-only
-PRs may omit that section. Keep the `### Slow tests` section for changes in
-gated-test areas, as described above.
+For code changes, run focused tests for the changed behavior and relevant
+neighboring paths, as well as `make check` and `make test`. Follow "Gated
+tests" above and the `slow-tests` skill for applicable slow, live-provider,
+Docker, and Trio runs. In `### Validation`, report the commands run and their
+outcomes, including passed, failed, and skipped counts where applicable. Tie
+the evidence to the compatibility claims and identify anything not run and
+why. Report results for the current PR head; when the branch changes, refresh
+results affected by the change rather than leaving historical runs to appear
+current. If an agent worked on the PR, fill in `### Agent review` as described
+above. Human-only PRs may omit that section. Keep the `### Slow tests` section
+for changes in gated-test areas, as described above.
 
 Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
 
