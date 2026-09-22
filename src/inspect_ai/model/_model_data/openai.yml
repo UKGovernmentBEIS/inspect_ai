@@ -478,4 +478,28 @@ openai:
       reasoning: True
       # not in OpenAI's docs; the API echoes reasoning.effort=medium when none is requested
       reasoning_effort_default: medium
+    # https://developers.openai.com/api/docs/models/gpt-6-sol
+    gpt-6-sol:
+      display_name: GPT-6 Sol
+      # https://developers.openai.com/api/docs/changelog (2026-09-22 entry)
+      release_date: 2026-09-22
+      knowledge_cutoff_date: 2026-04-20
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # https://developers.openai.com/api/docs/models/gpt-6-sol ("none, low, medium (default), high, xhigh, and max")
+      reasoning_effort_default: medium
+    # https://developers.openai.com/api/docs/models/gpt-6-luna
+    gpt-6-luna:
+      display_name: GPT-6 Luna
+      # https://developers.openai.com/api/docs/changelog (2026-09-22 entry)
+      release_date: 2026-09-22
+      knowledge_cutoff_date: 2026-05-18
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # https://developers.openai.com/api/docs/models/gpt-6-luna ("none, low, medium (default), high, xhigh, and max")
+      reasoning_effort_default: medium
 
