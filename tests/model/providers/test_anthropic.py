@@ -352,16 +352,21 @@ def test_anthropic_opus_5_disabled_thinking_keeps_high_effort() -> None:
 
 
 @pytest.mark.parametrize("model_name", ["claude-opus-5-5", "claude-fable-5-1"])
+@pytest.mark.parametrize("effort", ["low", "xhigh"])
 def test_anthropic_reasoning_effort_none_keeps_effort_where_thinking_always_on(
-    model_name: str,
+    model_name: str, effort: Literal["low", "xhigh"]
 ) -> None:
-    """Models that can't disable thinking omit `thinking` and keep the configured effort."""
+    """Models that can't disable thinking omit `thinking` and keep the configured effort.
+
+    `xhigh` pins the divergence from Opus 5, which clamps effort to `high` when
+    it disables thinking.
+    """
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     params, _e, _h, _b = api.completion_config(
-        GenerateConfig(max_tokens=64, reasoning_effort="none", effort="low")
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort=effort)
     )
     assert "thinking" not in params
-    assert params["output_config"]["effort"] == "low"
+    assert params["output_config"]["effort"] == effort
 
 
 @pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
@@ -1684,6 +1689,8 @@ def test_anthropic_is_claude_fable_5_1_or_later(
     [
         ("claude-opus-5-5", True),
         ("anthropic.claude-opus-5-5", True),
+        ("us.anthropic.claude-opus-5-5-20260922-v1:0", True),
+        ("claude-opus-5-5@20260922", True),
         ("claude-opus-5.5", True),
         ("claude-opus-5-5-20260922", True),
         # assume later point releases keep the 5.5 behavior

@@ -332,6 +332,10 @@ def test_opus_5_5_degrades_forced_tool_choice():
     assert api.is_claude_opus_5_5_or_later() is True
     # 4.7+ capability set: adaptive thinking only, sampling params stripped
     assert api.is_claude_4_7_or_later() is True
+    # cross-region inference profile id form
+    regional = _make_api("us.anthropic.claude-opus-5-5-20260922-v1:0")
+    assert regional.is_claude_opus_5_5_or_later() is True
+    assert regional.is_claude_4_7_or_later() is True
     assert api.resolved_tool_choice("any") == "auto"
     assert api.resolved_tool_choice(ToolFunction(name="get_weather")) == "auto"
     assert api.resolved_tool_choice("auto") == "auto"
