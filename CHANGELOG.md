@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: Docker sandboxes no longer fail every sample with `LookupError: docker_auto_compose_files` in a `SampleSource` task whose seed has no docker sandbox (the first docker config arriving with an added sample).
 - Meta: New `meta` provider for Muse Spark models on the Meta Model API, which streams by default, preserves model reasoning across turns, and reports policy-blocked prompts as content filter stops.
 - OpenAI: Responses API requests no longer fail validation when a compatible service omits `model` from its response.
 - Agent Bridge: An unexpected exception from a host tool called through `sandbox_agent_bridge(bridged_tools=...)` now fails the sample as a native tool exception does, and malformed arguments are reported to the model as a parsing error.

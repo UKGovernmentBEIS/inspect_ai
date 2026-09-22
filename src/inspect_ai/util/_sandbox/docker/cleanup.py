@@ -185,7 +185,10 @@ _running_projects: ContextVar[list[ComposeProject]] = ContextVar(
     "docker_running_projects", default=[]
 )
 
-_auto_compose_files: ContextVar[Set[str]] = ContextVar("docker_auto_compose_files")
+# Default so samples a SampleSource adds (whose task_init ran in a sibling task) can read it.
+_auto_compose_files: ContextVar[Set[str]] = ContextVar(
+    "docker_auto_compose_files", default=set()
+)
 
 _cleanup_completed: ContextVar[bool] = ContextVar(
     "docker_cleanup_executed", default=False

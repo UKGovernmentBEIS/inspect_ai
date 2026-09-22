@@ -174,6 +174,9 @@ dropping samples.
   seed is empty — still gets `task_init` (image build/pull, validation) and a
   registered `task_cleanup`. Already-started configs are a set-membership
   no-op. Per-sample sandboxes then run via `sandboxenv_context` as usual.
+  That `task_init` runs in the feeder task, a sibling of the sample tasks, so a
+  `ContextVar` set there is not visible to `sample_init` or `task_cleanup`; provider
+  state shared across those hooks needs a default.
 - **Progress bar steps** (`profile.steps`) are fixed at seed size; the
   completed/total counter grows correctly (total passed on each update), and a
   zero-step seed no longer divides by zero (`RichProgress.update` guards it).
