@@ -11,6 +11,7 @@ from rich.table import Table
 
 from inspect_ai._util._async import coro_print_exceptions
 from inspect_ai._util.trace import trace_message
+from inspect_ai.util._anyio import safe_current_task_id
 
 from ..lifecycle import sandbox_lifecycle_state
 from .compose import compose_down, compose_ls, compose_ps
@@ -35,33 +36,58 @@ class DockerCleanupState:
     auto_compose_files: set[str] = field(default_factory=set)
     """Generated compose files (startup and per-sample) to remove at shutdown."""
 
+    closed: bool = False
+    """``project_cleanup_shutdown`` has run: this lifecycle is finished."""
+
+    owner: int | None = None
+    """For a registry bound outside a scope, the id of the task that bound it."""
+
 
 def cleanup_state() -> DockerCleanupState:
     """The cleanup registry of the enclosing sandbox lifecycle scope.
 
     Outside any scope — the provider driven directly, without a
-    ``SandboxManager`` — one registry is bound to the current context on first
-    use, so a ``task_init`` → ``sample_init`` → ``task_cleanup`` sequence run
-    from one task shares it.
+    ``SandboxManager`` — the registry bound to the current context (see
+    ``project_cleanup_startup``), binding one on first use if ``task_init``
+    never ran here.
     """
     scope = sandbox_lifecycle_state()
     if scope is not None:
         return scope.get(DockerCleanupState)
     state = _ownerless_state.get()
     if state is None:
-        state = DockerCleanupState()
-        _ownerless_state.set(state)
+        state = _bind_ownerless_state()
+    return state
+
+
+def _bind_ownerless_state() -> DockerCleanupState:
+    state = DockerCleanupState(owner=safe_current_task_id())
+    _ownerless_state.set(state)
     return state
 
 
 def project_cleanup_startup() -> None:
     """Bind the cleanup registry in the caller's context before samples start.
 
-    Only ensures the registry exists where child tasks will inherit it; it
-    never resets it, so a late ``task_init`` (another config, added mid-run)
-    keeps every resource the batch has already registered.
+    Inside a scope the registry is the scope's: this only ensures it exists
+    where child tasks will inherit it, and never resets it, so a late
+    ``task_init`` (another config, added mid-run) keeps every resource the
+    batch has already registered.
+
+    Outside any scope a registry belongs to the task whose ``task_init`` bound
+    it, for one lifecycle: a ``task_init`` in another task (a child that
+    inherited the binding), or after the bound registry's ``task_cleanup`` has
+    run, binds its own, so concurrent or successive direct-provider
+    lifecycles never share cleanup state. Reads (``sample_init``,
+    ``task_cleanup``) use whatever registry the context holds, so a lifecycle
+    may still spread over a task and its children.
     """
-    cleanup_state()
+    if sandbox_lifecycle_state() is not None:
+        cleanup_state()
+        return
+    state = _ownerless_state.get()
+    if state is None or state.closed or state.owner != safe_current_task_id():
+        _bind_ownerless_state()
 
 
 def _cleanup_orphaned_auto_compose_files(running_project_names: set[str]) -> None:
@@ -95,20 +121,37 @@ def project_startup(project: ComposeProject) -> None:
     project_record_auto_compose(project)
 
 
-def project_record_auto_compose(project: ComposeProject) -> None:
+def project_record_auto_compose(project: ComposeProject) -> bool:
+    """Register a project's generated compose file for removal at shutdown.
+
+    Returns whether this call registered it: ``False`` for an explicit compose
+    file, and for a generated file already registered by an earlier
+    initialization or a live sample (a legacy ``.compose.yaml``, or a path
+    in the auto-compose directory reused by another configuration).
+    """
     if project.config and is_auto_compose_file(project.config):
-        cleanup_state().auto_compose_files.add(project.config)
+        auto_compose_files = cleanup_state().auto_compose_files
+        if project.config not in auto_compose_files:
+            auto_compose_files.add(project.config)
+            return True
+    return False
 
 
 def project_discard_auto_compose(project: ComposeProject) -> None:
     """Remove a project's generated compose file and forget it.
 
-    For a ``task_init`` that fails after generating its startup config: only
-    that init's file goes, so the batch's live samples and its other configs
-    are untouched and its final cleanup still runs.
+    For a ``task_init`` that fails after generating its startup config, when
+    that init alone registered the file (``project_record_auto_compose``
+    returned ``True``): only that file goes, so the batch's live samples and
+    its other configs are untouched and its final cleanup still runs. A file a
+    running project uses is kept regardless: its ``compose`` commands still
+    name it.
     """
     if project.config and is_auto_compose_file(project.config):
-        cleanup_state().auto_compose_files.discard(project.config)
+        state = cleanup_state()
+        if any(running.config == project.config for running in state.running_projects):
+            return
+        state.auto_compose_files.discard(project.config)
         safe_cleanup_auto_compose(project.config)
 
 
@@ -176,6 +219,8 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
         safe_cleanup_auto_compose(file)
         state.auto_compose_files.discard(file)
 
+    state.closed = True
+
 
 async def cleanup_projects(
     projects: list[ComposeProject],
@@ -236,9 +281,9 @@ async def cli_cleanup(project_name: str | None) -> None:
     _cleanup_orphaned_auto_compose_files(running_names)
 
 
-# the registry for provider use outside any sandbox lifecycle scope; bound per
-# context on first use (never a shared mutable default, which would carry one
-# run's projects into the next)
+# the registry for provider use outside any sandbox lifecycle scope; bound by
+# the task running task_init, per lifecycle (never a shared mutable default,
+# which would carry one run's projects into the next)
 _ownerless_state: ContextVar[DockerCleanupState | None] = ContextVar(
     "docker_cleanup_state", default=None
 )

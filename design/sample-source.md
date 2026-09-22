@@ -223,18 +223,25 @@ dropping samples.
   inherits a reference to the same object, so provider hooks (`task_init`,
   `sample_init`, `sample_cleanup`, `task_cleanup`) *mutate* the state they
   inherit and never rebind or clear it: a second config's `task_init` keeps
-  the first's registrations, a `task_init` that fails releases only the
-  startup file it generated (the batch's live samples and its final
-  cleanup are untouched), and `task_cleanup` releases the entries it
+  the first's registrations, a `task_init` that fails releases only a
+  startup file it alone registered — a legacy `.compose.yaml` or a reused
+  auto-compose path that an earlier initialization or a live sample already
+  registered is kept, since their `compose` commands still name it (the
+  batch's live samples and its final cleanup are untouched either way) —
+  and `task_cleanup` releases the entries it
   processes so repeat calls (one per started config) are no-ops. Because the
   scope is per `eval_run`, sequential `TaskSource` batches (which reuse the
   outer task) and independent evaluations in one process each start from an
   empty registry; a process-wide mutable default would instead have carried
   one batch's projects into the next batch's cleanup or "not yet cleaned up"
   report. Outside any scope (the provider driven directly, without a
-  `SandboxManager`) the Docker registry binds itself to the current context
-  on first use, so a direct `task_init` → `sample_init` → `task_cleanup`
-  sequence still cleans up after itself.
+  `SandboxManager`) a registry belongs to the task whose `task_init` bound it,
+  for one lifecycle: a `task_init` in another task (a child that inherited
+  the binding) or after that registry's `task_cleanup` binds its own, so
+  concurrent or successive direct lifecycles never share cleanup state,
+  while reads (`sample_init`, `task_cleanup`) use whatever registry the
+  context holds, so a direct lifecycle may still spread over a task and its
+  children.
 - **Progress bar steps** (`profile.steps`) are fixed at seed size; the
   completed/total counter grows correctly (total passed on each update), and a
   zero-step seed no longer divides by zero (`RichProgress.update` guards it).
@@ -262,7 +269,10 @@ compose file preserved, legacy `.compose.yaml` removed); shutdown cleans or
 reports (`sandbox_cleanup=False`) an interrupted sample and releases every
 entry; a second config's `task_init` keeps the first's startup file; a failed
 `task_init` releases only its own file and leaves live samples and the final
-cleanup alone; direct provider use without a scope; and, through `eval_async`
+cleanup alone, and a failed or cancelled re-initialization of a shared legacy
+or reused auto-compose path keeps that file; direct provider use without a
+scope, including two overlapping child-task lifecycles after a parent's; and,
+through `eval_async`
 (asyncio and trio): the first Docker sample arriving via `next_samples`,
 `enqueue_sample` or a `sample_complete` return; a late config alongside the
 seed's; a late config failing while the seed sample is live; two sequential

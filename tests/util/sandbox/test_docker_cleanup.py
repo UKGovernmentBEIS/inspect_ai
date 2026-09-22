@@ -71,6 +71,7 @@ class FakeDocker:
         self.reported: list[str] = []
         self.fail_build_contexts: set[str] = set()
         self.on_build_failure: list[Any] = []
+        self.on_build: list[Any] = []
         data_dir = tmp_path.resolve() / "inspect-data"
 
         def fake_data_dir(subdir: str | None) -> Path:
@@ -90,6 +91,8 @@ class FakeDocker:
         async def compose_build(
             project: ComposeProject, capture_output: bool = False
         ) -> None:
+            for hook in self.on_build:
+                await hook(project)
             services = await compose_services(project)
             for service in services.values():
                 build = service.get("build")
@@ -383,6 +386,69 @@ async def test_failed_task_init_releases_only_its_own_resources(
     assert fake_docker.generated_files() == []
 
 
+@pytest.mark.parametrize("failure", ["error", "cancel"])
+@pytest.mark.parametrize("shared", ["legacy", "central"])
+async def test_failed_task_init_keeps_a_shared_compose_file(
+    fake_docker: FakeDocker, shared: str, failure: str
+) -> None:
+    """A failed or cancelled task_init never removes a compose file another owner registered.
+
+    A legacy `.compose.yaml` in the working directory, or a path in the
+    auto-compose directory reused by another configuration, is one file for
+    every project of that path. When a second initialization of it (another
+    configuration of the same file) fails or is cancelled mid-build, the file
+    the live sample's `compose` commands name stays on disk and registered,
+    and the batch's final cleanup removes it as usual.
+    """
+    config: SandboxEnvironmentConfigType | None
+    if shared == "legacy":
+        path = write_compose_file(Path(os.getcwd()) / ".compose.yaml")
+        config = None
+    else:
+        path = write_compose_file(auto_compose_dir() / "shared.yaml")
+        config = path
+
+    with sandbox_lifecycle_scope():
+        await DockerSandboxEnvironment.task_init("startup", config)
+        environments = await DockerSandboxEnvironment.sample_init("sample", config, {})
+        assert cleanup_state().auto_compose_files == {path}
+
+        entered = anyio.Event()
+
+        async def fail_or_block(project: ComposeProject) -> None:
+            entered.set()
+            if failure == "error":
+                raise PrerequisiteError("fake build failure")
+            await anyio.sleep_forever()
+
+        fake_docker.on_build.append(fail_or_block)
+        if failure == "error":
+            with pytest.raises(PrerequisiteError, match="fake build failure"):
+                await DockerSandboxEnvironment.task_init("startup", config)
+        else:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(DockerSandboxEnvironment.task_init, "startup", config)
+                await entered.wait()
+                tg.cancel_scope.cancel()
+        fake_docker.on_build.clear()
+
+        # the live sample's file is intact, still registered, and its project
+        # is still running
+        assert Path(path).exists()
+        assert cleanup_state().auto_compose_files == {path}
+        assert len(cleanup_state().running_projects) == 1
+        assert fake_docker.downs() == []
+
+        await DockerSandboxEnvironment.sample_cleanup(
+            "sample", config, environments, False
+        )
+        await DockerSandboxEnvironment.task_cleanup("shutdown", config, True)
+
+    assert fake_docker.events == ["up:None", "down:None"]
+    assert not Path(path).exists()
+    assert fake_docker.generated_files() == []
+
+
 async def test_direct_provider_use_without_a_scope(fake_docker: FakeDocker) -> None:
     """The provider driven directly (no SandboxManager) still cleans up after itself."""
     assert sandbox_lifecycle_state() is None
@@ -395,6 +461,63 @@ async def test_direct_provider_use_without_a_scope(fake_docker: FakeDocker) -> N
     assert fake_docker.generated_files() == []
     assert cleanup_state().running_projects == []
     assert cleanup_state().auto_compose_files == set()
+
+
+async def test_direct_provider_lifecycles_in_child_tasks_are_independent(
+    fake_docker: FakeDocker,
+) -> None:
+    """Concurrent direct lifecycles in child tasks never share a registry.
+
+    A parent that has driven the provider directly leaves its (finished)
+    registry bound in the context its children inherit. Each child's
+    `task_init` binds its own, so one child's `task_cleanup` brings down only
+    its own container and leaves the other child's container and compose file
+    alone.
+    """
+    # the parent's own lifecycle, which the children inherit the binding of
+    await DockerSandboxEnvironment.task_init("startup", None)
+    parent = await DockerSandboxEnvironment.sample_init("parent", None, {})
+    await DockerSandboxEnvironment.sample_cleanup("parent", None, parent, False)
+    await DockerSandboxEnvironment.task_cleanup("shutdown", None, True)
+
+    b_up = anyio.Event()
+    a_cleaned = anyio.Event()
+    observed: list[tuple[bool, bool, int]] = []
+
+    async def lifecycle_a() -> None:
+        await DockerSandboxEnvironment.task_init("startup", None)
+        environments = await DockerSandboxEnvironment.sample_init("a", None, {})
+        await b_up.wait()
+        await DockerSandboxEnvironment.sample_cleanup("a", None, environments, False)
+        await DockerSandboxEnvironment.task_cleanup("shutdown", None, True)
+        a_cleaned.set()
+
+    async def lifecycle_b() -> None:
+        await DockerSandboxEnvironment.task_init("startup", None)
+        environments = await DockerSandboxEnvironment.sample_init("b", None, {})
+        project = environments["default"].as_type(DockerSandboxEnvironment)._project
+        b_up.set()
+        await a_cleaned.wait()
+        # b's container and compose file survived a's cleanup
+        assert project.config is not None
+        observed.append(
+            (
+                project.name in fake_docker.running,
+                Path(project.config).exists(),
+                len(cleanup_state().running_projects),
+            )
+        )
+        await DockerSandboxEnvironment.sample_cleanup("b", None, environments, False)
+        await DockerSandboxEnvironment.task_cleanup("shutdown", None, True)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(lifecycle_a)
+        tg.start_soon(lifecycle_b)
+
+    assert observed == [(True, True, 1)]
+    assert fake_docker.downs() == ["down:None"] * 3
+    assert fake_docker.running == set()
+    assert fake_docker.generated_files() == []
 
 
 # -- eval level -----------------------------------------------------------------

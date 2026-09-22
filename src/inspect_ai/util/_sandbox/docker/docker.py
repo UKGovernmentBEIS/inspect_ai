@@ -95,6 +95,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         project_cleanup_startup()
 
         project: ComposeProject | None = None
+        owns_auto_compose = False
         try:
             # create project
             project = await ComposeProject.create(
@@ -102,7 +103,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             )
 
             # record auto compose
-            project_record_auto_compose(project)
+            owns_auto_compose = project_record_auto_compose(project)
 
             services = await compose_services(project)
 
@@ -156,9 +157,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         except BaseException as ex:
             # the registry is shared with the batch's live samples and other
-            # configs, so release only what this startup generated; the
-            # batch's final task_cleanup still runs for everything else
-            if project is not None:
+            # configs, so release only a file this startup alone registered;
+            # the batch's final task_cleanup still runs for everything else
+            if project is not None and owns_auto_compose:
                 project_discard_auto_compose(project)
             raise ex
 
