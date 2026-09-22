@@ -77,6 +77,8 @@ The `sandbox_agent_bridge()` can bridge agents written against the OpenAI Comple
 
 The sandbox bridge works via running a proxy server inside the sandbox container which receives requests for the OpenAI, Anthropic, and Google APIs. This proxy server in turn relays requests to the current Inspect model provider.
 
+The proxy listens on the sandbox's loopback interface and is reachable only by processes running inside the sandbox, such as the agent binary launched with `sandbox().exec()`. It is not a browser-facing service: it sends no cross-origin headers, does not answer preflight requests, and accepts only `application/json` request bodies. A web page rendered inside the sandbox therefore cannot reach the model or bridged tools through the proxy: a request that needs a preflight is refused by the browser, and a request sent without one carries a body type the proxy rejects before any handler runs.
+
 For example, here we build an agent that runs a custom agent binary (passing it input on the command line and reading output from stdout):
 
 ``` python
@@ -242,6 +244,8 @@ async with sandbox_agent_bridge(
 Rejection works by telling the model rather than by editing the response: the rejected call and an explanation are replayed to the model, which then generates again. The agent sees only the replacement, so its loop continues normally. See [Bridged Agents](approval.qmd#bridged-agents) for the full semantics.
 
 When combining approval policies with `bridged_tools`, give bridged tools names that are unique across bridged servers and distinct from the agent's own tools: an approval identifies a call only by function name and arguments, so a name shared with an agent-local tool also authorizes one execution of the same-named bridged tool, and a name shared across bridged servers is ambiguous and will be denied.
+
+An agent that reaches every bridged tool through one dispatcher function (Antigravity's `call_mcp_tool`) is approved as if the model had called the bridged tool directly: policies match the tool's own name, and approvers see and modify the tool's own arguments.
 
 ## Transcript
 

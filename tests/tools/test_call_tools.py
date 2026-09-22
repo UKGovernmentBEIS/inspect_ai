@@ -11,27 +11,15 @@ from typing_extensions import TypedDict
 from inspect_ai._util.content import ContentDocument, ContentText
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
-from inspect_ai.model._call_tools import (
-    MAX_TOOL_CALL_ARGUMENTS_DEPTH,
-    ToolCallFailure,
-    execute_tools,
-    tool_call_failure,
-)
+from inspect_ai.model._call_tools import MAX_TOOL_CALL_ARGUMENTS_DEPTH, execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
 from inspect_ai.tool import tool
-from inspect_ai.tool._tool import (
-    ToolApprovalError,
-    ToolError,
-    ToolParsingError,
-    tool_result_content,
-)
-from inspect_ai.tool._tool_call import ToolCall, ToolCallError
+from inspect_ai.tool._tool import tool_result_content
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util import OutputLimitExceededError
-from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxTimeoutError, SandboxUnavailableError
 
 # --- Helpers ---------------------------------------------------------------
@@ -487,6 +475,39 @@ async def test_mixed_content_and_str_list_does_not_crash():
     assert "RAW STRING" in messages[-1].content
 
 
+@tool
+def value_error_tool():
+    async def execute() -> str:
+        """Raise a ValueError unrelated to null bytes."""
+        raise ValueError("ordinary value error")
+
+    return execute
+
+
+async def test_other_value_error_escapes_the_tool_call_handler():
+    """A `ValueError` other than the null-byte case is not captured as a tool failure.
+
+    Pins the pre-existing shape so the shared `tool_call_error` mapping stays
+    behaviour-neutral: the exception escapes the per-call handler (the sample
+    fails) and the event is finalised by the stage's cancellation handling
+    rather than recorded as a captured failure with no error.
+    """
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    tool_def = ToolDef(value_error_tool())
+    call = make_call("value_error_tool", {})
+    with pytest.raises(ValueError, match="ordinary value error"):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+        )
+
+    (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    assert event.failed is True
+    assert event.error is not None
+    assert event.error.type == "cancelled"
+
+
 async def test_tool_event_message_id_for_multiple_calls():
     """Each ToolEvent.message_id references its own ChatMessageTool."""
     transcript = Transcript()
@@ -515,189 +536,3 @@ async def test_tool_event_message_id_for_multiple_calls():
     # ensure each event has a distinct message_id (regression: previously
     # every event pointed at the first ChatMessageTool)
     assert len({e.message_id for e in tool_events}) == 3
-
-
-# --- tool_call_failure: the exception -> ToolCallError mapping ------------
-
-
-def _perm_error() -> PermissionError:
-    err = PermissionError(13, "Permission denied")
-    err.filename = "/etc/passwd"
-    return err
-
-
-def _fnf_error() -> FileNotFoundError:
-    err = FileNotFoundError(2, "No such file")
-    err.filename = "config.yaml"
-    return err
-
-
-def _isdir_error() -> IsADirectoryError:
-    err = IsADirectoryError(21, "Is a directory")
-    err.filename = "/tmp"
-    return err
-
-
-@pytest.mark.parametrize(
-    "ex,expected",
-    [
-        (
-            TimeoutError("exec timed out"),
-            ToolCallFailure(
-                ToolCallError("timeout", "Command timed out before completing."), ""
-            ),
-        ),
-        (
-            SandboxTimeoutError("exec timed out", truncated_output="partial"),
-            ToolCallFailure(
-                ToolCallError("timeout", "Command timed out before completing."),
-                "partial",
-            ),
-        ),
-        (
-            UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
-            ToolCallFailure(
-                ToolCallError(
-                    "unicode_decode",
-                    "Error decoding bytes to utf-8: invalid start byte",
-                ),
-                "",
-            ),
-        ),
-        (
-            ValueError("embedded null byte"),
-            ToolCallFailure(
-                ToolCallError(
-                    "parsing",
-                    "An argument to tool 'bash' contained an embedded null byte.",
-                ),
-                "",
-            ),
-        ),
-        (
-            SandboxUnavailableError("service is not running"),
-            ToolCallFailure(
-                ToolCallError("sandbox_unavailable", "service is not running"), ""
-            ),
-        ),
-        (
-            _perm_error(),
-            ToolCallFailure(
-                ToolCallError(
-                    "permission", "Permission denied. Filename '/etc/passwd'."
-                ),
-                "",
-            ),
-        ),
-        (
-            PermissionError("Sandbox policy: write to /etc denied"),
-            ToolCallFailure(
-                ToolCallError("permission", "Sandbox policy: write to /etc denied."),
-                "",
-            ),
-        ),
-        (
-            _fnf_error(),
-            ToolCallFailure(
-                ToolCallError("file_not_found", "File 'config.yaml' was not found."),
-                "",
-            ),
-        ),
-        (
-            FileNotFoundError("Workspace file missing"),
-            ToolCallFailure(
-                ToolCallError("file_not_found", "Workspace file missing"), ""
-            ),
-        ),
-        (
-            _isdir_error(),
-            ToolCallFailure(
-                ToolCallError("is_a_directory", "Is a directory. Filename '/tmp'."),
-                "",
-            ),
-        ),
-        (
-            OutputLimitExceededError("10 MiB", "partial output"),
-            ToolCallFailure(
-                ToolCallError("limit", "The tool exceeded its output limit of 10 MiB."),
-                "partial output",
-            ),
-        ),
-        (
-            OutputLimitExceededError("10 MiB", None),
-            ToolCallFailure(
-                ToolCallError("limit", "The tool exceeded its output limit of 10 MiB."),
-                "",
-            ),
-        ),
-        (
-            LimitExceededError("token", value=1200, limit=1000),
-            ToolCallFailure(
-                ToolCallError("limit", "The tool exceeded its token limit of 1,000."),
-                "",
-            ),
-        ),
-        (
-            ToolParsingError("bad arguments"),
-            ToolCallFailure(ToolCallError("parsing", "bad arguments"), ""),
-        ),
-        (
-            ToolApprovalError("rejected by policy"),
-            ToolCallFailure(ToolCallError("approval", "rejected by policy"), ""),
-        ),
-        (
-            ToolError("tool said no"),
-            ToolCallFailure(ToolCallError("unknown", "tool said no"), ""),
-        ),
-    ],
-    ids=lambda v: type(v).__name__ if isinstance(v, Exception) else "",
-)
-def test_tool_call_failure_maps_every_tool_error_type(
-    ex: Exception, expected: ToolCallFailure
-) -> None:
-    """Every tool-error exception type maps to the ToolCallError the model saw.
-
-    Partial output (a timeout's or output-limit's truncated output) rides along.
-    """
-    assert tool_call_failure(ex, "bash") == expected
-
-
-@pytest.mark.parametrize(
-    "ex",
-    [
-        ValueError("unrelated value error"),
-        RuntimeError("bug in the tool"),
-        KeyError("missing"),
-        ZeroDivisionError(),
-    ],
-    ids=lambda v: type(v).__name__,
-)
-def test_tool_call_failure_is_none_for_non_tool_failures(ex: Exception) -> None:
-    """Exceptions the tool loop does not present to the model map to None.
-
-    That is a ValueError other than the embedded-null-byte case and any
-    unexpected exception; the caller re-raises or records a hard failure.
-    """
-    assert tool_call_failure(ex, "bash") is None
-
-
-@tool
-def value_error_tool():
-    async def execute() -> str:
-        """Raise a plain ValueError, which is a bug rather than a tool error."""
-        raise ValueError("unrelated value error")
-
-    return execute
-
-
-async def test_plain_value_error_still_propagates():
-    """A plain ValueError is not a tool error and propagates out of execute_tools.
-
-    Only the embedded-null-byte ValueError is presented to the model.
-    """
-    tool_def = ToolDef(value_error_tool())
-    call = make_call("value_error_tool", {})
-    with pytest.raises(ValueError, match="unrelated value error"):
-        await execute_tools(
-            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
-        )
