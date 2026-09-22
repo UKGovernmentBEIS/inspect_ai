@@ -16,6 +16,7 @@ class SampleSource:
     def initial_samples(self) -> list[Sample]: ...                       # sync seed (immediate; may be empty)
     async def next_samples(self) -> list[Sample] | None: ...             # async; None ends the task
     async def sample_complete(self, sample: EvalSample) -> list[Sample] | None: ...  # observe + add
+    async def sample_abandoned(self, sample: Sample, epoch: int) -> list[Sample] | None: ...  # never-logged cancel
 ```
 
 The asymmetry mirrors `TaskSource`:
@@ -37,10 +38,40 @@ The asymmetry mirrors `TaskSource`:
   delivered (the task runs on, and a source waiting on it would otherwise
   stall), but a sample cancelled by the task's own unwind (abort/retry cancel,
   ^C) is not — the scope is cancelled and no follow-up could run.
+- **`sample_abandoned()`** covers the cancels `sample_complete()` cannot: a
+  run cancelled before anything reached the log, so there is no `EvalSample`
+  to deliver. Three paths end that way (all return the scheduler's
+  `DISCARDED` sentinel from `task_run_sample`): a queued-sample cancel
+  (`ctl sample cancel --action cancel` on a parked run, discarded at its
+  queue-exit check), a graceful task cancel (`drain` / `score` / `error`)
+  abandoning a queued run at the same check, and an interrupt landing in an
+  errored attempt's pre-retry drain window (the retry is suppressed and the
+  attempt abandoned). `run_sample` fires the hook — for the `SampleSource`
+  and the `TaskSource` alike — when `task_run_sample` returns `DISCARDED`,
+  delivering a copy of the dataset `Sample` plus the epoch, and routes any
+  returned samples onto the enqueuer like `sample_complete`'s. The delivery
+  rule is `sample_complete`'s: not while the task is unwinding
+  (`abort`/`retry` stamp), where no follow-up could run; and additionally
+  not for a requeue re-run, whose withdrawn/abandoned run leaves the prior,
+  already-reported terminal outcome standing. A separate hook was chosen
+  over synthesizing an `EvalSample` with a cancellation `error`: the source
+  would otherwise be handed a record that exists nowhere in the log and
+  cannot be distinguished from a logged operator cancel. Because the hook
+  runs *after* the run's terminal count (unlike `sample_complete`, which
+  precedes it), the last sample's count can land while the source is still
+  being told — so a `TaskSource`-driven eval also registers as `dynamic`
+  (its `completed_at` is stamped by `finalize_eval`, as a `SampleSource`
+  task's already is), keeping `ctl task cancel` effective while a callback
+  is suspended rather than reading the task as finished. Timing: a
+  queued-sample cancel is *counted* at accept but the parked coroutine
+  discards only when it next acquires a slot, so the notification arrives
+  when the sample would otherwise have started — an orchestrator waiting on
+  a rollout it enqueued therefore needs spare sample capacity, exactly as it
+  would for the rollout to run at all.
 
 `SampleSource.from_samples(initial_samples, *, next_samples=None,
-sample_complete=None)` builds a source from a seed + callbacks without
-subclassing (mirrors `TaskSource.from_tasks`).
+sample_complete=None, sample_abandoned=None)` builds a source from a seed +
+callbacks without subclassing (mirrors `TaskSource.from_tasks`).
 
 There is no `@sample_source` decorator: a `SampleSource` lives *inside* a
 `Task`, and tasks are already registerable / loadable by name via `@task` — the
