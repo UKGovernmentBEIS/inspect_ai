@@ -539,7 +539,17 @@ removes a companion today: `retry_cleanup` removes just the file
 (`fs.rm(id_log.info.name)`, `evalset.py:1972`) and the viewer's delete
 endpoint is a bare `fs.rm` (`_view/common.py:409-411`). Every path that
 removes a merged log, those two and any explicit delete the API or CLI
-offers, must therefore remove `<name>.shards/` with it. The field
+offers, must therefore remove `<name>.shards/` with it. In the viewer that
+widens what one request deletes, and the endpoint authorizes only the
+requested file: `_validate_delete` asks the access policy about `name.eval`
+alone (`fastapi_server.py:177-180,227-232`) and `delete_log` sees neither
+the request nor the policy. A hosted policy can allow deleting `name.eval`
+while denying `name.shards/0/<shard>.eval` (today the endpoint returns 200
+for the first and 403 for the second). The viewer must therefore authorize
+every companion member through the same access policy before deleting
+anything, and refuse the whole operation, canonical log included, when any
+member is denied (see "Security"). Trusted paths (`retry_cleanup`, the API
+and CLI) have no HTTP policy to consult and delete both outright. The field
 is absent on unsharded logs. It is a public log-schema change: the JSON
 schema and the `ts-mono` generated types change even though the viewer
 ignores the field until Step 3, so Step 1 needs a coordinated `ts-mono`
@@ -756,6 +766,19 @@ Pydantic models. New boundaries:
   (Ransom, 2026-09-21; see "Trust").
 - **Listing shards beside the merged log** changes no authorization: every
   file, shard or merged, is authorized per file as today (`_validate_read`).
+- **Companion deletion widens the viewer's delete scope.** Deleting a merged
+  log deletes `<name>.shards/` with it, but the viewer's delete endpoint
+  authorizes only the requested path (`_validate_delete`,
+  `fastapi_server.py:177-180`) before calling a helper that has no access to
+  the request or policy (`delete_log`, `_view/common.py:409-411`). A cascade
+  placed beneath that single check would delete files the same policy
+  denies. The viewer therefore resolves the companion members first, runs
+  the access policy's delete check on each of them as well as on the
+  canonical log, and deletes nothing unless every check passes; a denied
+  member is a 403 for the whole request with the canonical log left in
+  place. Path mapping (`_map_file`) applies to the members as it does to
+  the requested file. Trusted callers (`retry_cleanup`, the API, the CLI)
+  are outside the HTTP policy and delete both directly.
 
 ## Testing
 
@@ -796,7 +819,12 @@ Pydantic models. New boundaries:
   surviving merged log alone; a `started` merged log is re-merged, not
   recovered; a shard set with an `error` shard merges into an `error` log
   that the set retries seeded with the merged samples; after a successful
-  retry, cleanup removes the merged log and its `<name>.shards/` together
+  retry, cleanup removes the merged log and its `<name>.shards/` together;
+  in the viewer, a delete of a merged log under an access policy that allows
+  the canonical file but denies a companion member returns 403 and deletes
+  nothing, and under a policy that allows both removes the log and its
+  companion together (a FastAPI test client over `/log-delete`, in
+  `tests/view/`)
   and keeps the retry log even when the merged log has the newer mtime; a
   second startup after that cleanup finds nothing to re-merge; with
   `retry_cleanup=False` both logs and the shards remain.
