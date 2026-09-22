@@ -45,6 +45,10 @@ class MySource(SampleSource):
     async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
         """Observe a finished sample; optionally return follow-up samples."""
         ...
+
+    async def sample_abandoned(self, sample: Sample, epoch: int) -> list[Sample] | None:
+        """A sample was cancelled before anything was logged for it."""
+        ...
 ```
 
 Pass an instance as the task's `dataset`:
@@ -81,6 +85,12 @@ A source that returns follow-ups from this callback needs no `next_samples()`: t
 
 Note that with `epochs > 1`, `sample_complete` fires once per *epoch*, and each returned follow-up itself runs all epochs — so a per-completion follow-up pattern multiplies (the example above with `epochs=2` would spawn two follow-ups per passed difficulty level, each running twice). Use `sample.epoch` (or dedupe on the source's own state) to react once per logical sample.
 
+## Cancelled samples
+
+A sample the operator cancels while it is running (`inspect ctl sample cancel`) is still logged, and `sample_complete` fires for it with `sample.error` set to the cancellation and no scores. A sample cancelled before anything was logged — cancelled while still waiting in the queue, or cancelled in the moment between an attempt erroring and its `retry_on_error` re-run — has no `EvalSample` to deliver, so the source is told via `sample_abandoned(sample, epoch)` instead, with the `Sample` as it was added to the task. Like `sample_complete`, it may return follow-up samples. A queued sample abandoned by a graceful task cancel (`inspect ctl task cancel --action drain|score|error`) is reported the same way. Neither hook fires when the whole task is cancelled (`--action cancel`, or Ctrl+C): no follow-up could run.
+
+A source that awaits a sample's outcome — for example a sample that enqueues a rollout and waits for its result — should therefore treat `sample_abandoned` as that outcome, or it will wait forever when the rollout is cancelled before it starts.
+
 ## Sources from callbacks
 
 `SampleSource.from_samples()` builds a source from a seed and optional callbacks, without subclassing:
@@ -97,7 +107,7 @@ async def on_sample(sample):
 source = SampleSource.from_samples([easy_sample()], sample_complete=on_sample)
 ```
 
-`from_samples(initial_samples, *, next_samples=None, sample_complete=None)` delegates to the callables. Omitting `next_samples` and returning nothing from the callback stops after the seed.
+`from_samples(initial_samples, *, next_samples=None, sample_complete=None, sample_abandoned=None)` delegates to the callables. Omitting `next_samples` and returning nothing from the callback stops after the seed.
 
 ## Adding samples imperatively
 

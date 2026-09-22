@@ -111,6 +111,7 @@ from .._restore_scope import (
     restic_node,
     restic_restore_args,
 )
+from .._sandbox_dir import ensure_root_sandbox_dir
 from .repo import _SANDBOX_RESTIC_DIR
 
 _HEX64 = r"[0-9a-f]{64}"
@@ -212,9 +213,9 @@ async def ingress_sandbox(
 
     tar_bytes = _build_repo_tar(src)
 
+    await ensure_root_sandbox_dir(env, sandbox_dir)
     extract_script = (
         f"set -e; "
-        f"install -d -m 0700 {sandbox_dir}; "
         f"rm -rf {paths.repo}; "
         f"mkdir -p {paths.repo}; "
         f"tar -xf - -C {paths.repo}; "

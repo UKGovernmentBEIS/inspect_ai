@@ -44,6 +44,7 @@ from inspect_ai._util.generate_config_args import (
     config_from_locals,
 )
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
+from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.log import IncompleteAction
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
@@ -1759,6 +1760,8 @@ class RunConfigInput(BaseModel):
 
         # Eval config — combine epochs + epochs_reducer into Epochs
         ec = self.eval_config.model_dump(exclude_none=True)
+        if "approval" in ec:
+            ec["approval"] = ApprovalPolicyConfig.model_validate(ec["approval"])
         epochs = ec.pop("epochs", None)
         epochs_reducer = ec.pop("epochs_reducer", None)
         if epochs is not None:
