@@ -1748,6 +1748,11 @@
       "undescribed": 2
     }
   },
+  "tests/model/test_tool_exec_shared.py": {
+    "noqa:B904": {
+      "count": 1
+    }
+  },
   "tests/model/test_tool_info_lifecycle.py": {
     "type: ignore[method-assign]": {
       "count": 2,

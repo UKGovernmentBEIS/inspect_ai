@@ -379,7 +379,7 @@ def test_terminate_sticky_across_context():
         try:
             raise TerminateSampleError("kill")
         except TerminateSampleError:
-            raise RuntimeError("suppressor")  # noqa: B904
+            raise RuntimeError("suppressor")  # noqa: B904 — deliberately implicit context, not chained, to test that path
     except RuntimeError as ex:
         chained = ex
     with pytest.raises(TerminateSampleError):
