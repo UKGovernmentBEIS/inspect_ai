@@ -386,19 +386,46 @@ deterministic (the output is `<name>.eval` for the companion `<name>.shards/`
 and nothing else, "merge whatever is new"), so repeating it *serially* is
 harmless: a second pass over unchanged shards changes nothing, and a worker
 can be told to attempt the merge on exit. What idempotence does not give is
-safety for *overlapping* merges, and the design has no answer for that yet
-(open question 2). Two merges can overlap whenever shards are still growing:
-writer A reads shard members `{1}`, writer B reads `{1, 2}` and publishes,
-then A publishes last, and the canonical log is valid but regressed, with
-B's samples, ledger entries and metrics gone. The two outputs are not
-byte-equivalent, and two overlapping *first* merges would each mint an
-`eval_id`. Inspect's publication primitives do not prevent this: the local
-writer replaces unconditionally (`os.replace`,
+safety for *overlapping* merges. Two merges can overlap whenever shards are
+still growing: writer A reads shard members `{1}`, writer B reads `{1, 2}`
+and publishes, then A publishes last, and the canonical log is valid but
+regressed, with B's samples, ledger entries and metrics gone. The two
+outputs are not byte-equivalent, and two overlapping *first* merges would
+each mint an `eval_id`. Inspect's publication primitives do not prevent
+this on their own: the local writer replaces unconditionally (`os.replace`,
 `_util/atomic_write.py:209`), and the S3 writer checks an ETag only when the
 caller supplies one (`_recorders/eval.py:742-761`); atomic replacement
-prevents a torn file, not a stale one. Until this is settled, the
-distributed model (workers attempting the merge on exit) is a configuration
-only where the caller serialises the attempts itself.
+prevents a torn file, not a stale one.
+
+*Overlapping merges* (decision: Ransom, 2026-09-22). Two measures, and no
+lock protocol:
+
+- **The contract: one merger at a time per merged log.** Callers serialise
+  merges themselves. The decisions already made leave few callers that can
+  overlap: one launcher process calls the API (a Step 2 timer merge and the
+  end-of-run merge live in that same process and serialise trivially), no
+  worker-side attempts, `eval_set()` runs only after the workers have exited
+  (see "Notes for harnesses"), and the CLI is for a directory nothing else
+  is merging. The distributed model (workers attempting the merge on exit)
+  stays out until a caller can serialise it.
+- **The guard: compare-and-swap publication where the storage offers it,**
+  so a broken contract becomes a refused publish rather than a regressed
+  log. On S3 the merge publishes with `IfMatch` set to the ETag it read at
+  the start (the writer already supports this; the merge only supplies the
+  value) and a first publish with `IfNoneMatch: *`, so two overlapping
+  first merges cannot both create the log or mint two `eval_id`s. Locally
+  the merge holds an `O_EXCL` lock file beside the merged log for its
+  duration, which is atomic on local filesystems and avoids the
+  check-then-replace race a `stat` before `os.replace` would leave. A
+  refused publish or a held lock means another merge is running: the merge
+  reports it and exits without writing, and the caller re-runs later;
+  because the merge is idempotent nothing is lost.
+
+Deferred: a general merge-lock protocol in the companion directory for
+remote storage (lease expiry for crashed holders, per-backend
+conditional-create: GCS generation preconditions, Azure leases). Nothing in
+Step 1 needs it once the contract and the S3 and local guards are in place;
+revisit when a distributed caller exists.
 
 **Trust.** Confirmed (Ransom, 2026-09-21): the merged log is created only by
 a trusted Python step (the Python API or CLI, called by the launcher or by
@@ -553,7 +580,8 @@ have grown, and additional shards added later.
   `eval_set()`-startup merge are the same operation: "merge whatever is new", idempotent, deterministic,
   keyed on the merged log's basename (given either `<name>.eval` or
   `<name>.shards/` it finds the other), safe to repeat any number of times
-  as long as the runs do not overlap; overlapping runs are open question 2.
+  as long as the runs do not overlap; see "Overlapping merges" for the
+  contract and the guard.
 
 **Shard disposition.** Merged shards stay in `<name>.shards/`, listed
 beside the merged log (see "Listing"), until the merged log is verified;
@@ -649,8 +677,9 @@ Decisions Ransom has not yet made, each with the recommendation the design
 assumes where it has one. Questions resolved on 2026-09-21 (listing exclusion, conflict
 policy, the CLI merge's use of the `task_file` fallback, the
 `shards_location` override, the shape of `<name>`) and on 2026-09-22 (the
-merged log's `task_id` under an eval-set retry, see "Eval-set integration")
-are recorded where they apply in "Design" and under "Alternatives not
+merged log's `task_id` under an eval-set retry, see "Eval-set integration";
+stale publication by overlapping merges, see "Overlapping merges" under
+"The merge") are recorded where they apply in "Design" and under "Alternatives not
 taken".
 
 1. **Step 2's place.** Now that the merge is incremental there are two routes
@@ -659,25 +688,6 @@ taken".
    incremental merge on a timer (exact, a merged-zip rewrite per tick,
    reducible by S3 composition). Whether Step 2 remains a separate step,
    becomes "run the merge on a timer", or is skipped for Step 3.
-2. **Stale publication by overlapping merges.** A requirement the chosen
-   ownership leaves unmet, not a change to it. Any two of the merge's
-   callers (the API or CLI from a launcher, `eval_set()` startup, a worker
-   attempting the merge on exit) can overlap while shards grow, and the one
-   that read the older snapshot can publish last, regressing the canonical
-   log; two overlapping first merges would also mint two `eval_id`s.
-   Idempotence does not prevent this, and neither publication primitive
-   does: the local writer replaces unconditionally
-   (`_util/atomic_write.py:209`) and the S3 writer checks an ETag only when
-   given one (`_recorders/eval.py:742-761`). Options: compare-and-swap
-   publication where the storage offers it (`IfMatch` on S3 with the ETag
-   read at the start of the merge, an equivalent stat-and-replace check
-   locally), with a refused publish re-running as a fresh merge; a merge
-   lock in the companion directory, with the S3 caveat that
-   create-if-absent is not available uniformly; or a documented rule that
-   callers serialise merges themselves (one launcher, no worker-side
-   attempts, `eval_set()` startup only when no launcher is running). The
-   design does not choose; the Testing section pins whichever is chosen.
-
 ## Compatibility
 
 - The new `EvalSpec` provenance field changes `EvalSpec`, the JSON schema, the
@@ -742,11 +752,14 @@ Pydantic models. New boundaries:
   members added; add a shard and see the status return to `started`; a
   retried sample replaced by the newer copy; a fully merged shard not
   reopened.
-- Overlap tests, pinning whatever open question 2 decides: two first merges
-  started together over the same shards yield one `eval_id` and one
-  canonical log; a merge that read an older snapshot of the shards and
-  publishes after a merge that read a newer one does not regress the
-  canonical log (its samples, ledger and status survive), or is refused.
+- Overlap tests: two first merges started together over the same shards
+  yield one `eval_id` and one canonical log, the second refused (local:
+  `O_EXCL` lock held; S3: `IfNoneMatch` fails); a merge that read an older
+  snapshot of the shards and publishes after a merge that read a newer one
+  is refused (S3: `IfMatch` mismatch) or blocked (local lock), the canonical
+  log keeps the newer samples, ledger and status, and the refused caller's
+  re-run then merges cleanly; a lock file left by a crashed local merge is
+  reported, not silently overridden.
 - Listing tests: shards under `<name>.shards/<k>/` listed by
   `list_eval_logs`, `evals_df` and the viewer listing beside the merged log;
   `samples_df` over a directory whose shards hold no superseded attempts
@@ -808,10 +821,10 @@ Kept for the record and as the rationale for the design above.
   shard does, but two near-simultaneous finishers can both see a complete
   shard set, the largest transfer lands on an arbitrary worker at the end of a
   one-sample-per-machine job, and every worker must have the metric code.
-  Retained as a possible configuration of the merge, not as the default, and
-  only once overlapping merges are made safe (open question 2): two workers
-  finishing together are exactly the overlap that can publish a stale
-  canonical log.
+  Retained as a possible configuration of the merge, not as the default,
+  and only for a caller that serialises the attempts itself (see
+  "Overlapping merges"): two workers finishing together are exactly the
+  overlap the contract forbids and the guard refuses.
 - **A shard marker in the header.** A new `EvalSpec` field on every shard
   naming the merged log, index, count and intended selection. Rejected
   (2026-09-21) in favour of the directory convention: the header field would
