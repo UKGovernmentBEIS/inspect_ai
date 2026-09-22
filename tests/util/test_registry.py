@@ -288,3 +288,11 @@ def test_repr_params_all_strategies() -> None:
     )
     assert result["compaction"]["threshold"] == 0.75
     assert result["compaction"]["memory"] == "auto"
+
+
+def test_registry_types_include_sentinel_kinds() -> None:
+    from typing import get_args
+
+    from inspect_ai._util.registry import RegistryType
+
+    assert {"monitor", "protocol"} <= set(get_args(RegistryType))

@@ -107,7 +107,7 @@ class StoreModel(BaseModel):
 
     def _un_ns_name(self, name: str) -> str:
         name = name.replace(f"{self.__class__.__name__}:", "", 1)
-        if self.instance:
+        if self.instance is not None:
             name = name.replace(f"{self.instance}:", "", 1)
         return name
 

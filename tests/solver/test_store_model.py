@@ -292,3 +292,16 @@ def test_error_on_embed_store_model():
     illegal = IllegalModel2()
     with pytest.raises(TypeError):
         illegal.my_model = MyModel()
+
+
+def test_store_model_empty_instance_validates_writes() -> None:
+    class Counter(StoreModel):
+        count: int = 0
+
+    store = Store()
+    empty = Counter(store=store, instance="")
+    empty.count = 2
+    assert Counter(store=store, instance="").count == 2
+    bad: Any = "two"
+    with pytest.raises(ValidationError):
+        empty.count = bad
