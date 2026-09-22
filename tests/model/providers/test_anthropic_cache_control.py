@@ -1759,6 +1759,10 @@ async def test_live_system_cache_breakpoint_reuses_marked_prefix() -> None:
     # the varying tail was not written into the cached prefix, so the cached
     # amount doesn't grow between the two calls
     assert out2.usage.input_tokens_cache_read == out1.usage.input_tokens_cache_write
+    # the second call reads the whole marked prefix from cache and writes
+    # nothing new — the varying tail is too small to trigger a fresh write,
+    # confirming it was never part of the cached (marked) prefix
+    assert (out2.usage.input_tokens_cache_write or 0) == 0
     # the varying tail deterministically changed the answer content
     assert "4" in out1.completion
     assert "5" in out2.completion

@@ -503,6 +503,9 @@ async def _responses_request(
         synthesize_phase=False,
         model_info=model_info,
         batcher=None,
+        # stands in for the direct OpenAI provider, which passes True; see
+        # test_openrouter.py for the OpenAI-compatible (default False) case
+        supports_explicit_prompt_cache=True,
     )
     return dict(client.responses.create.call_args.kwargs)
 
@@ -790,6 +793,8 @@ async def test_openai_explicit_cache_breakpoint_reuses_marked_prefix_completions
     assert (out2.usage.input_tokens_cache_read or 0) > 0
     # same rubric read back, not rewritten, on the second call
     assert out2.usage.input_tokens_cache_read == out1.usage.input_tokens_cache_write
+    # the varying tail is not written into the cached (marked) prefix
+    assert (out2.usage.input_tokens_cache_write or 0) == 0
     # the varying tail deterministically changed the answer content
     assert "4" in out1.completion
     assert "5" in out2.completion
@@ -819,6 +824,8 @@ async def test_openai_explicit_cache_breakpoint_reuses_marked_prefix_responses()
     assert (out1.usage.input_tokens_cache_write or 0) > 0
     assert (out2.usage.input_tokens_cache_read or 0) > 0
     assert out2.usage.input_tokens_cache_read == out1.usage.input_tokens_cache_write
+    # the varying tail is not written into the cached (marked) prefix
+    assert (out2.usage.input_tokens_cache_write or 0) == 0
     assert "4" in out1.completion
     assert "5" in out2.completion
 

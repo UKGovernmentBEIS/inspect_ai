@@ -586,6 +586,7 @@ class OpenAIAPI(ModelAPI):
                     model_info=self,
                     batcher=self._responses_batcher,
                     streaming=streaming,
+                    supports_explicit_prompt_cache=True,
                 )
                 if use_responses
                 else generate_completions(

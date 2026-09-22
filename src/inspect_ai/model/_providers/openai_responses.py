@@ -123,6 +123,7 @@ async def generate_responses(
     | None = None,
     model_family: str | None = None,
     streaming: bool = False,
+    supports_explicit_prompt_cache: bool = False,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
@@ -168,12 +169,21 @@ async def generate_responses(
     # neither of which goes through per-block content conversion) would
     # otherwise be counted as representable and then silently dropped while
     # marks elsewhere in the same request are still honored — check that
-    # bypass path explicitly too.
-    explicit_cache = resolve_explicit_prompt_cache(
-        input, model_name, config.cache_prompt
-    ) and not any(
-        message_bypasses_content_conversion(m) and count_cache_breakpoints([m]) > 0
-        for m in input
+    # bypass path explicitly too. `generate_responses` is also called by
+    # `OpenAICompatibleAPI` (OpenRouter, Together, etc. with
+    # `responses_api=True`) whose endpoints have not been verified to accept
+    # `prompt_cache_options`/`prompt_cache_breakpoint` at all — the model-name
+    # pattern `resolve_explicit_prompt_cache` matches (`gpt-5.6`, `gpt-6-*`)
+    # says nothing about which endpoint is being called, so
+    # `supports_explicit_prompt_cache` gates that: only the direct OpenAI
+    # provider passes `True`.
+    explicit_cache = (
+        supports_explicit_prompt_cache
+        and resolve_explicit_prompt_cache(input, model_name, config.cache_prompt)
+        and not any(
+            message_bypasses_content_conversion(m) and count_cache_breakpoints([m]) > 0
+            for m in input
+        )
     )
     if explicit_cache:
         # retain a checkpoint at the end of the initial system/developer
