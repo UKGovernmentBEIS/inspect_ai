@@ -1536,12 +1536,6 @@
       "undescribed": 1
     }
   },
-  "tests/checkpoint/test_snapshot_strategy.py": {
-    "type: ignore[override]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "tests/conftest.py": {
     "type: ignore": {
       "count": 1,

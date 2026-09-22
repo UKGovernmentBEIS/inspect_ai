@@ -30,12 +30,13 @@ async def test_human_approver_fires_notify_via_apprise(
     def fake_console(*args: object, **kwargs: object) -> Approval:
         return Approval(decision="approve")
 
-    # Patch the bindings inside approver.py — the module imports these
-    # symbols by name at module load, so we have to patch the bindings
-    # in approver.py rather than in their source modules.
-    monkeypatch.setattr(
-        approver_module, "request_human_approval_via_acp", fake_acp_request
-    )
+    # Patch the bindings inside approver.py — the module imports the panel
+    # and console symbols by name at module load, so we have to patch the
+    # bindings in approver.py rather than in their source modules. The ACP
+    # shim is imported lazily per call, so it is patched at its source.
+    from inspect_ai.approval._human import acp as acp_module
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", fake_acp_request)
     monkeypatch.setattr(approver_module, "panel_approval", fake_panel)
     monkeypatch.setattr(approver_module, "console_approval", fake_console)
 
