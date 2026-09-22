@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: Approval policies in run-config files now load correctly instead of failing evaluation startup with an `AttributeError`.
 - Added `read_eval_log_sample_summaries_async` and three other async log readers to the public `inspect_ai.log` exports.
 - Meta: New `meta` provider for Muse Spark models on the Meta Model API, which streams by default, preserves model reasoning across turns, and reports policy-blocked prompts as content filter stops.
 - OpenAI: Responses API requests no longer fail validation when a compatible service omits `model` from its response.
@@ -25,7 +26,6 @@
 
 - Agent Bridge: Sandboxed agents using the Responses API no longer stall after a single model turn when the model calls a tool; `function_call` and `custom_tool_call` output items now carry a non-null item id, and streamed custom tool calls now report `completed` status so client SDKs dispatch them.
 - Bugfix: Closing cached S3 sessions after an eval no longer leaves s3fs to close them again at garbage collection, which raised a stray `AssertionError: Session was never entered` in unrelated code.
-- Bugfix: Approval policies in run-config files now load correctly instead of failing evaluation startup with an `AttributeError`.
 - Bugfix: Task failures no longer report an internal "no running event loop" error in place of the original exception.
 - Anthropic: `cache_ttl` now defaults to "auto", which switches a sample's prompt-cache TTL from 5 minutes to 1 hour after a >5 minute gap between its requests; pass "5m" or "1h" to pin.
 - Hugging Face `literal:` task targets now keep the rest of the value when it contains additional colons.
