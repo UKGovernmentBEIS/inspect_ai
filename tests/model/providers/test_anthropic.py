@@ -2053,10 +2053,12 @@ async def test_anthropic_no_thinking_dropped_warning_when_empty(
 
 @pytest.mark.anyio
 @skip_if_no_anthropic
+@pytest.mark.parametrize("model_name", ["claude-fable-5-1", "claude-opus-5-5"])
 async def test_anthropic_fable_5_1_thinking_drop_reported_live(
+    model_name: str,
     _warn_once_messages: list[str],
 ) -> None:
-    """A history edit before a replayed 5.1 thinking block drops (not 400s) and warns.
+    """A history edit before a replayed bound thinking block drops (not 400s) and warns.
 
     Turn 1 produces a thinking block; turn 2 replays it under an edited system
     prompt. Without the drop_block opt-in this request would fail with 400
@@ -2067,7 +2069,7 @@ async def test_anthropic_fable_5_1_thinking_drop_reported_live(
     from inspect_ai.model import ChatMessageSystem as SystemMsg
 
     model = get_model(
-        "anthropic/claude-fable-5-1",
+        f"anthropic/{model_name}",
         config=GenerateConfig(reasoning_effort="high", max_tokens=8192),
     )
     prompt = "Find all real solutions of 3*x^3 - 5*x = 1 to 3 decimal places."
