@@ -441,7 +441,9 @@ Tests:
    saved fixture): `fail_on_error=False`; assert `status == "success"`, each
    sample has `error` whose message starts with `RuntimeError('Sample
    errored:`, `is_cancellation_message` is false for it, no scores, an
-   `ErrorEvent` in events, `completed_samples == 0`.
+   `ErrorEvent` in events, and `log.results is None` (every sample errored
+   unscored, so no aggregate results object is built: `run.py:1855, 1877`;
+   verified in the spike runs, which all returned `results=None`).
 2. `test_unattributed_cancel_in_solver_fails_eval_by_default` (both
    backends, saved fixture): `fail_on_error` unset; assert `status == "error"`.
 3. `test_unattributed_cancel_in_solver_is_retried` (both backends, saved
