@@ -43,6 +43,10 @@ Action = Literal[
 
 ActionFunction = Callable[[str], ToolResult | Awaitable[ToolResult]]
 
+# upper bound for `repeat` on the `key` action (Anthropic's documented range);
+# each press is a separate sandbox round trip, so the bound also caps runtime
+MAX_KEY_REPEAT = 100
+
 _COMPUTER_TOOL_PARAMETERS: frozenset[str] = frozenset(
     [
         "action",
@@ -159,7 +163,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
           scroll_direction (Literal["up", "down", "left", "right] | None): The direction to scroll the screen. Required only by `action=scroll`.
           start_coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen from which to initiate a drag. Required only by `action=left_click_drag`.
           text (str | None): The text to type or the key to press. Required when action is "key" or "type".
-          repeat (int | None): The number of times to press the key. Used only by `action=key`. Defaults to 1.
+          repeat (int | None): The number of times to press the key (1-100). Used only by `action=key`. Defaults to 1.
           press_enter (bool): If True and action is "type", press Return after typing. Defaults to False.
           actions (list[dict] | None): A list of action dicts to execute sequentially (OpenAI multi-action format).
 
@@ -212,6 +216,10 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         match action:
             case "key":
                 key = not_none(text, "text")
+                if repeat is not None and not 1 <= repeat <= MAX_KEY_REPEAT:
+                    raise ToolParsingError(
+                        f"repeat must be between 1 and {MAX_KEY_REPEAT} (got {repeat})"
+                    )
                 result = await common.press_key(key, timeout=timeout)
                 for _ in range(1, repeat or 1):
                     result = await common.press_key(key, timeout=timeout)

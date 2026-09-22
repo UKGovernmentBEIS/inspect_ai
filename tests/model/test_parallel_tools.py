@@ -774,11 +774,12 @@ NOT_EXECUTED = "Not executed: an earlier halting_action action in this turn fail
 def _tool_events(call_ids: list[str]) -> dict[str, ToolEvent]:
     from inspect_ai.log._transcript import transcript
 
-    return {
-        e.id: e
-        for e in transcript().events
-        if isinstance(e, ToolEvent) and e.id in call_ids
-    }
+    events = [
+        e for e in transcript().events if isinstance(e, ToolEvent) and e.id in call_ids
+    ]
+    # exactly one event per call, recorded in declared order
+    assert [e.id for e in events] == call_ids
+    return {e.id: e for e in events}
 
 
 async def test_halt_on_error_default_is_false():
@@ -915,3 +916,35 @@ async def test_halt_on_error_implies_serial_execution():
         tool_msgs[1].error.message
         == "Not executed: an earlier parallel_halting_action action in this turn failed."
     )
+
+
+async def test_halt_on_error_tooldef_override():
+    """ToolDef(halt_on_error=...) overrides the tool's registered declaration."""
+    assert ToolDef(halting_action(), halt_on_error=False).halt_on_error is False
+    assert ToolDef(serial_echo(), halt_on_error=True).halt_on_error is True
+
+
+async def test_halt_on_error_triggered_by_approval_rejection():
+    """A rejected approval is a failed call: later calls to the tool are skipped."""
+    from inspect_ai.approval._apply import _tool_approver
+    from inspect_ai.approval._approval import Approval
+
+    async def reject_first(message, call, view, history):
+        return Approval(decision="reject" if call.id == "appr-c0" else "approve")
+
+    calls = [
+        call("halting_action", "appr-c0", label="L0"),
+        call("halting_action", "appr-c1", label="L1"),
+    ]
+    token = _tool_approver.set(reject_first)
+    try:
+        messages, _ = await execute_tools(
+            [assistant(*calls)], [ToolDef(halting_action())]
+        )
+    finally:
+        _tool_approver.reset(token)
+
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert tool_msgs[0].error is not None and tool_msgs[0].error.type == "approval"
+    assert tool_msgs[1].error is not None
+    assert tool_msgs[1].error.message == NOT_EXECUTED

@@ -553,3 +553,23 @@ async def test_toolset_request_wiring_forced_on_opus_5() -> None:
         b for b in request["messages"][2]["content"] if b["type"] == "tool_result"
     ]
     assert all(b["toolset_name"] == "computer" for b in blocks)
+
+
+def test_inbound_member_without_computer_tool_keeps_member_name() -> None:
+    """Without inspect's computer tool declared, a member call is not rewritten."""
+    init_sample_anthropic_assistant_internal()
+    block = ToolUseBlock(
+        type="tool_use",
+        id="toolu_1",
+        name="left_click",
+        input={"coordinate": [1, 2]},
+        toolset_name="computer",
+    )
+    _, tool_calls = content_and_tool_calls_from_assistant_content_blocks([block], [])
+    assert tool_calls == [
+        ToolCall(
+            id="toolu_1",
+            function="left_click",
+            arguments={"action": "left_click", "coordinate": [1, 2]},
+        )
+    ]

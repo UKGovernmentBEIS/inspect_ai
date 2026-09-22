@@ -31,3 +31,22 @@ async def test_computer_key_honors_repeat(
     result = await tool(action="key", text="Return", **kwargs)
     assert result == "OK"
     assert presses == ["Return"] * expected
+
+
+@pytest.mark.parametrize("repeat", [0, -1, 101, 100000])
+async def test_computer_key_rejects_out_of_range_repeat(
+    monkeypatch: pytest.MonkeyPatch, repeat: int
+) -> None:
+    from inspect_ai.tool._tool import ToolParsingError
+
+    presses: list[str] = []
+
+    async def fake_press_key(key: str, timeout: int | None = None) -> str:
+        presses.append(key)
+        return "OK"
+
+    monkeypatch.setattr(_common, "press_key", fake_press_key)
+
+    with pytest.raises(ToolParsingError, match="repeat must be between 1 and 100"):
+        await computer()(action="key", text="Return", repeat=repeat)
+    assert presses == []
