@@ -19,10 +19,12 @@ issues or PRs. The recurring workflow lives in `meridianlabs-ai/actions` as
   append to. Do not rewrite the archived report or PR ledger on each run.
 - Write a readable report and proposed findings. This skill does not implement
   fixes, commit, push, or create PRs. Do not probe the known permission blockers.
-- The publisher posts findings to fork issues and applies the `auto` label once
-  per issue; the fork automation starts on that label event, and a marker
-  comment prevents repeat labeling. Reuse existing issues. An empty findings
-  list is a valid result.
+- The publisher posts findings to fork issues and applies no label: a
+  finding is model output over CI data anyone can shape, so a maintainer who
+  reads the issue decides whether to hand it to the autonomous agent by
+  applying `auto` themselves (the fork's kickoff refuses labels the machine
+  account applies). Reuse existing issues. An empty findings list is a valid
+  result.
 - Never propose trimming the Python version matrix. Required-check names,
   coverage changes, topology, concurrency, and retry policy need a maintainer
   decision. Say so in the issue. Workflow edits and node/pnpm work need a human
@@ -123,10 +125,12 @@ Write `$CI_PERF_OUTPUT_DIR/findings.json` as a JSON list, at most five items:
 Set `human_implementation` to true only when the proposed change edits files
 under `.github/workflows/` or requires node or pnpm (builds, type generation,
 ts-mono). Python-only changes, including this skill's own scripts and tests,
-are false. The publisher records that need and omits the automation label.
+are false. The publisher records that need in the issue so the maintainer
+knows the autonomous agent cannot implement it; it applies no label either
+way.
 
 When reusing an issue, copy its current title exactly into `title`; the publisher
-checks it before adding evidence or a trigger. Do not put automation mentions
+checks it before adding evidence. Do not put automation mentions
 in the report, since the report also goes to the trend tracking issue. Never
 copy the publisher's HTML markers starting with `<!-- ci-perf-` into report
 text, titles, or finding bodies; the publisher adds those markers.
@@ -136,8 +140,9 @@ open PRs for the problem. Match meaning, not just titles. If a PR already fixes
 it, report its status and omit the finding. Use the same key across runs. Key
 deduplication finds only publisher-created issue bodies; for a reused human or
 Marvin issue, supply `existing_issue` on every run. Do not include automation
-mentions in titles or bodies; the publisher applies the trigger label. For no
-actionable findings, write `[]`, not an absent file.
+mentions in titles or bodies; whether an issue goes to the autonomous agent is
+a maintainer's decision, not this analysis's. For no actionable findings, write
+`[]`, not an absent file.
 
 Validate locally with:
 
