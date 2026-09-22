@@ -1,15 +1,19 @@
 # Eval sharding with per-worker log files
 
-Status: design direction chosen, last revised 2026-09-21. Phase 1 compared
+Status: design direction chosen, last revised 2026-09-22. Phase 1 compared
 the options (now under "Alternatives not taken"); the phased direction below
 was agreed by Ransom and JJ Allaire on 2026-09-18 and refined by Ransom on
-2026-09-21, including the shard layout: shards live in a companion directory
-beside the merged log, `<dir>/<name>.shards/<k>/`, mirroring sandbox
-checkpointing's `<name>.checkpoints/` (Ransom, 2026-09-21). The first
-implementation ships no launcher: merging is done through a Python API, a
-CLI command, or `eval_set()` at startup (Ransom, 2026-09-21). No API
-signatures or implementation plan yet; those are the next document. Open
-decisions are listed under "Open questions".
+2026-09-21 and 2026-09-22. Shards live in a companion directory beside the
+merged log, `<dir>/<name>.shards/<k>/`, mirroring sandbox checkpointing's
+`<name>.checkpoints/` (2026-09-21). The first implementation ships no
+launcher: merging is done through a Python API, a CLI command, or
+`eval_set()` at startup (2026-09-21). Deleting a merged log deletes its
+companion, and eval-set cleanup keeps an unsharded `success` log over a
+merged log that shares its `task_id` regardless of mtime (2026-09-22).
+Merges are serialised by their callers, one merger at a time per merged
+log, with compare-and-swap publication as the guard (2026-09-22). No API
+signatures or implementation plan yet; those are the next document. The one
+open decision is listed under "Open questions".
 Issue: https://github.com/meridianlabs-ai/inspect_ai/issues/509.
 Author: agent (Claude), reviewed by Codex; see the PR.
 
@@ -384,8 +388,9 @@ merge, is covered by the `eval_set()`-startup merge and by running the CLI
 by hand. The merge is built idempotent and
 deterministic (the output is `<name>.eval` for the companion `<name>.shards/`
 and nothing else, "merge whatever is new"), so repeating it *serially* is
-harmless: a second pass over unchanged shards changes nothing, and a worker
-can be told to attempt the merge on exit. What idempotence does not give is
+harmless: a second pass over unchanged shards changes nothing, and a caller
+that has serialised its attempts (see "Overlapping merges") can run it as
+often as it likes. What idempotence does not give is
 safety for *overlapping* merges. Two merges can overlap whenever shards are
 still growing: writer A reads shard members `{1}`, writer B reads `{1, 2}`
 and publishes, then A publishes last, and the canonical log is valid but
@@ -411,12 +416,19 @@ lock protocol:
 - **The guard: compare-and-swap publication where the storage offers it,**
   so a broken contract becomes a refused publish rather than a regressed
   log. On S3 the merge publishes with `IfMatch` set to the ETag it read at
-  the start (the writer already supports this; the merge only supplies the
-  value) and a first publish with `IfNoneMatch: *`, so two overlapping
-  first merges cannot both create the log or mint two `eval_id`s. Locally
-  the merge holds an `O_EXCL` lock file beside the merged log for its
-  duration, which is atomic on local filesystems and avoids the
-  check-then-replace race a `stat` before `os.replace` would leave. A
+  the start (the writer already supports this through boto's `put_object`,
+  with a `head_object` pre-check for backends that ignore `IfMatch`,
+  `_recorders/eval.py:742-761`; the merge only supplies the value) and a
+  first publish with `IfNoneMatch: *`, which the writer does not send today
+  but is one more argument to the same `put_object` call, so two
+  overlapping first merges cannot both create the log or mint two
+  `eval_id`s. The `head_object` pre-check has no create-if-absent
+  equivalent, so backends that ignore `IfNoneMatch` lose the first-publish
+  guard and keep only the contract. Locally the merge holds an `O_EXCL`
+  lock file beside the merged log for its duration (the pattern
+  `_lfs/_cache.py:187` already uses for a marker file), which is atomic on
+  local filesystems and avoids the check-then-replace race a `stat` before
+  `os.replace` would leave. A
   refused publish or a held lock means another merge is running: the merge
   reports it and exits without writing, and the caller re-runs later;
   because the merge is idempotent nothing is lost.
@@ -519,10 +531,15 @@ this, a fully merged `success` shard is skipped without opening it, a grown
 shard is re-read only for the members the merged log lacks, and the ledger
 travels with the log, and the merged log stays the whole truth for
 `<name>`. Deleting a merged log deletes its companion `<name>.shards/` with
-it (decision: Ransom, 2026-09-22, mirroring checkpoints): a merged log with
-no shards is complete on its own, and shards with no merged log would only
-be re-merged into one at the next `eval_set()` startup. Every path that
-removes a merged log (`retry_cleanup`, an explicit delete) removes both. The field
+it (decision: Ransom, 2026-09-22): a merged log with no shards is complete
+on its own, and shards with no merged log would only be re-merged into one
+at the next `eval_set()` startup. The companion's *placement* mirrors
+checkpoints; its deletion coupling is new, because no log deletion path
+removes a companion today: `retry_cleanup` removes just the file
+(`fs.rm(id_log.info.name)`, `evalset.py:1972`) and the viewer's delete
+endpoint is a bare `fs.rm` (`_view/common.py:409-411`). Every path that
+removes a merged log, those two and any explicit delete the API or CLI
+offers, must therefore remove `<name>.shards/` with it. The field
 is absent on unsharded logs. It is a public log-schema change: the JSON
 schema and the `ts-mono` generated types change even though the viewer
 ignores the field until Step 3, so Step 1 needs a coordinated `ts-mono`
@@ -688,6 +705,7 @@ taken".
    incremental merge on a timer (exact, a merged-zip rewrite per tick,
    reducible by S3 composition). Whether Step 2 remains a separate step,
    becomes "run the merge on a timer", or is skipped for Step 3.
+
 ## Compatibility
 
 - The new `EvalSpec` provenance field changes `EvalSpec`, the JSON schema, the
