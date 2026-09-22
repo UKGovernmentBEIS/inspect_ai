@@ -488,17 +488,17 @@ Here are some example configurations:
 
 ``` python
 # default (native where supported, python as fallback):
-code_interpreter()
+code_execution()
 
 # selectively disable native (will fallback to python)
-code_interpreter({ "grok": False, "openai": False })
+code_execution(providers={ "grok": False, "openai": False })
 
 # disable python fallback
-code_interpreter({ "python": False })
+code_execution(providers={ "python": False })
 
 # provide openai container options
-code_interpreter(
-    {"openai": {"container": {"type": "auto", "memory_limit": "4g" }}}
+code_execution(
+    providers={"openai": {"container": {"type": "auto", "memory_limit": "4g" }}}
 )
 ```
 
