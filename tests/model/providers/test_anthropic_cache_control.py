@@ -1078,6 +1078,60 @@ async def test_explicit_breakpoints_take_priority_over_automatic_tools(
     assert tagged(request["messages"]) == [(0, 0), (0, 1), (0, 2)]
 
 
+def _web_search_tool() -> ToolInfo:
+    """A native web_search tool with its own preset cache_control."""
+    return ToolInfo(
+        name="web_search",
+        description="search the web",
+        options={"anthropic": {"cache_control": CACHE}},
+    )
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoints_over_budget_with_native_tool_control_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 4 explicit marks fit on their own, but web_search's own preset
+    # cache_control adds a 5th fixed breakpoint that can't be dropped —
+    # raise rather than send an over-budget request
+    api = _auto_api()
+    _capture_requests(api, monkeypatch)
+    tools = [_web_search_tool(), ToolInfo(name="f", description="a tool")]
+
+    with pytest.raises(ValueError, match=r"5.*[Aa]nthropic allows at most 4"):
+        await api.generate(
+            input=_input_with_marks(4),
+            tools=tools,
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+
+@pytest.mark.anyio
+async def test_cache_breakpoints_fit_with_native_tool_control(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 3 explicit marks + web_search's own preset cache_control = 4, exactly
+    # at budget. The automatic marker on the last (ordinary) tool must not
+    # be added on top of web_search's own, or the request would carry 5.
+    api = _auto_api()
+    requests = _capture_requests(api, monkeypatch)
+    tools = [_web_search_tool(), ToolInfo(name="f", description="a tool")]
+
+    await api.generate(
+        input=_input_with_marks(3),
+        tools=tools,
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+    request = requests[0]
+    tool_breakpoints = sum(1 for t in request["tools"] if "cache_control" in t)
+    assert tool_breakpoints == 1
+    assert request["tools"][-1]["name"] == "f"
+    assert "cache_control" not in request["tools"][-1]
+    assert tagged(request["messages"]) == [(0, 0), (0, 1), (0, 2)]
+
+
 def _tool_result_input() -> list[ChatMessage]:
     """A tool loop whose result carries a breakpoint, then a follow-up question."""
     return [

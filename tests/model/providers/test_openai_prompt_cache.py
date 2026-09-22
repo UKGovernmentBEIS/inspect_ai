@@ -119,6 +119,8 @@ async def _completions_request(
         safety_identifier=NOT_GIVEN,
         openai_api=_mock_openai_api(model),
         batcher=None,
+        # stands in for the direct OpenAI provider, which passes True
+        supports_explicit_prompt_cache=True,
     )
     return dict(client.chat.completions.create.call_args.kwargs)
 
@@ -728,6 +730,83 @@ async def test_responses_callers_own_initial_system_mark_wins() -> None:
     assert [b["text"] for b in developer_content] == ["stable", "varying"]
     assert developer_content[0]["prompt_cache_breakpoint"] == {"mode": "explicit"}
     assert "prompt_cache_breakpoint" not in developer_content[1]
+
+
+def _openai_api(model_name: str, **model_args: Any) -> OpenAIAPI:
+    return OpenAIAPI(model_name=model_name, api_key="test-key", **model_args)
+
+
+def _azure_api(model_name: str = "azure/gpt-5.6", **model_args: Any) -> OpenAIAPI:
+    return OpenAIAPI(
+        model_name=model_name,
+        base_url="https://test.openai.azure.com",
+        api_key="test-key",
+        **model_args,
+    )
+
+
+async def _generate_and_capture_cache_flag(
+    api: OpenAIAPI, monkeypatch: pytest.MonkeyPatch
+) -> bool:
+    """Call `api.generate()` and return the `supports_explicit_prompt_cache` it passed down."""
+    captured: dict[str, bool] = {}
+
+    async def fake_responses(*args: Any, **kwargs: Any) -> ModelOutput:
+        captured["value"] = kwargs["supports_explicit_prompt_cache"]
+        return ModelOutput.from_content(model=kwargs["model_name"], content="ok")
+
+    async def fake_completions(*args: Any, **kwargs: Any) -> ModelOutput:
+        captured["value"] = kwargs["supports_explicit_prompt_cache"]
+        return ModelOutput.from_content(model=kwargs["model_name"], content="ok")
+
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.openai.generate_responses", fake_responses
+    )
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.openai.generate_completions", fake_completions
+    )
+    await api.generate(
+        input=[ChatMessageUser(content="hi")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+    return captured["value"]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "use_responses", [False, True], ids=["completions", "responses"]
+)
+async def test_direct_openai_endpoint_supports_explicit_cache(
+    monkeypatch: pytest.MonkeyPatch, use_responses: bool
+) -> None:
+    api = _openai_api("gpt-5.6", responses_api=use_responses)
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "use_responses", [False, True], ids=["completions", "responses"]
+)
+async def test_azure_endpoint_declines_explicit_cache(
+    monkeypatch: pytest.MonkeyPatch, use_responses: bool
+) -> None:
+    # explicit caching is verified only against the direct OpenAI endpoint;
+    # Azure's support for prompt_cache_options/prompt_cache_breakpoint is
+    # unverified, so the capability must not be forwarded there even though
+    # the model name matches the gpt-5.6+ pattern
+    api = _azure_api("azure/gpt-5.6", responses_api=use_responses)
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is False
+
+
+@pytest.mark.anyio
+async def test_bedrock_endpoint_declines_explicit_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # same rationale as Azure above; Bedrock is unverified
+    api = _openai_api("bedrock/gpt-5.6", responses_api=True)
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is False
 
 
 # ---------------------------------------------------------------------------

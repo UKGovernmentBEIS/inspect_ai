@@ -57,6 +57,7 @@ async def generate_completions(
     openai_api: "OpenAIAPI",
     batcher: OpenAIBatcher[ChatCompletion] | None,
     streaming: bool = False,
+    supports_explicit_prompt_cache: bool = False,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # batching and streaming are mutually exclusive
     streaming = streaming and batcher is None
@@ -83,7 +84,7 @@ async def generate_completions(
     # explicit cache breakpoints (ContentText.cache_breakpoint); any
     # ineligible condition falls back to normal implicit caching for the
     # whole request — see resolve_explicit_prompt_cache
-    explicit_cache = resolve_explicit_prompt_cache(
+    explicit_cache = supports_explicit_prompt_cache and resolve_explicit_prompt_cache(
         input, openai_api.api_model_name(), config.cache_prompt
     )
     if explicit_cache:

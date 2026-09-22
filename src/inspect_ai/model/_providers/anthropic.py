@@ -2026,30 +2026,30 @@ class AnthropicAPI(ModelAPI):
         explicit_system_breakpoints = (
             count_block_list_cache_control(system_param) if system_param else 0
         )
+        # a native tool (e.g. web_search) can already carry its own
+        # cache_control from tool options, before any automatic marking below
+        existing_tool_breakpoints = count_block_list_cache_control(tools_params)
 
-        # auto-mark system/tools only when the caller didn't already mark them
-        auto_system = bool(system_param) and not explicit_system_breakpoints
-        if auto_system and system_param:
-            add_cache_control(system_param[-1], cache_ttl)
-        auto_tools = bool(tools_params)
-        if auto_tools:
-            add_cache_control(tools_params[-1], cache_ttl)
-
-        # explicit (caller) breakpoints take slot priority: drop the
-        # automatic system/tools markers first if over budget —
-        # `_can_honor_cache_breakpoints` already bounded the caller's own
-        # marks to MAX_CACHE_BREAKPOINTS, so this is always enough room.
-        breakpoints = (
+        fixed_breakpoints = (
             explicit_message_breakpoints
-            + count_block_list_cache_control(system_param or [])
-            + count_block_list_cache_control(tools_params)
+            + explicit_system_breakpoints
+            + existing_tool_breakpoints
         )
-        if breakpoints > MAX_CACHE_BREAKPOINTS and auto_tools:
-            strip_block_list_cache_control([tools_params[-1]])
-            breakpoints -= 1
-        if breakpoints > MAX_CACHE_BREAKPOINTS and auto_system and system_param:
-            strip_block_list_cache_control([system_param[-1]])
-            breakpoints -= 1
+        if fixed_breakpoints > MAX_CACHE_BREAKPOINTS:
+            raise ValueError(
+                f"Request has {fixed_breakpoints} cache breakpoints (explicit "
+                "ContentText marks plus native tool cache_control); Anthropic "
+                f"allows at most {MAX_CACHE_BREAKPOINTS} per request."
+            )
+
+        # auto-mark system/tools only where nothing already marked that
+        # scope and there's still budget for it
+        room = MAX_CACHE_BREAKPOINTS - fixed_breakpoints
+        if system_param and not explicit_system_breakpoints and room > 0:
+            add_cache_control(system_param[-1], cache_ttl)
+            room -= 1
+        if tools_params and not existing_tool_breakpoints and room > 0:
+            add_cache_control(tools_params[-1], cache_ttl)
 
         normalize_document_citations(message_params)
 
@@ -2588,17 +2588,6 @@ def count_block_list_cache_control(blocks: Sequence[object]) -> int:
     )
 
 
-def strip_block_list_cache_control(blocks: Sequence[object]) -> None:
-    """Remove `cache_control` from every block in `blocks`, recursing into nested content (e.g. a tool_result block's own content list)."""
-    for block in blocks:
-        if isinstance(block, dict):
-            block_dict = cast(dict[str, Any], block)
-            block_dict.pop("cache_control", None)
-            nested = block_dict.get("content")
-            if isinstance(nested, list):
-                strip_block_list_cache_control(nested)
-
-
 def count_message_cache_control(message_params: list[MessageParam]) -> int:
     """Number of top-level content blocks in `message_params` carrying `cache_control`."""
     return sum(
@@ -2606,13 +2595,6 @@ def count_message_cache_control(message_params: list[MessageParam]) -> int:
         for msg in message_params
         if isinstance(msg["content"], list)
     )
-
-
-def strip_message_cache_control(message_params: list[MessageParam]) -> None:
-    """Remove `cache_control` from every top-level content block in `message_params`."""
-    for msg in message_params:
-        if isinstance(msg["content"], list):
-            strip_block_list_cache_control(msg["content"])
 
 
 def add_cache_control(

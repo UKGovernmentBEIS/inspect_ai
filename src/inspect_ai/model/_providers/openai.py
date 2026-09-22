@@ -563,6 +563,10 @@ class OpenAIAPI(ModelAPI):
 
         streaming = self._resolve_streaming(use_responses)
 
+        # explicit prompt caching is only verified against the direct OpenAI
+        # endpoint; Azure, Bedrock, and custom base URLs are unverified
+        supports_explicit_prompt_cache = not (self.is_azure() or self.is_bedrock())
+
         async def generate_once(
             streaming: bool,
         ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
@@ -586,7 +590,7 @@ class OpenAIAPI(ModelAPI):
                     model_info=self,
                     batcher=self._responses_batcher,
                     streaming=streaming,
-                    supports_explicit_prompt_cache=True,
+                    supports_explicit_prompt_cache=supports_explicit_prompt_cache,
                 )
                 if use_responses
                 else generate_completions(
@@ -603,6 +607,7 @@ class OpenAIAPI(ModelAPI):
                     openai_api=self,
                     batcher=self._completions_batcher,
                     streaming=streaming,
+                    supports_explicit_prompt_cache=supports_explicit_prompt_cache,
                 )
             )
 
