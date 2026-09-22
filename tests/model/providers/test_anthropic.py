@@ -352,30 +352,16 @@ def test_anthropic_opus_5_disabled_thinking_keeps_high_effort() -> None:
 
 
 @pytest.mark.parametrize("model_name", ["claude-opus-5-5", "claude-fable-5-1"])
-def test_anthropic_reasoning_effort_none_warns_where_thinking_always_on(
-    model_name: str, _warn_once_messages: list[str]
+def test_anthropic_reasoning_effort_none_keeps_effort_where_thinking_always_on(
+    model_name: str,
 ) -> None:
-    """Models that can't disable thinking keep it on at the configured effort and warn."""
+    """Models that can't disable thinking omit `thinking` and keep the configured effort."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     params, _e, _h, _b = api.completion_config(
         GenerateConfig(max_tokens=64, reasoning_effort="none", effort="low")
     )
     assert "thinking" not in params
     assert params["output_config"]["effort"] == "low"
-    assert any(
-        "always runs adaptive thinking" in m and model_name in m
-        for m in _warn_once_messages
-    )
-
-
-@pytest.mark.parametrize("model_name", ["claude-opus-5", "claude-sonnet-4-6"])
-def test_anthropic_reasoning_effort_none_no_warning_where_honored(
-    model_name: str, _warn_once_messages: list[str]
-) -> None:
-    """No always-on warning where `none` is honored (disabled or default-off)."""
-    api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    api.completion_config(GenerateConfig(max_tokens=64, reasoning_effort="none"))
-    assert not any("always runs adaptive thinking" in m for m in _warn_once_messages)
 
 
 @pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])

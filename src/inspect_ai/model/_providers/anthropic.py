@@ -248,12 +248,6 @@ _DISABLED_THINKING_EFFORT_WARNING = (
     "anthropic model '{model}' rejects disabled thinking (reasoning_effort="
     "'none') combined with effort above 'high'; clamping effort to 'high'."
 )
-_THINKING_CANNOT_BE_DISABLED_WARNING = (
-    "anthropic model '{model}' always runs adaptive thinking and rejects "
-    "disabling it (reasoning_effort='none' returns a 400 error); thinking "
-    "stays enabled at the configured effort. Lower 'reasoning_effort' or "
-    "'effort' to reduce thinking instead."
-)
 _FORCED_TOOL_CHOICE_WARNING = (
     "anthropic model '{model}' does not support forced tool choice "
     "(tool_choice 'any' or a specific tool returns a 400 error); using "
@@ -1290,38 +1284,27 @@ class AnthropicAPI(ModelAPI):
             if max_tokens > 8192:
                 betas.append("output-128k-2025-02-19")
 
-        elif config.reasoning_effort == "none" and self.is_claude_4_7_or_later():
-            # Claude 4.7+ run adaptive thinking by default, so `"none"` must
-            # explicitly disable it where the model allows that (pre-4.7
-            # models default to no thinking, so omitting the field suffices).
-            if self._supports_disabling_thinking():
-                params["thinking"] = {"type": "disabled"}
-                # Opus 5 returns a 400 for disabled thinking combined with
-                # effort above `high` (Opus 4.8 and Sonnet 5 accept the
-                # combination).
-                output_config = params.get("output_config")
-                if (
-                    self.is_claude_opus_5()
-                    and isinstance(output_config, dict)
-                    and output_config.get("effort") in ("xhigh", "max")
-                ):
-                    warn_once(
-                        logger,
-                        _DISABLED_THINKING_EFFORT_WARNING.format(
-                            model=self.service_model_name()
-                        ),
-                    )
-                    params["output_config"] = OutputConfigParam(effort="high")
-            else:
-                # Fable/Mythos 5 and Opus 5.5 always think and return a 400 for
-                # `disabled`; leave `thinking` unset so the server runs
-                # adaptive thinking at the configured effort, and say so.
+        elif config.reasoning_effort == "none" and self._supports_disabling_thinking():
+            # Claude 4.7+ (incl. Sonnet 5 and Opus 5) run adaptive thinking by
+            # default, so `reasoning_effort="none"` must explicitly disable it.
+            # Pre-4.7 models default to no thinking, so omitting the field
+            # already suffices.
+            params["thinking"] = {"type": "disabled"}
+            # Opus 5 returns a 400 for disabled thinking combined with effort
+            # above `high` (Opus 4.8 and Sonnet 5 accept the combination).
+            output_config = params.get("output_config")
+            if (
+                self.is_claude_opus_5()
+                and isinstance(output_config, dict)
+                and output_config.get("effort") in ("xhigh", "max")
+            ):
                 warn_once(
                     logger,
-                    _THINKING_CANNOT_BE_DISABLED_WARNING.format(
+                    _DISABLED_THINKING_EFFORT_WARNING.format(
                         model=self.service_model_name()
                     ),
                 )
+                params["output_config"] = OutputConfigParam(effort="high")
 
         # config that applies to all models
         if config.stop_seqs is not None:
@@ -1446,7 +1429,7 @@ class AnthropicAPI(ModelAPI):
         default and accept `disabled` to turn it off (on Opus 5 only at effort
         `high` or below — see completion_config). Fable/Mythos 5 and Opus 5.5
         always think and reject `disabled` (400), so `"none"` leaves thinking
-        on for them (completion_config warns).
+        on for them (the field is omitted).
         """
         if not self.is_claude_4_7_or_later():
             # pre-4.7 models default to no thinking, so `"none"` is honored by
