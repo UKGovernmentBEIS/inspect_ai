@@ -6,9 +6,10 @@ instead, and resolves a rejection by telling the model and regenerating rather
 than by editing the response the scaffold sees.
 """
 
+import json
 import logging
 from pathlib import PurePosixPath
-from typing import Any, Iterator
+from typing import Any, Awaitable, Callable, Iterator
 from unittest.mock import AsyncMock
 
 import pytest
@@ -53,6 +54,7 @@ from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import GenerateInput, Model, get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.model._openai_responses import TOOL_SEARCH_NAME
 from inspect_ai.tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_choice import ToolChoice
@@ -2207,6 +2209,130 @@ async def test_tool_discovered_through_tool_search_is_granted() -> None:
 
     calls = [item for item in response.output if item.type == "function_call"]
     assert [(c.name, c.namespace) for c in calls] == [("read_file", "mcp__host")]
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "notes.txt"})
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+def tool_search_result(messages: list[ChatMessage]) -> ChatMessageTool:
+    """The `tool_search_output` item as the model sees it: a tool result carrying JSON."""
+    (message,) = [
+        m
+        for m in messages
+        if isinstance(m, ChatMessageTool) and m.function == TOOL_SEARCH_NAME
+    ]
+    return message
+
+
+def with_tool_search_result(
+    messages: list[ChatMessage], discovered: list[dict[str, Any]]
+) -> list[ChatMessage]:
+    """`messages` with the tool-search result replaced by one listing `discovered`.
+
+    A copy, not an in-place edit: the request's own message objects must stay as
+    the scaffold sent them, so a stale snapshot of them would not see the rewrite.
+    """
+    result = tool_search_result(messages)
+    replacement = result.model_copy(update={"content": json.dumps(discovered)})
+    return [replacement if m is result else m for m in messages]
+
+
+def discovery_rewriting_filter(
+    rewrite: Callable[[list[ChatMessage], list[ToolInfo]], GenerateInput],
+) -> Callable[..., Awaitable[GenerateInput]]:
+    async def filter(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> GenerateInput:
+        rewritten = rewrite(list(input), list(tools))
+        return GenerateInput(rewritten.input, rewritten.tools, tool_choice, config)
+
+    return filter
+
+
+async def request_with_rewritten_discovery(
+    tool: AsyncMock,
+    discovered: list[dict[str, Any]],
+    rewrite: Callable[[list[ChatMessage], list[ToolInfo]], GenerateInput],
+) -> SandboxAgentBridge:
+    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
+    bridge.filter = discovery_rewriting_filter(rewrite)
+    await inspect_responses_api_request(
+        responses_request_with_tool_search(discovered),
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+    return bridge
+
+
+async def test_discovery_removed_by_a_filter_does_not_grant() -> None:
+    """The declarations are the ones the model saw, not the request's.
+
+    The filter drops the discovery result and declares a local `read_file`
+    instead; the model's call names that local tool, so `host/read_file` is not
+    proposed.
+    """
+    tool = AsyncMock(return_value="contents")
+
+    def remove_discovery(
+        input: list[ChatMessage], tools: list[ToolInfo]
+    ) -> GenerateInput:
+        without = [m for m in input if m is not tool_search_result(input)]
+        local = declare("read_file", description="Read a file inside the sandbox.")
+        return GenerateInput(without, local, None, GenerateConfig())
+
+    bridge = await request_with_rewritten_discovery(
+        tool, [discovered_read_file_namespace()], remove_discovery
+    )
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+async def test_discovery_description_rewritten_by_a_filter_does_not_grant() -> None:
+    tool = AsyncMock(return_value="contents")
+
+    def rewrite_description(
+        input: list[ChatMessage], tools: list[ToolInfo]
+    ) -> GenerateInput:
+        namespace = discovered_read_file_namespace()
+        namespace["tools"][0]["description"] = "Read a file inside the sandbox."
+        return GenerateInput(
+            with_tool_search_result(input, [namespace]), tools, None, GenerateConfig()
+        )
+
+    bridge = await request_with_rewritten_discovery(
+        tool, [discovered_read_file_namespace()], rewrite_description
+    )
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+async def test_discovery_added_by_a_filter_grants_once() -> None:
+    """A declaration the filter put in front of the model counts, once."""
+    tool = AsyncMock(return_value="contents")
+
+    def add_discovery(input: list[ChatMessage], tools: list[ToolInfo]) -> GenerateInput:
+        return GenerateInput(
+            with_tool_search_result(input, [discovered_read_file_namespace()]),
+            tools,
+            None,
+            GenerateConfig(),
+        )
+
+    bridge = await request_with_rewritten_discovery(tool, [], add_discovery)
+
     execute = call_host_tool(bridge)
     assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
     with pytest.raises(PermissionError, match="was not proposed by the model"):

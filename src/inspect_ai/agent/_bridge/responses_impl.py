@@ -287,20 +287,15 @@ async def inspect_responses_api_request_impl(
     # deferred namespace tools (e.g. codex multi_agent) are not declared in the
     # top-level `tools` array; they are discovered via tool_search and appear as
     # namespace entries inside tool_search_output items in the conversation.
-    # Harvest those too so outgoing function calls carry the right `namespace`,
-    # and as declarations for grant resolution (they were declared to the model).
-    discovered_declarations: list[ToolInfo] = []
+    # Harvest those too so outgoing function calls carry the right `namespace`.
+    # (As declarations for grant resolution they are read from the generation
+    # input instead, per attempt: `_declarations_in_input` below.)
     if isinstance(input, list):
         for item in input:
             if isinstance(item, dict) and is_tool_search_output(item):
                 for discovered in item.get("tools", []) or []:
                     if is_namespace_tool_param(discovered):
                         _harvest_tool_namespaces(discovered, tool_namespaces)
-                    discovered_declarations.extend(
-                        _discovered_tool_declarations(
-                            discovered, web_search, code_execution, bridge
-                        )
-                    )
 
     debug_log("SCAFFOLD INPUT", input)
 
@@ -332,7 +327,9 @@ async def inspect_responses_api_request_impl(
         tools,
         tool_choice,
         config,
-        extra_declarations=discovered_declarations,
+        declared_in_input=lambda messages: _declarations_in_input(
+            messages, web_search, code_execution, bridge
+        ),
     )
     if c_message is not None:
         messages.append(c_message)
@@ -362,6 +359,43 @@ async def inspect_responses_api_request_impl(
     return response
 
 
+def _declarations_in_input(
+    messages: list[ChatMessage],
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
+    bridge: AgentBridge,
+) -> list[ToolInfo]:
+    """The tools declared to the model by `tool_search` results in `messages`.
+
+    `messages_from_responses_input` carries each `tool_search_output` item as a
+    `ChatMessageTool` for `TOOL_SEARCH_NAME` whose content is the discovered
+    tools as JSON; this reads them back (`_discovered_tool_declarations`).
+    `bridge_generate` calls it on the input of each generation attempt, so the
+    declarations are the ones the model saw after compaction and any filter
+    rewrite, not the request's. A tool-search result that is not a JSON list
+    (a filter's or the scaffold's rewrite) declares nothing.
+    """
+    declarations: list[ToolInfo] = []
+    for message in messages:
+        if not isinstance(message, ChatMessageTool):
+            continue
+        if message.function != TOOL_SEARCH_NAME or message.error is not None:
+            continue
+        try:
+            discovered_tools = json.loads(message.text)
+        except ValueError:
+            continue
+        if not isinstance(discovered_tools, list):
+            continue
+        for discovered in discovered_tools:
+            declarations.extend(
+                _discovered_tool_declarations(
+                    discovered, web_search, code_execution, bridge
+                )
+            )
+    return declarations
+
+
 def _discovered_tool_declarations(
     discovered: Any,
     web_search: WebSearchProviders | None,
@@ -372,9 +406,10 @@ def _discovered_tool_declarations(
 
     A tool discovered through `tool_search` is declared to the model by this
     entry rather than by the request's tools array, so the grant resolver must
-    see it too (`bridge_generate(extra_declarations=)`), carrying the served
-    description, the schema and the namespace (`RESPONSES_NAMESPACE`) exactly as
-    a top-level declaration would. Conversion goes through
+    see it too (`_declarations_in_input`, through
+    `bridge_generate(declared_in_input=)`), carrying the served description, the
+    schema and the namespace (`RESPONSES_NAMESPACE`) exactly as a top-level
+    declaration would. Conversion goes through
     `tools_from_responses_tool`, which needs a schema: entries listed by name
     only (Codex's deferred ``multi_agent`` tools) declare nothing a call could
     be matched to and are skipped. Nothing here reaches the model or changes
