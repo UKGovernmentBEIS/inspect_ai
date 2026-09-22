@@ -4,6 +4,7 @@ import pytest
 
 from inspect_ai._util.registry import registry_lookup
 from inspect_ai.approval._approval import Approval, ApprovalDecision
+from inspect_ai.approval._human import acp as acp_module
 from inspect_ai.approval._human import approver as human_module
 from inspect_ai.model import ChatMessageTool
 from inspect_ai.model._chat_message import ChatMessage
@@ -34,7 +35,7 @@ class Surface:
             self.choices.append(choices)
             return Approval(decision=self.decision)
 
-        monkeypatch.setattr(human_module, "request_human_approval_via_acp", acp)
+        monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
         monkeypatch.setattr(human_module, "panel_approval", panel)
         monkeypatch.setattr(human_module, "console_approval", console)
 
@@ -142,7 +143,7 @@ async def test_an_acp_client_decision_is_used_when_one_answers(
     async def acp(**kwargs: object) -> Approval | None:
         return Approval(decision="terminate")
 
-    monkeypatch.setattr(human_module, "request_human_approval_via_acp", acp)
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
 
     decided = await review(human_reviewer())
 
@@ -224,7 +225,7 @@ async def test_the_consoles_enter_default_cannot_continue_a_sample_it_was_not_of
     async def no_panel(*args: object, **kwargs: object) -> Approval:
         raise NotImplementedError
 
-    monkeypatch.setattr(human_module, "request_human_approval_via_acp", no_acp)
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", no_acp)
     monkeypatch.setattr(human_module, "panel_approval", no_panel)
     monkeypatch.setattr("builtins.input", lambda *args: "")  # the operator hits Enter
     init_task_screen(TaskScreen())
