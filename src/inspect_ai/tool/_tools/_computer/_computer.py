@@ -77,19 +77,11 @@ def is_computer_tool_info(tool: ToolInfo) -> bool:
     )
 
 
-@tool(halt_on_error=True)
+@tool
 def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool:
     """Desktop computer tool.
 
     See documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-computer>.
-
-    GUI actions issued in one assistant turn depend on each other, so a failed
-    action halts the remaining computer actions in that turn (they are reported
-    to the model as not executed). This is also the batch contract of
-    Anthropic's computer toolset, whose exact not-executed text names the tool,
-    so keep the tool's registered name `computer` when using it with Claude.
-    To keep executing later actions after a failure, wrap the tool as
-    `ToolDef(computer(), halt_on_error=False)`.
 
     Args:
       max_screenshots: The maximum number of screenshots to play

@@ -157,7 +157,6 @@ def tool(
     viewer: ToolCallViewer | None = None,
     model_input: ToolCallModelInput | None = None,
     parallel: bool | None = None,
-    halt_on_error: bool | None = None,
     max_output: int | None = None,
     prompt: str | None = None,
 ) -> Callable[[Callable[P, Tool]], Callable[P, Tool]]: ...
@@ -170,7 +169,6 @@ def tool(
     viewer: ToolCallViewer | None = None,
     model_input: ToolCallModelInput | None = None,
     parallel: bool | None = None,
-    halt_on_error: bool | None = None,
     max_output: int | None = None,
     prompt: str | None = None,
 ) -> Callable[P, Tool] | Callable[[Callable[P, Tool]], Callable[P, Tool]]:
@@ -187,11 +185,6 @@ def tool(
             the same assistant message? Defaults to `False` (opt-in). Set
             `True` only after auditing the tool for concurrent-safety (no
             shared `Store`/sandbox mutations, no order-dependent side effects).
-        halt_on_error: When a call to this tool fails with a tool error, skip
-            the remaining calls to this tool in the same assistant message
-            (each is reported back to the model as not executed). Defaults to
-            `False`. Use for tools whose calls within one turn depend on the
-            success of the calls before them (e.g. GUI actions).
         max_output: Maximum size (in bytes) of this tool's result before it is
             truncated. `None` (the default) defers to `max_tool_output` in the
             active `GenerateConfig` (16KB by default); `0` disables truncation
@@ -243,7 +236,6 @@ def tool(
             from inspect_ai.tool._tool_def import tool_registry_info
 
             tool_parallel: bool = parallel is True
-            tool_halt_on_error: bool = halt_on_error is True
             tool_viewer = viewer
             tool_model_input = model_input
             tool_max_output = max_output
@@ -256,10 +248,6 @@ def tool(
                     tool_parallel = reg.parallel
                 else:
                     tool_parallel = parallel
-                if halt_on_error is None:
-                    tool_halt_on_error = reg.halt_on_error
-                else:
-                    tool_halt_on_error = halt_on_error
                 tool_viewer = viewer or reg.viewer
                 tool_model_input = model_input or reg.model_input
                 if max_output is None:
@@ -276,7 +264,6 @@ def tool(
                     metadata={
                         TOOL_PROMPT: prompt,
                         TOOL_PARALLEL: tool_parallel,
-                        TOOL_HALT_ON_ERROR: tool_halt_on_error,
                         TOOL_VIEWER: tool_viewer,
                         TOOL_MODEL_INPUT: (
                             tool_model_input
@@ -344,7 +331,6 @@ def validate_tool_max_output(max_output: int | None) -> None:
 
 TOOL_PROMPT = "prompt"
 TOOL_PARALLEL = "parallel"
-TOOL_HALT_ON_ERROR = "halt_on_error"
 TOOL_VIEWER = "viewer"
 TOOL_MODEL_INPUT = "model_input"
 TOOL_MAX_OUTPUT = "max_output"

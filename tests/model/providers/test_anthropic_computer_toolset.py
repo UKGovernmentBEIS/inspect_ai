@@ -657,3 +657,76 @@ def test_inbound_member_name_wins_over_an_action_key_in_input() -> None:
     )
     assert tool_calls is not None
     assert tool_calls[0].arguments == {"coordinate": [1, 2], "action": "left_click"}
+
+
+# ---------------------------------------------------------------------------
+# Batch marker: toolset member batches are fail-fast for execute_tools
+# ---------------------------------------------------------------------------
+
+
+def _message(*blocks: Any) -> Any:
+    from anthropic.types import Message, Usage
+
+    return Message(
+        id="msg_1",
+        type="message",
+        role="assistant",
+        model="claude-opus-5-5",
+        content=list(blocks),
+        stop_reason="tool_use",
+        stop_sequence=None,
+        usage=Usage(input_tokens=1, output_tokens=1),
+    )
+
+
+async def test_toolset_batch_marks_assistant_message_fail_fast() -> None:
+    from inspect_ai.model._call_tools import TOOL_CALLS_FAIL_FAST
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    init_sample_anthropic_assistant_internal()
+    message = _message(
+        ToolUseBlock(
+            type="tool_use",
+            id="toolu_1",
+            name="left_click",
+            input={"coordinate": [1, 2]},
+            toolset_name="computer",
+        ),
+        ToolUseBlock(
+            type="tool_use",
+            id="toolu_2",
+            name="screenshot",
+            input={},
+            toolset_name="computer",
+        ),
+    )
+    output, _ = await model_output_from_message(
+        None, "claude-opus-5-5", message, [computer_tool_info()]
+    )
+    assistant = output.choices[0].message
+    assert assistant.metadata is not None
+    assert assistant.metadata[TOOL_CALLS_FAIL_FAST] == ["computer"]
+    assert [tc.function for tc in assistant.tool_calls or []] == [
+        "computer",
+        "computer",
+    ]
+
+
+async def test_legacy_computer_call_is_not_marked_fail_fast() -> None:
+    from inspect_ai.model._call_tools import TOOL_CALLS_FAIL_FAST
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    init_sample_anthropic_assistant_internal()
+    message = _message(
+        ToolUseBlock(
+            type="tool_use",
+            id="toolu_1",
+            name="computer",
+            input={"action": "left_click", "coordinate": [1, 2]},
+        )
+    )
+    output, _ = await model_output_from_message(
+        None, "claude-opus-5", message, [computer_tool_info()]
+    )
+    assistant = output.choices[0].message
+    assert TOOL_CALLS_FAIL_FAST not in (assistant.metadata or {})

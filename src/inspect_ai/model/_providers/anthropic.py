@@ -178,6 +178,7 @@ from inspect_ai.util._json import (
 )
 
 from ..._util.httpx import httpx_classify_retry
+from .._call_tools import TOOL_CALLS_FAIL_FAST
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -3876,6 +3877,12 @@ async def model_output_from_message(
         if msg_id:
             asst_metadata["message_id"] = msg_id
 
+    # computer toolset members in one response form a batch that stops at
+    # the first failure (Anthropic's batch contract); tell execute_tools
+    fail_fast_tools = _computer_toolset_fail_fast_tools(message, tool_calls)
+    if fail_fast_tools:
+        asst_metadata[TOOL_CALLS_FAIL_FAST] = fail_fast_tools
+
     # server-side refusal fallback: collect handoffs (in content order) so we
     # can surface the serving model and a structured metadata entry. on a
     # streaming mid-output decline `message.model` names the *requested* model,
@@ -4797,6 +4804,21 @@ async def _capture_compaction_from_stream(
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
     return assistant_internal().tool_call_internal_names.get(tool_call.id, None)
+
+
+def _computer_toolset_fail_fast_tools(
+    message: Message, tool_calls: list[ToolCall] | None
+) -> list[str]:
+    """Names of the tools called through computer toolset members in `message`."""
+    member_ids = {
+        block.id
+        for block in message.content
+        if isinstance(block, ToolUseBlock)
+        and getattr(block, "toolset_name", None) == COMPUTER_TOOLSET_NAME
+    }
+    if not member_ids:
+        return []
+    return sorted({call.function for call in tool_calls or [] if call.id in member_ids})
 
 
 def _names_for_computer_toolset_call(

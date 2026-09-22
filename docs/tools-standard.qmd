@@ -346,7 +346,7 @@ The computer tool supports the following options:
 | `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
 | `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
 
-When a model issues several computer actions in one turn and one of them fails, the remaining actions in that turn are not executed and are reported back as `Not executed: an earlier computer action in this turn failed.` (later GUI actions generally depend on the earlier ones succeeding, and this is the batch contract of Anthropic's computer toolset). To keep executing later actions after a failure, wrap the tool with [`ToolDef`](tools-custom.qmd#sec-halt-on-error): `ToolDef(computer(), halt_on_error=False)`.
+When a Claude model uses Anthropic's computer toolset (see *Tool Binding* below), it can issue several actions in one turn as a batch. Inspect runs them in order and stops at the first failure, reporting each later action to the model as `Not executed: an earlier computer action in this turn failed.`, as the toolset's batch contract specifies. Other models and the legacy Anthropic tool are unaffected.
 
 For example:
 

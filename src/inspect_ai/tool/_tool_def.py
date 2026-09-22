@@ -14,7 +14,6 @@ from inspect_ai._util.registry import (
 )
 
 from ._tool import (
-    TOOL_HALT_ON_ERROR,
     TOOL_MAX_OUTPUT,
     TOOL_MODEL_INPUT,
     TOOL_OPTIONS,
@@ -49,7 +48,6 @@ class ToolDef:
         model_input: ToolCallModelInput | None = None,
         max_output: int | None = None,
         options: dict[str, object] | None = None,
-        halt_on_error: bool | None = None,
     ) -> None:
         """Create a tool definition.
 
@@ -72,10 +70,6 @@ class ToolDef:
               precedence over the generate config.
           options: Optional property bag that can be used by the model provider
               to customize the implementation of the tool
-          halt_on_error: When a call to this tool fails with a tool error, skip
-              the remaining calls to this tool in the same assistant message
-              (each is reported back to the model as not executed). Defaults
-              to `False`.
 
         Returns:
           Tool definition.
@@ -98,9 +92,6 @@ class ToolDef:
                     apply_description_overrides(self.parameters, parameters)
 
             self.parallel = parallel if parallel is not None else tdef.parallel
-            self.halt_on_error = (
-                halt_on_error if halt_on_error is not None else tdef.halt_on_error
-            )
             self.viewer = viewer or tdef.viewer
             self.model_input = model_input or tdef.model_input
             self.max_output = max_output if max_output is not None else tdef.max_output
@@ -133,7 +124,6 @@ class ToolDef:
 
             # behavioral attributes
             self.parallel = parallel is True
-            self.halt_on_error = halt_on_error is True
             self.viewer = viewer
             self.model_input = model_input
             self.max_output = max_output
@@ -153,9 +143,6 @@ class ToolDef:
 
     parallel: bool
     """Supports parallel execution."""
-
-    halt_on_error: bool
-    """Skip this tool's remaining calls in an assistant message once one fails."""
 
     viewer: ToolCallViewer | None
     """Custom viewer for tool call"""
@@ -180,7 +167,6 @@ class ToolDef:
             name=self.name,
             metadata={
                 TOOL_PARALLEL: self.parallel,
-                TOOL_HALT_ON_ERROR: self.halt_on_error,
                 TOOL_VIEWER: self.viewer,
                 TOOL_MAX_OUTPUT: self.max_output,
                 TOOL_OPTIONS: self.options,
@@ -231,7 +217,6 @@ class ToolDefFields(NamedTuple):
     description: str
     parameters: ToolParams
     parallel: bool
-    halt_on_error: bool
     viewer: ToolCallViewer | None
     model_input: ToolCallModelInput | None
     max_output: int | None
@@ -284,7 +269,6 @@ def tool_def_fields(tool: Tool) -> ToolDefFields:
         description=description,
         parameters=parameters,
         parallel=reg.parallel,
-        halt_on_error=reg.halt_on_error,
         viewer=reg.viewer,
         model_input=reg.model_input,
         max_output=reg.max_output,
@@ -296,7 +280,6 @@ class ToolRegistryInfo(NamedTuple):
     name: str
     prompt: str | None
     parallel: bool
-    halt_on_error: bool
     viewer: ToolCallViewer | None
     model_input: ToolCallModelInput | None
     max_output: int | None
@@ -309,7 +292,6 @@ def tool_registry_info(tool: Tool) -> ToolRegistryInfo:
         name=info.name.split("/")[-1],
         prompt=info.metadata.get(TOOL_PROMPT, None),
         parallel=info.metadata.get(TOOL_PARALLEL, False),
-        halt_on_error=info.metadata.get(TOOL_HALT_ON_ERROR, False),
         viewer=info.metadata.get(TOOL_VIEWER, None),
         model_input=info.metadata.get(TOOL_MODEL_INPUT, None),
         max_output=info.metadata.get(TOOL_MAX_OUTPUT, None),

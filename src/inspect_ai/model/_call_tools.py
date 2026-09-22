@@ -88,6 +88,25 @@ from ._generate_config import active_generate_config
 logger = getLogger(__name__)
 
 
+TOOL_CALLS_FAIL_FAST = "tool_calls_fail_fast"
+"""Assistant message metadata key naming tools whose calls form a fail-fast batch.
+
+The value is a list of tool names. Within that assistant message, calls to a
+named tool run serially and stop at the first tool error: each later call to
+the same tool is not executed and is answered with
+`Not executed: an earlier <tool> action in this turn failed.` Providers set it
+when the model API defines batch semantics for a tool (Anthropic's computer
+toolset); `execute_tools` reads it. Calls to other tools are unaffected.
+"""
+
+
+def _fail_fast_tools(message: ChatMessageAssistant) -> set[str]:
+    value = (message.metadata or {}).get(TOOL_CALLS_FAIL_FAST)
+    if isinstance(value, list):
+        return {name for name in value if isinstance(name, str)}
+    return set()
+
+
 class ExecuteToolsResult(NamedTuple):
     """Result from executing tools in the last assistant message.
 
@@ -432,13 +451,19 @@ async def _execute_tools_impl(
 
         StreamItem = tuple[ExecuteToolsResult, ToolEvent, Exception | None]
 
+        # Tools whose calls in this message form an ordered batch that stops
+        # at the first failure (see TOOL_CALLS_FAIL_FAST).
+        fail_fast_tools = _fail_fast_tools(message)
+
         # Determine each call's parallel eligibility from its ToolDef.
-        # Unknown tools default to serial. A halt_on_error tool runs serially
+        # Unknown tools default to serial. A fail-fast tool runs serially
         # regardless: its later calls must not start until an earlier one has
         # succeeded.
         def is_parallel(call: ToolCall) -> bool:
+            if call.function in fail_fast_tools:
+                return False
             tdef = next((t for t in tdefs if t.name == call.function), None)
-            return bool(tdef and tdef.parallel and not tdef.halt_on_error)
+            return bool(tdef and tdef.parallel)
 
         # Partition tool_calls into ordered execution stages. Consecutive
         # parallel-safe calls coalesce into one concurrent stage; each
@@ -458,13 +483,8 @@ async def _execute_tools_impl(
                 stages.append([i])
                 i += 1
 
-        def halts_on_error(call: ToolCall) -> bool:
-            tdef = next((t for t in tdefs if t.name == call.function), None)
-            return bool(tdef and tdef.halt_on_error)
-
-        # Tools (by name) whose earlier call in this message failed with a
-        # tool error and which declare halt_on_error: their remaining calls
-        # are not executed.
+        # Fail-fast tools (by name) whose earlier call in this message failed
+        # with a tool error: their remaining calls are not executed.
         halted_functions: set[str] = set()
 
         result_messages: list[ChatMessage] = []
@@ -794,15 +814,15 @@ async def _execute_tools_impl(
                         if result.output is not None:
                             result_output = result.output
 
-            # A tool error from a halt_on_error tool halts that tool's
-            # remaining calls in this message (an unhandled exception is
-            # re-raised below and ends execution outright).
+            # A tool error from a fail-fast tool halts that tool's remaining
+            # calls in this message (an unhandled exception is re-raised
+            # below and ends execution outright).
             for idx in stage:
                 stream_item = stage_results[idx]
                 if (
                     idx in skipped
                     or stream_item is None
-                    or not halts_on_error(tool_calls[idx])
+                    or tool_calls[idx].function not in fail_fast_tools
                 ):
                     continue
                 result, _, _ = stream_item
