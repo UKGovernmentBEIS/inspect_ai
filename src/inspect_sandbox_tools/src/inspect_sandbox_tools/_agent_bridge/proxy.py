@@ -51,14 +51,13 @@ HOP_BY_HOP = {
 
 
 class AsyncHTTPServer:
-    """Async HTTP server supporting GET/POST/OPTIONS with streaming + proxy utilities."""
+    """Async HTTP server supporting GET/POST with streaming + proxy utilities."""
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8000) -> None:
         self.host = host
         self.port = port
-        self.routes: MethodRoutes = {"GET": {}, "POST": {}, "OPTIONS": {}}
+        self.routes: MethodRoutes = {"GET": {}, "POST": {}}
         self.server: asyncio.Server | None = None
-        self.enable_cors: bool = True
         self.server_name: str = "asyncio-proxy"
 
     # -------- Routing --------
@@ -198,16 +197,6 @@ class AsyncHTTPServer:
         return method, full_path, http_version, headers, body
 
     # -------- Response building / streaming --------
-    def _cors_headers(self) -> dict[str, str]:
-        if not self.enable_cors:
-            return {}
-        return {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type, OpenAI-Organization, OpenAI-Beta",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Max-Age": "600",
-        }
-
     def _build_headers_block(
         self, status: int, headers: dict[str, str], reason: Optional[str] = None
     ) -> bytes:
@@ -218,7 +207,6 @@ class AsyncHTTPServer:
             "Server": self.server_name,
         }
         out = {**base, **headers}
-        out.update(self._cors_headers())
         lines = [status_line]
         for k, v in out.items():
             if v is None:
@@ -311,14 +299,11 @@ class AsyncHTTPServer:
         headers_lower = {k.lower(): v for k, v in headers_list}
         is_chunked = "chunked" in headers_lower.get("transfer-encoding", "").lower()
 
-        # Compose headers (preserve original case), then add CORS
-        cors = self._cors_headers()
+        # Compose headers (preserve original case)
         status_line = f"HTTP/1.1 {status} {reason or _http_reason_phrase(status)}\r\n"
         writer.write(status_line.encode("ascii"))
         for k, v in headers_list:
             writer.write(f"{k}: {v}\r\n".encode("latin-1", "strict"))
-        for ck, cv in cors.items():
-            writer.write(f"{ck}: {cv}\r\n".encode("ascii"))
         writer.write(b"\r\n")
         await asyncio.wait_for(writer.drain(), timeout=WRITE_TIMEOUT_S)
 
@@ -376,6 +361,41 @@ class AsyncHTTPServer:
                     await writer.drain()
 
     # -------- Connection handler --------
+    def _reject_non_json_post(self, ctype: str, parsed_json: Any) -> bytes | None:
+        """Response rejecting a POST that does not carry a JSON object body, or None.
+
+        Every POST route is a JSON API, so the body contract is enforced here
+        rather than in each handler. This is also the browser boundary: a
+        cross-origin request a browser sends without a preflight can only carry
+        a `text/plain`, form or multipart body, so refusing anything but
+        `application/json` before the handler runs means such a request never
+        reaches the bridge, whatever the handler would otherwise infer from the
+        URL alone. `OPTIONS` is 405, so a preflighted request is never sent.
+        """
+        if not ctype.startswith("application/json"):
+            return self._build_response(
+                415,
+                {
+                    "error": {
+                        "message": "Content-Type must be application/json",
+                        "type": "invalid_request_error",
+                        "code": 415,
+                    }
+                },
+            )
+        if not isinstance(parsed_json, dict):
+            return self._build_response(
+                400,
+                {
+                    "error": {
+                        "message": "Request body must be a JSON object",
+                        "type": "invalid_request_error",
+                        "code": 400,
+                    }
+                },
+            )
+        return None
+
     async def _handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
@@ -388,9 +408,11 @@ class AsyncHTTPServer:
             path = unquote(parsed.path)
             query = parse_qs(parsed.query)
 
-            # OPTIONS preflight
+            # No browser clients, so no preflight: OPTIONS is not a served method
             if method == "OPTIONS":
-                response_bytes = self._build_response(204, b"", "text/plain", {})
+                response_bytes = self._build_response(
+                    405, b"", "text/plain", {"Allow": ", ".join(self.routes)}
+                )
                 writer.write(response_bytes)
                 await writer.drain()
                 return
@@ -422,6 +444,13 @@ class AsyncHTTPServer:
                             )
                     elif ctype.startswith("text/"):
                         request_data["text"] = body.decode("utf-8", errors="replace")
+
+                if method == "POST":
+                    rejection = self._reject_non_json_post(ctype, request_data["json"])
+                    if rejection is not None:
+                        writer.write(rejection)
+                        await writer.drain()
+                        return
 
                 # Call handler
                 response = await handler(request_data)
@@ -1374,9 +1403,17 @@ async def model_proxy_server(
 
                         # 3d. response.output_item.done
                         seq_num += 1
-                        # Update status to completed
+                        # Update status to completed. custom_tool_call is a
+                        # special case: the installed OpenAI SDK's
+                        # ResponseCustomToolCall model omits "status" from its
+                        # dict entirely, even though clients such as opencode's
+                        # AI SDK require it on the done item to dispatch the
+                        # call, so it's added even when not already present.
                         item_dict_completed = dict(output_item)
-                        if "status" in item_dict_completed:
+                        if (
+                            "status" in item_dict_completed
+                            or item_type == "custom_tool_call"
+                        ):
                             item_dict_completed["status"] = "completed"
 
                         yield _sse_event(

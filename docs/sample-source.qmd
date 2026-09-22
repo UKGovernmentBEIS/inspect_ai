@@ -58,7 +58,7 @@ eval(Task(dataset=MySource(), solver=my_solver(), scorer=my_scorer()),
 
 `initial_samples()` is synchronous and returns the seed, so it must return immediately rather than `await`. It may be empty, in which case the task starts by calling `next_samples()`. `next_samples()` is async, called whenever no samples remain in flight, and may block (for example, awaiting external input); return `None` to end the task.
 
-All generated samples run within the task — one log file, one set of results — and each runs for the task's configured number of [epochs](options.qmd#epochs). Samples without an `id` are assigned one automatically, continuing the seed's numbering.
+All generated samples run within the task (one log file and one set of results), and each runs for the task's configured number of [epochs](metrics.qmd#reducing-epochs). Samples without an `id` are assigned one automatically, continuing the seed's numbering.
 
 ## Returning follow-up samples
 
