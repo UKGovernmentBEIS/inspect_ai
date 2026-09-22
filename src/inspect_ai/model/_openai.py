@@ -164,21 +164,16 @@ def is_gpt_6_model(model_name: str) -> bool:
     return version is not None and version >= (6, 0)
 
 
-# searched rather than anchored (like `_GPT_VERSION_RE`) so hosting prefixes
-# (`openai.gpt-6-astra`) and Azure deployment names (`my-gpt-6-astra-deployment`)
-# resolve too
-_ALWAYS_REASONS_RE = re.compile(r"gpt-6-astra")
-
-
 def always_reasons_model(model_name: str) -> bool:
     """GPT-family models whose reasoning can't be turned off with `none` effort.
 
     The API rejects `none` with an error and, since reasoning is always on,
     rejects sampling params (`temperature`, `top_p`, logprobs) outright. Within
     GPT-6 only Astra behaves this way; Sol and Luna accept `none` like gpt-5.1+
-    (see https://developers.openai.com/api/docs/guides/reasoning).
+    (see https://developers.openai.com/api/docs/guides/reasoning). Substring
+    match so hosting prefixes and Azure deployment names resolve too.
     """
-    return _ALWAYS_REASONS_RE.search(model_name.lower()) is not None
+    return "gpt-6-astra" in model_name.lower()
 
 
 def is_o_series_model(model_name: str) -> bool:

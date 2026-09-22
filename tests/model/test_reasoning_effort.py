@@ -958,14 +958,16 @@ def test_openai_responses_gpt_6_sol_luna_none_effort_sends_sampling_params(
     _assert_sampling_params_sent(params)
 
 
+@pytest.mark.parametrize("model_name", ["gpt-6-sol", "gpt-6-luna"])
 @pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
-def test_openai_responses_gpt_6_sol_luna_effort_drops_sampling_params(effort):
-    for model_name in ["gpt-6-sol", "gpt-6-luna"]:
-        params = _responses_params_for(
-            model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
-        )
-        assert params["reasoning"]["effort"] == effort
-        _assert_sampling_params_dropped(params)
+def test_openai_responses_gpt_6_sol_luna_effort_drops_sampling_params(
+    model_name, effort
+):
+    params = _responses_params_for(
+        model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
+    )
+    assert params["reasoning"]["effort"] == effort
+    _assert_sampling_params_dropped(params)
 
 
 @pytest.mark.parametrize(
@@ -996,11 +998,12 @@ def test_openai_responses_gpt_6_astra_drops_sampling_params_regardless_of_effort
         ("gpt-5", False),
     ],
 )
-def test_openai_compatible_model_info_is_gpt_6(model_name, expected):
+def test_openai_compatible_model_info_gpt_6_family(model_name, expected):
+    from inspect_ai.model._openai import is_gpt_6_model
     from inspect_ai.model._providers.openai_compatible import ModelInfo
 
     info = ModelInfo(model_family=model_name)
-    assert info.is_gpt_6() is expected
+    assert is_gpt_6_model(model_name) is expected
     assert info.is_gpt_5() is True
     assert info.is_gpt_5_plus() is (model_name != "gpt-5")
 

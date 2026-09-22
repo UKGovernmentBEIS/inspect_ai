@@ -50,7 +50,6 @@ from .._openai import (
     always_reasons_model,
     is_gpt_5_model,
     is_gpt_5_plus_model,
-    is_gpt_6_model,
     is_o_series_model,
     messages_to_openai,
     model_output_from_openai,
@@ -581,9 +580,6 @@ class ModelInfo(ResponsesModelInfo):
 
     def is_gpt_5_plus(self) -> bool:
         return is_gpt_5_plus_model(self.model_family)
-
-    def is_gpt_6(self) -> bool:
-        return is_gpt_6_model(self.model_family)
 
     def always_reasons(self) -> bool:
         return (

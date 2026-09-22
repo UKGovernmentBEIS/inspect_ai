@@ -75,9 +75,6 @@ def test_codename_models_are_latest(model_name: str) -> None:
     # folded into the GPT-5 predicates ("gpt-5 or greater")
     assert api.is_gpt_5() is True
     assert api.is_gpt_5_plus() is True
-    # whether a codename rejects sampling params is unknown, so is_gpt_6 stays
-    # a strict version check and codenames keep the gpt-5.x sampling behavior
-    assert api.is_gpt_6() is False
     # frontier behavior follows automatically
     assert api.has_reasoning_options() is True
     assert api.responses_api is True
@@ -136,7 +133,7 @@ def test_gpt_6_models_are_frontier(model_name: str) -> None:
     assert api.is_latest() is False
     assert api.is_gpt_5() is True
     assert api.is_gpt_5_plus() is True
-    assert api.is_gpt_6() is True
+    assert is_gpt_6_model(model_name) is True
     assert api.has_reasoning_options() is True
     assert api.responses_api is True
     assert api.supports_max_reasoning_effort() is True
@@ -157,7 +154,7 @@ def test_gpt_6_models_are_frontier(model_name: str) -> None:
     ],
 )
 def test_pre_gpt_6_models_are_not_gpt_6(model_name: str) -> None:
-    assert _api(model_name).is_gpt_6() is False
+    assert is_gpt_6_model(model_name) is False
 
 
 def test_gpt_5_helpers_are_version_based() -> None:
