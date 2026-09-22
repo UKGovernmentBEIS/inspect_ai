@@ -107,6 +107,16 @@ Example:
 
 - **Respect existing patterns**: Respect existing code patterns when modifying files. Run linting before committing changes.
 
+## Writing for users and reviewers
+
+Use concise, direct language in PR descriptions, documentation, changelog
+entries, review notes, error messages, and code comments. State the behavior,
+evidence, and any action a reader must take plainly. Use established project
+terms; do not invent a term when an existing one is accurate, and define a
+new term when it is needed. Avoid metaphors, slogans, rhetorical questions,
+and decorative prose. Keep the details needed to assess compatibility,
+limitations, and validation.
+
 ## Suppression gate
 
 - Do NOT suppress lint or type errors (`# noqa`, `# type: ignore`,
