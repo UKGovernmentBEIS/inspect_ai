@@ -7,6 +7,7 @@
 - Bugfix: `bash_session` no longer sends the literal string "None" to the shell when `type_submit` is called without `input`.
 - Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
 - Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
+- Anthropic: Fixed model construction failing with a `default_headers` TypeError when `ANTHROPIC_AUTH_TOKEN` is set and the caller supplies its own default headers.
 - Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
 - Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
 

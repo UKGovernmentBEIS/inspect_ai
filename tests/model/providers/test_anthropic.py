@@ -96,6 +96,63 @@ def test_anthropic_oauth_beta_preserved_with_effort() -> None:
             os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 
 
+def test_anthropic_oauth_client_accepts_caller_default_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression test for the OAuth branch's `default_headers` collision.
+
+    `AsyncAnthropic() got multiple values for keyword argument
+    'default_headers'` was raised whenever ANTHROPIC_AUTH_TOKEN is set and
+    the caller passes its own default_headers via model_args (e.g. a
+    per-session tracing header).
+    """
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "test-oauth-token")
+    caller_headers = {"x-session-id": "test-session"}
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", default_headers=caller_headers)
+    custom_headers = cast(dict[str, str], api.client._custom_headers)
+    assert custom_headers["x-session-id"] == "test-session"
+    assert custom_headers["anthropic-beta"] == "oauth-2025-04-20"
+    # the caller's own dict must not be mutated by the merge
+    assert caller_headers == {"x-session-id": "test-session"}
+
+
+def test_anthropic_oauth_client_merges_caller_anthropic_beta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The OAuth beta must survive a caller-supplied anthropic-beta header.
+
+    When the caller's own default_headers already carries an
+    `anthropic-beta` value, comma-join both rather than let either clobber
+    the other (same merge `_beta_header_value` does for per-request betas).
+    """
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "test-oauth-token")
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6",
+        default_headers={"anthropic-beta": "context-1m-2025-08-07"},
+    )
+    custom_headers = cast(dict[str, str], api.client._custom_headers)
+    betas = [b.strip() for b in custom_headers["anthropic-beta"].split(",")]
+    assert betas == ["oauth-2025-04-20", "context-1m-2025-08-07"]
+
+
+def test_anthropic_api_key_client_forwards_caller_default_headers_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression guard for the non-OAuth (API key) branch.
+
+    It is untouched by the OAuth merge above and keeps forwarding a
+    caller's default_headers as given.
+    """
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6",
+        api_key="test-key",
+        default_headers={"x-session-id": "test-session"},
+    )
+    custom_headers = cast(dict[str, str], api.client._custom_headers)
+    assert custom_headers == {"x-session-id": "test-session"}
+
+
 def test_anthropic_extra_headers_not_mutated_across_calls() -> None:
     """Ensure per-call extra_headers are stable across repeated use."""
     api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
