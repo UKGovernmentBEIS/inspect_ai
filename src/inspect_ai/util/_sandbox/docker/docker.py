@@ -38,6 +38,7 @@ from .cleanup import (
     project_cleanup,
     project_cleanup_shutdown,
     project_cleanup_startup,
+    project_discard_auto_compose,
     project_record_auto_compose,
     project_startup,
 )
@@ -93,6 +94,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # intialize project cleanup
         project_cleanup_startup()
 
+        project: ComposeProject | None = None
         try:
             # create project
             project = await ComposeProject.create(
@@ -153,7 +155,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                         )
 
         except BaseException as ex:
-            await project_cleanup_shutdown(True)
+            # the registry is shared with the batch's live samples and other
+            # configs, so release only what this startup generated; the
+            # batch's final task_cleanup still runs for everything else
+            if project is not None:
+                project_discard_auto_compose(project)
             raise ex
 
     @override
