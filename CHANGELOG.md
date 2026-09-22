@@ -5,6 +5,7 @@
 - OpenAI: Responses API requests no longer fail validation when a compatible service omits `model` from its response.
 - Agent Bridge: An unexpected exception from a host tool called through `sandbox_agent_bridge(bridged_tools=...)` now fails the sample as a native tool exception does, and malformed arguments are reported to the model as a parsing error.
 - Grok: Support for Grok 4.7.
+- Grok: Non-streaming requests cut off by `attempt_timeout` or a sample `time_limit` now report that timeout (and retry) instead of failing with a bare cancellation.
 - Bugfix: `bash_session` no longer sends the literal string "None" to the shell when `type_submit` is called without `input`.
 - Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
 - Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.

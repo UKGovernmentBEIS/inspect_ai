@@ -1,9 +1,15 @@
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
+import anyio
 import grpc
 import pytest
+import tenacity
+from pydantic import BaseModel
 from test_helpers.utils import skip_if_no_grok, skip_if_trio
 
 from inspect_ai import Task, eval
@@ -13,12 +19,15 @@ from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
+    ResponseSchema,
     get_model,
 )
+from inspect_ai.model._model import AttemptTimeoutError
 from inspect_ai.model._providers._grok_batch import GrokBatcher
 from inspect_ai.model._providers.util.batch import Batch, BatchRequest
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.scorer import includes
+from inspect_ai.util import json_schema
 
 
 @skip_if_no_grok
@@ -866,3 +875,95 @@ def test_grok_native_web_search_call_named_like_client_function_stays_server_sid
     assert message.tool_calls is None
     tool_uses = [c for c in message.content if isinstance(c, ContentToolUse)]
     assert [(t.tool_type, t.name) for t in tool_uses] == [("web_search", "browse_page")]
+
+
+class _SleepingGrpcHandler(grpc.GenericRpcHandler):
+    """Answers every unary method by sleeping until the client cancels the call."""
+
+    async def _sleep(self, request: bytes, context: grpc.aio.ServicerContext) -> bytes:
+        await asyncio.sleep(60)
+        return b""
+
+    def service(
+        self, handler_call_details: grpc.HandlerCallDetails
+    ) -> grpc.RpcMethodHandler | None:
+        return grpc.unary_unary_rpc_method_handler(self._sleep)
+
+
+@asynccontextmanager
+async def _sleeping_grpc_server() -> AsyncIterator[str]:
+    """A local gRPC server whose unary calls never complete on their own."""
+    server = grpc.aio.server()
+    server.add_generic_rpc_handlers((_SleepingGrpcHandler(),))
+    port = server.add_insecure_port("127.0.0.1:0")
+    await server.start()
+    try:
+        yield f"127.0.0.1:{port}"
+    finally:
+        await server.stop(None)
+
+
+class _Answer(BaseModel):
+    text: str
+
+
+@skip_if_trio
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(GenerateConfig(), id="sample"),
+        pytest.param(
+            GenerateConfig(
+                response_schema=ResponseSchema(
+                    name="answer", json_schema=json_schema(_Answer)
+                )
+            ),
+            id="parse",
+        ),
+    ],
+)
+async def test_grok_unary_call_cancelled_by_fail_after_raises_timeout(
+    config: GenerateConfig,
+) -> None:
+    """A unary gRPC call cut off by an anyio deadline reports the timeout.
+
+    grpc.aio answers a cancelled unary call with a fresh, message-less
+    CancelledError that anyio does not recognise as its own, so without the
+    provider's guard the bare cancellation escapes instead of TimeoutError.
+    """
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    async with _sleeping_grpc_server() as target:
+        api = GrokAPI(
+            model_name="grok-4.5",
+            api_key="test-key",
+            base_url=target,
+            streaming=False,
+            use_insecure_channel=True,
+        )
+        with pytest.raises(TimeoutError):
+            with anyio.fail_after(1):
+                await _generate_once(api, config)
+
+
+@skip_if_trio
+async def test_grok_unary_call_attempt_timeout_is_retryable() -> None:
+    """A stalled unary Grok call hit by `attempt_timeout` ends as AttemptTimeoutError.
+
+    That is the retryable outcome; without the guard the attempt ends in a bare
+    cancellation that the retry loop never sees.
+    """
+    async with _sleeping_grpc_server() as target:
+        model = get_model(
+            "grok/grok-4.5",
+            api_key="test-key",
+            base_url=target,
+            streaming=False,
+            use_insecure_channel=True,
+            memoize=False,
+        )
+        with pytest.raises(tenacity.RetryError) as excinfo:
+            await model.generate(
+                "hello", config=GenerateConfig(attempt_timeout=1, max_retries=0)
+            )
+        assert isinstance(excinfo.value.last_attempt.exception(), AttemptTimeoutError)
