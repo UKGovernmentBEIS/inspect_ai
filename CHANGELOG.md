@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Sample and Task Sources: a new `sample_abandoned()` hook reports a sample cancelled before anything was logged (cancelled while queued, or before its `retry_on_error` re-run), so a source waiting on it no longer stalls.
 - Faster `inspect` CLI startup and `import inspect_ai`; `InputRequest` and `request_input` now annotate `schema` by name only, so `typing.get_type_hints` and pydantic schema generation for `InputRequest` are unsupported.
 - Bugfix: Approval policies in run-config files now load correctly instead of failing evaluation startup with an `AttributeError`.
 - Added `read_eval_log_sample_summaries_async` and three other async log readers to the public `inspect_ai.log` exports.
