@@ -1,7 +1,10 @@
+import sys
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
+import anyio
 import rich
 from acp.schema import (
     ElicitationBooleanPropertySchema,
@@ -12,6 +15,7 @@ from acp.schema import (
     ElicitationStringPropertySchema,
 )
 from rich.console import Console
+from rich.markup import escape
 from rich.prompt import Prompt
 
 from inspect_ai.util._console import input_screen
@@ -19,6 +23,7 @@ from inspect_ai.util._console import input_screen
 from ._types import InputRequest, InputResult
 from ._validate import (
     PropertySchema,
+    is_multiline,
     known_property,
     multiselect_options,
     string_choice_labels,
@@ -30,6 +35,15 @@ from ._validate import (
 )
 
 DECLINE_TOKEN = ":decline"
+MULTILINE_END_TOKEN = "."
+
+# One console question at a time: two inline Textual apps would both put
+# the tty in raw mode and race stdin from separate reader threads (the old
+# blocking line reader serialized concurrent samples by accident, by
+# freezing the event loop). Safe to reuse across successive event loops:
+# anyio.Lock binds loop state only while held/waited, and it is always
+# released before an eval's loop exits.
+_console_lock = anyio.Lock()
 
 
 class _Declined(Exception):
@@ -42,15 +56,69 @@ _OMIT = object()  # sentinel: optional property left blank
 async def console_handler(request: InputRequest) -> InputResult:
     """Built-in console handler for `request_input`.
 
-    Walks the schema property-by-property using Rich prompts. Returns
+    On an interactive terminal, renders the request as an inline Textual
+    form (see `InlineQuestionApp`) so pasted multiline answers stay
+    content. Where the Textual app can't run or isn't wanted (see
+    `_use_inline_app`) — non-tty stdin/stdout (pipes, scripted runs),
+    `--display plain`/`log` — walks the schema property-by-property
+    using Rich prompts instead; a multiline answer there is still
+    paste-safe at a terminal (see `_ask_multiline`). Returns
     `accepted` with structured content on success, `declined` if the
-    user types `:decline`, or `cancelled` on `KeyboardInterrupt`.
+    user declines, or `cancelled` on Ctrl+C / `KeyboardInterrupt`.
     """
     try:
-        with _ask_console() as console:
-            return _ask_schema(request.message, request.schema, console)
+        async with _console_lock:
+            if _use_inline_app():
+                from .inline import InlineQuestionApp
+
+                with _ask_console():
+                    result = await InlineQuestionApp(request).run_async(inline=True)
+                    # None: the app exited without a result (e.g. ctrl+q).
+                    return (
+                        result
+                        if result is not None
+                        else InputResult(outcome="cancelled")
+                    )
+            with _ask_console() as console:
+                return _ask_schema(request.message, request.schema, console)
     except KeyboardInterrupt:
         return InputResult(outcome="cancelled")
+
+
+def _use_inline_app() -> bool:
+    """`True` when the inline Textual app can own the terminal.
+
+    Only the displays that already paint a terminal UI. `--display
+    plain`/`log`/`none` promise line-oriented output, and get chosen
+    precisely where a live UI isn't wanted (CI logs, redirected output,
+    nohup), so they take the Rich line reader even on a tty — see
+    `_ask_console` for how the question still reaches the screen under
+    `none`.
+
+    Textual is asyncio-only and installs signal handlers, so trio-backend
+    and background-thread evals fall back to the Rich line reader (the
+    same reasons `util/_display.py` throttles the task display). Its
+    drivers render to `sys.__stderr__` and read `sys.__stdin__`, so
+    stderr must be a tty too (with `2>err.log` the form would be
+    invisible while the terminal sits in raw mode). TERM=dumb terminals
+    (e.g. Emacs M-x shell) can't render the escape sequences at all —
+    Rich degrades there, Textual doesn't.
+    """
+    from inspect_ai._util._async import current_async_backend
+    from inspect_ai.util._display import display_type
+
+    return (
+        sys.stdin.isatty()
+        and sys.stdout.isatty()
+        and sys.__stderr__ is not None
+        and sys.__stderr__.isatty()
+        and threading.current_thread() is threading.main_thread()
+        and current_async_backend() != "trio"
+        # after the thread check: an uninitialised display type resolves
+        # itself here, and off the main thread it would latch to "plain"
+        and display_type() in ("full", "conversation", "rich")
+        and not rich.get_console().is_dumb_terminal
+    )
 
 
 @contextmanager
@@ -64,9 +132,29 @@ def _ask_console() -> Iterator[Console]:
         # request_input emits the structured InputEvent itself; opt out of
         # input_screen's text-dump emission to avoid double-logging.
         with input_screen(record_event=False) as console:
-            yield console
+            with _audible(console):
+                yield console
     else:
-        yield rich.get_console()
+        console = rich.get_console()
+        with _audible(console):
+            yield console
+
+
+@contextmanager
+def _audible(console: Console) -> Iterator[None]:
+    """Let the question print on a console silenced by `--display none`.
+
+    `rich_initialise` sets `quiet=True` there, which would swallow the
+    prompt and the field labels and leave the eval looking hung while it
+    blocks on stdin. Safe for the duration of a question: the caller has
+    suspended the display (`input_screen` stops the Live), so nothing
+    else is painting.
+    """
+    quiet, console.quiet = console.quiet, False
+    try:
+        yield
+    finally:
+        console.quiet = quiet
 
 
 def _ask_schema(
@@ -129,6 +217,9 @@ def _ask_string(
     if prop.format:
         console.print(f"[dim](format: {prop.format})[/dim]", soft_wrap=True)
 
+    if is_multiline(prop):
+        return _ask_multiline(label, prop, required, console)
+
     # Print options for bounded-choice strings; we deliberately do NOT pass
     # `choices=` to Prompt.ask because Rich would reject `:decline` before we
     # get a chance to handle it.
@@ -151,6 +242,70 @@ def _ask_string(
             show_default=prop.default is not None,
         )
         _check_decline(value)
+
+        if not value:
+            if required:
+                console.print(f"[red]{label} is required.[/red]")
+                continue
+            return _OMIT
+
+        accepted, error = validate_string(prop, value)
+        if error is not None:
+            console.print(f"[red]{error}[/red]", soft_wrap=True)
+            continue
+        return accepted
+
+
+def _ask_multiline(
+    label: str,
+    prop: ElicitationStringPropertySchema,
+    required: bool,
+    console: Console,
+) -> Any:
+    # Read line by line to end-of-answer. At a terminal that is Ctrl-D
+    # only: a dot-only line in a paste is content, and the answer can't
+    # spill into the next field (#5291 review). The `.` sentinel is for
+    # non-tty stdin, where EOF is sticky so a form with a second field
+    # has no other in-band way to end the first answer; a dot-only line
+    # in the data terminates early there, acceptable when the writer
+    # controls the bytes.
+    # "Enter, then Ctrl-D": input() is readline here with bracketed paste
+    # off, so a paste's last line sits unsubmitted and Ctrl-D on a
+    # non-empty buffer is delete-char. The Enter's blank line is dropped below.
+    tty = sys.stdin.isatty()
+    ending = (
+        "Enter, then Ctrl-D"
+        if tty
+        else f"a line containing only '{MULTILINE_END_TOKEN}'"
+    )
+    console.print(f"[dim](Multi-line: finish with {ending}.)[/dim]")
+    while True:
+        default_hint = (
+            f" [dim](default: {escape(prop.default)})[/dim]" if prop.default else ""
+        )
+        console.print(f"[prompt]{label}[/prompt]{default_hint}:")
+        lines: list[str] = []
+        while True:
+            try:
+                line = console.input()
+            except EOFError:
+                # A tty re-reads after EOF, so an immediate Ctrl-D is just
+                # an empty answer. From a pipe EOF is sticky: re-prompting
+                # would spin, so propagate like Prompt.ask does.
+                if lines or tty:
+                    break
+                raise
+            if not lines:
+                # Only the first line can decline; pasted content can't.
+                _check_decline(line)
+            if not tty and line.strip() == MULTILINE_END_TOKEN:
+                break
+            lines.append(line)
+        if tty and len(lines) > 1 and lines[-1] == "":
+            lines.pop()
+        value = "\n".join(lines)
+        if not value and prop.default is not None:
+            value = prop.default
 
         if not value:
             if required:

@@ -21,6 +21,15 @@ from acp.schema import (
     TitledMultiSelectItems,
 )
 
+MULTILINE_META_KEY = "inspect.multiline"
+"""`_meta` key on an elicitation string property requesting a multi-line control.
+
+Defined here rather than in `inspect_ext.py` (which re-exports it) because
+`ask_user` needs it, and a module-level import from `inspect_ai.tool` into
+`inspect_ai.agent._acp` puts mypy into an import cycle where it stops
+resolving the `TreeItem` alias in `event/_timeline.py`.
+"""
+
 PropertySchema = Union[
     ElicitationStringPropertySchema,
     ElicitationIntegerPropertySchema,
@@ -42,6 +51,19 @@ def known_property(
     if isinstance(prop, ElicitationOtherPropertySchema):
         raise ValueError(f"Unsupported property type: {prop.type!r}")
     return prop
+
+
+def is_multiline(prop: PropertySchema) -> bool:
+    """Whether a property should render as a multi-line text field.
+
+    True for a string property (without `enum`/`one_of`) whose `_meta`
+    carries `MULTILINE_META_KEY: true`. Only JSON `true` counts.
+    """
+    return (
+        isinstance(prop, ElicitationStringPropertySchema)
+        and string_choice_labels(prop) is None
+        and (prop.field_meta or {}).get(MULTILINE_META_KEY) is True
+    )
 
 
 def validate_string(

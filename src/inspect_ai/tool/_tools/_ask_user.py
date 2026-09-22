@@ -4,12 +4,14 @@ from acp.schema import (
     ElicitationMultiSelectPropertySchema,
     ElicitationOtherPropertySchema,
     ElicitationSchema,
+    ElicitationStringPropertySchema,
     OtherMultiSelectItems,
 )
 from pydantic import ValidationError
 
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.util import request_input
+from inspect_ai.util._input._validate import MULTILINE_META_KEY
 
 from .._tool import Tool, ToolError, tool
 
@@ -72,6 +74,13 @@ def ask_user() -> Tool:
            },
            "required": ["url"]}
 
+        Multi-line text (command output, a log excerpt, a stack trace, a file):
+          {"type": "object",
+           "properties": {"output": {"type": "string",
+                                     "_meta": {"inspect.multiline": true},
+                                     "description": "Paste the output of `df -h`"}},
+           "required": ["output"]}
+
         Multi-select array (operator picks 1+ items):
           {"type": "object",
            "properties": {"status": {
@@ -85,7 +94,12 @@ def ask_user() -> Tool:
            "required": ["status"]}
 
         ## Constraints per property type
-        - string: `enum`, `min_length`, `max_length`, `pattern`, `format`
+        - string: `enum`, `min_length`, `max_length`, `pattern`, `format`.
+          `"_meta": {"inspect.multiline": true}` requests a multi-line field;
+          use it whenever the answer may span lines (a single-line field drops
+          pasted lines after the first). Note `pattern` matches with
+          `re.fullmatch` and without DOTALL, so a pattern over multi-line text
+          needs `(?s)`.
         - integer / number: `minimum`, `maximum`
         - boolean: no extra constraints
         - array (multi-select): `min_items`, `max_items`; `items.any_of` for titled
@@ -113,17 +127,31 @@ def ask_user() -> Tool:
         # ACP's schema types include catch-alls for custom/future property
         # and multi-select item types; the built-in input handlers (and this
         # tool's documented surface) support only the known types, so reject
-        # them here where the model can self-correct.
-        unsupported = [
-            f"property {name!r} has unsupported type {prop.type!r}"
-            for name, prop in (validated.properties or {}).items()
-            if isinstance(prop, ElicitationOtherPropertySchema)
-        ] + [
-            f"property {name!r} has unsupported items type {prop.items.type!r}"
-            for name, prop in (validated.properties or {}).items()
-            if isinstance(prop, ElicitationMultiSelectPropertySchema)
-            and isinstance(prop.items, OtherMultiSelectItems)
-        ]
+        # them here where the model can self-correct. Same for a non-boolean
+        # multiline flag: `_meta` is untyped, and a "true" string would
+        # silently render single-line and truncate the paste.
+        unsupported = (
+            [
+                f"property {name!r} has unsupported type {prop.type!r}"
+                for name, prop in (validated.properties or {}).items()
+                if isinstance(prop, ElicitationOtherPropertySchema)
+            ]
+            + [
+                f"property {name!r} has unsupported items type {prop.items.type!r}"
+                for name, prop in (validated.properties or {}).items()
+                if isinstance(prop, ElicitationMultiSelectPropertySchema)
+                and isinstance(prop.items, OtherMultiSelectItems)
+            ]
+            + [
+                f"property {name!r} has non-boolean {MULTILINE_META_KEY!r} "
+                f"in _meta: {prop.field_meta[MULTILINE_META_KEY]!r}"
+                for name, prop in (validated.properties or {}).items()
+                if isinstance(prop, ElicitationStringPropertySchema)
+                and prop.field_meta is not None
+                and MULTILINE_META_KEY in prop.field_meta
+                and not isinstance(prop.field_meta[MULTILINE_META_KEY], bool)
+            ]
+        )
         if unsupported:
             raise ToolError(f"Invalid schema: {'; '.join(unsupported)}")
 
