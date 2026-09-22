@@ -32,24 +32,24 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 
 GPT-5.5 and later reason at the server default effort when `reasoning_effort` is not set, and in that state the API rejects `temperature`, `top_p`, and `logprobs`. Inspect drops those options with a warning; pass `reasoning_effort="none"` to disable reasoning and have them sent.
 
-GPT-6 Astra always reasons: it accepts `low` through `max` only, and the API rejects `none` and `minimal` with an error. It also rejects `temperature`, `top_p`, and `logprobs`, so Inspect drops those options with a warning for GPT-6 models.
+GPT-6 Sol and GPT-6 Luna accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra always reasons: it accepts `low` through `max` only, and the API rejects `none` and `minimal` with an error. It also rejects `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for Astra.
 
 Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
 #### Anthropic Claude 4.6+ and Claude 5
 
-Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8 and the Claude 5 models default to `high` server-side.
+Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Opus 5, and Fable/Mythos 5.x default to `high` server-side and Opus 5.5 defaults to `medium`.
 
-For the Claude 5 models thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the effort and the model continues to reason at its server-side default.
+For Fable/Mythos 5.x and Opus 5.5 thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the `thinking` field and the model reasons at the configured `effort` (or the server-side default if none is set). Sonnet 5 and Opus 5 do accept `none` and disable thinking (Opus 5 only at effort `high` or below).
 
-| Inspect input     | API value                                              |
-|-------------------|--------------------------------------------------------|
-| `none`            | reasoning omitted (Claude 5: not disabled — see above) |
-| `minimal` / `low` | `low`                                                  |
-| `medium`          | `medium`                                               |
-| `high`            | `high`                                                 |
-| `xhigh`           | `xhigh` on Claude 4.7+ and Claude 5; otherwise `high`  |
-| `max`             | `max`                                                  |
+| Inspect input | API value |
+|----|----|
+| `none` | omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5 |
+| `minimal` / `low` | `low` |
+| `medium` | `medium` |
+| `high` | `high` |
+| `xhigh` | `xhigh` on Claude 4.7+ and Claude 5; otherwise `high` |
+| `max` | `max` |
 
 #### Anthropic Claude 3.7 / 4.0 / 4.1 / 4.5
 
@@ -93,7 +93,7 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Grok
 
-Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`, `grok-4.6`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5 and Grok 4.6 default to `high` effort and their reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
+Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`, `grok-4.6`, `grok-4.7`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5, 4.6 and 4.7 default to `high` effort and their reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
 
 | Inspect input     | API value         |
 |-------------------|-------------------|
@@ -103,7 +103,7 @@ Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reaso
 | `high`            | `high`            |
 | `xhigh` / `max`   | `xhigh`           |
 
-`xhigh` is a real effort level from `grok-4.6` (for `grok-4.20-multi-agent` it controls how many agents collaborate); xAI [documents](https://docs.x.ai/developers/model-capabilities/text/reasoning) that Grok 4.X models without `xhigh` support (e.g. `grok-4.5`) treat it as `high`, so Inspect passes it through and lets the service downgrade. Grok 3 Mini documents only `low`/`high`, so `xhigh` and `max` clamp to `high` there. Sending `xhigh` requires `xai_sdk` \>= 1.18 — on older SDK versions (whose transport cannot express values above `high`) Inspect clamps `xhigh` and `max` to `high` for all models.
+`xhigh` is a real effort level from `grok-4.6` onward (for `grok-4.20-multi-agent` it controls how many agents collaborate); xAI [documents](https://docs.x.ai/developers/model-capabilities/text/reasoning) that Grok 4.X models without `xhigh` support (e.g. `grok-4.5`) treat it as `high`, so Inspect passes it through and lets the service downgrade. Grok 3 Mini documents only `low`/`high`, so `xhigh` and `max` clamp to `high` there. Sending `xhigh` requires `xai_sdk` \>= 1.18 — on older SDK versions (whose transport cannot express values above `high`) Inspect clamps `xhigh` and `max` to `high` for all models.
 
 #### DeepSeek
 
@@ -205,11 +205,14 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | anthropic/claude-opus-4-7            | adaptive        |
 | anthropic/claude-opus-4-8            | high            |
 | anthropic/claude-opus-5              | high            |
+| anthropic/claude-opus-5-5            | medium          |
 | anthropic/claude-sonnet-4-6          | adaptive        |
 | anthropic/claude-sonnet-5            | high            |
 | deepseek/deepseek-reasoner           | no effort scale |
 | deepseek/deepseek-v4-flash           | high            |
 | deepseek/deepseek-v4-pro             | high            |
+| fireworks/glm-5p3                    | max             |
+| fireworks/glm-5p3-flash              | max             |
 | google/gemini-3-flash-preview        | medium          |
 | google/gemini-3-pro                  | high            |
 | google/gemini-3.1-flash-lite-preview | medium          |
@@ -224,6 +227,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | grok/grok-4.3                        | low             |
 | grok/grok-4.5                        | high            |
 | grok/grok-4.6                        | high            |
+| grok/grok-4.7                        | high            |
 | mistral/magistral-medium-2506        | no effort scale |
 | mistral/magistral-small-2506         | no effort scale |
 | mistral/mistral-medium-2604          | none            |
@@ -249,6 +253,14 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | openai/gpt-5.6-sol                   | medium          |
 | openai/gpt-5.6-terra                 | medium          |
 | openai/gpt-6-astra                   | medium          |
+| openai/gpt-6-luna                    | medium          |
+| openai/gpt-6-sol                     | medium          |
+| z-ai/glm-5.3                         | max             |
+| z-ai/glm-5.3-flash                   | max             |
+| zai-org/GLM-5.3-FP8                  | max             |
+| zai-org/GLM-5.3-FP8-Lora             | max             |
+| zai-org/glm-5.3                      | max             |
+| zai-org/glm-5.3-flash                | max             |
 
 ## Reasoning Mode
 

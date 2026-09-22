@@ -731,6 +731,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#defining-a-source" id="toc-defining-a-source" class="nav-link" data-scroll-target="#defining-a-source">Defining a source</a></li>
   <li><a href="#returning-follow-up-tasks" id="toc-returning-follow-up-tasks" class="nav-link" data-scroll-target="#returning-follow-up-tasks">Returning follow-up tasks</a></li>
+  <li><a href="#cancelled-samples" id="toc-cancelled-samples" class="nav-link" data-scroll-target="#cancelled-samples">Cancelled samples</a></li>
   <li><a href="#sources-from-callbacks" id="toc-sources-from-callbacks" class="nav-link" data-scroll-target="#sources-from-callbacks">Sources from callbacks</a></li>
   <li><a href="#the-task_source-decorator" id="toc-the-task_source-decorator" class="nav-link" data-scroll-target="#the-task_source-decorator">The <span class="citation" data-cites="task_source">@task_source</span> decorator</a></li>
   <li><a href="#adding-tasks-imperatively" id="toc-adding-tasks-imperatively" class="nav-link" data-scroll-target="#adding-tasks-imperatively">Adding tasks imperatively</a></li>
@@ -796,27 +797,34 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="defining-a-source">Defining a source</h2>
 <p>Subclass <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#tasksource">TaskSource</a></span> and override the methods you need (the defaults are no-ops):</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, TaskSource</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> EvalLog, EvalSample</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> EvalLog, EvalSample</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MySource(TaskSource):</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> initial_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Task]:</span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Seed tasks to run first (synchronous)."""</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> next_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Task] <span class="op">|</span> <span class="va">None</span>:</span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""The next batch, or None when the run is complete."""</span></span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> sample_complete(</span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, sample: EvalSample, task: Task</span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">list</span>[Task] <span class="op">|</span> <span class="va">None</span>:</span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Observe a finished sample; optionally return follow-up tasks."""</span></span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> task_complete(<span class="va">self</span>, log: EvalLog) <span class="op">-&gt;</span> <span class="bu">list</span>[Task] <span class="op">|</span> <span class="va">None</span>:</span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Observe a finished task; optionally return follow-up tasks."""</span></span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MySource(TaskSource):</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> initial_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Task]:</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Seed tasks to run first (synchronous)."""</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> next_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Task] <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""The next batch, or None when the run is complete."""</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> sample_complete(</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, sample: EvalSample, task: Task</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">list</span>[Task] <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Observe a finished sample; optionally return follow-up tasks."""</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> sample_abandoned(</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, sample: Sample, epoch: <span class="bu">int</span>, task: Task</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">list</span>[Task] <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""A sample was cancelled before anything was logged for it."""</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> task_complete(<span class="va">self</span>, log: EvalLog) <span class="op">-&gt;</span> <span class="bu">list</span>[Task] <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Observe a finished task; optionally return follow-up tasks."""</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>        ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Pass an instance as <code>tasks</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -839,6 +847,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>A source that returns follow-ups from these callbacks needs no <code>next_tasks()</code>: the run ends when the callbacks return nothing and <code>next_tasks()</code> returns <code>None</code>. Use <code>next_tasks()</code> for the blocking case a per-result callback can’t express.</p>
 </section>
+<section id="cancelled-samples" class="level2">
+<h2 class="anchored" data-anchor-id="cancelled-samples">Cancelled samples</h2>
+<p>A sample the operator cancels while it is running (<code>inspect ctl sample cancel</code>) is still logged, and <code>sample_complete</code> fires for it with <code>sample.error</code> set to the cancellation and no scores. A sample cancelled before anything was logged — cancelled while still waiting in the queue, or cancelled in the moment between an attempt erroring and its <code>retry_on_error</code> re-run — has no <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsample">EvalSample</a></span> to deliver (and is absent from the log passed to <code>task_complete</code>), so the source is told via <code>sample_abandoned(sample, epoch, task)</code> instead, with the dataset <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> and the task it was queued under. Like <code>sample_complete</code>, it may return follow-up tasks. A queued sample abandoned by a graceful task cancel (<code>inspect ctl task cancel --action drain|score|error</code>) is reported the same way. Neither hook fires when the whole task is cancelled (<code>--action cancel</code>, or Ctrl+C): those samples reach the source only through the log passed to <code>task_complete</code>.</p>
+</section>
 <section id="sources-from-callbacks" class="level2">
 <h2 class="anchored" data-anchor-id="sources-from-callbacks">Sources from callbacks</h2>
 <p><code>TaskSource.from_tasks()</code> builds a source from a seed and optional callbacks, without subclassing:</p>
@@ -852,7 +864,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>source <span class="op">=</span> TaskSource.from_tasks([seed_task()], task_complete<span class="op">=</span>on_task)</span>
 <span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(source, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p><code>from_tasks(initial_tasks, *, next_tasks=None, sample_complete=None, task_complete=None)</code> delegates to the callables. Omitting <code>next_tasks</code> and returning nothing from the callbacks stops after the seed.</p>
+<p><code>from_tasks(initial_tasks, *, next_tasks=None, sample_complete=None, task_complete=None, sample_abandoned=None)</code> delegates to the callables. Omitting <code>next_tasks</code> and returning nothing from the callbacks stops after the seed.</p>
 </section>
 <section id="the-task_source-decorator" class="level2">
 <h2 class="anchored" data-anchor-id="the-task_source-decorator">The <span class="citation" data-cites="task_source">@task_source</span> decorator</h2>

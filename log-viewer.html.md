@@ -38,7 +38,7 @@ If you are not using VS Code, you can also run Inspect View directly from the co
 $ inspect view
 ```
 
-By default, `inspect view` will use the configured log directory of the environment it is run from (e.g. `./logs`). You can specify an alternate log directory using `--log-dir` ,for example:
+By default, `inspect view` will use the configured log directory of the environment it is run from (e.g. `./logs`). You can specify an alternate log directory using `--log-dir`, for example:
 
 ``` bash
 $ inspect view --log-dir ./experiment-logs
@@ -249,7 +249,7 @@ In addition to seeing the Python logging activity at the end of an eval run in t
 export INSPECT_PY_LOGGER_FILE=/tmp/inspect.log
 ```
 
-You can set this in the shell or within your global `.env` file. By default, messages of level `info` and higher will be written to the log file. If you set your main `--log-level` lower than that (e.g. to `http`) then the log file will follow. To set a distinct log level for the file, set the `INSPECT_PY_LOGGER_FILE` environment variable. For example:
+You can set this in the shell or within your global `.env` file. By default, messages of level `info` and higher will be written to the log file. If you set your main `--log-level` lower than that (e.g. to `http`) then the log file will follow. To set a distinct log level for the file, set the `INSPECT_PY_LOGGER_LEVEL` environment variable. For example:
 
 ``` bash
 export INSPECT_PY_LOGGER_LEVEL=http

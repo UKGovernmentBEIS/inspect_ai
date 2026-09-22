@@ -1222,8 +1222,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log_headers_async" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log_headers_async</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#read_eval_log_sample" class="sidebar-item-text sidebar-link">
  <span class="menu-text">read_eval_log_sample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log_sample_async" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log_sample_async</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1236,6 +1248,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#read_eval_log_sample_summaries" class="sidebar-item-text sidebar-link">
  <span class="menu-text">read_eval_log_sample_summaries</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log_sample_summaries_async" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log_sample_summaries_async</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3785,7 +3803,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval">eval</h3>
 <p>Evaluate tasks using a Model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/eval.py#L125">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/eval.py#L124">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">eval</span>(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -4302,7 +4320,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval_retry">eval_retry</h3>
 <p>Retry a previously failed evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/eval.py#L1303">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/eval.py#L1307">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_retry(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    tasks: <span class="bu">str</span> <span class="op">|</span> EvalLogInfo <span class="op">|</span> EvalLog <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="bu">list</span>[EvalLogInfo] <span class="op">|</span> <span class="bu">list</span>[EvalLog],</span>
@@ -4508,7 +4526,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval_set">eval_set</h3>
 <p>Evaluate a set of tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/evalset.py#L229">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/evalset.py#L229">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_set(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -5055,7 +5073,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="score">score</h3>
 <p>Score an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/score.py#L81">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/score.py#L81">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> score(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    log: EvalLog,</span>
@@ -5117,7 +5135,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Evaluation task.</p>
 <p>Tasks are the basis for defining and running evaluations.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/task.py#L81">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/task.py#L81">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Task</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4 class-methods">
@@ -5127,7 +5145,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/task.py#L87">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/task.py#L87">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -5329,7 +5347,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task adapted with alternate values for one or more options.</p>
 <p>This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task_with">task_with()</a></span> you should create the underlying task multiple times.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/task.py#L305">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/task.py#L305">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_with(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    task: Task,</span>
@@ -5515,7 +5533,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Identifiers have the form <code>{task_file}@{task_name}#{args_hash}/{model}/{additional_hash}</code> (the <code>{task_file}@</code> prefix is omitted for tasks without a source file). The additional hash covers the remaining fields that distinguish tasks within an eval set (solver plan, generate config, model args, model roles, task version, and execution limits), excluding runtime/transport options that don’t affect model output (e.g.&nbsp;<code>max_retries</code>, <code>max_connections</code>).</p>
 <p>The same identifier is computed from a <code>ResolvedTask</code> (before running) and from the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span> that running it produces — <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_set">eval_set()</a></span> uses this to pair tasks with their existing log files across retries, and external runners can correlate enumerated tasks with logs the same way. The computation is versioned by <code>TASK_IDENTIFIER_VERSION</code>: persisted identifiers must be recomputed when the version changes.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/evalset.py#L2058">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/evalset.py#L2058">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_identifier(</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    task: ResolvedTask <span class="op">|</span> EvalLog,</span>
@@ -5537,7 +5555,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task epochs.</p>
 <p>Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Epochs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -5556,7 +5574,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Task epochs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, epochs: <span class="bu">int</span>, reducer: ScoreReducers <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -5577,7 +5595,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="taskinfo">TaskInfo</h3>
 <p>Task information (file, name, and attributes).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/task.py#L507">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/task.py#L507">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskInfo(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -5603,7 +5621,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>One or more tasks.</p>
 <p>Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/tasks.py#L7">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/tasks.py#L7">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>Tasks: TypeAlias <span class="op">=</span> (</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">str</span></span>
@@ -5631,7 +5649,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Drives a running eval from code: a seed plus result-driven follow-ups.</p>
 <p>Subclass and override the methods you need. The default implementations are no-ops / empty, so a bare <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#tasksource">TaskSource</a></span> runs nothing — override at least <code>initial_tasks</code> and <code>next_tasks</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/task_source.py#L38">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/task_source.py#L39">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskSource</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4 class-methods">
@@ -5642,7 +5660,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Tasks to run first (the seed).</p>
 <p>Called once, synchronously, before the run starts — so it must return immediately (no awaiting / blocking). The returned tasks drive the run’s up-front setup (concurrency, validation) and are the first batch.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/task_source.py#L46">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/task_source.py#L47">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> initial_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Task"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
@@ -5654,7 +5672,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The next batch of tasks to run, or <code>None</code> when the run is complete.</p>
 <p>Called after each batch finishes (after that batch’s <code>sample_complete</code> / <code>task_complete</code> notifications). May <code>await</code> — for more results or external input — and may block indefinitely; return <code>None</code> to end the run.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/task_source.py#L55">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/task_source.py#L56">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> next_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
@@ -5665,9 +5683,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>A sample finished — observe it and optionally return follow-up tasks.</p>
 <p><code>sample</code> is the completed sample and <code>task</code> is the task it ran under (the sample alone doesn’t identify its task). Return a list of tasks to add to the run (equivalent to calling <code>enqueue_task</code> with them): they run after the current batch, before the next <code>next_tasks()</code>. Return <code>None</code> (the default) to add nothing.</p>
-<p>Fires for every sample the task logs, including one cancelled individually by an operator (its <code>error</code> is then the cancellation, with no scores), but not for samples cancelled by the task itself unwinding (a task-level cancel or ^C) – those reach the source only via the log passed to <code>task_complete</code>. A cancelled sample’s <code>error.message</code> is the cancellation exception’s repr (it starts with <code>CancelledError(</code> or <code>Cancelled(</code>), which is how to tell it from a genuine error.</p>
+<p>Fires for every sample the task logs, including one cancelled individually by an operator (its <code>error</code> is then the cancellation, with no scores), but not for samples cancelled by the task itself unwinding (a task-level cancel or ^C) – those reach the source only via the log passed to <code>task_complete</code>. A cancelled sample’s <code>error.message</code> is the cancellation exception’s repr (it starts with <code>CancelledError(</code> or <code>Cancelled(</code>), which is how to tell it from a genuine error. A sample cancelled before it produced anything to log is reported via :meth:<code>sample_abandoned</code> instead.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/task_source.py#L65">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/task_source.py#L66">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_complete(</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, sample: <span class="st">"EvalSample"</span>, task: <span class="st">"Task"</span></span>
@@ -5683,14 +5701,40 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 </dl>
 </dd>
+<dt>sample_abandoned</dt>
+<dd>
+<p>A sample was cancelled without ever being logged.</p>
+<p><code>sample</code> is a copy of the sample as the task’s dataset held it, <code>epoch</code> the epoch that was abandoned and <code>task</code> the task it was queued under. Nothing about the run reached the log (no <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#evalsample">EvalSample</a></span> exists, and the sample is absent from the log passed to <code>task_complete</code>), so unlike :meth:<code>sample_complete</code> there is no result to deliver. Return a list of tasks to add to the run (equivalent to calling <code>enqueue_task</code> with them) or <code>None</code> (the default) to add nothing.</p>
+<p>Fires when an operator cancels a sample still waiting in the queue (<code>inspect ctl sample cancel --action cancel</code>), when a cancel lands on an errored sample in the window before its <code>retry_on_error</code> re-run, or when a graceful task cancel (<code>--action drain</code>, <code>score</code>, <code>error</code>) abandons a queued sample — in each case the task itself keeps running, so a source waiting on the sample must hear that it will never complete. Like :meth:<code>sample_complete</code> it does not fire for samples cancelled by the task itself unwinding (a task-level cancel or ^C), nor for a withdrawn requeue (the prior terminal outcome, already reported, stands). With <code>epochs &gt; 1</code> it fires once per abandoned epoch, as <code>sample_complete</code> fires once per completed one.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/task_source.py#L89">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_abandoned(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, sample: <span class="st">"Sample"</span>, epoch: <span class="bu">int</span>, task: <span class="st">"Task"</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<dl>
+<dt><code class="ref-definition">sample</code> <span class="element-type">'Sample'</span></dt>
+<dd>
+
+</dd>
+<dt><code class="ref-definition">epoch</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dd>
+
+</dd>
+<dt><code class="ref-definition">task</code> <span class="element-type">'Task'</span></dt>
+<dd>
+
+</dd>
+</dl>
+</dd>
 <dt>task_complete</dt>
 <dd>
 <p>A task finished — observe its log and optionally return follow-up tasks.</p>
 <p>Return a list of tasks to add to the run (like <code>enqueue_task</code>): they run after the current batch. Return <code>None</code> (the default) to add nothing.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/task_source.py#L87">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/task_source.py#L118">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> task_complete(<span class="va">self</span>, log: <span class="st">"EvalLog"</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> task_complete(<span class="va">self</span>, log: <span class="st">"EvalLog"</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">log</code> <span class="element-type">'EvalLog'</span></dt>
 <dd>
@@ -5703,21 +5747,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Create a :class:<span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#tasksource">TaskSource</a></span> from a seed plus optional callbacks.</p>
 <p>A convenience for when subclassing is more than you need: provide the initial tasks directly and, optionally, callbacks that react to results. The <code>sample_complete</code> / <code>task_complete</code> callbacks may <strong>return</strong> a list of follow-up tasks to add to the run (see those methods); <code>next_tasks</code> is the blocking / explicit-pull alternative. Callbacks typically close over shared state (e.g.&nbsp;accumulated scores) to decide what to run next.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/task_source.py#L95">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/task_source.py#L126">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_tasks(</span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    cls,</span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    initial_tasks: <span class="bu">list</span>[<span class="st">"Task"</span>],</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    next_tasks: Callable[[], Awaitable[<span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span>]] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    sample_complete: Callable[</span>
-<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>        [<span class="st">"EvalSample"</span>, <span class="st">"Task"</span>], Awaitable[<span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span>]</span>
-<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>    ]</span>
-<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    task_complete: Callable[[<span class="st">"EvalLog"</span>], Awaitable[<span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span>]]</span>
-<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="st">"TaskSource"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_tasks(</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    cls,</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    initial_tasks: <span class="bu">list</span>[<span class="st">"Task"</span>],</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    next_tasks: Callable[[], Awaitable[<span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span>]] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    sample_complete: Callable[</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>        [<span class="st">"EvalSample"</span>, <span class="st">"Task"</span>], Awaitable[<span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span>]</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>    task_complete: Callable[[<span class="st">"EvalLog"</span>], Awaitable[<span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span>]]</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>    sample_abandoned: Callable[</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>        [<span class="st">"Sample"</span>, <span class="bu">int</span>, <span class="st">"Task"</span>], Awaitable[<span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span>]</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="st">"TaskSource"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">initial_tasks</code> <span class="element-type">list['Task']</span></dt>
 <dd>
@@ -5735,6 +5783,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Optional async callback invoked as each task finishes; may return follow-up tasks to add to the run.</p>
 </dd>
+<dt><code class="ref-definition">sample_abandoned</code> <span class="element-type"><span class="element-type-name">Callable</span>[['Sample', <span class="element-type-name">int</span>, 'Task'], <span class="element-type-name">Awaitable</span>[list['Task'] | <span class="element-type-name">None</span>]] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Optional async callback invoked when a sample is cancelled without being logged (see :meth:<code>sample_abandoned</code>); may return follow-up tasks to add to the run.</p>
+</dd>
 </dl>
 </dd>
 </dl>
@@ -5745,9 +5797,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Drives a running task from code: a seed plus result-driven follow-ups.</p>
 <p>Subclass and override the methods you need. The default implementations are no-ops / empty, so a bare <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#samplesource">SampleSource</a></span> runs nothing — override at least <code>initial_samples</code> and <code>next_samples</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/sample_source.py#L41">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/sample_source.py#L41">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleSource</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleSource</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4 class-methods">
 <h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
 <dl>
@@ -5756,9 +5808,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Samples to run first (the seed).</p>
 <p>Called once, synchronously, when the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task">Task</a></span> is created — so it must return immediately (no awaiting / blocking). The returned samples drive the task’s up-front setup (validation, sandbox startup) and are the first batch. May be empty, in which case the task starts by calling <code>next_samples()</code>. The seed isn’t required for sandboxes: a sandbox config first seen in a later-added sample gets the same startup (image build/pull, validation, registered cleanup) before that sample runs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/sample_source.py#L49">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/sample_source.py#L49">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> initial_samples(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Sample"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> initial_samples(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Sample"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
 
 </div>
@@ -5768,9 +5820,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>More samples to run, or <code>None</code> when the task is complete.</p>
 <p>Called whenever no samples remain in flight or buffered (after those samples’ <code>sample_complete</code> notifications). May <code>await</code> — for more results or external input — and may block indefinitely; return <code>None</code> to end the task. (If samples were enqueued while a <code>None</code> return was in progress they still run, and this method may then be called again.)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/sample_source.py#L63">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/sample_source.py#L63">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> next_samples(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> next_samples(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
 
 </div>
@@ -5779,14 +5831,36 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>A sample finished — observe it and optionally return follow-up samples.</p>
 <p>Return a list of samples to add to the task (equivalent to calling <code>enqueue_sample</code> with them): they start as soon as there is free capacity. Return <code>None</code> (the default) to add nothing.</p>
-<p>Fires for every sample the task logs, including one cancelled individually by an operator (its <code>error</code> is then the cancellation, with no scores), but not for samples cancelled by the task itself unwinding (a task-level cancel or ^C), where any follow-ups could never run. A cancelled sample’s <code>error.message</code> is the cancellation exception’s repr (it starts with <code>CancelledError(</code> or <code>Cancelled(</code>), which is how to tell it from a genuine error.</p>
+<p>Fires for every sample the task logs, including one cancelled individually by an operator (its <code>error</code> is then the cancellation, with no scores), but not for samples cancelled by the task itself unwinding (a task-level cancel or ^C), where any follow-ups could never run. A cancelled sample’s <code>error.message</code> is the cancellation exception’s repr (it starts with <code>CancelledError(</code> or <code>Cancelled(</code>), which is how to tell it from a genuine error. A sample cancelled before it produced anything to log is reported via :meth:<code>sample_abandoned</code> instead.</p>
 <p>On a task retry this is also called for samples reused from the prior attempt, so a completion-driven source regenerates its follow-ups (returned samples whose ids match the prior attempt are themselves reused rather than re-run).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/sample_source.py#L74">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/sample_source.py#L74">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_complete(<span class="va">self</span>, sample: <span class="st">"EvalSample"</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_complete(<span class="va">self</span>, sample: <span class="st">"EvalSample"</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">sample</code> <span class="element-type">'EvalSample'</span></dt>
+<dd>
+
+</dd>
+</dl>
+</dd>
+<dt>sample_abandoned</dt>
+<dd>
+<p>A sample was cancelled without ever being logged.</p>
+<p><code>sample</code> is a copy of the sample as it was added to the task and <code>epoch</code> the epoch that was abandoned. Nothing about the run reached the log (no <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#evalsample">EvalSample</a></span> exists), so unlike :meth:<code>sample_complete</code> there is no result to deliver. Return a list of samples to add to the task (equivalent to calling <code>enqueue_sample</code> with them) or <code>None</code> (the default) to add nothing.</p>
+<p>Fires when an operator cancels a sample still waiting in the queue (<code>inspect ctl sample cancel --action cancel</code>), when a cancel lands on an errored sample in the window before its <code>retry_on_error</code> re-run, or when a graceful task cancel (<code>--action drain</code>, <code>score</code>, <code>error</code>) abandons a queued sample — in each case the task itself keeps running, so a source waiting on the sample must hear that it will never complete. Like :meth:<code>sample_complete</code> it does not fire for samples cancelled by the task itself unwinding (a task-level cancel or ^C), nor for a withdrawn requeue (the prior terminal outcome, already reported, stands). With <code>epochs &gt; 1</code> it fires once per abandoned epoch, as <code>sample_complete</code> fires once per completed one.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/sample_source.py#L98">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_abandoned(</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, sample: <span class="st">"Sample"</span>, epoch: <span class="bu">int</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<dl>
+<dt><code class="ref-definition">sample</code> <span class="element-type">'Sample'</span></dt>
+<dd>
+
+</dd>
+<dt><code class="ref-definition">epoch</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
 <dd>
 
 </dd>
@@ -5797,17 +5871,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Create a :class:<span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#samplesource">SampleSource</a></span> from a seed plus optional callbacks.</p>
 <p>A convenience for when subclassing is more than you need: provide the initial samples directly and, optionally, callbacks that react to results. The <code>sample_complete</code> callback may <strong>return</strong> a list of follow-up samples to add to the task (see that method); <code>next_samples</code> is the blocking / explicit-pull alternative. Callbacks typically close over shared state (e.g.&nbsp;accumulated scores) to decide what to run next.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/sample_source.py#L96">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/sample_source.py#L126">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_samples(</span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    cls,</span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    initial_samples: <span class="bu">list</span>[<span class="st">"Sample"</span>],</span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
-<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    next_samples: Callable[[], Awaitable[<span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span>]] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    sample_complete: Callable[[<span class="st">"EvalSample"</span>], Awaitable[<span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span>]]</span>
-<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="st">"SampleSource"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_samples(</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    cls,</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    initial_samples: <span class="bu">list</span>[<span class="st">"Sample"</span>],</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    next_samples: Callable[[], Awaitable[<span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span>]] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    sample_complete: Callable[[<span class="st">"EvalSample"</span>], Awaitable[<span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span>]]</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>    sample_abandoned: Callable[[<span class="st">"Sample"</span>, <span class="bu">int</span>], Awaitable[<span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span>]]</span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="st">"SampleSource"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">initial_samples</code> <span class="element-type">list['Sample']</span></dt>
 <dd>
@@ -5821,6 +5897,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Optional async callback invoked as each sample finishes; may return follow-up samples to add to the task.</p>
 </dd>
+<dt><code class="ref-definition">sample_abandoned</code> <span class="element-type"><span class="element-type-name">Callable</span>[['Sample', <span class="element-type-name">int</span>], <span class="element-type-name">Awaitable</span>[list['Sample'] | <span class="element-type-name">None</span>]] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Optional async callback invoked when a sample is cancelled without being logged (see :meth:<code>sample_abandoned</code>); may return follow-up samples to add to the task.</p>
+</dd>
 </dl>
 </dd>
 </dl>
@@ -5832,9 +5912,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The tasks run in this process under the current run’s <code>run_id</code> (a fresh <code>eval_id</code>/<code>task_id</code> each, their own log files), resolved against the run’s models and config.</p>
 <p>When the run is driven by a :class:<code>~inspect_ai.TaskSource</code>, added tasks are <em>live</em>: they start as soon as there is free capacity. Otherwise they run as a follow-up batch, after the in-flight batch of tasks completes.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/enqueue.py#L91">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/enqueue.py#L91">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> enqueue_task(tasks: <span class="st">"Tasks"</span>, <span class="op">*</span>, run_id: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> enqueue_task(tasks: <span class="st">"Tasks"</span>, <span class="op">*</span>, run_id: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">tasks</code> <span class="element-type">'Tasks'</span></dt>
 <dd>
@@ -5853,9 +5933,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Only available inside a task driven by a :class:<span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#samplesource">SampleSource</a></span> (i.e.&nbsp;a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task">Task</a></span> whose <code>dataset</code> is a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#samplesource">SampleSource</a></span>) — a plain task’s sample set is fixed, so there is no loop to run additions. Callable from any code running within such a task — a solver, a scorer, a tool — but it must be called from the task’s event loop (where those all run), not from a worker thread.</p>
 <p>When the eval was run with <code>--limit</code>, samples beyond the limit are ignored (with a warning); with <code>--sample-id</code>, only samples matching the filter run.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/sample_source.py#L212">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/sample_source.py#L259">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> enqueue_sample(samples: <span class="st">"Sample | list[Sample]"</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> enqueue_sample(samples: <span class="st">"Sample | list[Sample]"</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">samples</code> <span class="element-type">'Sample | list[<span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>]'</span></dt>
 <dd>
@@ -5870,22 +5950,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="scanners">Scanners</h3>
 <p>Argument shape accepted by <code>eval_set(scanner=...)</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/scan.py#L178">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/scan.py#L178">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>    Scanners: TypeAlias <span class="op">=</span> (</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>        Sequence[Scanner[Any] <span class="op">|</span> <span class="bu">tuple</span>[<span class="bu">str</span>, Scanner[Any]]]</span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>        <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, Scanner[Any]]</span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>        <span class="op">|</span> ScannerConfig</span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>    Scanners: TypeAlias <span class="op">=</span> (</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>        Sequence[Scanner[Any] <span class="op">|</span> <span class="bu">tuple</span>[<span class="bu">str</span>, Scanner[Any]]]</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>        <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, Scanner[Any]]</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>        <span class="op">|</span> ScannerConfig</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="scannerconfig" class="level3">
 <h3 class="anchored" data-anchor-id="scannerconfig">ScannerConfig</h3>
 <p>Configure scanners attached to an <code>eval_set</code> run.</p>
 <p>A subset of scout’s <code>ScanJob</code> / <code>ScanJobConfig</code> schema, narrowed to the fields that make sense when <code>eval_set</code> is generating the transcripts.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/scan.py#L53">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/scan.py#L53">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScannerConfig(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScannerConfig(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -5944,10 +6024,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Load a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#scannerconfig">ScannerConfig</a></span> from a YAML or JSON config file.</p>
 <p>Scanner entries in the file are written as <code>ScannerSpec</code> references (a registry <code>name</code> plus optional <code>params</code> and <code>file</code>). They are resolved to live <code>Scanner</code> objects via scout’s registry, loading any referenced <code>file</code> modules. <code>model_args</code> may also be a path to a separate YAML/JSON file, which is read and inlined.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/task/scan.py#L115">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/task/scan.py#L115">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_file(cls, path: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="st">"ScannerConfig"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_file(cls, path: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="st">"ScannerConfig"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">path</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -5965,20 +6045,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="view-1">view</h3>
 <p>Run the Inspect View server.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_view/view.py#L24">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_view/view.py#L24">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> view(</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    recursive: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>    host: <span class="bu">str</span> <span class="op">=</span> DEFAULT_SERVER_HOST,</span>
-<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    port: <span class="bu">int</span> <span class="op">=</span> DEFAULT_VIEW_PORT,</span>
-<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>    authorization: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>    log_level: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
-<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>    trusted_origins: <span class="bu">tuple</span>[<span class="bu">str</span>, ...] <span class="op">=</span> (),</span>
-<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>    trusted_hosts: <span class="bu">tuple</span>[<span class="bu">str</span>, ...] <span class="op">=</span> (),</span>
-<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>    unsafe_allow_unauthenticated: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> view(</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    recursive: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    host: <span class="bu">str</span> <span class="op">=</span> DEFAULT_SERVER_HOST,</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    port: <span class="bu">int</span> <span class="op">=</span> DEFAULT_VIEW_PORT,</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    authorization: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>    log_level: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>    trusted_origins: <span class="bu">tuple</span>[<span class="bu">str</span>, ...] <span class="op">=</span> (),</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>    trusted_hosts: <span class="bu">tuple</span>[<span class="bu">str</span>, ...] <span class="op">=</span> (),</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>    unsafe_allow_unauthenticated: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">log_dir</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -6029,9 +6109,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="task-1">task</h3>
 <p>Decorator for registering tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/registry.py#L124">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/registry.py#L124">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">*args</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
 <dd>
@@ -6052,9 +6132,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Decorator for registering task sources.</p>
 <p>Mirrors <code>@task</code>: registers a function that returns a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#tasksource">TaskSource</a></span> so it can be referenced and loaded by name (e.g.&nbsp;<code>eval("file.py@my_source")</code> or <code>inspect eval file.py@my_source -T arg=value</code>) and parameterized.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec4dfc6953784dc45b79de3147530c89868c6e26/src/inspect_ai/_eval/registry.py#L288">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/_eval/registry.py#L288">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_source(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_source(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">*args</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
 <dd>

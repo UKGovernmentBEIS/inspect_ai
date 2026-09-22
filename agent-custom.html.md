@@ -207,7 +207,7 @@ In some cases agents will want to retain state across multiple invocations, or e
 
 ### Typed Store
 
-When developing agents, you should use the [typed-interface](./agent-custom.html.md#store-typing) to the per-sample store, which provides both type-checking and namespacing for store access.
+When developing agents, you should use the [typed interface](./agent-custom.html.md#typed-store) to the per-sample store, which provides both type-checking and namespacing for store access.
 
 For example, here we define a typed accessor to the store by deriving from the [StoreModel](./reference/inspect_ai.util.html.md#storemodel) class (which in turn derives from Pydantic `BaseModel`):
 

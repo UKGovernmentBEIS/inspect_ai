@@ -1012,7 +1012,7 @@ Note
 <p>In some cases agents will want to retain state across multiple invocations, or even share state with other agents or tools. This can be accomplished in Inspect using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span>, which provides a sample-scoped scratchpad for arbitrary values.</p>
 <section id="typed-store" class="level3">
 <h3 class="anchored" data-anchor-id="typed-store">Typed Store</h3>
-<p>When developing agents, you should use the <a href="./agent-custom.html#store-typing">typed-interface</a> to the per-sample store, which provides both type-checking and namespacing for store access.</p>
+<p>When developing agents, you should use the <a href="./agent-custom.html#typed-store">typed interface</a> to the per-sample store, which provides both type-checking and namespacing for store access.</p>
 <p>For example, here we define a typed accessor to the store by deriving from the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> class (which in turn derives from Pydantic <code>BaseModel</code>):</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> Field</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> StoreModel</span>
@@ -1055,7 +1055,7 @@ Note
 <span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>            state.messages, tools<span class="op">=</span>[bash_session(instance<span class="op">=</span>instance)]</span>
 <span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Then, pass a unique id as the <code>instance</code>:</p>
-<div id="72d817ab" class="cell">
+<div id="f2d9b9c3" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> shortuuid <span class="im">import</span> uuid</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>

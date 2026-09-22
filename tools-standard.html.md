@@ -68,7 +68,7 @@ web_search({
 
 ### OpenAI Options
 
-The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use OpenAI’s built-in search capability when running on a limited number of OpenAI models (currently “gpt-4o”, “gpt-4o-mini”, “gpt-4.1”, “o3”, “o4-mini”, and GPT-5 and later, including GPT-6 Astra). This provider does not require any API keys beyond what’s needed for the model itself.
+The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use OpenAI’s built-in search capability when running on a limited number of OpenAI models (currently “gpt-4o”, “gpt-4o-mini”, “gpt-4.1”, “o3”, “o4-mini”, and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what’s needed for the model itself.
 
 For more details on OpenAI’s web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
@@ -250,7 +250,7 @@ The [text_editor()](./reference/inspect_ai.tool.html.md#text_editor) tool enable
 
 ### Configuration
 
-The text editor tools requires the use of a [Sandbox Environment](./sandboxing.html.md). Like [bash()](./reference/inspect_ai.tool.html.md#bash), it runs as the sandbox’s default user unless a `user` is specified.
+The text editor tools requires the use of a [Sandbox Environment](./sandboxing.html.md). Like [bash()](./reference/inspect_ai.tool.html.md#bash), it runs as the sandbox’s default user unless a `user` is specified. Viewing a directory runs the sandbox’s `find`, which must be installed in `/usr/sbin`, `/usr/bin`, `/sbin` or `/bin`.
 
 ### Task Setup
 
@@ -289,11 +289,11 @@ The schema for the [text_editor()](./reference/inspect_ai.tool.html.md#text_edit
 
 The [computer()](./reference/inspect_ai.tool.html.md#computer) tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool work better with models that have been trained for computer use. As of Q1 2026 the recommended models for computer use include:
 
-| Provider  | Models                                  |
-|-----------|-----------------------------------------|
-| Anthropic | `claude-opus-4-5+`, `claude-sonnet-4-6` |
-| Open AI   | `gpt-5.4+`, `gpt-5.4-pro+`              |
-| Google    | `gemini-3-flash-preview`                |
+| Provider | Models |
+|----|----|
+| Anthropic | `claude-opus-4-5+`, `claude-sonnet-4-6+`, `claude-fable-5+`, `claude-mythos-5+` |
+| Open AI | `gpt-5.4+`, `gpt-5.4-pro+` |
+| Google | `gemini-3-flash-preview` |
 
 ### Configuration
 
@@ -357,6 +357,8 @@ The computer tool supports the following options:
 |----|----|
 | `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
 | `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
+
+When a Claude model uses Anthropic’s computer toolset (see *Tool Binding* below), it can issue several actions in one turn as a batch. Inspect runs them in order and stops at the first failure, reporting each later action to the model as `Not executed: an earlier computer action in this turn failed.`, as the toolset’s batch contract specifies. Other models and the legacy Anthropic tool are unaffected.
 
 For example:
 
@@ -457,7 +459,9 @@ inspect eval computer.py --approval approval.yaml
 
 ### Tool Binding
 
-The computer tool’s schema is a superset of the standard [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use), and [Google](https://ai.google.dev/gemini-api/docs/computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions.
+The computer tool’s schema is a superset of the standard [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use), and [Google](https://ai.google.dev/gemini-api/docs/computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions.
+
+For Claude models, the binding depends on the model and platform: on the Claude API and Vertex, Claude Opus 5.5, Fable 5/5.1 and Mythos 5/5.1 use Anthropic’s computer toolset (`computer_toolset_20260801`), where each action is its own tool call and a failed action halts the remaining computer actions in that turn; other Claude models, and every model on Bedrock and Foundry (which offer only the earlier tool), keep the legacy `computer_20251124` tool. See [Computer Use](./providers.html.md#anthropic-computer-use) in the Anthropic provider documentation for details, including the `computer_toolset` model arg that forces either mode.
 
 ## Code Execution
 
@@ -504,17 +508,17 @@ Here are some example configurations:
 
 ``` python
 # default (native where supported, python as fallback):
-code_interpreter()
+code_execution()
 
 # selectively disable native (will fallback to python)
-code_interpreter({ "grok": False, "openai": False })
+code_execution(providers={ "grok": False, "openai": False })
 
 # disable python fallback
-code_interpreter({ "python": False })
+code_execution(providers={ "python": False })
 
 # provide openai container options
-code_interpreter(
-    {"openai": {"container": {"type": "auto", "memory_limit": "4g" }}}
+code_execution(
+    providers={"openai": {"container": {"type": "auto", "memory_limit": "4g" }}}
 )
 ```
 

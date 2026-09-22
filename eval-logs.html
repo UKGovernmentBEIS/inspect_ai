@@ -1205,8 +1205,8 @@ Important
 <section id="score-editing" class="level3">
 <h3 class="anchored" data-anchor-id="score-editing">Score Editing</h3>
 <p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#edit_score">edit_score()</a></span> function to modify scores for individual samples. For example, this example will modify the score for the first sample, preserving its previous value in the score history, while also tracking the author and reason for the change:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> read_eval_log, write_eval_log, edit_score</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> ScoreEdit, ProvenanceData</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> read_eval_log, write_eval_log, edit_score, ProvenanceData</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> ScoreEdit</span>
 <span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Read the log file</span></span>
 <span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> read_eval_log(<span class="st">"my_eval.json"</span>)</span>
@@ -1420,8 +1420,9 @@ inspect view  # streams directly from Azure</code></pre>
 <p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb46"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
 <span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>You can use the <code>--retryable</code> option to list only logs that are <a href="./handling-errors.html#eval-retries">retryable</a></p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb47"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--retryable</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>There is no CLI filter for <a href="./handling-errors.html#eval-retries">retryable</a> logs: <code>--status</code> accepts a single value, and <code>retryable</code> is not one of its values (<code>started</code>, <code>success</code>, <code>cancelled</code> or <code>error</code>). Listing the incomplete statuses is as close as the command gets, so compare the two listings against your successful runs:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb47"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> cancelled</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="reading-logs" class="level3">
 <h3 class="anchored" data-anchor-id="reading-logs">Reading Logs</h3>

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Agents combine planning, memory, and tool usage to pursue more complex, tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
+Agents combine planning, memory, and tool usage to pursue more complex tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
 
 1.  Using Inspect’s built-in [ReAct Agent](./react-agent.html.md).
 

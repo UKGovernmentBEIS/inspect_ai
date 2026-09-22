@@ -731,6 +731,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#defining-a-source" id="toc-defining-a-source" class="nav-link" data-scroll-target="#defining-a-source">Defining a source</a></li>
   <li><a href="#returning-follow-up-samples" id="toc-returning-follow-up-samples" class="nav-link" data-scroll-target="#returning-follow-up-samples">Returning follow-up samples</a></li>
+  <li><a href="#cancelled-samples" id="toc-cancelled-samples" class="nav-link" data-scroll-target="#cancelled-samples">Cancelled samples</a></li>
   <li><a href="#sources-from-callbacks" id="toc-sources-from-callbacks" class="nav-link" data-scroll-target="#sources-from-callbacks">Sources from callbacks</a></li>
   <li><a href="#adding-samples-imperatively" id="toc-adding-samples-imperatively" class="nav-link" data-scroll-target="#adding-samples-imperatively">Adding samples imperatively</a></li>
   <li><a href="#concurrency" id="toc-concurrency" class="nav-link" data-scroll-target="#concurrency">Concurrency</a></li>
@@ -804,14 +805,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> sample_complete(<span class="va">self</span>, sample: EvalSample) <span class="op">-&gt;</span> <span class="bu">list</span>[Sample] <span class="op">|</span> <span class="va">None</span>:</span>
 <span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Observe a finished sample; optionally return follow-up samples."""</span></span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> sample_abandoned(<span class="va">self</span>, sample: Sample, epoch: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Sample] <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""A sample was cancelled before anything was logged for it."""</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>        ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Pass an instance as the task’s <code>dataset</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(Task(dataset<span class="op">=</span>MySource(), solver<span class="op">=</span>my_solver(), scorer<span class="op">=</span>my_scorer()),</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>     model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><code>initial_samples()</code> is synchronous and returns the seed, so it must return immediately rather than <code>await</code>. It may be empty, in which case the task starts by calling <code>next_samples()</code>. <code>next_samples()</code> is async, called whenever no samples remain in flight, and may block (for example, awaiting external input); return <code>None</code> to end the task.</p>
-<p>All generated samples run within the task — one log file, one set of results — and each runs for the task’s configured number of <a href="./options.html#epochs">epochs</a>. Samples without an <code>id</code> are assigned one automatically, continuing the seed’s numbering.</p>
+<p>All generated samples run within the task (one log file and one set of results), and each runs for the task’s configured number of <a href="./metrics.html#reducing-epochs">epochs</a>. Samples without an <code>id</code> are assigned one automatically, continuing the seed’s numbering.</p>
 </section>
 <section id="returning-follow-up-samples" class="level2">
 <h2 class="anchored" data-anchor-id="returning-follow-up-samples">Returning follow-up samples</h2>
@@ -829,6 +834,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A source that returns follow-ups from this callback needs no <code>next_samples()</code>: the task ends when completions return nothing and <code>next_samples()</code> returns <code>None</code>. Use <code>next_samples()</code> for the blocking case a per-result callback can’t express.</p>
 <p>Note that with <code>epochs &gt; 1</code>, <code>sample_complete</code> fires once per <em>epoch</em>, and each returned follow-up itself runs all epochs — so a per-completion follow-up pattern multiplies (the example above with <code>epochs=2</code> would spawn two follow-ups per passed difficulty level, each running twice). Use <code>sample.epoch</code> (or dedupe on the source’s own state) to react once per logical sample.</p>
 </section>
+<section id="cancelled-samples" class="level2">
+<h2 class="anchored" data-anchor-id="cancelled-samples">Cancelled samples</h2>
+<p>A sample the operator cancels while it is running (<code>inspect ctl sample cancel</code>) is still logged, and <code>sample_complete</code> fires for it with <code>sample.error</code> set to the cancellation and no scores. A sample cancelled before anything was logged — cancelled while still waiting in the queue, or cancelled in the moment between an attempt erroring and its <code>retry_on_error</code> re-run — has no <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsample">EvalSample</a></span> to deliver, so the source is told via <code>sample_abandoned(sample, epoch)</code> instead, with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> as it was added to the task. Like <code>sample_complete</code>, it may return follow-up samples. A queued sample abandoned by a graceful task cancel (<code>inspect ctl task cancel --action drain|score|error</code>) is reported the same way. Neither hook fires when the whole task is cancelled (<code>--action cancel</code>, or Ctrl+C): no follow-up could run.</p>
+<p>A source that awaits a sample’s outcome — for example a sample that enqueues a rollout and waits for its result — should therefore treat <code>sample_abandoned</code> as that outcome, or it will wait forever when the rollout is cancelled before it starts.</p>
+</section>
 <section id="sources-from-callbacks" class="level2">
 <h2 class="anchored" data-anchor-id="sources-from-callbacks">Sources from callbacks</h2>
 <p><code>SampleSource.from_samples()</code> builds a source from a seed and optional callbacks, without subclassing:</p>
@@ -841,7 +851,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> [harder_sample()] <span class="cf">if</span> <span class="bu">sum</span>(scores) <span class="op">/</span> <span class="bu">len</span>(scores) <span class="op">&gt;=</span> <span class="fl">0.8</span> <span class="cf">else</span> <span class="va">None</span></span>
 <span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>source <span class="op">=</span> SampleSource.from_samples([easy_sample()], sample_complete<span class="op">=</span>on_sample)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p><code>from_samples(initial_samples, *, next_samples=None, sample_complete=None)</code> delegates to the callables. Omitting <code>next_samples</code> and returning nothing from the callback stops after the seed.</p>
+<p><code>from_samples(initial_samples, *, next_samples=None, sample_complete=None, sample_abandoned=None)</code> delegates to the callables. Omitting <code>next_samples</code> and returning nothing from the callback stops after the seed.</p>
 </section>
 <section id="adding-samples-imperatively" class="level2">
 <h2 class="anchored" data-anchor-id="adding-samples-imperatively">Adding samples imperatively</h2>

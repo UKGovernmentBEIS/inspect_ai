@@ -810,7 +810,7 @@ For more detail on the different methods of configuration, see [Configuration](.
 | `--stop-seqs` | Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence. |
 | `--num-choices` | How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only. |
 | `--best-of` | Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). OpenAI only. |
-| `--log-probs` | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. |
+| `--logprobs` | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. |
 | `--top-logprobs` | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. |
 | `--cache-prompt` | Values: `auto`, `true`, or `false`. Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only. |
 | `--fallback-models` | Fallback models (comma-separated, tried in order) when the model’s safety classifiers refuse the request. Anthropic Claude API only. |
@@ -821,7 +821,7 @@ For more detail on the different methods of configuration, see [Configuration](.
 | `--reasoning-mode` | Values: `standard` or `pro`. Reasoning mode. “pro” performs more model work for greater reliability on difficult tasks, at higher latency and token usage. OpenAI GPT-5.6+ models only (“standard” is the default). |
 | `--reasoning-tokens` | Maximum number of tokens to use for reasoning. Anthropic Claude models only. |
 | `--reasoning-history` | Values: `none`, `all`, `last`, or `auto`. Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider) |
-| `--response-format` | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. |
+| `--response-schema` | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. |
 | `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only. |
 | `--max-tool-output` | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. |
 | `--internal-tools` | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for Anthropic). |
@@ -969,7 +969,7 @@ If you are not using VS Code, you can also run Inspect View directly from the co
 $ inspect view
 ```
 
-By default, `inspect view` will use the configured log directory of the environment it is run from (e.g. `./logs`). You can specify an alternate log directory using `--log-dir` ,for example:
+By default, `inspect view` will use the configured log directory of the environment it is run from (e.g. `./logs`). You can specify an alternate log directory using `--log-dir`, for example:
 
 ``` bash
 $ inspect view --log-dir ./experiment-logs
@@ -1180,7 +1180,7 @@ In addition to seeing the Python logging activity at the end of an eval run in t
 export INSPECT_PY_LOGGER_FILE=/tmp/inspect.log
 ```
 
-You can set this in the shell or within your global `.env` file. By default, messages of level `info` and higher will be written to the log file. If you set your main `--log-level` lower than that (e.g. to `http`) then the log file will follow. To set a distinct log level for the file, set the `INSPECT_PY_LOGGER_FILE` environment variable. For example:
+You can set this in the shell or within your global `.env` file. By default, messages of level `info` and higher will be written to the log file. If you set your main `--log-level` lower than that (e.g. to `http`) then the log file will follow. To set a distinct log level for the file, set the `INSPECT_PY_LOGGER_LEVEL` environment variable. For example:
 
 ``` bash
 export INSPECT_PY_LOGGER_LEVEL=http
@@ -2284,7 +2284,7 @@ metadata = state.metadata_as(PopularityMetadata)
 
 Note again that the intended semantics of `metadata` are read-only, so attempting to write into the returned metadata will raise a Pydantic `FrozenInstanceError`.
 
-If you need per-sample mutable data, use the [sample store](./agent-custom.html.md#sample-store), which also supports [typing](./agent-custom.html.md#store-typing) using Pydantic models.
+If you need per-sample mutable data, use the [sample store](./agent-custom.html.md#agent-store), which also supports [typing](./agent-custom.html.md#typed-store) using Pydantic models.
 
 ## Filtering
 
@@ -3094,7 +3094,7 @@ Inspect has support for a wide variety of language model APIs and can be extende
 
 |  |  |
 |----|----|
-| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Perplexity](./providers.html.md#perplexity) |
+| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Meta](./providers.html.md#meta), [Perplexity](./providers.html.md#perplexity) |
 | Cloud APIs | [AWS Bedrock](./providers.html.md#aws-bedrock), [AWS SageMaker](./providers.html.md#aws-sagemaker), and [Azure AI](./providers.html.md#azure-ai) |
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hugging-face-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
@@ -3526,7 +3526,7 @@ Inspect has support for a wide variety of language model APIs and can be extende
 
 |  |  |
 |----|----|
-| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Perplexity](./providers.html.md#perplexity) |
+| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Meta](./providers.html.md#meta), [Perplexity](./providers.html.md#perplexity) |
 | Cloud APIs | [AWS Bedrock](./providers.html.md#aws-bedrock), [AWS SageMaker](./providers.html.md#aws-sagemaker), and [Azure AI](./providers.html.md#azure-ai) |
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hugging-face-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
@@ -3598,7 +3598,7 @@ eval(
 
 ### Responses API
 
-By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6 Astra), o-series models, and the `computer_use_preview` model.
+By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6), o-series models, and the `computer_use_preview` model.
 
 If you want to manually enable or disable the Responses API you can use the `responses_api` model argument. For example:
 
@@ -3818,6 +3818,18 @@ The Anthropic provider supports a `streaming` model arg (`-M`) that controls whe
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
+```
+
+### Computer Use
+
+When the [computer()](./tools-standard.html.md#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic’s native computer use support. On the Claude API and Vertex, Claude Opus 5.5 (which rejects the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic’s [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5 and Fable/Mythos included) uses the legacy tool.
+
+With the toolset, each computer action arrives as its own tool call. Inspect executes the actions in one assistant turn in order and stops at the first failure, reporting the remaining actions to the model as not executed. Logs record each action as a `computer` tool call with an `action` argument, exactly as with the legacy tool.
+
+Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
+
+``` bash
+inspect eval computer.py --model anthropic/claude-opus-5 -M computer_toolset=true
 ```
 
 ### Anthropic on AWS Bedrock
@@ -4068,6 +4080,30 @@ The following environment variables are supported by the Moonshot AI provider
 |----|----|
 | `MOONSHOT_API_KEY` | API key credentials (required). |
 | `MOONSHOT_BASE_URL` | Base URL for requests (optional, defaults to `https://api.moonshot.ai/v1`). |
+
+## Meta
+
+To use the [Meta](https://dev.meta.ai/docs) provider (Muse Spark models on the Meta Model API), install the `openai` package (which the Meta Model API provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export META_API_KEY=your-meta-api-key
+inspect eval arc.py --model meta/muse-spark-1.3
+```
+
+The provider uses the [Responses API](https://dev.meta.ai/docs/protocols/responses), which is the only Meta endpoint that preserves the model’s reasoning across turns (as encrypted reasoning items that are replayed automatically). Pass `-M responses_api=false` to use Chat Completions instead.
+
+Muse Spark always reasons. Use `--reasoning-effort` (`minimal` through `max`) to control how much. `none` is not supported and is ignored with a warning. `max` is available on standard-tier `muse-spark-1.3` only; for the `-contributor` tier and older versions it is submitted as `xhigh`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
+
+Prompts blocked by Meta’s content policy are reported as `stop_reason="content_filter"` with `stop_details`. The API signals such a block three different ways depending on protocol and streaming (an HTTP 400 with a `content_policy_violation` code, a `content_filter` finish reason, or a `refusal` content part), and the provider normalizes all of them. Note that a refusal the model writes itself, rather than one the policy layer blocks, carries no signal at all and arrives as an ordinary completion. Score those from the completion text. Meta also restricts API keys after repeated policy violations (HTTP 403 with code `user_blocked`); while a key is restricted, streamed requests return a refusal for every prompt, so an eval where every sample stops with `content_filter` is more likely hitting that restriction than the content policy.
+
+The following environment variables are supported by the Meta provider
+
+| Variable | Description |
+|----|----|
+| `META_API_KEY` | API key credentials (required unless `MODEL_API_KEY` is set). |
+| `MODEL_API_KEY` | API key credentials (Meta’s official variable name; used when `META_API_KEY` is not set). |
+| `META_BASE_URL` | Base URL for requests (optional, defaults to `https://api.meta.ai/v1`). |
 
 ## Grok
 
@@ -4801,7 +4837,7 @@ vLLM only applies `add_special_tokens` when tokenizing a string prompt, so for `
 
 vLLM supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
 
-For vLLM reasoning models, pass the model-specific parser and chat-template kwargs through `-M`. See [Reasoning](./reasoning.html.md#vllmsglang) for CLI examples.
+For vLLM reasoning models, pass the model-specific parser and chat-template kwargs through `-M`. See [Reasoning](./reasoning.html.md#vllm-sglang) for CLI examples.
 
 ### Prompt Log Probabilities
 
@@ -6286,24 +6322,24 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 
 GPT-5.5 and later reason at the server default effort when `reasoning_effort` is not set, and in that state the API rejects `temperature`, `top_p`, and `logprobs`. Inspect drops those options with a warning; pass `reasoning_effort="none"` to disable reasoning and have them sent.
 
-GPT-6 Astra always reasons: it accepts `low` through `max` only, and the API rejects `none` and `minimal` with an error. It also rejects `temperature`, `top_p`, and `logprobs`, so Inspect drops those options with a warning for GPT-6 models.
+GPT-6 Sol and GPT-6 Luna accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra always reasons: it accepts `low` through `max` only, and the API rejects `none` and `minimal` with an error. It also rejects `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for Astra.
 
 Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
 #### Anthropic Claude 4.6+ and Claude 5
 
-Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8 and the Claude 5 models default to `high` server-side.
+Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Opus 5, and Fable/Mythos 5.x default to `high` server-side and Opus 5.5 defaults to `medium`.
 
-For the Claude 5 models thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the effort and the model continues to reason at its server-side default.
+For Fable/Mythos 5.x and Opus 5.5 thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the `thinking` field and the model reasons at the configured `effort` (or the server-side default if none is set). Sonnet 5 and Opus 5 do accept `none` and disable thinking (Opus 5 only at effort `high` or below).
 
-| Inspect input     | API value                                              |
-|-------------------|--------------------------------------------------------|
-| `none`            | reasoning omitted (Claude 5: not disabled — see above) |
-| `minimal` / `low` | `low`                                                  |
-| `medium`          | `medium`                                               |
-| `high`            | `high`                                                 |
-| `xhigh`           | `xhigh` on Claude 4.7+ and Claude 5; otherwise `high`  |
-| `max`             | `max`                                                  |
+| Inspect input | API value |
+|----|----|
+| `none` | omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5 |
+| `minimal` / `low` | `low` |
+| `medium` | `medium` |
+| `high` | `high` |
+| `xhigh` | `xhigh` on Claude 4.7+ and Claude 5; otherwise `high` |
+| `max` | `max` |
 
 #### Anthropic Claude 3.7 / 4.0 / 4.1 / 4.5
 
@@ -6347,7 +6383,7 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Grok
 
-Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`, `grok-4.6`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5 and Grok 4.6 default to `high` effort and their reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
+Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`, `grok-4.6`, `grok-4.7`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5, 4.6 and 4.7 default to `high` effort and their reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
 
 | Inspect input     | API value         |
 |-------------------|-------------------|
@@ -6357,7 +6393,7 @@ Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reaso
 | `high`            | `high`            |
 | `xhigh` / `max`   | `xhigh`           |
 
-`xhigh` is a real effort level from `grok-4.6` (for `grok-4.20-multi-agent` it controls how many agents collaborate); xAI [documents](https://docs.x.ai/developers/model-capabilities/text/reasoning) that Grok 4.X models without `xhigh` support (e.g. `grok-4.5`) treat it as `high`, so Inspect passes it through and lets the service downgrade. Grok 3 Mini documents only `low`/`high`, so `xhigh` and `max` clamp to `high` there. Sending `xhigh` requires `xai_sdk` \>= 1.18 — on older SDK versions (whose transport cannot express values above `high`) Inspect clamps `xhigh` and `max` to `high` for all models.
+`xhigh` is a real effort level from `grok-4.6` onward (for `grok-4.20-multi-agent` it controls how many agents collaborate); xAI [documents](https://docs.x.ai/developers/model-capabilities/text/reasoning) that Grok 4.X models without `xhigh` support (e.g. `grok-4.5`) treat it as `high`, so Inspect passes it through and lets the service downgrade. Grok 3 Mini documents only `low`/`high`, so `xhigh` and `max` clamp to `high` there. Sending `xhigh` requires `xai_sdk` \>= 1.18 — on older SDK versions (whose transport cannot express values above `high`) Inspect clamps `xhigh` and `max` to `high` for all models.
 
 #### DeepSeek
 
@@ -6459,11 +6495,14 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | anthropic/claude-opus-4-7            | adaptive        |
 | anthropic/claude-opus-4-8            | high            |
 | anthropic/claude-opus-5              | high            |
+| anthropic/claude-opus-5-5            | medium          |
 | anthropic/claude-sonnet-4-6          | adaptive        |
 | anthropic/claude-sonnet-5            | high            |
 | deepseek/deepseek-reasoner           | no effort scale |
 | deepseek/deepseek-v4-flash           | high            |
 | deepseek/deepseek-v4-pro             | high            |
+| fireworks/glm-5p3                    | max             |
+| fireworks/glm-5p3-flash              | max             |
 | google/gemini-3-flash-preview        | medium          |
 | google/gemini-3-pro                  | high            |
 | google/gemini-3.1-flash-lite-preview | medium          |
@@ -6478,6 +6517,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | grok/grok-4.3                        | low             |
 | grok/grok-4.5                        | high            |
 | grok/grok-4.6                        | high            |
+| grok/grok-4.7                        | high            |
 | mistral/magistral-medium-2506        | no effort scale |
 | mistral/magistral-small-2506         | no effort scale |
 | mistral/mistral-medium-2604          | none            |
@@ -6503,6 +6543,14 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | openai/gpt-5.6-sol                   | medium          |
 | openai/gpt-5.6-terra                 | medium          |
 | openai/gpt-6-astra                   | medium          |
+| openai/gpt-6-luna                    | medium          |
+| openai/gpt-6-sol                     | medium          |
+| z-ai/glm-5.3                         | max             |
+| z-ai/glm-5.3-flash                   | max             |
+| zai-org/GLM-5.3-FP8                  | max             |
+| zai-org/GLM-5.3-FP8-Lora             | max             |
+| zai-org/glm-5.3                      | max             |
+| zai-org/glm-5.3-flash                | max             |
 
 ## Reasoning Mode
 
@@ -8512,7 +8560,7 @@ inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m --max-tokens
 
 ## Overview
 
-Agents combine planning, memory, and tool usage to pursue more complex, tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
+Agents combine planning, memory, and tool usage to pursue more complex tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
 
 1.  Using Inspect’s built-in [ReAct Agent](./react-agent.html.md).
 
@@ -10502,7 +10550,7 @@ In some cases agents will want to retain state across multiple invocations, or e
 
 ### Typed Store
 
-When developing agents, you should use the [typed-interface](./agent-custom.html.md#store-typing) to the per-sample store, which provides both type-checking and namespacing for store access.
+When developing agents, you should use the [typed interface](./agent-custom.html.md#typed-store) to the per-sample store, which provides both type-checking and namespacing for store access.
 
 For example, here we define a typed accessor to the store by deriving from the [StoreModel](./reference/inspect_ai.util.html.md#storemodel) class (which in turn derives from Pydantic `BaseModel`):
 
@@ -11111,6 +11159,8 @@ Rejection works by telling the model rather than by editing the response: the re
 
 When combining approval policies with `bridged_tools`, give bridged tools names that are unique across bridged servers and distinct from the agent’s own tools: an approval identifies a call only by function name and arguments, so a name shared with an agent-local tool also authorizes one execution of the same-named bridged tool, and a name shared across bridged servers is ambiguous and will be denied.
 
+An agent that reaches every bridged tool through one dispatcher function (Antigravity’s `call_mcp_tool`) is approved as if the model had called the bridged tool directly: policies match the tool’s own name, and approvers see and modify the tool’s own arguments.
+
 ## Transcript
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.
@@ -11502,7 +11552,7 @@ web_search({
 
 ### OpenAI Options
 
-The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use OpenAI’s built-in search capability when running on a limited number of OpenAI models (currently “gpt-4o”, “gpt-4o-mini”, “gpt-4.1”, “o3”, “o4-mini”, and GPT-5 and later, including GPT-6 Astra). This provider does not require any API keys beyond what’s needed for the model itself.
+The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use OpenAI’s built-in search capability when running on a limited number of OpenAI models (currently “gpt-4o”, “gpt-4o-mini”, “gpt-4.1”, “o3”, “o4-mini”, and GPT-5 and later, including GPT-6). This provider does not require any API keys beyond what’s needed for the model itself.
 
 For more details on OpenAI’s web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
@@ -11684,7 +11734,7 @@ The [text_editor()](./reference/inspect_ai.tool.html.md#text_editor) tool enable
 
 ### Configuration
 
-The text editor tools requires the use of a [Sandbox Environment](./sandboxing.html.md). Like [bash()](./reference/inspect_ai.tool.html.md#bash), it runs as the sandbox’s default user unless a `user` is specified.
+The text editor tools requires the use of a [Sandbox Environment](./sandboxing.html.md). Like [bash()](./reference/inspect_ai.tool.html.md#bash), it runs as the sandbox’s default user unless a `user` is specified. Viewing a directory runs the sandbox’s `find`, which must be installed in `/usr/sbin`, `/usr/bin`, `/sbin` or `/bin`.
 
 ### Task Setup
 
@@ -11723,11 +11773,11 @@ The schema for the [text_editor()](./reference/inspect_ai.tool.html.md#text_edit
 
 The [computer()](./reference/inspect_ai.tool.html.md#computer) tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool work better with models that have been trained for computer use. As of Q1 2026 the recommended models for computer use include:
 
-| Provider  | Models                                  |
-|-----------|-----------------------------------------|
-| Anthropic | `claude-opus-4-5+`, `claude-sonnet-4-6` |
-| Open AI   | `gpt-5.4+`, `gpt-5.4-pro+`              |
-| Google    | `gemini-3-flash-preview`                |
+| Provider | Models |
+|----|----|
+| Anthropic | `claude-opus-4-5+`, `claude-sonnet-4-6+`, `claude-fable-5+`, `claude-mythos-5+` |
+| Open AI | `gpt-5.4+`, `gpt-5.4-pro+` |
+| Google | `gemini-3-flash-preview` |
 
 ### Configuration
 
@@ -11791,6 +11841,8 @@ The computer tool supports the following options:
 |----|----|
 | `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
 | `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
+
+When a Claude model uses Anthropic’s computer toolset (see *Tool Binding* below), it can issue several actions in one turn as a batch. Inspect runs them in order and stops at the first failure, reporting each later action to the model as `Not executed: an earlier computer action in this turn failed.`, as the toolset’s batch contract specifies. Other models and the legacy Anthropic tool are unaffected.
 
 For example:
 
@@ -11891,7 +11943,9 @@ inspect eval computer.py --approval approval.yaml
 
 ### Tool Binding
 
-The computer tool’s schema is a superset of the standard [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use), and [Google](https://ai.google.dev/gemini-api/docs/computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions.
+The computer tool’s schema is a superset of the standard [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use), and [Google](https://ai.google.dev/gemini-api/docs/computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions.
+
+For Claude models, the binding depends on the model and platform: on the Claude API and Vertex, Claude Opus 5.5, Fable 5/5.1 and Mythos 5/5.1 use Anthropic’s computer toolset (`computer_toolset_20260801`), where each action is its own tool call and a failed action halts the remaining computer actions in that turn; other Claude models, and every model on Bedrock and Foundry (which offer only the earlier tool), keep the legacy `computer_20251124` tool. See [Computer Use](./providers.html.md#anthropic-computer-use) in the Anthropic provider documentation for details, including the `computer_toolset` model arg that forces either mode.
 
 ## Code Execution
 
@@ -11938,17 +11992,17 @@ Here are some example configurations:
 
 ``` python
 # default (native where supported, python as fallback):
-code_interpreter()
+code_execution()
 
 # selectively disable native (will fallback to python)
-code_interpreter({ "grok": False, "openai": False })
+code_execution(providers={ "grok": False, "openai": False })
 
 # disable python fallback
-code_interpreter({ "python": False })
+code_execution(providers={ "python": False })
 
 # provide openai container options
-code_interpreter(
-    {"openai": {"container": {"type": "auto", "memory_limit": "4g" }}}
+code_execution(
+    providers={"openai": {"container": {"type": "auto", "memory_limit": "4g" }}}
 )
 ```
 
@@ -16544,6 +16598,7 @@ Subclass [TaskSource](./reference/inspect_ai.html.md#tasksource) and override th
 
 ``` python
 from inspect_ai import Task, TaskSource
+from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
 
 
@@ -16560,6 +16615,12 @@ class MySource(TaskSource):
         self, sample: EvalSample, task: Task
     ) -> list[Task] | None:
         """Observe a finished sample; optionally return follow-up tasks."""
+        ...
+
+    async def sample_abandoned(
+        self, sample: Sample, epoch: int, task: Task
+    ) -> list[Task] | None:
+        """A sample was cancelled before anything was logged for it."""
         ...
 
     async def task_complete(self, log: EvalLog) -> list[Task] | None:
@@ -16598,6 +16659,10 @@ class Curriculum(TaskSource):
 
 A source that returns follow-ups from these callbacks needs no `next_tasks()`: the run ends when the callbacks return nothing and `next_tasks()` returns `None`. Use `next_tasks()` for the blocking case a per-result callback can’t express.
 
+## Cancelled samples
+
+A sample the operator cancels while it is running (`inspect ctl sample cancel`) is still logged, and `sample_complete` fires for it with `sample.error` set to the cancellation and no scores. A sample cancelled before anything was logged — cancelled while still waiting in the queue, or cancelled in the moment between an attempt erroring and its `retry_on_error` re-run — has no [EvalSample](./reference/inspect_ai.log.html.md#evalsample) to deliver (and is absent from the log passed to `task_complete`), so the source is told via `sample_abandoned(sample, epoch, task)` instead, with the dataset [Sample](./reference/inspect_ai.dataset.html.md#sample) and the task it was queued under. Like `sample_complete`, it may return follow-up tasks. A queued sample abandoned by a graceful task cancel (`inspect ctl task cancel --action drain|score|error`) is reported the same way. Neither hook fires when the whole task is cancelled (`--action cancel`, or Ctrl+C): those samples reach the source only through the log passed to `task_complete`.
+
 ## Sources from callbacks
 
 `TaskSource.from_tasks()` builds a source from a seed and optional callbacks, without subclassing:
@@ -16615,7 +16680,7 @@ source = TaskSource.from_tasks([seed_task()], task_complete=on_task)
 eval(source, model="openai/gpt-4o")
 ```
 
-`from_tasks(initial_tasks, *, next_tasks=None, sample_complete=None, task_complete=None)` delegates to the callables. Omitting `next_tasks` and returning nothing from the callbacks stops after the seed.
+`from_tasks(initial_tasks, *, next_tasks=None, sample_complete=None, task_complete=None, sample_abandoned=None)` delegates to the callables. Omitting `next_tasks` and returning nothing from the callbacks stops after the seed.
 
 ## The @task_source decorator
 
@@ -16719,6 +16784,10 @@ class MySource(SampleSource):
     async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
         """Observe a finished sample; optionally return follow-up samples."""
         ...
+
+    async def sample_abandoned(self, sample: Sample, epoch: int) -> list[Sample] | None:
+        """A sample was cancelled before anything was logged for it."""
+        ...
 ```
 
 Pass an instance as the task’s `dataset`:
@@ -16732,7 +16801,7 @@ eval(Task(dataset=MySource(), solver=my_solver(), scorer=my_scorer()),
 
 `initial_samples()` is synchronous and returns the seed, so it must return immediately rather than `await`. It may be empty, in which case the task starts by calling `next_samples()`. `next_samples()` is async, called whenever no samples remain in flight, and may block (for example, awaiting external input); return `None` to end the task.
 
-All generated samples run within the task — one log file, one set of results — and each runs for the task’s configured number of [epochs](./options.html.md#epochs). Samples without an `id` are assigned one automatically, continuing the seed’s numbering.
+All generated samples run within the task (one log file and one set of results), and each runs for the task’s configured number of [epochs](./metrics.html.md#reducing-epochs). Samples without an `id` are assigned one automatically, continuing the seed’s numbering.
 
 ## Returning follow-up samples
 
@@ -16755,6 +16824,12 @@ A source that returns follow-ups from this callback needs no `next_samples()`: t
 
 Note that with `epochs > 1`, `sample_complete` fires once per *epoch*, and each returned follow-up itself runs all epochs — so a per-completion follow-up pattern multiplies (the example above with `epochs=2` would spawn two follow-ups per passed difficulty level, each running twice). Use `sample.epoch` (or dedupe on the source’s own state) to react once per logical sample.
 
+## Cancelled samples
+
+A sample the operator cancels while it is running (`inspect ctl sample cancel`) is still logged, and `sample_complete` fires for it with `sample.error` set to the cancellation and no scores. A sample cancelled before anything was logged — cancelled while still waiting in the queue, or cancelled in the moment between an attempt erroring and its `retry_on_error` re-run — has no [EvalSample](./reference/inspect_ai.log.html.md#evalsample) to deliver, so the source is told via `sample_abandoned(sample, epoch)` instead, with the [Sample](./reference/inspect_ai.dataset.html.md#sample) as it was added to the task. Like `sample_complete`, it may return follow-up samples. A queued sample abandoned by a graceful task cancel (`inspect ctl task cancel --action drain|score|error`) is reported the same way. Neither hook fires when the whole task is cancelled (`--action cancel`, or Ctrl+C): no follow-up could run.
+
+A source that awaits a sample’s outcome — for example a sample that enqueues a rollout and waits for its result — should therefore treat `sample_abandoned` as that outcome, or it will wait forever when the rollout is cancelled before it starts.
+
 ## Sources from callbacks
 
 `SampleSource.from_samples()` builds a source from a seed and optional callbacks, without subclassing:
@@ -16771,7 +16846,7 @@ async def on_sample(sample):
 source = SampleSource.from_samples([easy_sample()], sample_complete=on_sample)
 ```
 
-`from_samples(initial_samples, *, next_samples=None, sample_complete=None)` delegates to the callables. Omitting `next_samples` and returning nothing from the callback stops after the seed.
+`from_samples(initial_samples, *, next_samples=None, sample_complete=None, sample_abandoned=None)` delegates to the callables. Omitting `next_samples` and returning nothing from the callback stops after the seed.
 
 ## Adding samples imperatively
 
@@ -17366,8 +17441,8 @@ After running an evaluation, you may need to modify the results—for example, c
 Use the [edit_score()](./reference/inspect_ai.log.html.md#edit_score) function to modify scores for individual samples. For example, this example will modify the score for the first sample, preserving its previous value in the score history, while also tracking the author and reason for the change:
 
 ``` python
-from inspect_ai.log import read_eval_log, write_eval_log, edit_score
-from inspect_ai.scorer import ScoreEdit, ProvenanceData
+from inspect_ai.log import read_eval_log, write_eval_log, edit_score, ProvenanceData
+from inspect_ai.scorer import ScoreEdit
 
 # Read the log file
 log = read_eval_log("my_eval.json")
@@ -17618,10 +17693,11 @@ $ inspect log list --json --status success
 $ inspect log list --json --status error
 ```
 
-You can use the `--retryable` option to list only logs that are [retryable](./handling-errors.html.md#eval-retries)
+There is no CLI filter for [retryable](./handling-errors.html.md#eval-retries) logs: `--status` accepts a single value, and `retryable` is not one of its values (`started`, `success`, `cancelled` or `error`). Listing the incomplete statuses is as close as the command gets, so compare the two listings against your successful runs:
 
 ``` bash
-$ inspect log list --json --retryable
+$ inspect log list --json --status error
+$ inspect log list --json --status cancelled
 ```
 
 ### Reading Logs
