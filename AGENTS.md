@@ -211,14 +211,18 @@ Lead with the user-facing problem and outcome; for a long description, keep
 those first two sections short and put detailed design or review notes below
 the required sections. Link the issue or give a reproduction when applicable.
 Fill in compatibility and migration before validation, so reviewers can assess
-whether the tests cover the risks. Describe affected public APIs, CLI behavior,
-configuration, provider and extension interfaces, events, logs, and other
-persisted formats, including behavior changes without signature or schema
-changes. Say who is affected, whether existing code and data still work, and
-what users or downstream packages must do. A bare "No" is insufficient when
-a PR touches a public contract or persisted data: name the affected producers
-and consumers, and explain the compatibility boundary. For changes with no
-compatibility impact, say "None" with a brief reason.
+whether the tests cover the risks. Lead with the action required of existing
+users or downstream packages, or say "No migration required." Then describe
+only material effects on existing behavior, public APIs, CLI behavior,
+configuration, provider and extension interfaces, events, logs, or persisted
+formats, grouped by affected user or integration. Include behavior changes
+without signature or schema changes. Explain the compatibility boundary and,
+for a public contract, name the affected producers and consumers. Summarize
+unchanged behavior briefly rather than listing every unaffected path. Move
+implementation-only protocol mechanics, test names, project sequencing, and
+unrelated out-of-scope work to the result, validation, or a linked design
+document. Keep limitations that affect existing users in this section.
+A bare "No" is insufficient when a public contract or persisted data changes.
 
 For code changes, run focused tests for the changed behavior and relevant
 neighboring paths, as well as `make check` and `make test`. Follow "Gated
