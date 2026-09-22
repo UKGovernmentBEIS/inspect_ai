@@ -37,19 +37,12 @@ from typing import Any, AsyncIterator
 import pytest
 from test_helpers.utils import skip_if_trio
 
-pytest.importorskip("aiobotocore")
-pytest.importorskip("botocore")
-
-from botocore.exceptions import ParamValidationError  # noqa: E402
-
-from inspect_ai._util.content import ContentReasoning, ContentText  # noqa: E402
-from inspect_ai.model._chat_message import (  # noqa: E402
-    ChatMessageAssistant,
-    ChatMessageUser,
-)
-from inspect_ai.model._generate_config import GenerateConfig  # noqa: E402
-from inspect_ai.model._providers.bedrock import (  # noqa: E402
+from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._providers.bedrock import (
     REDACTED_CONTENT_KEY,
+    BedrockAPI,
     ConverseMessage,
     ConverseMessageContent,
     ConverseMetrics,
@@ -64,7 +57,10 @@ from inspect_ai.model._providers.bedrock import (  # noqa: E402
     model_output_from_response,
     redacted_content_bytes,
 )
-from inspect_ai.tool._tool_call import ToolCall  # noqa: E402
+from inspect_ai.tool._tool_call import ToolCall
+
+pytest.importorskip("aiobotocore")
+pytest.importorskip("botocore")
 
 # shaped like the real thing: the blob is ASCII base64-ish text carrying an
 # "rsn_" prefix, delivered in a bytes field
@@ -458,6 +454,8 @@ def test_both_union_members_would_fail_validation() -> None:
     parses responses and must let an unrecognised shape through instead of
     raising. This pins the behaviour the replay path relies on.
     """
+    from botocore.exceptions import ParamValidationError
+
     with pytest.raises(ParamValidationError, match="Invalid number of parameters"):
         _validate_against_service_model(
             {
@@ -536,6 +534,8 @@ async def test_empty_reasoning_block_would_fail_validation() -> None:
     Without this, `test_replayed_request_passes_botocore_validation` would
     still pass if the replay path silently emitted empty blocks.
     """
+    from botocore.exceptions import ParamValidationError
+
     with pytest.raises(ParamValidationError, match="Must set one of"):
         _validate_against_service_model(
             {
@@ -615,20 +615,37 @@ def _binary_stream_events() -> list[dict[str, Any]]:
     )
 
 
-def _make_api(streaming: bool | None) -> tuple[Any, _FakeClient]:
-    from inspect_ai.model._providers.bedrock import BedrockAPI
+def _dig(value: object, *path: str | int) -> object:
+    """Walk a recorded JSON structure, asserting its shape as it goes.
 
+    `ModelCall.response` is `JsonValue`, so a bare index chain is not
+    type-safe; this narrows at each step and fails with the offending key.
+    """
+    for key in path:
+        if isinstance(key, str):
+            assert isinstance(value, dict), f"expected a dict at {key!r}"
+            value = value[key]
+        else:
+            assert isinstance(value, list), f"expected a list at [{key}]"
+            value = value[key]
+    return value
+
+
+def _make_api(
+    monkeypatch: pytest.MonkeyPatch, streaming: bool | None
+) -> tuple[BedrockAPI, _FakeClient]:
+    """A BedrockAPI whose client is a fake serving canned responses."""
     api = BedrockAPI(model_name="us.openai.gpt-5.6-sol", base_url=None)
     client = _FakeClient(_binary_response(), _binary_stream_events())
-    api.session = _FakeSession(client)  # type: ignore[assignment]
-    api.streaming = streaming
+    monkeypatch.setattr(api, "session", _FakeSession(client))
+    monkeypatch.setattr(api, "streaming", streaming)
     return api, client
 
 
 @pytest.mark.parametrize("streaming", [False, True], ids=["non-streamed", "streamed"])
 @skip_if_trio
 async def test_generate_survives_binary_encrypted_reasoning(
-    streaming: bool,
+    streaming: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A binary redactedContent blob must not break generate() or its log.
 
@@ -636,7 +653,7 @@ async def test_generate_survives_binary_encrypted_reasoning(
     which a non-ASCII blob fails. Covers both the Converse and
     ConverseStream paths.
     """
-    api, _client = _make_api(streaming)
+    api, _client = _make_api(monkeypatch, streaming)
 
     result = await api.generate(
         input=[ChatMessageUser(content="Answer with just the number.")],
@@ -650,8 +667,18 @@ async def test_generate_survives_binary_encrypted_reasoning(
 
     # the log must be JSON-serializable, with the blob placeholdered
     json.dumps(model_call.response)
-    reasoning_block = model_call.response["output"]["message"]["content"][0]
-    assert reasoning_block["reasoningContent"]["redactedContent"] == "<bytes>"
+    assert (
+        _dig(
+            model_call.response,
+            "output",
+            "message",
+            "content",
+            0,
+            "reasoningContent",
+            "redactedContent",
+        )
+        == "<bytes>"
+    )
 
     # ...and the real bytes must still be available for replay
     blocks = output.message.content
@@ -663,9 +690,11 @@ async def test_generate_survives_binary_encrypted_reasoning(
 
 
 @skip_if_trio
-async def test_binary_reasoning_replays_verbatim_through_the_provider() -> None:
+async def test_binary_reasoning_replays_verbatim_through_the_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """End to end: the blob generate() returned is what replay sends back."""
-    api, client = _make_api(streaming=False)
+    api, client = _make_api(monkeypatch, streaming=False)
 
     result = await api.generate(
         input=[ChatMessageUser(content="Answer with just the number.")],
