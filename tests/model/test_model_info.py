@@ -590,6 +590,23 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
+    def test_claude_opus_5_5(self):
+        """Test that Claude Opus 5.5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-opus-5-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # distinguishes the explicit entry from a fuzzy match of opus-5
+        info = get_model_info("anthropic/claude-opus-5-5")
+        assert info is not None
+        assert info.snapshot == "20260922"
+        assert str(info.release_date) == "2026-09-22"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.reasoning_effort_default == "medium"
+        # the Bedrock id resolves to the same entry via its alias
+        bedrock_info = get_model_info("bedrock/anthropic.claude-opus-5-5")
+        assert bedrock_info is not None
+        assert bedrock_info.snapshot == "20260922"
+
     def test_claude_fable_5(self):
         """Test that Claude Fable 5 reports 1MM input tokens."""
         model = get_model("anthropic/claude-fable-5")
