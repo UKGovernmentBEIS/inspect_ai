@@ -909,6 +909,215 @@ async def test_host_tool_execution_grants_are_bounded() -> None:
 
 
 # ---------------------------------------------------------------------------
+# dispatcher calls (Antigravity's call_mcp_tool)
+# ---------------------------------------------------------------------------
+
+
+def dispatched(
+    call_id: str, arguments: dict[str, object], *, tool: str = "read_file"
+) -> ToolCall:
+    """A `call_mcp_tool` dispatcher call targeting bridged `host/<tool>`."""
+    return ToolCall(
+        id=call_id,
+        function="call_mcp_tool",
+        arguments={"ServerName": "host", "ToolName": tool, "Arguments": arguments},
+    )
+
+
+async def test_dispatched_call_is_matched_by_the_target_tool_name() -> None:
+    """A policy scoped to the bridged tool's name governs a dispatcher call to it."""
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(),
+        [
+            ApprovalPolicy(reject_approver(), "read_file"),
+            ApprovalPolicy(auto_approver(), "*"),
+        ],
+    )
+    safe = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+
+    run = await run_bridge(
+        [
+            tool_calls_output(dispatched("1", {"path": "a.txt"})),
+            tool_calls_output(safe),
+        ],
+        bridge=bridge,
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [safe]
+    (result,) = run.tool_results(1)
+    assert result.tool_call_id == "1"
+    assert result.function == "call_mcp_tool"
+
+
+async def test_dispatched_call_approver_sees_the_target_call() -> None:
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(), [ApprovalPolicy(recording_approver(seen), "read_file")]
+    )
+    call = dispatched("1", {"path": "a.txt"})
+
+    run = await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    ((_, reviewed, history),) = seen
+    assert reviewed == ToolCall(
+        id="1", function="read_file", arguments={"path": "a.txt"}
+    )
+    # the turn under review still carries the call as the model made it
+    assert isinstance(history[-1], ChatMessageAssistant)
+    assert history[-1].tool_calls == [call]
+    # and so does the response handed to the scaffold
+    assert run.output.message.tool_calls == [call]
+
+
+async def test_dispatched_call_rejection_names_the_target_tool() -> None:
+    """The bridge's own explanation (approver gave none) names the target tool."""
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(),
+        [
+            ApprovalPolicy(reject_approver(explanation=""), "read_file"),
+            ApprovalPolicy(auto_approver(), "*"),
+        ],
+    )
+    safe = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+
+    run = await run_bridge(
+        [
+            tool_calls_output(dispatched("1", {"path": "a.txt"})),
+            tool_calls_output(safe),
+        ],
+        bridge=bridge,
+    )
+
+    (result,) = run.tool_results(1)
+    assert result.error is not None
+    assert "Tool call 'read_file' was rejected" in result.error.message
+
+
+async def test_dispatched_call_modify_rewrites_the_nested_arguments() -> None:
+    """The approver modifies the target's arguments; the scaffold gets a dispatcher call."""
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(),
+        [ApprovalPolicy(modifying_approver({"path": "b.txt"}), "read_file")],
+    )
+    call = dispatched("1", {"path": "a.txt"})
+
+    run = await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    assert run.output.message.tool_calls == [dispatched("1", {"path": "b.txt"})]
+    # the model's proposal is preserved for the transcript
+    assert call.arguments["Arguments"] == {"path": "a.txt"}
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        # target is not a bridged tool
+        {"ServerName": "host", "ToolName": "write_file", "Arguments": {}},
+        {"ServerName": "other", "ToolName": "read_file", "Arguments": {}},
+        # not the dispatcher shape
+        {"ServerName": "host", "ToolName": "read_file", "Arguments": "path=a"},
+        {"ServerName": "host", "ToolName": ["read_file"], "Arguments": {}},
+        {"ServerName": "host", "ToolName": "read_file"},
+        {"server": "host", "tool": "read_file", "arguments": {}},
+    ],
+    ids=[
+        "unknown-tool",
+        "unknown-server",
+        "args-not-object",
+        "tool-not-string",
+        "no-args",
+        "other-keys",
+    ],
+)
+async def test_call_that_dispatches_nothing_is_reviewed_as_itself(
+    arguments: dict[str, object],
+) -> None:
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(), [ApprovalPolicy(recording_approver(seen), "*")]
+    )
+    call = ToolCall(id="1", function="call_mcp_tool", arguments=arguments)
+
+    run = await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    ((_, reviewed, _),) = seen
+    assert reviewed is call
+    assert run.output.message.tool_calls == [call]
+
+
+@pytest.mark.parametrize(
+    "function", ["bash", "read_file", "mcp__host__read_file", "host__read_file"]
+)
+async def test_only_the_dispatcher_function_is_unwrapped(function: str) -> None:
+    """An ordinary call whose arguments carry the dispatcher fields is itself."""
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(), [ApprovalPolicy(recording_approver(seen), "*")]
+    )
+    call = ToolCall(
+        id="1",
+        function=function,
+        arguments={
+            "cmd": "ls",
+            "ServerName": "host",
+            "ToolName": "read_file",
+            "Arguments": {"path": "a.txt"},
+        },
+    )
+
+    run = await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    ((_, reviewed, _),) = seen
+    assert reviewed is call
+    assert run.output.message.tool_calls == [call]
+
+
+async def test_dispatcher_shaped_arguments_do_not_borrow_another_tools_policy() -> None:
+    """A rejected tool cannot be approved by naming a permitted one in its arguments."""
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(),
+        [
+            ApprovalPolicy(reject_approver(), "bash"),
+            ApprovalPolicy(auto_approver(), "read_file"),
+            ApprovalPolicy(auto_approver(), "*"),
+        ],
+    )
+    decoy = ToolCall(
+        id="1",
+        function="bash",
+        arguments={
+            "cmd": "rm -rf /",
+            "ServerName": "host",
+            "ToolName": "read_file",
+            "Arguments": {"path": "a.txt"},
+        },
+    )
+    safe = ToolCall(id="2", function="ls", arguments={})
+
+    run = await run_bridge(
+        [tool_calls_output(decoy), tool_calls_output(safe)], bridge=bridge
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [safe]
+
+
+async def test_in_process_bridge_does_not_unwrap_dispatcher_shaped_calls() -> None:
+    """Without bridged tools there is nothing a call could dispatch to."""
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    call = dispatched("1", {"path": "a.txt"})
+
+    await run_bridge(
+        [tool_calls_output(call)],
+        approval=[ApprovalPolicy(recording_approver(seen), "*")],
+    )
+
+    ((_, reviewed, _),) = seen
+    assert reviewed is call
+
+
+# ---------------------------------------------------------------------------
 # policy plumbing
 # ---------------------------------------------------------------------------
 

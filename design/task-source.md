@@ -43,6 +43,7 @@ class TaskSource:
     def initial_tasks(self) -> list[Task]: ...                          # sync seed (immediate)
     async def next_tasks(self) -> list[Task] | None: ...                # async; None ends run
     async def sample_complete(self, sample: EvalSample, task: Task) -> list[Task] | None: ...  # observe + add
+    async def sample_abandoned(self, sample: Sample, epoch: int, task: Task) -> list[Task] | None: ...  # never-logged cancel
     async def task_complete(self, log: EvalLog) -> list[Task] | None: ...          # observe + add
 ```
 
@@ -110,7 +111,15 @@ Key locations:
   `task_source.sample_complete(eval_sample, task)` right after `emit_sample_end` (so
   it fires **per sample**, not batched at task end; it runs after the shielded
   completion block, and is skipped for a sample cancelled by the task's own
-  unwind — see [sample-source.md](sample-source.md)), and `task_run` calls
+  unwind — see [sample-source.md](sample-source.md)); `run_sample` calls
+  `task_source.sample_abandoned(sample, epoch, task)` for a run that ends
+  `DISCARDED` — cancelled without ever being logged (queued-sample cancel,
+  graceful task-cancel abandon at queue exit, pre-retry drain-window abandon;
+  same delivery rule, see [sample-source.md](sample-source.md) and
+  [sample-lifecycle.md](sample-lifecycle.md)) — and, because that hook runs
+  after the run's terminal count, a `TaskSource`-driven eval registers as
+  `dynamic` in the control-channel state so `ctl task cancel` still works
+  while a callback is suspended; and `task_run` calls
   `task_source.task_complete(eval_log)` just before returning the log. Whatever
   a callback **returns** is passed to `_enqueue_source_tasks`, which pushes it
   onto the run enqueuer (`get_task_enqueuer().enqueue(...)`) — so returned tasks
