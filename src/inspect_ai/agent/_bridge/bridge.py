@@ -251,7 +251,7 @@ def init_openai_request_patch() -> None:
     from openai._base_client import AsyncAPIClient, _AsyncStreamT
     from openai._constants import RAW_RESPONSE_HEADER
     from openai._models import FinalRequestOptions
-    from openai._types import Omit, ResponseT
+    from openai._types import NotGiven, Omit, ResponseT
 
     # extract headers
     def request_headers(options: FinalRequestOptions) -> dict[str, str] | None:
@@ -336,7 +336,9 @@ def init_openai_request_patch() -> None:
             and options.url in ["/chat/completions", "/responses"]
         ):
             # must also be an explicit request for an inspect model
-            json_data = cast(dict[str, Any], options.json_data)
+            json_data = strip_omitted_params(
+                cast(dict[str, Any], options.json_data), (Omit, NotGiven)
+            )
             if targets_inspect_model(json_data):
                 if stream:
                     raise_stream_error()
@@ -357,7 +359,12 @@ def init_openai_request_patch() -> None:
                         config.bridge,
                     )
                 return await finalize_bridge_response(
-                    self, cast_to, options, stream, stream_cls, result
+                    self,
+                    cast_to,
+                    options.model_copy(update={"json_data": json_data}),
+                    stream,
+                    stream_cls,
+                    result,
                 )
 
         # otherwise just delegate
@@ -385,7 +392,7 @@ def init_anthropic_request_patch() -> None:
     from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
     from anthropic._constants import RAW_RESPONSE_HEADER
     from anthropic._models import FinalRequestOptions
-    from anthropic._types import Omit, ResponseT
+    from anthropic._types import NotGiven, Omit, ResponseT
 
     # extract headers
     def request_headers(options: FinalRequestOptions) -> dict[str, str] | None:
@@ -470,6 +477,7 @@ def init_anthropic_request_patch() -> None:
             # the bridge sees those fields.
             if options.extra_json:
                 json_data = json_data | dict(options.extra_json)
+            json_data = strip_omitted_params(json_data, (Omit, NotGiven))
             if targets_inspect_model(json_data):
                 if stream:
                     raise_stream_error()
@@ -484,7 +492,12 @@ def init_anthropic_request_patch() -> None:
                     beta=is_beta,
                 )
                 return await finalize_bridge_response(
-                    self, cast_to, options, stream, stream_cls, result
+                    self,
+                    cast_to,
+                    options.model_copy(update={"json_data": json_data}),
+                    stream,
+                    stream_cls,
+                    result,
                 )
 
         # otherwise just delegate
@@ -579,6 +592,21 @@ def _google_api_model_name(path: str) -> str | None:
     """Extract model name from Google API path like 'models/inspect:generateContent'."""
     match = re.search(r"models/([^/:]+)", path)
     return match.group(1) if match else None
+
+
+def strip_omitted_params(
+    json_data: dict[str, Any], sentinels: tuple[type, ...]
+) -> dict[str, Any]:
+    """Drop the SDK's `omit` / `not_given` sentinels from a request body.
+
+    Stainless SDKs (anthropic >= 1.8.0) strip these placeholders for
+    unspecified `create()` parameters inside `request()` itself, below the
+    bridge's interception point, so the patched `request()` must do it before
+    parsing the body — and before handing the options to `_build_request()`,
+    whose JSON encoder cannot serialize them. Sentinels only appear at the top
+    level of the body. A no-op on SDKs that still strip at the resource layer.
+    """
+    return {k: v for k, v in json_data.items() if not isinstance(v, sentinels)}
 
 
 def targets_inspect_model(json_data: dict[str, Any]) -> bool:

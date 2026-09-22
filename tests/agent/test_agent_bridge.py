@@ -11,8 +11,10 @@ from openai import NOT_GIVEN, AsyncOpenAI, BaseModel
 from openai.types.chat import ChatCompletion
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_anthropic_package,
     skip_if_no_google,
     skip_if_no_openai,
+    skip_if_no_openai_package,
 )
 
 from inspect_ai import Task, eval, eval_async, task
@@ -1301,3 +1303,134 @@ def get_testing_tool_info() -> ToolInfo:
             required=["param1"],
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# SDK sentinel stripping (anthropic >= 1.8.0 strips omit/not_given inside
+# request(), below the bridge's interception point)
+# ---------------------------------------------------------------------------
+
+
+def _anthropic_message_json() -> dict[str, Any]:
+    return {
+        "id": "msg_test",
+        "type": "message",
+        "role": "assistant",
+        "model": "inspect",
+        "content": [{"type": "text", "text": "ok"}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic_package
+@pytest.mark.parametrize("raw_response", [False, True])
+async def test_anthropic_bridge_strips_sdk_sentinels(
+    monkeypatch: pytest.MonkeyPatch, raw_response: bool
+) -> None:
+    """Unspecified create() params arrive as Omit/NotGiven and must not reach the bridge.
+
+    Drives the patched `request()` directly with a body shaped the way
+    anthropic >= 1.8.0 hands it over (sentinels still present), so the test
+    is independent of the installed SDK version. With `raw_response` the
+    cleaned body must also be what `_build_request()` serializes.
+    """
+    from anthropic import AsyncAnthropic
+    from anthropic._constants import RAW_RESPONSE_HEADER
+    from anthropic._models import FinalRequestOptions
+    from anthropic._types import NotGiven, Omit
+    from anthropic.types import Message
+
+    from inspect_ai.agent._bridge import bridge as bridge_mod
+
+    bridge_mod.init_bridge_request_patch()
+    captured: dict[str, Any] = {}
+
+    async def fake_request(json_data: dict[str, Any], *args: Any, **kwargs: Any) -> Any:
+        captured.update(json_data)
+        return Message.model_validate(_anthropic_message_json())
+
+    monkeypatch.setattr(bridge_mod, "inspect_anthropic_api_request", fake_request)
+    body: dict[str, Any] = {
+        "model": "inspect",
+        "max_tokens": 16,
+        "messages": [{"role": "user", "content": "hi"}],
+        "tool_choice": Omit(),
+        "thinking": Omit(),
+        "metadata": NotGiven(),
+        "service_tier": Omit(),
+    }
+    headers = {RAW_RESPONSE_HEADER: "true"} if raw_response else {}
+    options = FinalRequestOptions(
+        method="post", url="/v1/messages", json_data=body, headers=headers
+    )
+    token = bridge_mod._patch_config.set(bridge_mod.PatchConfig(enabled=True))
+    try:
+        async with AsyncAnthropic(api_key="test") as client:
+            result = await client.request(Message, options)
+    finally:
+        bridge_mod._patch_config.reset(token)
+
+    assert set(captured) == {"model", "max_tokens", "messages"}
+    if raw_response:
+        message = await cast(Any, result).parse()
+    else:
+        message = result
+    assert isinstance(message, Message)
+    assert message.content[0].type == "text"
+
+
+@pytest.mark.anyio
+@skip_if_no_openai_package
+async def test_openai_bridge_strips_sdk_sentinels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The OpenAI patch applies the same filter (a no-op until that SDK defers stripping)."""
+    from openai._models import FinalRequestOptions
+    from openai._types import NotGiven, Omit
+    from openai.types.chat import ChatCompletion
+
+    from inspect_ai.agent._bridge import bridge as bridge_mod
+
+    bridge_mod.init_bridge_request_patch()
+    captured: dict[str, Any] = {}
+
+    async def fake_request(json_data: dict[str, Any], *args: Any, **kwargs: Any) -> Any:
+        captured.update(json_data)
+        return ChatCompletion.model_validate(
+            {
+                "id": "cmpl_test",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "inspect",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "ok"},
+                    }
+                ],
+            }
+        )
+
+    monkeypatch.setattr(bridge_mod, "inspect_completions_api_request", fake_request)
+    body: dict[str, Any] = {
+        "model": "inspect",
+        "messages": [{"role": "user", "content": "hi"}],
+        "tool_choice": Omit(),
+        "temperature": NotGiven(),
+    }
+    options = FinalRequestOptions(
+        method="post", url="/chat/completions", json_data=body
+    )
+    token = bridge_mod._patch_config.set(bridge_mod.PatchConfig(enabled=True))
+    try:
+        async with AsyncOpenAI(api_key="test") as client:
+            result = await client.request(ChatCompletion, options)
+    finally:
+        bridge_mod._patch_config.reset(token)
+
+    assert set(captured) == {"model", "messages"}
+    assert isinstance(result, ChatCompletion)
