@@ -21,8 +21,9 @@ from inspect_ai.dataset import (
     file_dataset,
     json_dataset,
 )
-from inspect_ai.dataset._util import read_choices
+from inspect_ai.dataset._util import read_checkpoint, read_choices
 from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.util import CheckpointSampleConfig
 
 T_ds = TypeVar("T_ds")
 
@@ -648,3 +649,61 @@ def test_read_choices_drops_empty_entries() -> None:
     assert read_choices(None) is None
     assert read_choices(["Paris", "", "London"]) == ["Paris", "London"]
     assert read_choices(["Paris", " ", "London"]) == ["Paris", "London"]
+
+
+def test_read_checkpoint_preserves_serializable_settings() -> None:
+    # UKGovernmentBEIS/inspect_ai#5374: zero/empty overrides must survive
+    # (they are explicit settings, not missing values)
+    checkpoint = read_checkpoint(
+        {"sandbox_paths": {"default": []}, "max_consecutive_failures": 0}
+    )
+    assert checkpoint == CheckpointSampleConfig(
+        sandbox_paths={"default": []}, max_consecutive_failures=0
+    )
+
+
+def test_read_checkpoint_missing_is_none() -> None:
+    assert read_checkpoint(None) is None
+    assert read_checkpoint({}) == CheckpointSampleConfig()
+
+
+def test_read_checkpoint_instance_passes_through() -> None:
+    config = CheckpointSampleConfig(max_consecutive_failures=3)
+    assert read_checkpoint(config) is config
+
+
+def test_read_checkpoint_json_string() -> None:
+    checkpoint = read_checkpoint('{"max_consecutive_failures": 2}')
+    assert checkpoint == CheckpointSampleConfig(max_consecutive_failures=2)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        42,
+        ["max_consecutive_failures"],
+        {"trigger": {"every": 100}},
+        {"max_consecutive_failures": "lots"},
+        {"max_consecutive_failures": True},
+        {"sandbox_paths": ["/tmp"]},
+        {"sandbox_paths": {"default": [1]}},
+    ],
+)
+def test_read_checkpoint_malformed_raises(bad: object) -> None:
+    # malformed checkpoint data is an explicit error, never a silent drop
+    with pytest.raises(ValueError):
+        read_checkpoint(bad)
+
+
+def test_json_dataset_preserves_sample_checkpoint(tmp_path: Path) -> None:
+    sample = Sample(
+        input="Run the sample task",
+        checkpoint=CheckpointSampleConfig(
+            sandbox_paths={"default": []}, max_consecutive_failures=0
+        ),
+    )
+    path = tmp_path / "samples.json"
+    path.write_text(sample.model_dump_json())
+
+    loaded = json_dataset(str(path))[0]
+    assert loaded.checkpoint == sample.checkpoint

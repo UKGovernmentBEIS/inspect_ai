@@ -11,6 +11,11 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.util._checkpoint._triggers import CheckpointTrigger
+from inspect_ai.util._checkpoint.config import (
+    CheckpointSampleConfig,
+    SandboxSnapshotConfig,
+)
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from ._dataset import (
@@ -99,6 +104,7 @@ def record_to_sample_fn(
                 sandbox=read_sandbox(record.get(sample_fields.sandbox)),
                 files=read_files(record.get(sample_fields.files)),
                 setup=read_setup(record.get(sample_fields.setup)),
+                checkpoint=read_checkpoint(record.get("checkpoint")),
             )
 
         return record_to_sample
@@ -247,6 +253,71 @@ def read_files(files: Any | None) -> dict[str, str] | None:
         raise ValueError(f"Unexpected type for 'files' field: {type(files)}")
     else:
         return None
+
+
+def read_checkpoint(checkpoint: Any | None) -> CheckpointSampleConfig | None:
+    # UKGovernmentBEIS/inspect_ai#5374: the default field mapper used to drop
+    # per-sample checkpoint settings entirely. Preserve the serializable
+    # settings here. Checkpoint triggers have no stable serialized
+    # representation, so a trigger only round-trips as an already-constructed
+    # CheckpointTrigger object; anything else is an explicit error rather
+    # than a silent drop.
+    if is_none_or_nan(checkpoint):
+        return None
+    if isinstance(checkpoint, CheckpointSampleConfig):
+        return checkpoint
+    if isinstance(checkpoint, str):
+        checkpoint = json.loads(checkpoint)
+    if isinstance(checkpoint, dict):
+        trigger = checkpoint.get("trigger", None)
+        if trigger is not None and not isinstance(trigger, CheckpointTrigger):
+            raise ValueError(
+                "Cannot deserialize 'checkpoint.trigger' from "
+                f"{type(trigger).__name__}: checkpoint triggers have no stable "
+                "serialized representation."
+            )
+        sandbox_paths = checkpoint.get("sandbox_paths", None)
+        if sandbox_paths is not None:
+            sandbox_paths = _read_checkpoint_sandbox_paths(sandbox_paths)
+        max_consecutive_failures = checkpoint.get("max_consecutive_failures", None)
+        if max_consecutive_failures is not None and (
+            isinstance(max_consecutive_failures, bool)
+            or not isinstance(max_consecutive_failures, int)
+        ):
+            raise ValueError(
+                "Invalid 'checkpoint.max_consecutive_failures' value: "
+                f"{max_consecutive_failures!r}. Must be an integer or null."
+            )
+        return CheckpointSampleConfig(
+            trigger=trigger,
+            sandbox_paths=sandbox_paths,
+            max_consecutive_failures=max_consecutive_failures,
+        )
+
+    # didn't find the right type
+    raise ValueError(f"Unexpected type for 'checkpoint' field: {type(checkpoint)}")
+
+
+def _read_checkpoint_sandbox_paths(
+    sandbox_paths: Any,
+) -> dict[str, list[str] | SandboxSnapshotConfig]:
+    if not isinstance(sandbox_paths, dict):
+        raise ValueError(
+            f"Invalid 'checkpoint.sandbox_paths' value: {sandbox_paths!r}. "
+            "Must be a mapping of sandbox name to a list of paths."
+        )
+    result: dict[str, list[str] | SandboxSnapshotConfig] = {}
+    for name, spec in sandbox_paths.items():
+        if isinstance(spec, SandboxSnapshotConfig):
+            result[name] = spec
+        elif isinstance(spec, list) and all(isinstance(p, str) for p in spec):
+            result[name] = spec
+        else:
+            raise ValueError(
+                f"Invalid sandbox snapshot config for {name!r}: {spec!r}. "
+                "Must be a list of paths or a SandboxSnapshotConfig."
+            )
+    return result
 
 
 def shuffle_choices_if_requested(
