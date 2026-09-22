@@ -576,10 +576,12 @@ class _FakeClient:
 
 
 class _FakeSession:
+    """Stands in for the aiobotocore session (see `create_client` below)."""
+
     def __init__(self, client: _FakeClient):
         self._client = client
 
-    def client(self, **kwargs: Any) -> Any:
+    def create_client(self, **kwargs: Any) -> Any:
         client = self._client
 
         class _CM:
