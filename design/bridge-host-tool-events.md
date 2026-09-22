@@ -26,7 +26,7 @@ execution-edge check is disabled pending #5428 (`service.py:254-257`),
 because scaffolds present bridged tools to the model under names the grant
 resolution did not recognise, and #5428 re-enables it for every call, with
 or without a policy, resolving proposals against the tools the scaffold
-declared by the description and schema the bridge served, unless the
+declared by the description the bridge served, unless the
 server's `BridgedToolsSpec` sets `require_proposal=False`. #5464 (merged 2026-09-21) made the host call
 validate arguments and classify exceptions as a native call does, failing
 the sample on an unexpected one.
@@ -196,22 +196,28 @@ After #5428 (the tree this design targets, head `e5e3cab8f`):
   called name is ignored, because every scaffold renames MCP tools under its
   own scheme. The call's declaration (looked up by name among the
   declarations; a call to a name the scaffold never declared denotes
-  nothing) is matched to a bridged tool by the served description, exact
-  after trimming or a truncation of at least 64 characters, and when several
-  bridged tools match, by input-schema shape (the served property and
-  required names as a subset of the declaration's) to break the tie. Failing
-  that, the call may be a dispatcher call (`_dispatched_call`): recognised
+  nothing) is matched to a bridged tool by the served description alone:
+  equality after trimming whitespace (an empty description matches every
+  bridged tool served without one), or failing an exact match, a truncation
+  (`_is_truncation_of`: the declared and served texts share a common prefix
+  of at least 64 characters and whatever the declared text carries beyond
+  it, an ellipsis or a `[truncated]` marker, is at most 24 characters). An
+  exact match wins even when that description is a prefix of another
+  bridged tool's; a truncated declaration that could refer to several tools
+  denotes all of them. Schemas are not consulted, because scaffolds rewrite
+  them, so two tools with the same description and different schemas are
+  indistinguishable. Failing a content match, the call may be a dispatcher
+  call (`_dispatched_call`): recognised
   by its function name first, `call_mcp_tool`, and only then by its argument
   shape (string `ServerName` and `ToolName` naming a registered bridged tool
   and an object `Arguments`), denoting that tool with the inner `Arguments`.
   The name gate is what stops an ordinary call whose arguments happen to
   carry those fields from minting a grant for, or borrowing the approval
   policy of, a bridged tool; approval and grant resolution share the one
-  function so they cannot disagree. Tools that still cannot be told apart
-  (same description, schema shape cannot separate them;
-  `warn_indistinct_tools` names them at setup) each get a grant bound to the
-  call's arguments, so one proposal authorises one execution of each of
-  them.
+  function so they cannot disagree. Tools that cannot be told apart (a
+  shared description, whatever their schemas; `warn_indistinct_tools` names
+  them at setup) each get a grant bound to the call's arguments, so one
+  proposal authorises one execution of each of them.
 - This is scaffold-agnostic. #5428 verified that Claude Code, Codex CLI
   (both its naming forms, and tools it discovers through `tool_search`),
   Gemini CLI, OpenCode, Kimi Code and Antigravity forward the MCP
@@ -225,8 +231,14 @@ After #5428 (the tree this design targets, head `e5e3cab8f`):
   `test_ordinary_call_with_dispatcher_shaped_arguments_mints_no_grant` and
   `test_dispatcher_shaped_arguments_do_not_borrow_another_tools_policy` (the
   name gate), `test_dispatcher_call_grants_the_named_target_with_its_arguments`,
-  and `test_opted_out_server_stores_no_grants` (which this design inverts,
-  see below).
+  the resolver tests `test_declared_schema_does_not_affect_matching`,
+  `test_same_description_and_schema_grants_each_once`,
+  `test_exact_match_wins_over_a_prefix_match`,
+  `test_truncation_matching_two_tools_grants_both` and
+  `test_served_description_that_prefixes_another_grants_both_when_truncated`
+  (PR C must not narrow the population any of these grant), and
+  `test_opted_out_server_stores_no_grants` (which this design inverts, see
+  below).
 - `call_tool` denies unless the server is exempt or a grant is consumed;
   `tool_approval_required()` is removed. The denial is still a
   `PermissionError`, now reading "Host tool call '<server>/<tool>' was not
@@ -1256,8 +1268,9 @@ tests do, and subscribe a recorder to count emissions):
   deterministically, so a later change to the grant store cannot silently
   alter the documented oldest-first pairing.
 - One proposal, two indistinguishable targets (two servers serving a tool
-  with the same description and schema; #5428 registers two grants for one
-  call `p`): executing both yields a first event with `id == "p"` and a
+  with the same description and deliberately different schemas, since
+  #5428 does not consult schemas; it registers two grants for one call
+  `p`): executing both yields a first event with `id == "p"` and a
   second with a fresh id, both with `metadata.bridge.proposal_id == "p"`,
   `grant == "consumed"`, and both under the proposal's span. ACP: exactly
   one update to the synthesised card plus one separate start and update.
@@ -1420,10 +1433,12 @@ native tool events on its own.
    the new return type. Leave `_proposed_call`, `_dispatched_call` and its
    `call_mcp_tool` name gate untouched. Re-check #5428's landed head first:
    this step is written against `e5e3cab8f`, the head Ransom called stable
-   on 2026-09-22. Invert `test_opted_out_server_stores_no_grants`; keep
-   `test_tool_discovered_through_tool_search_is_granted` and the dispatcher
-   name-gate tests passing; add the span-capture tests; confirm the
-   in-process `bridge_generate` tests still pass.
+   on 2026-09-22, and #5428 was still behind its base then, so re-check
+   after its base update too. Invert `test_opted_out_server_stores_no_grants`;
+   keep `test_tool_discovered_through_tool_search_is_granted`, the
+   dispatcher name-gate tests and the resolver tests listed under Grants
+   passing; add the span-capture tests; confirm the in-process
+   `bridge_generate` tests still pass.
 2. **Span parent helper** (`src/inspect_ai/util/_span.py`, `tests/util/`):
    `parent_span()` with a test that a constructed event and a nested
    `span()` take the given parent and the previous value is restored.
