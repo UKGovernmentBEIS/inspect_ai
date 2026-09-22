@@ -641,10 +641,14 @@ $ inspect log list --json --status success
 $ inspect log list --json --status error
 ```
 
-You can use the `--retryable` option to list only logs that are [retryable](handling-errors.qmd#eval-retries)
+There is no CLI filter for [retryable](handling-errors.qmd#eval-retries) logs: `--status` accepts a
+single value, and `retryable` is not one of its values (`started`, `success`, `cancelled` or
+`error`). Listing the incomplete statuses is as close as the command gets, so compare the two
+listings against your successful runs:
 
 ``` bash
-$ inspect log list --json --retryable
+$ inspect log list --json --status error
+$ inspect log list --json --status cancelled
 ```
 
 ### Reading Logs
