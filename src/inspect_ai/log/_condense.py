@@ -52,6 +52,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -939,9 +940,49 @@ def walk_tool_event(
     return event.model_copy(
         update=dict(
             arguments=walk_json_dict(event.arguments, content_fn, context),
+            result=walk_tool_result(event.result, content_fn),
             events=walk_events(event.events, content_fn, context),
         )
     )
+
+
+_ToolResultContent = (
+    ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument
+)
+
+
+def walk_tool_result(
+    result: ToolResult, content_fn: Callable[[str], str]
+) -> ToolResult:
+    """Apply ``content_fn`` to the media in a tool result.
+
+    Only media fields (image, audio, video, document) are walked, so the
+    image logging policy reaches tool results as it reaches messages. Text
+    (a ``str`` result or ``ContentText``) stays inline: the same text is
+    already inline in the tool message the model sees next, so pooling it
+    would add an attachment without removing a copy.
+    """
+    if isinstance(result, list):
+        return [_walk_tool_result_content(content, content_fn) for content in result]
+    elif isinstance(result, _ToolResultContent):
+        return _walk_tool_result_content(result, content_fn)
+    else:
+        return result
+
+
+def _walk_tool_result_content(
+    content: _ToolResultContent, content_fn: Callable[[str], str]
+) -> _ToolResultContent:
+    if isinstance(content, ContentImage):
+        return content.model_copy(update=dict(image=content_fn(content.image)))
+    elif isinstance(content, ContentAudio):
+        return content.model_copy(update=dict(audio=content_fn(content.audio)))
+    elif isinstance(content, ContentVideo):
+        return content.model_copy(update=dict(video=content_fn(content.video)))
+    elif isinstance(content, ContentDocument):
+        return content.model_copy(update=dict(document=content_fn(content.document)))
+    else:
+        return content
 
 
 def walk_info_event(
