@@ -29,6 +29,7 @@ from inspect_ai._eval.task.run import plan_agent_name, resolve_plan
 from inspect_ai._eval.task.task import resolve_epochs, resolve_task_epochs
 from inspect_ai._eval.task.util import resolve_task_sample_ids, sample_id_filter
 from inspect_ai.dataset import Dataset
+from inspect_ai.log._log import EvalConfig
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_config import model_args_for_log
 
@@ -278,6 +279,7 @@ def build_eval_set_capture(
         resolve_solver,
         task_identifier,
     )
+    from inspect_ai._eval.task_defaults import resolve_task_eval_config
 
     solver = resolve_solver(eval_set_args.solver)
     eval_epochs = resolve_epochs(epochs)
@@ -286,6 +288,11 @@ def build_eval_set_capture(
     task_names = resolved_task_names(resolved_tasks)
     for task in resolved_tasks:
         epoch_count = resolve_task_epochs(task.task, eval_epochs).epochs
+        # selection mirrors log_samples_complete (eval-set level wins, then
+        # the task default)
+        selection = resolve_task_eval_config(
+            task.run_config, EvalConfig(limit=limit, sample_id=sample_id)
+        )
 
         args_full = getattr(task.task, TASK_ALL_PARAMS_ATTR, None)
 
@@ -314,7 +321,11 @@ def build_eval_set_capture(
                 sequence=task.sequence,
                 identifier=task_identifier(task, eval_set_args),
                 samples=samples_selected(
-                    task.task.dataset, limit, sample_id, task.task.name, task_names
+                    task.task.dataset,
+                    selection.limit,
+                    selection.sample_id,
+                    task.task.name,
+                    task_names,
                 ),
                 epochs=epoch_count,
             )

@@ -1,3 +1,5 @@
 TASK_FILE_ATTR = "__task_file__"
 TASK_RUN_DIR_ATTR = "__task_run_dir__"
 TASK_ALL_PARAMS_ATTR = "__task_all_params__"
+TASK_DEFAULT_CONFIG_ATTR = "__task_default_config__"
+TASK_DEFAULT_CONFIG_SOURCE_ATTR = "__task_default_config_source__"

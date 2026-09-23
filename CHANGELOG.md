@@ -1,3 +1,8 @@
+## Unreleased
+
+- Evaluation: Read, validate, and apply run configuration files from Python, with optional deferred model initialization and CLI-compatible overrides.
+- Tasks: Attach default run configuration files to task definitions, with runtime overrides, opt-out, and configuration provenance in evaluation logs.
+
 ## 0.3.268 (22 September 2026)
 
 - Agent Bridge: Bridged Anthropic requests no longer fail under anthropic SDK 1.8.0 or later, including requests with iterator, file-path or pydantic inputs.
