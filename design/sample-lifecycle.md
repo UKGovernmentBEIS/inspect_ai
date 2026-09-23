@@ -96,7 +96,7 @@ retry budget, prior history seeded via `previous_attempt_errors`):
 ## Terminal side-effects: `SampleTerminalReporter`
 
 Every terminal path must fire the same bookkeeping exactly once, and there
-are eight such paths. Before the reporter existed each spelled the calls
+are nine such paths. Before the reporter existed each spelled the calls
 out by hand, and paths missed pieces: the injected-slot release was once
 forgotten on the reuse and early-stop paths (fixed separately), and until
 this consolidation the drain-window abandon skipped the slot-release
@@ -106,16 +106,28 @@ path — but the invariant now holds by construction rather than by
 argument). One reporter is created per run in `run_sample` and shared by
 all of the run's attempts; only the attempt that goes terminal reports.
 
-| Terminal path (in `_task_run_sample_attempt` unless noted) | Counter | Slot release | Progress tick | Metrics (`sample_complete`) | Log record |
-| --- | --- | --- | --- | --- | --- |
-| completed (no error) | completed + usage | ✓ | ✓ | scores (may be empty) | written |
-| errored, returned (`fail_on_error` off / threshold uncrossed) | errored + usage | ✓ | ✓ | scores, when present | written with error |
-| errored, raised (fails the eval) | errored + usage | ✓ | ✓ | — (eval is dying; scores stay in the sample log) | written with error |
-| cancelled (external / sibling / operator per-sample) | cancelled + usage | ✓ | ✓ | — | written with error |
-| drain-window abandon (interrupt suppressed a pending retry) | cancelled + usage | ✓ | — | — | removed |
-| abandoned before start (graceful task-cancel while queued) | cancelled | ✓ | — | — | never written |
-| early stop | completed | ✓ | — | — | never written |
-| reused prior sample (`run_sample`, never enters `task_run_sample`) | completed + prior usage | ✓ | ✓ | prior scores | re-logged |
+| Terminal path (in `_task_run_sample_attempt` unless noted) | Counter | Slot release | Progress tick | Metrics (`sample_complete`) | Log record | Source hook |
+| --- | --- | --- | --- | --- | --- | --- |
+| completed (no error) | completed + usage | ✓ | ✓ | scores (may be empty) | written | `sample_complete` |
+| errored, returned (`fail_on_error` off / threshold uncrossed) | errored + usage | ✓ | ✓ | scores, when present | written with error | `sample_complete` |
+| errored, raised (fails the eval) | errored + usage | ✓ | ✓ | — (eval is dying; scores stay in the sample log) | written with error | `sample_complete` (before the raise) |
+| cancelled (external / sibling / operator per-sample) | cancelled + usage | ✓ | ✓ | — | written with error | `sample_complete` (operator per-sample only) |
+| drain-window abandon (interrupt suppressed a pending retry) | cancelled + usage | ✓ | — | — | removed | `sample_abandoned` |
+| abandoned before start (graceful task-cancel while queued) | cancelled | ✓ | — | — | never written | `sample_abandoned` |
+| cancelled before start (`ctl sample cancel` while queued; `discarded()`) | cancelled (at accept) | ✓ | — | — | never written | `sample_abandoned` |
+| early stop | completed | ✓ | — | — | never written | — |
+| reused prior sample (`run_sample`, never enters `task_run_sample`) | completed + prior usage | ✓ | ✓ | prior scores | re-logged | `sample_complete` |
+
+The **Source hook** column is the `SampleSource` / `TaskSource`
+notification for the path (see [`sample-source.md`](sample-source.md)):
+`sample_complete` delivers the logged `EvalSample`; `sample_abandoned`
+covers the never-logged cancels — every path that returns `DISCARDED` from
+`task_run_sample` — and is fired by `run_sample` on that result with the
+dataset `Sample` and epoch. Neither fires while the task is unwinding
+(`abort`/`retry` stamp), and `sample_abandoned` also skips requeue re-runs
+(the prior outcome stands). Early stopping is rejected for `SampleSource`
+tasks, so its silent row concerns only a `TaskSource` (an early-stopped
+sample is completed-not-logged, not a cancel, and is not reported).
 
 One accepted gap: the `SampleSource` / `TaskSource` `sample_complete`
 callbacks run after the log write and before the terminal report, in the live
@@ -123,6 +135,12 @@ callbacks run after the log write and before the terminal report, in the live
 unwinds the attempt from there, so that run is logged but never counted or
 released. The task is ending and the eval finishes errored/cancelled
 regardless, so the missing count is only visible in the dead task's listing.
+(`sample_abandoned` has no such gap: it fires after the terminal report, once
+`task_run_sample` has returned. The flip side is that the last run's count
+can land before its callback finishes, which would stamp `completed_at` and
+make `ctl task cancel` a no-op while the callback blocks — so every
+source-driven eval, `TaskSource` included, registers as `dynamic` and is
+stamped finished only by `finalize_eval`.)
 
 Column meanings:
 

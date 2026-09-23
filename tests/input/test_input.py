@@ -1,12 +1,14 @@
-from typing import Any
+from typing import Any, get_type_hints
 from unittest.mock import MagicMock
 
 import pytest
 from acp.schema import ElicitationSchema
 
 from inspect_ai.util import (
+    InputOutcome,
     InputRequest,
     InputResult,
+    json_schema,
     request_input,
 )
 from inspect_ai.util._input import builtin as builtin_module
@@ -32,6 +34,31 @@ async def test_input_request_construction() -> None:
     req = InputRequest(message="hi", schema=SCHEMA)
     assert req.message == "hi"
     assert req.schema is SCHEMA
+
+
+def test_input_types_keep_runtime_annotations() -> None:
+    # The ACP schema type is deferred to keep `import inspect_ai` fast; every
+    # other annotation on these public types must still resolve at runtime.
+    assert get_type_hints(InputResult) == {
+        "outcome": InputOutcome,
+        "content": dict[str, Any] | None,
+    }
+    assert InputRequest.__dataclass_fields__["message"].type is str
+
+    result_schema = json_schema(InputResult)
+    assert result_schema.properties is not None
+    assert result_schema.properties["outcome"].enum == [
+        "accepted",
+        "declined",
+        "cancelled",
+    ]
+    assert result_schema.properties["content"].anyOf is not None
+    assert result_schema.required == ["outcome"]
+
+    request_schema = json_schema(InputRequest)
+    assert request_schema.properties is not None
+    assert request_schema.properties["message"].type == "string"
+    assert request_schema.required == ["message", "schema"]
 
 
 # -- orchestrator: builtin dispatch ---------------------------------------

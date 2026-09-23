@@ -25,6 +25,17 @@ from urllib.parse import urlencode
 
 from summarize_ci_data import summarize
 
+# Upstream is public, so any fork's PR triggers CI there and its logs, step
+# names and run titles carry text the PR author wrote. Only these two head
+# repositories can be pushed to by people who already have upstream write
+# access (upstream's own branches and Meridian's fork, from which colleagues
+# open upstream PRs), so runs from anywhere else never reach the analysis
+# agent. Merge state is not a substitute: cancelled and failing runs feed the
+# runner-waste analysis.
+TRUSTED_HEAD_REPOS = frozenset(
+    {"UKGovernmentBEIS/inspect_ai", "meridianlabs-ai/inspect_ai"}
+)
+
 
 def gh_api(path: str) -> Any:
     result = subprocess.run(
@@ -114,6 +125,25 @@ def fetch_runs(repo: str, limit: int, days: int = 7) -> list[dict[str, Any]]:
     raise RuntimeError(
         "GitHub returned stale or repeated CI pages on all three collection attempts"
     )
+
+
+class TrustedRuns(NamedTuple):
+    runs: list[dict[str, Any]]
+    excluded: int
+
+
+def trusted_runs(runs: list[dict[str, Any]]) -> TrustedRuns:
+    """Keep runs whose head repository is in TRUSTED_HEAD_REPOS.
+
+    Applied before any per-run fetch, so no job metadata or log of an excluded
+    run is requested. A run with no head repository (deleted fork) is excluded.
+    """
+    kept = [
+        run
+        for run in runs
+        if (run.get("head_repository") or {}).get("full_name") in TRUSTED_HEAD_REPOS
+    ]
+    return TrustedRuns(kept, len(runs) - len(kept))
 
 
 def warn_on_time_gap(runs: list[dict[str, Any]]) -> None:
@@ -281,8 +311,13 @@ def main() -> None:
             "--limit and --days must be positive; --durations-runs must be nonnegative"
         )
 
-    raw_runs = fetch_runs(args.repo, args.limit, args.days)
-    print(f"fetched {len(raw_runs)} runs; fetching jobs...", file=sys.stderr)
+    fetched = fetch_runs(args.repo, args.limit, args.days)
+    raw_runs, excluded_untrusted = trusted_runs(fetched)
+    print(
+        f"fetched {len(fetched)} runs; excluded {excluded_untrusted} from "
+        "untrusted head repositories; fetching jobs...",
+        file=sys.stderr,
+    )
 
     runs = [
         {
@@ -313,6 +348,7 @@ def main() -> None:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "repo": args.repo,
         "run_count": len(runs),
+        "excluded_untrusted_runs": excluded_untrusted,
         "runs": runs,
         "pytest_durations": log_data.durations,
         "pytest_summaries": log_data.summaries,

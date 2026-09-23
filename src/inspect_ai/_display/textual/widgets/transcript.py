@@ -282,8 +282,15 @@ def render_tool_event(event: ToolEvent) -> EventDisplay | None:
     # treatment — the adjacent InterruptEvent already says what
     # happened; the natural-completion result body (if it raced in
     # before cancel propagated) is preserved in the eval log but
-    # suppressed from the live transcript.
-    if event.error is not None and event.error.type == "cancelled":
+    # suppressed from the live transcript. The `cancelled` + `failed`
+    # pair is the operator-cancel fingerprint (see ToolEvent._set_result);
+    # a call skipped by a halt_on_error tool also carries `cancelled` but
+    # has no InterruptEvent to explain it, so it stays visible.
+    if (
+        event.error is not None
+        and event.error.type == "cancelled"
+        and event.failed is True
+    ):
         return None
 
     # Skip pending tool events: the tool *call* is already visible
