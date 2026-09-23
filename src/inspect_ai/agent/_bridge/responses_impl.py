@@ -137,6 +137,7 @@ from inspect_ai.model._openai_responses import (
     responses_model_usage,
     to_inspect_citation,
     tool_call_from_openai_tool_search_call,
+    tool_search_output_tools,
     tool_use_to_code_interpreter_param,
     tool_use_to_mcp_call_param,
     tool_use_to_mcp_list_tools_param,
@@ -288,11 +289,15 @@ async def inspect_responses_api_request_impl(
     # top-level `tools` array; they are discovered via tool_search and appear as
     # namespace entries inside tool_search_output items in the conversation.
     # Harvest those too so outgoing function calls carry the right `namespace`.
+    # (As declarations for grant resolution they are read from the generation
+    # input instead, per attempt: `_declarations_in_input` below.)
     if isinstance(input, list):
         for item in input:
             if isinstance(item, dict) and is_tool_search_output(item):
                 for discovered in item.get("tools", []) or []:
-                    if is_namespace_tool_param(discovered):
+                    if isinstance(discovered, dict) and is_namespace_tool_param(
+                        discovered
+                    ):
                         _harvest_tool_namespaces(discovered, tool_namespaces)
 
     debug_log("SCAFFOLD INPUT", input)
@@ -319,7 +324,15 @@ async def inspect_responses_api_request_impl(
 
     # if there is a bridge filter give it a shot first
     output, c_message = await bridge_generate(
-        bridge, model, messages, tools, tool_choice, config
+        bridge,
+        model,
+        messages,
+        tools,
+        tool_choice,
+        config,
+        declared_in_input=lambda messages: _declarations_in_input(
+            messages, web_search, code_execution, bridge
+        ),
     )
     if c_message is not None:
         messages.append(c_message)
@@ -347,6 +360,96 @@ async def inspect_responses_api_request_impl(
     debug_log("SCAFFOLD RESPONSE", response)
 
     return response
+
+
+def _declarations_in_input(
+    messages: list[ChatMessage],
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
+    bridge: AgentBridge,
+) -> list[ToolInfo]:
+    """The tools declared to the model by native `tool_search` results in `messages`.
+
+    `messages_from_responses_input` carries each `tool_search_output` item as a
+    `ChatMessageTool` whose content is the discovered tools as JSON; this reads
+    them back (`_discovered_tool_declarations`). `bridge_generate` calls it on
+    the input of each generation attempt, so the declarations are the ones the
+    model saw after compaction and any filter rewrite, not the request's.
+
+    A result counts as native discovery only when the call it answers is cached
+    as a ``tool_search_call``, the same provenance the Responses encoder uses to
+    replay it as a `tool_search_output` item (the bridge seeds that cache from
+    the inbound item). An ordinary tool's result is never one, however the tool
+    is named, so a function called ``tool_search`` cannot declare a host tool
+    through its output. The discovered tools are exactly the list the encoder
+    replays to the model (`tool_search_output_tools`): validated as a whole, so
+    a result with any invalid entry (a filter's or the scaffold's rewrite)
+    declares nothing, just as the model is then told nothing; no entry is
+    salvaged for grants alone.
+    """
+    cached_calls = assistant_internal().tool_calls
+    declarations: list[ToolInfo] = []
+    for message in messages:
+        if not isinstance(message, ChatMessageTool) or message.error is not None:
+            continue
+        call = cached_calls.get(message.tool_call_id or "")
+        if call is None or call["type"] != "tool_search_call":
+            continue
+        for discovered in tool_search_output_tools(message):
+            declarations.extend(
+                _discovered_tool_declarations(
+                    discovered, web_search, code_execution, bridge
+                )
+            )
+    return declarations
+
+
+def _discovered_tool_declarations(
+    discovered: Any,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
+    bridge: AgentBridge,
+) -> list[ToolInfo]:
+    """The declarations a `tool_search_output` entry makes to the model.
+
+    A tool discovered through `tool_search` is declared to the model by this
+    entry rather than by the request's tools array, so the grant resolver must
+    see it too (`_declarations_in_input`, through
+    `bridge_generate(declared_in_input=)`), carrying the served description, the
+    schema and the namespace (`RESPONSES_NAMESPACE`) exactly as a top-level
+    declaration would. Conversion goes through
+    `tools_from_responses_tool`, which needs a schema: entries listed by name
+    only (Codex's deferred ``multi_agent`` tools) declare nothing a call could
+    be matched to and are skipped. Nothing here reaches the model or changes
+    what the scaffold receives.
+    """
+
+    def declarable(entry: Any) -> bool:
+        return isinstance(entry, dict) and "parameters" in entry
+
+    if is_namespace_tool_param(discovered):
+        inner = [
+            {**entry, "description": entry.get("description")}
+            for entry in discovered.get("tools", []) or []
+            if declarable(entry)
+        ]
+        if not inner:
+            return []
+        discovered = {**discovered, "tools": inner}
+    elif declarable(discovered):
+        discovered = {**discovered, "description": discovered.get("description")}
+    else:
+        return []
+    return [
+        tool
+        for tool in tools_from_responses_tool(
+            cast(ToolParam, discovered),
+            web_search,
+            code_execution,
+            bridge.allow_remote_mcp,
+        )
+        if isinstance(tool, ToolInfo)
+    ]
 
 
 def _harvest_tool_namespaces(
