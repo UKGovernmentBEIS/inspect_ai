@@ -4,6 +4,7 @@
 - Sandbox agent bridge: host tools exposed with `bridged_tools` are again denied unless the model proposed the call in a bridged generation, once per proposal, with or without an approval policy (0.3.265 ran them regardless as a stopgap); `BridgedToolsSpec(require_proposal=False)` opts a server out.
 - Bugfix: Docker sandboxes for samples a `SampleSource` adds (including an empty-seed task with `sandbox="docker"`) no longer fail with a `LookupError`, and their containers and generated compose files are cleaned up at the end of the run.
 - Scoring: `match()`, `includes()`, `exact()`, `f1()`, `pattern()` and `answer()` now record `reason="no_response"` when the raw model completion is empty or whitespace only, so a model that returned nothing is distinguishable from one that answered wrong. Score values are unchanged. (#5376)
+- Reading a remote `.eval` log from a non-S3 filesystem (e.g. `gs://`, `az://`) no longer stalls other running work for the whole download.
 
 ## 0.3.268 (22 September 2026)
 
@@ -59,7 +60,6 @@
 - OpenRouter: Gemini reasoning now replays as structured reasoning details (keeping the encrypted thought signature for multi-turn tool use) instead of a `<think>` tag, so reasoning no longer leaks into assistant output text. As in OpenRouter's own SDK, only signed text and encrypted entries are replayed: Gemini no longer sees its own readable prior thinking on later turns, only the thought signature. Reasoning replayed from another provider (no OpenRouter details) now goes into the `<think>` tag as readable text only, and is omitted entirely when it has none (e.g. a redacted block with no summary), so no signature or opaque payload enters the assistant text channel for any model family.
 - OpenRouter: Gemini thoughts returned only as a signature (no readable text) no longer log a warning or surface raw JSON as the reasoning content.
 - Fixed Linux evaluations slowing down as model clients open more HTTPS connections.
-- Reading a remote `.eval` log from a non-S3 filesystem (e.g. `gs://`, `az://`) no longer stalls other running work for the whole download.
 - Fixed `RuntimeError: Event loop is closed` when a memoized model is used across multiple `eval()` calls or event loops.
 - Bugfix: The OpenAI Responses provider no longer raises `ValueError("Unexpected output type: ResponseToolSearchOutputItem")` when an agent uses native OpenAI deferred tool search; the response-item handler now recognises the `tool_search_output` item without overwriting the cached `tool_search_call`. (#4968)
 - Sample selection: `--sample-id` now accepts ids containing colons (e.g. `user:cybergym/arvo_6008`); a `task:` prefix is stripped only when it names a task in the run.
