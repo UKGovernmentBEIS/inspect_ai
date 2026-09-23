@@ -133,8 +133,14 @@ If any tests are failing, fix the code and run both commands again to verify. On
 
 ## Creating a pull request
 
-Fill in the PR template and reference the issue your PR resolves
-(`Fixes #NNN`). Run `make check` and `make test` before pushing.
+Fill in the PR template and, when addressing an accepted issue, reference it
+(`Fixes #NNN`). Explain the user-facing problem and result. In
+"Compatibility and migration," describe any impact on existing code,
+configuration, integrations, or saved logs and data, including behavior
+changes that do not alter an API signature. Say who is affected and what they
+need to change; if there is no impact, briefly explain why. In "Validation,"
+report what you ran, its outcome, and any checks you could not run. Run
+`make check` and `make test` before pushing.
 
 **Review expectations:** we aim to review every PR, given time. A PR that goes
 inactive for 60 days is closed by the stale bot with an invitation to reopen —
