@@ -128,17 +128,30 @@ class FakeDocker:
         ) -> str:
             return default
 
+        async def get_ports_info(container: str) -> None:
+            return None
+
         async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
             self.running.discard(project.name)
             self.events.append(f"down:{project.sample_id}")
 
-        async def compose_ps(
-            project: ComposeProject, status: str | None = None, all: bool = False
-        ) -> list[dict[str, Any]]:
-            self.reported.append(f"ps:{project.sample_id}")
+        def containers(project: ComposeProject) -> list[dict[str, Any]]:
             if project.name in self.running:
                 return [{"Name": f"{project.name}-default-1", "Service": "default"}]
             return []
+
+        async def compose_ps(
+            project: ComposeProject, status: str | None = None, all: bool = False
+        ) -> list[dict[str, Any]]:
+            # the "not yet cleaned up" report's lookup (cleanup.py)
+            self.reported.append(f"ps:{project.sample_id}")
+            return containers(project)
+
+        async def connection_ps(
+            project: ComposeProject, status: str | None = None, all: bool = False
+        ) -> list[dict[str, Any]]:
+            # connection()'s lookup (docker.py), not a cleanup report
+            return containers(project)
 
         monkeypatch.setattr(config_module, "inspect_data_dir", fake_data_dir)
         monkeypatch.setattr(docker_module, "validate_prereqs", validate_prereqs)
@@ -159,6 +172,11 @@ class FakeDocker:
         )
         monkeypatch.setattr(cleanup_module, "compose_down", compose_down)
         monkeypatch.setattr(cleanup_module, "compose_ps", compose_ps)
+        # connection() (called when a sample's sandbox events are logged)
+        # queries the daemon through docker.py's own import of compose_ps and
+        # then inspects the container it reports
+        monkeypatch.setattr(docker_module, "compose_ps", connection_ps)
+        monkeypatch.setattr(docker_module, "get_ports_info", get_ports_info)
 
     def generated_files(self) -> list[str]:
         return sorted(p.name for p in auto_compose_dir().glob("*.yaml"))
@@ -785,6 +803,7 @@ async def test_independent_evaluations_do_not_share_cleanup_state(
 
 
 @skip_if_no_docker
+@pytest.mark.slow
 def test_docker_empty_seed_sample_source() -> None:
     """An empty-seed SampleSource task with `sandbox="docker"` runs its added sample."""
     source = _AddOne("next_samples", Sample(input="added"))
