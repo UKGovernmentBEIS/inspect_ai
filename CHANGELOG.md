@@ -6,6 +6,8 @@
 - Scoring: `match()`, `includes()`, `exact()`, `f1()`, `pattern()` and `answer()` now record `reason="no_response"` when the raw model completion is empty or whitespace only, so a model that returned nothing is distinguishable from one that answered wrong. Score values are unchanged. (#5376)
 - Grok: Non-streaming requests cut off by `attempt_timeout` are now retried, and ones cut off by a sample `time_limit` are recorded as that limit, instead of failing with a bare cancellation.
 - Bugfix: Samples whose solver is cut off by a cancellation that inspect did not issue are now recorded as sample errors instead of being scored as completed.
+- Bugfix: `f1()` no longer ignores repeated tokens; answers that repeat a target word now pay a precision cost, matching SQuAD F1.
+
 
 ## 0.3.268 (22 September 2026)
 
@@ -33,7 +35,6 @@
 - Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
 - Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
 - Anthropic: Support for Claude Opus 5.5 (`claude-opus-5-5`): thinking can't be disabled, forced tool choice degrades to auto, and computer use is not yet supported on the Claude API and Vertex.
-- Bugfix: `f1()` no longer ignores repeated tokens; answers that repeat a target word now pay a precision cost, matching SQuAD F1.
 
 ## 0.3.266 (19 September 2026)
 
