@@ -35,7 +35,6 @@ from inspect_ai.log._condense import (
     CallWalkCache,
     WalkContext,
     attachment_refs_from_object,
-    resolve_call_attachments,
     resolve_events_attachments,
 )
 from inspect_ai.model._chat_message import ChatMessageBase
@@ -654,16 +653,13 @@ class Transcript:
         """Append condensed events restored from a checkpoint.
 
         The events are stored and delivered to subscribers with their
-        ``attachment://`` references resolved from ``attachments``, as live
-        events are: subscribers see the model call resolved and the resident
-        event keeps it condensed. The call is resolved per event at
-        notification and dropped after it, with message rows shared across
-        calls resolved once, so a long resume does not hold every call's
-        expanded conversation at once. ``attachments`` is retained and each
-        event's references are counted from its condensed form, so the
-        checkpointer can seed its transcript store from the condensed events
-        and bounded eviction releases them as before. The caller's events are
-        not mutated.
+        ``attachment://`` references resolved from ``attachments``, except
+        ``ModelEvent.call``, which stays condensed (resolving every restored
+        call payload is costly and only the raw API-call view reads it).
+        ``attachments`` is retained and each event's references are counted
+        from its condensed form, so the checkpointer can seed its transcript
+        store from the condensed events and bounded eviction releases them as
+        before. The caller's events are not mutated.
         """
         condensed_events = self._normalize_seeded_events(events)
         event_keys: list[str] = []
@@ -678,7 +674,6 @@ class Transcript:
         resolved_events = resolve_events_attachments(
             condensed_events, attachments, "core"
         )
-        resolved_call_messages: dict[int, tuple[JsonValue, JsonValue]] = {}
         self._attachments.update(attachments)
         for condensed, event, event_key in zip(
             condensed_events, resolved_events, event_keys
@@ -691,13 +686,7 @@ class Transcript:
             self._update_pending(event)
             self._update_evictable_state(event)
             if notify_subscribers:
-                if isinstance(event, ModelEvent) and event.call is not None:
-                    event.call = resolve_call_attachments(
-                        event.call, attachments, resolved_call_messages
-                    )
                 self._notify_subscribers(event)
-            if isinstance(event, ModelEvent) and isinstance(condensed, ModelEvent):
-                event.call = condensed.call
         self._evict_events()
 
     def _event_updated(self, event: Event) -> None:

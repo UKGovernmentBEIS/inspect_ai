@@ -2713,7 +2713,8 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
     The checkpoint stores long text and images as ``attachment://`` refs.
     Transcript subscribers (the sample buffer, hooks, the ACP router) and
     readers of the resident events must see the content, as they do for
-    live events; the next checkpoint must still hold it.
+    live events, except the model call, which stays condensed; the next
+    checkpoint must still hold it.
     """
     from types import SimpleNamespace
 
@@ -2771,8 +2772,8 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
     # the resume pushes it into a transcript with live subscribers
     live = Transcript(bounded=False)
     init_transcript(live)
-    delivered: list[str] = []
-    live._subscribe(lambda event: delivered.append(event.model_dump_json()))
+    delivered: list[Event] = []
+    live._subscribe(delivered.append)
     session = LiveAcpTransport()
     session._attachable_override = True
     published: list[Any] = []
@@ -2786,10 +2787,14 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
     ):
         _push_host_state(host, str(sample_root), 1)
 
-    subscribed = "".join(delivered)
+    subscribed = "".join(event.model_dump_json(exclude={"call"}) for event in delivered)
     assert "attachment://" not in subscribed
     for content in (prompt, answer, command, image):
         assert content in subscribed
+    delivered_model = next(e for e in delivered if isinstance(e, ModelEvent))
+    assert delivered_model.call is not None
+    call_content = str(delivered_model.call.request["messages"])
+    assert prompt not in call_content and "attachment://" in call_content
 
     acp = "".join(notification.model_dump_json() for notification in published)
     assert "attachment://" not in acp
@@ -2803,10 +2808,6 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
     assert resident_model.output.completion == answer
     resident_tool = next(e for e in live.events if isinstance(e, ToolEvent))
     assert resident_tool.arguments == {"cmd": command}
-    # like a live event's, the resident model call stays condensed
-    assert resident_model.call is not None
-    call_content = str(resident_model.call.request["messages"])
-    assert prompt not in call_content and "attachment://" in call_content
 
     # the next checkpoint still holds the restored content
     hydration = _fake_hydration(str(sample_root), str(tmp_path / "resumed-state"))
