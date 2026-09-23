@@ -83,5 +83,6 @@ jobs:
           push: ${{ github.event.inputs.push }}
           platforms: ${{ github.event.inputs.platforms }}
           tags: ${{ github.event.inputs.org }}/${{ github.event.inputs.image }}:${{ github.event.inputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Release images are built from scratch: no layers are reused from
+          # earlier builds and none are exported for later ones.
+          no-cache: true

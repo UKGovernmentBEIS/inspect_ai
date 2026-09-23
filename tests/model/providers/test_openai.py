@@ -722,6 +722,77 @@ async def test_openai_gpt_6_astra_tool_call() -> None:
     assert output.message.tool_calls[0].function == "addition"
 
 
+# -- GPT-6 Sol / Luna (live) --
+#
+# Unlike Astra, Sol and Luna accept `reasoning_effort="none"`, in which case
+# sampling params are sent through. Both are gated per-account like Astra.
+
+
+async def _gpt_6_generate(model_name: str) -> None:
+    # no effort set: the model reasons at its default (medium) and temperature
+    # is dropped with a warning rather than sent, so this must not 400
+    model = get_model(f"openai/{model_name}", config=GenerateConfig(temperature=0.5))
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+    assert output.usage is not None
+
+
+async def _gpt_6_none_effort_with_temperature(model_name: str) -> None:
+    # `none` is sent as-is and temperature is sent alongside it
+    model = get_model(
+        f"openai/{model_name}",
+        config=GenerateConfig(reasoning_effort="none", temperature=0.5),
+    )
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+    assert output.usage is not None
+    assert (output.usage.reasoning_tokens or 0) == 0
+
+
+async def _gpt_6_max_effort(model_name: str) -> None:
+    model = get_model(
+        f"openai/{model_name}", config=GenerateConfig(reasoning_effort="max")
+    )
+    output = await model.generate([ChatMessageUser(content="What is 2 + 2?")])
+    assert "4" in output.completion
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-sol")
+async def test_openai_gpt_6_sol_generate() -> None:
+    await _gpt_6_generate("gpt-6-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-sol")
+async def test_openai_gpt_6_sol_none_effort_with_temperature() -> None:
+    await _gpt_6_none_effort_with_temperature("gpt-6-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-sol")
+async def test_openai_gpt_6_sol_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-luna")
+async def test_openai_gpt_6_luna_generate() -> None:
+    await _gpt_6_generate("gpt-6-luna")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-luna")
+async def test_openai_gpt_6_luna_none_effort_with_temperature() -> None:
+    await _gpt_6_none_effort_with_temperature("gpt-6-luna")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6-luna")
+async def test_openai_gpt_6_luna_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6-luna")
+
+
 # -- skip_if_no_openai_model gate (no network) --
 
 

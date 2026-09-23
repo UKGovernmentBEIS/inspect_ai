@@ -111,7 +111,7 @@ def test_reasoning_content_moonshot():
 @pytest.mark.slow
 @skip_if_no_deepseek
 def test_reasoning_content_deepseek():
-    check_reasoning_round_trip("deepseek/deepseek-v4-flash")
+    check_reasoning_round_trip("deepseek/deepseek-flash")
 
 
 @pytest.mark.slow
