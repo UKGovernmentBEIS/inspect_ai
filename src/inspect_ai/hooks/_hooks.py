@@ -191,7 +191,7 @@ class SampleEnd:
     sample_id: str
     """The globally unique identifier for the sample execution."""
     sample: EvalSample
-    """The sample that has run."""
+    """Completed sample; see ``Hooks.needs_full_sample`` for optional history reduction."""
 
 
 @dataclass(frozen=True)
@@ -405,7 +405,17 @@ class Hooks:
         variable or a configuration setting.
 
         Will be called frequently, so consider caching the result if the computation is
-        expensive.
+        expensive. Keep the value stable during a sample so finalization can determine
+        whether the hook needs the full sample before dispatching ``on_sample_end``.
+        """
+        return True
+
+    def needs_full_sample(self) -> bool:
+        """Whether ``on_sample_end`` requires the fully materialized sample.
+
+        Defaults to ``True``. Summary-only hooks may return ``False`` to allow
+        empty ``events`` and ``attachments`` and ``timelines=None``. They must
+        also accept a full sample when another consumer needs its history.
         """
         return True
 
@@ -1089,6 +1099,21 @@ def get_all_hooks() -> list[Hooks]:
         )
         _hooks_cache_state = state
     return _hooks_cache
+
+
+def any_hook_needs_full_sample() -> bool:
+    """Whether any enabled hook needs full history, assuming it does on error."""
+    for hook in get_all_hooks():
+        try:
+            if hook.enabled() and hook.needs_full_sample():
+                return True
+        except Exception as ex:
+            logger.warning(
+                f"Exception consulting enabled()/needs_full_sample() on hook "
+                f"'{hook.__class__.__name__}': {ex}"
+            )
+            return True
+    return False
 
 
 async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> None:

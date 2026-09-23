@@ -87,6 +87,12 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .file import FileRecorder, write_local_snapshot
+from .json_write import (
+    BinaryWriteStream,
+    write_events_data_field,
+    write_json_array_field,
+    write_json_object_field,
+)
 from .recorder import SampleRecordKey, exclude_sample_fields, sample_read_exclusions
 
 logger = getLogger(__name__)
@@ -1108,7 +1114,8 @@ class ZipLogFile:
             attachments = _sample_history_attachments(
                 sample, history, events, events_data
             )
-            sample_data: dict[str, Any] = jsonable_dict(
+            # Serialize history separately to avoid a second full-sample copy.
+            header: dict[str, JsonValue] = jsonable_dict(
                 sample.model_dump(
                     mode="python",
                     exclude_none=True,
@@ -1116,15 +1123,29 @@ class ZipLogFile:
                     fallback=lambda _x: None,
                 )
             )
-            sample_data.update(
-                {
-                    "events": events,
-                    "attachments": attachments,
-                    "events_data": events_data,
-                }
-            )
-
-            self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample_data)
+            header_bytes = to_json_safe(header, indent=None)
+            # A truncated sample member makes the entire log unreadable.
+            # Keep yielding, but defer cancellation until the entry is complete.
+            with anyio.CancelScope(shield=True):
+                filename = _sample_filename(sample.id, sample.epoch)
+                try:
+                    with self._zip_open_write(filename) as stream:
+                        # Required id/epoch fields make the header non-empty.
+                        stream.write(header_bytes[:-1])
+                        await write_json_array_field(
+                            stream, "events", events, comma=True
+                        )
+                        await write_json_object_field(
+                            stream, "attachments", attachments, comma=True
+                        )
+                        await write_events_data_field(stream, events_data, comma=True)
+                        stream.write(b"}")
+                except BaseException:
+                    # Supersede the truncated member with a readable stub.
+                    # Timeline UUIDs cannot resolve against the stub's empty events.
+                    header.pop("timelines", None)
+                    self._zip_writestr(filename, header)
+                    raise
 
             key = SampleRecordKey(str(sample.id), sample.epoch)
             # evict a buffered prior record for the same (id, epoch): its
@@ -1717,16 +1738,21 @@ class ZipLogFile:
             )
 
     @contextmanager
-    def _zip_open_write(self, filename: str) -> Generator[IO[bytes], None, None]:
-        """Open a ZIP entry for streaming writes.
-
-        Returns a writable binary stream. The caller writes raw bytes
-        (typically JSON) directly. The entry is finalized when the
-        context manager exits.
-        """
+    def _zip_open_write(
+        self, filename: str
+    ) -> Generator[BinaryWriteStream, None, None]:
+        """Open a ZIP entry, finalizing it on exit; duplicate names supersede."""
         assert self._zip
-        with self._zip.open(filename, "w", force_zip64=True) as stream:
+        # Warning filters are process-global; don't hold them across caller awaits.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Duplicate name:", category=UserWarning
+            )
+            stream = self._zip.open(filename, "w", force_zip64=True)
+        try:
             yield stream
+        finally:
+            stream.close()
 
 
 def _sample_history_attachments(
