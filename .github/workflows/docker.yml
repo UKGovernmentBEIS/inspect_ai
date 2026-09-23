@@ -74,8 +74,6 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v4
-        with:
-          install: true
       - name: Build and (optionally) push multi-arch image
         uses: docker/build-push-action@v7
         with:
