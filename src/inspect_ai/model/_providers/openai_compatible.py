@@ -47,9 +47,9 @@ from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIResponseError,
+    always_reasons_model,
     is_gpt_5_model,
     is_gpt_5_plus_model,
-    is_gpt_6_model,
     is_o_series_model,
     messages_to_openai,
     model_output_from_openai,
@@ -231,7 +231,10 @@ class OpenAICompatibleAPI(ModelAPI):
                 safety_identifier=NOT_GIVEN,
                 responses_store=self.responses_store,
                 synthesize_phase=self.responses_phase,
-                model_info=ModelInfo(self.model_family()),
+                model_info=ModelInfo(
+                    self.model_family(),
+                    supports_max_reasoning_effort=self.supports_max_reasoning_effort(),
+                ),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
                 streaming=self.resolve_stream(config),
@@ -417,6 +420,15 @@ class OpenAICompatibleAPI(ModelAPI):
         """
         return JSON_SCHEMA_EXTENDED_FIELDS
 
+    def supports_max_reasoning_effort(self) -> bool:
+        """Whether the service accepts `reasoning_effort="max"` for this model.
+
+        Recognizes the OpenAI model families that ship `max`; a provider whose
+        service documents `max` for other models overrides this. The Responses
+        request builder submits `max` as `xhigh` when this is false.
+        """
+        return supports_native_max_reasoning_effort(self.model_family())
+
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = openai_completion_params(
             model=self.service_model_name(),
@@ -544,8 +556,15 @@ def _resolve_chat_choice(
 
 
 class ModelInfo(ResponsesModelInfo):
-    def __init__(self, model_family: str = "") -> None:
+    def __init__(
+        self,
+        model_family: str = "",
+        supports_max_reasoning_effort: bool | None = None,
+    ) -> None:
         self.model_family = model_family.lower()
+        # a provider's own answer for `max` reasoning support; None keeps the
+        # OpenAI-family detection
+        self._supports_max_reasoning_effort = supports_max_reasoning_effort
 
     def has_reasoning_options(self) -> bool:
         return True
@@ -562,8 +581,8 @@ class ModelInfo(ResponsesModelInfo):
     def is_gpt_5_plus(self) -> bool:
         return is_gpt_5_plus_model(self.model_family)
 
-    def is_gpt_6(self) -> bool:
-        return is_gpt_6_model(self.model_family)
+    def always_reasons(self) -> bool:
+        return always_reasons_model(self.model_family)
 
     def is_gpt_5(self) -> bool:
         return is_gpt_5_model(self.model_family)
@@ -572,6 +591,8 @@ class ModelInfo(ResponsesModelInfo):
         return self.is_gpt_5() and "-pro" in self.model_family
 
     def supports_max_reasoning_effort(self) -> bool:
+        if self._supports_max_reasoning_effort is not None:
+            return self._supports_max_reasoning_effort
         return supports_native_max_reasoning_effort(self.model_family)
 
     def reasons_by_default(self) -> bool:

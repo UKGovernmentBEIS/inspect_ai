@@ -20,9 +20,11 @@ from inspect_ai._cli.eval import (
     parse_run_config,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import list_eval_logs, read_eval_log
 from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.review._policy import ReviewPolicyConfig
 from inspect_ai.solver import SolverSpec, solver
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -233,9 +235,13 @@ def test_run_config_eval_config_all_fields() -> None:
         "acp_server": False,
     }
     assert set(values) == set(EvalConfig.model_fields) - {"epochs", "epochs_reducer"}
-    expected = EvalConfig.model_validate(values).model_dump(exclude_none=True)
-    assert (
-        RunConfigInput.model_validate({"eval_config": values}).to_params() == expected
+    expected = EvalConfig.model_validate(values)
+    params = RunConfigInput.model_validate({"eval_config": values}).to_params()
+    # policy sections pass through as validated models, everything else as values
+    assert params.pop("approval") == expected.approval
+    assert params.pop("review") == expected.review
+    assert params == expected.model_dump(
+        exclude_none=True, exclude={"approval", "review"}
     )
 
 
@@ -674,6 +680,33 @@ def test_eval_set_rejects_run_config(tmp_path: Path) -> None:
     assert result.exit_code != 0
     assert isinstance(result.exception, PrerequisiteError)
     assert result.exception.message == "--run-config is only supported by inspect eval."
+
+
+def test_run_config_preserves_approval_policy_type(tmp_path: Path):
+    params = RunConfigInput.model_validate(
+        {
+            "eval_config": {
+                "approval": {
+                    "approvers": [
+                        {
+                            "name": "auto",
+                            "tools": "*",
+                            "params": {"decision": "approve"},
+                        }
+                    ]
+                }
+            }
+        }
+    ).to_params()
+
+    assert isinstance(params["approval"], ApprovalPolicyConfig)
+    log = eval(
+        "tests/test_eval_config.py@eval_config_task",
+        model="mockllm/model",
+        log_dir=tmp_path.as_posix(),
+        **params,
+    )[0]
+    assert log.eval.config.approval == params["approval"]
 
 
 def test_eval_config_task():
@@ -1374,3 +1407,10 @@ TEST_EVAL_CONFIG_PATH = Path("tests/test_eval_config")
 
 def config_path(file: str) -> str:
     return (TEST_EVAL_CONFIG_PATH / file).as_posix()
+
+
+def test_run_config_preserves_review_policy_type() -> None:
+    params = RunConfigInput.model_validate(
+        {"eval_config": {"review": {"reviewers": []}}}
+    ).to_params()
+    assert isinstance(params["review"], ReviewPolicyConfig)

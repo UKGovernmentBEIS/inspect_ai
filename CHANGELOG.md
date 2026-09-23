@@ -1,5 +1,42 @@
-## Unreleased
+## 0.3.268 (22 September 2026)
 
+- Agent Bridge: Bridged Anthropic requests no longer fail under anthropic SDK 1.8.0 or later, including requests with iterator, file-path or pydantic inputs.
+
+## 0.3.267 (22 September 2026)
+
+- Anthropic: Computer use now works on Claude Opus 5.5, Fable 5/5.1 and Mythos 5/5.1 via Anthropic's `computer_toolset_20260801` toolset; pass `-M computer_toolset=true` to use the toolset on Claude Opus 4.8, Sonnet 5 and Opus 5.
+- Computer Use: the `key` action now honors `repeat`.
+- Checkpointing: A pre-existing entry planted at the in-sandbox work area (`/root/.cache/inspect`), or a parent `/root/.cache` that other users could modify, now fails checkpoint setup and restore with a clear error instead of being reused.
+- Agent Bridge: Approval policies now match bridged host tools that a sandboxed agent calls through a single MCP dispatcher function (Antigravity's `call_mcp_tool`) by the tool's own name, and approvers see and modify the tool's own arguments.
+- Sample and Task Sources: a new `sample_abandoned()` hook reports a sample cancelled before anything was logged (cancelled while queued, or before its `retry_on_error` re-run), so a source waiting on it no longer stalls.
+- Faster `inspect` CLI startup and `import inspect_ai`; `InputRequest` and `request_input` now annotate `schema` by name only, so `typing.get_type_hints` and pydantic schema generation for `InputRequest` are unsupported.
+- Bugfix: Approval policies in run-config files now load correctly instead of failing evaluation startup with an `AttributeError`.
+- Added `read_eval_log_sample_summaries_async` and three other async log readers to the public `inspect_ai.log` exports.
+- Meta: New `meta` provider for Muse Spark models on the Meta Model API, which streams by default, preserves model reasoning across turns, and reports policy-blocked prompts as content filter stops.
+- OpenAI: Support for GPT-6 Sol (`gpt-6-sol`) and GPT-6 Luna (`gpt-6-luna`), including `reasoning_effort="none"`, which these models accept (GPT-6 Astra does not).
+- OpenAI: Responses API requests no longer fail validation when a compatible service omits `model` from its response.
+- Agent Bridge: An unexpected exception from a host tool called through `sandbox_agent_bridge(bridged_tools=...)` now fails the sample as a native tool exception does, and malformed arguments are reported to the model as a parsing error.
+- Grok: Support for Grok 4.7.
+- Bugfix: `bash_session` no longer sends the literal string "None" to the shell when `type_submit` is called without `input`.
+- Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
+- Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
+- Anthropic: Fixed model construction failing with a `default_headers` TypeError when `ANTHROPIC_AUTH_TOKEN` is set and the caller supplies its own default headers.
+- Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
+- Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
+- Anthropic: Support for Claude Opus 5.5 (`claude-opus-5-5`): thinking can't be disabled, forced tool choice degrades to auto, and computer use is not yet supported on the Claude API and Vertex.
+
+## 0.3.266 (19 September 2026)
+
+- Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the "scorer couldn't be loaded" guidance rather than a raw traceback.
+- Control channel: the `inspect ctl task score` interim-metrics payload now reports each entry's originating scorer under `scorer` and the score's name under `name` (previously `scorer` held the score name). This lets consumers disambiguate scores from dict-valued scorers — where several scorers can share a score name — and reconstruct the `EvalScore` needed to resolve a task's headline metric. Breaking for clients that read the old `scorer` field as the score name.
+
+## 0.3.265 (17 September 2026)
+
+- Agent Bridge: Bridged host tools are no longer denied under an approval policy when the sandboxed agent presents them to its model under a different name.
+
+## 0.3.264 (16 September 2026)
+
+- Agent Bridge: Sandboxed agents using the Responses API no longer stall after a single model turn when the model calls a tool; `function_call` and `custom_tool_call` output items now carry a non-null item id, and streamed custom tool calls now report `completed` status so client SDKs dispatch them.
 - Bugfix: Closing cached S3 sessions after an eval no longer leaves s3fs to close them again at garbage collection, which raised a stray `AssertionError: Session was never entered` in unrelated code.
 - Bugfix: Task failures no longer report an internal "no running event loop" error in place of the original exception.
 - Anthropic: `cache_ttl` now defaults to "auto", which switches a sample's prompt-cache TTL from 5 minutes to 1 hour after a >5 minute gap between its requests; pass "5m" or "1h" to pin.
@@ -21,6 +58,7 @@
 - Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
 - Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
 - Agent Bridge: Web search and code execution items from Google and Mistral models now reach Responses API clients with a unique item id instead of an empty one.
+- Agent Bridge: Custom tool calls returned to Responses API clients now preserve their registered namespace.
 - Scoring: `multiple_choice()` now recognizes answer letters wrapped in LaTeX or markdown (`$B$`, `**B**`, `(B)`), which previously scored INCORRECT.
 - Scoring: `perplexity()` and `target_perplexity()` now record infinite perplexity for a sample whose NLL is too large to exponentiate instead of losing the sample to an `OverflowError`.
 - Datasets: `csv_dataset()` now honors the dialect's delimiter when no explicit delimiter is supplied, including tab-separated and registered custom dialects.
@@ -51,6 +89,7 @@
 - Groq: An over-capacity, server, or rate-limit error delivered inside a streamed response is now retried instead of failing the sample, and a streamed context-length rejection yields `model_length` output.
 - Bedrock, Groq, Mistral, Azure AI: Transient errors delivered mid-stream (throttling, capacity, dropped connections) are now retried instead of failing the sample or returning a truncated output.
 - Agent bridge: Bridged OpenAI and Google requests with a malformed `tool_choice`/`toolConfig` now return a 400 naming the bad field instead of a status-less error, and a non-string tool name no longer poisons the sample transcript.
+- Agent bridge: The sandbox agent bridge model proxy no longer advertises cross-origin access, so browser-origin clients of the proxy are not accepted.
 - Eval Set: A retry attempt that itself errors or is interrupted no longer causes the next attempt to re-run (or, with `retry_cleanup`, lose) samples an earlier attempt completed.
 - Eval Log: Reading a sample from a `.json` log by id now matches the id's string form exactly, as `.eval` logs always have (`1` finds `"1"`), instead of also matching zero-padded numeric forms such as `"001"`.
 - Eval Log: A sample still running when an eval crashed now records when it started in the recovered log and the realtime sample view.
@@ -839,7 +878,7 @@
 - [`ask_user()`](https://inspect.aisi.org.uk/tools-standard.html#ask-user) tool: model can solicit a structured answer from the operator.
 - [`notify_user()`](https://inspect.aisi.org.uk/tools-standard.html#notify-user) tool: model can send status notifications to the operator.
 - [Notifications](https://inspect.aisi.org.uk/intervention.html#notifications) via [Apprise](https://appriseit.com) (Slack, desktop, SMS, email, webhook, ~90 services).
-- [`request_input()`](https://inspect.aisi.org.uk/interactivity.html) public API: programmatic structured prompts from solvers, agents, or tools, using the same dispatch surfaces as `ask_user()`.
+- [`request_input()`](https://inspect.aisi.org.uk/intervention.html) public API: programmatic structured prompts from solvers, agents, or tools, using the same dispatch surfaces as `ask_user()`.
 - Text Editor Tool: Cap undo history to 10 and no longer consider failures in undo history file operations fatal.
 - Reasoning: Correctly parse nested `<think>` blocks without exposing inner reasoning text as visible model output.
 
@@ -2484,7 +2523,7 @@
 
 ## v0.3.97 (16 May 2025)
 
-- React agent: Use of `submit()` tool is now [optional](https://inspect.aisi.org.uk/agent.html#submit-tool).
+- React agent: Use of `submit()` tool is now [optional](https://inspect.aisi.org.uk/react-agent.html).
 - Agents: `is_agent()` typeguard function for checking whether an object is an `Agent`.
 - Anthropic: Show warning when generation config incompatible with extended thinking is used (affects `temperature`, `top_p`, and `top_k`).
 - AzureAI: Don't include `tools` or `tool_choice` in  requests when emulating tool calling (avoiding a 400 error).
@@ -2844,7 +2883,7 @@
 
 ## v0.3.70 (25 February 2025)
 
-- [working_limit](https://inspect.aisi.org.uk/errors_and_limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
+- [working_limit](https://inspect.aisi.org.uk/setting-limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
 - Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
 - Sandboxes: `as_type()` function for checked downcasting of `SandboxEnvironment`
 - Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).
@@ -3035,7 +3074,7 @@
 ## v0.3.56 (01 January 2025)
 
 - [Human Agent](https://inspect.aisi.org.uk/human-agent.html) solver for human baselining of computing tasks.
-- [Typed interfaces](https://inspect.aisi.org.uk/typing.html) to `Sample` store and metadata using Pydantic models.
+- [Typed interfaces](https://inspect.aisi.org.uk/datasets.html) to `Sample` store and metadata using Pydantic models.
 - [Approval policies](https://inspect.aisi.org.uk/approval.html#task-approvers) can now be defined at the `Task` level (`eval` level approval policies take precedence).
 - Tools can now return `ContentText` and `ContentImage`.
 - Move tool result images into subsequent user messages for models that don't support tools returning images.
@@ -3180,7 +3219,7 @@
 
 ## v0.3.45 (11 November 2024)
 
-- [time_limit](https://inspect.aisi.org.uk/errors_and_limits.html#sample-limits) option for specifying a maximum execution time for samples.
+- [time_limit](https://inspect.aisi.org.uk/setting-limits.html#sample-limits) option for specifying a maximum execution time for samples.
 - [read_eval_log_samples()](https://inspect.aisi.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.
 - Mistral: Support for multi-modal models (requires v1.2 of mistralai package).
 - Groq: Support for multi-modal models (requires v0.11.0 of groq package).
@@ -3254,9 +3293,9 @@
 ## v0.3.41 (11 October 2024)
 
 - [Approval mode](https://inspect.aisi.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).
-- [Trace mode](https://inspect.aisi.org.uk/interactivity.html#sec-trace-mode) for printing model interactions to the terminal.
+- [Trace mode](https://inspect.aisi.org.uk/log-viewer.html) for printing model interactions to the terminal.
 - Add `as_dict()` utility method to `Score`
-- [Sample limits](https://inspect.aisi.org.uk/errors_and_limits.html#sample-limits) (`token_limit` and `message_limit`) for capping the number of tokens or messages used per sample ( `message_limit` replaces deprecated `max_messages`).
+- [Sample limits](https://inspect.aisi.org.uk/setting-limits.html#sample-limits) (`token_limit` and `message_limit`) for capping the number of tokens or messages used per sample ( `message_limit` replaces deprecated `max_messages`).
 - Add `metadata` field to `Task` and record in log `EvalSpec`.
 - Include datetime and level in file logger.
 - Correct llama3 and o1 tool calling when empty arguments passed.
@@ -3381,7 +3420,7 @@
 - Catch and propagate Anthropic content filter exceptions as normal "content_filter" responses.
 - Fix issue with failure to report metrics if all samples had a score value of 0.
 - Improve concurrency of Bedrock models by using aioboto3.
-- Added [SWE Bench](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/swe_bench), [GAIA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gaia), and [GDM CTF](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/in_house_ctf) evals.
+- Added [SWE Bench](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/swe_bench), [GAIA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gaia), and [GDM CTF](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_in_house_ctf) evals.
 
 ## v0.3.29 (16 September 2024)
 
@@ -3412,7 +3451,7 @@
 - Cleanup Docker containers that fail during sample init.
 - Add support for computing metrics for both individual keys within a dictionary but also for the dictionary as a whole
 - Fix for Vertex tool calling (don't pass 'additionalProperties').
-- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_evals/ifeval/), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mbpp) benchmarks.
+- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/ifeval), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mbpp) benchmarks.
 
 ## v0.3.27 (6 September 2024)
 
@@ -3426,7 +3465,7 @@
 
 - [Eval Sets](https://inspect.aisi.org.uk/eval-sets.html) for running groups of tasks with automatic retries.
 - [Per-sample](https://inspect.aisi.org.uk/sandboxing.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
-- [input_screen()](https://inspect.aisi.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
+- [input_screen()](https://inspect.aisi.org.uk/intervention.html) context manager to temporarily clear task display for user input.
 - Introduce two new scorers, `f1()` (precision and recall in text matching) and `exact()` (whether normalized text matches exactly).
 - Task `metrics` now override built in scorer metrics (previously they were merged). This enables improved re-use of existing scorers where they only change required is a different set of metrics.
 - `write_log_dir_manifest()` to write a log header manifest for a log directory.
@@ -3452,7 +3491,7 @@
 - [fail_on_error](https://inspect.aisi.org.uk/errors-and-limits.html#failure-threshold) option to tolerate some threshold of sample failures without failing the evaluation.
 - Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
 - Add `function` field to `ChatMessageTool` to indicate the name of the function called.
-- Added [RACE](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/race-h/) benchmark.
+- Added [RACE](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/race_h) benchmark.
 
 ## v0.3.24 (18 August 2024)
 

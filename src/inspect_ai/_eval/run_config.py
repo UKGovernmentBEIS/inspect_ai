@@ -144,6 +144,12 @@ class RunConfig(BaseModel):
 
         # Eval config — combine epochs + epochs_reducer into Epochs
         ec = self.eval_config.model_dump(exclude_none=True)
+        # Policy sections stay validated models rather than dicts: eval()
+        # reads attributes off them at startup (#5447 fixed approval; review
+        # has the same shape).
+        for policy in ("approval", "review"):
+            if policy in ec:
+                ec[policy] = getattr(self.eval_config, policy)
         epochs = ec.pop("epochs", None)
         epochs_reducer = ec.pop("epochs_reducer", None)
         if epochs is not None:
