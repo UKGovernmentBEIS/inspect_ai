@@ -35,6 +35,7 @@ from inspect_ai.log._condense import (
     CallWalkCache,
     WalkContext,
     attachment_refs_from_object,
+    resolve_events_attachments,
 )
 from inspect_ai.model._chat_message import ChatMessageBase
 from inspect_ai.model._model_call import ModelCall
@@ -649,27 +650,44 @@ class Transcript:
         *,
         notify_subscribers: bool = False,
     ) -> None:
-        events = self._normalize_seeded_events(events)
+        """Append condensed events restored from a checkpoint.
+
+        The events are stored and delivered to subscribers with their
+        ``attachment://`` references resolved from ``attachments``, as live
+        events are: subscribers see the model call resolved and the resident
+        event keeps it condensed. ``attachments`` is retained and each event's
+        references are counted from its condensed form, so the checkpointer
+        can seed its transcript store from the condensed events and bounded
+        eviction releases them as before. The caller's events are not mutated.
+        """
+        condensed_events = self._normalize_seeded_events(events)
         event_keys: list[str] = []
         new_event_keys: set[str] = set()
-        for event in events:
+        for event in condensed_events:
             event_key = self._ensure_event_key(event)
             if event_key in self._resident_event_ids or event_key in new_event_keys:
                 raise ValueError(f"Duplicate event uuid: {event_key}")
             event_keys.append(event_key)
             new_event_keys.add(event_key)
 
+        resolved_events = resolve_events_attachments(
+            condensed_events, attachments, "full" if notify_subscribers else "core"
+        )
         self._attachments.update(attachments)
-        for event, event_key in zip(events, event_keys):
+        for condensed, event, event_key in zip(
+            condensed_events, resolved_events, event_keys
+        ):
             self._events.append(event)
             self._resident_event_ids.add(event_key)
-            self._set_attachment_refs(event)
+            self._set_attachment_refs(condensed)
             self._event_count += 1
             self._update_pin_state(event)
             self._update_pending(event)
             self._update_evictable_state(event)
             if notify_subscribers:
                 self._notify_subscribers(event)
+            if isinstance(event, ModelEvent) and isinstance(condensed, ModelEvent):
+                event.call = condensed.call
         self._evict_events()
 
     def _event_updated(self, event: Event) -> None:
