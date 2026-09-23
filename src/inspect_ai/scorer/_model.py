@@ -282,8 +282,7 @@ def _model_graded_qa_single(
 
     async def score(state: TaskState, target: Target) -> Score:
         # resolve model
-        nonlocal model
-        model = model if isinstance(model, Model) else get_model(model)
+        grader = model if isinstance(model, Model) else get_model(model)
 
         # metadata without grading template variables
         metadata = omit(
@@ -309,7 +308,7 @@ def _model_graded_qa_single(
         )
 
         # query the model for the score
-        result = await model.generate([scoring_prompt])
+        result = await grader.generate([scoring_prompt])
 
         # extract the grade
         match = re.search(resolved_grade_pattern, result.completion)

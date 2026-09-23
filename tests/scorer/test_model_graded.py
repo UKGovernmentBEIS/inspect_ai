@@ -15,16 +15,18 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageUser,
+    GenerateConfig,
     Model,
     ModelName,
     ModelRole,
 )
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import get_model, init_active_model, init_model_roles
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
     PARTIAL,
+    Score,
     Scorer,
     Target,
     model_graded_fact,
@@ -365,6 +367,96 @@ def test_model_graded_scorer_explicit_model_overrides_role_list() -> None:
     assert log.samples
     assert log.samples[0].scores is not None
     assert list(log.samples[0].scores.values())[0].value == CORRECT
+
+
+def _repeating_grader(text: str) -> Model:
+    # answers every call, so a grader wrongly reused for a later call shows up
+    # as a wrong grade rather than as exhausted mock outputs
+    return get_model(
+        "mockllm/model",
+        custom_outputs=lambda *_: ModelOutput.from_content("mockllm/model", text),
+    )
+
+
+async def _score_in_context(
+    scorer: Scorer, active: Model, roles: dict[str, Model | list[Model]]
+) -> Score:
+    init_active_model(active, GenerateConfig())
+    init_model_roles(roles)
+    state = TaskState(
+        model=ModelName("mockllm/model"),
+        sample_id=1,
+        epoch=1,
+        input="What is 1 + 1?",
+        messages=[],
+        output=ModelOutput.from_content("mockllm/model", "2"),
+    )
+    score = await scorer(state, Target("2"))
+    assert score is not None
+    return score
+
+
+async def _score_in_contexts(
+    scorer: Scorer, contexts: list[tuple[Model, dict[str, Model | list[Model]]]]
+) -> list[Score]:
+    """Score with the same scorer instance under each (active model, roles)."""
+    return [
+        await _score_in_context(scorer, active, roles) for active, roles in contexts
+    ]
+
+
+@pytest.mark.parametrize(
+    "model_role", [None, "grader"], ids=["no_role", "unbound_role"]
+)
+@pytest.mark.parametrize(
+    "scorer_factory", [model_graded_fact, model_graded_qa], ids=["fact", "qa"]
+)
+def test_model_graded_scorer_instance_grades_with_each_active_model(
+    scorer_factory: Callable[..., Scorer], model_role: str | None
+) -> None:
+    scorer = scorer_factory(model_role=model_role)
+
+    scores = asyncio.run(
+        _score_in_contexts(
+            scorer,
+            [
+                (_repeating_grader("first active model\nGRADE: C"), {}),
+                (_repeating_grader("second active model\nGRADE: I"), {}),
+            ],
+        )
+    )
+
+    assert [(score.value, score.explanation) for score in scores] == [
+        (CORRECT, "first active model\nGRADE: C"),
+        (INCORRECT, "second active model\nGRADE: I"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "model_role",
+    ["grader", ModelRole("grader", required=True)],
+    ids=["role", "required_role"],
+)
+def test_model_graded_scorer_instance_resolves_role_on_each_call(
+    model_role: str | ModelRole,
+) -> None:
+    scorer = model_graded_qa(model_role=model_role)
+    active = _repeating_grader("active model\nGRADE: C")
+
+    scores = asyncio.run(
+        _score_in_contexts(
+            scorer,
+            [
+                (active, {"grader": _repeating_grader("first grader\nGRADE: C")}),
+                (active, {"grader": _repeating_grader("second grader\nGRADE: I")}),
+            ],
+        )
+    )
+
+    assert [(score.value, score.explanation) for score in scores] == [
+        (CORRECT, "first grader\nGRADE: C"),
+        (INCORRECT, "second grader\nGRADE: I"),
+    ]
 
 
 def test_model_graded_scorer_file_template_resolves_at_construction(
