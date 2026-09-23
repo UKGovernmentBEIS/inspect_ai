@@ -65,6 +65,10 @@ The code anchors:
   inside `active_sample` — a halted run is terminal completed without the
   init span ever opening (so nothing is logged), but unlike the queue-exit
   abandon it has already materialized and registered as an active sample.
+  A cancellation escaping the solvers that the sample's task group absorbs
+  (no interrupt, limit or enclosing cancel issued it) takes the errored
+  transition as a `RuntimeError` with the cancellation as its cause (see
+  [`foreign-cancellation-sample-error.md`](foreign-cancellation-sample-error.md)).
 - **retrying.** An attempt that errored with retries remaining returns a
   `_SampleRetry` to `task_run_sample`'s loop (after releasing the
   semaphore), which advances the `SampleAttempt` — error appended, sample
