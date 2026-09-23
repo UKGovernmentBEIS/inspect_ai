@@ -128,6 +128,18 @@ class TestGetModelInfo:
         assert info.reasoning is True
         assert info.reasoning_effort_default == "high"
 
+    def test_known_deepseek_flash_model(self):
+        """Test lookup of DeepSeek-V4.1-Flash (`deepseek-flash`)."""
+        info = get_model_info("deepseek/deepseek-flash")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.model == "V4.1 Flash"
+        assert info.release_date == date(2026, 9, 10)
+        assert info.context_length == 1048576
+        assert info.output_tokens == 393216
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "high"
+
     def test_deepseek_v4_flash_snapshot(self):
         """Test lookup of a DeepSeek V4 Flash versioned snapshot."""
         info = get_model_info("deepseek/DeepSeek-V4-Flash-0731")
