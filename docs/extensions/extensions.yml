@@ -36,7 +36,7 @@
 
 - name: "[Inspect boltons](https://github.com/tadamcz/inspect_boltons)"
   description: |
-    Reusable utilities for Inspect: limits that stop a sample when the agent loops unproductively, and a tool that lets the agent query its remaining budget.
+    Reusable tools and utilities for Inspect, in the spirit of the Python boltons library.
   author: "[Tom Adamczewski](https://github.com/tadamcz)"
   categories: ["Frameworks"]
 
