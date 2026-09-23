@@ -633,27 +633,34 @@ different times, and the `.eval` itself is replaced on every flush. The
 mode assembles each member's view with these rules, and never turns a torn
 read into missing or pending data.
 
-- **Observation times.** A member's view combines a log observation (its
-  central-directory read, or the listing ETag when a cached snapshot is
-  reused) and a manifest observation, taken at different moments. The
-  recorder writes a sample to the `.eval` before removing it from the
-  database, and the sync then drops it from the manifest, so a key never
-  vanishes from both at once in the worker's own order.
-- **The guarantee: a key the mode has seen in a manifest is never reported
-  missing or pending.** Keys in the current manifest are reported from it.
-  The cache keeps the key set of the member's previous manifest
-  observation; a key in that set, absent from the current manifest and
-  absent from the log snapshot, proves the log changed after it was
-  observed (on a warm poll the listing, and so the ETag check, precedes the
-  manifest read). The mode then re-reads the log (a fresh central-directory
-  read returns the current object and its ETag) and, if the key is still
-  missing, re-reads both once more before failing as below.
-- **What can still lag.** A key that started and was flushed entirely
-  between the log observation and the manifest observation, and was never
-  in a manifest the mode saw, appears as `pending` for one poll: that is
-  the log's state as of its observation, not a lost sample, and the next
-  listing carries the new ETag. The same holds on a cold read, where the
-  plan's central-directory read precedes the manifest.
+- **Worker order.** The recorder writes a sample to the `.eval` before
+  removing it from the database, and the sync then drops it from the
+  manifest (`src/inspect_ai/_eval/task/log.py:818-822`,
+  `log/_recorders/buffer/database.py:1894-1930`). So a log observation
+  taken *after* a manifest observation contains every key that manifest
+  had already dropped.
+- **The rule: the log is observed after the manifest.** For a running
+  member whose manifest is read, the mode reads the manifest first and then
+  checks the log's current version with one metadata request
+  (`AsyncFilesystem.info`, a `head_object` on S3,
+  `src/inspect_ai/_util/asyncfiles.py:467`; locally a `stat`, keyed by
+  inode, `mtime_ns` and size, since the recorder replaces the local file
+  atomically). If that version equals the version of the log snapshot the
+  mode holds (from the cache, or from this invocation's plan read), the
+  snapshot is used; otherwise the log snapshot is re-read, and the fresh
+  central-directory read returns the current object. The listing's ETag,
+  which precedes the manifest read, is used only to skip plan work, never
+  to validate a snapshot against a manifest. Members with no manifest
+  (finished, or running without a shared buffer) have no second object to
+  order against, and their listing ETag suffices.
+- **The guarantee.** Each member's view is consistent as of its manifest
+  observation: every key the worker had admitted by then is reported from
+  the manifest, from the log, or both, and never as `pending` or missing.
+  A key the mode does not see was admitted after that moment and appears
+  on the next poll. The guarantee depends only on reads made in this
+  invocation, not on anything a previous invocation stored, so concurrent
+  pollers and stale or lost cache entries cannot weaken it; they can only
+  cost extra reads.
 - **Mixed versions.** A central-directory read and a member read are
   separate range requests. The log-dir reader verifies every member it
   reads (whole or streamed) against the central directory's CRC-32, which
@@ -863,22 +870,18 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
     Journal members are append-only, so a changed running log costs its
     central directory plus the new journal members rather than every
     journal member again;
-  - the observed key set (plan ids, summary keys, manifest keys) used to
-    locate samples;
-  - the previous manifest observation's key set and ETag, used by the
-    warm-poll re-validation.
+  - the observed key set (plan ids and summary keys, both tied to the
+    log's version) used to skip re-reading unchanged logs.
 - **Not cached**: manifest contents (they change every sync), sample
   members and segments (large; each invocation reads what it pages).
-- **Writes**: only from validated member views, atomically ("Reading a
-  member consistently"). Concurrent invocations (two pollers) can finish
-  in either order, so a write re-reads the current entry just before its
-  rename and keeps, field by field, the newer observation: a log snapshot
-  whose ETag the other writer observed later, and the previous-manifest
-  key set with the later manifest Last-Modified (unioned when equal). A
-  write that loses that comparison keeps the other's value; the race left
-  between the re-read and the rename can only regress an entry to an
-  observation one poll older, which the next poll's ETag and manifest
-  checks correct.
+- **Writes**: only from validated member views, atomically (temp file,
+  then rename; "Reading a member consistently"). Every cached value is
+  keyed by the version of the object it was read from, so the cache is a
+  pure performance cache: correctness never depends on its history. Two
+  concurrent pollers may overwrite each other's entries in either order;
+  whichever entry survives describes some real version of the log, and a
+  reader that finds it stale (its version differs from the object's)
+  simply re-reads.
 - **Bounds.** Pruned oldest-access-first above 256 MB. Entries with an
   unknown schema version, or that fail to parse, are discarded and rebuilt,
   logged at debug; the cache never changes what a read returns, only
@@ -903,8 +906,10 @@ CLI's existing fan-out cap. Request kinds:
   `log_shared` set and whose directory has a `.buffer/` prefix. It returns
   the content with its ETag and Last-Modified (new
   `AsyncFilesystem.read_file_info`); a not-found answer means no manifest.
-- *log snapshot*: when the log's ETag differs from the cache (or the
-  warm-poll check fires): the CD, then, when the CD lists `header.json`
+- *freshness check*: one metadata request (`head_object`) per running
+  member whose manifest was read, taken after the manifest ("Reading a
+  member consistently"). No body is transferred.
+- *log snapshot*: when the log's version differs from the snapshot held: the CD, then, when the CD lists `header.json`
   (the log has finished, possibly since the last poll), `header.json` for
   the status, `stats.completed_at`, `results` and `error` that the cached
   plan does not hold, plus `summaries.json`: three GETs; for a log still
@@ -918,8 +923,9 @@ Every command, including the per-sample ones, first resolves TASK against
 the logical-task rows, which needs the walk and the plans but no manifests
 or summaries (unlike live mode, where target resolution reads every task
 summary). A per-sample read then makes every current member's key set
-current ("Sample identity and source selection"): one manifest per running
-member with a shared buffer and a log snapshot per changed member, the same
+current ("Sample identity and source selection"): one manifest and one
+freshness check per running member with a shared buffer and a log snapshot
+per changed member, the same
 refresh a list read does, so it costs about as much as `sample list` for
 that task plus the sample read itself.
 
@@ -929,10 +935,10 @@ poll.
 
 | Command | Cache | LIST | GET | Bytes and notes |
 |---|---|---|---|---|
-| `task list`, `sample list`, `sample errors` | cold, all running | 302 | 300 plans × 2 + 300 manifests = 900 | ≤ 300 × (64 KiB + header + manifest), about 20–45 MB. A running one-sample shard has no summaries yet. |
+| `task list`, `sample list`, `sample errors` | cold, all running | 302 | 300 plans × 2 + 300 manifests + 300 freshness checks = 1,200 | ≤ 300 × (64 KiB + header + manifest), about 20–45 MB. A running one-sample shard has no summaries yet; the freshness checks carry no body. |
 | same | cold, all finished | 302 | 300 × (CD + `header.json` + `summaries.json`) = 900 | ≈ 300 × (object up to 64 KiB + header + ~1 KB). |
-| same | warm | 302 | `R` manifests + log snapshots of changed members (3 GETs for each member that finished since the last poll; CD + new journal members for one still running) | A finished run with nothing changed: 302 LISTs, no GETs. A fully running run between flushes: 302 LISTs and 300 small GETs. All 300 shards finishing between two polls: 900 GETs on the next. |
-| `sample show` / `messages` / `store`, sample in the log | warm | 302 | key refresh (`R` manifests + changed-member snapshots) + CD + 2 | Bytes: the manifests, the compressed sample and a 64 KiB CD. With every shard finished and unchanged, the key refresh is free and the read is CD + 2. |
+| same | warm | 302 | `R` manifests + `R` freshness checks + log snapshots of changed members (3 GETs for each member that finished since the last poll; CD + new journal members for one still running) | A finished run with nothing changed: 302 LISTs, no GETs. A fully running run between flushes: 302 LISTs, 300 small GETs and 300 HEADs. All 300 shards finishing between two polls: 900 GETs on the next. |
+| `sample show` / `messages` / `store`, sample in the log | warm | 302 | key refresh (`R` manifests + `R` freshness checks + changed-member snapshots) + CD + 2 | Bytes: the manifests, the compressed sample and a 64 KiB CD. With every shard finished and unchanged, the key refresh is free and the read is CD + 2. |
 | `sample events`, sample in the log | warm | 302 | key refresh + CD + 1 | Full member read and parse; each page invocation re-reads the member. |
 | `sample events`, buffer row | warm | 302 | key refresh (which includes this member's manifest) + `S` segments | `S` is at most one per sync while the sample ran, each a small delta zip. |
 | any command | cold | 302 | + 600 plan GETs for the shards not yet cached, and every member's log snapshot | The first invocation in a directory pays the plans and snapshots once. |
@@ -952,7 +958,7 @@ sequential LIST pages), which is how `list_eval_logs_async` lists S3 today.
 |---|---|---|---|
 | `task list` / `sample list` | finished, cold | CD tail + CD + `header.json` + `summaries.json` = 4 (plus the plan's `header.json`, the same object) | ~64 KiB + ~1 MB CD (about 80 bytes per member) + header + summaries (~1–2 KB raw per sample, compressed). Then cached until the ETag changes. |
 | same | finished, warm | 0 | |
-| same | running, after a flush | CD tail + CD + new journal members (+ 1 manifest with `--log-shared`) | A flush every ≤60 s replaces the object, so each poll after one re-reads the central directory, which grows with samples and journal members. Without the journal-member cache a running log re-reads every journal member, up to one per sample on the streaming path. |
+| same | running, after a flush | CD tail + CD + new journal members (+ 1 manifest and 1 freshness check with `--log-shared`) | A flush every ≤60 s replaces the object, so each poll after one re-reads the central directory, which grows with samples and journal members. Without the journal-member cache a running log re-reads every journal member, up to one per sample on the streaming path. |
 | same | finished since the last poll | CD tail + CD + `header.json` + `summaries.json` = 4 | The final header supplies status, completion time and results. |
 | per-sample reads | any | the same key refresh plus the sample read, as in the table above, with no shard walk | |
 
@@ -1212,19 +1218,24 @@ real moto server on an ephemeral port). New tests go in a new
   flushed for that sample; a cursor from the buffer source restarts on the
   log source; a pending sample is `not_found`.
 - **Races** (deterministic: the fixture's storage layer blocks on
-  `anyio.Event` barriers between the listing, the manifest read and the log
-  read). A warm poll where the worker flushes and drops a key from the
-  manifest after the listing: the key is reported from the re-read log, not
-  as pending. A segment deleted after the manifest was read: the read
+  `anyio.Event` barriers between the listing, the manifest read, the
+  freshness check and the log read). A warm poll where the worker flushes
+  and drops a key from the manifest after the listing: the freshness check
+  sees the new version and the key is reported from the re-read log, not as
+  pending. The reviewer's schedule: poller A holds an older view and is
+  paused between its cache re-read and rename; poller B, seeing key `x` in
+  the manifest, commits; A renames over B's entry; then the worker flushes
+  `x` and drops it from the manifest while poller C's listing still shows
+  the old ETag. C reports `x` (from the log, after its freshness check) and
+  never as pending or not found. A segment deleted after the manifest was read: the read
   re-selects and serves the flushed record. An object replaced between the
   central-directory read and the member read: the CRC check triggers a
   re-read. Exhausted re-reads: list reads return `incomplete: true` with
   the member in `unreadable`; per-sample reads fail `storage_error`. No
   failed or cancelled read leaves a cache entry. A streamed member read that
   is corrupted fails its CRC check; one cancelled mid-stream is not
-  validated and writes nothing. Two concurrent invocations writing the same
-  cache entry in the opposite order to their observations leave the newer
-  observation.
+  validated and writes nothing. Deleting or corrupting every cache entry
+  between two polls changes no output, only the request count.
 - **Contract guards.** `LOG_DIR_COMMANDS` names only registered leaf
   commands; every other leaf command, invoked with `--log-dir <tmp> --json`,
   exits 1 with `kind: "unsupported"` and makes no storage or discovery call
@@ -1238,7 +1249,7 @@ real moto server on an ephemeral port). New tests go in a new
   `segment.<n>.zip` objects exist (the fixture adds hundreds) and never
   lists a `.buffer/`; a cold `task list` over 50 finished shards issues 150
   GETs and a warm one none; 50 running shards between flushes cost 50
-  manifest GETs warm; a warm poll after all 50 finish costs 150 GETs (CD,
+  manifest GETs and 50 freshness checks warm, and no log reads; a warm poll after all 50 finish costs 150 GETs (CD,
   final `header.json`, `summaries.json`) and reports their new status and
   `completed_at`; changing one shard costs its reads only; per-sample
   commands read no manifests or summaries during target resolution and
@@ -1280,8 +1291,8 @@ Each step is one PR; steps 1–5 are the MVP.
    `select_source`, the key-set currency rule for per-sample lookups, running and completed-but-unflushed rows, `in_flight`,
    `live_samples`, `updated_at` from manifests, buffer `sample show` and
    `sample events` from segments, the per-target `unsupported` for
-   messages/store, the manifest-versus-log checks and disappearing-object
-   re-selection. Files: `_util/asyncfiles.py`, `_control/log_dir/buffer.py`,
+   messages/store, the manifest-then-freshness-check ordering and
+   disappearing-object re-selection. Files: `_util/asyncfiles.py`, `_control/log_dir/buffer.py`,
    `select.py`, `consistency.py`, `samples.py`, `snapshot.py`, tests.
 4. **Shard aggregation.** The `<name>.shards/` walk rules, logical sharded
    rows, newest-attempt selection per `<k>/`, the recovered-merged-log
@@ -1291,7 +1302,7 @@ Each step is one PR; steps 1–5 are the MVP.
    can land before the sharding merge exists. Files: `walk.py`,
    `snapshot.py`, `select.py`, `_cli/ctl/_task.py`, `_group.py`, tests.
 5. **Cache.** Plan, summaries, journal-member, observed-key and
-   previous-manifest caching, atomic validated writes, pruning, and the
+   version-keyed caching, atomic validated writes, pruning, and the
    request-count tests. Files: `_control/log_dir/cache.py`, `snapshot.py`,
    tests.
 6. **Merged-log integration** (after the sharding implementation adds the
@@ -1313,12 +1324,14 @@ Each step is one PR; steps 1–5 are the MVP.
    to prevent.
 2. **Cache in the MVP.** The design includes the local cache (step 5).
    Without it every invocation over a 300-shard run pays the cold row of
-   "Cost and scale": 302 LISTs and about 900 GETs (20–45 MB) for a list
-   read, and 302 LISTs plus about 600 plan GETs before any per-sample read.
+   "Cost and scale": 302 LISTs and 900–1,200 requests (20–45 MB) for a
+   list read, and 302 LISTs plus about 600 plan GETs before any per-sample
+   read.
    With it, a warm list read of a finished run is 302 LISTs and no GETs,
    and a per-sample read of a finished run is 302 LISTs plus three GETs; a
-   running run still costs one manifest GET per running shard on every
-   read, cached or not. Ship it in the MVP, or ship steps 1–4 first and
+   running run still costs one manifest GET and one freshness check per
+   running shard on every read, cached or not. The cache affects cost
+   only; the consistency guarantee does not depend on it. Ship it in the MVP, or ship steps 1–4 first and
    measure? Recommendation: include it; the LIST count is the same either
    way, and the plan and unchanged-log GETs are what the cache removes.
 3. **Messages and store for running samples.** Unsupported in the design.
