@@ -12,6 +12,7 @@ Below are several examples of Inspect evaluations. Each example is standalone, s
 | [Benchmarks](#sec-benchmarks) | Basic benchmarks with model grading and multiple choice. |
 | [Agent Evals](#sec-agents) | Tool-using agents running in a sandbox. |
 | [Custom Scorers](#sec-custom-scorers) | More sophisticated model-graders (math equivalence). |
+| [Custom Solvers](#sec-custom-solvers) | Conditional generation based on model output. |
 | [Custom Tools](#sec-custom-tools) | Providing models with Python functions to call. |
 | [Log Analysis](#sec-analysis) | The log viewer and reading Pandas dataframes from logs. |
 | [Coding Agents](#sec-coding-agents) | Using coding agents like Claude Code and Codex CLI. |
@@ -272,6 +273,76 @@ def math():
 ```
 
 See [Scoring](scoring.qmd) for the full scorer and metric APIs.
+
+## Custom Solvers {#sec-custom-solvers}
+
+Built-in solvers can be chained together for many evaluation workflows. For more custom behaviour—such as multi-turn dialogue, conditional generation, or other logic that depends on the current `TaskState` - you can write your own solver.
+
+This task asks a simple question directly, but allows the model to request a hint by replying with `NEED_HINT`. The custom solver branches on that first response:
+
+``` {.python filename="capitals.py"}
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import ChatMessageUser
+from inspect_ai.scorer import match
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+
+@solver                                             # <1>
+def use_hint_if_requested() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)               # <2>
+
+        if state.output.completion.strip() == "NEED_HINT":
+            hint = str(state.metadata["hint"])      # <3>
+            state.messages.append(                  # <4>
+                ChatMessageUser(content=f"Hint: {hint}")
+            )
+            state = await generate(state)           # <5>
+
+        return state
+
+    return solve
+
+
+@task
+def capitals():
+    return Task(
+        dataset=[
+            Sample(
+                input=(
+                    "What is the capital of Australia? "
+                    "Reply with only the answer. If you need help, "
+                    "reply with NEED_HINT."
+                ),
+                target="Canberra",
+                metadata={
+                    "hint": "It is not Sydney or Melbourne and starts with C."
+                },
+            ),
+        ],
+        solver=use_hint_if_requested(),
+        scorer=match(),
+    )
+```
+
+1.  The `@solver` decorator registers the solver and captures its name and parameters in the log.
+
+2.  `generate` is the same model-generation function used by the built-in `generate()` solver. It appends the assistant message to `state.messages` and updates `state.output`.
+
+3.  `state.output.completion` is the model's current text response. If it is the `NEED_HINT` marker, the solver reads this sample's `hint` from `state.metadata`.
+
+4.  `state.messages` is the conversation history. Appending a `ChatMessageUser` adds the hint as a follow-up user message.
+
+5.  The second generation only runs for samples where the model requested a hint. Otherwise the solver returns the first response.
+
+Run it from the command line:
+
+``` bash
+inspect eval capitals.py --model openai/gpt-5
+```
+
+See [Solvers](solvers.qmd) for the full solver API.
 
 ## Custom Tools {#sec-custom-tools}
 
