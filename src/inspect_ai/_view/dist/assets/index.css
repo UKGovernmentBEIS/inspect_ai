@@ -1099,7 +1099,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
-._outer_x05gm_1 {
+._outer_tgwyj_1 {
   /* Positioned so the block-left sticky toggle's containing block is this
      wrapper — keeps sticky behavior scoped to the panel instead of leaking
      to some arbitrary positioned ancestor up the tree. */
@@ -1115,11 +1115,11 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   flex-grow: 1;
 }
 
-._expandablePanel_x05gm_17 {
+._expandablePanel_tgwyj_17 {
   position: relative;
 }
 
-._expandableBordered_x05gm_21 {
+._expandableBordered_tgwyj_21 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 0.5em;
 }
@@ -1136,7 +1136,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
    gradient) so the affordance works on any surface, regardless of the
    panel's bg. The inline-right toggle is a sibling of this wrapper, so it
    stays fully opaque. */
-._expandableTruncated_x05gm_38 {
+._expandableTruncated_tgwyj_38 {
   -webkit-mask-image: linear-gradient(
     to bottom,
     black calc(100% - 3rem),
@@ -1145,7 +1145,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
 }
 
-._moreToggle_x05gm_47 {
+._moreToggle_tgwyj_47 {
   display: flex;
   margin-top: 0;
   height: 20px;
@@ -1155,14 +1155,14 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   color: var(--bs-link-color);
 }
 
-._moreToggle_x05gm_47._bordered_x05gm_57 {
+._moreToggle_tgwyj_47._bordered_tgwyj_57 {
   border-top: solid var(--bs-light-border-subtle) 1px;
 }
 
 /* Double class beats Bootstrap's `.btn` regardless of stylesheet order —
    in scout, Bootstrap loads after this module and its 6px 12px padding
    overflowed the fixed-height toggle bar. */
-._moreToggle_x05gm_47 ._moreToggleButton_x05gm_64 {
+._moreToggle_tgwyj_47 ._moreToggleButton_tgwyj_64 {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0rem 0.5rem;
@@ -1173,7 +1173,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 /* Fills the panel so its sticky child is bounded by the panel's rect.
    pointer-events: none lets clicks pass through to the content behind;
    the sticky child re-enables pointer events on itself. */
-._inlineToggleHolder_x05gm_75 {
+._inlineToggleHolder_tgwyj_75 {
   position: absolute;
   inset: 0;
   display: flex;
@@ -1185,13 +1185,18 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   z-index: 2;
 }
 
-._inlineToggleSticky_x05gm_87 {
+/* Sticky tracks the *nearest scroll container*. Any ancestor between the
+   panel and the real scroller with `overflow` other than `visible`/`clip`
+   becomes that container and pins the toggle to the panel's bottom edge —
+   off screen for a panel taller than the viewport. Consumers that round a
+   frame's corners must use `overflow: clip`, not `hidden`. */
+._inlineToggleSticky_tgwyj_92 {
   position: sticky;
   bottom: 0.25em;
   pointer-events: auto;
 }
 
-._moreToggle_x05gm_47._blockLeft_x05gm_93 {
+._moreToggle_tgwyj_47._blockLeft_tgwyj_98 {
   width: fit-content;
   margin-top: 0.2em;
   margin-bottom: 0.5em;
@@ -1827,19 +1832,23 @@ a._citationLink_1gzkd_9:hover {
    which are neutral by default and only colorized under the readable
    variant (the Event Colors toggle); the output well is the tool-output
    fill, hairlines/border are the subtle border token. */
-._block_145wv_5 {
+._block_mcsgc_5 {
   border-left: var(--inspect-tool-block-edge);
 }
 
-._standalone_145wv_9 {
+/* `clip`, not `hidden`: both round the corners, but `hidden` makes this
+   frame a scroll container, which traps the sticky "less…" toggle of the
+   ExpandablePanels inside at the block's bottom edge — off screen for any
+   output taller than the viewport. */
+._standalone_mcsgc_13 {
   border-top: 1px solid var(--bs-light-border-subtle);
   border-right: 1px solid var(--bs-light-border-subtle);
   border-bottom: 1px solid var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
-  overflow: hidden;
+  overflow: clip;
 }
 
-._header_145wv_17 {
+._header_mcsgc_21 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1850,17 +1859,17 @@ a._citationLink_1gzkd_9:hover {
 /* The zero bottom padding above assumes an input/output zone follows; a
    header-only block (no input, no output yet) otherwise sits flush against
    the container's bottom edge. */
-._header_145wv_17:last-child {
+._header_mcsgc_21:last-child {
   padding-bottom: 0.5rem;
 }
 
-._icon_145wv_32 {
+._icon_mcsgc_36 {
   flex: none;
   font-size: 13px;
   color: var(--inspect-tool-block-ink);
 }
 
-._title_145wv_38 {
+._title_mcsgc_42 {
   flex: none;
   font-family: var(--bs-font-monospace);
   font-size: var(--inspect-font-size-smaller);
@@ -1868,7 +1877,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--inspect-tool-block-ink);
 }
 
-._summary_145wv_46 {
+._summary_mcsgc_50 {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -1879,7 +1888,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary-color);
 }
 
-._pill_145wv_57 {
+._pill_mcsgc_61 {
   flex: none;
   /* Right-aligned even when there is no args summary to push it over. */
   margin-left: auto;
@@ -1893,13 +1902,20 @@ a._citationLink_1gzkd_9:hover {
   padding: 1px 7px;
 }
 
-._inputZone_145wv_71 {
+._inputZone_mcsgc_75 {
   background-color: var(--inspect-tool-block-input-bg);
   padding: 0 0.5rem 0.2rem 0.5rem;
+}
+
+/* Horizontal scrolling for wide input lives on the rendered input itself,
+   inside the ExpandablePanel's content — a scroll container on the zone
+   would sit between the panel and the transcript scroller and trap its
+   sticky toggle (see `.standalone`). */
+._inputZone_mcsgc_75 .tool-call-input {
   overflow-x: auto;
 }
 
-._outputWell_145wv_77 {
+._outputWell_mcsgc_88 {
   border-top: 1px solid var(--bs-light-border-subtle);
   background-color: var(--inspect-tool-block-output-bg);
   padding: 12px 15px;
@@ -1911,8 +1927,8 @@ a._citationLink_1gzkd_9:hover {
    renderers (prism code blocks, tool-call-input call-outs, tool output wells)
    would otherwise stack inside them. !important outranks the readable
    variant's higher-specificity :root[data-theme-variant] surface rules. */
-._inputZone_145wv_71 pre.tool-call-input,
-._inputZone_145wv_71 div.tool-call-input {
+._inputZone_mcsgc_75 pre.tool-call-input,
+._inputZone_mcsgc_75 div.tool-call-input {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -1920,13 +1936,13 @@ a._citationLink_1gzkd_9:hover {
   margin: 0 !important;
 }
 
-._inputZone_145wv_71 .tool-call-input pre[class*="language-"] {
+._inputZone_mcsgc_75 .tool-call-input pre[class*="language-"] {
   margin: 0 !important;
   padding: 0 !important;
   background-color: transparent !important;
 }
 
-._outputWell_145wv_77 .tool-output {
+._outputWell_mcsgc_88 .tool-output {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -2138,11 +2154,13 @@ a._citationLink_1gzkd_9:hover {
 /* Custom tool views (answer, submit, todo lists) own their full rendering —
    they get the block frame (accent edge + container border) without the
    header row. */
-._custom_v2cay_4 {
+._custom_wwbdp_4 {
   border: 1px solid var(--bs-light-border-subtle);
   border-left: var(--inspect-tool-block-edge);
   border-radius: var(--bs-border-radius);
-  overflow: hidden;
+  /* `clip` rounds the corners without becoming a scroll container, which
+     would trap the sticky "less…" toggle of the panels inside. */
+  overflow: clip;
   padding: 0.7rem;
 }
 ._message_o8d3m_1 {
@@ -2226,7 +2244,7 @@ a._citationLink_1gzkd_9:hover {
 ._hover_o8d3m_79 ._copyLink_o8d3m_64 {
   opacity: 0.75;
 }
-._grid_3p94s_1 {
+._grid_1k0mq_1 {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   /* row-gap spaces blocks within a turn (message → tool box); margin-bottom
@@ -2235,13 +2253,13 @@ a._citationLink_1gzkd_9:hover {
   margin-bottom: 0.75rem;
 }
 
-._user_3p94s_10 {
+._user_1k0mq_10 {
   background-color: var(--bs-secondary-bg);
   border-radius: var(--bs-border-radius);
   border: solid 1px var(--bs-light-border-subtle);
 }
 
-._container_3p94s_16 {
+._container_1k0mq_16 {
   padding-left: 0.7rem;
   padding-right: 0.7rem;
   padding-top: 0.5rem;
@@ -2249,38 +2267,40 @@ a._citationLink_1gzkd_9:hover {
   border-right: solid 1px var(--bs-light-border-subtle);
 }
 
-._first_3p94s_24 {
+._first_1k0mq_24 {
   border-top-left-radius: var(--bs-border-radius);
   border-top-right-radius: var(--bs-border-radius);
   border-top: solid 1px var(--bs-light-border-subtle);
   padding-top: 0.7rem;
 }
 
-._last_3p94s_31 {
+._last_1k0mq_31 {
   border-bottom-left-radius: var(--bs-border-radius);
   border-bottom-right-radius: var(--bs-border-radius);
   border-bottom: solid 1px var(--bs-light-border-subtle);
   padding-bottom: 0.7rem;
 }
 
-._highlight_3p94s_38 {
+._highlight_1k0mq_38 {
   background-color: rgba(var(--bs-info-rgb), 0.12);
 }
 
 /* Assistant turn with server-side tool calls: one seamless container — the
    prose band and flush tool rows inside supply their own left edges, so the
    frame itself has no left border. */
-._turnContainer_3p94s_45 {
+._turnContainer_1k0mq_45 {
   border: 1px solid var(--bs-light-border-subtle);
   border-left: none;
   border-radius: var(--bs-border-radius);
-  overflow: hidden;
+  /* `clip` rounds the corners without becoming a scroll container, which
+     would trap the sticky "less…" toggle of the panels inside. */
+  overflow: clip;
 }
 
 /* Self-contained box (used when tool calls are un-embedded) so the assistant
    message and each tool call read as separate cards rather than one connected
    band. */
-._box_3p94s_55 {
+._box_1k0mq_57 {
   position: relative;
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
@@ -2288,28 +2308,28 @@ a._citationLink_1gzkd_9:hover {
 }
 
 /* Tool blocks carry their own frame; the wrapper only anchors the chip. */
-._toolPart_3p94s_63 {
+._toolPart_1k0mq_65 {
   position: relative;
 }
 
 /* Tool-call number chip, pinned to the top-right of its box to mirror the
    position chip on a message's role line. */
-._toolLabel_3p94s_69 {
+._toolLabel_1k0mq_71 {
   position: absolute;
   top: 0.45rem;
   right: 0.7rem;
   z-index: 1;
 }
 
-._bottomMargin_3p94s_76 {
+._bottomMargin_1k0mq_78 {
   margin-bottom: 0.75rem;
 }
 
-._codeCompact_3p94s_80 {
+._codeCompact_1k0mq_82 {
   /* styles for compact code display */
 }
 
-._simple_3p94s_84 {
+._simple_1k0mq_86 {
   /* styles for simple display mode */
 }
 ._badge_1c7cn_1,
@@ -2878,6 +2898,50 @@ a._citationLink_1gzkd_9:hover {
 ._searchingElapsed_1sdtt_271 {
   color: var(--bs-secondary-color);
   font-variant-numeric: tabular-nums;
+}
+._gate_fvpnz_1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  padding: 1rem;
+}
+
+._card_fvpnz_10 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 32rem;
+  color: var(--vscode-foreground);
+}
+
+._title_fvpnz_18 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+._body_fvpnz_25 {
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+}
+
+._location_fvpnz_30 {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  background: var(--vscode-textCodeBlock-background);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+._actions_fvpnz_40 {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
 }
 /*!
  * Bootstrap Icons v1.13.1 (https://icons.getbootstrap.com/)
@@ -18080,21 +18144,6 @@ body:not([class^="vscode-"]) button {
   --bs-nav-link-color: black;
 }
 
-/* AG Grid Theming */
-body {
-  --ag-background-color: var(--bs-body-bg);
-  --ag-foreground-color: var(--bs-body-color);
-  --ag-header-background-color: var(--bs-light-bg-subtle);
-  --ag-header-font-size: var(--inspect-font-size-small);
-  --ag-header-font-weight: 500;
-  --ag-header-text-color: var(--bs-secondary);
-  --ag-font-family: var(--bs-body-font-family);
-  --ag-wrapper-border: none;
-  --ag-row-hover-color: var(--bs-secondary-bg-subtle);
-  --ag-selected-row-background-color: var(--bs-secondary-bg-subtle);
-  --ag-border-radius: var(--bs-border-radius);
-}
-
 #app {
   height: 100vh;
   overflow-y: hidden;
@@ -24938,25 +24987,27 @@ a._turnButton_loteg_100 {
   align-self: stretch;
   flex: 1;
 }
-._card_wikv3_1 {
+._card_1bwn0_1 {
   flex: 1;
   border: 1px solid var(--bs-border-color);
   border-radius: 8px;
-  overflow: hidden;
+  /* `clip` rounds the corners without becoming a scroll container, which
+     would trap the sticky "less…" toggle of the error panel inside. */
+  overflow: clip;
   transition:
     background-color 0.12s ease,
     border-color 0.12s ease;
 }
 
-._cardCollapsed_wikv3_11 {
+._cardCollapsed_1bwn0_13 {
   background: var(--bs-tertiary-bg);
 }
 
-._cardOpen_wikv3_15 {
+._cardOpen_1bwn0_17 {
   background: var(--bs-body-bg);
 }
 
-._header_wikv3_19 {
+._header_1bwn0_21 {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -24964,7 +25015,7 @@ a._turnButton_loteg_100 {
   cursor: pointer;
 }
 
-._attemptLabel_wikv3_27 {
+._attemptLabel_1bwn0_29 {
   flex: none;
   font-weight: 700;
   font-size: 13.5px;
@@ -24974,7 +25025,7 @@ a._turnButton_loteg_100 {
 
 /* Right-aligned per-attempt metadata; tabular-nums keeps the timestamps from
    jittering as digits change. */
-._timestamp_wikv3_37 {
+._timestamp_1bwn0_39 {
   margin-left: auto;
   flex: none;
   font-family: var(--bs-font-monospace);
@@ -24984,7 +25035,7 @@ a._turnButton_loteg_100 {
   font-variant-numeric: tabular-nums;
 }
 
-._errorChip_wikv3_47 {
+._errorChip_1bwn0_49 {
   display: inline-flex;
   align-items: center;
   flex: none;
@@ -24999,7 +25050,7 @@ a._turnButton_loteg_100 {
   white-space: nowrap;
 }
 
-._message_wikv3_62 {
+._message_1bwn0_64 {
   font-size: 12.5px;
   color: var(--bs-secondary-color);
   min-width: 0;
@@ -25008,7 +25059,7 @@ a._turnButton_loteg_100 {
   white-space: nowrap;
 }
 
-._chevron_wikv3_71 {
+._chevron_1bwn0_73 {
   flex: none;
   color: var(--bs-tertiary-color);
   font-size: 14px;
@@ -25017,39 +25068,39 @@ a._turnButton_loteg_100 {
 /* No horizontal padding: the Events transcript goes edge-to-edge so its row
    borders meet the card edges. The divider band and error panel re-add their
    own inset. */
-._body_wikv3_80 {
+._body_1bwn0_82 {
   padding: 2px 0 16px;
 }
 
 /* Centered Error/Events control on a hairline that extends to both card edges,
    reading as a labeled section divider between the header and the content. */
-._dividerBand_wikv3_86 {
+._dividerBand_1bwn0_88 {
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 0 14px;
 }
 
-._hairline_wikv3_93 {
+._hairline_1bwn0_95 {
   flex: 1;
   height: 1px;
   background: var(--bs-border-color);
 }
 
-._toggle_wikv3_99 {
+._toggle_1bwn0_101 {
   flex: none;
   display: flex;
 }
 
-._content_wikv3_104 {
+._content_1bwn0_106 {
   padding-top: 14px;
 }
 
-._errorPanel_wikv3_108 {
+._errorPanel_1bwn0_110 {
   margin: 0 14px;
 }
 
-._ansi_wikv3_112 {
+._ansi_1bwn0_114 {
   margin: 0.5em 0;
   font-size: clamp(0.3rem, 1.1vw, 0.8rem) !important;
 }
