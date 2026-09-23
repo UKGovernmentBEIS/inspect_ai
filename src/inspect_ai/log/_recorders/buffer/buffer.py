@@ -1,7 +1,19 @@
 from logging import getLogger
 
-from .database import SampleBufferDatabase, cleanup_sample_buffer_databases
-from .filestore import SampleBufferFilestore, cleanup_sample_buffer_filestores
+from inspect_ai._util.file import filesystem
+
+from .database import (
+    SampleBufferDatabase,
+    cleanup_sample_buffer_databases,
+    cleanup_sample_buffer_db,
+    sample_buffer_dbs,
+)
+from .filestore import (
+    SampleBufferFilestore,
+    cleanup_sample_buffer_filestore,
+    cleanup_sample_buffer_filestores,
+    sample_buffer_filestore_dir,
+)
 from .types import SampleBuffer
 
 logger = getLogger(__name__)
@@ -20,6 +32,23 @@ def running_tasks(log_dir: str) -> list[str]:
         return tasks
     else:
         return SampleBufferFilestore.running_tasks(log_dir) or []
+
+
+def cleanup_sample_buffers_for_log(location: str) -> None:
+    """Remove the sample buffers of the log at ``location``.
+
+    Deletes the log's local buffer databases and its filestore directory.
+    The caller establishes that the log's writer has ended first.
+
+    Args:
+        location: Eval log location whose buffers to remove.
+    """
+    for db in sample_buffer_dbs(location):
+        cleanup_sample_buffer_db(db)
+    fs = filesystem(location)
+    filestore_dir = sample_buffer_filestore_dir(location, fs)
+    if fs.exists(filestore_dir):
+        cleanup_sample_buffer_filestore(filestore_dir, fs)
 
 
 async def cleanup_sample_buffers(log_dir: str) -> None:
