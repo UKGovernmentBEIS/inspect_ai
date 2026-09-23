@@ -417,14 +417,14 @@ lock protocol:
 - **The guard: compare-and-swap publication where the storage offers it,**
   so a broken contract becomes a refused publish rather than a regressed
   log. On S3 the merge publishes with `IfMatch` set to the ETag it read at
-  the start (the writer already supports this through boto's `put_object`,
-  with a `head_object` pre-check for backends that ignore `IfMatch`,
-  `_recorders/eval.py:742-761`; the merge only supplies the value) and a
-  first publish with `IfNoneMatch: *`, which the writer does not send today
-  but is one more argument to the same `put_object` call, so two
-  overlapping first merges cannot both create the log or mint two
-  `eval_id`s. The `head_object` pre-check has no create-if-absent
-  equivalent, so backends that ignore `IfNoneMatch` lose the first-publish
+  the start, with a `head_object` pre-check for backends that ignore
+  `IfMatch` (the pattern `_s3_put_object` uses today,
+  `_recorders/eval.py:742-764`), and a first publish with `IfNoneMatch: *`,
+  so two overlapping first merges cannot both create the log or mint two
+  `eval_id`s. The conditions go on the multipart upload's completion rather
+  than on today's single in-memory `put_object`, which cannot carry a log
+  past 5 GB (see "Scale"). The `head_object` pre-check has no
+  create-if-absent equivalent, so backends that ignore `IfNoneMatch` lose the first-publish
   guard and keep only the contract. Locally the merge holds an `O_EXCL`
   lock file beside the merged log for its duration (the pattern
   `_lfs/_cache.py:187` already uses for a marker file), which is atomic on
@@ -691,11 +691,15 @@ What already scales:
   central directory and header (range reads through `AsyncZipReader`,
   `_util/async_zip.py:310`) plus the sample members the merged log lacks.
   For 300 shards that is on the order of a thousand GETs, far below S3's
-  per-prefix request rates, provided they run concurrently over one shared
-  `AsyncFilesystem` (as `read_eval_log_headers_async` already does with
-  `tg_collect`, `log/_file.py:676-691`) and no sync fsspec call sits in the
-  async path. The merge bounds that concurrency rather than issuing all
-  reads at once.
+  per-prefix request rates, provided they run concurrently and share one
+  `AsyncFilesystem`, with no sync fsspec call in the async path.
+  `read_eval_log_headers_async` supplies the concurrency (`tg_collect`,
+  `log/_file.py:676-691`) but not the sharing: each read opens its own
+  filesystem unless the caller has entered one already
+  (`AsyncFilesystem.__aenter__` reuses the context's,
+  `_util/asyncfiles.py:1019-1027`), so the merge enters one scope before it
+  spawns reads, and bounds their concurrency rather than issuing all reads
+  at once.
 
 What the merge must do differently from today's write paths:
 
@@ -704,13 +708,15 @@ What the merge must do differently from today's write paths:
   decompresses and recompresses every member it copies
   (`_util/zipfile.py:212-246`), so a pass is CPU-bound as well as a full
   download and upload. Merging after each of 300 shards finishes makes the
-  total roughly quadratic: with a 2 GB final log it moves about 300 GB. The
+  total roughly quadratic: with a 2 GB final log and equally sized shards,
+  that is about 300 GB uploaded and another 300 GB downloaded. The
   recommended cadence is one merge after the workers exit, or batched merges
   (every N shards or on a timer of minutes, not seconds); this is also the
   cost the Step 2 timer route would pay (open question 1). The first
   optimisation is a raw copy of compressed member bytes (local header plus
   compressed data, central-directory entry rewritten with the new offset),
-  which removes the recompress for every sample; server-side
+  which removes the recompress for every sample (the merge still
+  decompresses each new sample once to extract its scores); server-side
   `UploadPartCopy` composition comes after, since it also has to build the
   central directory with recomputed offsets.
 - **Stream samples; never materialise the merged `EvalLog`.** The existing
@@ -718,10 +724,17 @@ What the merge must do differently from today's write paths:
   (`_write_eval_log_with_recorder` iterates `log.samples`,
   `_recorders/eval.py:701-729`), and the S3 path then reads the rendered file
   back into one `bytes` object (`_write_log_s3`, `:524-565`). The merge
-  instead copies members zip to zip one at a time and keeps only each
-  sample's scores (and the metadata metrics read) for `eval_results`
-  (`_eval/task/results.py:90`), so memory is bounded by the largest sample,
-  not the log.
+  instead copies members zip to zip one at a time, so transcripts, messages
+  and events are never accumulated. What it does retain is the complete
+  metric input: `eval_results` takes every sample's scores as one list
+  (`_eval/task/results.py:90`) and hands custom metrics full `SampleScore`s,
+  which carry score and sample metadata of unrestricted size
+  (`scorer/_metric.py:245-254`). Memory is therefore the current sample plus
+  all samples' `SampleScore`s (a reviewer probe: 300 samples with 64 KiB of
+  metadata each retained about 20 MB, against about 100 KB for one), plus
+  the central-directory index and upload buffers. That aggregate is kept
+  whole, because recomputing from less is the lossy input the merge rules
+  out (see "Constraints"); no streaming-metric API is proposed.
 - **Conditional publish must be multipart.** The compare-and-swap guard
   (see "Overlapping merges") currently rides on `_s3_put_object`, a single
   `put_object` with the whole body in memory (`_recorders/eval.py:742-764`);
@@ -731,7 +744,12 @@ What the merge must do differently from today's write paths:
   publishes through the multipart path with `IfMatch` or `IfNoneMatch: *`
   on `complete_multipart_upload`, which S3 honours, and keeps the
   `head_object` pre-check for backends that do not; a refused completion
-  aborts the upload as the helper already does on error.
+  aborts the upload as the helper already does on error. The Trio route
+  uploads through synchronous boto (`s3_write_file_streaming`,
+  `_util/asyncfiles.py:726-738`) rather than `_s3_multipart_upload_async`,
+  so the condition must reach both routes. Ordinary recorder flushes and
+  the other callers of the streaming writer stay unconditional; the
+  condition is opt-in for the merge.
 
 What readers that list shards pay:
 
@@ -742,7 +760,12 @@ What readers that list shards pay:
   every restart. The path-based `*.shards/` skip (see "Eval-set
   integration") therefore applies to the file list before
   `read_eval_log_headers`; the startup merge reads shard headers itself,
-  through the ledger, only for shards that changed.
+  through the ledger, only for shards that changed. The retry-cleanup scan
+  (`cleanup_older_eval_logs`, `evalset.py:1929-1935`) lists through the same
+  helper and gets the same skip. `list_all_eval_logs` also has callers
+  outside `eval_set()` (`inspect_flow`'s log discovery and store import), so
+  the skip is applied at eval-set's call sites, or behind a parameter they
+  pass, not as a silent change to the shared helper.
 - **Viewer rows cost a header each.** The viewer fetches a header for each
   file it lists, in batches through `/log-headers`
   (`_view/fastapi_server.py:476-491`), and caches them per file, so the
@@ -915,12 +938,16 @@ Pydantic models. New boundaries:
   failed attempt and the next merge reaches `success`; sample-level errors
   inside a `success` shard merge unchanged and metrics skip them.
 - Scale tests, local and mock-S3 (`mock_s3` in `tests/conftest.py`): a
-  merge over many shards whose peak memory stays near the largest sample
-  rather than the log (the merge never builds a full `EvalLog`); a pass over
+  merge over many shards with large transcripts and small scores whose peak
+  memory does not grow with transcript size (the merge never builds a full
+  `EvalLog`), and a companion case with large score metadata whose growth
+  is accounted to the retained metric inputs, which reach custom metrics
+  unchanged; a pass over
   unchanged shards opens none of them; `eval_set()` startup over a directory
   with shards reads no shard header outside the merge's ledger check; the
   conditional multipart publish is refused on an `IfMatch` or `IfNoneMatch`
-  mismatch and aborts its upload.
+  mismatch and aborts its upload, on asyncio and on Trio (`--runtrio`), and
+  when cancelled mid-upload.
 - A test that no reader path imports a header-named `task_file`.
 - Provenance field round-trip, and a check that unsharded logs and a log
   directory without any `*.shards/` companion are unaffected.
