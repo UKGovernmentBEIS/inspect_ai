@@ -42,22 +42,22 @@ def krippendorff_alpha(
 
     Args:
        level: Measurement scale.
-         `"nominal"` (default) treats ratings as unordered categories
-         (any difference is a full disagreement). Use for
-         correct/incorrect labels and unordered category IDs.
-         `"ordinal"` treats ratings as ordered categories whose gaps
-         are not assumed equal; δ² is weighted by the marginal
-         frequency of intermediate ranks (Krippendorff 2007). Use for
-         Likert-style ratings.
-         `"interval"` treats ratings as numbers on an equal-interval
-         scale; δ² is the squared numeric difference. Use for
-         continuous scores.
+          `"nominal"` (default) treats ratings as unordered categories
+          (any difference is a full disagreement). Use for
+          correct/incorrect labels and unordered category IDs.
+          `"ordinal"` treats ratings as ordered categories whose gaps
+          are not assumed equal; δ² is weighted by the marginal
+          frequency of intermediate ranks (Krippendorff 2007). Use for
+          Likert-style ratings.
+          `"interval"` treats ratings as numbers on an equal-interval
+          scale; δ² is the squared numeric difference. Use for
+          continuous scores.
        to_float: Optional `ValueToFloat` used to coerce non-numeric
-         ratings to floats for `"ordinal"` and `"interval"` (e.g.,
-         `value_to_float()` to map CORRECT/INCORRECT/PARTIAL/NOANSWER
-         to 1/0/0.5/0). Numeric ratings need no coercion. Raises if
-         `"ordinal"` or `"interval"` is selected with non-numeric
-         ratings and no `to_float`. Ignored for `"nominal"`.
+          ratings to floats for `"ordinal"` and `"interval"` (e.g.,
+          `value_to_float()` to map CORRECT/INCORRECT/PARTIAL/NOANSWER
+          to 1/0/0.5/0). Numeric ratings need no coercion. Raises if
+          `"ordinal"` or `"interval"` is selected with non-numeric
+          ratings and no `to_float`. Ignored for `"nominal"`.
 
     Returns:
        Krippendorff's α as a float, or `nan` when there are no usable

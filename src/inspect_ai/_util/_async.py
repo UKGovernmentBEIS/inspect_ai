@@ -184,8 +184,12 @@ def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
             # though an asyncio loop is active.
             asyncio.get_running_loop()
         except RuntimeError:
-            # No running event loop, so start one on the configured backend.
-            return _anyio_run_released(_run_with_async_filesystem)
+            pass
+        else:
+            backend = "asyncio"
+    if backend is None:
+        # Leave the loop-probe handler so its error cannot become task context.
+        return _anyio_run_released(_run_with_async_filesystem)
     # Running asyncio loop -- re-enter it via nest_asyncio.
     init_nest_asyncio()
     return asyncio.run(_run_with_async_filesystem())
