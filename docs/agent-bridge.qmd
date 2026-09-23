@@ -195,6 +195,31 @@ The bridge handles:
 - Writing an MCP server script to the sandbox that forwards tool calls to the host
 - Returning `MCPServerConfigStdio` configs that CLI agents can use to connect
 
+### Execution Contract {#bridged-tools-execution}
+
+Bridged tools execute only for calls the model proposed in a bridged generation, once per proposal. Each tool call in a model response handed to the agent grants one execution of exactly that tool with exactly those arguments (as approved, or as modified by an [approval policy](#tool-approval)); a `tools/call` request with no matching grant is denied and the error is returned to the agent, which surfaces it to the model. This holds whether or not an approval policy is active. Tool discovery (`tools/list`) is unaffected.
+
+Two consequences follow:
+
+- An agent that retries a `tools/call` after a transport failure is denied, since the proposal has already executed once. The agent should return the error to the model, which re-proposes the call.
+- Only the primary choice of a multi-choice response is granted; alternate choices that carry tool calls are dropped (with a warning). Request a single choice (`n=1`) from a bridged agent.
+
+An agent that legitimately calls a host tool programmatically, outside a model turn, can opt a server out with `require_proposal=False`. That server's tools then execute for any `tools/call` it receives, and the bridge no longer guarantees that they run only for calls the model made:
+
+``` python
+BridgedToolsSpec(
+    name="host_tools",
+    tools=[search_database()],
+    require_proposal=False,
+)
+```
+
+### Matching a Proposal {#bridged-tools-matching}
+
+Agents rename MCP tools to their models under their own schemes (Claude Code declares `mcp__<server>__<tool>`, Codex CLI the bare name inside a Responses API namespace, Gemini CLI `mcp_<server>_<tool>`, OpenCode `<server>_<tool>`, some cut or hash long names), so the bridge does not match a proposed call by name. It matches the call's declaration in the agent's request to a bridged tool by the description the bridge itself served in `tools/list`. A declaration whose description matches no bridged tool denotes nothing and the call is denied. Tools an agent discovers through the Responses API's `tool_search` (declared to the model inside a `tool_search_output` item rather than the request's tool list) count as declarations too. Two or more bridged tools the served content cannot tell apart are each granted by a proposal for any of them: one proposal then authorizes one execution of each, still bound to the proposed arguments. An empty description is matched like any other, so an undocumented bridged tool is indistinguishable from every other undocumented tool. The bridge warns at setup, naming the tools that share a description (an empty one included); give bridged tools distinct docstrings to keep matching one-to-one. The supported agents forward the served description to their models unchanged. An agent that truncates long descriptions is tolerated: a declaration that agrees with a served description for at least 64 characters and adds at most a short trailing marker identifies that tool. An exact description match wins even when that description is a prefix of another bridged tool's; a truncated declaration that could refer to both grants both. An agent that rewrote the leading text would be denied on every call. An agent-local tool declared with a bridged tool's exact description is indistinguishable from it and would grant it.
+
+One other shape is recognized: an agent that exposes every MCP tool through a single dispatcher function, Antigravity's `call_mcp_tool`, whose arguments carry string `ServerName` and `ToolName` values naming a bridged tool and an object `Arguments`. Such a call denotes that tool with those nested arguments. The dispatcher is recognized by that function name together with the argument shape, so an ordinary tool call cannot denote a bridged tool by naming it in its arguments; a dispatcher with another name or other parameter names is not supported and its calls are denied.
+
 ## Models
 
 As demonstrated above, communication with Inspect models is done by using the OpenAI API with `model="inspect"`. You can use the same technique to interface with other Inspect models. To do this, preface the model name with "inspect" followed by the rest of the fully qualified model name.
@@ -243,7 +268,7 @@ async with sandbox_agent_bridge(
 
 Rejection works by telling the model rather than by editing the response: the rejected call and an explanation are replayed to the model, which then generates again. The agent sees only the replacement, so its loop continues normally. See [Bridged Agents](approval.qmd#bridged-agents) for the full semantics.
 
-When combining approval policies with `bridged_tools`, give bridged tools names that are unique across bridged servers and distinct from the agent's own tools: an approval identifies a call only by function name and arguments, so a name shared with an agent-local tool also authorizes one execution of the same-named bridged tool, and a name shared across bridged servers is ambiguous and will be denied.
+For `bridged_tools`, the approved call is also what the agent may execute on the host: a bridged tool runs once per proposed call, with the arguments as approved or modified (see [Execution Contract](#bridged-tools-execution)).
 
 An agent that reaches every bridged tool through one dispatcher function (Antigravity's `call_mcp_tool`) is approved as if the model had called the bridged tool directly: policies match the tool's own name, and approvers see and modify the tool's own arguments.
 

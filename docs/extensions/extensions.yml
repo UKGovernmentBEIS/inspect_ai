@@ -34,6 +34,12 @@
   author: "[Redwood Research](https://github.com/linuxarena/control-tower)"
   categories: ["Frameworks"]
 
+- name: "[Inspect boltons](https://github.com/tadamcz/inspect_boltons)"
+  description: |
+    Reusable tools and utilities for Inspect, in the spirit of the Python boltons library.
+  author: "[Tom Adamczewski](https://github.com/tadamcz)"
+  categories: ["Frameworks"]
+
 - name: "[Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/)"
   description: |
     Transcript analysis for Inspect evaluations.

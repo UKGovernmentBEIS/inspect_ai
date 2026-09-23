@@ -1,5 +1,18 @@
 ## Unreleased
 
+- DeepSeek: Support for DeepSeek-V4.1-Flash (`deepseek-flash`), including image input; model info notes that the retired `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` names are now served by V4.1 Flash.
+- Sandbox agent bridge: host tools exposed with `bridged_tools` are again denied unless the model proposed the call in a bridged generation, once per proposal, with or without an approval policy (0.3.265 ran them regardless as a stopgap); `BridgedToolsSpec(require_proposal=False)` opts a server out.
+- Bugfix: Docker sandboxes for samples a `SampleSource` adds (including an empty-seed task with `sandbox="docker"`) no longer fail with a `LookupError`, and their containers and generated compose files are cleaned up at the end of the run.
+- Scoring: `match()`, `includes()`, `exact()`, `f1()`, `pattern()` and `answer()` now record `reason="no_response"` when the raw model completion is empty or whitespace only, so a model that returned nothing is distinguishable from one that answered wrong. Score values are unchanged. (#5376)
+
+## 0.3.268 (22 September 2026)
+
+- Agent Bridge: Bridged Anthropic requests no longer fail under anthropic SDK 1.8.0 or later, including requests with iterator, file-path or pydantic inputs.
+
+## 0.3.267 (22 September 2026)
+
+- Anthropic: Computer use now works on Claude Opus 5.5, Fable 5/5.1 and Mythos 5/5.1 via Anthropic's `computer_toolset_20260801` toolset; pass `-M computer_toolset=true` to use the toolset on Claude Opus 4.8, Sonnet 5 and Opus 5.
+- Computer Use: the `key` action now honors `repeat`.
 - Checkpointing: A pre-existing entry planted at the in-sandbox work area (`/root/.cache/inspect`), or a parent `/root/.cache` that other users could modify, now fails checkpoint setup and restore with a clear error instead of being reused.
 - Agent Bridge: Approval policies now match bridged host tools that a sandboxed agent calls through a single MCP dispatcher function (Antigravity's `call_mcp_tool`) by the tool's own name, and approvers see and modify the tool's own arguments.
 - Sample and Task Sources: a new `sample_abandoned()` hook reports a sample cancelled before anything was logged (cancelled while queued, or before its `retry_on_error` re-run), so a source waiting on it no longer stalls.
@@ -7,6 +20,7 @@
 - Bugfix: Approval policies in run-config files now load correctly instead of failing evaluation startup with an `AttributeError`.
 - Added `read_eval_log_sample_summaries_async` and three other async log readers to the public `inspect_ai.log` exports.
 - Meta: New `meta` provider for Muse Spark models on the Meta Model API, which streams by default, preserves model reasoning across turns, and reports policy-blocked prompts as content filter stops.
+- OpenAI: Support for GPT-6 Sol (`gpt-6-sol`) and GPT-6 Luna (`gpt-6-luna`), including `reasoning_effort="none"`, which these models accept (GPT-6 Astra does not).
 - OpenAI: Responses API requests no longer fail validation when a compatible service omits `model` from its response.
 - Agent Bridge: An unexpected exception from a host tool called through `sandbox_agent_bridge(bridged_tools=...)` now fails the sample as a native tool exception does, and malformed arguments are reported to the model as a parsing error.
 - Grok: Support for Grok 4.7.
@@ -16,6 +30,7 @@
 - Anthropic: Fixed model construction failing with a `default_headers` TypeError when `ANTHROPIC_AUTH_TOKEN` is set and the caller supplies its own default headers.
 - Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
 - Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
+- Anthropic: Support for Claude Opus 5.5 (`claude-opus-5-5`): thinking can't be disabled, forced tool choice degrades to auto, and computer use is not yet supported on the Claude API and Vertex.
 
 ## 0.3.266 (19 September 2026)
 
