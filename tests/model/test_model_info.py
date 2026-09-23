@@ -73,6 +73,27 @@ class TestGetModelInfo:
         assert info.reasoning is True
         assert info.knowledge_cutoff_date == date(2026, 4, 30)
 
+    @pytest.mark.parametrize(
+        "model_name,display_name,knowledge_cutoff",
+        [
+            ("gpt-6-sol", "GPT-6 Sol", date(2026, 4, 20)),
+            ("gpt-6-luna", "GPT-6 Luna", date(2026, 5, 18)),
+        ],
+    )
+    def test_gpt_6_sol_luna_model_info(
+        self, model_name, display_name, knowledge_cutoff
+    ):
+        info = get_model_info(f"openai/{model_name}")
+        assert info is not None
+        assert info.model == display_name
+        assert info.context_length == 1050000
+        assert info.output_tokens == 128000
+        assert info.input_tokens == 922000
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "medium"
+        assert info.knowledge_cutoff_date == knowledge_cutoff
+        assert info.release_date == date(2026, 9, 22)
+
     def test_known_kimi_model(self):
         """Test lookup of a known Moonshot AI Kimi model."""
         info = get_model_info("moonshotai/kimi-k3")
@@ -568,6 +589,23 @@ class TestGetModelInputTokens:
         model = get_model("anthropic/claude-opus-5")
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
+
+    def test_claude_opus_5_5(self):
+        """Test that Claude Opus 5.5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-opus-5-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # distinguishes the explicit entry from a fuzzy match of opus-5
+        info = get_model_info("anthropic/claude-opus-5-5")
+        assert info is not None
+        assert info.snapshot == "20260922"
+        assert str(info.release_date) == "2026-09-22"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.reasoning_effort_default == "medium"
+        # the Bedrock id resolves to the same entry via its alias
+        bedrock_info = get_model_info("bedrock/anthropic.claude-opus-5-5")
+        assert bedrock_info is not None
+        assert bedrock_info.snapshot == "20260922"
 
     def test_claude_fable_5(self):
         """Test that Claude Fable 5 reports 1MM input tokens."""
