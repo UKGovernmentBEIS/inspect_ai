@@ -1,3 +1,8 @@
+## Unreleased
+
+- Fixed duplicated task prompt and redundant context sent to the model when using `CompactionAuto` with providers that support native compaction.
+- Transcripts now show which compaction strategy actually ran, and flag when `CompactionAuto` fell back from native to summary compaction.
+
 ## 0.3.268 (22 September 2026)
 
 - Agent Bridge: Bridged Anthropic requests no longer fail under anthropic SDK 1.8.0 or later, including requests with iterator, file-path or pydantic inputs.
