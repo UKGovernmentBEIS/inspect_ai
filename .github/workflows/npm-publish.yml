@@ -76,14 +76,22 @@ jobs:
           NEW_VERSION=$(node -p "require('./package.json').version")
           npm version "${NEW_VERSION}-beta.${TIMESTAMP}" --no-git-tag-version
 
+      # check-all and build:lib run tsc and vite-plugin-dts directly, not
+      # through turbo, so turbo's generate:css dependency never fires here.
+      # The *.module.css.d.ts typings are gitignored, and the viewer
+      # type-checks its workspace dependencies' sources too, hence `...`.
+      - name: Generate CSS module typings
+        working-directory: src/inspect_ai/_view/ts-mono
+        run: pnpm --filter '@meridianlabs/log-viewer...' --fail-if-no-match run generate:css
+
       - name: Run quality checks
         working-directory: src/inspect_ai/_view/ts-mono
-        run: pnpm --filter inspect check-all
+        run: pnpm --filter @meridianlabs/log-viewer --fail-if-no-match check-all
 
       - name: Build library for prerelease
         if: ${{ inputs.prerelease }}
         working-directory: src/inspect_ai/_view/ts-mono
-        run: pnpm --filter inspect build:lib
+        run: pnpm --filter @meridianlabs/log-viewer --fail-if-no-match build:lib
 
       - name: Publish to NPM (dry-run)
         if: ${{ inputs.dry-run }}
