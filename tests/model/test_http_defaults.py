@@ -1,20 +1,28 @@
 """Provider HTTP client defaults (connect deadline, pooling, connect retries)."""
 
+import asyncio
+import gc
 import os
 import socket
 import ssl
 import sys
+import threading
 import urllib.request
+import weakref
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, NamedTuple
+from typing import Any, Iterator, NamedTuple
 
 import anthropic
+import anyio
 import groq
+import httpcore2
 import httpx
 import httpx._utils
 import httpx2._utils
 import pytest
+import sniffio
 import trustme
 from test_helpers.utils import skip_if_trio
 
@@ -78,13 +86,31 @@ def timeout_of(client: Any) -> Any:
     return timeout
 
 
+LOOP_SCOPED = (
+    http_defaults.LoopScopedTransport,
+    http_defaults_httpx2.LoopScopedTransport,
+)
+
+
+async def _current_transport(scoped: Any) -> Any:
+    return scoped.current()
+
+
 def pool_of(transport: Any) -> Any:
     """The httpcore pool behind a transport (httpx or httpx2).
 
     httpx publishes no accessor for retries, limits or socket options and is
     unpinned here, so the one reach-through lives here with a diagnosable
-    failure.
+    failure. A loop-scoped transport is unwrapped to the real one for the
+    running loop, or for a throwaway loop when called from synchronous code.
     """
+    if isinstance(transport, LOOP_SCOPED):
+        try:
+            sniffio.current_async_library()
+        except sniffio.AsyncLibraryNotFoundError:
+            transport = anyio.run(_current_transport, transport)
+        else:
+            transport = transport.current()
     pool = getattr(transport, "_pool", None)
     if pool is None:
         raise AssertionError(
@@ -314,6 +340,197 @@ async def test_a_caller_request_hook_still_runs(defaults: Any, httpx_mod: Any) -
     )
     await client.get("https://example.invalid")
     assert seen == ["caller"]
+
+
+# --- event loops ------------------------------------------------------------
+
+
+class _KeepAliveHandler(BaseHTTPRequestHandler):
+    # HTTP/1.1 so the server holds the connection open and the client pools it;
+    # a 1.0 response would be closed after every request and hide the bug.
+    protocol_version = "HTTP/1.1"
+
+    def do_GET(self) -> None:
+        self.send_response(200)
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+    def log_message(self, format: str, *args: Any) -> None:
+        pass
+
+
+@pytest.fixture
+def keepalive_server() -> Iterator[str]:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _KeepAliveHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}/"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+# These drive `anyio.run` themselves so that each request's loop is explicit;
+# they are synchronous tests, so the --runtrio invocation skips them.
+
+
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+def test_a_pooled_connection_is_not_reused_on_a_new_event_loop(
+    keepalive_server: str, defaults: Any
+) -> None:
+    # A memoized model spans eval() calls, each of which runs its own loop; the
+    # keep-alive connection the first loop left in the pool must not be handed
+    # to the second, where touching it raises "Event loop is closed".
+    client = defaults.default_async_client()
+    transports: list[Any] = []
+
+    async def request() -> None:
+        response = await client.get(keepalive_server)
+        assert response.status_code == 200
+        transports.append(client._transport.current())
+
+    anyio.run(request)
+    anyio.run(request)
+    assert transports[0] is not transports[1]
+
+
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+def test_trio_shares_one_transport_across_runs(
+    keepalive_server: str, defaults: Any
+) -> None:
+    # trio sockets belong to no run, so a pooled connection is safe to reuse
+    # and the per-loop split is deliberately not applied.
+    client = defaults.default_async_client()
+    transports: list[Any] = []
+
+    async def request() -> None:
+        response = await client.get(keepalive_server)
+        assert response.status_code == 200
+        transports.append(client._transport.current())
+
+    anyio.run(request, backend="trio")
+    anyio.run(request, backend="trio")
+    assert transports[0] is transports[1]
+
+
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+def test_a_client_closes_on_the_loop_that_used_it(
+    keepalive_server: str, defaults: Any
+) -> None:
+    client = defaults.default_async_client()
+
+    async def request_then_close() -> None:
+        await client.get(keepalive_server)
+        transport = client._transport.current()
+        await client.aclose()
+        assert pool_of(transport).connections == []
+
+    anyio.run(request_then_close)
+    assert client.is_closed
+
+
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+def test_a_client_closes_on_a_loop_that_never_used_it(
+    keepalive_server: str, defaults: Any
+) -> None:
+    # `aclose()` after the loop that opened the connections is gone: the only
+    # transport that can be closed is the current loop's, and there is none.
+    client = defaults.default_async_client()
+
+    async def request() -> None:
+        await client.get(keepalive_server)
+
+    anyio.run(request)
+    anyio.run(client.aclose)
+    assert client.is_closed
+
+
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+def test_an_explicit_proxy_is_loop_scoped_too(
+    keepalive_server: str, defaults: Any
+) -> None:
+    # httpx builds the mount for `proxy=` itself, so without ours every request
+    # would bypass the scoped transport. The keep-alive server stands in for a
+    # forward proxy: it answers the absolute-URI request the client sends one.
+    client = defaults.default_async_client(proxy=keepalive_server, trust_env=False)
+    mounts = [t for t in client._mounts.values() if t is not None]
+    assert len(mounts) == 1
+    transports: list[Any] = []
+
+    async def request() -> None:
+        response = await client.get("http://upstream.invalid/")
+        assert response.status_code == 200
+        transports.append(mounts[0].current())
+
+    anyio.run(request)
+    anyio.run(request)
+    assert transports[0] is not transports[1]
+
+
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+def test_closing_on_asyncio_releases_a_trio_transport(
+    keepalive_server: str, defaults: Any
+) -> None:
+    # "Drop the rest" includes the shared trio pool: a model used under trio
+    # and closed under asyncio must not keep its idle connection reachable.
+    client = defaults.default_async_client()
+    released: list[weakref.ref[Any]] = []
+
+    async def request() -> None:
+        await client.get(keepalive_server)
+        released.append(weakref.ref(client._transport.current()))
+
+    anyio.run(request, backend="trio")
+    anyio.run(client.aclose)
+    gc.collect()
+    assert released[0]() is None
+
+
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+def test_threads_pruning_the_same_closed_loop_do_not_collide(
+    monkeypatch: pytest.MonkeyPatch, keepalive_server: str, defaults: Any
+) -> None:
+    # Two threads whose loops first use the client at the same time both find
+    # the earlier loop closed and prune it; without the lock the second delete
+    # raised KeyError. Gating that loop's `is_closed` on a barrier holds the
+    # first thread inside the prune until the second arrives: on a fixed tree
+    # the lock keeps the second out and the barrier times out, on a broken one
+    # both get through and collide.
+    client = defaults.default_async_client()
+    loops: list[asyncio.AbstractEventLoop] = []
+    barrier = threading.Barrier(2)
+    errors: list[BaseException] = []
+
+    async def request() -> None:
+        loops.append(asyncio.get_running_loop())
+        response = await client.get(keepalive_server)
+        assert response.status_code == 200
+
+    def run() -> None:
+        try:
+            anyio.run(request)
+        except BaseException as ex:
+            errors.append(ex)
+
+    anyio.run(request)
+
+    def gated_is_closed() -> bool:
+        try:
+            barrier.wait(timeout=1)
+        except threading.BrokenBarrierError:
+            pass
+        return True
+
+    monkeypatch.setattr(loops[0], "is_closed", gated_is_closed)
+    threads = [threading.Thread(target=run) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == []
 
 
 async def test_the_floor_hook_survives_httpx_hooks_on_httpx2() -> None:
@@ -563,16 +780,39 @@ def test_proxy_defaults_preserve_credentials_and_supplied_contexts(
         auth=("username", "password"),
         headers={"X-Proxy-Header": "value"},
     )
-    configured = http_defaults_httpx2.default_client_kwargs(proxy=proxy)["proxy"]
-    assert configured.url == proxy.url
-    assert configured.auth == proxy.auth
-    assert configured.headers == proxy.headers
+    kwargs = http_defaults_httpx2.default_client_kwargs(proxy=proxy)
+    assert "proxy" not in kwargs
+    pool = pool_of(kwargs["mounts"]["all://"])
+    assert pool._proxy_url == httpcore2.URL(str(proxy.url))
+    headers = {name.lower(): value for name, value in pool._proxy_headers}
+    assert headers[b"x-proxy-header"] == b"value"
+    assert headers[b"proxy-authorization"].startswith(b"Basic ")
     assert proxy.ssl_context is context
     if custom_context:
-        assert configured is proxy
+        assert pool._proxy_ssl_context is context
     else:
-        assert configured is not proxy
-        assert configured.ssl_context in default_cert_loads
+        assert pool._proxy_ssl_context in default_cert_loads
+
+
+@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+def test_an_explicit_proxy_object_keeps_its_settings(
+    defaults: Any, httpx_mod: Any
+) -> None:
+    # The mount for `proxy=` is built here now, so the object form (the only
+    # way to pass proxy credentials or headers) must survive untouched.
+    proxy = httpx_mod.Proxy(
+        "http://proxy.example:3128",
+        auth=("username", "password"),
+        headers={"X-Proxy-Header": "value"},
+    )
+    client = defaults.default_async_client(proxy=proxy, trust_env=False)
+    mounts = [t for t in client._mounts.values() if t is not None]
+    assert len(mounts) == 1
+    pool = pool_of(mounts[0])
+    assert pool._proxy_url.host == b"proxy.example"
+    headers = {name.lower(): value for name, value in pool._proxy_headers}
+    assert headers[b"x-proxy-header"] == b"value"
+    assert headers[b"proxy-authorization"].startswith(b"Basic ")
 
 
 @pytest.mark.parametrize("defaults", DEFAULT_MODULES)

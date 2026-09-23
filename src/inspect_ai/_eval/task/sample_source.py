@@ -84,12 +84,42 @@ class SampleSource:
         unwinding (a task-level cancel or ^C), where any follow-ups could
         never run. A cancelled sample's ``error.message`` is the cancellation
         exception's repr (it starts with ``CancelledError(`` or
-        ``Cancelled(``), which is how to tell it from a genuine error.
+        ``Cancelled(``), which is how to tell it from a genuine error. A
+        sample cancelled before it produced anything to log is reported via
+        :meth:`sample_abandoned` instead.
 
         On a task retry this is also called for samples reused from the prior
         attempt, so a completion-driven source regenerates its follow-ups
         (returned samples whose ids match the prior attempt are themselves
         reused rather than re-run).
+        """
+        return None
+
+    async def sample_abandoned(
+        self, sample: "Sample", epoch: int
+    ) -> list["Sample"] | None:
+        """A sample was cancelled without ever being logged.
+
+        ``sample`` is a copy of the sample as it was added to the task and
+        ``epoch`` the epoch that was abandoned. Nothing about the run reached
+        the log (no ``EvalSample`` exists), so unlike
+        :meth:`sample_complete` there is no result to deliver. Return a list
+        of samples to add to the task (equivalent to calling
+        ``enqueue_sample`` with them) or ``None`` (the default) to add
+        nothing.
+
+        Fires when an operator cancels a sample still waiting in the queue
+        (``inspect ctl sample cancel --action cancel``), when a cancel lands
+        on an errored sample in the window before its ``retry_on_error``
+        re-run, or when a graceful task cancel (``--action drain``,
+        ``score``, ``error``) abandons a queued sample — in each case the
+        task itself keeps running, so a source waiting on the sample must
+        hear that it will never complete. Like :meth:`sample_complete` it
+        does not fire for samples cancelled by the task itself unwinding (a
+        task-level cancel or ^C), nor for a withdrawn requeue (the prior
+        terminal outcome, already reported, stands). With ``epochs > 1`` it
+        fires once per abandoned epoch, as ``sample_complete`` fires once per
+        completed one.
         """
         return None
 
@@ -100,6 +130,8 @@ class SampleSource:
         *,
         next_samples: Callable[[], Awaitable[list["Sample"] | None]] | None = None,
         sample_complete: Callable[["EvalSample"], Awaitable[list["Sample"] | None]]
+        | None = None,
+        sample_abandoned: Callable[["Sample", int], Awaitable[list["Sample"] | None]]
         | None = None,
     ) -> "SampleSource":
         """Create a :class:`SampleSource` from a seed plus optional callbacks.
@@ -122,11 +154,16 @@ class SampleSource:
                 the dataset.
             sample_complete: Optional async callback invoked as each sample
                 finishes; may return follow-up samples to add to the task.
+            sample_abandoned: Optional async callback invoked when a sample is
+                cancelled without being logged (see :meth:`sample_abandoned`);
+                may return follow-up samples to add to the task.
 
         Returns:
             A ``SampleSource`` that delegates to the provided seed and callbacks.
         """
-        return _CallableSampleSource(initial_samples, next_samples, sample_complete)
+        return _CallableSampleSource(
+            initial_samples, next_samples, sample_complete, sample_abandoned
+        )
 
 
 class _CallableSampleSource(SampleSource):
@@ -138,10 +175,13 @@ class _CallableSampleSource(SampleSource):
         next_samples: Callable[[], Awaitable[list["Sample"] | None]] | None,
         sample_complete: Callable[["EvalSample"], Awaitable[list["Sample"] | None]]
         | None,
+        sample_abandoned: Callable[["Sample", int], Awaitable[list["Sample"] | None]]
+        | None,
     ) -> None:
         self._initial_samples = list(initial_samples)
         self._next_samples = next_samples
         self._sample_complete = sample_complete
+        self._sample_abandoned = sample_abandoned
 
     def initial_samples(self) -> list["Sample"]:
         return self._initial_samples
@@ -154,6 +194,13 @@ class _CallableSampleSource(SampleSource):
     async def sample_complete(self, sample: "EvalSample") -> list["Sample"] | None:
         if self._sample_complete is not None:
             return await self._sample_complete(sample)
+        return None
+
+    async def sample_abandoned(
+        self, sample: "Sample", epoch: int
+    ) -> list["Sample"] | None:
+        if self._sample_abandoned is not None:
+            return await self._sample_abandoned(sample, epoch)
         return None
 
 

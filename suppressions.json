@@ -742,8 +742,8 @@
       "undescribed": 1
     },
     "type: ignore[typeddict-item]": {
-      "count": 5,
-      "undescribed": 3
+      "count": 4,
+      "undescribed": 2
     }
   },
   "src/inspect_ai/model/_providers/google.py": {
@@ -1532,12 +1532,6 @@
       "undescribed": 2
     },
     "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
-  "tests/checkpoint/test_snapshot_strategy.py": {
-    "type: ignore[override]": {
       "count": 1,
       "undescribed": 1
     }

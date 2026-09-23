@@ -15,13 +15,14 @@ env:
 
 jobs:
   sync-models:
+    if: github.repository == 'UKGovernmentBEIS/inspect_ai'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"

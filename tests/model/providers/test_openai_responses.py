@@ -353,6 +353,29 @@ async def test_responses_api_invalid_prompt_content_filter():
     assert output.choices[0].stop_details.type == "refusal"
 
 
+async def test_responses_api_null_model_falls_back_to_requested_model():
+    """A response that omits `model` must not fail ModelOutput validation.
+
+    Meta's Model API streams a refusal-only response whose `model` is null;
+    the SDK types it as required, so we fall back to the requested name.
+    """
+    from openai.types.responses import Response
+
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model=None,
+        object="response",
+        output=[],
+        tools=[],
+        status="completed",
+    )
+
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.model == "gpt-4o"
+
+
 async def _generate_responses_with_mock(
     mock_response,
     config: GenerateConfig = GenerateConfig(),
@@ -1345,7 +1368,7 @@ def _make_mock_model_info():
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = False
     model_info.is_gpt_5_plus.return_value = False
-    model_info.is_gpt_6.return_value = False
+    model_info.always_reasons.return_value = False
     model_info.reasons_by_default.return_value = False
     model_info.is_gpt_5_pro.return_value = False
     model_info.is_gpt_5_chat.return_value = False
@@ -2703,6 +2726,8 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
         ("gpt-5", True),
         ("gpt-5.6-sol", True),
         ("gpt-6-astra", True),
+        ("gpt-6-sol", True),
+        ("gpt-6-luna", True),
         ("my-gpt-6-deployment", True),
         ("gpt-35-turbo", False),
         ("gpt-4", False),
