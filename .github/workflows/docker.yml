@@ -42,15 +42,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Set build context path and image name
+        # The input reaches the shell only through IMAGE, never by expression
+        # interpolation into the script, and only the two supported images
+        # map to a build context. Anything else stops the job here, before
+        # the Docker login and build steps.
+        env:
+          IMAGE: ${{ github.event.inputs.image }}
         run: |
-          if [[ "${{ github.event.inputs.image }}" == "inspect-computer-tool" ]]; then
-            echo "BUILD_CONTEXT=src/inspect_ai/tool/_tools/_computer/_resources" >> $GITHUB_ENV
-          elif [[ "${{ github.event.inputs.image }}" == "inspect-tool-support" ]]; then
-            echo "BUILD_CONTEXT=src/inspect_tool_support" >> $GITHUB_ENV
-          else
-            echo "Invalid image name '${{ github.event.inputs.image }}'"
-            exit 1
-          fi
+          case "$IMAGE" in
+            inspect-computer-tool)
+              BUILD_CONTEXT=src/inspect_ai/tool/_tools/_computer/_resources
+              ;;
+            inspect-tool-support)
+              BUILD_CONTEXT=src/inspect_tool_support
+              ;;
+            *)
+              printf 'Invalid image name: %q\n' "$IMAGE" >&2
+              exit 1
+              ;;
+          esac
+          echo "BUILD_CONTEXT=$BUILD_CONTEXT" >> "$GITHUB_ENV"
       - name: Login to DockerHub
         uses: docker/login-action@v4
         with:

@@ -63,9 +63,11 @@ from .._stream import (
 from .util import (
     forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
+    is_claude_opus_5_5_model,
     is_forced_tool_choice,
     model_base_url,
     normalize_stream_arg,
+    rejects_forced_tool_choice,
 )
 from .util.hooks import ConverseHooks
 
@@ -641,9 +643,14 @@ class BedrockAPI(ModelAPI):
     def is_claude_fable_5_1_or_later(self) -> bool:
         return is_claude_fable_5_1_model(self.model_family())
 
+    def is_claude_opus_5_5_or_later(self) -> bool:
+        return is_claude_opus_5_5_model(self.model_family())
+
     def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
         """Mirrors `resolved_tool_choice` in the native anthropic provider."""
-        if is_forced_tool_choice(tool_choice) and self.is_claude_fable_5_1_or_later():
+        if is_forced_tool_choice(tool_choice) and rejects_forced_tool_choice(
+            self.model_family()
+        ):
             warn_once(
                 logger,
                 f"bedrock model '{self.model_name}' does not support forced "
