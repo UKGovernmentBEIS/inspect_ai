@@ -75,6 +75,23 @@ async def test_reasoning_claude_opus_5():
 
 @pytest.mark.anyio
 @skip_if_no_anthropic
+async def test_reasoning_claude_opus_5_5():
+    # same shape as the Opus 5 test above: reasoning_effort only (no
+    # budget), summarized reasoning must come back and not leak into text
+    model = get_model("anthropic/claude-opus-5-5")
+    output = await model.generate(
+        "Solve 3*x^3-5*x=1",
+        config=GenerateConfig(reasoning_effort="high", max_tokens=8192),
+    )
+    assert "<think>" not in output.completion
+    content = output.choices[0].message.content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentReasoning)
+    assert content[0].reasoning.strip()
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
 async def test_reasoning_claude_fable_5_1():
     # Fable 5.1 (like Fable 5) always thinks and rejects an explicit
     # reasoning_tokens budget, so drive thinking via reasoning_effort only. It

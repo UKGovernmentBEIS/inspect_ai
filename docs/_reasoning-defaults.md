@@ -8,11 +8,15 @@
 | anthropic/claude-opus-4-7 | adaptive |
 | anthropic/claude-opus-4-8 | high |
 | anthropic/claude-opus-5 | high |
+| anthropic/claude-opus-5-5 | medium |
 | anthropic/claude-sonnet-4-6 | adaptive |
 | anthropic/claude-sonnet-5 | high |
+| deepseek/deepseek-flash | high |
 | deepseek/deepseek-reasoner | no effort scale |
 | deepseek/deepseek-v4-flash | high |
 | deepseek/deepseek-v4-pro | high |
+| fireworks/glm-5p3 | max |
+| fireworks/glm-5p3-flash | max |
 | google/gemini-3-flash-preview | medium |
 | google/gemini-3-pro | high |
 | google/gemini-3.1-flash-lite-preview | medium |
@@ -27,6 +31,7 @@
 | grok/grok-4.3 | low |
 | grok/grok-4.5 | high |
 | grok/grok-4.6 | high |
+| grok/grok-4.7 | high |
 | mistral/magistral-medium-2506 | no effort scale |
 | mistral/magistral-small-2506 | no effort scale |
 | mistral/mistral-medium-2604 | none |
@@ -52,3 +57,11 @@
 | openai/gpt-5.6-sol | medium |
 | openai/gpt-5.6-terra | medium |
 | openai/gpt-6-astra | medium |
+| openai/gpt-6-luna | medium |
+| openai/gpt-6-sol | medium |
+| z-ai/glm-5.3 | max |
+| z-ai/glm-5.3-flash | max |
+| zai-org/GLM-5.3-FP8 | max |
+| zai-org/GLM-5.3-FP8-Lora | max |
+| zai-org/glm-5.3 | max |
+| zai-org/glm-5.3-flash | max |

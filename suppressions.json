@@ -122,14 +122,6 @@
     }
   },
   "src/inspect_ai/_control/server.py": {
-    "type: ignore[attr-defined]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[method-assign]": {
-      "count": 1,
-      "undescribed": 1
-    },
     "type: ignore[misc]": {
       "count": 1,
       "undescribed": 1
@@ -750,8 +742,8 @@
       "undescribed": 1
     },
     "type: ignore[typeddict-item]": {
-      "count": 5,
-      "undescribed": 3
+      "count": 4,
+      "undescribed": 2
     }
   },
   "src/inspect_ai/model/_providers/google.py": {
@@ -1544,12 +1536,6 @@
       "undescribed": 1
     }
   },
-  "tests/checkpoint/test_snapshot_strategy.py": {
-    "type: ignore[override]": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "tests/conftest.py": {
     "type: ignore": {
       "count": 1,
@@ -1708,12 +1694,6 @@
     "type: ignore[arg-type]": {
       "count": 3,
       "undescribed": 3
-    }
-  },
-  "tests/model/providers/test_openrouter.py": {
-    "type: ignore[typeddict-item]": {
-      "count": 1,
-      "undescribed": 1
     }
   },
   "tests/model/providers/test_transformer_lens.py": {
