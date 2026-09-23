@@ -90,7 +90,6 @@ from anthropic.types.beta import (
     BetaDirectCaller,
     BetaFallbackBlock,
     BetaFallbackBlockParam,
-    BetaFallbackInfoParam,
     BetaInputTokensTriggerParam,
     BetaMCPToolResultBlock,
     BetaMCPToolUseBlock,
@@ -4610,15 +4609,13 @@ def _fallback_from_content_data(
             from_info = fallback_metadata.get("from")
             to_info = fallback_metadata.get("to")
             to_model = to_info.get("model") if isinstance(to_info, dict) else None
-            param = BetaFallbackBlockParam(
-                type="fallback",
-                to=BetaFallbackInfoParam(model=to_model),  # type: ignore[typeddict-item]
-            )
-            # `from` is a reserved keyword — set via dict key
             from_model = from_info.get("model") if isinstance(from_info, dict) else None
+            # a plain dict: `from` is a reserved keyword, and the SDK marks
+            # it Required, so the TypedDict constructor can't express it
+            param: dict[str, Any] = {"type": "fallback", "to": {"model": to_model}}
             if from_model is not None:
-                cast(dict[str, Any], param)["from"] = {"model": from_model}
-            return param
+                param["from"] = {"model": from_model}
+            return cast(BetaFallbackBlockParam, param)
 
     return None
 
