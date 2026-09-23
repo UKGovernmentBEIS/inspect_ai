@@ -233,11 +233,11 @@ def test_consume_error_event_prefers_traceback_ansi_over_plain() -> None:
     """``traceback_ansi`` is preferred over the plain ``traceback`` field.
 
     It carries the rich-rendered traceback with frame summaries +
-    syntax-highlighted source-line context (baked into ANSI escape
-    codes by ``format_traceback`` upstream). When both fields are
-    present we take the ANSI one so the widget can ``Text.from_ansi``
-    it and surface the same styled rendering Inspect's own console
-    shows.
+    source-line context, not syntax highlighted (baked into ANSI
+    escape codes by ``format_traceback`` upstream). When both fields
+    are present we take the ANSI one so the widget can ``Text.from_ansi``
+    it and surface the frame styling of Inspect's stored traceback
+    rendering.
     """
     state = SessionState()
     state.consume_error_event(

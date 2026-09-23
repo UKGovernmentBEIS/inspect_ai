@@ -1926,8 +1926,8 @@ class SessionState:
         # Prefer ``traceback_ansi`` (the Rich-rendered ``Traceback``
         # exported to ANSI escape codes by ``format_traceback`` →
         # ``rich_traceback``) over the plain ``traceback`` field —
-        # the ANSI version carries frame summaries, source-line
-        # context, and syntax colouring already laid out, so the
+        # the ANSI version carries frame summaries and source-line
+        # context already laid out and styled, so the
         # widget can render it via ``Text.from_ansi`` and inherit
         # the chip's tinted background. Fall back to the plain
         # field when ANSI is missing or empty (truncated tracebacks

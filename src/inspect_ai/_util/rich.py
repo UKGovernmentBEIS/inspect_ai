@@ -56,10 +56,39 @@ def clean_control_characters(text: str) -> str:
     )
 
 
+class _PlainCodeTraceback(Traceback):
+    """Rich traceback whose frame source snippets are not syntax highlighted.
+
+    Rich picks a pygments lexer per frame and lexes the frame's source file from
+    its first line to the frame's line, which for large modules costs seconds
+    per traceback. The "text" lexer is pygments' null lexer, so the snippets are
+    still shown, just unhighlighted. If a future rich release stops consulting
+    `_guess_lexer`, this degrades to full highlighting rather than failing.
+    """
+
+    @classmethod
+    def _guess_lexer(cls, filename: str, code: str) -> str:
+        return "text"
+
+
 def rich_traceback(
-    exc_type: Type[Any], exc_value: BaseException, exc_traceback: TracebackType | None
+    exc_type: Type[Any],
+    exc_value: BaseException,
+    exc_traceback: TracebackType | None,
+    highlight_code: bool = True,
 ) -> RenderableType:
-    rich_tb = Traceback.from_exception(
+    """Rich renderable for an exception traceback.
+
+    Args:
+        exc_type: Exception type.
+        exc_value: Exception value.
+        exc_traceback: Exception traceback.
+        highlight_code: Syntax highlight frame source snippets. Highlighting
+            lexes each frame's whole source file, so pass `False` when the
+            output will not be shown on a terminal at render time.
+    """
+    traceback_cls = Traceback if highlight_code else _PlainCodeTraceback
+    rich_tb = traceback_cls.from_exception(
         exc_type=exc_type,
         exc_value=exc_value,
         traceback=exc_traceback,
@@ -120,7 +149,12 @@ def format_traceback(
     exc_value: BaseException,
     exc_traceback: TracebackType | None,
 ) -> tuple[str, str]:
-    """Format exception traceback as plain text and ANSI-colored."""
+    """Format exception traceback as plain text and ANSI-colored.
+
+    The ANSI variant is stored in the log (`EvalError.traceback_ansi`) rather
+    than shown on a terminal at render time, so its frame source snippets are
+    not syntax highlighted.
+    """
     traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
 
     # with INSPECT_TRACEBACK_LOCALS the ANSI render includes local variables,
@@ -136,7 +170,9 @@ def format_traceback(
     if not truncated:
         with open(os.devnull, "w") as f:
             console = Console(record=True, file=f, legacy_windows=True)
-            console.print(rich_traceback(exc_type, exc_value, exc_traceback))
+            console.print(
+                rich_traceback(exc_type, exc_value, exc_traceback, highlight_code=False)
+            )
             traceback_ansi = console.export_text(styles=True)
     else:
         traceback_ansi = traceback_text
