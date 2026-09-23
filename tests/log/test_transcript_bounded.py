@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from pydantic import JsonValue
 from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
 
 from inspect_ai._util.constants import DEFAULT_LOG_MODEL_API_CALLS
@@ -13,7 +14,13 @@ from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._pool import (
+    _CALL_MESSAGE_KEYS,
+    CallMessageKey,
+    materialize_pooled_events,
+)
 from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.log import _condense as condense
 from inspect_ai.log._condense import (
     WalkContext,
     attachment_refs_from_object,
@@ -680,6 +687,71 @@ def test_extend_restored_events_resolves_attachments() -> None:
     transcript._event(InfoEvent(uuid="filler-1", data="x"))
     assert transcript.history.resident_events_truncated is True
     assert transcript.attachments == {}
+
+
+@pytest.mark.parametrize("call_key", _CALL_MESSAGE_KEYS)
+@pytest.mark.parametrize("bounded", [False, True])
+def test_extend_restored_events_resolves_shared_call_messages_once(
+    call_key: CallMessageKey, bounded: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # restored calls are cumulative: pool materialization shares each
+    # conversation row across every later call, so resolving per call must
+    # not walk (and copy) the prefix again for each one
+    turns = 64
+    pool: list[JsonValue] = [
+        {"role": "user", "content": [{"type": "text", "text": f"attachment://p{i}"}]}
+        for i in range(turns)
+    ]
+    attachments = {f"p{i}": f"{i} " + "x" * 120 for i in range(turns)}
+    condensed = [
+        ModelEvent(
+            uuid=f"model-{i}",
+            model="test",
+            input=[],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(),
+            call=ModelCall(request={}, call_refs=[(0, i + 1)], call_key=call_key),
+        )
+        for i in range(turns)
+    ]
+    events = materialize_pooled_events(condensed, [], pool)
+
+    pool_ids = {id(row) for row in pool}
+    row_walks = 0
+    walk_json_value = condense.walk_json_value
+
+    def counting_walk(value: JsonValue, *args: Any, **kwargs: Any) -> JsonValue:
+        nonlocal row_walks
+        if id(value) in pool_ids:
+            row_walks += 1
+        return walk_json_value(value, *args, **kwargs)
+
+    monkeypatch.setattr(condense, "walk_json_value", counting_walk)
+    transcript = Transcript(bounded=bounded, resident_tail=1)
+    first_rows: list[JsonValue] = []
+    last_messages: list[Any] = []
+
+    def subscriber(event: Event) -> None:
+        assert isinstance(event, ModelEvent) and event.call is not None
+        messages = event.call.request[call_key]
+        assert isinstance(messages, list)
+        first_rows.append(messages[0])
+        last_messages[:] = event.call.model_dump(mode="json")["request"][call_key]
+
+    transcript._subscribe(subscriber)
+    transcript._extend_restored_events(events, attachments, notify_subscribers=True)
+
+    assert row_walks == turns
+    assert len({id(row) for row in first_rows}) == 1
+    assert [message["content"][0]["text"] for message in last_messages] == [
+        attachments[f"p{i}"] for i in range(turns)
+    ]
+    # the resident calls stay condensed
+    for resident in transcript.history.resident_events:
+        assert isinstance(resident, ModelEvent) and resident.call is not None
+        assert "attachment://" in str(resident.call.request)
 
 
 def test_transcript_subscriber_exception_does_not_skip_processing(

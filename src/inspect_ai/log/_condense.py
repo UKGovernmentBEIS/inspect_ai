@@ -865,6 +865,60 @@ def resolve_events_attachments(
     if resolve_attachments is False:
         return events
 
+    context = WalkContext(message_cache={}, only_core=resolve_attachments == "core")
+    return walk_events(events, _resolve_content_fn(attachments), context)
+
+
+def resolve_call_attachments(
+    call: ModelCall,
+    attachments: Mapping[str, str],
+    resolved_messages: dict[int, tuple[JsonValue, JsonValue]],
+) -> ModelCall:
+    """Resolve ``attachment://`` references in a model call's payload.
+
+    Calls materialized from a call pool (``materialize_pooled_events``) share
+    their message rows, so resolving each call's messages separately would
+    walk and copy a conversation's prefix once per call. ``resolved_messages``
+    maps a row's identity to the row and its resolved form; pass the same map
+    for a batch of calls so each shared row is resolved once. The map holds
+    the row, so its identity cannot be reused while the map is alive.
+
+    Args:
+       call: Model call (pool-resolved) that may carry ``attachment://`` refs.
+       attachments: Mapping of attachment hash -> underlying content.
+       resolved_messages: Identity memo of resolved message rows.
+
+    Returns:
+       The resolved call (a copy; the input is not mutated).
+    """
+    content_fn = _resolve_content_fn(attachments)
+    context = WalkContext(message_cache={}, only_core=False)
+    msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in call.request), None)
+    msgs = call.request.get(msg_key) if msg_key is not None else None
+    if msg_key is None or not isinstance(msgs, list):
+        return walk_model_call(call, content_fn, context)
+
+    resolved_msgs: list[JsonValue] = []
+    for msg in msgs:
+        cached = resolved_messages.get(id(msg))
+        if cached is None or cached[0] is not msg:
+            cached = (msg, walk_json_value(msg, content_fn, context))
+            resolved_messages[id(msg)] = cached
+        resolved_msgs.append(cached[1])
+    rest = {k: v for k, v in call.request.items() if k != msg_key}
+    request = dict(walk_json_dict(rest, content_fn, context))
+    request[msg_key] = resolved_msgs
+    return call.model_copy(
+        update={
+            "request": request,
+            "response": walk_json_dict(call.response, content_fn, context)
+            if call.response
+            else None,
+        }
+    )
+
+
+def _resolve_content_fn(attachments: Mapping[str, str]) -> Callable[[str], str]:
     def content_fn(text: str) -> str:
         # migrate previous flavor of content reference
         CONTENT_PROTOCOL = "tc://"
@@ -875,8 +929,7 @@ def resolve_events_attachments(
         else:
             return text
 
-    context = WalkContext(message_cache={}, only_core=resolve_attachments == "core")
-    return walk_events(events, content_fn, context)
+    return content_fn
 
 
 def attachments_content_fn(
