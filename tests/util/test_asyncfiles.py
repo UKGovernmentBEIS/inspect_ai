@@ -670,14 +670,16 @@ async def test_write_file_streaming_s3(
 
 
 class _ThreadRecordingBytesIO(io.BytesIO):
-    """BytesIO that records the thread each ``read`` runs on."""
+    """BytesIO that records the thread and requested size of each ``read``."""
 
     def __init__(self, data: bytes) -> None:
         super().__init__(data)
         self.read_threads: list[int] = []
+        self.read_sizes: list[int | None] = []
 
     def read(self, size: int | None = -1) -> bytes:
         self.read_threads.append(threading.get_ident())
+        self.read_sizes.append(size)
         return super().read(size)
 
 
@@ -693,9 +695,9 @@ async def test_write_file_streaming_s3_reads_source_off_event_loop(
 ) -> None:
     """S3 streaming uploads must never read the source on the event loop.
 
-    The asyncio path assembles PUT bodies and multipart parts from
-    ``io_chunksize`` reads of the source; a plain sync handle read on the loop
-    would block it for every chunk. Both the single-PUT and multipart paths
+    The asyncio path assembles PUT bodies and multipart parts from whole-part
+    reads of the source; a plain sync handle read on the loop would block it
+    for every part. Both the single-PUT and multipart paths
     must hop to a worker thread for the read. The asyncio variant is the one
     that guards this; under trio the whole upload already runs in a worker
     thread.
@@ -731,9 +733,14 @@ class _BlockingReadBytesIO(io.BytesIO):
 
 
 class _PutObjectClient:
-    """Fake async S3 client for sub-threshold uploads."""
+    """Fake async S3 client for sub-threshold uploads.
+
+    ``put_object`` checkpoints like a real client awaiting the network, so a
+    pending cancellation lands there rather than being lost.
+    """
 
     async def put_object(self, **kwargs: Any) -> dict[str, Any]:
+        await anyio.lowlevel.checkpoint()
         return {"ETag": '"etag-1"'}
 
 
@@ -1091,6 +1098,40 @@ async def test_s3_upload_async_multipart_exact_multiple_of_chunksize() -> None:
     assert client.aborted == []
     assert not source.closed
     assert client.created is not None and "ChecksumAlgorithm" not in client.created
+
+
+async def test_s3_upload_async_reads_each_part_in_one_request() -> None:
+    """Each part is read off the loop with one request for the whole part.
+
+    Reading a part as ``io_chunksize`` slices, each hopping to a worker
+    thread, costs 32 round trips per default 8 MB part; the loop over short
+    reads belongs inside the single thread hop.
+    """
+    client = _MultipartClient()
+    source = _ThreadRecordingBytesIO(b"a" * 1024 + b"b" * 1024 + b"c" * 512)
+    loop_thread = threading.get_ident()
+
+    await _s3_upload_fileobj_async(
+        client,
+        source,
+        "bucket",
+        "key",
+        TransferConfig(
+            multipart_threshold=1024,
+            multipart_chunksize=1024,
+            max_concurrency=1,
+            io_chunksize=256,
+        ),
+    )
+
+    assert sorted(client.parts) == [
+        (1, b"a" * 1024),
+        (2, b"b" * 1024),
+        (3, b"c" * 512),
+    ]
+    # one whole-part request per part, then the short read that finds EOF
+    assert source.read_sizes == [1024, 1024, 1024, 512]
+    assert loop_thread not in source.read_threads
 
 
 async def test_s3_upload_async_multipart_aborts_on_part_failure() -> None:
