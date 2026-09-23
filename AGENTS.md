@@ -65,6 +65,11 @@ section in the PR description. What to disclose, and how it's read:
   review that didn't happen — a fabricated or content-free review claim
   ("reviewed, looks good") is worse than disclosing none.
 
+Keep the disclosure focused on outcomes. For multiple passes, use a short
+bullet per round with its focus, findings, and disposition; give a one-line
+reason for each dismissed finding. Link detailed review notes if needed, and
+do not repeat validation results or re-explain earlier findings in each round.
+
 Example:
 
 ```
@@ -179,18 +184,19 @@ tests that cover the change locally, and the PR description must report the
 run. The `slow-tests` skill (`.agents/skills/slow-tests/SKILL.md`) says which
 flags and directories go with which change and what each class needs.
 
-Report the run in the PR description, in a `### Slow tests` section after
-`### Validation`, with:
-
-- the exact command(s) run
-- what ran, per class or provider, with the passed and skipped counts from
-  the summary
-- what you could not run, and why (no key, no Docker, no model access,
-  needs a local server)
+Report the run in a `### Slow tests` section after `### Validation`. Use one
+short bullet per run: test class/provider, version when relevant, exact
+command, and passed, failed, and skipped counts. End with a "Not run" bullet
+naming each relevant class or provider you could not run and why (for
+example, no API key, Docker daemon, model access, or local server).
 
 A test that skipped did not run. Say so rather than counting it. If you ran
 nothing, say that, so a maintainer with the keys or Docker runs the tests
 before merge.
+
+Link detailed logs instead of narrating individual requests, models, or test
+assertions. In `### Validation`, give only the conclusion from these runs;
+keep their commands and counts here.
 
 ## Subsystem Documentation
 
@@ -211,22 +217,33 @@ Lead with the user-facing problem and outcome; for a long description, keep
 those first two sections short and put detailed design or review notes below
 the required sections. Link the issue or give a reproduction when applicable.
 Fill in compatibility and migration before validation, so reviewers can assess
-whether the tests cover the risks. Describe affected public APIs, CLI behavior,
-configuration, provider and extension interfaces, events, logs, and other
-persisted formats, including behavior changes without signature or schema
-changes. Say who is affected, whether existing code and data still work, and
-what users or downstream packages must do. A bare "No" is insufficient when
-a PR touches a public contract or persisted data: name the affected producers
-and consumers, and explain the compatibility boundary. For changes with no
-compatibility impact, say "None" with a brief reason.
+whether the tests cover the risks. Lead with the action required of existing
+users or downstream packages, or say "No migration required." Then describe
+only material effects on existing behavior, public APIs, CLI behavior,
+configuration, provider and extension interfaces, events, logs, or persisted
+formats, grouped by affected user or integration. Include behavior changes
+without signature or schema changes. Explain the compatibility boundary and,
+for a public contract, name the affected producers and consumers. Summarize
+unchanged behavior briefly rather than listing every unaffected path. Move
+implementation-only protocol mechanics, test names, project sequencing, and
+unrelated out-of-scope work to the result, validation, or a linked design
+document. Keep limitations that affect existing users in this section.
+A bare "No" is insufficient when a public contract or persisted data changes.
 
 For code changes, run focused tests for the changed behavior and relevant
 neighboring paths, as well as `make check` and `make test`. Follow "Gated
 tests" above and the `slow-tests` skill for applicable slow, live-provider,
-Docker, and Trio runs. In `### Validation`, report the commands run and their
-outcomes, including passed, failed, and skipped counts where applicable. Tie
-the evidence to the compatibility claims and identify anything not run and
-why. Report results for the current PR head; when the branch changes, refresh
+Docker, and Trio runs. Write `### Validation` as a short decision summary:
+lead with the evidence that proves the change or checks compatibility beyond
+routine CI, such as a before/after reproduction, another SDK version, or a
+live provider run. For non-gated local runs CI cannot show, give the command,
+environment, and passed, failed, and skipped counts. Routine green CI is
+visible on the PR; omit it from the description. Report CI failures and local
+failures that differ from CI, with a brief cause and baseline comparison.
+State what remains untested and why. Keep exact gated commands and counts in
+`### Slow tests`; give only their conclusion in `### Validation`. Use a table
+only when its entries are short; put long commands in bullets or linked notes.
+Report results for the current PR head; when the branch changes, refresh
 results affected by the change rather than leaving historical runs to appear
 current. If an agent worked on the PR, fill in `### Agent review` as described
 above. Human-only PRs may omit that section. Keep the `### Slow tests` section
