@@ -742,8 +742,8 @@
       "undescribed": 1
     },
     "type: ignore[typeddict-item]": {
-      "count": 5,
-      "undescribed": 3
+      "count": 4,
+      "undescribed": 2
     }
   },
   "src/inspect_ai/model/_providers/google.py": {
