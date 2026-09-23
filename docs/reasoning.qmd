@@ -35,19 +35,19 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 
 GPT-5.5 and later reason at the server default effort when `reasoning_effort` is not set, and in that state the API rejects `temperature`, `top_p`, and `logprobs`. Inspect drops those options with a warning; pass `reasoning_effort="none"` to disable reasoning and have them sent.
 
-GPT-6 Astra always reasons: it accepts `low` through `max` only, and the API rejects `none` and `minimal` with an error. It also rejects `temperature`, `top_p`, and `logprobs`, so Inspect drops those options with a warning for GPT-6 models.
+GPT-6 Sol and GPT-6 Luna accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra always reasons: it accepts `low` through `max` only, and the API rejects `none` and `minimal` with an error. It also rejects `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for Astra.
 
 Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
 #### Anthropic Claude 4.6+ and Claude 5
 
-Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8 and the Claude 5 models default to `high` server-side.
+Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Opus 5, and Fable/Mythos 5.x default to `high` server-side and Opus 5.5 defaults to `medium`.
 
-For the Claude 5 models thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the effort and the model continues to reason at its server-side default.
+For Fable/Mythos 5.x and Opus 5.5 thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the `thinking` field and the model reasons at the configured `effort` (or the server-side default if none is set). Sonnet 5 and Opus 5 do accept `none` and disable thinking (Opus 5 only at effort `high` or below).
 
 | Inspect input     | API value                                              |
 |-------------------|--------------------------------------------------------|
-| `none`            | reasoning omitted (Claude 5: not disabled — see above) |
+| `none`            | omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5 |
 | `minimal` / `low` | `low`                                                  |
 | `medium`          | `medium`                                               |
 | `high`            | `high`                                                 |
@@ -112,7 +112,7 @@ Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reaso
 
 #### DeepSeek
 
-DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default (at `high` effort) and document a [three-level effort scale](https://api-docs.deepseek.com/guides/thinking_mode) of `low` / `high` / `max`. Inspect maps `reasoning_effort` as follows:
+DeepSeek models (`deepseek-flash` and `deepseek-v4-pro`) think by default (at `high` effort) and document a [three-level effort scale](https://api-docs.deepseek.com/guides/thinking_mode) of `low` / `high` / `max`. Inspect maps `reasoning_effort` as follows:
 
 | Inspect input     | API value         |
 |-------------------|-------------------|
@@ -121,7 +121,7 @@ DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default 
 | `medium` / `high` | `high`            |
 | `xhigh` / `max`   | `max`             |
 
-Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
+DeepSeek's own server-side mapping treats a raw `xhigh` as `high`; Inspect sends `max` for `xhigh` so the top of Inspect's scale reaches the top of DeepSeek's. Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
 
 #### Mistral
 
