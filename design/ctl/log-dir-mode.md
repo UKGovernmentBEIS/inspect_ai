@@ -507,6 +507,24 @@ row, a full task id always resolves to exactly one row. Shards are not
 separately selectable; `--shards` rows carry `shard: "<k>"` and the shard's
 own `task_id`, and are informational.
 
+**Carrying the target past selection.** The sample commands pass only the
+resolved row's `socket_path` and `eval_id` to the fetch functions
+(`_fetch_samples_async` at `_sample_read.py:283`, `_fetch_sample_detail` at
+`:587`, `_fetch_sample_events` at `:725`, `_fetch_sample_messages` at
+`:807`, `_fetch_sample_store` at `:872`). Both are null for an unmerged
+shard set, so two different logical tasks would reach those functions as
+the same call. Every log-dir row therefore carries an additive
+`log_target`: an opaque string naming its logical task within the root
+(`"shards:<root-relative path of X.shards/>"` for a task whose attempts
+include a shard set, `"log:<task_id>"` otherwise). In the mode, each of
+those five call sites calls the log-dir adapter with the whole resolved
+row instead of the live fetch function; the adapter reads `log_target` and
+looks the logical task up in the listing the same invocation already
+walked, so members are not re-listed. Live-mode calls, the live fetch
+signatures and the public null `eval_id` are unchanged. Unscoped listings
+(`sample list` with no TASK) call the adapter once per row, each with its
+own `log_target`.
+
 ### Sample identity and source selection
 
 One function decides, for every sample key of a logical task, where its
@@ -525,8 +543,33 @@ members (one log, or one current file per shard), of:
 
 The recorded selection is a seed: a `SampleSource` can add samples it does
 not record, and they enter the key set when their summaries or manifest
-rows appear. For a finished member the summaries cover every sample it
-ran, so its keys are complete.
+rows appear. The key set is what can be enumerated; it is not in general
+the task's size. A finished member's summaries cover every sample it ran,
+but samples it admitted and never started (queued when the eval failed,
+was cancelled or was drained) leave no record, and a log that finished by
+an exception may have no `results` (`src/inspect_ai/_eval/task/run.py:1562`,
+`:1992`, `:2366`). Totals are therefore defined separately ("Totals"
+below).
+
+**Totals.** The authoritative total of a logical task, when one exists:
+
+- for an unsharded current attempt, a finished log's
+  `results.total_samples`, which counts dynamically admitted samples;
+- for a shard set, the intended selection recorded in the merged log's
+  provenance field: its id list times `epochs`, or its sample count times
+  `epochs` when the parent's merge was given a count
+  (parent design, "Completeness").
+
+Then `samples.total` is the authoritative total when there is one (or the
+known-key count if that is larger, which marks the total not final), else
+the known-key count as a lower bound; `samples.total_final` is true only
+when the authoritative total is used; and `samples.pending_unlisted` is the
+authoritative total minus the known keys (pending samples no record
+names, which appear in `counts.pending` but have no rows), 0 when the
+difference is not positive, and null when the total is not final. A
+running log, a finished log without `results`, an older log without
+recorded ids and a shard set without a recorded intended selection all
+report a lower bound.
 
 **Candidates per key, within one member.**
 
@@ -557,13 +600,31 @@ ran, so its keys are complete.
 status from its summary. `pending` is `pending`. `conflict` has no single
 status (see "Task rows" and "Sample rows").
 
-**Locating a key for a per-sample read.** The cache keeps, per member, the
-keys it has observed (plan ids, summary keys, manifest keys). A per-sample
-read looks the key up there first and reads only the members that could
-hold it; on a miss it reads the summaries and manifests of every member not
-yet known (the `sample list` cost) before answering `not_found`. The
-conflict rule still applies: the lookup considers every current member's
-known keys, not just the first match.
+**When a member's key set is current.** A match in one member does not
+prove no other member holds the key: a `SampleSource` can admit a key in
+another shard at any time, and it first appears in that shard's manifest,
+not in its recorded ids or its log. So a key set is used only when it is
+current for this invocation:
+
+- a *finished* member (its log has `header.json`) whose listing ETag equals
+  the cached one: its summaries hold every key it will ever hold, so the
+  cached set is complete;
+- a *running* member whose listing ETag equals the cached one: its logged
+  keys are unchanged, and its buffer keys are current only once its
+  manifest has been read in this invocation (a running member with no
+  shared buffer has no other place a key can appear, so its logged keys
+  suffice);
+- any member whose ETag changed: current once its log snapshot has been
+  refreshed.
+
+**Locating a key for a per-sample read.** Before answering, the read makes
+every current member's key set current by the rules above (a manifest GET
+per running member with a shared buffer, a log snapshot per changed
+member), then applies `select_source` across all of them. It never returns
+a match, or `not_found`, from a key set that is not current. Its cost is
+therefore that of a list read's key refresh plus the sample read itself
+("Cost and scale"); the cache saves the plan and unchanged-log reads, not
+the manifests of running members.
 
 ### Reading a member consistently
 
@@ -598,7 +659,10 @@ read into missing or pending data.
   reads (whole or streamed) against the central directory's CRC-32, which
   `ZipEntry` gains for this and for the journal-member cache key; a CRC mismatch, a
   decompression error or a JSON error re-reads the central directory and
-  the member, up to twice.
+  the member, up to twice. A streamed read is validated when its stream is
+  fully consumed (the field-excluding parse scans the whole member, so the
+  final checksum is always reached); a stream closed early, by
+  cancellation or error, is never treated as validated.
 - **Disappearing buffer objects.** A finishing worker deletes its
   `.buffer/<stem>/` after the final flush. A manifest or segment that
   returns not-found during a read triggers source re-selection with fresh
@@ -630,7 +694,7 @@ working. Values, over the current attempt:
 | `status` | `running` if any current member's log status is `started`, else `completed` (live's two values). |
 | `started_at` | Earliest sample `started_at` seen, else the earliest member's `created`. |
 | `completed_at` | Latest member `stats.completed_at` when no member is `started`, else null. |
-| `samples.total` | The size of the key set ("Sample identity"). |
+| `samples.total` | The authoritative total when one exists, else the known-key count as a lower bound ("Totals" under "Sample identity"). |
 | `samples.completed` / `errored` / `cancelled` | Keys whose selected source maps to that status. |
 | `samples.in_flight` | Keys selected as `buffer` with `running` status; null when a running member has no manifest. |
 | `samples.queued` | Null: dispatch state is not in the logs. |
@@ -642,6 +706,8 @@ working. Values, over the current attempt:
 Additive keys, present on every log-dir row and absent in live mode:
 
 - `source`: `"log_dir"`.
+- `log_target`: the logical task's identifier within the root, which the
+  sample commands route by ("Carrying the target past selection").
 - `updated_at`: the latest of the current members' log mtimes and the
   Last-Modified of the manifests read. With `status: running`, a
   long-quiet `updated_at` is the only signal that a worker died (a crashed
@@ -650,13 +716,17 @@ Additive keys, present on every log-dir row and absent in live mode:
   the caller.
 - `samples.conflicted`: keys selected as `conflict`, counted in no status.
 - `samples.unfinished`: `total − completed − errored − cancelled −
-  conflicted`. Every term counts distinct keys of the same set, so it is
-  never negative.
-- `samples.total_final`: true only when every current member is finished
-  and, for a shard set, the merged log records the intended selection
-  (below). While any member runs, `total` is a lower bound: a
-  `SampleSource` can still add samples, and unstarted shards are not in
-  the directory.
+  conflicted`. The subtracted terms count distinct known keys, and `total`
+  is never below the known-key count, so it is never negative.
+- `samples.total_final`: true only when `total` is an authoritative total
+  ("Totals"). While any member runs, or when no authoritative total exists,
+  `total` is a lower bound: a `SampleSource` can still add samples,
+  admitted-but-unstarted samples leave no record, and unstarted shards are
+  not in the directory.
+- `samples.pending_unlisted`: pending samples counted by an authoritative
+  total that no record names (0 when there are none, null when
+  `total_final` is false). They are in `counts.pending` of `sample list`
+  but have no rows.
 - `live_samples`: `"buffer"` when every running member has a manifest,
   `"none"` when none does, `"partial"` otherwise, so a caller knows whether
   `in_flight` and running sample rows are complete.
@@ -677,8 +747,10 @@ the existing filters, sort and cap: `--status` through
 `effective_sample_limit` (`state.py:123`) and `_sorted_samples`
 (`state.py:665`), `counts` over `SAMPLE_STATUSES`. Differences from live:
 
-- `pending` keys come from the key set; there are no `queued` rows
-  (dispatch is not recorded).
+- `pending` rows come from known keys with no candidate; pending samples
+  counted only by an authoritative total (`pending_unlisted`) add to
+  `counts.pending` without rows. There are no `queued` rows (dispatch is
+  not recorded).
 - Running rows have `activity`, `events`, `interrupt` and `last_activity_at`
   null and zero usage (start snapshot).
 - **`--active-since` is unsupported in the mode** (`kind: "unsupported"`).
@@ -761,10 +833,11 @@ the source for sample state:
   for custom metrics and would need task code; the sharding design's open
   question 1 decides whether a stored rollup exists).
 - **Intended selection.** When the merged log's provenance field records the
-  selection it merged against, its keys join the key set, so shards that
-  have not started yet count as `pending`, and `samples.total_final` can
-  become true. Until then the total covers discovered shards only, and the
-  human output says so.
+  selection it merged against, it becomes the shard set's authoritative
+  total ("Totals"). An id list also joins the key set, so samples of
+  shards that have not started yet are enumerable `pending` rows; a count
+  gives only `pending_unlisted`. Until then the total covers discovered
+  shards only, and the human output says so.
 - **Later optimisation (implementation step 6).** The ledger records each
   merged shard's ETag. On a cold cache, a shard whose listing ETag equals
   its ledger ETag can take its sample rows from the merged log's
@@ -797,7 +870,15 @@ of what changed. `src/inspect_ai/_control/log_dir/cache.py`:
 - **Not cached**: manifest contents (they change every sync), sample
   members and segments (large; each invocation reads what it pages).
 - **Writes**: only from validated member views, atomically ("Reading a
-  member consistently").
+  member consistently"). Concurrent invocations (two pollers) can finish
+  in either order, so a write re-reads the current entry just before its
+  rename and keeps, field by field, the newer observation: a log snapshot
+  whose ETag the other writer observed later, and the previous-manifest
+  key set with the later manifest Last-Modified (unioned when equal). A
+  write that loses that comparison keeps the other's value; the race left
+  between the re-read and the rename can only regress an entry to an
+  observation one poll older, which the next poll's ETag and manifest
+  checks correct.
 - **Bounds.** Pruned oldest-access-first above 256 MB. Entries with an
   unknown schema version, or that fail to parse, are discarded and rebuilt,
   logged at debug; the cache never changes what a read returns, only
@@ -823,8 +904,12 @@ CLI's existing fan-out cap. Request kinds:
   the content with its ETag and Last-Modified (new
   `AsyncFilesystem.read_file_info`); a not-found answer means no manifest.
 - *log snapshot*: when the log's ETag differs from the cache (or the
-  warm-poll check fires): CD plus `summaries.json` (finished) or the new
-  journal members (running). Zero when unchanged.
+  warm-poll check fires): the CD, then, when the CD lists `header.json`
+  (the log has finished, possibly since the last poll), `header.json` for
+  the status, `stats.completed_at`, `results` and `error` that the cached
+  plan does not hold, plus `summaries.json`: three GETs; for a log still
+  running, the CD plus the journal members not yet cached. Zero when
+  unchanged.
 - *sample read*: after the CD, two GETs for a field-excluding read (local
   header, then body) and one for a full read (`sample events`).
 - *segments*: one GET per segment listed for the sample.
@@ -832,8 +917,11 @@ CLI's existing fan-out cap. Request kinds:
 Every command, including the per-sample ones, first resolves TASK against
 the logical-task rows, which needs the walk and the plans but no manifests
 or summaries (unlike live mode, where target resolution reads every task
-summary). The conflict rule needs every current shard's file, so a
-per-sample read of a sharded task still walks all `N` shards.
+summary). A per-sample read then makes every current member's key set
+current ("Sample identity and source selection"): one manifest per running
+member with a shared buffer and a log snapshot per changed member, the same
+refresh a list read does, so it costs about as much as `sample list` for
+that task plus the sample read itself.
 
 **Target case: 300 shards of one task, one sample each, `--log-shared`
 on.** `R` shards running, `C` members whose log changed since the last
@@ -843,11 +931,11 @@ poll.
 |---|---|---|---|---|
 | `task list`, `sample list`, `sample errors` | cold, all running | 302 | 300 plans × 2 + 300 manifests = 900 | ≤ 300 × (64 KiB + header + manifest), about 20–45 MB. A running one-sample shard has no summaries yet. |
 | same | cold, all finished | 302 | 300 × (CD + `header.json` + `summaries.json`) = 900 | ≈ 300 × (object up to 64 KiB + header + ~1 KB). |
-| same | warm | 302 | `R` manifests + `C` × (CD + summaries or new journal members) | A finished run with nothing changed: 302 LISTs, no GETs. A fully running run between flushes: 302 LISTs and 300 small GETs. |
-| `sample show` / `messages` / `store`, flushed sample | warm | 302 | (1 manifest if the member runs) + (log snapshot if changed) + CD + 2 | Bytes: the compressed sample plus a 64 KiB CD. |
-| `sample events`, flushed sample | warm | 302 | (1 manifest if the member runs) + CD + 1 | Full member read and parse; each page invocation re-reads the member. |
-| `sample events`, running sample | warm | 302 | 1 manifest + `S` segments (+ log snapshot if changed) | `S` is at most one per sync while the sample ran, each a small delta zip. |
-| any command | cold | 302 | + 600 plan GETs for the shards not yet cached | The first invocation in a directory pays the plans once. |
+| same | warm | 302 | `R` manifests + log snapshots of changed members (3 GETs for each member that finished since the last poll; CD + new journal members for one still running) | A finished run with nothing changed: 302 LISTs, no GETs. A fully running run between flushes: 302 LISTs and 300 small GETs. All 300 shards finishing between two polls: 900 GETs on the next. |
+| `sample show` / `messages` / `store`, sample in the log | warm | 302 | key refresh (`R` manifests + changed-member snapshots) + CD + 2 | Bytes: the manifests, the compressed sample and a 64 KiB CD. With every shard finished and unchanged, the key refresh is free and the read is CD + 2. |
+| `sample events`, sample in the log | warm | 302 | key refresh + CD + 1 | Full member read and parse; each page invocation re-reads the member. |
+| `sample events`, buffer row | warm | 302 | key refresh (which includes this member's manifest) + `S` segments | `S` is at most one per sync while the sample ran, each a small delta zip. |
+| any command | cold | 302 | + 600 plan GETs for the shards not yet cached, and every member's log snapshot | The first invocation in a directory pays the plans and snapshots once. |
 
 At S3 list pricing 302 LISTs is on the order of $0.0015 per invocation, and
 the latency is a few round trips at 32 in flight (about 1–3 s). A manifest
@@ -865,7 +953,8 @@ sequential LIST pages), which is how `list_eval_logs_async` lists S3 today.
 | `task list` / `sample list` | finished, cold | CD tail + CD + `header.json` + `summaries.json` = 4 (plus the plan's `header.json`, the same object) | ~64 KiB + ~1 MB CD (about 80 bytes per member) + header + summaries (~1–2 KB raw per sample, compressed). Then cached until the ETag changes. |
 | same | finished, warm | 0 | |
 | same | running, after a flush | CD tail + CD + new journal members (+ 1 manifest with `--log-shared`) | A flush every ≤60 s replaces the object, so each poll after one re-reads the central directory, which grows with samples and journal members. Without the journal-member cache a running log re-reads every journal member, up to one per sample on the streaming path. |
-| per-sample reads | any | as in the table above, with no shard walk | |
+| same | finished since the last poll | CD tail + CD + `header.json` + `summaries.json` = 4 | The final header supplies status, completion time and results. |
+| per-sample reads | any | the same key refresh plus the sample read, as in the table above, with no shard walk | |
 
 The per-page re-read of a flushed sample repeats `endpoint-cost-audit.md`'s
 finding 1 shape (a full transcript parse per page), but on the caller's
@@ -895,7 +984,9 @@ below per-prefix limits, and the mode never touches a worker.
   at the existing fetch seams (`_fetch_summaries`, `_fetch_sample_summaries`,
   `_fetch_samples_async`, `_fetch_sample_detail`, `_fetch_sample_events`,
   `_fetch_sample_messages`, `_fetch_sample_store`) so rendering, selector
-  resolution and envelopes are shared with live mode. In the mode,
+  resolution and envelopes are shared with live mode. The sample call
+  sites pass the resolved row, carrying `log_target`, to the log-dir
+  adapter ("Carrying the target past selection"). In the mode,
   `_fetch_sample_summaries` (which the per-sample commands call first to
   resolve TASK, `_sample_read.py:573`) returns identity-only rows from the
   walk and the plans, reading no manifests or summaries.
@@ -986,7 +1077,8 @@ No migration required. The mode is opt-in through a new flag.
   keys listed above; envelopes are otherwise the live ones. Consumers that
   branch on `kind` or read row keys keep working; a consumer that treats a
   null `in_flight` as zero would under-report, which is why `unfinished`
-  and `live_samples` exist. A polling consumer that uses `sample list
+  and `live_samples` exist; likewise `total_final` and `pending_unlisted`
+  say when `total` is only a lower bound. A polling consumer that uses `sample list
   --active-since` gets `unsupported` in the mode and must poll full
   listings (capped as live listings are).
 - **Control API.** Unchanged; the mode talks to no server, so
@@ -1096,6 +1188,22 @@ real moto server on an ephemeral port). New tests go in a new
   `conflicted` is 1, `unfinished` stays non-negative, the listing shows two
   rows with `conflict: true` and `counts` leaves the key out, and each
   per-sample read fails `ambiguous` naming both member logs.
+- **Key-set currency.** For each of `sample show`, `events`, `messages` and
+  `store`: a cold lookup of a key that no recorded selection names (a
+  `SampleSource` addition) finds it; a warm lookup after a second shard
+  admits the same key into its manifest, with its log ETag unchanged,
+  fails `ambiguous` instead of returning the first shard's record; a warm
+  lookup of a key newly admitted in any running shard's manifest finds it.
+- **Totals.** A dynamic run that completes (authoritative
+  `results.total_samples`, `total_final` true); one that fails or is
+  cancelled with admitted samples still queued, with and without `results`
+  (lower bound or `pending_unlisted`, never `total_final` true without an
+  authoritative total); an older log with no recorded ids; a shard set
+  whose merged log records an id list and one that records a count.
+- **Logical-task routing.** Two unmerged companions under one root whose
+  shards share a sample id: `sample show`/`events`/`messages`/`store` on
+  each task return that task's record, and an unscoped `sample list`
+  returns both tasks' rows, each routed by its `log_target`.
 - **Sample reads.** List, errors, `--status`, `--limit`/`--all`, `--content`
   gating; `--active-since` is `unsupported`; `sample show`/`events`/
   `messages`/`store` on log records equal the live terminal envelopes for
@@ -1112,7 +1220,11 @@ real moto server on an ephemeral port). New tests go in a new
   central-directory read and the member read: the CRC check triggers a
   re-read. Exhausted re-reads: list reads return `incomplete: true` with
   the member in `unreadable`; per-sample reads fail `storage_error`. No
-  failed or cancelled read leaves a cache entry.
+  failed or cancelled read leaves a cache entry. A streamed member read that
+  is corrupted fails its CRC check; one cancelled mid-stream is not
+  validated and writes nothing. Two concurrent invocations writing the same
+  cache entry in the opposite order to their observations leave the newer
+  observation.
 - **Contract guards.** `LOG_DIR_COMMANDS` names only registered leaf
   commands; every other leaf command, invoked with `--log-dir <tmp> --json`,
   exits 1 with `kind: "unsupported"` and makes no storage or discovery call
@@ -1126,10 +1238,12 @@ real moto server on an ephemeral port). New tests go in a new
   `segment.<n>.zip` objects exist (the fixture adds hundreds) and never
   lists a `.buffer/`; a cold `task list` over 50 finished shards issues 150
   GETs and a warm one none; 50 running shards between flushes cost 50
-  manifest GETs warm; changing one shard costs its reads only; per-sample
-  commands read no manifests or summaries during target resolution; a
-  field-excluding sample read costs the CD plus two GETs; a running large
-  log re-reads only new journal members.
+  manifest GETs warm; a warm poll after all 50 finish costs 150 GETs (CD,
+  final `header.json`, `summaries.json`) and reports their new status and
+  `completed_at`; changing one shard costs its reads only; per-sample
+  commands read no manifests or summaries during target resolution and
+  then pay the key refresh; a field-excluding sample read costs the CD plus
+  two GETs; a running large log re-reads only new journal members.
 - **Read-only and no code.** The directory tree, bytes and mtimes are
   unchanged after every supported command; `resolve_scorers_info` and
   task-file import are patched to fail and never called; hostile shard
@@ -1151,9 +1265,10 @@ Each step is one PR; steps 1–5 are the MVP.
    `tests/_control/test_ctl.py`.
 2. **Unsharded reads of logged data.** `AsyncFilesystem.list_dir`, the
    walk, logical tasks with attempt order, retry and `-recovered` folding,
-   the key set and `select_source` (log records only at this step), task
-   rows, sample listing with `--active-since` refused, identity-only target
-   resolution, per-sample reads of log records with the CRC check and
+   the key set, totals and `select_source` (log records only at this
+   step), task rows with `log_target`, sample listing with `--active-since`
+   refused, identity-only target resolution, `log_target` routing at the
+   five sample call sites, per-sample reads of log records with the CRC check and
    bounded re-reads; the `page_*` refactors; `task list`, `sample
    list`/`errors`/`show`/`events`/`messages`/`store` added to
    `LOG_DIR_COMMANDS`. Files: `_util/asyncfiles.py`, `_util/async_zip.py`,
@@ -1162,7 +1277,7 @@ Each step is one PR; steps 1–5 are the MVP.
    `_task.py`, `_sample_read.py`, `tests/_control/test_log_dir.py`.
 3. **Buffer rows from shared buffers.** `AsyncFilesystem.read_file_info`,
    manifest reads, buffer candidates and the newer-buffer precedence in
-   `select_source`, running and completed-but-unflushed rows, `in_flight`,
+   `select_source`, the key-set currency rule for per-sample lookups, running and completed-but-unflushed rows, `in_flight`,
    `live_samples`, `updated_at` from manifests, buffer `sample show` and
    `sample events` from segments, the per-target `unsupported` for
    messages/store, the manifest-versus-log checks and disappearing-object
@@ -1181,7 +1296,8 @@ Each step is one PR; steps 1–5 are the MVP.
    tests.
 6. **Merged-log integration** (after the sharding implementation adds the
    provenance field and ledger). The `merged` block, the intended selection
-   in the key set and `total_final`, the ledger-based cold-start read. Files:
+   (id list or count) as the authoritative total, the ledger-based
+   cold-start read. Files:
    `snapshot.py`, tests.
 7. **Docs.** `docs/control-channel.qmd` (the mode, the verdict table,
    polling guidance) and `design/ctl/control-channel.md` (the error kinds in
@@ -1200,10 +1316,11 @@ Each step is one PR; steps 1–5 are the MVP.
    "Cost and scale": 302 LISTs and about 900 GETs (20–45 MB) for a list
    read, and 302 LISTs plus about 600 plan GETs before any per-sample read.
    With it, a warm list read of a finished run is 302 LISTs and no GETs,
-   and a per-sample read is 302 LISTs plus a handful of GETs. Ship it in
-   the MVP, or ship steps 1–4 first and measure? Recommendation: include
-   it; the LIST count is the same either way, and the GETs are what the
-   cache removes.
+   and a per-sample read of a finished run is 302 LISTs plus three GETs; a
+   running run still costs one manifest GET per running shard on every
+   read, cached or not. Ship it in the MVP, or ship steps 1–4 first and
+   measure? Recommendation: include it; the LIST count is the same either
+   way, and the plan and unchanged-log GETs are what the cache removes.
 3. **Messages and store for running samples.** Unsupported in the design.
    `reconstruct_eval_sample` can rebuild a running sample's messages from
    its buffered model events (what `inspect log recover` produces), at the
