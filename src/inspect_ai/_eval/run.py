@@ -2,6 +2,7 @@ import functools
 import logging
 import os
 import sys
+from contextlib import ExitStack
 from copy import copy
 from dataclasses import dataclass, replace
 from typing import Any, Awaitable, Callable, Iterable, NamedTuple, Set, cast
@@ -76,6 +77,7 @@ from inspect_ai.util._sandbox.environment import (
     TaskInit,
     set_sandbox_prebuilt,
 )
+from inspect_ai.util._sandbox.lifecycle import sandbox_lifecycle_scope
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .loader import (
@@ -463,6 +465,9 @@ async def eval_run(
         return task_run_options
 
     try:
+        # own the batch's sandbox lifecycle state before any task starts
+        sandbox_manager.open()
+
         # prepare the initial (seed) tasks
         initial_options = await prepare_options(tasks)
         assert initial_options or inject is not None, "Must encounter a task"
@@ -1097,6 +1102,14 @@ class SandboxManager:
     :meth:`start` / :meth:`start_for_samples` initialize only sandboxenvs not
     already started and accumulate their cleanups; :meth:`shutdown` runs every
     accumulated cleanup once, at the end of the run.
+
+    The manager also owns the batch's sandbox lifecycle state (the registries
+    a provider's `task_cleanup` reads: running containers, generated config
+    files). :meth:`open` binds a fresh scope in the calling context before any
+    task of the batch is spawned, so a `task_init` that runs late — in a
+    `SampleSource` feeder task, a sibling of the samples — registers on the
+    object every task inherited rather than in its own context; :meth:`shutdown`
+    releases the scope, so a sequential batch after this one starts clean.
     """
 
     def __init__(
@@ -1111,11 +1124,23 @@ class SandboxManager:
             tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str]
         ] = []
         self._init_lock = anyio.Lock()
+        self._lifecycle: ExitStack | None = None
         # keyed by (task, spec): resolution folds in per-task state (run_dir),
         # so a spec-only key would leak one task's resolution to another
         self._resolved_no_metadata: dict[
             tuple[Task, SandboxEnvironmentSpec], TaskSandboxEnvironment
         ] = {}
+
+    def open(self) -> None:
+        """Own the batch's sandbox lifecycle state from the calling context.
+
+        Call before any task or sample of the batch is spawned (and whether or
+        not any initial sample has a sandbox — the first sandbox may arrive
+        with an added sample). :meth:`shutdown` releases it.
+        """
+        if self._lifecycle is None:
+            self._lifecycle = ExitStack()
+            self._lifecycle.enter_context(sandbox_lifecycle_scope())
 
     async def start(self, tasks: list[ResolvedTask], task_names: list[str]) -> None:
         """Start the sandboxenvs of `tasks`' selected samples.
@@ -1244,26 +1269,27 @@ class SandboxManager:
                     print("")
 
     async def shutdown(self) -> None:
+        """Run every accumulated `task_cleanup`, then release the lifecycle state.
+
+        The final cleanup of the batch: it also covers samples whose own
+        cleanup was deferred by an interruption, since their provider state is
+        on the scope this manager owns.
+        """
         with anyio.CancelScope(shield=True):
-            for cleanup_jobs in self._cleanups:
-                try:
-                    cleanup_fn, config, task_run_dir = cleanup_jobs
-                    with chdir(task_run_dir):
-                        await cleanup_fn("shutdown", config, self._cleanup)
-                except BaseException as ex:
-                    log.warning(
-                        f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
-                    )
-
-
-async def startup_sandbox_environments(
-    tasks: list[ResolvedTask],
-    config: EvalConfig,
-    cleanup: bool,
-) -> Callable[[], Awaitable[None]]:
-    manager = SandboxManager(config, cleanup)
-    await manager.start(tasks, resolved_task_names(tasks))
-    return manager.shutdown
+            try:
+                for cleanup_jobs in self._cleanups:
+                    try:
+                        cleanup_fn, config, task_run_dir = cleanup_jobs
+                        with chdir(task_run_dir):
+                            await cleanup_fn("shutdown", config, self._cleanup)
+                    except BaseException as ex:
+                        log.warning(
+                            f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
+                        )
+            finally:
+                if self._lifecycle is not None:
+                    self._lifecycle.close()
+                    self._lifecycle = None
 
 
 def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
