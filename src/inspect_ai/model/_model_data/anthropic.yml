@@ -77,6 +77,21 @@ anthropic:
           snapshot: "20260724"
           aliases:
             - anthropic.claude-opus-5
+    claude-opus-5-5:
+      display_name: Claude Opus 5.5
+      release_date: 2026-09-22
+      knowledge_cutoff_date: 2026-06-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking is always on (can't be disabled, unlike Opus 5).
+      # https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5
+      reasoning_effort_default: medium
+      versions:
+        claude-opus-5-5:
+          snapshot: "20260922"
+          aliases:
+            - anthropic.claude-opus-5-5
     claude-fable-5:
       display_name: Claude Fable 5
       release_date: 2026-06-09

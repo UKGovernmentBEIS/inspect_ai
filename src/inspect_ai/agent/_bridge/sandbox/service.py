@@ -6,6 +6,7 @@ from pydantic import JsonValue, TypeAdapter
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
 from inspect_ai.model._call_tools import (
     get_tools_info,
@@ -227,6 +228,10 @@ def call_tool(
 ) -> Callable[[str, str, dict[str, JsonValue]], Awaitable[JsonValue]]:
     """Execute a bridged tool and return result.
 
+    A tool runs only for a call the model proposed in a bridged generation, once
+    per proposal (see `SandboxAgentBridge.register_tool_execution_grants`), unless
+    its server was registered with `require_proposal=False`.
+
     Arguments are validated against the tool's schema as for a native call, so
     a scaffold's malformed arguments surface as a `ToolParsingError` the model
     can recover from; they are otherwise forwarded as the scaffold sent them.
@@ -251,10 +256,22 @@ def call_tool(
         if tool not in server_tools:
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
-        # The execution-grant check (bridge.consume_tool_execution_grant) is
-        # disabled pending #5428: scaffolds present bridged tools to their model
-        # under names the grant resolution does not recognise, so every approved
-        # call was denied here. Approval still runs at generate time.
+        if (
+            server not in bridge.proposal_exempt_servers
+            and not bridge.consume_tool_execution_grant(server, tool, arguments)
+        ):
+            warn_once(
+                logger,
+                f"Denied host tool call '{server}/{tool}': the model did not "
+                "propose it in a bridged generation (or its proposal has "
+                "already executed).",
+            )
+            raise PermissionError(
+                f"Host tool call '{server}/{tool}' was not proposed by the model "
+                "in a bridged generation (a bridged host tool runs once per "
+                "proposed call)"
+            )
+
         tool_fn = server_tools[tool]
         try:
             validation_errors = validate_tool_input(
