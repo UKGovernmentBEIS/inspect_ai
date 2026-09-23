@@ -8,7 +8,7 @@ Interactive human reviewer.
 
 Shows the operator the tool call together with the result it returned, on the same surfaces as [human_approver()](../reference/inspect_ai.approval.html.md#human_approver) (an attached ACP client, the approvals panel in the full-screen display, or the console), and asks for a review decision. `continue` is offered as the surfaces’ “approve” choice.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/review/_human.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f9837f6c577da1bf89223f0575d4cb218940a79f/src/inspect_ai/review/_human.py#L35)
 
 ``` python
 @reviewer(name="human")
@@ -24,7 +24,7 @@ Choices to present to human.
 
 Read review policies from a JSON or YAML config file.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/review/_policy.py#L133)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f9837f6c577da1bf89223f0575d4cb218940a79f/src/inspect_ai/review/_policy.py#L133)
 
 ``` python
 def read_review_policies(file: str) -> list[ReviewPolicy]
@@ -37,7 +37,7 @@ JSON or YAML config file with review policies.
 
 Context manager to temporarily replace tool review policies.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/review/_apply.py#L63)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f9837f6c577da1bf89223f0575d4cb218940a79f/src/inspect_ai/review/_apply.py#L63)
 
 ``` python
 @contextlib.contextmanager
@@ -53,7 +53,7 @@ Review policies to use within the context.
 
 Review the result of a tool call that has executed.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/review/_reviewer.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f9837f6c577da1bf89223f0575d4cb218940a79f/src/inspect_ai/review/_reviewer.py#L13)
 
 ``` python
 class Reviewer(Protocol):
@@ -90,7 +90,7 @@ The current conversation history (ending with the assistant turn that made the c
 
 Review details (decision, explanation, etc.)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/review/_review.py#L15)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f9837f6c577da1bf89223f0575d4cb218940a79f/src/inspect_ai/review/_review.py#L15)
 
 ``` python
 class Review(BaseModel)
@@ -111,7 +111,7 @@ Additional review metadata.
 
 Represents the possible decisions in a review.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/review/_review.py#L5)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f9837f6c577da1bf89223f0575d4cb218940a79f/src/inspect_ai/review/_review.py#L5)
 
 ``` python
 ReviewDecision = Literal["continue", "terminate", "escalate"]
@@ -121,7 +121,7 @@ ReviewDecision = Literal["continue", "terminate", "escalate"]
 
 Policy mapping reviewers to tools.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/review/_policy.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f9837f6c577da1bf89223f0575d4cb218940a79f/src/inspect_ai/review/_policy.py#L22)
 
 ``` python
 @dataclass
@@ -142,7 +142,7 @@ Tools to use this reviewer for (can be full tool names or globs).
 
 Decorator for registering reviewers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fa2f7f45b278c41de7ddef5949b3da7b7a4fc3cf/src/inspect_ai/review/_registry.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f9837f6c577da1bf89223f0575d4cb218940a79f/src/inspect_ai/review/_registry.py#L28)
 
 ``` python
 def reviewer(*args: Any, name: str | None = None, **attribs: Any) -> Any
