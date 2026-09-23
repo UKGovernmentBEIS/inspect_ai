@@ -1,6 +1,7 @@
 # Read-only log mode for `inspect ctl` (`--log-dir`)
 
-> **Status: proposed, 2026-09-23.** Companion to the eval sharding design
+> **Status: proposed, 2026-09-23; open questions resolved by Ransom the
+> same day (see "Open questions").** Companion to the eval sharding design
 > ([`../eval-sharding.md`](../eval-sharding.md)), which defines the `<name>.shards/<k>/` layout this mode
 > reads and leaves "targeted live-view improvements ... (`inspect ctl`, the
 > running-sample viewer)" to its Step 3. Builds on
@@ -338,7 +339,7 @@ and handler are for reference; the mode calls none of them.
 | `sample errors` (`_sample.py:184`) | same, `filter=errors&all=true` | degraded | Errors from flushed logs, and from completed-but-unflushed buffer rows where `--log-shared` is on. |
 | `sample show` (`_sample.py:209`) | `GET /evals/{id}/sample` (`server.py:861`) | works when the selected record is in the log; degraded when it is a buffer row | Log: the sample member read with heavy fields excluded, as the live terminal path does. Buffer: the manifest summary only; `error_retries` empty until flushed. |
 | `sample events` (`_sample.py:263`) | `GET /evals/{id}/sample/events` (`server.py:881`) | works for log records; degraded for buffer rows; unavailable for running samples without `--log-shared` | Log: the sample member's events. Buffer: events reconstructed from the sample's segments, up to the last sync; the cursor restarts when the source becomes the log. |
-| `sample messages` (`_sample.py:401`) | `GET /evals/{id}/sample/messages` (`server.py:938`) | works for log records; unsupported for buffer rows | Log: the sample member. The buffer has no message list (open question 3). |
+| `sample messages` (`_sample.py:401`) | `GET /evals/{id}/sample/messages` (`server.py:938`) | works for log records; unsupported for buffer rows | Log: the sample member. The buffer has no message list (decision: Ransom, 2026-09-23). |
 | `sample store` (`_sample.py:477`) | `GET /evals/{id}/sample/store` (`server.py:966`) | works for log records; unsupported for buffer rows | Log: the sample member. The buffer has no store snapshot. |
 | `sample cancel` (`_sample.py:552`) | `POST .../sample/cancel` (`server.py:1224`) | unsupported | Mutation. |
 | `sample cancel-tool-call` (`_sample.py:610`) | `POST .../sample/cancel-tool-call` (`server.py:1288`) | unsupported | Mutation. |
@@ -800,7 +801,7 @@ task, locate the key, and act on `select_source`:
   sample's source becomes the log, an old cursor is foreign and the read
   restarts at offset 0 (the existing stale-cursor rule,
   `events.py:196-199`): duplicates, never gaps. `sample messages` and
-  `sample store` fail with `unsupported` (open question 3).
+  `sample store` fail with `unsupported` (decision: Ransom, 2026-09-23).
 - **`buffer`, completed but not flushed**: as running, except that `sample
   show` includes the summary's error message (under `--content`) and
   `sample events` may return `done: true` once every listed segment was
@@ -1315,29 +1316,28 @@ Each step is one PR; steps 1–5 are the MVP.
 
 ## Open questions
 
-1. **Default row shape for sharded runs.** One logical row per run, shards
-   behind `--shards` (the design), or one row per shard by default?
-   Recommendation: logical row; the per-shard view is one flag away and a
-   300-row default floods an agent's context, which the listing cap exists
+None open. Ransom resolved all three on 2026-09-23, each as recommended:
+
+1. **Default row shape for sharded runs.** One logical row per task by
+   default, with per-shard rows behind `task list --shards`. A 300-row
+   default would flood an agent's context, which the listing cap exists
    to prevent.
-2. **Cache in the MVP.** The design includes the local cache (step 5).
-   Without it every invocation over a 300-shard run pays the cold row of
-   "Cost and scale": 302 LISTs and 900–1,200 requests (20–45 MB) for a
-   list read, and 302 LISTs plus about 600 plan GETs before any per-sample
-   read.
-   With it, a warm list read of a finished run is 302 LISTs and no GETs,
-   and a per-sample read of a finished run is 302 LISTs plus three GETs; a
-   running run still costs one manifest GET and one freshness check per
-   running shard on every read, cached or not. The cache affects cost
-   only; the consistency guarantee does not depend on it. Ship it in the MVP, or ship steps 1–4 first and
-   measure? Recommendation: include it; the LIST count is the same either
-   way, and the plan and unchanged-log GETs are what the cache removes.
-3. **Messages and store for running samples.** Unsupported in the design.
-   `reconstruct_eval_sample` can rebuild a running sample's messages from
+2. **Cache in the MVP.** Included (step 5). Without it every invocation
+   over a 300-shard run pays the cold row of "Cost and scale": 302 LISTs
+   and 900–1,200 requests (20–45 MB) for a list read, and 302 LISTs plus
+   about 600 plan GETs before any per-sample read. With it, a warm list
+   read of a finished run is 302 LISTs and no GETs, and a per-sample read
+   of a finished run is 302 LISTs plus three GETs. A running run still
+   costs one manifest GET and one freshness check per running shard on
+   every read, cached or not. The cache affects cost only; the consistency
+   guarantee does not depend on it.
+3. **Messages and store for buffer rows.** Unsupported in the MVP for
+   every buffer-sourced row, including completed-but-unflushed ones.
+   `reconstruct_eval_sample` could rebuild a running sample's messages from
    its buffered model events (what `inspect log recover` produces), at the
-   cost of reading every segment of the sample per call; there is no store
-   equivalent. Recommendation: leave both unsupported in the MVP and point
-   at `sample events --type model`.
+   cost of reading every segment of the sample per call, and there is no
+   store equivalent. `sample events --type model` is the pointer the
+   `unsupported` error gives.
 
 ## Not this design
 
