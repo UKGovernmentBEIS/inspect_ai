@@ -11,6 +11,7 @@
 | anthropic/claude-opus-5-5 | medium |
 | anthropic/claude-sonnet-4-6 | adaptive |
 | anthropic/claude-sonnet-5 | high |
+| deepseek/deepseek-flash | high |
 | deepseek/deepseek-reasoner | no effort scale |
 | deepseek/deepseek-v4-flash | high |
 | deepseek/deepseek-v4-pro | high |

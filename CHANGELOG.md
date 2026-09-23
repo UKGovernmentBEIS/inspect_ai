@@ -1,5 +1,20 @@
 ## Unreleased
 
+- DeepSeek: Support for DeepSeek-V4.1-Flash (`deepseek-flash`), including image input; model info notes that the retired `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` names are now served by V4.1 Flash.
+- Sandbox agent bridge: host tools exposed with `bridged_tools` are again denied unless the model proposed the call in a bridged generation, once per proposal, with or without an approval policy (0.3.265 ran them regardless as a stopgap); `BridgedToolsSpec(require_proposal=False)` opts a server out.
+- Bugfix: Docker sandboxes for samples a `SampleSource` adds (including an empty-seed task with `sandbox="docker"`) no longer fail with a `LookupError`, and their containers and generated compose files are cleaned up at the end of the run.
+- Scoring: `match()`, `includes()`, `exact()`, `f1()`, `pattern()` and `answer()` now record `reason="no_response"` when the raw model completion is empty or whitespace only, so a model that returned nothing is distinguishable from one that answered wrong. Score values are unchanged. (#5376)
+- Grok: Non-streaming requests cut off by `attempt_timeout` are now retried, and ones cut off by a sample `time_limit` are recorded as that limit, instead of failing with a bare cancellation.
+- Bugfix: Samples whose solver is cut off by a cancellation that inspect did not issue are now recorded as sample errors instead of being scored as completed.
+
+## 0.3.268 (22 September 2026)
+
+- Agent Bridge: Bridged Anthropic requests no longer fail under anthropic SDK 1.8.0 or later, including requests with iterator, file-path or pydantic inputs.
+
+## 0.3.267 (22 September 2026)
+
+- Anthropic: Computer use now works on Claude Opus 5.5, Fable 5/5.1 and Mythos 5/5.1 via Anthropic's `computer_toolset_20260801` toolset; pass `-M computer_toolset=true` to use the toolset on Claude Opus 4.8, Sonnet 5 and Opus 5.
+- Computer Use: the `key` action now honors `repeat`.
 - Checkpointing: A pre-existing entry planted at the in-sandbox work area (`/root/.cache/inspect`), or a parent `/root/.cache` that other users could modify, now fails checkpoint setup and restore with a clear error instead of being reused.
 - Agent Bridge: Approval policies now match bridged host tools that a sandboxed agent calls through a single MCP dispatcher function (Antigravity's `call_mcp_tool`) by the tool's own name, and approvers see and modify the tool's own arguments.
 - Sample and Task Sources: a new `sample_abandoned()` hook reports a sample cancelled before anything was logged (cancelled while queued, or before its `retry_on_error` re-run), so a source waiting on it no longer stalls.

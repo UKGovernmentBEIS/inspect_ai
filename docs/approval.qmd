@@ -194,6 +194,8 @@ Because Inspect doesn't execute these tool calls, no tool event is recorded for 
 
 A `modify` decision leaves the original call intact in the log: the recorded model output and approval event show what the model proposed, and the approval event's `modified` field shows what was substituted.
 
+For a sandbox bridge with [bridged tools](agent-bridge.qmd#bridged-tools), the decision also determines what the agent can execute on the host. A bridged tool runs only for a call the model proposed in a bridged generation, once per proposal, with the arguments as approved (so a `modify` decision grants the modified call, not the original); a `tools/call` with no matching proposal is denied and the agent surfaces the error to the model, which re-proposes. This holds with no approval policy configured as well. A server registered with `BridgedToolsSpec(require_proposal=False)` gives up this correspondence: its tools run for any `tools/call` the agent sends. See [Execution Contract](agent-bridge.qmd#bridged-tools-execution).
+
 ## Custom Approvers
 
 Inspect includes two built-in approvers: `human` for interactive approval at the terminal and `auto` for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.
