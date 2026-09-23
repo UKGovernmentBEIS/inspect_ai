@@ -191,7 +191,7 @@ Here we assembled the agent ourselves from `react()` and a couple of tools. You 
 
 Built-in scorers cover exact/inclusion matching, multiple choice, and model grading, but sometimes you need your own logic. For the [MATH](https://arxiv.org/abs/2103.03874) dataset, answers can be logically equivalent without being string-identical (`2x+3` vs `3+2x`), so we write a scorer that asks a model to judge equivalence:
 
-``` {.python filename="math.py"}
+``` {.python filename="math_500.py"}
 import re
 from inspect_ai.model import get_model
 from inspect_ai.scorer import (
@@ -202,7 +202,7 @@ from inspect_ai.solver import TaskState
 
 # Grader prompt (the full version adds a few worked examples).
 EQUIVALENCE_TEMPLATE = """
-Are these two expressions equivalent? Answer Yes or No.
+Are these two expressions equivalent? Answer Yes or No without any additional symbols.
 
 Expression 1: %(expression1)s
 Expression 2: %(expression2)s
@@ -272,6 +272,12 @@ def math():
         solver=[prompt_template(PROMPT_TEMPLATE), generate()],
         scorer=expression_equivalence(),
     )
+```
+
+Run it, limiting to 50 samples while developing:
+
+``` bash
+inspect eval math_500.py --limit 50 --model openai/gpt-5
 ```
 
 See [Scoring](scoring.qmd) for the full scorer and metric APIs.
@@ -373,7 +379,7 @@ def add():
 
 {{< include _tools-annotations-required.md >}}
 
-Make the tool available to the model with `use_tools()`:
+Make the tool available to the model with `use_tools()`, or pass it to [`react()`](react-agent.qmd):
 
 ``` python
 from inspect_ai import Task, task
