@@ -63,7 +63,9 @@ RegistryType = Literal[
 """Enumeration of registry object types.
 
 These are the types of objects in this system that can be
-registered using a decorator (e.g. `@task`, `@solver`).
+registered using a decorator (e.g. `@task`, `@solver`). The "monitor" and
+"protocol" types are constructed via `create_registry_object()` rather than
+`registry_create()`; see the note above the `registry_create()` overloads.
 Registered objects can in turn be created dynamically using
 the `registry_create()` function.
 """
@@ -403,6 +405,13 @@ def registry_create(type: Literal["scanner"], name: str, **kwargs: Any) -> Any: 
 
 @overload
 def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> Any: ...
+
+
+# No overloads for "monitor" or "protocol" on purpose: their factories return
+# union-aliased callables with no __name__, so the instantiation rule below
+# would hand back the factory uncalled. inspect_sentinel constructs through
+# create_registry_object(); the missing overloads make a registry_create()
+# call a type error instead of a silent no-op.
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]
