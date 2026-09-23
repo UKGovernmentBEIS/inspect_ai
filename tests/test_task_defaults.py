@@ -846,7 +846,7 @@ def test_unscoped_resolution_drops_run_wide_defaults(
     attached = make_task(
         tmp_path, {"eval_config": {"max_tasks": 7, "log_samples": False, "limit": 1}}
     )
-    resolved, _ = eval_resolve_tasks(
+    resolved, _, _ = eval_resolve_tasks(
         attached.factory,
         {},
         [get_model("mockllm/model")],
@@ -899,10 +899,10 @@ def test_file_shuffle_is_not_applied_under_explicit_sample_id(tmp_path: Path) ->
 
     attached = make_task(tmp_path, {"eval_config": {"sample_shuffle": 42}})
     common = ([get_model("mockllm/model")], None, GenerateConfig(), None, None)
-    shuffled, _ = eval_resolve_tasks(attached.factory, {}, *common, None)
+    shuffled, _, _ = eval_resolve_tasks(attached.factory, {}, *common, None)
     assert shuffled[0].task.dataset.shuffled
     attached = make_task(tmp_path, {"eval_config": {"sample_shuffle": 42}})
-    unshuffled, _ = eval_resolve_tasks(
+    unshuffled, _, _ = eval_resolve_tasks(
         attached.factory, {}, *common, None, sample_id=[2]
     )
     assert not unshuffled[0].task.dataset.shuffled
