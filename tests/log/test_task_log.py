@@ -421,6 +421,68 @@ async def test_task_logger_concurrent_flushes_do_not_double_remove_pending() -> 
     assert buffer_db.removed == [("sample", 1)]
 
 
+@pytest.mark.parametrize(
+    "completed_during_flush, expected_flushes",
+    [(1, 1), (2, 1), (3, 2), (4, 2)],
+)
+@pytest.mark.anyio
+async def test_task_logger_rechecks_threshold_for_completions_during_flush(
+    completed_during_flush: int, expected_flushes: int
+) -> None:
+    # Completions landing while a threshold flush is writing each queue their
+    # own flush (the in-flight batch still counts toward the threshold). Once
+    # it finishes, only a remainder of at least flush_buffer is flushed again;
+    # a smaller one is left to the stale-flush timer.
+    flush_buffer = 3
+    recorder = _FlushRecorder()
+    recorder.allow_flush = anyio.Event()
+    buffer_db = _FlushBufferDB()
+    logger = _flush_logger(
+        flush_buffer=flush_buffer, buffer_db=buffer_db, recorder=recorder
+    )
+    logger._stale_flush_interval = 60
+
+    def sample(index: int) -> EvalSample:
+        return _sample().model_copy(update={"id": f"sample-{index}"})
+
+    async def complete_sample(sample: EvalSample) -> None:
+        await logger.complete_sample(sample, flush=True)
+
+    async with _running_stale_flush_timer(logger, start=False):
+        async with anyio.create_task_group() as tg:
+            for index in range(flush_buffer - 1):
+                await complete_sample(sample(index))
+            tg.start_soon(complete_sample, sample(flush_buffer - 1))
+            with anyio.fail_after(5):
+                await recorder.flush_started.wait()
+
+            for index in range(completed_during_flush):
+                tg.start_soon(complete_sample, sample(flush_buffer + index))
+            with anyio.fail_after(5):
+                while (
+                    logger._flush_lock.statistics().tasks_waiting
+                    < completed_during_flush
+                ):
+                    await anyio.sleep(0)
+
+            recorder.allow_flush.set()
+
+        # trio does not run the completing tasks in start order
+        remainder = sorted(
+            (f"sample-{flush_buffer + index}", 1)
+            for index in range(completed_during_flush)
+        )
+        assert recorder.flush_count == expected_flushes
+        if completed_during_flush < flush_buffer:
+            assert sorted(logger.flush_pending) == remainder
+            assert logger._stale_flush_cancel_scope is not None
+            assert len(buffer_db.removed) == flush_buffer
+        else:
+            assert logger.flush_pending == []
+            assert logger._stale_flush_cancel_scope is None
+            assert sorted(buffer_db.removed[flush_buffer:]) == remainder
+
+
 @pytest.mark.anyio
 async def test_task_logger_threshold_flush_cancels_scheduled_stale_flush() -> None:
     recorder = _FlushRecorder()
@@ -530,9 +592,12 @@ async def test_task_logger_threshold_flush_prevents_racing_stale_start(
         await original_start_stale_flush_timer()
 
     async def observed_flush_pending(
-        *, stale_flush_generation: int | None = None
+        *, stale_flush_generation: int | None = None, require_threshold: bool = False
     ) -> None:
-        await original_flush_pending(stale_flush_generation=stale_flush_generation)
+        await original_flush_pending(
+            stale_flush_generation=stale_flush_generation,
+            require_threshold=require_threshold,
+        )
         assert logger._stale_flush_cancel_scope is None
 
     monkeypatch.setattr(

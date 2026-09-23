@@ -771,7 +771,7 @@ class TaskLogger:
 
             if threshold_reached:
                 await self._stop_stale_flush_timer()
-                await self._flush_pending_samples()
+                await self._flush_pending_samples(require_threshold=True)
             elif was_empty:
                 await self._start_stale_flush_timer_if_needed()
 
@@ -794,7 +794,10 @@ class TaskLogger:
             self._samples_completed += 1
 
     async def _flush_pending_samples(
-        self, *, stale_flush_generation: int | None = None
+        self,
+        *,
+        stale_flush_generation: int | None = None,
+        require_threshold: bool = False,
     ) -> int:
         """Flush buffered completed samples to the log; return the count written.
 
@@ -803,6 +806,12 @@ class TaskLogger:
         Serialized via :attr:`_flush_lock`; a no-op returning 0 once the eval
         has finished or been discarded (the recorder has been torn down,
         so reaching into it would raise) or when nothing is pending.
+
+        ``require_threshold`` (the buffer-full flush) re-checks the threshold
+        once the lock is held. A caller queued behind a flush that drained the
+        batch it saw may find fewer than ``flush_buffer`` samples pending; it
+        then arms the stale-flush timer for them rather than writing the whole
+        log again for a small remainder.
         """
         reschedule_stale_flush = False
         flushed = 0
@@ -813,21 +822,25 @@ class TaskLogger:
                 pending = list(self.flush_pending)
                 if not pending:
                     return 0
+                below_threshold = require_threshold and len(pending) < self.flush_buffer
 
-            await self.recorder.flush(self.eval)
-            flushed = len(pending)
+            if below_threshold:
+                reschedule_stale_flush = True
+            else:
+                await self.recorder.flush(self.eval)
+                flushed = len(pending)
 
-            async with self._flush_pending_lock:
-                if self._buffer_db is not None:
-                    self._buffer_db.remove_samples(pending)
+                async with self._flush_pending_lock:
+                    if self._buffer_db is not None:
+                        self._buffer_db.remove_samples(pending)
 
-                # Items appended during the flush are at the tail; drop the flushed prefix.
-                del self.flush_pending[: len(pending)]
-                current_generation = self._stale_flush_generation
-                reschedule_stale_flush = bool(self.flush_pending) and (
-                    stale_flush_generation is None
-                    or stale_flush_generation == current_generation
-                )
+                    # Items appended during the flush are at the tail; drop the flushed prefix.
+                    del self.flush_pending[: len(pending)]
+                    current_generation = self._stale_flush_generation
+                    reschedule_stale_flush = bool(self.flush_pending) and (
+                        stale_flush_generation is None
+                        or stale_flush_generation == current_generation
+                    )
 
         if reschedule_stale_flush:
             await self._arm_stale_flush_timer(generation=stale_flush_generation)
