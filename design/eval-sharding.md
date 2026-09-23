@@ -761,7 +761,7 @@ What readers that list shards pay:
   integration") therefore applies to the file list before
   `read_eval_log_headers`; the startup merge reads shard headers itself,
   through the ledger, only for shards that changed. The retry-cleanup scan
-  (`cleanup_older_eval_logs`, `evalset.py:1929-1935`) lists through the same
+  (`cleanup_older_eval_logs`, `evalset.py:1930-1936`) lists through the same
   helper and gets the same skip. `list_all_eval_logs` also has callers
   outside `eval_set()` (`inspect_flow`'s log discovery and store import), so
   the skip is applied at eval-set's call sites, or behind a parameter they
