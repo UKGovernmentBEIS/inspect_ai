@@ -1,6 +1,6 @@
 # Eval sharding with per-worker log files
 
-Status: design direction chosen, last revised 2026-09-22. Phase 1 compared
+Status: design direction chosen, last revised 2026-09-23. Phase 1 compared
 the options (now under "Alternatives not taken"); the phased direction below
 was agreed by Ransom and JJ Allaire on 2026-09-18 and refined by Ransom on
 2026-09-21 and 2026-09-22. Shards live in a companion directory beside the
@@ -11,7 +11,8 @@ launcher: merging is done through a Python API, a CLI command, or
 companion, and eval-set cleanup keeps an unsharded `success` log over a
 merged log that shares its `task_id` regardless of mtime (2026-09-22).
 Merges are serialised by their callers, one merger at a time per merged
-log, with compare-and-swap publication as the guard (2026-09-22). No API
+log, with compare-and-swap publication as the guard (2026-09-22). The
+"Scale" section covers roughly 300 shards on S3 (2026-09-23). No API
 signatures or implementation plan yet; those are the next document. The one
 open decision is listed under "Open questions".
 Issue: https://github.com/meridianlabs-ai/inspect_ai/issues/509.
@@ -600,9 +601,10 @@ have grown, and additional shards added later.
   contiguous ranges; shard zips interleave `_journal/` members among
   `samples/`, so ranges are not contiguous across a shard and journal bytes
   either ride along as dead bytes or force more parts; local-file member
-  offsets must be recomputed for the new central directory. Baseline first;
-  composition when measured merges of large logs justify it. Inspect already
-  has a multipart upload helper to build on (`_util/asyncfiles.py:240`).
+  offsets must be recomputed for the new central directory. Baseline first,
+  then a raw copy of compressed members, then composition, each when measured
+  merges of large logs justify it (see "Scale"). Inspect already has a
+  multipart upload helper to build on (`_util/asyncfiles.py:240`).
 - *Triggers.* The Python API, the CLI that wraps it and the
   `eval_set()`-startup merge are the same operation: "merge whatever is new", idempotent, deterministic,
   keyed on the merged log's basename (given either `<name>.eval` or
@@ -670,6 +672,85 @@ copy and, with `retry_cleanup` on, are removed; with `retry_cleanup=False`
 everything stays, as today. A retry should not run while shards can still
 grow, and `eval_set()` cannot tell; the launcher hands the directory to
 `eval_set()` only after its workers are done (see "Notes for harnesses").
+
+### Scale
+
+Target case: about 300 shards of one task on S3 (one sample per machine),
+with a merged log that can reach several GB for agentic samples. The shard
+count is not the constraint; the full rewrite per pass, how the merge
+publishes, and header reads by readers that list shards are.
+
+What already scales:
+
+- **Unchanged shards cost a listing.** S3 listings carry each object's ETag
+  (`FileInfo.etag`, filled by `_file_info`, `_util/file.py:208,340-344`), so
+  the ledger's per-shard ETag or mtime lets a pass skip every fully merged
+  shard without opening it; a steady-state pass is one listing of
+  `<name>.shards/` plus the merged log's header and central directory.
+- **New shards are small concurrent reads.** Each new shard costs its
+  central directory and header (range reads through `AsyncZipReader`,
+  `_util/async_zip.py:310`) plus the sample members the merged log lacks.
+  For 300 shards that is on the order of a thousand GETs, far below S3's
+  per-prefix request rates, provided they run concurrently over one shared
+  `AsyncFilesystem` (as `read_eval_log_headers_async` already does with
+  `tg_collect`, `log/_file.py:676-691`) and no sync fsspec call sits in the
+  async path. The merge bounds that concurrency rather than issuing all
+  reads at once.
+
+What the merge must do differently from today's write paths:
+
+- **Merge rarely; each pass costs the whole log.** A pass rewrites the
+  merged zip in full (see "Cost shape"), and `copy_live_members`
+  decompresses and recompresses every member it copies
+  (`_util/zipfile.py:212-246`), so a pass is CPU-bound as well as a full
+  download and upload. Merging after each of 300 shards finishes makes the
+  total roughly quadratic: with a 2 GB final log it moves about 300 GB. The
+  recommended cadence is one merge after the workers exit, or batched merges
+  (every N shards or on a timer of minutes, not seconds); this is also the
+  cost the Step 2 timer route would pay (open question 1). The first
+  optimisation is a raw copy of compressed member bytes (local header plus
+  compressed data, central-directory entry rewritten with the new offset),
+  which removes the recompress for every sample; server-side
+  `UploadPartCopy` composition comes after, since it also has to build the
+  central directory with recomputed offsets.
+- **Stream samples; never materialise the merged `EvalLog`.** The existing
+  full-write path takes an `EvalLog` with every sample loaded
+  (`_write_eval_log_with_recorder` iterates `log.samples`,
+  `_recorders/eval.py:701-729`), and the S3 path then reads the rendered file
+  back into one `bytes` object (`_write_log_s3`, `:524-565`). The merge
+  instead copies members zip to zip one at a time and keeps only each
+  sample's scores (and the metadata metrics read) for `eval_results`
+  (`_eval/task/results.py:90`), so memory is bounded by the largest sample,
+  not the log.
+- **Conditional publish must be multipart.** The compare-and-swap guard
+  (see "Overlapping merges") currently rides on `_s3_put_object`, a single
+  `put_object` with the whole body in memory (`_recorders/eval.py:742-764`);
+  S3 caps a single PUT at 5 GB. The unconditional writer already streams a
+  multipart upload (`_s3_multipart_upload_async`, `_util/asyncfiles.py:240`)
+  but sends no condition on `complete_multipart_upload` (`:298`). The merge
+  publishes through the multipart path with `IfMatch` or `IfNoneMatch: *`
+  on `complete_multipart_upload`, which S3 honours, and keeps the
+  `head_object` pre-check for backends that do not; a refused completion
+  aborts the upload as the helper already does on error.
+
+What readers that list shards pay:
+
+- **`eval_set()` must skip shards before reading headers.** Startup reads
+  the header of every listed log before any pairing (`list_all_eval_logs`
+  calls `read_eval_log_headers`, `_eval/evalset.py:1758-1769`, from `:1043`),
+  so a skip applied at pairing still fetches 300 shard headers per task on
+  every restart. The path-based `*.shards/` skip (see "Eval-set
+  integration") therefore applies to the file list before
+  `read_eval_log_headers`; the startup merge reads shard headers itself,
+  through the ledger, only for shards that changed.
+- **Viewer rows cost a header each.** The viewer fetches a header for each
+  file it lists, in batches through `/log-headers`
+  (`_view/fastapi_server.py:476-491`), and caches them per file, so the
+  cost lands on a cold listing (300 extra header reads per sharded task) and
+  on every running shard whose file changes, on top of the clutter. This is a performance argument, in addition to the
+  correctness costs under "Listing", for revisiting the deferred listing
+  exclusion once sharded runs of this size are common; Step 1 keeps the
+  decision to list shards.
 
 ### Notes for harnesses
 
@@ -833,6 +914,13 @@ Pydantic models. New boundaries:
   shard's message in the ledger; a rerun in the same `<k>/` supersedes the
   failed attempt and the next merge reaches `success`; sample-level errors
   inside a `success` shard merge unchanged and metrics skip them.
+- Scale tests, local and mock-S3 (`mock_s3` in `tests/conftest.py`): a
+  merge over many shards whose peak memory stays near the largest sample
+  rather than the log (the merge never builds a full `EvalLog`); a pass over
+  unchanged shards opens none of them; `eval_set()` startup over a directory
+  with shards reads no shard header outside the merge's ledger check; the
+  conditional multipart publish is refused on an `IfMatch` or `IfNoneMatch`
+  mismatch and aborts its upload.
 - A test that no reader path imports a header-named `task_file`.
 - Provenance field round-trip, and a check that unsharded logs and a log
   directory without any `*.shards/` companion are unaffected.
