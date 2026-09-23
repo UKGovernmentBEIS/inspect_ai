@@ -1,5 +1,11 @@
-## Unreleased
+## 0.3.268 (22 September 2026)
 
+- Agent Bridge: Bridged Anthropic requests no longer fail under anthropic SDK 1.8.0 or later, including requests with iterator, file-path or pydantic inputs.
+
+## 0.3.267 (22 September 2026)
+
+- Anthropic: Computer use now works on Claude Opus 5.5, Fable 5/5.1 and Mythos 5/5.1 via Anthropic's `computer_toolset_20260801` toolset; pass `-M computer_toolset=true` to use the toolset on Claude Opus 4.8, Sonnet 5 and Opus 5.
+- Computer Use: the `key` action now honors `repeat`.
 - Checkpointing: A pre-existing entry planted at the in-sandbox work area (`/root/.cache/inspect`), or a parent `/root/.cache` that other users could modify, now fails checkpoint setup and restore with a clear error instead of being reused.
 - Agent Bridge: Approval policies now match bridged host tools that a sandboxed agent calls through a single MCP dispatcher function (Antigravity's `call_mcp_tool`) by the tool's own name, and approvers see and modify the tool's own arguments.
 - Sandbox agent bridge: host tools exposed with `bridged_tools` are again denied unless the model proposed the call in a bridged generation, once per proposal, with or without an approval policy (0.3.265 ran them regardless as a stopgap); `BridgedToolsSpec(require_proposal=False)` opts a server out.
@@ -18,6 +24,7 @@
 - Anthropic: Fixed model construction failing with a `default_headers` TypeError when `ANTHROPIC_AUTH_TOKEN` is set and the caller supplies its own default headers.
 - Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
 - Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
+- Anthropic: Support for Claude Opus 5.5 (`claude-opus-5-5`): thinking can't be disabled, forced tool choice degrades to auto, and computer use is not yet supported on the Claude API and Vertex.
 
 ## 0.3.266 (19 September 2026)
 
