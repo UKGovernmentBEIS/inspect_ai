@@ -474,6 +474,41 @@ def test_csv_explicit_utf8_preserves_bom(tmp_path: Path) -> None:
     assert dataset[0].target == "résumé"
 
 
+def test_file_csv_utf8_with_bom(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_bytes("input,target\r\ncafé,résumé\r\n".encode("utf-8-sig"))
+
+    dataset = file_dataset(str(csv_file))
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "café"
+    assert dataset[0].target == "résumé"
+
+
+def test_file_csv_utf8_with_bom_keeps_id_column(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_bytes("id,input\r\n1,café\r\n".encode("utf-8-sig"))
+
+    dataset = file_dataset(str(csv_file))
+
+    assert len(dataset) == 1
+    assert dataset[0].id == "1"
+    assert dataset[0].input == "café"
+
+
+def test_file_csv_explicit_utf8_preserves_bom(tmp_path: Path) -> None:
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_bytes("café,résumé\r\n".encode("utf-8-sig"))
+
+    dataset = file_dataset(
+        str(csv_file), encoding="utf-8", fieldnames=["input", "target"]
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].input == "\ufeffcafé"
+    assert dataset[0].target == "résumé"
+
+
 def write_ragged_csv(tmp_path: Path, body: str) -> str:
     path = tmp_path / "data.csv"
     path.write_text(body, newline="")

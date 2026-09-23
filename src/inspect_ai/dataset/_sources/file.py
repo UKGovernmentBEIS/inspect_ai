@@ -20,7 +20,7 @@ def file_dataset(
     shuffle_choices: bool | int | None = None,
     limit: int | None = None,
     dialect: str = "unix",
-    encoding: str = "utf-8",
+    encoding: str = "utf-8-sig",
     name: str | None = None,
     fs_options: dict[str, Any] = {},
     fieldnames: list[str] | None = None,
@@ -48,7 +48,8 @@ def file_dataset(
         limit (int | None): Limit the number of records to read.
         dialect (str): CSV dialect ("unix" or "excel", defaults to "unix"). Only
             applies to reading CSV/TSV files.
-        encoding (str): Text encoding for file (defaults to "utf-8").
+        encoding (str): Text encoding for file (defaults to "utf-8-sig", which accepts
+            UTF-8 with or without a byte-order mark).
         name (str): Optional name for dataset (for logging). If not specified,
             defaults to the stem of the filename
         fs_options (dict[str, Any]): Optional. Additional arguments to pass through
