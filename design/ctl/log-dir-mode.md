@@ -1,9 +1,7 @@
 # Read-only log mode for `inspect ctl` (`--log-dir`)
 
 > **Status: proposed, 2026-09-23.** Companion to the eval sharding design
-> (`design/eval-sharding.md` on
-> [UKGovernmentBEIS/inspect_ai#5469](https://github.com/UKGovernmentBEIS/inspect_ai/pull/5469),
-> not yet on `main`), which defines the `<name>.shards/<k>/` layout this mode
+> ([`../eval-sharding.md`](../eval-sharding.md)), which defines the `<name>.shards/<k>/` layout this mode
 > reads and leaves "targeted live-view improvements ... (`inspect ctl`, the
 > running-sample viewer)" to its Step 3. Builds on
 > [`control-channel.md`](control-channel.md) (the ctl surface, the agent
@@ -261,7 +259,7 @@ inventory" below.
   headers grow with the plan, task arguments and model configuration, and
   sample members of agentic tasks run to megabytes.
 
-### The sharding layout (from #5469)
+### The sharding layout (from `eval-sharding.md`)
 
 The merged log is `<dir>/<name>.eval`; its shards are the `.eval` files
 under `<dir>/<name>.shards/<k>/`, each with its own `.buffer` beside it.
