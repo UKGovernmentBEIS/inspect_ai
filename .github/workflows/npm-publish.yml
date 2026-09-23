@@ -39,13 +39,14 @@ jobs:
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
 
+      # Release builds resolve every dependency from the lockfile and the
+      # registry; they never restore or save a shared dependency cache.
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
-          cache: pnpm
-          cache-dependency-path: src/inspect_ai/_view/ts-mono/pnpm-lock.yaml
+          package-manager-cache: false
 
       - name: Upgrade npm (for Trusted Publishing)
         run: |

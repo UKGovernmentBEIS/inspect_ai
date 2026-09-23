@@ -1568,22 +1568,19 @@ def _computer_tool_info() -> ToolInfo:
     "model_name",
     ["claude-fable-5", "claude-mythos-5", "claude-fable-5-1", "claude-saga-5"],
 )
-def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
-    """Undocumented Claude 5 models error on computer use rather than degrade.
+def test_anthropic_claude_5_computer_use_toolset(model_name: str) -> None:
+    """Fable/Mythos and codename Claude 5 models default to the computer toolset.
 
-    Covers Fable/Mythos and forward-compat codename variants. Sonnet 5 and
-    Opus 5 are supported and covered by test_anthropic_computer_use_tool_version.
+    They also accept the legacy `computer_20251124` tool (used on platforms
+    without the toolset, or with `computer_toolset=false`). Sonnet 5 and
+    Opus 5 keep the legacy tool and are covered by
+    test_anthropic_computer_use_tool_version; the full mode matrix lives in
+    test_anthropic_computer_toolset.py.
     """
-    from inspect_ai._util.error import PrerequisiteError
-
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    with pytest.raises(PrerequisiteError) as exc_info:
-        api.computer_use_tool_param(_computer_tool_info())
-    # PrerequisiteError stores the message on .message (it doesn't call super().__init__);
-    # .message is a RenderableType, so coerce to str for the substring checks.
-    message = str(exc_info.value.message)
-    assert "Computer use is not supported" in message
-    assert model_name in message
+    param = api.computer_use_tool_param(_computer_tool_info())
+    assert param is not None
+    assert param["type"] == "computer_toolset_20260801"
 
 
 @pytest.mark.parametrize(
@@ -1610,26 +1607,6 @@ def test_anthropic_computer_use_tool_version(
     param = api.computer_use_tool_param(_computer_tool_info())
     assert param is not None
     assert param["type"] == expected_type
-
-
-@pytest.mark.parametrize("model_name", ["claude-opus-5-5", "vertex/claude-opus-5-5"])
-def test_anthropic_opus_5_5_computer_use_errors_off_bedrock(model_name: str) -> None:
-    """Opus 5.5 accepts only the computer toolset on the Claude API and Vertex.
-
-    `computer_20251124` returns a 400 there and Inspect has no toolset support
-    yet, so fail up front with a message that names the toolset.
-    """
-    from inspect_ai._util.error import PrerequisiteError
-
-    setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
-    setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
-    api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    with pytest.raises(PrerequisiteError) as exc_info:
-        api.computer_use_tool_param(_computer_tool_info())
-    message = str(exc_info.value.message)
-    assert "Computer use is not supported" in message
-    assert "claude-opus-5-5" in message
-    assert "computer_toolset_20260801" in message
 
 
 def test_anthropic_opus_5_5_computer_use_on_bedrock() -> None:

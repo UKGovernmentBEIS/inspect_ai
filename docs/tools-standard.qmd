@@ -279,7 +279,7 @@ The `computer()` tool provides models with a computer desktop environment along 
 
 | Provider  | Models                                                     |
 |-----------|------------------------------------------------------------|
-| Anthropic | `claude-opus-4-5+`, `claude-sonnet-4-6`                    |
+| Anthropic | `claude-opus-4-5+`, `claude-sonnet-4-6+`, `claude-fable-5+`, `claude-mythos-5+` |
 | Open AI   | `gpt-5.4+`, `gpt-5.4-pro+`                                 |
 | Google    | `gemini-3-flash-preview`                                   |
 
@@ -345,6 +345,8 @@ The computer tool supports the following options:
 |--------------------------|----------------------------------------------|
 | `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
 | `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
+
+When a Claude model uses Anthropic's computer toolset (see *Tool Binding* below), it can issue several actions in one turn as a batch. Inspect runs them in order and stops at the first failure, reporting each later action to the model as `Not executed: an earlier computer action in this turn failed.`, as the toolset's batch contract specifies. Other models and the legacy Anthropic tool are unaffected.
 
 For example:
 
@@ -441,7 +443,9 @@ inspect eval computer.py --approval approval.yaml
 
 ### Tool Binding
 
-The computer tool's schema is a superset of the standard [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use), and [Google](https://ai.google.dev/gemini-api/docs/computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions.
+The computer tool's schema is a superset of the standard [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use), and [Google](https://ai.google.dev/gemini-api/docs/computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions.
+
+For Claude models, the binding depends on the model and platform: on the Claude API and Vertex, Claude Opus 5.5, Fable 5/5.1 and Mythos 5/5.1 use Anthropic's computer toolset (`computer_toolset_20260801`), where each action is its own tool call and a failed action halts the remaining computer actions in that turn; other Claude models, and every model on Bedrock and Foundry (which offer only the earlier tool), keep the legacy `computer_20251124` tool. See [Computer Use](providers.qmd#anthropic-computer-use) in the Anthropic provider documentation for details, including the `computer_toolset` model arg that forces either mode.
 
 ## Code Execution {#sec-code-execution}
 
