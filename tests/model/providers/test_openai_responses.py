@@ -2804,3 +2804,35 @@ def test_maybe_code_interpreter_tool_model_gating(model_name, expected):
         options={"providers": {"openai": True}},
     )
     assert (maybe_code_interpreter_tool(model_name, tool) is not None) is expected
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+def test_responses_bridge_preserves_multiple_internal_blocks(as_list: bool) -> None:
+    from typing import cast
+
+    from openai.types.responses import ResponseInputItemParam
+
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._internal import content_internal_tag
+
+    text = (
+        '<think signature="sig">reasoning</think>first'
+        + content_internal_tag({"a": 1})
+        + content_internal_tag({"b": 2})
+        + "last"
+    )
+    item = cast(
+        ResponseInputItemParam,
+        {
+            "role": "assistant",
+            "content": [{"type": "input_text", "text": text}] if as_list else text,
+        },
+    )
+    [message] = messages_from_responses_input([item], tools=[])
+    assert isinstance(message.content, list)
+    assert message.content == [
+        ContentReasoning(reasoning="reasoning", signature="sig"),
+        ContentText(text="first", internal={"a": 1}),
+        ContentText(text="", internal={"b": 2}),
+        ContentText(text="last"),
+    ]
