@@ -454,12 +454,6 @@ class OpenAIAPI(ModelAPI):
     def reasoning_only_fallback(self) -> bool:
         return False
 
-    def replays_reasoning_text(self) -> bool:
-        return False
-
-    def omits_empty_tool_call_text(self) -> bool:
-        return False
-
     def is_o_series(self) -> bool:
         return is_o_series_model(self.model_family())
 

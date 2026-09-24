@@ -117,8 +117,6 @@ async def generate_responses(
     batcher: OpenAIBatcher[Response] | None,
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
     | None = None,
-    handle_stream_error: Callable[[APIError | OpenAIResponseError], ModelOutput | None]
-    | None = None,
     model_family: str | None = None,
     streaming: bool = False,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
@@ -259,11 +257,7 @@ async def generate_responses(
         # above, so recognized block codes convert on every path (streaming,
         # non-streaming, background, batch); unrecognized codes return None
         # and re-raise with their retry classification intact
-        output = (
-            handle_stream_error(e)
-            if handle_stream_error
-            else openai_handle_stream_error(model_name, e)
-        )
+        output = openai_handle_stream_error(model_name, e)
         if output is None:
             raise
         error_body = (
