@@ -785,7 +785,21 @@ def standalone_view_app(
 
     protected_app: ASGIApp = HostValidationMiddleware(app, network_policy)
     return SecurityHeadersMiddleware(
-        protected_app, content_security_policy=content_security_policy
+        protected_app,
+        content_security_policy=content_security_policy,
+        viewer_policy_exempt_paths=(
+            "/api",
+            *(
+                path
+                for path in (
+                    app.docs_url,
+                    app.redoc_url,
+                    app.openapi_url,
+                    app.swagger_ui_oauth2_redirect_url,
+                )
+                if path is not None
+            ),
+        ),
     )
 
 

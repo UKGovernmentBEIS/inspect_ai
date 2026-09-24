@@ -522,7 +522,7 @@ def _dist_with_policy(tmp_path: Path, policy_json: str | None) -> Path:
 
 
 @pytest.mark.parametrize(
-    ("policy_json", "expected"),
+    ("policy_json", "viewer_expected"),
     [
         (None, "frame-ancestors 'none'"),
         (
@@ -532,8 +532,8 @@ def _dist_with_policy(tmp_path: Path, policy_json: str | None) -> Path:
     ],
     ids=["no-policy-file", "policy-file"],
 )
-def test_viewer_csp_header_covers_every_response(
-    tmp_path: Path, policy_json: str | None, expected: str
+def test_viewer_csp_header_scoped_to_viewer_files(
+    tmp_path: Path, policy_json: str | None, viewer_expected: str
 ) -> None:
     dist_dir = _dist_with_policy(tmp_path, policy_json)
     log_dir = tmp_path / "logs"
@@ -542,20 +542,39 @@ def test_viewer_csp_header_covers_every_response(
         log_dir=str(log_dir), network_policy=_policy(), dist_dir=dist_dir
     )
     with TestClient(app, base_url="http://localhost:7575") as client:
-        responses = [
-            client.get("/"),
-            client.get("/assets/worker.js"),
-            client.get("/missing"),
-            client.get(
+        viewer = {
+            path: client.get(path) for path in ("/", "/assets/worker.js", "/missing")
+        }
+        non_viewer = {
+            path: client.get(path)
+            for path in (
                 "/api/app-config",
-                headers={"Origin": "https://attacker.example"},
-            ),
-        ]
+                "/api/docs",
+                "/api/openapi.json",
+                "/docs",
+                "/docs/oauth2-redirect",
+                "/redoc",
+                "/openapi.json",
+            )
+        }
+        forbidden = client.get(
+            "/api/app-config", headers={"Origin": "https://attacker.example"}
+        )
 
-    assert [r.status_code for r in responses] == [200, 200, 404, 403]
-    for response in responses:
-        # a duplicate header would read back comma-joined, failing equality
-        assert response.headers["content-security-policy"] == expected
+    assert {path: r.status_code for path, r in viewer.items()} == {
+        "/": 200,
+        "/assets/worker.js": 200,
+        "/missing": 404,
+    }
+    assert all(r.status_code == 200 for r in non_viewer.values())
+    assert forbidden.status_code == 403
+
+    # a duplicate header would read back comma-joined, failing equality
+    for response in viewer.values():
+        assert response.headers["content-security-policy"] == viewer_expected
+    for response in [*non_viewer.values(), forbidden]:
+        assert response.headers["content-security-policy"] == "frame-ancestors 'none'"
+    for response in [*viewer.values(), *non_viewer.values(), forbidden]:
         assert response.headers["x-frame-options"] == "DENY"
 
 
