@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import json
 import os
 import tempfile
@@ -10,9 +12,15 @@ from test_helpers.utils import skip_if_trio
 from inspect_ai import Task, eval
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
-from inspect_ai._view._csp import CSP_FILENAME
+from inspect_ai._view._csp import CSP_FILENAME, read_content_security_policy
+from inspect_ai._view._dist import resolve_dist_directory
 from inspect_ai.dataset import Sample
-from inspect_ai.log._bundle import _prepare_viewer, bundle_log_dir, embed_log_dir
+from inspect_ai.log._bundle import (
+    _insert_content_security_policy,
+    _prepare_viewer,
+    bundle_log_dir,
+    embed_log_dir,
+)
 from inspect_ai.scorer import match
 
 
@@ -301,3 +309,59 @@ def test_bundle_viewer_csp_requires_head(
     (dist_dir / "index.html").write_text("<html><body></body></html>")
     with pytest.raises(RuntimeError, match="no <head> element"):
         _prepare(tmp_path, monkeypatch, dist_dir)
+
+
+# Script types the browser executes (and so CSP governs); anything else, like
+# `application/json`, is an inert data block.
+_EXECUTABLE_SCRIPT_TYPES = frozenset({"", "module", "text/javascript"})
+
+
+class _InlineScripts(HTMLParser):
+    """Collect the exact text of each executable inline <script>."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.scripts: list[str] = []
+        self._current: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag != "script":
+            return
+        attributes = dict(attrs)
+        script_type = (attributes.get("type") or "").strip().lower()
+        if "src" not in attributes and script_type in _EXECUTABLE_SCRIPT_TYPES:
+            self._current = []
+
+    def handle_data(self, data: str) -> None:
+        if self._current is not None:
+            self._current.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "script" and self._current is not None:
+            self.scripts.append("".join(self._current))
+            self._current = None
+
+
+def test_shipped_viewer_csp_matches_its_index_html() -> None:
+    dist_dir = resolve_dist_directory()
+    policy = read_content_security_policy(dist_dir)
+    if policy is None:
+        pytest.skip(f"viewer dist has no {CSP_FILENAME}")
+    index_html = (dist_dir / "index.html").read_text(encoding="utf-8")
+
+    script_src = next(
+        directive.split()[1:]
+        for directive in policy.split("; ")
+        if directive.split()[0] == "script-src"
+    )
+    parser = _InlineScripts()
+    parser.feed(index_html)
+    assert parser.scripts, "expected the viewer's inline theme bootstrap script"
+    for script in parser.scripts:
+        digest = base64.b64encode(hashlib.sha256(script.encode("utf-8")).digest())
+        assert f"'sha256-{digest.decode('ascii')}'" in script_src, script[:80]
+
+    bundled = _insert_content_security_policy(index_html, policy).encode("utf-8")
+    charset = bundled.find(b"<meta charset")
+    assert charset != -1
+    assert bundled.index(b">", charset) < 1024
