@@ -236,7 +236,11 @@ def _log_dir_option() -> Callable[[Callable[..., None]], Callable[..., None]]:
     stores it for the invocation (see ``_log_dir._log_dir_root``), and the
     reads branch on that. Commands without it reject ``--log-dir`` as a click
     usage error, so a command added later does not serve the mode until it
-    is implemented and decorated.
+    is implemented and decorated. It has no environment-variable mirror:
+    ``inspect`` runs with ``auto_envvar_prefix="INSPECT"``, and a left-over
+    ``INSPECT_CTL_..._LOG_DIR`` would silently switch ctl from live
+    processes to stale logs (and, through the mirrored noun options, reach
+    commands that do not serve the mode).
     """
 
     def store_root(
@@ -253,6 +257,7 @@ def _log_dir_option() -> Callable[[Callable[..., None]], Callable[..., None]]:
         default=None,
         metavar="DIR",
         expose_value=False,
+        allow_from_autoenv=False,
         callback=store_root,
         help=(
             "Read from the `.eval` logs in DIR (a local path, or an s3:// or "

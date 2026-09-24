@@ -9704,3 +9704,57 @@ def test_log_dir_live_mode_is_unchanged_without_the_flag(
     assert result.exit_code == 0
     assert calls == [True]
     assert set(json.loads(result.stdout)) == {"as_of", "tasks"}
+
+
+def _inspect_main(args: list[str], env: dict[str, str]) -> Any:
+    """Invoke ``inspect <args>`` as the entry point does (``INSPECT_`` auto-env)."""
+    from inspect_ai._cli.main import inspect
+
+    return cli_runner().invoke(inspect, args, env=env, auto_envvar_prefix="INSPECT")
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        *sorted(_LOG_DIR_COMMANDS),
+        ("task",),
+        ("sample",),
+        ("task", "cancel"),
+        ("sample", "cancel"),
+    ],
+    ids=lambda path: " ".join(path),
+)
+def test_log_dir_has_no_environment_variable_mirror(
+    path: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the variable click's auto-env would read for this command's option,
+    # plus the mirrored noun's
+    env = {
+        f"INSPECT_CTL_{'_'.join(p.upper() for p in path)}_LOG_DIR": str(tmp_path),
+        f"INSPECT_CTL_{path[0].upper()}_LOG_DIR": str(tmp_path),
+    }
+    discovered: list[bool] = []
+
+    def no_servers() -> list[Any]:
+        discovered.append(True)
+        return []
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", no_servers)
+    command: click.Command = ctl_command
+    for name in path:
+        assert isinstance(command, click.Group)
+        command = command.commands[name]
+    result = _inspect_main(["ctl", *path, *_leaf_args(command), "--json"], env)
+    # live behaviour: the discovery layer is read, and no log-dir banner or
+    # envelope keys appear
+    assert discovered, result.output
+    assert "Reading logs in" not in result.output
+    assert '"incomplete"' not in result.stdout
+
+
+def test_explicit_log_dir_works_through_the_entry_point(tmp_path: Path) -> None:
+    result = _inspect_main(
+        ["ctl", "task", "list", "--json", "--log-dir", str(tmp_path)], {}
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["incomplete"] is False
