@@ -153,7 +153,22 @@ def view_server_app(
     recursive: bool = True,
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
+    allow_direct_urls: bool = True,
 ) -> "FastAPI":
+    """Create the view server's JSON API.
+
+    Args:
+        mapping_policy: Maps request paths to storage paths and back.
+        access_policy: Authorizes reads, writes, deletes and listings.
+        default_dir: Log directory used when a request doesn't name one.
+        recursive: Recursively list log directories.
+        fs_options: Additional arguments for the filesystem provider.
+        generate_direct_urls: Include a presigned S3 URL in `/log-info`.
+        allow_direct_urls: When False, never presign S3 URLs, overriding
+            `generate_direct_urls` and leaving `/pending-sample-data-urls`
+            segments without a `direct_url`, so clients read through the
+            server. For a client whose Content-Security-Policy blocks S3.
+    """
     app = FastAPI()
 
     @app.exception_handler(FileNotFoundError)
@@ -222,7 +237,7 @@ def view_server_app(
         await _validate_read(request, file)
         return await get_log_info(
             await _map_file(request, file),
-            generate_direct_url=generate_direct_urls,
+            generate_direct_url=generate_direct_urls and allow_direct_urls,
         )
 
     @app.delete("/log-delete/{log:path}")
@@ -612,6 +627,7 @@ def view_server_app(
             after_call_pool_id=after_call_pool_id,
             max_segments=max_segments,
             tail=tail,
+            direct_urls=allow_direct_urls,
         )
         if body is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
@@ -752,6 +768,18 @@ def standalone_view_app(
     generate_direct_urls: bool = False,
     dist_dir: Path | None = None,
 ) -> ASGIApp:
+    resolved_dist_dir = dist_dir or resolve_dist_directory()
+    content_security_policy = read_content_security_policy(resolved_dist_dir)
+
+    # The viewer policy's `connect-src 'self'` blocks presigned S3 URLs, so
+    # don't hand any out; the viewer then reads through the server.
+    allow_direct_urls = content_security_policy is None
+    if generate_direct_urls and not allow_direct_urls:
+        logger.info(
+            "Not generating direct S3 URLs: the log viewer's "
+            "Content-Security-Policy only allows connections to this server."
+        )
+
     api = view_server_app(
         mapping_policy=None,
         access_policy=(
@@ -763,10 +791,8 @@ def standalone_view_app(
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
+        allow_direct_urls=allow_direct_urls,
     )
-
-    resolved_dist_dir = dist_dir or resolve_dist_directory()
-    content_security_policy = read_content_security_policy(resolved_dist_dir)
 
     @api.get("/dist")
     async def api_dist() -> dict[str, str]:

@@ -351,12 +351,17 @@ async def build_pending_sample_urls(
     after_call_pool_id: int | None,
     max_segments: int | None,
     tail: bool = False,
+    direct_urls: bool = True,
 ) -> PendingSampleUrls | None:
     """Build the `/pending-sample-data-urls` response, or None for 404.
 
     Returns None when the buffer is not filestore-backed (in-process database
     buffer for a running eval, not yet synced), the manifest is missing, or
     the requested sample is not in the manifest. Callers map None to 404.
+
+    When `direct_urls` is False, no segment is presigned and every
+    `direct_url` is None, so clients fetch segments through the server (e.g.
+    a viewer whose Content-Security-Policy can't reach S3).
     """
     buffer = sample_buffer(file)
     if not isinstance(buffer, SampleBufferFilestore):
@@ -375,12 +380,16 @@ async def build_pending_sample_urls(
     if pending is None:
         return None
 
-    direct_urls = await tg_collect(
-        [partial(get_direct_url, seg.path) for seg in pending.segments]
+    urls: list[str | None] = (
+        await tg_collect(
+            [partial(get_direct_url, seg.path) for seg in pending.segments]
+        )
+        if direct_urls
+        else [None] * len(pending.segments)
     )
     refs = [
         SegmentRef(id=seg.id, member_name=seg.member_name, direct_url=url)
-        for seg, url in zip(pending.segments, direct_urls)
+        for seg, url in zip(pending.segments, urls)
     ]
 
     return PendingSampleUrls(
