@@ -7,6 +7,7 @@
 - Grok: Non-streaming requests cut off by `attempt_timeout` are now retried, and ones cut off by a sample `time_limit` are recorded as that limit, instead of failing with a bare cancellation.
 - Grok: Safety refusals that report "I can't help with that request" now produce a content-filter response instead of failing the sample.
 - Bugfix: Samples whose solver is cut off by a cancellation that inspect did not issue are now recorded as sample errors instead of being scored as completed.
+- Bugfix: A sample retried or requeued in a shared log directory no longer shows the previous attempt's events alongside its own while it runs.
 - Control Channel: `inspect ctl task list` and the `inspect ctl sample` reads take `--log-dir <dir>` to read task and sample status, events, messages and store from the `.eval` logs in a local or S3 directory, without a live eval process.
 
 ## 0.3.268 (22 September 2026)
