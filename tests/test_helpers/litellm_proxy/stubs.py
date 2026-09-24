@@ -20,7 +20,7 @@ import base64
 import json
 import threading
 import traceback
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, NamedTuple
@@ -44,6 +44,17 @@ class SSE(NamedTuple):
     events: list[tuple[str | None, Any]]
 
 
+class Reply(NamedTuple):
+    """A JSON response with a status other than 200, or extra headers."""
+
+    status: int
+    body: Any
+    headers: dict[str, str] = {}
+
+
+Router = Callable[[StubRequest], dict[str, Any] | SSE | Reply | None]
+
+
 class FakeUpstream:
     """A running fake upstream: its address and the requests it received."""
 
@@ -58,8 +69,12 @@ class FakeUpstream:
 
 
 @contextmanager
-def fake_upstream() -> Iterator[FakeUpstream]:
-    """Serve all fake providers on an ephemeral port on all interfaces."""
+def fake_upstream(router: Router | None = None) -> Iterator[FakeUpstream]:
+    """Serve all fake providers on an ephemeral port on all interfaces.
+
+    Args:
+        router: Response for each request; defaults to `route`.
+    """
     upstream: FakeUpstream | None = None
 
     class Handler(BaseHTTPRequestHandler):
@@ -70,7 +85,7 @@ def fake_upstream() -> Iterator[FakeUpstream]:
             request = StubRequest(path=self.path, body=json.loads(raw) if raw else None)
             upstream.requests.append(request)
             try:
-                response = route(request)
+                response = (router or route)(request)
             except Exception:
                 self._send_json(500, {"error": traceback.format_exc()})
                 return
@@ -78,13 +93,19 @@ def fake_upstream() -> Iterator[FakeUpstream]:
                 self._send_json(404, {"error": f"no fake upstream for {self.path}"})
             elif isinstance(response, SSE):
                 self._send_sse(response)
+            elif isinstance(response, Reply):
+                self._send_json(response.status, response.body, response.headers)
             else:
                 self._send_json(200, response)
 
-        def _send_json(self, status: int, body: Any) -> None:
+        def _send_json(
+            self, status: int, body: Any, headers: dict[str, str] | None = None
+        ) -> None:
             data = json.dumps(body).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)

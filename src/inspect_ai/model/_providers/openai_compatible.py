@@ -236,6 +236,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 model_info=self.responses_model_info(),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
+                handle_stream_error=self.handle_stream_error,
                 streaming=self.resolve_stream(config),
             )
 
@@ -341,7 +342,7 @@ class OpenAICompatibleAPI(ModelAPI):
                     return self.handle_bad_request(ex), model_call
                 raise
             except APIError as ex:
-                output = openai_handle_stream_error(self.service_model_name(), ex)
+                output = self.handle_stream_error(ex)
                 if output is None:
                     raise
                 model_call.set_error(
@@ -537,6 +538,15 @@ class OpenAICompatibleAPI(ModelAPI):
                 )
 
         return openai_handle_bad_request(self.service_model_name(), ex)
+
+    def handle_stream_error(
+        self, ex: APIError | OpenAIResponseError
+    ) -> ModelOutput | None:
+        """Hook for subclasses to convert a mid-stream error into model output.
+
+        Returns None when the error should be re-raised.
+        """
+        return openai_handle_stream_error(self.service_model_name(), ex)
 
 
 class OpenAICompatibleHandler(Llama31Handler):
