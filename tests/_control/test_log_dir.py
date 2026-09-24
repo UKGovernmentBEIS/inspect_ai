@@ -1197,3 +1197,93 @@ def test_cli_errored_footer_points_at_the_log_dir(log_dir: Path) -> None:
         f"see `inspect ctl --log-dir {shlex.quote(str(log_dir))} sample errors`"
         in result.stdout
     )
+
+
+_BROKEN = "2099-01-01T00-00-00+00-00_broken_BROKENTASK000000000000.eval"
+
+
+@pytest.mark.parametrize("verb", ["show", "events", "messages", "list", "errors"])
+@pytest.mark.parametrize("selector", ["BROKENTASK000000000000", "BROKENT", "broken"])
+def test_cli_model_filter_keeps_an_unreadable_task_of_unknown_model(
+    log_dir: Path, verb: str, selector: str
+) -> None:
+    broken = log_dir / _BROKEN
+    broken.write_bytes(b"not a zip")
+    args = ["1"] if verb in ("show", "events", "messages") else []
+    result = _ctl(
+        "--log-dir",
+        str(log_dir),
+        "sample",
+        verb,
+        selector,
+        *args,
+        "--model",
+        "openai/gpt-4o",
+        "--json",
+    )
+    if args:
+        assert result.exit_code == 1
+        assert _json(result)["error"]["kind"] == "invalid_response"
+    else:
+        assert result.exit_code == 0, result.output
+        payload = _json(result)
+        assert payload["samples"] == [] and payload["incomplete"] is True
+        assert [u["log_location"] for u in payload["unreadable"]] == [str(broken)]
+
+
+def test_cli_an_unknown_model_candidate_does_not_settle_a_name_ambiguity(
+    log_dir: Path,
+) -> None:
+    # an unreadable log of another task with the same name: its model is
+    # unknown, so --model cannot rule it out
+    (
+        log_dir / "2099-01-01T00-00-00+00-00_alpha_BROKENTASK000000000000.eval"
+    ).write_bytes(b"not a zip")
+    result = _ctl(
+        "--log-dir",
+        str(log_dir),
+        "sample",
+        "show",
+        "alpha",
+        "1",
+        "--model",
+        "mockllm/model",
+        "--json",
+    )
+    assert result.exit_code == 1
+    assert _json(result)["error"]["kind"] == "ambiguous"
+
+
+def test_cli_model_filter_still_disambiguates_healthy_tasks(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    anyio.run(_attempt, finished_log, tmp_path, "2026-01-01T00-00-00+00-00")
+    other = finished_log.model_copy(deep=True)
+    other.eval.task_id = "OTHERTASK00000000000000"
+    other.eval.model = "openai/gpt-4o"
+    anyio.run(_attempt, other, tmp_path, "2026-01-02T00-00-00+00-00")
+    result = _ctl(
+        "--log-dir",
+        str(tmp_path),
+        "sample",
+        "show",
+        "alpha",
+        "1",
+        "--model",
+        "openai/gpt-4o",
+        "--json",
+    )
+    assert result.exit_code == 0, result.output
+    assert _json(result)["task_id"] == "OTHERTASK00000000000000"
+    mismatch = _ctl(
+        "--log-dir",
+        str(tmp_path),
+        "sample",
+        "show",
+        "OTHERTASK00000000000000",
+        "1",
+        "--model",
+        "mockllm/model",
+        "--json",
+    )
+    assert _json(mismatch)["error"]["kind"] == "not_found"

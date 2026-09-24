@@ -364,8 +364,18 @@ def _match_by_model(
     The same anchored-prefix, exact-wins rule as task names and ``ctl config
     --model`` (see `match_name_prefix`): ``gpt-5`` matches ``openai/gpt-5``,
     and resolves cleanly even when ``openai/gpt-5-mini`` is also running.
+
+    A ``--log-dir`` row whose model is unknown (a task known only from the
+    names of unreadable logs) is kept: unknown is not a mismatch, so it can
+    neither be dropped to settle an ambiguity nor hide the log's failure.
     """
-    return match_name_prefix(summaries, query, lambda s: str(s.get("model", "")))
+    matched = match_name_prefix(summaries, query, lambda s: str(s.get("model", "")))
+    return [
+        s
+        for s in summaries
+        if any(s is m for m in matched)
+        or (s.get("source") == "log_dir" and s.get("model") is None)
+    ]
 
 
 def _narrow_by_model(
