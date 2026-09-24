@@ -804,8 +804,10 @@ task, locate the key, and act on `select_source`:
   `src/inspect_ai/log/_recover/_reconstruct.py:172-230`); pooled references
   can point into earlier segments, so a correct page needs the sample's
   whole segment history. The page is sliced in memory, with `done: false`.
-  The cursor nonce is `_attempt_nonce` prefixed with `buffer:`, so when the
-  sample's source becomes the log, an old cursor is foreign and the read
+  The cursor nonce is `_attempt_nonce` prefixed with `buffer:` and followed
+  by the row's `started_at` (a `retry_on_error` attempt keeps the uuid, and
+  its running summary records no retry count), so when the sample's source
+  becomes the log, or another attempt, an old cursor is foreign and the read
   restarts at offset 0 (the existing stale-cursor rule,
   `events.py:196-199`): duplicates, never gaps. `sample messages` and
   `sample store` fail with `unsupported` (decision: Ransom, 2026-09-23).

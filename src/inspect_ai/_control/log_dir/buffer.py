@@ -66,6 +66,11 @@ _SEGMENT_READ_ERRORS = (
 )
 
 
+# What an event row or a pool entry that does not parse raises (a JSON decode
+# error is a ValueError; a pool reference out of range, an IndexError).
+_EVENT_READ_ERRORS = (ValidationError, ValueError, IndexError)
+
+
 @dataclass(frozen=True)
 class BufferSnapshot:
     """One read of a member's shared-buffer manifest."""
@@ -173,18 +178,32 @@ async def read_sample_data(
     return merged
 
 
-def buffered_events(data: SampleData) -> list[Event]:
+def buffered_events(
+    data: SampleData, buffer: BufferSnapshot, sample: SampleManifest
+) -> list[Event]:
     """The sample's events as the recovery reconstruction builds them.
 
     Superseded versions of one event (a pending event rewritten when it
     resolves) collapse to the latest, and pooled model inputs and calls are
     resolved, as reading the flushed sample does. Attachments stay as
     ``attachment://`` references, as in the logged sample's events.
+
+    Raises:
+        LogUnparseableError: an event, or a pooled message or call, in
+            ``sample``'s segments does not parse.
     """
-    events = validate_events(
-        [row.event for row in collapse_event_versions(data.events)]
-    )
-    events = resolve_model_event_inputs(
-        events, _deserialize_message_pool(data.message_pool)
-    )
-    return resolve_model_event_calls(events, _deserialize_call_pool(data.call_pool))
+    try:
+        events = validate_events(
+            [row.event for row in collapse_event_versions(data.events)]
+        )
+        events = resolve_model_event_inputs(
+            events, _deserialize_message_pool(data.message_pool)
+        )
+        return resolve_model_event_calls(events, _deserialize_call_pool(data.call_pool))
+    except _EVENT_READ_ERRORS as ex:
+        segments = ", ".join(segment_name(i) for i in segment_ids(sample))
+        raise LogUnparseableError(
+            buffer.location,
+            f"the events of sample {sample.summary.id} epoch "
+            f"{sample.summary.epoch} in {segments}: {ex}",
+        ) from ex

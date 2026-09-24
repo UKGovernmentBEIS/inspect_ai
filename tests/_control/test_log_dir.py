@@ -78,6 +78,7 @@ from inspect_ai.log._recorders.buffer.filestore import (
     SegmentFile,
 )
 from inspect_ai.log._recorders.buffer.types import (
+    CallPoolData,
     EventData,
     MessagePoolData,
     SampleData,
@@ -1378,12 +1379,14 @@ def _info(data: str, uuid: str) -> dict[str, Any]:
 
 
 def _write_buffer(
-    log: Path, rows: list[tuple[EvalSampleSummary, list[list[dict[str, Any]]]]]
+    log: Path,
+    rows: list[tuple[EvalSampleSummary, list[list[dict[str, Any]] | SampleData]]],
 ) -> Path:
     """Write the shared buffer a ``--log-shared`` worker syncs beside ``log``.
 
-    Each row is a manifest entry and its event batches, one segment per
-    batch. Returns the ``.buffer/<stem>/`` directory.
+    Each row is a manifest entry and its segments: a batch of events, or a
+    segment's ``SampleData`` as given. Returns the ``.buffer/<stem>/``
+    directory.
     """
     store = SampleBufferFilestore(str(log))
     segments: list[Segment] = []
@@ -1393,7 +1396,7 @@ def _write_buffer(
         sample_segments: list[SampleSegmentEntry] = []
         for batch in batches:
             events = []
-            for event in batch:
+            for event in batch if isinstance(batch, list) else []:
                 event_id += 1
                 events.append(
                     EventData(
@@ -1404,18 +1407,17 @@ def _write_buffer(
                         event=event,
                     )
                 )
+            data = (
+                batch
+                if isinstance(batch, SampleData)
+                else SampleData(events=events, attachments=[])
+            )
             segment = Segment(
                 id=len(segments) + 1, last_event_id=event_id, last_attachment_id=0
             )
             store.write_segment(
                 segment["id"],
-                [
-                    SegmentFile(
-                        id=summary.id,
-                        epoch=summary.epoch,
-                        data=SampleData(events=events, attachments=[]),
-                    )
-                ],
+                [SegmentFile(id=summary.id, epoch=summary.epoch, data=data)],
             )
             segments.append(segment)
             sample_segments.append(segment)
@@ -1725,7 +1727,7 @@ async def test_a_torn_manifest_is_re_read_and_an_unparseable_one_reported(
 
 
 def test_buffered_events_collapse_versions_and_resolve_pools() -> None:
-    from inspect_ai._control.log_dir.buffer import buffered_events
+    from inspect_ai._control.log_dir.buffer import BufferSnapshot, buffered_events
     from inspect_ai.event._pool import condense_model_event_inputs
     from inspect_ai.model import ChatMessageUser, ModelOutput
 
@@ -1765,7 +1767,11 @@ def test_buffered_events_collapse_versions_and_resolve_pools() -> None:
             for msg_id, msg in pool
         ],
     )
-    events = buffered_events(data)
+    events = buffered_events(
+        data,
+        BufferSnapshot(location="b/", manifest=Manifest(), samples={}, mtime=None),
+        SampleManifest(summary=_buffer_summary(1)),
+    )
     # the superseded version collapses in place; the pooled input is restored
     assert [e.event for e in events] == ["info", "model"]
     info, model_event = events
@@ -1971,3 +1977,101 @@ async def test_a_running_eval_with_log_shared_is_read_from_its_buffer(
     logged_model = next(e for e in prefix if e["event"] == "model")
     assert buffered_model["input"] == logged_model["input"]
     assert buffered_model["output"] == logged_model["output"]
+
+
+def test_a_retry_attempts_cursor_restarts_on_the_next_attempt(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    from inspect_ai.log._recorders.buffer.database import (
+        SampleBufferDatabase,
+        sync_to_filestore,
+    )
+    from inspect_ai.log._recorders.types import SampleEvent
+
+    running = anyio.run(
+        functools.partial(
+            _start_running_log,
+            tmp_path,
+            finished_log,
+            logged=[1],
+            sample_ids=[1, 2],
+            log_shared=10,
+        )
+    )
+    db = SampleBufferDatabase(
+        location=str(running.location), create=True, db_dir=tmp_path / "db"
+    )
+    store = SampleBufferFilestore(str(running.location))
+    everything = frozenset({"*"})
+
+    async def events(since: str | None = None) -> dict[str, Any]:
+        index, _ = await _index(tmp_path)
+        async with AsyncFilesystem() as fs:
+            return await sample_events(
+                fs, index.tasks[0], "2", 1, types=everything, full=True, since=since
+            )
+
+    def attempt(started_at: str, data: str) -> None:
+        # `retry_on_error` re-runs with the same uuid and no retry count on
+        # the running summary; only its start time differs
+        db.start_sample(
+            _buffer_summary(2, started_at=started_at).model_copy(
+                update={"uuid": "same-uuid"}
+            )
+        )
+        db.log_events([SampleEvent(id=2, epoch=1, event=InfoEvent(data=data))])
+        sync_to_filestore(db, store)
+
+    attempt("2099-01-01T00:00:00+00:00", "old")
+    first = anyio.run(events)
+    assert [e["data"] for e in first["events"]] == ["old"]
+    # the failed attempt's rows are removed, and a sync sees it gone
+    db.remove_samples([(2, 1)])
+    sync_to_filestore(db, store)
+    attempt("2099-01-01T00:01:00+00:00", "new")
+
+    resumed = anyio.run(functools.partial(events, first["next"]))
+    # the old attempt's cursor is foreign to the new attempt: it restarts
+    assert [e["data"] for e in resumed["events"]] == ["new"]
+
+
+@pytest.mark.parametrize("broken", ["event", "message_pool", "call_pool"])
+def test_cli_buffer_events_that_do_not_parse_are_invalid_response(
+    tmp_path: Path, finished_log: EvalLog, broken: str
+) -> None:
+    running = anyio.run(
+        functools.partial(
+            _start_running_log,
+            tmp_path,
+            finished_log,
+            logged=[1],
+            sample_ids=[1, 2],
+            log_shared=10,
+        )
+    )
+    event: dict[str, Any] = (
+        {"uuid": "e1", "event": "no-such-event"}
+        if broken == "event"
+        else _info("a", "e1")
+    )
+    data = SampleData(
+        events=[EventData(id=1, event_id="e1", sample_id="2", epoch=1, event=event)],
+        attachments=[],
+        message_pool=[
+            MessagePoolData(id=1, sample_id="2", epoch=1, msg_id="m", data="{")
+        ]
+        if broken == "message_pool"
+        else [],
+        call_pool=[CallPoolData(id=1, sample_id="2", epoch=1, hash="h", data="{")]
+        if broken == "call_pool"
+        else [],
+    )
+    buffer = _write_buffer(running.location, [(_buffer_summary(2), [data])])
+    result = _ctl(
+        str(tmp_path), "sample", "events", running.spec.task_id, "2", "--json"
+    )
+    assert result.exit_code == 1
+    error = _json(result)["error"]
+    assert error["kind"] == "invalid_response"
+    assert error["exception"] == "inspect_ai.LogUnparseableError"
+    assert f"{buffer}/" in error["message"] and "segment.1.zip" in error["message"]

@@ -130,9 +130,10 @@ async def sample_events(
 
     A log record's events are the sample member's. A buffer row's are
     reconstructed from every segment the manifest lists for it, up to the
-    last sync, under a ``buffer:`` cursor nonce, so a cursor carried over to
-    the flushed record restarts at 0 (duplicates, never gaps). The page is
-    ``done`` only for a completed row.
+    last sync, under a ``buffer:`` cursor nonce that also names the attempt's
+    start, so a cursor carried over to the flushed record or to another
+    attempt restarts at 0 (duplicates, never gaps). The page is ``done`` only
+    for a completed row.
     """
     return page_events(
         await _events_source(fs, task, sample_id, epoch),
@@ -279,16 +280,18 @@ async def _buffer_events_source(fs: AsyncFilesystem, located: _Located) -> Event
     assert buffer is not None
     summary = located.summary
     row = buffer.samples[SampleKey(str(summary.id), summary.epoch)]
-    events = buffered_events(await read_sample_data(fs, buffer, row))
+    events = buffered_events(await read_sample_data(fs, buffer, row), buffer, row)
 
     def fetch(start: int, limit: int) -> list[Any]:
         return events[start : start + limit]
 
+    # a `retry_on_error` attempt keeps the uuid and its running summary
+    # records no retry count, so the attempt's start time tells it apart
     nonce = _attempt_nonce(
         summary.uuid, summary.id, summary.epoch, summary.retries or 0
     )
     return EventsSource(
-        nonce=f"buffer:{nonce}",
+        nonce=f"buffer:{nonce}:{summary.started_at}",
         fetch=fetch,
         total=len(events),
         done=bool(summary.completed),

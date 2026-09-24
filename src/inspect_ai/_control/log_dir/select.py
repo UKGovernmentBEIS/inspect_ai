@@ -139,9 +139,11 @@ def member_candidate(member: MemberSnapshot, key: SampleKey) -> Candidate | None
     The buffer row wins when the log has no record for the key, or when the
     row started after the log record's ``sample_record_time`` (a seeded retry
     re-running a key it inherited, or an in-process requeue of a flushed key:
-    recovery's rule). Both timestamps come from the one worker that wrote the
-    member. Otherwise the log record wins: a buffer row that started before
-    it is the same attempt, already flushed.
+    recovery's rule). For a requeue both timestamps come from one worker; a
+    seeded retry's inherited record was written by the prior attempt, so the
+    comparison has recovery's clock-skew limitation. Otherwise the log record
+    wins: a buffer row that started before it is the same attempt, already
+    flushed.
     """
     logged = member.summaries.get(key)
     row = member.buffer.samples.get(key) if member.buffer is not None else None
