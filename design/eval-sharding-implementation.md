@@ -835,8 +835,8 @@ What the user sees after an interruption:
 
 | Interrupted | What is left | What the user sees | What to do |
 |---|---|---|---|
-| `delete_shards` (API or `inspect log merge-shards --delete-shards`) | the complete merged log and part of `<name>.shards/` | `ShardSetError` listing the remaining paths; until they are gone, every merge of the log, including the `eval_set()` startup merge, refuses with "shards vanished" (and `eval_set()` then stops or warns, see "Open questions") | re-run the same call with `delete_shards=True`, or delete `<name>.shards/` by hand |
-| retry cleanup in `eval_set()` | the unsharded `success` log, part of `<name>.shards/`, no merged log, and every other log of that task group (cleanup of the group stops for the rest of the call) | a warning naming the remaining paths and asking for them to be deleted | delete `<name>.shards/` by hand. If it is left, the next `eval_set()` with `retry_cleanup` normally rebuilds a merged log from the remnant and removes it again; that is a fallback, not a guarantee (a remnant the merge refuses stops or warns per "Open questions") |
+| `delete_shards` (API or `inspect log merge-shards --delete-shards`) | the complete merged log and part of `<name>.shards/` | `ShardSetError` listing the remaining paths; until they are gone, every merge of the log, including the `eval_set()` startup merge, refuses with "shards vanished" (and `eval_set()` stops with `PrerequisiteError`, "Eval-set integration") | re-run the same call with `delete_shards=True`, or delete `<name>.shards/` by hand |
+| retry cleanup in `eval_set()` | the unsharded `success` log, part of `<name>.shards/`, no merged log, and every other log of that task group (cleanup of the group stops for the rest of the call) | a warning naming the remaining paths and asking for them to be deleted | delete `<name>.shards/` by hand. If it is left, the next `eval_set()` with `retry_cleanup` normally rebuilds a merged log from the remnant and removes it again; that is a fallback, not a guarantee (a remnant the merge refuses stops `eval_set()` with `PrerequisiteError`) |
 
 **The viewer is not a deleter.** `/log-delete` is unchanged (decision:
 Ransom, 2026-09-24): deleting a merged log in the viewer deletes only that
@@ -1009,9 +1009,24 @@ never scans the directory.
    so an eval set run over a sharded subset without the subset's
    `sample_id` treats the rest of the dataset as missing and runs it, which
    is what an eval set means.
-5. `ShardSetError` or `WriteConflictError` aborts `eval_set()` with a
-   `PrerequisiteError` naming the companion (see "Open questions");
-   `ShardSetIncomplete` cannot occur (`allow_incomplete=True`).
+5. **A refused startup merge stops `eval_set()` with `PrerequisiteError`,
+   in every case** (decision: Ransom, 2026-09-24: "yes, PrerequisiteError
+   in all cases"). Nothing warns and continues, including a lost S3
+   publish race. Every exception a startup merge raises is re-raised as a
+   `PrerequisiteError` (the original chained as its cause) before any task
+   runs; cancellation propagates unchanged. `ShardSetIncomplete` cannot
+   occur (`allow_incomplete=True`). The message names the companion
+   (`<dir>/<name>.shards/`), the cause as the merge reported it, and what to
+   do next:
+
+   | Cause | Raised by the merge as | What the message tells the user to do |
+   |---|---|---|
+   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; one id in two shards; ids outside the selection; stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files), then re-run |
+   | Vanished shard or attempt regression (shard files deleted after they were merged, for example an interrupted `delete_shards`) | `ShardSetError` | finish the deletion (`inspect log merge-shards <name>.eval --delete-shards`, or delete `<name>.shards/` by hand) or restore the files, then re-run |
+   | An ordinary `<name>.eval` (no `eval.shards` field) where the merged log belongs | `ShardSetError` | move or rename that log, or the companion, then re-run |
+   | Local merge lock held (`<name>.merge.lock`), including one left by a crashed merge | `WriteConflictError` | wait for the other merge to finish and re-run; if no merge is running (the lock's `pid`/`host` shown in the message), delete the lock file and re-run |
+   | Lost S3 publish race (another merge published first, or the merged log changed during the pass) | `WriteConflictError` | re-run once the other merge has finished; the merge is idempotent |
+   | Anything else (a storage or transport error, a metric the merge cannot resolve) | the original exception | the cause is in the message and the chained exception; fix it and re-run |
 6. If any merge wrote, list again; otherwise reuse the listing.
 
 **Shard skip before header reads.** `list_all_eval_logs` gains
@@ -1214,10 +1229,11 @@ depends on the merge.
 - **Name the CLI `inspect log merge`.** Shorter, but reads as merging
   arbitrary logs. `merge-shards` matches the Python name
   (`merge_eval_log_shards`).
-- **Warn and continue when the startup merge refuses a companion.** Lets an
-  eval set run, but then it pairs against a stale merged log or re-runs the
-  task from scratch while the shards sit unmerged, which is the silent
-  coercion AGENTS.md rules out. See "Open questions".
+- **Warn and continue when the startup merge refuses a companion**,
+  including only for a lost S3 publish race. Lets an eval set run, but then
+  it pairs against a stale merged log or re-runs the task from scratch while
+  the shards sit unmerged, which is the silent coercion AGENTS.md rules out.
+  Rejected (Ransom, 2026-09-24): `PrerequisiteError` in all cases.
 
 ## Compatibility and migration
 
@@ -1251,7 +1267,10 @@ today.
   unsharded retry succeeds, never chosen as latest and removed with their
   companions (including a `started` merged log) unless the companion holds
   scan results or checkpoints. Ordering among unsharded attempts is
-  unchanged.
+  unchanged. A directory whose companion the startup merge refuses (for
+  any reason, including a held lock or a lost S3 race) now stops
+  `eval_set()` with `PrerequisiteError` naming the companion, the cause and
+  the next step, before any task runs.
 - **Scan results and checkpoints written by workers** stay in their
   `<k>/`; Step 1 neither merges nor relocates them, an eval set with
   scanners over the parent directory scans the merged log's samples again
@@ -1486,7 +1505,15 @@ Per PR (numbers from "Implementation plan"):
    limitation);
    with `retry_cleanup=False` everything stays; no shard
    header is read outside the merge (spy on `read_eval_log_headers`
-   inputs); an invalid companion aborts with `PrerequisiteError`;
+   inputs); a startup merge refusal stops `eval_set()` with
+   `PrerequisiteError` before any task runs, asserted once per category
+   (each with the companion path, the cause and the next step in the
+   message, and the original exception as `__cause__`): a mismatched
+   identifier, overlapping ids, a stray file, a chunked-shape sample, a
+   vanished shard, an attempt regression, an ordinary `<name>.eval` in the
+   way, a held local lock and a stale one, a lost S3 publish race on
+   `mock_s3` (a second merge published between the pass's read and its
+   publish), and a storage error from the listing;
    `selected_sample_ids` equals `slice_dataset`'s ids for `limit`,
    `sample_id` and unset-id datasets; a selection-mode worker does not merge.
 7. **Streaming recomputation.** `tests/log/test_shards.py`: peak memory
@@ -1586,12 +1613,10 @@ performance-only. Each PR reports its
 
 ## Open questions
 
-1. **Startup merge refusals.** When the `eval_set()` startup merge refuses
-   a companion (invalid shard set, or another merge holding the lock or
-   publishing first), should `eval_set()` stop with a `PrerequisiteError`
-   or warn and continue without that companion? Recommendation: stop.
-   Continuing pairs the task against a stale merged log or re-runs it from
-   scratch while the shards sit unmerged. (The round-1 reviewer agreed.)
+None. Resolved by Ransom on 2026-09-24: Step 1 makes no viewer changes and
+keeps deletion simple ("Deleting shards"), and a refused startup merge
+stops `eval_set()` with `PrerequisiteError` in all cases ("Eval-set
+integration").
 
 Stale local locks are report-only, as the parent's test list requires; a
 same-host dead-pid check can be added if crashed merges turn out to happen.
