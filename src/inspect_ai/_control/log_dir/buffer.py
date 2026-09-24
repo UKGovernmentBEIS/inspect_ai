@@ -5,9 +5,11 @@ A worker run with ``--log-shared`` syncs its buffered samples to
 still in its buffer database, with the segments holding its data) and one
 ``segment.<n>.zip`` per sync. Everything here reads through
 ``AsyncFilesystem`` and derives every path from the listed log name and the
-manifest's integer segment ids; nothing is written (constructing a
-``SampleBufferFilestore`` would write a ``.keep`` object). See "What the log
-directory holds while a run is live" and "Per-sample reads" in
+manifest's integer segment ids; nothing is written. ``SampleBufferFilestore``
+reads the same objects, but through synchronous fsspec I/O, which cannot be
+moved to a worker thread on a remote filesystem; the segment parsing and
+merging are shared with it, and the event reconstruction with recovery. See
+"What the log directory holds while a run is live" and "Per-sample reads" in
 ``design/ctl/log-dir-mode.md``.
 """
 
@@ -27,22 +29,17 @@ from pydantic import ValidationError
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem
-from inspect_ai.event._pool import resolve_model_event_calls, resolve_model_event_inputs
-from inspect_ai.event._validate import validate_events
 from inspect_ai.log._recorders.buffer.filestore import (
     MANIFEST,
     Manifest,
     SampleManifest,
+    merge_sample_data,
     sample_segment_id,
-    segment_file_name,
     segment_name,
+    segment_sample_data,
 )
 from inspect_ai.log._recorders.buffer.types import SampleData
-from inspect_ai.log._recover._reconstruct import (
-    _deserialize_call_pool,
-    _deserialize_message_pool,
-    collapse_event_versions,
-)
+from inspect_ai.log._recover._reconstruct import reconstruct_events
 
 from .consistency import MAX_REREADS, LogUnparseableError
 from .select import SampleKey
@@ -153,7 +150,6 @@ async def read_sample_data(
             (segments are written once, before the manifest that lists them,
             so this is not a torn read).
     """
-    member = segment_file_name(sample.summary.id, sample.summary.epoch)
     limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_SEGMENTS)
 
     async def read(segment_id: int) -> SampleData:
@@ -161,45 +157,29 @@ async def read_sample_data(
         async with limiter:
             data = await fs.read_file(path)
         try:
-            with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                return SampleData.model_validate_json(zf.read(member))
+            return segment_sample_data(
+                io.BytesIO(data), sample.summary.id, sample.summary.epoch
+            )
         except _SEGMENT_READ_ERRORS as ex:
             raise LogUnparseableError(path, str(ex) or type(ex).__name__) from ex
 
     parts = await tg_collect(
         [functools.partial(read, segment_id) for segment_id in segment_ids(sample)]
     )
-    merged = SampleData(events=[], attachments=[], message_pool=[], call_pool=[])
-    for part in parts:
-        merged.events.extend(part.events)
-        merged.attachments.extend(part.attachments)
-        merged.message_pool.extend(part.message_pool)
-        merged.call_pool.extend(part.call_pool)
-    return merged
+    return merge_sample_data(parts)
 
 
 def buffered_events(
     data: SampleData, buffer: BufferSnapshot, sample: SampleManifest
 ) -> list[Event]:
-    """The sample's events as the recovery reconstruction builds them.
-
-    Superseded versions of one event (a pending event rewritten when it
-    resolves) collapse to the latest, and pooled model inputs and calls are
-    resolved, as reading the flushed sample does. Attachments stay as
-    ``attachment://`` references, as in the logged sample's events.
+    """The sample's events as recovery rebuilds them (``reconstruct_events``).
 
     Raises:
         LogUnparseableError: an event, or a pooled message or call, in
             ``sample``'s segments does not parse.
     """
     try:
-        events = validate_events(
-            [row.event for row in collapse_event_versions(data.events)]
-        )
-        events = resolve_model_event_inputs(
-            events, _deserialize_message_pool(data.message_pool)
-        )
-        return resolve_model_event_calls(events, _deserialize_call_pool(data.call_pool))
+        return reconstruct_events(data)
     except _EVENT_READ_ERRORS as ex:
         segments = ", ".join(segment_name(i) for i in segment_ids(sample))
         raise LogUnparseableError(

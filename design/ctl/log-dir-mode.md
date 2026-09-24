@@ -1140,9 +1140,13 @@ with a different transport:
   displayed as stored.
 - **Read-only.** Nothing is written to the log directory: no buffer cleanup
   (`cleanup_sample_buffers` is not called), no recovery output, no merge.
-  Filestore paths are read through `AsyncFilesystem`, never through a
-  `SampleBufferFilestore(create=True)`, whose constructor writes a `.keep`
-  object (`filestore.py:228-232`). Local writes go only to the 0700 cache
+  Filestore paths are read through `AsyncFilesystem`, never written. The
+  reader does not go through `SampleBufferFilestore` (whose `.keep` write
+  `create=False` would skip) because its readers use synchronous fsspec I/O,
+  which cannot run in a worker thread on a remote filesystem; it shares the
+  filestore's pure segment parsing and merging (`segment_sample_data`,
+  `merge_sample_data`) and recovery's event reconstruction
+  (`reconstruct_events`) instead. Local writes go only to the 0700 cache
   directory.
 - **Paths come from the listing, not from content.** Member, manifest and
   segment paths are derived from listed names by fixed suffix rules
@@ -1362,6 +1366,10 @@ None open. Ransom resolved all three on 2026-09-23, each as recommended:
   checkpoint object under a log directory (the viewer's `/logs` listing
   pays this for any directory with `--log-shared` runs); a delimited walk
   like the one here would bound it.
+- `SampleBufferFilestore` reads through synchronous fsspec, so the
+  log-dir reader keeps its own async I/O around the shared parsing helpers;
+  an async-capable filestore would give the viewer and this mode one reader
+  (a larger change to code the viewer shares).
 - `SampleBufferFilestore.running_tasks` works only on local directories
   (`filestore.py:382-393`), although shared buffers exist mainly for remote
   ones; it has no callers today.
