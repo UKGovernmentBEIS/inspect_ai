@@ -1365,8 +1365,6 @@ def _make_mock_model_info():
     model_info = MagicMock()
     model_info.has_reasoning_options.return_value = False
     model_info.reasoning_only_fallback.return_value = False
-    model_info.replays_reasoning_text.return_value = False
-    model_info.omits_empty_tool_call_text.return_value = False
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = False
     model_info.is_gpt_5_plus.return_value = False
@@ -1737,66 +1735,6 @@ def test_reasoning_only_fallback_not_triggered_with_tool_calls():
 
     message_items = [item for item in items if item.get("type") == "message"]
     assert len(message_items) == 0
-
-
-def _reasoning_items(model_info: ModelInfo | None, reasoning: ContentReasoning) -> Any:
-    message = ChatMessageAssistant(
-        content=[reasoning, ContentText(text="Answer.")],
-        model="test",
-        source="generate",
-    )
-    items = _openai_input_items_from_chat_message_assistant(message, model_info)
-    return [item for item in items if item.get("type") == "reasoning"]
-
-
-def test_reasoning_text_replayed_as_content_when_enabled():
-    """Readable reasoning with no encrypted content is sent back as content."""
-    [item] = _reasoning_items(
-        ModelInfo(replays_reasoning_text=True),
-        ContentReasoning(reasoning="Because.", signature="r1"),
-    )
-    assert item["content"] == [{"type": "reasoning_text", "text": "Because."}]
-    assert item["encrypted_content"] is None
-
-
-def test_reasoning_text_not_replayed_by_default():
-    """OpenAI rejects reasoning content, so readable text is not sent by default."""
-    [item] = _reasoning_items(
-        ModelInfo(), ContentReasoning(reasoning="Because.", signature="r1")
-    )
-    assert item["content"] == []
-
-
-def test_reasoning_text_not_replayed_with_encrypted_content():
-    """Encrypted reasoning replays via encrypted_content only."""
-    [item] = _reasoning_items(
-        ModelInfo(replays_reasoning_text=True),
-        ContentReasoning(reasoning="opaque", summary="Summary.", redacted=True),
-    )
-    assert item["content"] == []
-    assert item["encrypted_content"] == "opaque"
-
-
-def _tool_call_message_items(model_info: ModelInfo) -> Any:
-    from inspect_ai.tool._tool_call import ToolCall
-
-    message = ChatMessageAssistant(
-        content=[ContentText(text="", internal={MESSAGE_ID: "msg_1"})],
-        tool_calls=[ToolCall(id="call_1", function="get_weather", arguments={})],
-        model="test",
-        source="generate",
-    )
-    items = _openai_input_items_from_chat_message_assistant(message, model_info)
-    return [item for item in items if item.get("type") == "message"]
-
-
-def test_empty_model_text_with_tool_calls_replayed_by_default():
-    [item] = _tool_call_message_items(ModelInfo())
-    assert item["content"][0]["text"] == ""
-
-
-def test_empty_model_text_with_tool_calls_omitted_when_enabled():
-    assert _tool_call_message_items(ModelInfo(omits_empty_tool_call_text=True)) == []
 
 
 def _todo_write_tool_info():
