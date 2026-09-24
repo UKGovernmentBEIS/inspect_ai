@@ -235,8 +235,9 @@ async def merge_eval_log_shards_async(...same parameters...) -> ShardMergeResult
 
 @dataclass(frozen=True)
 class ShardMergeResult:
-    log: EvalLog
-    """Header of the merged log (samples not loaded); `log.location` is its path."""
+    log: EvalLog | None
+    """Header of the merged log (samples not loaded); `log.location` is its path.
+    None only when this call finished a pending deletion of a merged log that was already gone."""
 
     written: bool
     """False when nothing had changed since the last merge and nothing was written."""
@@ -499,15 +500,20 @@ downloaded and rewritten only when step 10 says so.
    the whole pass; every read below shares it.
 2. **Acquire the local guard** when the output is local ("Overlap guards").
    S3 has nothing to acquire; its guard is at publication.
-3. **Read the merged log's header and central directory**, if it exists,
+3. **Check the deletion marker** (`<dir>/<name>.shards.deleting`,
+   "Deleting shards") before anything else, and act on it as that
+   section's table says: a stale marker is removed and the pass continues
+   as if it were absent; a pending deletion either stops the pass here
+   (merged log gone) or is carried into step 4 (merged log present).
+   **Read the merged log's header and central directory**, if it exists,
    through one `AsyncZipReader` (range reads; S3 costs the suffix read and
    the `header.json` member, whatever the log's size). Keep the reader's
    ETag `E0` for the conditional publish. If the log exists and
    `eval.shards` is absent, raise `ShardSetError` ("`<name>.eval` is an
    ordinary log; refusing to overwrite it"): a merge never replaces a log
    it did not write.
-4. **Check for an interrupted deletion.** If `<dir>/<name>.shards.deleting`
-   exists ("Deleting shards"), the companion is partly deleted and is not a
+4. **Honour a pending deletion.** If a pending marker was found in step 3
+   and the merged log exists, the companion is partly deleted and is not a
    snapshot of anything: skip steps 5–6, plan from the ledger alone, and
    treat the companion as gone in step 10 (nothing is written; a supplied
    selection must equal the recorded one). The result has
@@ -759,59 +765,88 @@ A failed verification or a refusal raises `ShardSetError` after
 publication, with the shards left in place.
 
 `remove_shards_dir(log: str, *, include_log: bool = False,
-authorize: Callable[[str], Awaitable[None]] | None = None) -> None` in
-`_delete.py` is the one companion-deletion routine, used by
-`delete_shards`, retry cleanup and (with `authorize`) the viewer:
+authorize: Callable[[str], Awaitable[None]] | None = None,
+expected_etag: str | None = None) -> None` in `_delete.py` is the one
+companion-deletion routine, used by `delete_shards`, retry cleanup and
+(with `authorize`) the viewer. It works with a *deletion marker*,
+`<dir>/<name>.shards.deleting` beside the merged log: a small JSON object
+(`{"started", "host", "pid"}`, informational) whose presence and whose own
+modification time (the storage's clock, not the writer's) are the only
+things read.
 
-1. List every object under the companion (recursive).
-2. Refuse (`ShardSetError`, nothing deleted) when any `<k>/` holds
-   ancillary output, meaning anything other than its `.eval` attempt files
-   and objects under `<k>/.buffer/`: scan results (a worker's default scan
-   directory is `<k>/scans/scan_id=...`, from `_scan_dir` on its log
-   directory, `src/inspect_ai/_eval/task/scan.py:829`) and checkpoint
-   directories (`<shard>.checkpoints/` beside each shard,
+1. **Take the guard.** Locally, acquire `<dir>/<name>.merge.lock`, the
+   same `O_EXCL` lock the merge holds for its whole pass ("Overlap
+   guards"), and hold it until the routine returns; if it is held, raise
+   `WriteConflictError`. `delete_shards` runs inside a merge pass that
+   already holds it and passes it through. On S3 there is no lock; the
+   conditional delete in step 5 excludes an in-flight merge instead.
+2. **List** every object under the companion (recursive), with
+   modification times, and read the marker's modification time `T` if the
+   marker exists.
+3. **Refuse** (`ShardSetError`, nothing deleted or written) when any
+   `<k>/` holds ancillary output, meaning anything other than its `.eval`
+   attempt files and objects under `<k>/.buffer/`: scan results (a
+   worker's default scan directory is `<k>/scans/scan_id=...`, from
+   `_scan_dir` on its log directory, `src/inspect_ai/_eval/task/scan.py:829`)
+   and checkpoint directories (`<shard>.checkpoints/` beside each shard,
    `eval_checkpoints_dir`, including ones kept with `retention="retain"`,
    `src/inspect_ai/util/_checkpoint/config.py:172`). Step 1 neither merges
    nor relocates them, so deleting them would lose data the merged log
    does not hold.
-3. When `authorize` is given, call it for every listed object, and for
-   the deletion marker below, before deleting any (the viewer's per-object
-   policy check).
-4. Write the deletion marker `<dir>/<name>.shards.deleting` (a small JSON
-   object: `{"started", "host", "pid"}`; local `atomic_write`, S3
-   `put_object`) and wait for the write to complete. From here on the
-   companion is a deletion in progress, not a source (merge step 4).
-5. Delete exactly the listed objects (S3 batch deletes; locally file by
-   file), never a recursive delete of the prefix, then list again. If
-   anything is left (an object created after step 1), raise
-   `ShardSetError` naming it; the merged log and the marker stay, so the
-   deletion remains pending and resumable. Otherwise remove the now-empty
-   local directories, then, with `include_log`, the merged log, then the
-   marker.
+4. **Authorize.** When `authorize` is given, call it for every listed
+   object, for the marker and (with `include_log`) for the merged log,
+   before writing or deleting anything (the viewer's per-object policy
+   check).
+5. **Mark, then delete.**
+   - Write the marker (local `atomic_write`; S3 `put_object`) unless it
+     already exists, and wait for the write to complete. From here on the
+     companion is a deletion in progress, not a source (merge step 4).
+   - With `include_log`, delete the merged log next, before any companion
+     object. On S3 the delete carries `IfMatch: expected_etag` (the ETag of
+     the header the caller read; S3 supports `IfMatch` on `DeleteObject`,
+     and a `head_object` pre-check covers backends that ignore it). A
+     mismatch means a merge published after the caller looked: remove the
+     marker again (nothing else was deleted) and raise
+     `WriteConflictError`. Deleting the merged log first is what excludes a
+     merge already past its marker check: that merge publishes with
+     `IfMatch: E0` (or reads a log that is now absent), and a conditional
+     publish to a missing key is refused (`write_file_conditional` treats a
+     missing object under `if_match` as a conflict). The marker, not the
+     order, is what prevents a resurrected log: with the marker present, no
+     merge reads the remaining companion.
+   - Delete exactly the listed objects whose modification time is not
+     later than `T` (every listed object on a first run, since the marker
+     did not exist when they were listed), using S3 batch deletes or
+     file-by-file local deletes, never a recursive delete of the prefix.
+6. **Finish.** List again. Objects left whose modification time is later
+   than `T` were created after the deletion started: raise
+   `ShardSetError` naming them, leaving the marker (and, without
+   `include_log`, the merged log) in place, so the deletion stays pending
+   and nothing new is deleted. Otherwise remove the now-empty local
+   directories, then the marker.
 
-**Interruption and resumption.** A failure, crash or cancellation anywhere
-in step 5 leaves some shard objects deleted and some not, which read as a
-snapshot would look like vanished shards or regressed attempts. The marker
-is what prevents that snapshot from being merged: every merge (explicit or
-at `eval_set()` startup) that finds the marker leaves the merged log as it
-is and reports `deletion_pending`, and the attempt-regression refusal in
-"Validation" is a second guard for hand deletions. The marker is written
-before the first deletion and removed last, so every interruption point is
-covered: before the marker, nothing was deleted; with the marker, the
-companion is never merged again; after the companion is empty, the merged
-log is either still present (self-contained) or gone, and an orphan marker
-with no shard files is ignored by discovery and removed by the next delete
-path. Resumption is `remove_shards_dir` run again: it re-lists what
-remains, applies the ancillary refusal and (when given) `authorize` to
-those objects again, rewrites the marker if it is missing, and continues
-with step 5. The
-callers that resume are `merge_eval_log_shards(..., delete_shards=True)`,
-a repeated viewer delete of the merged log, and `eval_set()` retry cleanup
-when it removes that merged log.
+Without `include_log` (`delete_shards`, which keeps the merged log) the
+order is marker, companion objects, marker; the merge pass holding the
+local lock, or the one-merger contract on S3, excludes a concurrent merge.
 
-The order, companion before log, matters: a crash between the two leaves a
-self-contained merged log, whereas the reverse would leave shards that the
-next `eval_set()` startup re-merges into a resurrected log.
+**The states a deletion can leave, and who clears them.** Every merge,
+eval-set discovery and the viewer check the marker before any other
+decision about the companion or a missing merged log:
+
+| State after an interruption | Merge (`merge_eval_log_shards`) | `eval_set()` startup | Viewer delete of `<name>.eval` |
+|---|---|---|---|
+| Marker, merged log present, companion intact or partly deleted (a `delete_shards` run, or an interruption before `include_log` removed the log) | leaves the log unchanged, `deletion_pending=True`; `delete_shards=True` resumes | pairs the merged log as an ordinary log; does not merge the companion | resumes (the header is readable) |
+| Marker, merged log gone, companion objects older than the marker remain | without `delete_shards`: `ShardSetError` ("deletion of `<name>` is in progress; pass `delete_shards=True` to finish it"); with it: resumes and returns `log=None`, `shards_deleted=True` | never merges it; resumes the deletion when `retry_cleanup` is on, otherwise warns | resumes instead of the 404 fallback |
+| Marker only, or marker with only objects newer than it (the deletion finished, or new shards were written under a reused name afterwards) | *stale*: removes the marker and continues as if it were absent (a fresh companion is merged normally; nothing at all is `FileNotFoundError`) | removes the stale marker and merges the companion normally | removes the stale marker (authorized as a delete) and returns 404 for the missing log, as today |
+
+"Newer" compares storage modification times with the marker's own;
+objects with the same timestamp (S3 has one-second resolution) count as
+older, so a resumed deletion may delete an object written in the same
+second as the marker, which is written only after the caller has chosen to
+delete. Resumption is `remove_shards_dir` run again: it takes the guard,
+re-lists, applies the ancillary refusal and `authorize` again, and
+continues from step 5 (the marker exists, so it is not rewritten, and `T`
+stays the original start).
 
 Compatibility boundary for ancillary output: Step 1 does not merge
 per-shard scan results or checkpoints. Scan rows written by workers stay in
@@ -840,7 +875,8 @@ ancillary directories so the user can move or remove them deliberately.
 Parent decision (2026-09-22): callers serialise merges; compare-and-swap
 publication turns a broken contract into a refused publish.
 
-**Local.** Before step 3 the merge creates `<dir>/<name>.merge.lock` with
+**Local.** Before step 3 (so before it looks at the deletion marker) the
+merge creates `<dir>/<name>.merge.lock` with
 `O_CREAT | O_EXCL | O_WRONLY` and writes `{"pid", "host", "started"}` into
 it; the lock is removed after publication or failure. If the file exists,
 the merge raises `WriteConflictError` naming the file and its contents and
@@ -849,7 +885,9 @@ overridden (the parent's test list). The lock sits beside the merged log
 rather than in the companion so that the companion holds only shard files
 (parent: nothing else is written into `<name>.shards/`); its extension
 keeps it out of every log listing (`_filter_log_files` keys on extensions,
-`_file.py:1118`). The lock does not cover a viewer edit of the merged log
+`_file.py:1118`). Every companion deletion (viewer, retry cleanup,
+`delete_shards`) takes the same lock for its whole run ("Deleting
+shards"), so locally a deletion and a merge never overlap. The lock does not cover a viewer edit of the merged log
 made during a merge; the merge's `os.replace` wins. S3's `IfMatch` does
 catch that case.
 
@@ -896,7 +934,10 @@ async def write_file_conditional(
   the window on backends without `IfNoneMatch` support, which otherwise
   keep only the contract (parent).
 - `PreconditionFailed` from the final call, or a pre-check mismatch, raises
-  `WriteConflictError`; the multipart upload is aborted.
+  `WriteConflictError`; the multipart upload is aborted. Under `if_match`, a
+  missing object (the pre-check's 404, or S3's 404 or 412 on the final
+  call) is also a conflict: that is how a merge that read `E0` is refused
+  after a deletion removed the merged log ("Deleting shards", step 5).
 - **The final call is sent once.** Both shared clients are created with
   `retries={"max_attempts": 10, "mode": "adaptive"}`
   (`asyncfiles.py:1057`, `:1141`), and the SDK retries a `500` on its own
@@ -960,10 +1001,13 @@ never scans the directory.
    header (the merged log's, else the first shard's current attempt),
    compute its identifier and find the resolved task with it. A companion
    matching no task is left alone with a warning, like any other log that
-   belongs to no task in the set. A companion with a deletion marker is not
-   merged (merge step 4 would leave the merged log unchanged anyway); its
-   merged log is paired as an ordinary self-contained log, and the pending
-   deletion is resumed only if retry cleanup removes that merged log.
+   belongs to no task in the set. A companion with a deletion marker is
+   handled by the marker table in "Deleting shards" before this: a stale
+   marker is removed and the companion merged normally; a pending one is
+   never merged (its merged log, if present, is paired as an ordinary
+   self-contained log), and a pending deletion whose merged log is already
+   gone is resumed when `retry_cleanup` is on and otherwise left with a
+   warning.
 4. Merge it with `allow_incomplete=True` and the selection
    `selected_sample_ids(task.task.dataset, limit, sample_id, task.task.name,
    task_names)`, a new sibling of `samples_selected` in
@@ -1014,7 +1058,8 @@ group, with `M` the logs carrying `eval.shards` and `U` the rest:
   is superseded by it. The logs in `M` are removed first. Logs in `U`
   other than the latest are then removed as today (non-`started` only),
   with one exception: while any log of `M` is still present after this
-  step (its removal was refused, failed, or left a pending deletion), the
+  step (its removal was refused, or failed before the merged log itself
+  was deleted), the
   newest `success` log in `U` is kept even when it is not the latest. It
   is the evidence that `M` is superseded; without it, the next
   classification would fall into the branch below, pick `M` by mtime, and
@@ -1024,11 +1069,14 @@ group, with `M` the logs carrying `eval.shards` and `U` the rest:
   include_log=True)` instead of `fs.rm`.
 - A `remove_shards_dir` refusal or failure (ancillary output in the
   companion, an object that appeared during deletion, a storage error;
-  "Deleting shards") logs a warning and leaves that merged log in place,
-  with its companion intact or its deletion pending. Because the newest
-  unsharded `success` is kept alongside it, every later classification
-  stays in the first branch, the merged log is never the latest, and
-  pairing is unaffected until the merged log is actually removed.
+  "Deleting shards") logs a warning. If the merged log is still present,
+  the newest unsharded `success` is kept alongside it, so every later
+  classification stays in the first branch, the merged log is never the
+  latest, and pairing is unaffected until the merged log is actually
+  removed. If the failure came after the merged log was deleted, the
+  deletion is pending: the marker keeps the companion from ever being
+  merged, so the merged log cannot come back, and a later startup with
+  `retry_cleanup` finishes the deletion.
 
 So the ordering among unsharded attempts never changes. The case that rules
 out a sort key promoting unsharded successes: a merged log `M`, an older
@@ -1049,7 +1097,12 @@ rules.
 `/log-delete/{log}` (`fastapi_server.py:228`):
 
 1. `_validate_delete(request, file)` and `mapped = _map_file(request,
-   file)`, as today.
+   file)`, as today. If `mapped` does not exist, check for its deletion
+   marker before the existing 404 fallback: a pending marker resumes the
+   deletion through `remove_shards_dir(mapped, include_log=True,
+   authorize=...)` (the log is already gone); a stale marker is removed,
+   authorized like any companion object, and the response is the usual
+   404.
 2. Try to read the header of `mapped`. If it cannot be read or parsed (a
    corrupt file, an unsupported format version, a non-`.eval` log), or
    `eval.shards` is absent, delete `mapped` alone, exactly as today: the
@@ -1058,7 +1111,9 @@ rules.
    cascade. A companion beside an ordinary log is not the log's, and the
    viewer does not delete it.
 3. Otherwise call `remove_shards_dir(mapped, include_log=True,
-   authorize=...)`. The `authorize` callback receives each actual storage
+   authorize=..., expected_etag=<the ETag of the header read in step 2>)`,
+   so a merge that published after step 2 makes the delete a 409 instead
+   of removing a log the user has not seen. The `authorize` callback receives each actual storage
    object, computes its request path with `_unmap_file(request, obj)` (the
    mapping policy's own `unmap`, as the listing endpoints already use,
    `fastapi_server.py:167,382`), checks that `_map_file` of that path gives
@@ -1068,15 +1123,20 @@ rules.
    (the endpoint creates it) and `_validate_delete`. Checks run 16 at a
    time. Any denial is a 403 for the whole request, raised before anything
    is written or deleted.
-4. `remove_shards_dir` deletes exactly the authorized objects, re-lists, and
-   deletes the canonical log only when the companion is empty. An object
-   that appeared after authorization is not deleted: the endpoint returns
-   409 with a message that the delete must be retried (the retry authorizes
-   the new object), and the canonical log stays. Ancillary output in the
-   companion is also a 409, naming the directories, with nothing deleted.
+4. `remove_shards_dir` writes the marker, deletes the merged log
+   (conditionally), then exactly the authorized companion objects, and
+   re-lists. An object that appeared after the deletion started is not
+   deleted: the endpoint returns 409 with a message that the delete must
+   be retried, and the deletion stays pending (the merged log is already
+   gone and the marker keeps the companion from being merged; the retry
+   authorizes the new object only if it predates the marker, otherwise it
+   is left and reported). Ancillary output in the companion is also a 409,
+   naming the directories, with nothing written or deleted.
    An error or disconnect partway through deletion leaves the marker; a
-   repeated delete of the same merged log resumes it (step 2 still reads
-   the header, and `remove_shards_dir` continues).
+   repeated delete of the same path resumes it, through step 2 when the
+   merged log still exists and through step 1's marker check when it is
+   already gone. The deletion also takes the local merge lock; a held lock
+   is a 409.
 
 The endpoint keeps the request and the policy; `common.delete_log` is
 unchanged and remains the single-file path. With `OnlyDirAccessPolicy`
@@ -1124,7 +1184,7 @@ Two PRs after the merge core, each with the measurement that justifies it:
 | `ZipEntry` CRC-32 and the opt-in CRC check | #528 (its step 2); PR 5 below if #528 has not landed | consistent shard reads; raw copy | consistent member reads |
 | `list_shard_set`, `attempt_sort_key`, `is_shard_path` (`src/inspect_ai/log/_shards/_walk.py`) | PR 3 below | steps 4–5; the eval-set skip and companion discovery | its step 4 (shard aggregation) calls these instead of re-implementing the rules |
 | `EvalShards`, `EvalShardEntry`, `EvalShardSampleKey` | PR 2 below | writing the field | its step 6 (totals from the selection, cold start from the ledger's exact keys) |
-| `deletion_marker(log)` and `deletion_pending(fs, log)` (the `<name>.shards.deleting` rule, `_delete.py`) | PR 5 below (PR 7 if it lands first) | merge step 4, eval-set discovery, resumption | a partly deleted companion is not a current shard set; ctl should read the merged log alone for it (that choice is ctl's) |
+| `deletion_marker(log)` and `marker_state(fs, log) -> absent / pending / stale` (the `<name>.shards.deleting` rule and its modification-time comparison, `_delete.py`) | PR 5 below (PR 7 if it lands first) | merge steps 3–4, eval-set discovery, resumption | a pending companion is not a current shard set; ctl should read the merged log alone for it, or show the task as being deleted (that choice is ctl's) |
 
 `DirListing.dirs` entries are full URIs ending in `/`, as `iter_dirs`
 yields today (`asyncfiles.py:952`). `list_dir` does not follow local
@@ -1423,6 +1483,24 @@ Per PR (numbers from "Implementation plan"):
      `<k>/scans/` directory or a retained `<shard>.checkpoints/` is refused
      with nothing deleted; an object created between listing and deletion
      (a storage hook) is left, and the call raises with the merged log kept;
+   - deletion against an in-flight merge, local and `mock_s3`, with a
+     barrier after merge step 4 (marker checked, `E0` read): a viewer
+     cascade, a retry-cleanup removal and an API `delete_shards` from a
+     second process each start, remove shard A's objects, then fail before
+     B's; locally the deletion waits for or is refused by the merge lock,
+     and on S3 the merge's publish is refused because the merged log was
+     deleted first; in no schedule does a merged log without A's records
+     get published; a merge that published after the viewer read the header
+     makes the viewer's conditional delete a 409 with the marker removed;
+   - orphan marker: a failure immediately after the merged log's deletion
+     (marker and companion left) followed by a repeated viewer delete, an
+     explicit merge (without and with `delete_shards`) and an `eval_set()`
+     startup (with and without `retry_cleanup`), each following the marker
+     table; a marker with nothing else, then the same requests (stale:
+     removed, 404 or `FileNotFoundError` as before); a stale marker
+     followed by new shards written under the same name (merged normally);
+     a pending marker plus a new object written after it (the resumed
+     deletion leaves the new object and stays pending);
    - interrupted deletion, local and `mock_s3`: `delete_shards` fails (a
      storage hook raises) and, separately, is cancelled after deleting
      shard A's objects but not B's; the marker remains; a following
@@ -1470,7 +1548,8 @@ Per PR (numbers from "Implementation plan"):
 7. **Viewer delete.** `tests/_view/test_view_server.py` with a FastAPI test
    client over `/log-delete`: a policy that allows the merged log and
    denies one companion object returns 403 and deletes nothing; allowing
-   both removes the companion then the log; an ordinary log with a
+   both removes the log and then the companion, with the marker gone at
+   the end; an ordinary log with a
    same-named companion beside it deletes only the log; a corrupt `.eval`
    and one with an unsupported format version are deleted alone with 200,
    as today; a mapping policy that is not a common-prefix replacement (it
@@ -1478,11 +1557,12 @@ Per PR (numbers from "Implementation plan"):
    each object at its `unmap`ped path, and a mapping that does not
    round-trip fails closed with 403; a denied object inserted between
    authorization and deletion (a barrier in the storage layer) is not
-   deleted, the response is 409 and the merged log remains; a companion
+   deleted, the response is 409 and the deletion stays pending; a companion
    with scan results is 409 with nothing deleted; a storage error after
    some companion objects were deleted leaves the marker, a following
-   `eval_set()` startup does not rewrite the merged log, and a repeated
-   delete request finishes; a policy that denies writing the marker is a
+   `eval_set()` startup neither merges the companion nor recreates the
+   merged log, and a repeated delete request (now reaching the missing-log
+   branch) finishes; a policy that denies writing the marker is a
    403 with nothing deleted.
 8. **Streaming recomputation.** `tests/log/test_shards.py`: peak memory
    (`tracemalloc`) of a merge over shards with large transcripts and small
