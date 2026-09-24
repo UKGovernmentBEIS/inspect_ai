@@ -20,6 +20,7 @@ from test_helpers.utils import skip_if_trio
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
+    SuffixResult,
     _current_async_fs,
     _RetiredClient,
     _s3_download_file_async,
@@ -28,6 +29,7 @@ from inspect_ai._util.asyncfiles import (
     s3_bucket_and_key,
     s3_write_file_streaming,
 )
+from inspect_ai._util.file import to_uri
 
 S3_BUCKET = "s3://test-bucket"
 
@@ -2153,3 +2155,89 @@ async def test_copy_file_s3_to_s3(mock_s3: None) -> None:
         await fs.write_file("s3://test-bucket/copy/src", b"payload")
         await fs.copy_file("s3://test-bucket/copy/src", "s3://test-bucket/copy/dst")
         assert await fs.read_file("s3://test-bucket/copy/dst") == b"payload"
+
+
+# =============================================================================
+# Tests for file:// URIs of local files whose names contain a percent-encoded
+# character: the URI (from to_uri) must resolve to the same file as the path
+# =============================================================================
+_PERCENT_NAME = "percent%20literal.bin"
+
+
+def _as_path_or_uri(path: Path, as_uri: bool) -> str:
+    return to_uri(str(path)) if as_uri else str(path)
+
+
+@pytest.mark.parametrize("as_uri", [False, True])
+async def test_local_percent_name_reads(tmp_path: Path, as_uri: bool) -> None:
+    source = tmp_path / _PERCENT_NAME
+    source.write_bytes(b"hello world")
+    name = _as_path_or_uri(source, as_uri)
+
+    async with AsyncFilesystem() as fs:
+        info = await fs.info(name)
+        assert info.type == "file" and info.size == 11
+        assert await fs.get_size(name) == 11
+        assert await fs.exists(name) is True
+        assert await fs.read_file(name) == b"hello world"
+        assert await fs.read_file_bytes_fully(name, 6, None) == b"world"
+        assert await fs.read_file_suffix(name, 5) == SuffixResult(b"world", 11)
+        with tempfile.TemporaryFile() as dest:
+            await fs.read_file_into(name, dest)
+            dest.seek(0)
+            assert dest.read() == b"hello world"
+        await fs.get_file(name, str(tmp_path / "got.bin"))
+        assert (tmp_path / "got.bin").read_bytes() == b"hello world"
+
+
+@pytest.mark.parametrize("as_uri", [False, True])
+async def test_local_percent_name_missing(tmp_path: Path, as_uri: bool) -> None:
+    # the file that the undecoded URI would name must not be found instead
+    (tmp_path / "percent%2520literal.bin").write_bytes(b"undecoded")
+    name = _as_path_or_uri(tmp_path / _PERCENT_NAME, as_uri)
+
+    async with AsyncFilesystem() as fs:
+        assert await fs.exists(name) is False
+        with pytest.raises(FileNotFoundError):
+            await fs.info(name)
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file_suffix(name, 5)
+
+
+@pytest.mark.parametrize("as_uri", [False, True])
+async def test_local_percent_name_writes(tmp_path: Path, as_uri: bool) -> None:
+    target = tmp_path / _PERCENT_NAME
+    name = _as_path_or_uri(target, as_uri)
+
+    async with AsyncFilesystem() as fs:
+        await fs.write_file(name, b"written")
+        assert os.listdir(tmp_path) == [_PERCENT_NAME]
+        assert target.read_bytes() == b"written"
+
+        await fs.write_file_streaming(name, io.BytesIO(b"streamed"))
+        assert os.listdir(tmp_path) == [_PERCENT_NAME]
+        assert target.read_bytes() == b"streamed"
+
+        await fs.delete_file(name)
+        assert os.listdir(tmp_path) == []
+
+
+@pytest.mark.parametrize("as_uri", [False, True])
+async def test_local_percent_name_listing(tmp_path: Path, as_uri: bool) -> None:
+    base = tmp_path / "base%20dir"
+    (base / "sub").mkdir(parents=True)
+    (base / "file.bin").write_bytes(b"x")
+    (base / "sub" / "nested.bin").write_bytes(b"y")
+    name = _as_path_or_uri(base, as_uri)
+
+    async with AsyncFilesystem() as fs:
+        files = [f async for f in fs.iter_files(name)]
+        assert [Path(f).name for f in files] == ["file.bin"]
+        details = [f async for f in fs.iter_files(name, detail=True)]
+        assert [Path(f.name).name for f in details] == ["file.bin"]
+        nested = [f async for f in fs.iter_files(name, recursive=True)]
+        assert sorted(Path(f).name for f in nested) == ["file.bin", "nested.bin"]
+        dirs = [d async for d in fs.iter_dirs(name)]
+        assert [Path(d).name for d in dirs] == ["sub"]
+        walked = [d async for d in fs.iter_dirs(name, recursive=True)]
+        assert [Path(d).name for d in walked] == ["sub"]

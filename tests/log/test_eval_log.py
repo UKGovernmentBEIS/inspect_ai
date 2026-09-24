@@ -19,7 +19,7 @@ from typing_extensions import override
 from inspect_ai import Task, eval
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentDocument
-from inspect_ai._util.file import FileInfo, filesystem, local_path
+from inspect_ai._util.file import FileInfo, filesystem, local_path, to_uri
 from inspect_ai.dataset import Sample
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
@@ -480,6 +480,25 @@ def test_read_eval_log_samples_with_duplicate_members(tmp_path):
     assert samples[0].id == 1 and samples[0].epoch == 1
     assert samples[0].metadata is not None
     assert samples[0].metadata["requeued"] is True
+
+
+@pytest.mark.parametrize("header_only", [True, False])
+@pytest.mark.parametrize("as_uri", [False, True])
+def test_read_eval_log_percent_encoded_name(
+    tmp_path: Path, as_uri: bool, header_only: bool
+) -> None:
+    """A log whose name contains a literal `%20` reads by path and by file:// URI."""
+    import shutil
+
+    src = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+    log_file = tmp_path / "percent%20literal.eval"
+    shutil.copy(src, log_file)
+
+    log = read_eval_log(
+        to_uri(str(log_file)) if as_uri else str(log_file), header_only=header_only
+    )
+    assert log.status == "success"
+    assert (log.samples is None) == header_only
 
 
 @pytest.mark.parametrize("format", ["json", "eval"])

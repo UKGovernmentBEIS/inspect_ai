@@ -477,7 +477,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     s3_info, self.s3_client(), bucket, key, filename
                 )
         else:
-            return filesystem(filename).info(filename)
+            return filesystem(filename).info(local_path(filename))
 
     async def exists(self, filename: str) -> bool:
         """Return True if `filename` exists, False otherwise."""
@@ -502,7 +502,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 s3_exists, self.s3_client(), bucket, key
             )
         else:
-            return filesystem(filename).exists(filename)
+            return filesystem(filename).exists(local_path(filename))
 
     async def read_file(self, filename: str) -> bytes:
         """Read a file's full contents.
@@ -529,7 +529,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         s3_read_file, self.s3_client(), bucket, key
                     )
         else:
-            with file(filename, "rb") as f:
+            with file(local_path(filename), "rb") as f:
                 return f.read()
 
     async def read_file_bytes(
@@ -666,7 +666,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         suffix_length,
                     )
         else:
-            file_size = filesystem(filename).info(filename).size
+            file_size = filesystem(filename).info(local_path(filename)).size
             start = max(0, file_size - suffix_length)
             data = await self.read_file_bytes_fully(filename, start, file_size)
             return SuffixResult(data, file_size)
@@ -688,7 +688,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
             return await _s3_put_with_retry(do_put, location=filename)
         else:
-            with file(filename, "wb") as f:
+            with file(local_path(filename), "wb") as f:
                 f.write(content)
             return None
 
@@ -743,7 +743,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 return await _s3_put_with_retry(do_put, location=filename)
         else:
             with file(
-                filename, "wb", fs_options={"block_size": _FSSPEC_WRITE_BLOCK_SIZE}
+                local_path(filename),
+                "wb",
+                fs_options={"block_size": _FSSPEC_WRITE_BLOCK_SIZE},
             ) as f:
                 shutil.copyfileobj(source, f, length=_STREAMING_COPY_BUFSIZE)
             return None
@@ -777,7 +779,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         s3_get_file, self.s3_client(), bucket, key, local
                     )
         else:
-            filesystem(remote).get_file(remote, local)
+            filesystem(remote).get_file(local_path(remote), local)
 
     async def copy_file(self, source: str, destination: str) -> None:
         """Copy `source` to `destination`; either side may be local or remote.
@@ -850,7 +852,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             fs = filesystem(filename)
             if fs.is_local():
-                await anyio.to_thread.run_sync(fs.rm, filename)
+                await anyio.to_thread.run_sync(fs.rm, local_path(filename))
             else:
                 # non-s3 remote: run the sync fsspec call on the loop thread
                 # rather than to_thread over fsspec's own event-loop thread
@@ -931,19 +933,19 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             fs = fsw.fs
             if recursive:
                 if detail:
-                    found = fs.find(base, detail=True)
+                    found = fs.find(local_path(base), detail=True)
                     for path, info in found.items():
                         if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
                             yield fsw._file_info(info)
                 else:
-                    paths = fs.find(base)
+                    paths = fs.find(local_path(base))
                     if isinstance(paths, dict):
                         paths = list(paths.keys())
                     for path in paths:
                         if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
                             yield path
             else:
-                for entry in fs.ls(base, detail=True):
+                for entry in fs.ls(local_path(base), detail=True):
                     if entry["type"] == "file":
                         name = entry["name"]
                         if fnmatchcase(name.rsplit("/", 1)[-1], pattern):
@@ -1004,14 +1006,14 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             fs = filesystem(base).fs
             if not recursive:
-                for entry in fs.ls(base, detail=True):
+                for entry in fs.ls(local_path(base), detail=True):
                     if entry["type"] == "directory":
                         name = entry["name"]
                         terminal = name.rstrip("/").rsplit("/", 1)[-1]
                         if fnmatchcase(terminal, pattern):
                             yield name.rstrip("/") + "/"
             else:
-                for dirpath, dirnames, _ in fs.walk(base):
+                for dirpath, dirnames, _ in fs.walk(local_path(base)):
                     for dirname in dirnames:
                         if fnmatchcase(dirname, pattern):
                             yield f"{dirpath.rstrip('/')}/{dirname}/"
