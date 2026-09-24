@@ -427,7 +427,7 @@ deployments.
 - Every attribute method reads the cache. There is no lazy or async fetch
   path.
 - Any failure raises: timeout, connection error, non-2xx status, or an
-  unparseable body. The error names the URL and the status, and points at
+  unparsable body. The error names the URL and the status, and points at
   `model_info=False`. A failure at construction stops an eval at startup
   rather than partway through a run. LiteLLM's `{"error": {"message"}}` text
   is shown when present. A proxy without a database cannot check virtual
