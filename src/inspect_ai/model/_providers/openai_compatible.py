@@ -202,6 +202,13 @@ class OpenAICompatibleAPI(ModelAPI):
         self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
+    async def refresh_credentials(self) -> None:
+        # No await between the synchronous credential hook and the SDK update,
+        # so concurrent auth retries cannot interleave these operations.
+        super().initialize()
+        self.client.api_key = cast(str, self.api_key)
+
+    @override
     async def aclose(self) -> None:
         await self.client.close()
 

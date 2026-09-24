@@ -361,6 +361,15 @@ class ModelAPI(abc.ABC):
         """
         self._apply_api_key_overrides()
 
+    async def refresh_credentials(self) -> None:
+        """Refresh credentials after an authentication failure.
+
+        Providers that can update credentials in place should override this
+        method to avoid interrupting concurrent requests using their client.
+        """
+        await self.aclose()
+        self.initialize()
+
     async def aclose(self) -> None:
         """Async close method for closing any client allocated for the model."""
         self.close()
@@ -1834,10 +1843,7 @@ class Model:
 
     async def before_retry(self, ex: BaseException) -> None:
         if isinstance(ex, Exception) and self.api.is_auth_failure(ex):
-            # close existing model instance
-            await self.api.aclose()
-            # re-initialize
-            self.api.initialize()
+            await self.api.refresh_credentials()
 
     # function to verify that its okay to call model apis
     def verify_model_apis(self) -> None:
