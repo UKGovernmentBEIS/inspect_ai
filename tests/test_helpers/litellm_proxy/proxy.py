@@ -101,6 +101,16 @@ proxy_handler_instance = InspectCapture()
 """
 
 
+def isolate_model_info(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep model info the provider registers out of other tests."""
+    from inspect_ai.model import _model_info
+    from inspect_ai.model._providers import litellm_proxy
+
+    monkeypatch.setattr(_model_info, "_custom_models", dict(_model_info._custom_models))
+    monkeypatch.setattr(_model_info, "_result_cache", {})
+    monkeypatch.setattr(litellm_proxy, "_registrations", {})
+
+
 def litellm_proxy_image_available() -> bool:
     if shutil.which("docker") is None:
         return False

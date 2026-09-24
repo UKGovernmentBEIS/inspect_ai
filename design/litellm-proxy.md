@@ -530,21 +530,45 @@ Precedence for each field:
 
 | Proxy field | Inspect field |
 |---|---|
-| `max_input_tokens` | `context_length` (whether LiteLLM means input-only is still open) |
+| `max_input_tokens` | `context_length` (LiteLLM's value is input capacity: it equals Inspect's `input_tokens` for every compared model, e.g. 272k for gpt-5, whose context window is 400k) |
 | `max_output_tokens` | `output_tokens` |
 | `supports_reasoning` | `reasoning` |
 | `default_reasoning_effort` | `reasoning_effort_default` |
 | prices per token × 1e6 | `ModelCost` |
 
-`family` is set to the resolved canonical key, so model-family checks
+`family` is not registered. `model_family()` already returns the upstream
+model's name (without the organization, since checks such as
+`is_o_series_model` match anywhere in the name), so model-family checks
 (`needs_max_completion_tokens`, `is_gpt_5_plus`, `supports_max_reasoning_effort`
-and so on) see the upstream model instead of the alias.
+and so on) see the upstream model instead of the alias. A user-registered
+`family` still wins.
 
 With several deployments, limits take the minimum, since the router can send
 a request to any of them, and prices take the maximum.
 
 Cost is registered only when input and output prices are both present. A
-missing cache read or write price uses the input price.
+missing cache read or write price uses the input price. Inspect's database
+has no prices (0 of 808 models), so the proxy is usually the only automatic
+source of cost.
+
+Implementation notes (phase 3):
+
+- Precedence applies field by field: a user registration for
+  `litellm-proxy/<alias>` (e.g. only `family`) is merged with, not replaced
+  by, the database and proxy fields. The user's original is kept, so
+  constructing the model again merges from it again. A user registration for
+  the canonical name (e.g. `set_model_cost("openai/gpt-5", ...)`) comes in
+  through the database lookup.
+- A database input limit below the context window (gpt-5) is kept.
+- An alias that resolves to nothing still gets an empty registration (with
+  `require_model_info=false`), and `input_tokens_name()` returns the
+  registered key, so lookups stop there instead of fuzzy matching the alias.
+- `model_info=false` skips registration and the gate.
+- Limitations: the registry is keyed by model string, so two proxies
+  serving the same alias in one process share an entry (the last constructed
+  wins). `get_model_info("litellm-proxy/<alias>")` before the model is
+  constructed cannot reach the proxy (it runs with a placeholder key) and
+  still uses the database's fuzzy matching.
 
 ### 5. The model info gate
 
@@ -696,9 +720,6 @@ Each phase ends with review and approval before the next starts.
 
 ## Open questions
 
-- Is LiteLLM's `max_input_tokens` input-only, or the whole context window?
-  This decides whether it maps to `context_length` or to the private
-  `_input_tokens` override.
 - Does `/v2/model/info?model=` behave as the source suggests? If it does, it
   would avoid fetching every deployment on large proxies, but it skips the key
   allowlist, so v1 stays the default.

@@ -23,6 +23,7 @@ from openai import APIError, APIStatusError, BadRequestError
 from test_helpers.litellm_proxy.errors import error_deployments, error_route
 from test_helpers.litellm_proxy.proxy import (
     LiteLLMProxy,
+    isolate_model_info,
     run_litellm_proxy,
     skip_if_no_litellm_proxy,
 )
@@ -36,20 +37,30 @@ from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
     Model,
+    ModelCost,
     ModelInfo,
     ModelOutput,
     get_model,
     set_model_info,
 )
 from inspect_ai.model._model import RetryDecision
-from inspect_ai.model._model_info import MODEL_INFO_LOOKUP_API_KEY
+from inspect_ai.model._model_info import (
+    MODEL_INFO_LOOKUP_API_KEY,
+    _get_custom_model_info,
+    _get_model_info_direct,
+    get_model_input_tokens,
+    set_model_cost,
+)
 from inspect_ai.model._openai import OpenAIResponseError
 from inspect_ai.model._providers import _litellm_proxy_model_info, _litellm_proxy_names
 from inspect_ai.model._providers._litellm_proxy_errors import (
     litellm_error_model_output,
     upstream_message,
 )
-from inspect_ai.model._providers._litellm_proxy_model_info import ProxyDeployment
+from inspect_ai.model._providers._litellm_proxy_model_info import (
+    ProxyDeployment,
+    proxy_model_info,
+)
 from inspect_ai.model._providers._litellm_proxy_names import resolve_deployments
 from inspect_ai.model._providers._litellm_proxy_reasoning import (
     ThinkingBlocksAccumulator,
@@ -58,6 +69,7 @@ from inspect_ai.model._providers.litellm_proxy import (
     LITELLM_PROXY_API_BASE,
     LITELLM_PROXY_BASE_URL,
     LiteLLMProxyAPI,
+    merged_model_info,
 )
 
 MOCK_MODEL = "mock-model"
@@ -90,6 +102,11 @@ PROXY_CONFIG: dict[str, Any] = {
         },
     ]
 }
+
+
+@pytest.fixture(autouse=True)
+def isolated_model_info(monkeypatch: pytest.MonkeyPatch) -> None:
+    isolate_model_info(monkeypatch)
 
 
 @pytest.fixture(scope="module")
@@ -183,9 +200,31 @@ def test_litellm_proxy_resolves_base_model(
         "litellm-proxy/azure-prod",
         base_url=litellm_proxy.base_url,
         api_key=litellm_proxy.api_key,
+        memoize=False,
     )
     assert model.canonical_name() == "openai/gpt-5"
     assert model.api.model_family() == "gpt-5"
+
+    # Inspect's entry for gpt-5, with the prices LiteLLM reports for azure/gpt-5
+    info = _get_model_info_direct(model)
+    assert info is not None
+    assert info.context_length == 400000
+    assert get_model_input_tokens(model) == 272000
+    assert info.cost is not None
+    assert (info.cost.input, info.cost.output) == (1.25, 10.0)
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+def test_litellm_proxy_registers_proxy_model_info(
+    litellm_proxy: LiteLLMProxy, clear_model_info_cache: None
+) -> None:
+    # mock-model is not in Inspect's database; its configured model_info is
+    model = _proxy_model(litellm_proxy, memoize=False)
+    info = _get_model_info_direct(model)
+    assert info is not None
+    assert (info.context_length, info.output_tokens) == (200000, 8192)
+    assert info.reasoning is True
 
 
 @skip_if_no_openai_package
@@ -320,7 +359,10 @@ def test_model_info_deployments_for_alias(model_info_stub: ModelInfoStub) -> Non
 
 @skip_if_no_openai_package
 def test_model_info_alias_not_listed(model_info_stub: ModelInfoStub) -> None:
-    assert _stub_provider(model_info_stub, alias="missing").proxy_deployments() == []
+    provider = _stub_provider(
+        model_info_stub, alias="missing", require_model_info=False
+    )
+    assert provider.proxy_deployments() == []
 
 
 @skip_if_no_openai_package
@@ -847,14 +889,6 @@ def test_resolve_unmatched_keeps_normalized_upstream() -> None:
     assert resolution.upstream == "openai/gpt-7-preview"
 
 
-@pytest.fixture
-def isolated_model_info(monkeypatch: pytest.MonkeyPatch) -> None:
-    from inspect_ai.model import _model_info
-
-    monkeypatch.setattr(_model_info, "_custom_models", dict(_model_info._custom_models))
-    monkeypatch.setattr(_model_info, "_result_cache", {})
-
-
 def _serve(stub: ModelInfoStub, rows: list[dict[str, Any]]) -> None:
     stub.body = json.dumps({"data": rows}).encode()
 
@@ -877,7 +911,7 @@ def test_provider_canonical_name_and_family(model_info_stub: ModelInfoStub) -> N
 @skip_if_no_openai_package
 def test_provider_unresolved_upstream(model_info_stub: ModelInfoStub) -> None:
     _serve(model_info_stub, [_row("next", "openai/gpt-7-preview")])
-    provider = _stub_provider(model_info_stub, alias="next")
+    provider = _stub_provider(model_info_stub, alias="next", require_model_info=False)
     assert provider.canonical_name() == "openai/gpt-7-preview"
     assert provider.model_family() == "gpt-7-preview"
 
@@ -887,14 +921,16 @@ def test_provider_alias_without_model_info(model_info_stub: ModelInfoStub) -> No
     provider = _stub_provider(model_info_stub, model_info=False)
     assert provider.canonical_name() == "claude"
     assert provider.model_family() == "claude"
-    unlisted = _stub_provider(model_info_stub, alias="unlisted")
+    unlisted = _stub_provider(
+        model_info_stub, alias="unlisted", require_model_info=False
+    )
     assert unlisted.canonical_name() == "unlisted"
     assert unlisted.model_family() == "unlisted"
 
 
 @skip_if_no_openai_package
 def test_provider_registered_family_wins(
-    model_info_stub: ModelInfoStub, isolated_model_info: None
+    model_info_stub: ModelInfoStub,
 ) -> None:
     set_model_info("litellm-proxy/claude", ModelInfo(family="gpt-5"))
     assert _stub_provider(model_info_stub).model_family() == "gpt-5"
@@ -919,6 +955,204 @@ def test_provider_request_shape_follows_upstream(
     assert claude.model_family() == "claude-sonnet-4-5"
     params = claude.completion_params(GenerateConfig(max_tokens=100), tools=False)
     assert params["max_tokens"] == 100
+
+
+# Model info registration and the gate ------------------------------------------
+
+
+def _proxy_deployment(**model_info: Any) -> ProxyDeployment:
+    return ProxyDeployment(
+        model_name="alias",
+        model="openai/x",
+        custom_llm_provider=None,
+        base_model=None,
+        model_info=model_info,
+    )
+
+
+def test_proxy_model_info_fields() -> None:
+    info = proxy_model_info(
+        [
+            _proxy_deployment(
+                max_input_tokens=272000,
+                max_output_tokens=128000,
+                supports_reasoning=True,
+                default_reasoning_effort="medium",
+                input_cost_per_token=1.25e-06,
+                output_cost_per_token=1e-05,
+                cache_read_input_token_cost=1.25e-07,
+                cache_creation_input_token_cost=None,
+            )
+        ]
+    )
+    assert info == ModelInfo(
+        context_length=272000,
+        output_tokens=128000,
+        reasoning=True,
+        reasoning_effort_default="medium",
+        cost=ModelCost(
+            input=1.25, output=10.0, input_cache_write=1.25, input_cache_read=0.125
+        ),
+    )
+
+
+def test_proxy_model_info_combines_deployments() -> None:
+    info = proxy_model_info(
+        [
+            _proxy_deployment(
+                max_input_tokens=1000000,
+                supports_reasoning=True,
+                input_cost_per_token=3e-06,
+                output_cost_per_token=1.5e-05,
+            ),
+            _proxy_deployment(
+                max_input_tokens=200000,
+                max_output_tokens=64000,
+                supports_reasoning=False,
+                input_cost_per_token=6e-06,
+                output_cost_per_token=2.25e-05,
+                cache_read_input_token_cost=6e-07,
+            ),
+            # prices without an output price are not a cost
+            _proxy_deployment(input_cost_per_token=1e-03),
+        ]
+    )
+    assert info is not None
+    assert (info.context_length, info.output_tokens) == (200000, 64000)
+    assert info.reasoning is None
+    assert info.cost == ModelCost(
+        input=6.0, output=22.5, input_cache_write=6.0, input_cache_read=3.0
+    )
+
+
+@pytest.mark.parametrize(
+    "model_info",
+    [
+        {},
+        {"max_input_tokens": "200000", "supports_reasoning": "yes"},
+        {"max_input_tokens": 0, "max_output_tokens": True},
+        {"input_cost_per_token": -1, "output_cost_per_token": 1e-06},
+    ],
+)
+def test_proxy_model_info_ignores_missing_and_invalid(
+    model_info: dict[str, Any],
+) -> None:
+    assert proxy_model_info([_proxy_deployment(**model_info)]) is None
+
+
+def test_merged_model_info_precedence() -> None:
+    primary = ModelInfo(family="gpt-5", output_tokens=1000)
+    secondary = ModelInfo(
+        organization="OpenAI",
+        context_length=400000,
+        output_tokens=128000,
+        _input_tokens=272000,
+    )
+    merged = merged_model_info(primary, secondary)
+    assert merged.family == "gpt-5"
+    assert merged.output_tokens == 1000
+    assert merged.organization == "OpenAI"
+    assert (merged.context_length, merged.input_tokens) == (400000, 272000)
+    assert merged_model_info(None, None) == ModelInfo()
+
+
+PRICES = {"input_cost_per_token": 3e-06, "output_cost_per_token": 1.5e-05}
+
+
+def _stub_model(stub: ModelInfoStub, alias: str, **model_args: Any) -> Model:
+    model_args = {"base_url": stub.url, "api_key": "sk-stub"} | model_args
+    return get_model(f"litellm-proxy/{alias}", **model_args)
+
+
+@skip_if_no_openai_package
+def test_registers_database_info_with_proxy_prices(
+    model_info_stub: ModelInfoStub,
+) -> None:
+    _serve(
+        model_info_stub,
+        [_row("prod", "azure/prod-deployment-7", base_model="azure/gpt-5", **PRICES)],
+    )
+    model = _stub_model(model_info_stub, "prod")
+    info = _get_model_info_direct(model)
+    assert info is not None
+    assert (info.organization, info.context_length) == ("OpenAI", 400000)
+    assert get_model_input_tokens(model) == 272000
+    assert info.cost is not None and (info.cost.input, info.cost.output) == (3, 15)
+
+
+@skip_if_no_openai_package
+def test_registers_proxy_only_model(model_info_stub: ModelInfoStub) -> None:
+    _serve(
+        model_info_stub,
+        [_row("local", "hosted_vllm/my-model", max_input_tokens=32000, **PRICES)],
+    )
+    model = _stub_model(model_info_stub, "local")
+    assert get_model_input_tokens(model) == 32000
+    info = _get_model_info_direct(model)
+    assert info is not None and info.cost is not None
+
+
+@skip_if_no_openai_package
+def test_user_registration_fields_win(model_info_stub: ModelInfoStub) -> None:
+    _serve(model_info_stub, [_row("claude", "anthropic/claude-sonnet-4-5", **PRICES)])
+    set_model_info("litellm-proxy/claude", ModelInfo(output_tokens=1000))
+    set_model_cost(
+        "anthropic/claude-sonnet-4-5",
+        ModelCost(input=1, output=2, input_cache_write=1, input_cache_read=1),
+    )
+    for _ in range(2):  # constructing again merges from the user's entry again
+        model = _stub_model(model_info_stub, "claude", memoize=False)
+        info = _get_model_info_direct(model)
+        assert info is not None
+        assert info.output_tokens == 1000
+        assert info.context_length == 200000
+        assert info.cost is not None and info.cost.input == 1
+
+
+@skip_if_no_openai_package
+def test_gate_rejects_alias_without_model_info(
+    model_info_stub: ModelInfoStub,
+) -> None:
+    _serve(model_info_stub, [_row("next", "openai/gpt-7-preview")])
+    with pytest.raises(PrerequisiteError) as ex:
+        _stub_model(model_info_stub, "next")
+    message = str(ex.value.message)
+    assert "'openai/gpt-7-preview' is not in Inspect's model database" in message
+    assert "base_model" in message
+    assert 'set_model_info("litellm-proxy/next"' in message
+    assert "-M require_model_info=false" in message
+
+    with pytest.raises(PrerequisiteError, match="has no deployment for it"):
+        _stub_model(model_info_stub, "unlisted")
+
+
+@skip_if_no_openai_package
+def test_gate_accepts_user_context_window(model_info_stub: ModelInfoStub) -> None:
+    _serve(model_info_stub, [_row("next", "openai/gpt-7-preview")])
+    set_model_info("litellm-proxy/next", ModelInfo(context_length=500000))
+    assert get_model_input_tokens(_stub_model(model_info_stub, "next")) == 500000
+
+
+@skip_if_no_openai_package
+def test_gate_disabled_registers_empty_info(model_info_stub: ModelInfoStub) -> None:
+    # an alias that would fuzzy match a database model
+    _serve(model_info_stub, [_row("gpt-5-mini", "openai/opaque-deployment")])
+    model = _stub_model(model_info_stub, "gpt-5-mini", require_model_info=False)
+    assert _get_model_info_direct(model) == ModelInfo()
+    assert get_model_input_tokens(model) is None
+
+
+@skip_if_no_openai_package
+def test_require_model_info_must_be_bool(model_info_stub: ModelInfoStub) -> None:
+    with pytest.raises(ValueError, match="require_model_info must be a bool"):
+        _stub_model(model_info_stub, "claude", require_model_info="no")
+
+
+@skip_if_no_openai_package
+def test_no_registration_without_model_info(model_info_stub: ModelInfoStub) -> None:
+    _stub_model(model_info_stub, "unlisted", model_info=False)
+    assert _get_custom_model_info("litellm-proxy/unlisted") is None
+    assert model_info_stub.requests == []
 
 
 # Error messages as LiteLLM proxy 1.104 sends them (the `message` of the error

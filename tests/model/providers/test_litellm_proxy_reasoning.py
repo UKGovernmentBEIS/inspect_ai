@@ -25,6 +25,7 @@ from test_helpers.litellm_proxy.artifacts import (
 from test_helpers.litellm_proxy.proxy import (
     LiteLLMProxy,
     UpstreamExchange,
+    isolate_model_info,
     run_litellm_proxy,
     skip_if_no_litellm_proxy,
     upstream_exchange,
@@ -52,6 +53,12 @@ from inspect_ai.model import (
 from inspect_ai.tool import Tool, tool
 
 CALL_ID = "x-litellm-call-id"
+
+
+@pytest.fixture(autouse=True)
+def isolated_model_info(monkeypatch: pytest.MonkeyPatch) -> None:
+    isolate_model_info(monkeypatch)
+
 
 # Checker unit tests: hand-built payloads in each provider's wire format ------
 
