@@ -199,10 +199,12 @@ def _insert_content_security_policy(index_contents: str, policy: str) -> str:
             "Unable to apply the viewer Content-Security-Policy: the viewer "
             "index.html has no <head> element."
         )
-    meta = (
-        '<meta http-equiv="Content-Security-Policy" '
-        f'content="{html.escape(policy, quote=True)}" />'
-    )
+    # Escape only what a double-quoted attribute needs: leaving the policy's
+    # many `'` literal keeps `<meta charset>` well inside the first 1024
+    # bytes, where browsers look for it.
+    content = html.escape(policy, quote=False).replace('"', "&quot;")
+    meta = f'<meta http-equiv="Content-Security-Policy" content="{content}" />'
+
     return f"{index_contents[: head.end()]}\n    {meta}{index_contents[head.end() :]}"
 
 

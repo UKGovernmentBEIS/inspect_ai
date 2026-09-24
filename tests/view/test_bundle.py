@@ -270,6 +270,7 @@ def test_bundle_inserts_viewer_csp_meta_first_in_head(
     }
     assert "frame-ancestors" not in index_html
     assert "&amp;c&lt;&quot;d&quot;&gt;" in index_html
+    assert "default-src 'none'; script-src 'self'" in index_html
 
     # the log_dir_context data block is still injected, after the inline scripts
     tags = [tag for tag, _ in parser.children]
