@@ -110,6 +110,22 @@ def test_eval_shards_dir_round_trip(log: str, shards: str) -> None:
 
 
 @pytest.mark.parametrize(
+    "log,shards",
+    [
+        ("C:\\logs\\run.eval", "C:\\logs\\run.shards"),
+        ("\\\\server\\share\\run.eval", "\\\\server\\share\\run.shards"),
+        ("logs\\run.eval", "logs\\run.shards"),
+        (".\\run.eval", ".\\run.shards"),
+    ],
+)
+def test_eval_shards_dir_round_trip_backslash_paths(log: str, shards: str) -> None:
+    assert eval_shards_dir(log) == shards
+    assert eval_log_for_shards_dir(shards) == log
+    assert eval_log_for_shards_dir(f"{shards}\\") == log
+    assert eval_log_for_shards_dir(f"{shards}\\\\") == log
+
+
+@pytest.mark.parametrize(
     "recovered,shards,log",
     [
         ("/logs/run-recovered.eval", "/logs/run.shards", "/logs/run.eval"),

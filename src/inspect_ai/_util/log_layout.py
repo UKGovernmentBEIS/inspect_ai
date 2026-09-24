@@ -114,7 +114,8 @@ def _with_basename(location: str, name: str) -> str:
 
     Everything before that component is kept verbatim, so a bare relative
     name stays relative and a ``file:///`` or ``s3://bucket/`` prefix keeps
-    its separators. A trailing slash on ``location`` is dropped.
+    its separators. Trailing forward or back slashes are dropped, as
+    :func:`basename` treats both as separators.
     """
-    location = location.rstrip("/")
+    location = location.rstrip("/\\")
     return location[: len(location) - len(basename(location))] + name
