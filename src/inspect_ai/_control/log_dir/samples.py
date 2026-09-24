@@ -42,7 +42,7 @@ from inspect_ai.log._log import EvalSample, EvalSampleSummary
 
 from .consistency import read_consistently
 from .select import MemberSnapshot, SampleKey, known_keys, select_source
-from .snapshot import LogicalTask, read_snapshot
+from .snapshot import LogicalTask, read_snapshot, read_summaries
 
 
 class SampleNotFoundError(Exception):
@@ -68,10 +68,12 @@ async def sample_detail(
 ) -> dict[str, Any]:
     """The ``sample show`` envelope, as the live terminal path builds it."""
     located = await _locate(fs, task, sample_id, epoch)
-    sample = await _read_sample(fs, located, SAMPLE_DETAIL_EXCLUDE_FIELDS)
+    read = await _read_sample(fs, located, SAMPLE_DETAIL_EXCLUDE_FIELDS)
     return terminal_sample_detail(
-        sample,
-        _summary_from_eval_sample_summary(located.summary),
+        read.sample,
+        _summary_from_eval_sample_summary(read.summary)
+        if read.summary is not None
+        else None,
         will_retry=False,
         content=content,
     )
@@ -94,7 +96,7 @@ async def sample_events(
 ) -> dict[str, Any]:
     """A ``sample events`` page over the logged sample's full event list."""
     located = await _locate(fs, task, sample_id, epoch)
-    sample = await _read_sample(fs, located, None)
+    sample = (await _read_sample(fs, located, None)).sample
     return page_events(
         events_source_from_sample(sample, epoch),
         since=since,
@@ -121,7 +123,7 @@ async def sample_messages(
     """The ``sample messages`` snapshot of the logged sample."""
     as_of = time.time()
     located = await _locate(fs, task, sample_id, epoch)
-    sample = await _read_sample(fs, located, LOGGED_MESSAGES_EXCLUDE_FIELDS)
+    sample = (await _read_sample(fs, located, LOGGED_MESSAGES_EXCLUDE_FIELDS)).sample
     return page_messages(
         messages_source_from_sample(sample),
         tail=tail,
@@ -144,7 +146,7 @@ async def sample_store(
     """The ``sample store`` snapshot of the logged sample."""
     as_of = time.time()
     located = await _locate(fs, task, sample_id, epoch)
-    sample = await _read_sample(fs, located, LOGGED_STORE_EXCLUDE_FIELDS)
+    sample = (await _read_sample(fs, located, LOGGED_STORE_EXCLUDE_FIELDS)).sample
     return page_store(
         store_source_from_sample(sample),
         keys=keys,
@@ -188,22 +190,39 @@ async def _locate(
     return _Located(choice.member, choice.summary)
 
 
+class _SampleRead(NamedTuple):
+    sample: EvalSample
+    summary: EvalSampleSummary | None
+    """The sample's summary from the same log version as ``sample`` (``None``
+    when that version has no summary row for it)."""
+
+
 async def _read_sample(
     fs: AsyncFilesystem,
     located: _Located,
     exclude_fields: Collection[str] | None,
-) -> EvalSample:
-    """Read the located sample member, re-reading on a torn read."""
-    location = located.member.plan.file.location
+) -> _SampleRead:
+    """Read the located sample member, re-reading on a torn read.
 
-    async def read(reader: AsyncZipReader, fresh: bool) -> EvalSample:
-        return await read_eval_log_sample_async(
+    A re-read goes through a fresh central directory, so the log may have
+    been replaced since the summaries were read: the summary is then re-read
+    from that version too, so the two never describe different records.
+    """
+    location = located.member.plan.file.location
+    key = SampleKey(str(located.summary.id), located.summary.epoch)
+
+    async def read(reader: AsyncZipReader, fresh: bool) -> _SampleRead:
+        summary: EvalSampleSummary | None = located.summary
+        if fresh:
+            summary = (await read_summaries(reader, located.member.plan.file)).get(key)
+        sample = await read_eval_log_sample_async(
             location,
             located.summary.id,
             located.summary.epoch,
             exclude_fields=set(exclude_fields) if exclude_fields else None,
             reader=reader,
         )
+        return _SampleRead(sample, summary)
 
     return await read_consistently(
         fs,

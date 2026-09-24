@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 
 from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.constants import HTTP
-from inspect_ai._util.file import FileInfo, file, filesystem, local_path
+from inspect_ai._util.file import FileInfo, file, filesystem, local_path, to_uri
 
 logger = logging.getLogger(__name__)
 
@@ -1035,8 +1035,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         directories use ``os.scandir`` without following directory symlinks,
         so a symlink loop cannot recurse; other fsspec backends use ``ls``.
 
-        Paths are ``base`` joined with each child name, so they keep the form
-        ``base`` was given in (plain path, ``file://`` or ``s3://``). Local
+        Paths keep the form ``base`` was given in (plain path, ``file://`` or
+        ``s3://``); a ``file://`` child is built from its local path with
+        ``to_uri``, so reserved characters in names are percent-encoded. Local
         ``mtime`` is in milliseconds, as on the other backends.
 
         Raises ``FileNotFoundError`` when a local ``base`` does not exist; an
@@ -1072,7 +1073,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         fsw = filesystem(base)
         if fsw.is_local():
             return await anyio.to_thread.run_sync(
-                _scandir_listing, local_path(base), prefix_path
+                _scandir_listing,
+                local_path(base),
+                prefix_path,
+                base.startswith("file://"),
             )
         files = []
         dirs = []
@@ -1468,13 +1472,17 @@ def _s3_list_pages(s3: Any, bucket: str, prefix: str) -> list[dict[str, Any]]:
     return list(paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"))
 
 
-def _scandir_listing(directory: str, prefix_path: str) -> DirListing:
+def _scandir_listing(directory: str, prefix_path: str, as_uri: bool) -> DirListing:
     """A local directory's children (see :meth:`AsyncFilesystem.list_dir`)."""
     files: list[FileInfo] = []
     dirs: list[str] = []
     with os.scandir(directory) as entries:
         for entry in entries:
-            path = f"{prefix_path}/{entry.name}"
+            path = (
+                to_uri(os.path.join(directory, entry.name))
+                if as_uri
+                else f"{prefix_path}/{entry.name}"
+            )
             if entry.is_dir(follow_symlinks=False):
                 dirs.append(path)
             elif entry.is_file():

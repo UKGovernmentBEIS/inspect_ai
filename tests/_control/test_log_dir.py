@@ -6,6 +6,7 @@ walk, and the request counts the design states for these reads (see
 design/ctl/log-dir-mode.md). The CLI surface is tested in test_ctl.py.
 """
 
+import functools
 import shutil
 import zipfile
 from collections import Counter
@@ -988,3 +989,211 @@ def test_cli_never_resolves_scorers_or_imports_task_code(
     for args in (["task", "list"], ["sample", "show", task_id, "2", "--content"]):
         result = _ctl("--log-dir", str(log_dir), *args, "--json")
         assert result.exit_code == 0, result.output
+
+
+# --- review round 1 regressions ------------------------------------------------
+
+
+def _json(result: Any) -> Any:
+    import json
+
+    return json.loads(result.stdout)
+
+
+@pytest.mark.parametrize("verb", ["list", "errors"])
+@pytest.mark.parametrize("scoped", [False, True])
+def test_cli_sample_listings_keep_the_envelope_when_no_log_is_readable(
+    tmp_path: Path, verb: str, scoped: bool
+) -> None:
+    selector = ["alpha"] if scoped else []
+    empty = _ctl("--log-dir", str(tmp_path), "sample", verb, *selector, "--json")
+    assert empty.exit_code == 0, empty.output
+    assert _json(empty)["incomplete"] is False and _json(empty)["unreadable"] == []
+    assert _json(empty)["conflicted"] == 0
+
+    (tmp_path / "bad.eval").write_bytes(b"not a zip")
+    broken = _ctl("--log-dir", str(tmp_path), "sample", verb, *selector, "--json")
+    assert broken.exit_code == 0, broken.output
+    payload = _json(broken)
+    assert payload["samples"] == [] and payload["incomplete"] is True
+    assert [u["log_location"] for u in payload["unreadable"]] == [
+        str(tmp_path / "bad.eval")
+    ]
+
+
+def test_cli_scoped_listing_reports_unidentified_but_not_other_tasks_failures(
+    log_dir: Path, finished_log: EvalLog
+) -> None:
+    (log_dir / "bad.eval").write_bytes(b"not a zip")
+    other = log_dir / "2099-01-01T00-00-00+00-00_broken_BROKENTASK000000000000.eval"
+    other.write_bytes(b"not a zip")
+    scoped = _ctl(
+        "--log-dir", str(log_dir), "sample", "list", finished_log.eval.task_id, "--json"
+    )
+    assert scoped.exit_code == 0, scoped.output
+    payload = _json(scoped)
+    assert payload["counts"]["completed"] == 2 and payload["incomplete"] is True
+    assert [u["log_location"] for u in payload["unreadable"]] == [
+        str(log_dir / "bad.eval")
+    ]
+    unscoped = _json(_ctl("--log-dir", str(log_dir), "sample", "list", "--json"))
+    assert {u["log_location"] for u in unscoped["unreadable"]} == {
+        str(log_dir / "bad.eval"),
+        str(other),
+    }
+    assert Counter(r["task_id"] for r in unscoped["samples"]) == {
+        finished_log.eval.task_id: 3
+    }
+
+
+@pytest.mark.parametrize("verb", ["show", "events", "messages", "store"])
+def test_cli_a_task_whose_only_log_is_unreadable_reports_its_failure(
+    log_dir: Path, finished_log: EvalLog, verb: str
+) -> None:
+    (
+        log_dir / "2099-01-01T00-00-00+00-00_broken_BROKENTASK000000000000.eval"
+    ).write_bytes(b"not a zip")
+    broken = _ctl(
+        "--log-dir",
+        str(log_dir),
+        "sample",
+        verb,
+        "BROKENTASK000000000000",
+        "1",
+        "--json",
+    )
+    assert broken.exit_code == 1
+    assert _json(broken)["error"]["kind"] == "invalid_response"
+    # the healthy neighbour still reads
+    healthy = _ctl(
+        "--log-dir",
+        str(log_dir),
+        "sample",
+        verb,
+        finished_log.eval.task_id,
+        "1",
+        "--json",
+    )
+    assert healthy.exit_code == 0, healthy.output
+
+
+async def test_file_uri_roots_with_reserved_characters_in_names(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    nested = tmp_path / "dir #1?x"
+    nested.mkdir()
+    shutil.copy(finished_log.location, nested / "percent%20literal.eval")
+    plain_index, plain_rows = await _index(tmp_path)
+    uri_index, uri_rows = await _index(tmp_path.as_uri())
+    assert len(plain_rows) == len(uri_rows) == 1
+    assert uri_index.unattributed == [] and uri_rows[0]["incomplete"] is False
+    assert uri_rows[0]["log_location"] == str(nested / "percent%20literal.eval")
+    assert uri_rows[0]["samples"] == plain_rows[0]["samples"]
+    async with AsyncFilesystem() as fs:
+        detail = await sample_detail(fs, uri_index.tasks[0], "1", 1)
+    assert detail["sample_id"] == 1
+
+
+async def test_a_sample_read_that_switches_versions_uses_that_versions_summary(
+    log_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._control.log_dir import samples as samples_module
+
+    [path] = list(log_dir.glob("*.eval"))
+    index, _ = await _index(log_dir)
+    replacement = await read_eval_log_async(str(path))
+    assert replacement.samples is not None
+    replacement.samples[0] = replacement.samples[0].model_copy(
+        update={"total_time": 777.0, "metadata": {"padding": "y" * 4096}}
+    )
+    from inspect_ai.log._file import read_eval_log_sample_async as original
+
+    calls: list[int] = []
+
+    async def replace_first(*args: Any, **kwargs: Any) -> Any:
+        if not calls:
+            # the worker rewrites the log between the key refresh and the
+            # sample-member read
+            await write_eval_log_async(replacement, str(path))
+        calls.append(1)
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(samples_module, "read_eval_log_sample_async", replace_first)
+    async with AsyncFilesystem() as fs:
+        detail = await sample_detail(fs, index.tasks[0], "1", 1)
+    assert len(calls) >= 2
+    assert detail["total_time"] == 777.0
+
+
+def _drop_journal_member(source: Path, dest: Path) -> None:
+    """Copy a running log with its first journal summary renamed to ``2.json``."""
+    with zipfile.ZipFile(source) as src, zipfile.ZipFile(dest, "w") as out:
+        for info in src.infolist():
+            name = info.filename
+            if name == "_journal/summaries/1.json":
+                name = "_journal/summaries/2.json"
+            out.writestr(name, src.read(info.filename))
+
+
+def test_cli_a_journal_missing_a_summary_member_is_an_unreadable_log(
+    log_dir: Path, finished_log: EvalLog, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    source_dir = tmp_path_factory.mktemp("running-source")
+    running = anyio.run(
+        functools.partial(
+            _write_running_log,
+            source_dir,
+            finished_log,
+            logged=[1],
+            sample_ids=[1, 2],
+        )
+    )
+    _drop_journal_member(running, log_dir / running.name)
+    listed = _ctl("--log-dir", str(log_dir), "task", "list", "--json")
+    assert listed.exit_code == 0, listed.output
+    rows = {r["task_id"]: r for r in _json(listed)["tasks"]}
+    assert rows[finished_log.eval.task_id]["incomplete"] is False
+    broken = rows["RUNNINGTASK000000000000"]
+    assert broken["incomplete"] is True
+    assert "missing member" in broken["unreadable"][0]["reason"]
+    samples = _ctl("--log-dir", str(log_dir), "sample", "list", "--json")
+    assert samples.exit_code == 0 and _json(samples)["incomplete"] is True
+    shown = _ctl(
+        "--log-dir",
+        str(log_dir),
+        "sample",
+        "show",
+        "RUNNINGTASK000000000000",
+        "1",
+        "--json",
+    )
+    assert shown.exit_code == 1
+    assert _json(shown)["error"]["kind"] == "invalid_response"
+
+
+async def test_names_without_a_timestamp_order_by_mtime_alone(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    import os
+
+    old = tmp_path / "old-recovered.eval"
+    new = tmp_path / "new.eval"
+    shutil.copy(finished_log.location, old)
+    shutil.copy(finished_log.location, new)
+    os.utime(old, (100, 100))
+    os.utime(new, (200, 200))
+    _, rows = await _index(tmp_path)
+    [row] = rows
+    assert row["attempts"] == 2
+    assert row["log_location"] == str(new)
+
+
+def test_cli_errored_footer_points_at_the_log_dir(log_dir: Path) -> None:
+    import shlex
+
+    result = _ctl("--log-dir", str(log_dir), "task", "list")
+    assert result.exit_code == 0, result.output
+    assert (
+        f"see `inspect ctl --log-dir {shlex.quote(str(log_dir))} sample errors`"
+        in result.stdout
+    )

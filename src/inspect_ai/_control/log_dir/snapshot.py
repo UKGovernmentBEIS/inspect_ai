@@ -29,7 +29,7 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.file import local_path
 from inspect_ai.log._file import _timestamp_prefix_re, _try_parse_filename
-from inspect_ai.log._log import EvalLog
+from inspect_ai.log._log import EvalLog, EvalSampleSummary
 from inspect_ai.log._recorders.eval import (
     HEADER_JSON,
     START_JSON,
@@ -49,7 +49,7 @@ from .select import (
     select_source,
     totals,
 )
-from .walk import LogDirListing, LogFile, walk_log_dir
+from .walk import LogDirListing, LogFile, basename, walk_log_dir
 
 # Reads in flight at once, the CLI's fan-out cap.
 _MAX_CONCURRENT_READS = 32
@@ -123,10 +123,46 @@ class LogDirIndex:
 
     tasks: list[LogicalTask]
     unattributed: list[Unreadable]
-    """Unreadable logs that no task's file names claim."""
+    """Unreadable logs that no readable task's file names claim."""
+
+    unreadable_tasks: list[UnreadableTask] = field(default_factory=list)
+    """Tasks known only from the file names of unreadable logs."""
 
     def task(self, log_target: str) -> LogicalTask | None:
         return next((t for t in self.tasks if t.log_target == log_target), None)
+
+    def unreadable_task(self, log_target: str) -> UnreadableTask | None:
+        return next(
+            (t for t in self.unreadable_tasks if t.log_target == log_target), None
+        )
+
+    @property
+    def unidentified(self) -> list[Unreadable]:
+        """Unattributed unreadable logs whose file names name no task."""
+        named = {id(u) for t in self.unreadable_tasks for u in t.failures}
+        return [u for u in self.unattributed if id(u) not in named]
+
+
+@dataclass
+class UnreadableTask:
+    """A task whose every log is unreadable, identified by its file names.
+
+    Kept selectable so a read targeting it reports the failure rather than
+    ``not_found``.
+    """
+
+    task_id: str
+    task: str
+    failures: list[Unreadable]
+    """Its logs, in file-name order (the timestamp prefix leads)."""
+
+    @property
+    def log_target(self) -> str:
+        return f"unreadable:{self.task_id}"
+
+    @property
+    def newest(self) -> Unreadable:
+        return self.failures[-1]
 
 
 async def index_log_dir(fs: AsyncFilesystem, root: str) -> LogDirIndex:
@@ -176,10 +212,16 @@ async def _index_listing(
     }
     unattributed: list[Unreadable] = []
     newest: dict[str, tuple[tuple[str, int, float], Unreadable]] = {}
+    unreadable_tasks: dict[str, UnreadableTask] = {}
     for failed_file, failure in failures:
-        task = tasks.get(_file_task_id(failure.location) or "")
+        name, task_id = _file_identity(failure.location)
+        task = tasks.get(task_id or "")
         if task is None:
             unattributed.append(failure)
+            if task_id:
+                unreadable_tasks.setdefault(
+                    task_id, UnreadableTask(task_id, name or "", [])
+                ).failures.append(failure)
             continue
         task.unreadable.append(failure)
         if failed_file is None:
@@ -194,7 +236,15 @@ async def _index_listing(
     ordered = sorted(
         tasks.values(), key=lambda t: (t.current.header.eval.created, t.key)
     )
-    return LogDirIndex(root=root, as_of=as_of, tasks=ordered, unattributed=unattributed)
+    for unreadable_task in unreadable_tasks.values():
+        unreadable_task.failures.sort(key=lambda u: basename(u.location))
+    return LogDirIndex(
+        root=root,
+        as_of=as_of,
+        tasks=ordered,
+        unattributed=unattributed,
+        unreadable_tasks=sorted(unreadable_tasks.values(), key=lambda t: t.task_id),
+    )
 
 
 async def read_plan(fs: AsyncFilesystem, file: LogFile) -> LogPlan:
@@ -239,15 +289,31 @@ async def read_snapshot(fs: AsyncFilesystem, plan: LogPlan) -> MemberSnapshot:
 
     async def read(reader: AsyncZipReader, fresh: bool) -> MemberSnapshot:
         current = await _plan_from(reader, plan.file) if fresh else plan
-        summaries, _ = await _read_all_summaries_async(reader)
         return MemberSnapshot(
-            plan=current,
-            summaries={SampleKey(str(s.id), s.epoch): s for s in summaries},
+            plan=current, summaries=await read_summaries(reader, plan.file)
         )
 
     return await read_consistently(
         fs, plan.file.location, read, central_directory=plan.central_directory
     )
+
+
+async def read_summaries(
+    reader: AsyncZipReader, file: LogFile
+) -> dict[SampleKey, EvalSampleSummary]:
+    """A log's sample summaries by key (last row wins), through ``reader``.
+
+    Raises :class:`LogUnparseableError` for a log whose journal is missing a
+    summary member (``2.json`` without ``1.json``): journal members are
+    append-only, so a central directory without one is malformed, not torn.
+    """
+    try:
+        summaries, _ = await _read_all_summaries_async(reader)
+    except KeyError as ex:
+        raise LogUnparseableError(
+            file.location, f"its journal is missing member {ex}"
+        ) from ex
+    return {SampleKey(str(s.id), s.epoch): s for s in summaries}
 
 
 class TaskView(NamedTuple):
@@ -307,6 +373,33 @@ def identity_row(task: LogicalTask) -> dict[str, Any]:
         "source": "log_dir",
         "log_target": task.log_target,
         "current_attempt": "log",
+    }
+
+
+def unreadable_identity_row(task: UnreadableTask) -> dict[str, Any]:
+    """The resolution row for a task known only from unreadable file names.
+
+    Carries only the fields its file names give; a read that selects it fails
+    with the newest log's failure.
+    """
+    return {
+        "run_id": None,
+        "eval_id": None,
+        "task": task.task,
+        "task_id": task.task_id,
+        "model": None,
+        "solver": "",
+        "log_location": local_path(task.newest.location),
+        "status": None,
+        "attempts": len(task.failures),
+        "epochs": None,
+        "pid": None,
+        "socket_path": None,
+        "source": "log_dir",
+        "log_target": task.log_target,
+        "current_attempt": "log",
+        "incomplete": True,
+        "unreadable": [u.as_dict() for u in task.failures],
     }
 
 
@@ -496,14 +589,17 @@ def _attempt_order(file: LogFile) -> tuple[str, int, float]:
     """Attempt order: file-name timestamp, then ``-recovered`` after its original, then mtime.
 
     Recovery keeps the original's timestamp prefix and writes the original's
-    records plus its buffer, so the recovered copy is the more complete.
-    Names with no timestamp prefix sort by mtime alone (before timestamped
-    ones).
+    records plus its buffer, so the recovered copy is the more complete. Names
+    with no timestamp prefix sort by mtime alone (before timestamped ones):
+    without the shared prefix, a ``-recovered`` name says nothing about which
+    copy is newer.
     """
     match = _timestamp_prefix_re.match(file.name)
+    if match is None:
+        return ("", 0, file.mtime or 0.0)
     stem = file.name.rsplit(".", 1)[0]
     return (
-        match.group(0) if match else "",
+        match.group(0),
         1 if stem.endswith(_RECOVERED_SUFFIX) else 0,
         file.mtime or 0.0,
     )
@@ -513,11 +609,11 @@ def _plan_order(plan: LogPlan) -> tuple[str, int, float]:
     return _attempt_order(plan.file)
 
 
-def _file_task_id(location: str) -> str | None:
-    """The task id in a log's file name (``{created}_{task}_{id}``), if it parses."""
-    stem = location.rsplit("/", 1)[-1].rsplit(".", 1)[0]
-    _, task_id, _ = _try_parse_filename(stem.split("_"))
-    return task_id or None
+def _file_identity(location: str) -> tuple[str | None, str | None]:
+    """The task name and id in a log's file name (``{created}_{task}_{id}``)."""
+    stem = basename(location).rsplit(".", 1)[0]
+    task, task_id, _ = _try_parse_filename(stem.split("_"))
+    return task, task_id or None
 
 
 def _reason(ex: BaseException) -> str:

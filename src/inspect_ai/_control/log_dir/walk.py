@@ -17,6 +17,7 @@ import anyio
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import EVAL_LOG_FORMAT
+from inspect_ai._util.file import local_path
 from inspect_ai.log._file import is_log_file
 
 # Listings in flight at once, the CLI's fan-out cap.
@@ -59,8 +60,11 @@ async def walk_log_dir(fs: AsyncFilesystem, root: str) -> LogDirListing:
 
     Raises ``FileNotFoundError`` when a local ``root`` does not exist. A
     subdirectory that disappears during the walk is skipped: its logs are gone,
-    not unreadable.
+    not unreadable. A ``file://`` root is walked as its local path, so every
+    location the walk returns is directly readable (reserved characters in
+    names need no URI encoding).
     """
+    root = local_path(root)
     limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_LISTINGS)
     eval_files: list[LogFile] = []
     json_logs: list[str] = []
@@ -74,7 +78,7 @@ async def walk_log_dir(fs: AsyncFilesystem, root: str) -> LogDirListing:
                 raise
             return
         for info in listing.files:
-            name = info.name.rsplit("/", 1)[-1]
+            name = basename(info.name)
             if name.endswith(f".{EVAL_LOG_FORMAT}"):
                 eval_files.append(
                     LogFile(
@@ -87,13 +91,18 @@ async def walk_log_dir(fs: AsyncFilesystem, root: str) -> LogDirListing:
                 )
             elif is_log_file(name, [".json"]):
                 json_logs.append(info.name)
-        subdirs = [d for d in listing.dirs if _descend(d.rsplit("/", 1)[-1])]
+        subdirs = [d for d in listing.dirs if _descend(basename(d))]
         await tg_collect([functools.partial(visit, d, False) for d in subdirs])
 
     await visit(root, True)
     eval_files.sort(key=lambda f: f.location)
     json_logs.sort()
     return LogDirListing(eval_files=eval_files, json_logs=json_logs)
+
+
+def basename(location: str) -> str:
+    """A listed path's final name, percent-decoded for a ``file://`` URI."""
+    return local_path(location).replace("\\", "/").rsplit("/", 1)[-1]
 
 
 def _descend(name: str) -> bool:

@@ -632,6 +632,23 @@ async def test_list_dir_local_lists_direct_children_only(tmp_path: Path) -> None
     assert [f.name for f in uri_listing.files] == [f"{tmp_path.as_uri()}/a.eval"]
 
 
+async def test_list_dir_file_uri_encodes_reserved_characters(tmp_path: Path) -> None:
+    from inspect_ai._util.file import local_path
+
+    (tmp_path / "percent%20literal.eval").write_bytes(b"x")
+    (tmp_path / "dir #1?x").mkdir()
+
+    async with AsyncFilesystem() as fs:
+        listing = await fs.list_dir(tmp_path.as_uri())
+
+    # each child decodes back to the real path, not a sibling or a fragment
+    assert [local_path(f.name) for f in listing.files] == [
+        str(tmp_path / "percent%20literal.eval")
+    ]
+    assert [local_path(d) for d in listing.dirs] == [str(tmp_path / "dir #1?x")]
+    assert all(d.startswith("file://") for d in listing.dirs)
+
+
 async def test_list_dir_local_missing_raises(tmp_path: Path) -> None:
     async with AsyncFilesystem() as fs:
         with pytest.raises(FileNotFoundError):

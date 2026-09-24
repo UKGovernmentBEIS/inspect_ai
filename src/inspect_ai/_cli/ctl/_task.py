@@ -399,9 +399,10 @@ def _run_task_list(as_json: bool) -> None:
     _print_human_table(summaries)
     if log_dir:
         _log_dir._print_quiet_footer(summaries)
+        _print_errored_samples_footer(summaries, _log_dir._errors_command())
     else:
         _print_keep_alive_footer(summaries)
-    _print_errored_samples_footer(summaries)
+        _print_errored_samples_footer(summaries)
 
 
 @_envelope_failures

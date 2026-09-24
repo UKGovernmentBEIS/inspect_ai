@@ -136,6 +136,18 @@ def _list_sample_rows(
     truncated = False
     fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
+    log_dir = _log_dir._log_dir_root() is not None
+    if not summaries and log_dir:
+        # nothing to resolve against, but the envelope still reports the
+        # directory's unreadable logs
+        return _list_log_dir_sample_rows(
+            [],
+            scoped=task is not None,
+            sample_filter=sample_filter,
+            statuses=statuses,
+            limit=cap,
+            content=content,
+        )
     if not summaries:
         return _SampleRows(
             as_of=fallback_as_of,
@@ -157,7 +169,7 @@ def _list_sample_rows(
     else:
         targets = summaries
 
-    if _log_dir._log_dir_root() is not None:
+    if log_dir:
         return _list_log_dir_sample_rows(
             targets,
             scoped=task is not None,

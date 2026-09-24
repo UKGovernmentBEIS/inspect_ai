@@ -9,6 +9,7 @@ with ``kind: "unsupported"`` before touching storage or discovery. See
 
 from __future__ import annotations
 
+import shlex
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, NoReturn, TypeVar
@@ -216,10 +217,18 @@ def _identity_rows() -> list[dict[str, Any]]:
 
     Reads the walk and each log's central directory and header — no sample
     summaries — like the live ``/tasks`` read the sample commands start with.
+    Tasks known only from the file names of unreadable logs get a row too, so
+    selecting one reports its failure rather than ``not_found``.
     """
-    from inspect_ai._control.log_dir.snapshot import identity_row
+    from inspect_ai._control.log_dir.snapshot import (
+        identity_row,
+        unreadable_identity_row,
+    )
 
-    return [identity_row(task) for task in _index().tasks]
+    index = _index()
+    return [identity_row(task) for task in index.tasks] + [
+        unreadable_identity_row(task) for task in index.unreadable_tasks
+    ]
 
 
 def _fail_if_only_unreadable() -> None:
@@ -237,7 +246,17 @@ def _fail_if_only_unreadable() -> None:
 
 
 def _target_task(target: dict[str, Any]) -> LogicalTask:
-    task = _index().task(str(target.get("log_target")))
+    """The resolved row's logical task; a task with only unreadable logs fails.
+
+    The failure is the task's newest log's own (``invalid_response`` for one
+    that does not parse, ``storage_error`` for a storage failure).
+    """
+    index = _index()
+    log_target = str(target.get("log_target"))
+    unreadable = index.unreadable_task(log_target)
+    if unreadable is not None:
+        _fail_from(unreadable.newest.error, walking=False)
+    task = index.task(log_target)
     if task is None:
         _fail(
             "not_found",
@@ -299,21 +318,39 @@ def _read_samples(
     """Each target's samples listing, routed by its ``log_target``.
 
     Members that cannot be read contribute no rows and are reported in
-    ``unreadable``; an unscoped read also reports the directory's
-    unattributed unreadable logs.
+    ``unreadable``, as does a target known only from unreadable logs. An
+    unscoped read also reports every other unreadable log in the directory; a
+    scoped one, those whose file names name no task (the target may be in
+    one of them).
     """
     from inspect_ai._control.log_dir.snapshot import (
         read_task_views,
         sample_listing,
         task_row,
     )
+    from inspect_ai._control.state import SAMPLE_STATUSES
 
     index = _index()
-    tasks = [_target_task(target) for target in targets]
-    views = _run_reader(lambda fs: read_task_views(fs, tasks))
+    readable = [t for t in targets if index.unreadable_task(t["log_target"]) is None]
+    tasks = [_target_task(target) for target in readable]
+    views = iter(_run_reader(lambda fs: read_task_views(fs, tasks)))
     reads: list[_SamplesRead] = []
-    for view in views:
+    warn: list[dict[str, str]] = []
+    for target in targets:
+        if index.unreadable_task(target["log_target"]) is not None:
+            reads.append(
+                _SamplesRead(
+                    target=target,
+                    samples=[],
+                    counts=dict.fromkeys(SAMPLE_STATUSES, 0),
+                    truncated=False,
+                    conflicted=0,
+                )
+            )
+            continue
+        view = next(views)
         row = task_row(view)
+        warn.extend(row["unreadable"])
         listing = sample_listing(
             view,
             statuses=statuses,
@@ -330,10 +367,11 @@ def _read_samples(
                 conflicted=listing.conflicted,
             )
         )
-    row_unreadable = [u for read in reads for u in read.target["unreadable"]]
-    _warn_unreadable(row_unreadable)
+    _warn_unreadable(warn)
+    directory = index.unidentified if scoped else index.unattributed
     unreadable = _merge_unreadable(
-        [] if scoped else [u.as_dict() for u in index.unattributed], row_unreadable
+        [u.as_dict() for u in directory],
+        *(read.target["unreadable"] for read in reads),
     )
     return _SamplesReads(as_of=index.as_of, reads=reads, unreadable=unreadable)
 
@@ -450,6 +488,11 @@ def _merge_unreadable(*lists: list[dict[str, str]]) -> list[dict[str, str]]:
 def _warn_unreadable(entries: list[dict[str, str]]) -> None:
     for entry in entries:
         _echo(f"warning: skipped {entry['log_location']}: {entry['reason']}", err=True)
+
+
+def _errors_command() -> str:
+    """The ``sample errors`` command for this mode's directory, shell-quoted."""
+    return f"inspect ctl --log-dir {shlex.quote(_log_dir_root() or '')} sample errors"
 
 
 def _print_quiet_footer(rows: list[dict[str, Any]]) -> None:
