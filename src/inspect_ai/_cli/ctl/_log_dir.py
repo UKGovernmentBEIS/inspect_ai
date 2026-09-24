@@ -1,10 +1,10 @@
-"""``inspect ctl --log-dir``: read-only status from a log directory.
+"""``--log-dir``: read-only status from a log directory.
 
-The mode state (the root stored by the ``ctl`` group callback), the
-allowlist of commands the mode serves, and the CLI-side calls into the
-log-dir reader (``inspect_ai._control.log_dir``). Every other command fails
-with ``kind: "unsupported"`` before touching storage or discovery. See
-``design/ctl/log-dir-mode.md``.
+The mode state (the root stored by the ``--log-dir`` option's callback, see
+``_group._log_dir_option``) and the CLI-side calls into the log-dir reader
+(``inspect_ai._control.log_dir``). Only the commands carrying that option
+serve the mode; every other command rejects ``--log-dir`` as a usage error.
+See ``design/ctl/log-dir-mode.md``.
 """
 
 from __future__ import annotations
@@ -32,21 +32,6 @@ _LOG_DIR_META_KEY = "inspect_ai.ctl.log_dir"
 _INDEX_META_KEY = "inspect_ai.ctl.log_dir_index"
 _BANNER_META_KEY = "inspect_ai.ctl.log_dir_banner"
 
-# The command paths (below `ctl`) the mode serves. Unlisted means
-# unsupported: a command added later fails closed until it is implemented
-# here and listed.
-LOG_DIR_COMMANDS: frozenset[str] = frozenset(
-    {
-        "task list",
-        "sample list",
-        "sample errors",
-        "sample show",
-        "sample events",
-        "sample messages",
-        "sample store",
-    }
-)
-
 # A running task whose current log has not changed for this long is flagged
 # in the human table footer: a crashed worker leaves its log `started`, so a
 # long-quiet log is the only sign one stopped.
@@ -71,42 +56,24 @@ def _set_log_dir_root(ctx: click.Context, log_dir: str) -> None:
     ctx.meta[_LOG_DIR_META_KEY] = log_dir.rstrip("/") or log_dir
 
 
-def _command_path(ctx: click.Context) -> str:
-    """The invoked command's path below the ``ctl`` group (``sample show``)."""
-    names: list[str] = []
-    current: click.Context | None = ctx
-    while current is not None and current.command.name != "ctl":
-        names.append(current.command.name or "")
-        current = current.parent
-    return " ".join(reversed(names))
+def _announce_mode(as_json: bool) -> None:
+    """Name the mode and its lag on stderr, once per invocation, for human output.
 
-
-def _refuse_unsupported(as_json: bool) -> None:
-    """Fail a command the mode does not serve; narrate the mode for one that it does.
-
-    Called by ``_envelope_failures`` before every runner, so the refusal is
-    enveloped and precedes any storage or discovery access. The mode banner
-    goes to stderr once per invocation, for human output only.
+    Called by ``_envelope_failures`` before every runner; a no-op in live mode.
     """
     root = _log_dir_root()
-    if root is None:
+    if root is None or as_json:
         return
     ctx = click.get_current_context()
-    path = _command_path(ctx)
-    if path not in LOG_DIR_COMMANDS:
-        _fail(
-            "unsupported",
-            f"`inspect ctl {path}` needs a live eval process and is not "
-            "available with --log-dir (read-only log mode).",
-        )
-    if not as_json and not ctx.meta.get(_BANNER_META_KEY):
-        ctx.meta[_BANNER_META_KEY] = True
-        _echo(
-            f"Reading logs in {root} (read-only, not live; completed samples "
-            "normally reach the log within about 60 s; running samples are "
-            "not shown).",
-            err=True,
-        )
+    if ctx.meta.get(_BANNER_META_KEY):
+        return
+    ctx.meta[_BANNER_META_KEY] = True
+    _echo(
+        f"Reading logs in {root} (read-only, not live; completed samples "
+        "normally reach the log within about 60 s; running samples are "
+        "not shown).",
+        err=True,
+    )
 
 
 def _refuse_active_since() -> NoReturn:
@@ -492,7 +459,7 @@ def _warn_unreadable(entries: list[dict[str, str]]) -> None:
 
 def _errors_command() -> str:
     """The ``sample errors`` command for this mode's directory, shell-quoted."""
-    return f"inspect ctl --log-dir {shlex.quote(_log_dir_root() or '')} sample errors"
+    return f"inspect ctl sample errors --log-dir {shlex.quote(_log_dir_root() or '')}"
 
 
 def _print_quiet_footer(rows: list[dict[str, Any]]) -> None:

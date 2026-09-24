@@ -39,7 +39,7 @@ from ._render import _echo, _echo_raw
 # The envelope's closed `kind` vocabulary (the field agents branch on).
 # Typed as a Literal so mypy rejects a typo'd kind at a raise site rather
 # than shipping it as a new vocabulary entry. `unsupported` and
-# `storage_error` are raised only in `--log-dir` mode (see
+# `storage_error` are raised only under `--log-dir` (see
 # design/ctl/log-dir-mode.md, "Structured errors in the mode").
 _ErrorKind = Literal[
     "busy",
@@ -227,9 +227,8 @@ def _envelope_failures(fn: Callable[_P, None]) -> Callable[_P, None]:
     import rather than silently reverting that command to unstructured
     failures.
 
-    Under ``--log-dir`` the wrapper is also where an unsupported command
-    fails, before its runner touches storage or discovery (see
-    :func:`~inspect_ai._cli.ctl._log_dir._refuse_unsupported`).
+    Under ``--log-dir`` the wrapper also prints the mode's stderr banner (see
+    :func:`~inspect_ai._cli.ctl._log_dir._announce_mode`).
     """
     signature = inspect.signature(fn)
     if "as_json" not in signature.parameters:
@@ -242,10 +241,10 @@ def _envelope_failures(fn: Callable[_P, None]) -> Callable[_P, None]:
         bound = signature.bind(*args, **kwargs)
         bound.apply_defaults()
         as_json = bool(bound.arguments["as_json"])
-        from ._log_dir import _refuse_unsupported
+        from ._log_dir import _announce_mode
 
         with _structured_failures(as_json):
-            _refuse_unsupported(as_json)
+            _announce_mode(as_json)
             fn(*args, **kwargs)
 
     return wrapper

@@ -630,7 +630,7 @@ async def test_read_multi_frame_zstd_member(
     )
 
 
-# --- opt-in CRC-32 verification (inspect ctl --log-dir) -----------------------
+# --- opt-in CRC-32 verification (inspect ctl ... --log-dir) -------------------
 
 
 @pytest.fixture

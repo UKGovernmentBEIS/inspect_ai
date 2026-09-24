@@ -1,4 +1,4 @@
-"""The ``inspect ctl --log-dir`` reader (``inspect_ai._control.log_dir``).
+"""The ``inspect ctl ... --log-dir`` reader (``inspect_ai._control.log_dir``).
 
 Rows, attempt folding, the key set and totals, per-sample reads against the
 live terminal envelopes, the CRC-checked bounded re-reads, the delimited
@@ -716,7 +716,7 @@ def test_read_only_commands_leave_the_directory_unchanged(
         ["sample", "store", task_id, "1"],
     ):
         result = runner.invoke(
-            ctl_command, ["--log-dir", str(log_dir), *args, "--json"]
+            ctl_command, [*args, "--json", "--log-dir", str(log_dir)]
         )
         assert result.exit_code == 0, (args, result.output)
     assert snapshot() == before
@@ -835,11 +835,12 @@ async def test_s3_missing_bucket_raises_client_error(mock_s3: None) -> None:
 # --- through the CLI -----------------------------------------------------------
 
 
-def _ctl(*args: str) -> Any:
+def _ctl(log_dir: Path | str, *args: str) -> Any:
+    """Invoke ``inspect ctl <args> --log-dir <log_dir>``."""
     from _control.conftest import cli_runner
     from inspect_ai._cli.ctl import ctl_command
 
-    return cli_runner().invoke(ctl_command, list(args))
+    return cli_runner().invoke(ctl_command, [*args, "--log-dir", str(log_dir)])
 
 
 @pytest.fixture
@@ -855,7 +856,7 @@ def test_cli_sample_list_envelope_and_rows(
 ) -> None:
     import json
 
-    result = _ctl("--log-dir", str(log_dir), "sample", "list", "alpha", "--json")
+    result = _ctl(str(log_dir), "sample", "list", "alpha", "--json")
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert set(payload) == {
@@ -886,21 +887,17 @@ def test_cli_unscoped_sample_list_routes_each_task_by_its_target(
     other.samples = [s for s in other.samples if s.id == 1]
     anyio.run(_attempt, other, tmp_path, "2026-01-02T00-00-00+00-00")
 
-    result = _ctl("--log-dir", str(tmp_path), "sample", "list", "--json")
+    result = _ctl(str(tmp_path), "sample", "list", "--json")
     assert result.exit_code == 0, result.output
     rows = json.loads(result.stdout)["samples"]
     by_task = Counter(r["task_id"] for r in rows)
     assert by_task == {finished_log.eval.task_id: 3, "OTHERTASK00000000000000": 3}
 
     # the name matches both tasks; a task id selects exactly one
-    ambiguous = _ctl(
-        "--log-dir", str(tmp_path), "sample", "show", "alpha", "1", "--json"
-    )
+    ambiguous = _ctl(str(tmp_path), "sample", "show", "alpha", "1", "--json")
     assert ambiguous.exit_code == 1
     assert json.loads(ambiguous.stdout)["error"]["kind"] == "ambiguous"
-    shown = _ctl(
-        "--log-dir", str(tmp_path), "sample", "show", "OTHERTASK", "2", "--json"
-    )
+    shown = _ctl(str(tmp_path), "sample", "show", "OTHERTASK", "2", "--json")
     # sample 2 is pending in the second task's log (not logged there)
     assert json.loads(shown.stdout)["error"]["kind"] == "not_found"
 
@@ -911,7 +908,7 @@ def test_cli_per_sample_failures_map_to_error_kinds(
     import json
 
     task_id = finished_log.eval.task_id
-    missing = _ctl("--log-dir", str(log_dir), "sample", "show", task_id, "42", "--json")
+    missing = _ctl(str(log_dir), "sample", "show", task_id, "42", "--json")
     assert json.loads(missing.stdout)["error"]["kind"] == "not_found"
 
     from inspect_ai._util import async_zip
@@ -924,7 +921,7 @@ def test_cli_per_sample_failures_map_to_error_kinds(
         check_crc(filename, entry, crc)
 
     monkeypatch.setattr("inspect_ai._util.async_zip._check_crc", torn_samples)
-    torn = _ctl("--log-dir", str(log_dir), "sample", "store", task_id, "1", "--json")
+    torn = _ctl(str(log_dir), "sample", "store", task_id, "1", "--json")
     assert torn.exit_code == 1
     error = json.loads(torn.stdout)["error"]
     assert error["kind"] == "storage_error"
@@ -944,13 +941,13 @@ def test_cli_list_reads_report_a_torn_member_and_sample_reads_fail(
 
     monkeypatch.setattr("inspect_ai._util.async_zip._check_crc", always_torn)
     # a list read keeps going: the log is reported, not fatal
-    listed = _ctl("--log-dir", str(log_dir), "task", "list", "--json")
+    listed = _ctl(str(log_dir), "task", "list", "--json")
     assert listed.exit_code == 0
     payload = json.loads(listed.stdout)
     assert payload["tasks"] == [] and payload["incomplete"] is True
     assert payload["unreadable"][0]["log_location"].endswith(".eval")
     # a single-target read does not answer "nothing here" over it
-    shown = _ctl("--log-dir", str(log_dir), "sample", "show", task_id, "1", "--json")
+    shown = _ctl(str(log_dir), "sample", "show", task_id, "1", "--json")
     assert shown.exit_code == 1
     assert json.loads(shown.stdout)["error"]["kind"] == "storage_error"
 
@@ -962,7 +959,7 @@ def test_cli_newer_unreadable_attempt_is_invalid_response(
 
     task_id = finished_log.eval.task_id
     (log_dir / f"2099-01-01T00-00-00+00-00_alpha_{task_id}.eval").write_bytes(b"x")
-    result = _ctl("--log-dir", str(log_dir), "sample", "show", task_id, "1", "--json")
+    result = _ctl(str(log_dir), "sample", "show", task_id, "1", "--json")
     assert result.exit_code == 1
     assert json.loads(result.stdout)["error"]["kind"] == "invalid_response"
 
@@ -971,7 +968,7 @@ def test_cli_human_output_sanitizes_hostile_file_names(
     log_dir: Path, finished_log: EvalLog
 ) -> None:
     (log_dir / "evil\x1b]0;owned\x07name.eval").write_bytes(b"not a zip")
-    result = _ctl("--log-dir", str(log_dir), "task", "list")
+    result = _ctl(str(log_dir), "task", "list")
     assert result.exit_code == 0, result.output
     assert "\x1b" not in result.stderr and "\x07" not in result.stderr
     assert "warning: skipped" in result.stderr
@@ -987,7 +984,7 @@ def test_cli_never_resolves_scorers_or_imports_task_code(
     monkeypatch.setattr("inspect_ai._eval.loader.load_tasks", forbidden)
     task_id = finished_log.eval.task_id
     for args in (["task", "list"], ["sample", "show", task_id, "2", "--content"]):
-        result = _ctl("--log-dir", str(log_dir), *args, "--json")
+        result = _ctl(str(log_dir), *args, "--json")
         assert result.exit_code == 0, result.output
 
 
@@ -1006,13 +1003,13 @@ def test_cli_sample_listings_keep_the_envelope_when_no_log_is_readable(
     tmp_path: Path, verb: str, scoped: bool
 ) -> None:
     selector = ["alpha"] if scoped else []
-    empty = _ctl("--log-dir", str(tmp_path), "sample", verb, *selector, "--json")
+    empty = _ctl(str(tmp_path), "sample", verb, *selector, "--json")
     assert empty.exit_code == 0, empty.output
     assert _json(empty)["incomplete"] is False and _json(empty)["unreadable"] == []
     assert _json(empty)["conflicted"] == 0
 
     (tmp_path / "bad.eval").write_bytes(b"not a zip")
-    broken = _ctl("--log-dir", str(tmp_path), "sample", verb, *selector, "--json")
+    broken = _ctl(str(tmp_path), "sample", verb, *selector, "--json")
     assert broken.exit_code == 0, broken.output
     payload = _json(broken)
     assert payload["samples"] == [] and payload["incomplete"] is True
@@ -1027,16 +1024,14 @@ def test_cli_scoped_listing_reports_unidentified_but_not_other_tasks_failures(
     (log_dir / "bad.eval").write_bytes(b"not a zip")
     other = log_dir / "2099-01-01T00-00-00+00-00_broken_BROKENTASK000000000000.eval"
     other.write_bytes(b"not a zip")
-    scoped = _ctl(
-        "--log-dir", str(log_dir), "sample", "list", finished_log.eval.task_id, "--json"
-    )
+    scoped = _ctl(str(log_dir), "sample", "list", finished_log.eval.task_id, "--json")
     assert scoped.exit_code == 0, scoped.output
     payload = _json(scoped)
     assert payload["counts"]["completed"] == 2 and payload["incomplete"] is True
     assert [u["log_location"] for u in payload["unreadable"]] == [
         str(log_dir / "bad.eval")
     ]
-    unscoped = _json(_ctl("--log-dir", str(log_dir), "sample", "list", "--json"))
+    unscoped = _json(_ctl(str(log_dir), "sample", "list", "--json"))
     assert {u["log_location"] for u in unscoped["unreadable"]} == {
         str(log_dir / "bad.eval"),
         str(other),
@@ -1054,7 +1049,6 @@ def test_cli_a_task_whose_only_log_is_unreadable_reports_its_failure(
         log_dir / "2099-01-01T00-00-00+00-00_broken_BROKENTASK000000000000.eval"
     ).write_bytes(b"not a zip")
     broken = _ctl(
-        "--log-dir",
         str(log_dir),
         "sample",
         verb,
@@ -1066,7 +1060,6 @@ def test_cli_a_task_whose_only_log_is_unreadable_reports_its_failure(
     assert _json(broken)["error"]["kind"] == "invalid_response"
     # the healthy neighbour still reads
     healthy = _ctl(
-        "--log-dir",
         str(log_dir),
         "sample",
         verb,
@@ -1149,17 +1142,16 @@ def test_cli_a_journal_missing_a_summary_member_is_an_unreadable_log(
         )
     )
     _drop_journal_member(running, log_dir / running.name)
-    listed = _ctl("--log-dir", str(log_dir), "task", "list", "--json")
+    listed = _ctl(str(log_dir), "task", "list", "--json")
     assert listed.exit_code == 0, listed.output
     rows = {r["task_id"]: r for r in _json(listed)["tasks"]}
     assert rows[finished_log.eval.task_id]["incomplete"] is False
     broken = rows["RUNNINGTASK000000000000"]
     assert broken["incomplete"] is True
     assert "missing member" in broken["unreadable"][0]["reason"]
-    samples = _ctl("--log-dir", str(log_dir), "sample", "list", "--json")
+    samples = _ctl(str(log_dir), "sample", "list", "--json")
     assert samples.exit_code == 0 and _json(samples)["incomplete"] is True
     shown = _ctl(
-        "--log-dir",
         str(log_dir),
         "sample",
         "show",
@@ -1191,10 +1183,10 @@ async def test_names_without_a_timestamp_order_by_mtime_alone(
 def test_cli_errored_footer_points_at_the_log_dir(log_dir: Path) -> None:
     import shlex
 
-    result = _ctl("--log-dir", str(log_dir), "task", "list")
+    result = _ctl(str(log_dir), "task", "list")
     assert result.exit_code == 0, result.output
     assert (
-        f"see `inspect ctl --log-dir {shlex.quote(str(log_dir))} sample errors`"
+        f"see `inspect ctl sample errors --log-dir {shlex.quote(str(log_dir))}`"
         in result.stdout
     )
 
@@ -1211,7 +1203,6 @@ def test_cli_model_filter_keeps_an_unreadable_task_of_unknown_model(
     broken.write_bytes(b"not a zip")
     args = ["1"] if verb in ("show", "events", "messages") else []
     result = _ctl(
-        "--log-dir",
         str(log_dir),
         "sample",
         verb,
@@ -1240,7 +1231,6 @@ def test_cli_an_unknown_model_candidate_does_not_settle_a_name_ambiguity(
         log_dir / "2099-01-01T00-00-00+00-00_alpha_BROKENTASK000000000000.eval"
     ).write_bytes(b"not a zip")
     result = _ctl(
-        "--log-dir",
         str(log_dir),
         "sample",
         "show",
@@ -1263,7 +1253,6 @@ def test_cli_model_filter_still_disambiguates_healthy_tasks(
     other.eval.model = "openai/gpt-4o"
     anyio.run(_attempt, other, tmp_path, "2026-01-02T00-00-00+00-00")
     result = _ctl(
-        "--log-dir",
         str(tmp_path),
         "sample",
         "show",
@@ -1276,7 +1265,6 @@ def test_cli_model_filter_still_disambiguates_healthy_tasks(
     assert result.exit_code == 0, result.output
     assert _json(result)["task_id"] == "OTHERTASK00000000000000"
     mismatch = _ctl(
-        "--log-dir",
         str(tmp_path),
         "sample",
         "show",

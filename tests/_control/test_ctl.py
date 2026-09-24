@@ -30,7 +30,6 @@ from inspect_ai._cli.ctl._fetch import (
 )
 from inspect_ai._cli.ctl._http import _failure_prefix, _resolve_target_server
 from inspect_ai._cli.ctl._knobs import _KNOB_SCOPE
-from inspect_ai._cli.ctl._log_dir import LOG_DIR_COMMANDS
 from inspect_ai._cli.ctl._model import _format_backoff, _print_throughput_table
 from inspect_ai._cli.ctl._render import (
     _SHORT_ID_LEN,
@@ -9471,8 +9470,20 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
 
 # --- --log-dir mode: the contract (design/ctl/log-dir-mode.md) ----------------
 #
-# The reads themselves are tested in test_log_dir.py; these pin the mode's
-# fail-closed command contract and its error kinds.
+# The reads themselves are tested in test_log_dir.py; these pin which commands
+# take `--log-dir` and the mode's error kinds.
+
+# The commands that serve read-only log mode. Adding the option to another
+# command is a decision; this list changes with it.
+_LOG_DIR_COMMANDS = {
+    ("task", "list"),
+    ("sample", "list"),
+    ("sample", "errors"),
+    ("sample", "show"),
+    ("sample", "events"),
+    ("sample", "messages"),
+    ("sample", "store"),
+}
 
 
 def _ctl_leaf_commands(
@@ -9496,9 +9507,15 @@ def _leaf_args(command: click.Command) -> list[str]:
     ]
 
 
-def test_log_dir_commands_name_registered_leaf_commands() -> None:
-    leaves = {" ".join(path) for path, _ in _ctl_leaf_commands(ctl_command)}
-    assert LOG_DIR_COMMANDS <= leaves, LOG_DIR_COMMANDS - leaves
+def test_log_dir_option_is_on_exactly_the_log_dir_commands() -> None:
+    carrying = {
+        path
+        for path, command in _ctl_leaf_commands(ctl_command)
+        if any(param.name == "log_dir" for param in command.params)
+    }
+    assert carrying == _LOG_DIR_COMMANDS
+    # the root group no longer takes it
+    assert all(param.name != "log_dir" for param in ctl_command.params)
 
 
 @pytest.fixture
@@ -9519,11 +9536,11 @@ def no_log_dir_reads(monkeypatch: pytest.MonkeyPatch) -> None:
     [
         path
         for path, _ in _ctl_leaf_commands(ctl_command)
-        if " ".join(path) not in LOG_DIR_COMMANDS
+        if path not in _LOG_DIR_COMMANDS
     ],
     ids=lambda path: " ".join(path),
 )
-def test_log_dir_unsupported_command_fails_before_any_read(
+def test_other_commands_reject_log_dir_as_a_usage_error(
     path: tuple[str, ...], tmp_path: Path, no_log_dir_reads: None
 ) -> None:
     command: click.Command = ctl_command
@@ -9532,33 +9549,58 @@ def test_log_dir_unsupported_command_fails_before_any_read(
         command = command.commands[name]
     result = cli_runner().invoke(
         ctl_command,
-        ["--log-dir", str(tmp_path), *path, *_leaf_args(command), "--json"],
+        [*path, *_leaf_args(command), "--json", "--log-dir", str(tmp_path)],
     )
-    assert result.exit_code == 1, result.output
-    error = json.loads(result.stdout)["error"]
-    assert error["kind"] == "unsupported"
-    assert f"`inspect ctl {' '.join(path)}`" in error["message"]
-    assert error["exception"] is None and error["status"] is None
+    # click's ordinary usage error: exit 2, no --json envelope
+    assert result.exit_code == 2, result.output
+    assert re.search(r"No such option\W+--log-dir", result.output)
+    assert result.stdout.strip() == ""
 
 
-def test_log_dir_bare_noun_follows_its_list_verb(
+def test_log_dir_before_the_command_is_a_usage_error(
     tmp_path: Path, no_log_dir_reads: None
 ) -> None:
-    # the bare `process` noun is `process list`, which the mode refuses
     result = cli_runner().invoke(
-        ctl_command, ["--log-dir", str(tmp_path), "process", "--json"]
+        ctl_command, ["--log-dir", str(tmp_path), "task", "list", "--json"]
     )
-    assert result.exit_code == 1
-    assert json.loads(result.stdout)["error"]["kind"] == "unsupported"
+    assert result.exit_code == 2
+    assert re.search(r"No such option\W+--log-dir", result.output)
 
 
-def test_log_dir_bare_task_noun_lists_the_directory(tmp_path: Path) -> None:
+def test_log_dir_on_a_noun_group_is_refused_for_a_verb_without_it(
+    tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    # the mirrored `list` option on the bare noun does not reach other verbs
     result = cli_runner().invoke(
-        ctl_command, ["--log-dir", str(tmp_path), "task", "--json"]
+        ctl_command,
+        ["sample", "--log-dir", str(tmp_path), "cancel", "t", "1", "--json"],
     )
+    assert result.exit_code == 2
+    assert "does not accept" in result.output
+
+
+@pytest.mark.parametrize(
+    "args",
+    [["task", "--json"], ["task", "--log-dir", "{dir}", "list", "--json"]],
+)
+def test_log_dir_bare_task_noun_lists_the_directory(
+    tmp_path: Path, args: list[str]
+) -> None:
+    argv = [arg.replace("{dir}", str(tmp_path)) for arg in args]
+    if "--log-dir" not in argv:
+        argv += ["--log-dir", str(tmp_path)]
+    result = cli_runner().invoke(ctl_command, argv)
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert payload["tasks"] == [] and payload["incomplete"] is False
+
+
+def test_log_dir_bare_sample_noun_lists_the_directory(tmp_path: Path) -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "--json", "--log-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["samples"] == []
 
 
 def test_log_dir_active_since_is_unsupported(
@@ -9566,7 +9608,15 @@ def test_log_dir_active_since_is_unsupported(
 ) -> None:
     result = cli_runner().invoke(
         ctl_command,
-        ["--log-dir", str(tmp_path), "sample", "list", "--active-since", "5", "--json"],
+        [
+            "sample",
+            "list",
+            "--active-since",
+            "5",
+            "--json",
+            "--log-dir",
+            str(tmp_path),
+        ],
     )
     assert result.exit_code == 1
     error = json.loads(result.stdout)["error"]
@@ -9588,12 +9638,18 @@ def test_log_dir_missing_directory_is_not_found(
 ) -> None:
     missing = tmp_path / "absent"
     result = cli_runner().invoke(
-        ctl_command, ["--log-dir", str(missing), *args, "--json"]
+        ctl_command, [*args, "--json", "--log-dir", str(missing)]
     )
     assert result.exit_code == 1
     error = json.loads(result.stdout)["error"]
     assert error["kind"] == "not_found"
     assert str(missing) in error["message"]
+
+
+def test_log_dir_empty_value_is_a_usage_error() -> None:
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--log-dir", ""])
+    assert result.exit_code == 2
+    assert "must not be empty" in result.output
 
 
 def test_log_dir_storage_failure_is_storage_error_with_status(
@@ -9613,7 +9669,7 @@ def test_log_dir_storage_failure_is_storage_error_with_status(
 
     monkeypatch.setattr(AsyncFilesystem, "list_dir", denied)
     result = cli_runner().invoke(
-        ctl_command, ["--log-dir", "s3://bucket/run", "task", "list", "--json"]
+        ctl_command, ["task", "list", "--json", "--log-dir", "s3://bucket/run"]
     )
     assert result.exit_code == 1
     error = json.loads(result.stdout)["error"]
@@ -9627,7 +9683,7 @@ def test_log_dir_storage_failure_is_storage_error_with_status(
 
 
 def test_log_dir_empty_directory_human_output(tmp_path: Path) -> None:
-    result = cli_runner().invoke(ctl_command, ["--log-dir", str(tmp_path), "task"])
+    result = cli_runner().invoke(ctl_command, ["task", "--log-dir", str(tmp_path)])
     assert result.exit_code == 0
     assert result.stdout.strip() == f"No eval logs found in {tmp_path}."
     assert f"Reading logs in {tmp_path} (read-only, not live" in result.stderr

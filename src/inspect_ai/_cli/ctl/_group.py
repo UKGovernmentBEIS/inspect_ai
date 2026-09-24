@@ -160,8 +160,10 @@ def _forward_group_options(ctx: click.Context) -> None:
         return
     group = ctx.command
     assert isinstance(group, click.Group)
+    # `--log-dir` passes no value to its command (its callback stores the root
+    # for the invocation), so it forwards as None
     given = {
-        param.name: (ctx.params[param.name], param.opts[0])
+        param.name: (ctx.params.get(param.name), param.opts[0])
         for param in group.params
         if param.name is not None
         and ctx.get_parameter_source(param.name) == ParameterSource.COMMANDLINE
@@ -223,6 +225,40 @@ def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., Non
         is_flag=True,
         default=False,
         help=f"Output as JSON ({what}).",
+    )
+
+
+def _log_dir_option() -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """The ``--log-dir`` option of the commands that serve read-only log mode.
+
+    One decorator for every such command, so the help and behaviour cannot
+    drift between them. The value is not passed to the command: the callback
+    stores it for the invocation (see ``_log_dir._log_dir_root``), and the
+    reads branch on that. Commands without it reject ``--log-dir`` as a click
+    usage error, so a command added later does not serve the mode until it
+    is implemented and decorated.
+    """
+
+    def store_root(
+        ctx: click.Context, param: click.Parameter, value: str | None
+    ) -> None:
+        if value is not None:
+            from ._log_dir import _set_log_dir_root
+
+            _set_log_dir_root(ctx, value)
+
+    return click.option(
+        "--log-dir",
+        "log_dir",
+        default=None,
+        metavar="DIR",
+        expose_value=False,
+        callback=store_root,
+        help=(
+            "Read from the `.eval` logs in DIR (a local path, or an s3:// or "
+            "other fsspec URL) instead of from live processes: read-only, as "
+            "of the last log flush, and running samples are not shown."
+        ),
     )
 
 
@@ -325,22 +361,7 @@ _MUTATION_ENVELOPE_HELP = "a `{target, applied, dry_run, detail}` mutation envel
 
 
 @click.group("ctl")
-@click.option(
-    "--log-dir",
-    "log_dir",
-    default=None,
-    metavar="DIR",
-    help=(
-        "Read-only log mode: serve `task list` and the sample reads (`sample "
-        "list` / `errors` / `show` / `events` / `messages` / `store`) from the "
-        "`.eval` logs in DIR (a local path or an s3:// or other fsspec URL) "
-        "instead of from live processes. Data is as of the last log flush; "
-        "running samples are not shown. Every other command fails with an "
-        "`unsupported` error."
-    ),
-)
-@click.pass_context
-def ctl_command(ctx: click.Context, log_dir: str | None) -> None:
+def ctl_command() -> None:
     """Read and direct running evals and manage kept-alive processes.
 
     Commands are grouped by resource noun (listed below); `list` verbs are
@@ -362,14 +383,12 @@ def ctl_command(ctx: click.Context, log_dir: str | None) -> None:
     terminal and is driven entirely from here — use `inspect eval
     --detach` (see `inspect eval --help`).
 
-    With `--log-dir DIR`, commands read the eval logs in DIR instead of
-    live processes — for runs on other machines whose log directory you can
-    read. The mode is read-only.
+    `task list` and the sample reads (`sample list` / `errors` / `show` /
+    `events` / `messages` / `store`) also take `--log-dir DIR`, which reads
+    the eval logs in DIR instead of live processes — for runs on other
+    machines whose log directory you can read (read-only).
     """
-    if log_dir is not None:
-        from ._log_dir import _set_log_dir_root
-
-        _set_log_dir_root(ctx, log_dir)
+    return None
 
 
 def _echo_no_running_evals() -> None:

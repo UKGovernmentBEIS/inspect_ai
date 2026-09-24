@@ -23,6 +23,7 @@ from ._group import (
     _echo_no_running_evals,
     _forward_group_options,
     _json_option,
+    _log_dir_option,
     _mirror_list_options,
     _model_option,
     _NounGroup,
@@ -80,6 +81,7 @@ task_group.hint = lambda token: (
 
 
 @task_group.command("list")
+@_log_dir_option()
 @_json_option("an `{as_of, tasks}` envelope")
 def task_list_command(as_json: bool) -> None:
     """List running tasks across all live Inspect processes.
