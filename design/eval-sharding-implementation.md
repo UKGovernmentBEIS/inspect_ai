@@ -523,7 +523,11 @@ downloaded and rewritten only when step 10 says so.
    `mtime` where either side has no ETag); otherwise *changed* or *new*. A
    ledger entry whose `<k>` is missing from the listing, or holds no `.eval`
    file, is *vanished*. Vanished shards are refused in "Validation", with
-   one exception for re-running an interrupted `delete_shards`.
+   one exception for re-running an interrupted `delete_shards`. This
+   classification applies only while the companion exists: when
+   `<name>.shards/` is absent altogether (shards deleted after a verified
+   merge), steps 5–7 are skipped and step 10's companion-gone branch
+   returns the self-contained merged log.
 6. **Read changed and new shards**, bounded (16 concurrent), each through
    one `AsyncZipReader`: the central directory, the header (synthesised from
    `_journal/start.json` for a running attempt), the summaries (journal
@@ -597,8 +601,10 @@ the merged header, the unchanged ones:
   happens only when the recorded attempt was deleted from `<k>/`, and
   merging the older attempt would replace current records with obsolete
   ones. Refused, naming both files.
-- **No vanished shard.** Every ledger entry still has a current attempt in
-  its `<k>/`. A vanished shard means shard files were deleted after they
+- **No vanished shard.** While the companion exists, every ledger entry
+  still has a current attempt in its `<k>/`. (A companion that is gone
+  altogether is not checked; step 10 returns the merged log as it is.) A
+  vanished shard means shard files were deleted after they
   were merged: by hand, or by a `delete_shards` that was interrupted
   ("Deleting shards"). Merging the remainder would overwrite the merged log
   with fewer records, so the merge refuses, naming the vanished shards and
@@ -811,8 +817,9 @@ Why the merged log goes first when it is removed too: if the routine is
 interrupted, what remains is part of a companion with no merged log. The
 next `eval_set()` startup merges that remainder into a new merged log with
 the same `task_id` (it comes from `<name>`), and retry cleanup removes it
-again, because the unsharded `success` log that superseded it is kept until
-a removal completes ("Retry cleanup"). A merge running concurrently that had
+again, because the unsharded `success` log that superseded it is kept
+("Retry cleanup": a failed removal also stops cleanup of that task group
+for the rest of the `eval_set()` call). A merge running concurrently that had
 read the merged log before step 3 has its conditional publish refused,
 since the object it expected is gone ("Overlap guards"); one that starts
 after step 3 is the concurrent case the contract excludes.
@@ -829,7 +836,7 @@ What the user sees after an interruption:
 | Interrupted | What is left | What the user sees | What to do |
 |---|---|---|---|
 | `delete_shards` (API or `inspect log merge-shards --delete-shards`) | the complete merged log and part of `<name>.shards/` | `ShardSetError` listing the remaining paths; until they are gone, every merge of the log, including the `eval_set()` startup merge, refuses with "shards vanished" (and `eval_set()` then stops or warns, see "Open questions") | re-run the same call with `delete_shards=True`, or delete `<name>.shards/` by hand |
-| retry cleanup in `eval_set()` | the unsharded `success` log, part of `<name>.shards/`, no merged log | a warning naming the remaining paths | nothing is required: the next `eval_set()` with `retry_cleanup` rebuilds and removes the merged log again; or delete `<name>.shards/` by hand |
+| retry cleanup in `eval_set()` | the unsharded `success` log, part of `<name>.shards/`, no merged log, and every other log of that task group (cleanup of the group stops for the rest of the call) | a warning naming the remaining paths and asking for them to be deleted | delete `<name>.shards/` by hand. If it is left, the next `eval_set()` with `retry_cleanup` normally rebuilds a merged log from the remnant and removes it again; that is a fallback, not a guarantee (a remnant the merge refuses stops or warns per "Open questions") |
 
 **The viewer is not a deleter.** `/log-delete` is unchanged (decision:
 Ransom, 2026-09-24): deleting a merged log in the viewer deletes only that
@@ -1055,11 +1062,18 @@ group, with `M` the logs carrying `eval.shards` and `U` the rest:
   include_log=True)` instead of `fs.rm`.
 - A `remove_shards_dir` refusal or failure (ancillary output in the
   companion, a failed delete, a file left over; "Deleting shards") logs a
-  warning naming what is left. The newest unsharded `success` stays, so
-  every later classification stays in the first branch: a merged log that
-  is still present, or one the next startup rebuilds from a leftover
-  companion (same `task_id`, from `<name>`), is never the latest and is
-  removed again by the next cleanup. Nothing else records the failure.
+  warning naming what is left and asking the user to delete it, and stops
+  cleanup of that task group for the rest of the `eval_set()` call: the
+  group's `task_id` goes into an in-memory set that the final
+  `cleanup_older_eval_logs` sweep (`evalset.py:1191`), which lists again
+  without a startup merge, skips. That is what keeps the newest unsharded
+  `success` alive after the merged log itself was deleted: the final sweep
+  would otherwise see no merged log, fall into the branch below, and remove
+  it, and the next startup could rebuild the merged log from the remnant,
+  pick it by its fresh mtime, and delete the newer unsharded attempt. The
+  set is not persisted. In a later call the startup merge runs first, so a
+  merged log rebuilt from a remnant meets the kept `success` and stays in
+  the first branch (never latest, removed again).
 
 So the ordering among unsharded attempts never changes. The case that rules
 out a sort key promoting unsharded successes: a merged log `M`, an older
@@ -1383,12 +1397,15 @@ Per PR (numbers from "Implementation plan"):
      shard is not opened (a spy on `AsyncZipReader` construction); a pass
      over unchanged shards writes nothing and returns `written=False`; a
      new attempt in `<k>/` replaces `<k>`'s samples and drops ones it
-     lacks; a deleted `<k>/` drops its samples; an added shard returns a
+     lacks; a deleted `<k>/` is refused as a vanished shard while removing
+     the whole companion returns the existing header unchanged; an added
+     shard returns a
      `success` log to `started`; `eval_id`, `run_id` and `task_id` are
      stable across passes; header edits (`tags`) survive a pass and a
      sample `edit_score` survives while its shard is unchanged;
    - fresh equals incremental: after replacing one shard's attempt, after
-     removing the template shard, and after a sequence where shard A fails,
+     adding a shard whose name sorts before the template shard (so the
+     template changes), and after a sequence where shard A fails,
      then B fails, then A recovers, the incremental header equals a fresh
      merge's (`stats` with distinct per-shard usage, `error` with full
      traceback fields, `eval_set_id`, template fields, results, keys);
@@ -1457,9 +1474,12 @@ Per PR (numbers from "Implementation plan"):
    two passes of the three-attempt case with `M`'s removal refused (scan
    results in its companion) and, separately, failing after the merged log
    was deleted (part of the companion left): both passes keep `E` as
-   latest, keep `S`, and never delete `E`; in the second case the next
-   startup rebuilds a merged log from the leftover and cleanup removes it
-   again, then `S`; after the scan results are moved away in the first
+   latest, keep `S`, and never delete `E`; in the second case, within one
+   `eval_set()` call (startup cleanup fails on the companion, the retried
+   task fails again, the final sweep runs), the final sweep leaves the
+   group alone and `S` survives, and the next call's startup rebuilds a
+   merged log from the leftover, keeps `E` as latest and removes the
+   rebuilt log again; after the scan results are moved away in the first
    case, the next pass removes `M` and its companion, then `S`; a viewer
    deletion of a merged log (the unchanged `/log-delete`) leaves the
    companion, and the next startup rebuilds the merged log (the documented
