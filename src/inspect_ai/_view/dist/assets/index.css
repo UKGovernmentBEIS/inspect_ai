@@ -1099,7 +1099,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
-._outer_x05gm_1 {
+._outer_tgwyj_1 {
   /* Positioned so the block-left sticky toggle's containing block is this
      wrapper — keeps sticky behavior scoped to the panel instead of leaking
      to some arbitrary positioned ancestor up the tree. */
@@ -1115,11 +1115,11 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   flex-grow: 1;
 }
 
-._expandablePanel_x05gm_17 {
+._expandablePanel_tgwyj_17 {
   position: relative;
 }
 
-._expandableBordered_x05gm_21 {
+._expandableBordered_tgwyj_21 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 0.5em;
 }
@@ -1136,7 +1136,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
    gradient) so the affordance works on any surface, regardless of the
    panel's bg. The inline-right toggle is a sibling of this wrapper, so it
    stays fully opaque. */
-._expandableTruncated_x05gm_38 {
+._expandableTruncated_tgwyj_38 {
   -webkit-mask-image: linear-gradient(
     to bottom,
     black calc(100% - 3rem),
@@ -1145,7 +1145,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
 }
 
-._moreToggle_x05gm_47 {
+._moreToggle_tgwyj_47 {
   display: flex;
   margin-top: 0;
   height: 20px;
@@ -1155,14 +1155,14 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   color: var(--bs-link-color);
 }
 
-._moreToggle_x05gm_47._bordered_x05gm_57 {
+._moreToggle_tgwyj_47._bordered_tgwyj_57 {
   border-top: solid var(--bs-light-border-subtle) 1px;
 }
 
 /* Double class beats Bootstrap's `.btn` regardless of stylesheet order —
    in scout, Bootstrap loads after this module and its 6px 12px padding
    overflowed the fixed-height toggle bar. */
-._moreToggle_x05gm_47 ._moreToggleButton_x05gm_64 {
+._moreToggle_tgwyj_47 ._moreToggleButton_tgwyj_64 {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0rem 0.5rem;
@@ -1173,7 +1173,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 /* Fills the panel so its sticky child is bounded by the panel's rect.
    pointer-events: none lets clicks pass through to the content behind;
    the sticky child re-enables pointer events on itself. */
-._inlineToggleHolder_x05gm_75 {
+._inlineToggleHolder_tgwyj_75 {
   position: absolute;
   inset: 0;
   display: flex;
@@ -1185,13 +1185,18 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   z-index: 2;
 }
 
-._inlineToggleSticky_x05gm_87 {
+/* Sticky tracks the *nearest scroll container*. Any ancestor between the
+   panel and the real scroller with `overflow` other than `visible`/`clip`
+   becomes that container and pins the toggle to the panel's bottom edge —
+   off screen for a panel taller than the viewport. Consumers that round a
+   frame's corners must use `overflow: clip`, not `hidden`. */
+._inlineToggleSticky_tgwyj_92 {
   position: sticky;
   bottom: 0.25em;
   pointer-events: auto;
 }
 
-._moreToggle_x05gm_47._blockLeft_x05gm_93 {
+._moreToggle_tgwyj_47._blockLeft_tgwyj_98 {
   width: fit-content;
   margin-top: 0.2em;
   margin-bottom: 0.5em;
@@ -1827,19 +1832,23 @@ a._citationLink_1gzkd_9:hover {
    which are neutral by default and only colorized under the readable
    variant (the Event Colors toggle); the output well is the tool-output
    fill, hairlines/border are the subtle border token. */
-._block_145wv_5 {
+._block_mcsgc_5 {
   border-left: var(--inspect-tool-block-edge);
 }
 
-._standalone_145wv_9 {
+/* `clip`, not `hidden`: both round the corners, but `hidden` makes this
+   frame a scroll container, which traps the sticky "less…" toggle of the
+   ExpandablePanels inside at the block's bottom edge — off screen for any
+   output taller than the viewport. */
+._standalone_mcsgc_13 {
   border-top: 1px solid var(--bs-light-border-subtle);
   border-right: 1px solid var(--bs-light-border-subtle);
   border-bottom: 1px solid var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
-  overflow: hidden;
+  overflow: clip;
 }
 
-._header_145wv_17 {
+._header_mcsgc_21 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1850,17 +1859,17 @@ a._citationLink_1gzkd_9:hover {
 /* The zero bottom padding above assumes an input/output zone follows; a
    header-only block (no input, no output yet) otherwise sits flush against
    the container's bottom edge. */
-._header_145wv_17:last-child {
+._header_mcsgc_21:last-child {
   padding-bottom: 0.5rem;
 }
 
-._icon_145wv_32 {
+._icon_mcsgc_36 {
   flex: none;
   font-size: 13px;
   color: var(--inspect-tool-block-ink);
 }
 
-._title_145wv_38 {
+._title_mcsgc_42 {
   flex: none;
   font-family: var(--bs-font-monospace);
   font-size: var(--inspect-font-size-smaller);
@@ -1868,7 +1877,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--inspect-tool-block-ink);
 }
 
-._summary_145wv_46 {
+._summary_mcsgc_50 {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -1879,7 +1888,7 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary-color);
 }
 
-._pill_145wv_57 {
+._pill_mcsgc_61 {
   flex: none;
   /* Right-aligned even when there is no args summary to push it over. */
   margin-left: auto;
@@ -1893,13 +1902,20 @@ a._citationLink_1gzkd_9:hover {
   padding: 1px 7px;
 }
 
-._inputZone_145wv_71 {
+._inputZone_mcsgc_75 {
   background-color: var(--inspect-tool-block-input-bg);
   padding: 0 0.5rem 0.2rem 0.5rem;
+}
+
+/* Horizontal scrolling for wide input lives on the rendered input itself,
+   inside the ExpandablePanel's content — a scroll container on the zone
+   would sit between the panel and the transcript scroller and trap its
+   sticky toggle (see `.standalone`). */
+._inputZone_mcsgc_75 .tool-call-input {
   overflow-x: auto;
 }
 
-._outputWell_145wv_77 {
+._outputWell_mcsgc_88 {
   border-top: 1px solid var(--bs-light-border-subtle);
   background-color: var(--inspect-tool-block-output-bg);
   padding: 12px 15px;
@@ -1911,8 +1927,8 @@ a._citationLink_1gzkd_9:hover {
    renderers (prism code blocks, tool-call-input call-outs, tool output wells)
    would otherwise stack inside them. !important outranks the readable
    variant's higher-specificity :root[data-theme-variant] surface rules. */
-._inputZone_145wv_71 pre.tool-call-input,
-._inputZone_145wv_71 div.tool-call-input {
+._inputZone_mcsgc_75 pre.tool-call-input,
+._inputZone_mcsgc_75 div.tool-call-input {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -1920,13 +1936,13 @@ a._citationLink_1gzkd_9:hover {
   margin: 0 !important;
 }
 
-._inputZone_145wv_71 .tool-call-input pre[class*="language-"] {
+._inputZone_mcsgc_75 .tool-call-input pre[class*="language-"] {
   margin: 0 !important;
   padding: 0 !important;
   background-color: transparent !important;
 }
 
-._outputWell_145wv_77 .tool-output {
+._outputWell_mcsgc_88 .tool-output {
   background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -2138,11 +2154,13 @@ a._citationLink_1gzkd_9:hover {
 /* Custom tool views (answer, submit, todo lists) own their full rendering —
    they get the block frame (accent edge + container border) without the
    header row. */
-._custom_v2cay_4 {
+._custom_wwbdp_4 {
   border: 1px solid var(--bs-light-border-subtle);
   border-left: var(--inspect-tool-block-edge);
   border-radius: var(--bs-border-radius);
-  overflow: hidden;
+  /* `clip` rounds the corners without becoming a scroll container, which
+     would trap the sticky "less…" toggle of the panels inside. */
+  overflow: clip;
   padding: 0.7rem;
 }
 ._message_o8d3m_1 {
@@ -2226,7 +2244,7 @@ a._citationLink_1gzkd_9:hover {
 ._hover_o8d3m_79 ._copyLink_o8d3m_64 {
   opacity: 0.75;
 }
-._grid_3p94s_1 {
+._grid_1k0mq_1 {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   /* row-gap spaces blocks within a turn (message → tool box); margin-bottom
@@ -2235,13 +2253,13 @@ a._citationLink_1gzkd_9:hover {
   margin-bottom: 0.75rem;
 }
 
-._user_3p94s_10 {
+._user_1k0mq_10 {
   background-color: var(--bs-secondary-bg);
   border-radius: var(--bs-border-radius);
   border: solid 1px var(--bs-light-border-subtle);
 }
 
-._container_3p94s_16 {
+._container_1k0mq_16 {
   padding-left: 0.7rem;
   padding-right: 0.7rem;
   padding-top: 0.5rem;
@@ -2249,38 +2267,40 @@ a._citationLink_1gzkd_9:hover {
   border-right: solid 1px var(--bs-light-border-subtle);
 }
 
-._first_3p94s_24 {
+._first_1k0mq_24 {
   border-top-left-radius: var(--bs-border-radius);
   border-top-right-radius: var(--bs-border-radius);
   border-top: solid 1px var(--bs-light-border-subtle);
   padding-top: 0.7rem;
 }
 
-._last_3p94s_31 {
+._last_1k0mq_31 {
   border-bottom-left-radius: var(--bs-border-radius);
   border-bottom-right-radius: var(--bs-border-radius);
   border-bottom: solid 1px var(--bs-light-border-subtle);
   padding-bottom: 0.7rem;
 }
 
-._highlight_3p94s_38 {
+._highlight_1k0mq_38 {
   background-color: rgba(var(--bs-info-rgb), 0.12);
 }
 
 /* Assistant turn with server-side tool calls: one seamless container — the
    prose band and flush tool rows inside supply their own left edges, so the
    frame itself has no left border. */
-._turnContainer_3p94s_45 {
+._turnContainer_1k0mq_45 {
   border: 1px solid var(--bs-light-border-subtle);
   border-left: none;
   border-radius: var(--bs-border-radius);
-  overflow: hidden;
+  /* `clip` rounds the corners without becoming a scroll container, which
+     would trap the sticky "less…" toggle of the panels inside. */
+  overflow: clip;
 }
 
 /* Self-contained box (used when tool calls are un-embedded) so the assistant
    message and each tool call read as separate cards rather than one connected
    band. */
-._box_3p94s_55 {
+._box_1k0mq_57 {
   position: relative;
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
@@ -2288,28 +2308,28 @@ a._citationLink_1gzkd_9:hover {
 }
 
 /* Tool blocks carry their own frame; the wrapper only anchors the chip. */
-._toolPart_3p94s_63 {
+._toolPart_1k0mq_65 {
   position: relative;
 }
 
 /* Tool-call number chip, pinned to the top-right of its box to mirror the
    position chip on a message's role line. */
-._toolLabel_3p94s_69 {
+._toolLabel_1k0mq_71 {
   position: absolute;
   top: 0.45rem;
   right: 0.7rem;
   z-index: 1;
 }
 
-._bottomMargin_3p94s_76 {
+._bottomMargin_1k0mq_78 {
   margin-bottom: 0.75rem;
 }
 
-._codeCompact_3p94s_80 {
+._codeCompact_1k0mq_82 {
   /* styles for compact code display */
 }
 
-._simple_3p94s_84 {
+._simple_1k0mq_86 {
   /* styles for simple display mode */
 }
 ._badge_1c7cn_1,
@@ -2878,6 +2898,50 @@ a._citationLink_1gzkd_9:hover {
 ._searchingElapsed_1sdtt_271 {
   color: var(--bs-secondary-color);
   font-variant-numeric: tabular-nums;
+}
+._gate_fvpnz_1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  padding: 1rem;
+}
+
+._card_fvpnz_10 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 32rem;
+  color: var(--vscode-foreground);
+}
+
+._title_fvpnz_18 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+._body_fvpnz_25 {
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+}
+
+._location_fvpnz_30 {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  background: var(--vscode-textCodeBlock-background);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+._actions_fvpnz_40 {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
 }
 /*!
  * Bootstrap Icons v1.13.1 (https://icons.getbootstrap.com/)
@@ -18080,21 +18144,6 @@ body:not([class^="vscode-"]) button {
   --bs-nav-link-color: black;
 }
 
-/* AG Grid Theming */
-body {
-  --ag-background-color: var(--bs-body-bg);
-  --ag-foreground-color: var(--bs-body-color);
-  --ag-header-background-color: var(--bs-light-bg-subtle);
-  --ag-header-font-size: var(--inspect-font-size-small);
-  --ag-header-font-weight: 500;
-  --ag-header-text-color: var(--bs-secondary);
-  --ag-font-family: var(--bs-body-font-family);
-  --ag-wrapper-border: none;
-  --ag-row-hover-color: var(--bs-secondary-bg-subtle);
-  --ag-selected-row-background-color: var(--bs-secondary-bg-subtle);
-  --ag-border-radius: var(--bs-border-radius);
-}
-
 #app {
   height: 100vh;
   overflow-y: hidden;
@@ -20438,49 +20487,35 @@ li > ul {
   width: inherit;
   height: inherit;
 }
-._rowLink_18627_1 {
-  color: inherit;
-  text-decoration: none;
+._nameCell_8fyml_1 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._rowLink_18627_1:hover {
-  color: inherit;
-  text-decoration: none;
-}
-
-._nameCell_18627_15 {
+._modelCell_8fyml_8 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._modelCell_18627_22 {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  flex: 1;
-}
-
-._modelCellPrimary_18627_29 {
+._modelCellPrimary_8fyml_15 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
 
-._scoreCell_18627_36 {
+._scoreCell_8fyml_22 {
   display: flex;
   align-items: center;
   font-size: 0.875rem;
   color: var(--bs-gray-600);
 }
 
-._multiScorerBadge_18627_43 {
+._multiScorerBadge_8fyml_29 {
   margin-left: 0.35rem;
   padding: 2px 0.45rem;
   border-radius: 0.5rem;
@@ -20492,23 +20527,23 @@ li > ul {
   white-space: nowrap;
 }
 
-._error_18627_55 {
+._error_8fyml_41 {
   color: var(--bs-danger);
 }
 
-._started_18627_59 {
+._started_8fyml_45 {
   color: var(--bs-secondary);
 }
 
-._success_18627_63 {
+._success_8fyml_49 {
   color: var(--bs-success);
 }
 
-._cancelled_18627_67 {
+._cancelled_8fyml_53 {
   color: var(--bs-secondary);
 }
 
-._statusCell_18627_71 {
+._statusCell_8fyml_57 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20519,7 +20554,7 @@ li > ul {
   width: 100%;
 }
 
-._dateCell_18627_82 {
+._dateCell_8fyml_68 {
   display: flex;
   align-items: center;
   min-width: 0;
@@ -20628,7 +20663,7 @@ li > ul {
   color: var(--bs-secondary);
   padding-left: 2px;
 }
-._container_f3ekj_1 {
+._container_1k6n1_1 {
   position: relative;
   height: 100%;
   width: 100%;
@@ -20638,7 +20673,7 @@ li > ul {
 
 /* Visually-hidden live region: read by screen readers, absent from layout and
  * from pointer/scroll hit-testing. */
-._srStatus_f3ekj_11 {
+._srStatus_1k6n1_11 {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -20654,8 +20689,8 @@ li > ul {
 
 /* Keyboard focus ring for the sortable header control (mouse clicks don't
  * trigger :focus-visible, so this stays out of the way for pointer users). */
-._headerContent_f3ekj_27:focus-visible,
-._rotatedLabel_f3ekj_28:focus-visible {
+._headerContent_1k6n1_27:focus-visible,
+._rotatedLabel_1k6n1_28:focus-visible {
   outline: 2px solid var(--bs-primary);
   outline-offset: -2px;
   border-radius: 2px;
@@ -20665,12 +20700,12 @@ li > ul {
  * width); min-width stretches each to its parent when the columns underfill
  * the viewport, so row borders and hover highlights span the full grid width
  * (AG parity) instead of stopping at the last column. */
-._table_f3ekj_38 {
+._table_1k6n1_38 {
   position: relative;
   min-width: 100%;
 }
 
-._thead_f3ekj_43 {
+._thead_1k6n1_43 {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -20678,7 +20713,7 @@ li > ul {
   border-bottom: 1px solid var(--bs-border-color);
 }
 
-._headerRow_f3ekj_51 {
+._headerRow_1k6n1_51 {
   display: flex;
   /* Fill the thead height so cells stretch — rotated labels anchor to the
    * header's bottom edge, and bottom-aligned normal headers sit at the base
@@ -20686,7 +20721,7 @@ li > ul {
   height: 100%;
 }
 
-._headerCell_f3ekj_59 {
+._headerCell_1k6n1_59 {
   display: flex;
   position: relative;
   align-items: center;
@@ -20703,7 +20738,7 @@ li > ul {
 }
 
 /* Short vertical separator between column headers (matches the prior grid). */
-._headerCell_f3ekj_59::before {
+._headerCell_1k6n1_59::before {
   content: "";
   position: absolute;
   left: 0;
@@ -20714,11 +20749,11 @@ li > ul {
   background: var(--bs-border-color);
 }
 
-._headerCell_f3ekj_59:first-child::before {
+._headerCell_1k6n1_59:first-child::before {
   display: none;
 }
 
-._headerContent_f3ekj_27 {
+._headerContent_1k6n1_27 {
   flex: 1;
   display: flex;
   align-items: center;
@@ -20729,16 +20764,16 @@ li > ul {
 
 /* The whole cell is the sort target (so empty-label columns like the icon
  * column are still clickable) — so the pointer cursor lives on the cell. */
-._headerCellSortable_f3ekj_102 {
+._headerCellSortable_1k6n1_102 {
   cursor: pointer;
 }
 
-._sortIcon_f3ekj_106 {
+._sortIcon_1k6n1_106 {
   font-size: 9px;
   flex: 0 0 auto;
 }
 
-._sortIndicator_f3ekj_111 {
+._sortIndicator_1k6n1_111 {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
@@ -20746,13 +20781,13 @@ li > ul {
 
 /* Multi-sort position badge, tight against the arrow that follows it
  * (matching the AG grid's `1↑`). */
-._sortOrder_f3ekj_119 {
+._sortOrder_1k6n1_119 {
   font-size: var(--inspect-font-size-smallestest);
 }
 
 /* Filter funnel: hidden until the header is hovered, but stays visible when
  * the column has an active filter (matches the prior grid). */
-._headerFilter_f3ekj_125 {
+._headerFilter_1k6n1_125 {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -20760,25 +20795,25 @@ li > ul {
   transition: opacity 120ms ease;
 }
 
-._headerCell_f3ekj_59:hover ._headerFilter_f3ekj_125,
-._headerFilterActive_f3ekj_134 {
+._headerCell_1k6n1_59:hover ._headerFilter_1k6n1_125,
+._headerFilterActive_1k6n1_134 {
   opacity: 1;
 }
 
-._headerText_f3ekj_138 {
+._headerText_1k6n1_138 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-._headerCellCenter_f3ekj_144 {
+._headerCellCenter_1k6n1_144 {
   justify-content: center;
 }
 
 /* Normal headers share the tall header row when score columns are rotated;
  * bottom-align their content so the labels line up with the base of the
  * angled labels. */
-._headerCellTall_f3ekj_151 {
+._headerCellTall_1k6n1_151 {
   align-items: flex-end;
   padding-bottom: 6px;
 }
@@ -20788,7 +20823,7 @@ li > ul {
  * band where the previous column's angled label fans out and clashes with it.
  * Drop it to the bottom and shorten it so it sits beside the bottom-aligned
  * label, matching the AG grid. */
-._headerCellTall_f3ekj_151::before {
+._headerCellTall_1k6n1_151::before {
   top: auto;
   bottom: 0;
   transform: none;
@@ -20802,13 +20837,13 @@ li > ul {
  * header and stacks over neighbours' overflowing labels) doesn't intercept
  * hover/clicks meant for the diagonal labels; only the labels are
  * interactive. */
-._headerCellRotated_f3ekj_175 {
+._headerCellRotated_1k6n1_175 {
   overflow: visible;
   padding: 0;
   pointer-events: none;
 }
 
-._headerCellRotated_f3ekj_175::before {
+._headerCellRotated_1k6n1_175::before {
   display: none;
 }
 
@@ -20817,7 +20852,7 @@ li > ul {
  * between adjacent rotated headers), so keep the vertical separator at the
  * boundary — matching the prior grid. Use the bottom-aligned 22px form so it
  * sits beside the rotated label, like the separator between two tall headers. */
-._headerCellTall_f3ekj_151 + ._headerCellRotated_f3ekj_175::before {
+._headerCellTall_1k6n1_151 + ._headerCellRotated_1k6n1_175::before {
   display: block;
   top: auto;
   bottom: 0;
@@ -20827,7 +20862,7 @@ li > ul {
 
 /* The 45° label, anchored flush to the column's right edge and rotated up
  * from its bottom-left corner so it fans up-and-to-the-right. */
-._rotatedLabel_f3ekj_28 {
+._rotatedLabel_1k6n1_28 {
   position: absolute;
   bottom: 0;
   left: 100%;
@@ -20853,13 +20888,13 @@ li > ul {
   transform-origin: bottom left;
 }
 
-._rotatedLabel_f3ekj_28:hover {
+._rotatedLabel_1k6n1_28:hover {
   /* Lift above neighbouring labels so the hovered text is fully readable. */
   background: var(--bs-tertiary-bg);
   z-index: 2;
 }
 
-._rotatedText_f3ekj_232 {
+._rotatedText_1k6n1_232 {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -20870,7 +20905,7 @@ li > ul {
 
 /* Filter funnel at the end of the label: hidden until the label is hovered,
  * but kept visible while the column has an active filter. */
-._rotatedFilter_f3ekj_243 {
+._rotatedFilter_1k6n1_243 {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -20878,15 +20913,15 @@ li > ul {
   transition: opacity 120ms ease;
 }
 
-._rotatedLabel_f3ekj_28:hover ._rotatedFilter_f3ekj_243,
-._rotatedLabelFiltered_f3ekj_252 ._rotatedFilter_f3ekj_243 {
+._rotatedLabel_1k6n1_28:hover ._rotatedFilter_1k6n1_243,
+._rotatedLabelFiltered_1k6n1_252 ._rotatedFilter_1k6n1_243 {
   opacity: 1;
 }
 
 /* Hidden, non-rotated positioning anchor at the cell's bottom edge. The
  * filter popover anchors here (not the funnel up in the rotated label) so it
  * opens below the header, under the column, instead of over the headers. */
-._rotatedFilterAnchor_f3ekj_259 {
+._rotatedFilterAnchor_1k6n1_259 {
   position: absolute;
   bottom: 0;
   right: 0;
@@ -20902,21 +20937,21 @@ li > ul {
  * .headerCellRotated), and their overflowing diagonal labels must NOT steal
  * those events from the columns they fan across. Hit-testing for drag
  * events follows pointer-events, so flip both for the drag's duration. */
-._theadDragging_f3ekj_275 ._headerCellRotated_f3ekj_175 {
+._theadDragging_1k6n1_275 ._headerCellRotated_1k6n1_175 {
   pointer-events: auto;
 }
 
-._theadDragging_f3ekj_275 ._rotatedLabel_f3ekj_28 {
+._theadDragging_1k6n1_275 ._rotatedLabel_1k6n1_28 {
   pointer-events: none;
 }
 
-._headerCellDragSource_f3ekj_283 {
+._headerCellDragSource_1k6n1_283 {
   opacity: 0.35;
 }
 
 /* Cursor-attached drag image (setDragImage). Parked offscreen — the browser
  * snapshots it at dragstart; it never renders in place. */
-._dragGhost_f3ekj_289 {
+._dragGhost_1k6n1_289 {
   position: absolute;
   top: -1000px;
   left: -1000px;
@@ -20934,8 +20969,8 @@ li > ul {
 /* Insertion indicator on the drop target's edge. An absolutely-positioned
  * overlay rather than a border so the cell's layout doesn't shift while
  * dragging. */
-._headerCellDropLeft_f3ekj_307::after,
-._headerCellDropRight_f3ekj_308::after {
+._headerCellDropLeft_1k6n1_307::after,
+._headerCellDropRight_1k6n1_308::after {
   content: "";
   position: absolute;
   top: 0;
@@ -20945,20 +20980,20 @@ li > ul {
   z-index: 3;
 }
 
-._headerCellDropLeft_f3ekj_307::after {
+._headerCellDropLeft_1k6n1_307::after {
   left: -1px;
 }
 
-._headerCellDropRight_f3ekj_308::after {
+._headerCellDropRight_1k6n1_308::after {
   right: -2px;
 }
 
-._tbody_f3ekj_326 {
+._tbody_1k6n1_326 {
   position: relative;
   min-width: 100%;
 }
 
-._row_f3ekj_331 {
+._row_1k6n1_331 {
   display: flex;
   position: absolute;
   top: 0;
@@ -20968,17 +21003,21 @@ li > ul {
   background: var(--bs-body-bg);
   cursor: pointer;
   user-select: none;
+  /* Rows with an href render as <a>; keep them looking like plain rows. */
+  color: inherit;
+  text-decoration: none;
 }
 
-._row_f3ekj_331:hover {
+._row_1k6n1_331:hover {
   background: var(--bs-light);
+  color: inherit;
 }
 
-._rowSelected_f3ekj_347 {
+._rowSelected_1k6n1_351 {
   background: var(--bs-primary-bg-subtle) !important;
 }
 
-._cell_f3ekj_351 {
+._cell_1k6n1_355 {
   display: flex;
   align-items: center;
   box-sizing: border-box;
@@ -21002,13 +21041,13 @@ li > ul {
  * content width so the ellipsis appears; without `flex: 1` the child stays
  * content-sized when it fits, so `justify-content` (center columns) still
  * positions it. `white-space: nowrap` is inherited from `.cell`. */
-._cell_f3ekj_351 > * {
+._cell_1k6n1_355 > * {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-._cellCenter_f3ekj_381 {
+._cellCenter_1k6n1_385 {
   justify-content: center;
 }
 
@@ -21016,7 +21055,7 @@ li > ul {
  * cells, so top-align content — a single-line cell then sits at the first line
  * of its multiline neighbours instead of floating in the vertical centre of
  * the tall row (matches the AG grid this replaced). */
-._multiline_f3ekj_389 ._cell_f3ekj_351 {
+._multiline_1k6n1_393 ._cell_1k6n1_355 {
   align-items: flex-start;
 }
 
@@ -21025,21 +21064,21 @@ li > ul {
  * background so unpinned cells sliding underneath don't show through, which
  * must track the row's hover/selected state since the row's own background
  * no longer reaches the viewer. The right border marks the pinned edge. */
-._headerCellPinned_f3ekj_398 {
+._headerCellPinned_1k6n1_402 {
   background: var(--bs-light-bg-subtle);
   border-right: 1px solid var(--bs-border-color);
 }
 
-._cellPinned_f3ekj_403 {
+._cellPinned_1k6n1_407 {
   background: var(--bs-body-bg);
   border-right: 1px solid var(--bs-border-color);
 }
 
-._row_f3ekj_331:hover ._cellPinned_f3ekj_403 {
+._row_1k6n1_331:hover ._cellPinned_1k6n1_407 {
   background: var(--bs-light);
 }
 
-._rowSelected_f3ekj_347 ._cellPinned_f3ekj_403 {
+._rowSelected_1k6n1_351 ._cellPinned_1k6n1_407 {
   background: var(--bs-primary-bg-subtle);
 }
 
@@ -21053,7 +21092,7 @@ li > ul {
  * unchanged. Applied to the header cell only — the diagonal overlaps just
  * the header, so body cells keep the default inset (they still carry the
  * matching extra render width, so the column edges stay aligned). */
-._afterRotatedGap_f3ekj_426 {
+._afterRotatedGap_1k6n1_430 {
   padding-left: 32px;
 }
 
@@ -21061,11 +21100,11 @@ li > ul {
  * straight through the anchor of the preceding angled label, whose diagonal
  * bottom border already marks the boundary (same treatment as
  * .headerCellRotated::before). */
-._afterRotatedGap_f3ekj_426::before {
+._afterRotatedGap_1k6n1_430::before {
   display: none;
 }
 
-._empty_f3ekj_438 {
+._empty_1k6n1_442 {
   position: absolute;
   top: 3rem;
   left: 0;
@@ -21078,7 +21117,7 @@ li > ul {
  * right edge; a subtle accent line shows on hover / while dragging. The strip
  * sits above cell content (z-index) and never triggers a sort (it is a sibling
  * of .headerContent, so its clicks don't reach the sort handler). */
-._resizeHandle_f3ekj_451 {
+._resizeHandle_1k6n1_455 {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -21090,7 +21129,7 @@ li > ul {
   user-select: none;
 }
 
-._resizeHandle_f3ekj_451::after {
+._resizeHandle_1k6n1_455::after {
   content: "";
   position: absolute;
   top: 25%;
@@ -21102,18 +21141,18 @@ li > ul {
   transition: opacity 120ms ease;
 }
 
-._resizeHandle_f3ekj_451:hover::after,
-._resizeHandleActive_f3ekj_476::after {
+._resizeHandle_1k6n1_455:hover::after,
+._resizeHandleActive_1k6n1_480::after {
   opacity: 1;
 }
 
 /* Tall (rotated) mode: confine the hit-zone + accent line to the bottom
  * divider band so it stays off the angled labels above. */
-._resizeHandleTall_f3ekj_482 {
+._resizeHandleTall_1k6n1_486 {
   top: auto;
   height: 24px;
 }
-._resizeHandleTall_f3ekj_482::after {
+._resizeHandleTall_1k6n1_486::after {
   top: 2px;
   bottom: 2px;
 }
@@ -21121,13 +21160,13 @@ li > ul {
 /* Rotated header cells are pointer-events: none; re-enable it on the handle
  * and pin it to the cell's bottom-right corner (below the diagonal label), so
  * resizing lives in the divider band and the angled label stays clickable. */
-._resizeHandleRotated_f3ekj_494 {
+._resizeHandleRotated_1k6n1_498 {
   top: auto;
   bottom: 0;
   height: 24px;
   pointer-events: auto;
 }
-._resizeHandleRotated_f3ekj_494::after {
+._resizeHandleRotated_1k6n1_498::after {
   top: 2px;
   bottom: 2px;
 }
@@ -24938,25 +24977,27 @@ a._turnButton_loteg_100 {
   align-self: stretch;
   flex: 1;
 }
-._card_wikv3_1 {
+._card_1bwn0_1 {
   flex: 1;
   border: 1px solid var(--bs-border-color);
   border-radius: 8px;
-  overflow: hidden;
+  /* `clip` rounds the corners without becoming a scroll container, which
+     would trap the sticky "less…" toggle of the error panel inside. */
+  overflow: clip;
   transition:
     background-color 0.12s ease,
     border-color 0.12s ease;
 }
 
-._cardCollapsed_wikv3_11 {
+._cardCollapsed_1bwn0_13 {
   background: var(--bs-tertiary-bg);
 }
 
-._cardOpen_wikv3_15 {
+._cardOpen_1bwn0_17 {
   background: var(--bs-body-bg);
 }
 
-._header_wikv3_19 {
+._header_1bwn0_21 {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -24964,7 +25005,7 @@ a._turnButton_loteg_100 {
   cursor: pointer;
 }
 
-._attemptLabel_wikv3_27 {
+._attemptLabel_1bwn0_29 {
   flex: none;
   font-weight: 700;
   font-size: 13.5px;
@@ -24974,7 +25015,7 @@ a._turnButton_loteg_100 {
 
 /* Right-aligned per-attempt metadata; tabular-nums keeps the timestamps from
    jittering as digits change. */
-._timestamp_wikv3_37 {
+._timestamp_1bwn0_39 {
   margin-left: auto;
   flex: none;
   font-family: var(--bs-font-monospace);
@@ -24984,7 +25025,7 @@ a._turnButton_loteg_100 {
   font-variant-numeric: tabular-nums;
 }
 
-._errorChip_wikv3_47 {
+._errorChip_1bwn0_49 {
   display: inline-flex;
   align-items: center;
   flex: none;
@@ -24999,7 +25040,7 @@ a._turnButton_loteg_100 {
   white-space: nowrap;
 }
 
-._message_wikv3_62 {
+._message_1bwn0_64 {
   font-size: 12.5px;
   color: var(--bs-secondary-color);
   min-width: 0;
@@ -25008,7 +25049,7 @@ a._turnButton_loteg_100 {
   white-space: nowrap;
 }
 
-._chevron_wikv3_71 {
+._chevron_1bwn0_73 {
   flex: none;
   color: var(--bs-tertiary-color);
   font-size: 14px;
@@ -25017,39 +25058,39 @@ a._turnButton_loteg_100 {
 /* No horizontal padding: the Events transcript goes edge-to-edge so its row
    borders meet the card edges. The divider band and error panel re-add their
    own inset. */
-._body_wikv3_80 {
+._body_1bwn0_82 {
   padding: 2px 0 16px;
 }
 
 /* Centered Error/Events control on a hairline that extends to both card edges,
    reading as a labeled section divider between the header and the content. */
-._dividerBand_wikv3_86 {
+._dividerBand_1bwn0_88 {
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 0 14px;
 }
 
-._hairline_wikv3_93 {
+._hairline_1bwn0_95 {
   flex: 1;
   height: 1px;
   background: var(--bs-border-color);
 }
 
-._toggle_wikv3_99 {
+._toggle_1bwn0_101 {
   flex: none;
   display: flex;
 }
 
-._content_wikv3_104 {
+._content_1bwn0_106 {
   padding-top: 14px;
 }
 
-._errorPanel_wikv3_108 {
+._errorPanel_1bwn0_110 {
   margin: 0 14px;
 }
 
-._ansi_wikv3_112 {
+._ansi_1bwn0_114 {
   margin: 0.5em 0;
   font-size: clamp(0.3rem, 1.1vw, 0.8rem) !important;
 }

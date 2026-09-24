@@ -1,11 +1,12 @@
 import io
+import json
 import math
 import os
 import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import BinaryIO, Literal, cast
+from typing import Any, BinaryIO, Literal, cast
 from unittest.mock import patch
 from zipfile import ZipFile
 
@@ -30,7 +31,13 @@ from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._subtask import SubtaskEvent
 from inspect_ai.event._timeline import TimelineEvent, timeline_build
 from inspect_ai.event._tool import ToolEvent
-from inspect_ai.log import read_eval_log
+from inspect_ai.log import (
+    EvalError,
+    EvalShardEntry,
+    EvalShards,
+    EvalShardSampleKey,
+    read_eval_log,
+)
 from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._file import (
     ReadEvalLogsProgress,
@@ -42,7 +49,7 @@ from inspect_ai.log._file import (
     write_eval_log,
 )
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSpec
-from inspect_ai.model import get_model
+from inspect_ai.model import ModelUsage, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
@@ -512,6 +519,136 @@ def test_read_bytes_header(format):
 
     assert log2.samples is None
     assert log.eval.task == log2.eval.task
+
+
+log_formats_eval = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+
+
+def _eval_shards(selection: Literal["ids", "count"]) -> EvalShards:
+    sample_ids: list[str | int] = ["a", 2]
+    return EvalShards(
+        location="file:///logs/task.shards",
+        sample_ids=sample_ids if selection == "ids" else None,
+        sample_count=3 if selection == "count" else None,
+        template="0",
+        merged_at="2026-09-24T12:00:00+00:00",
+        metrics_source="registry",
+        ledger=[
+            EvalShardEntry(
+                shard="0",
+                log="2026-09-24T11-00-00+00-00_task_aaa.eval",
+                attempts=1,
+                eval_id="eval-0",
+                task_id="task-0",
+                eval_set_id="set-1",
+                status="success",
+                sample_keys=[
+                    EvalShardSampleKey(id="a", epoch=1),
+                    EvalShardSampleKey(id="a", epoch=2),
+                    EvalShardSampleKey(id="2", epoch=1),
+                ],
+                started_at="2026-09-24T11:00:00+00:00",
+                completed_at="2026-09-24T11:30:00+00:00",
+                model_usage={
+                    "mockllm/model": ModelUsage(
+                        input_tokens=10, output_tokens=5, total_tokens=15
+                    )
+                },
+                role_usage={
+                    "grader": ModelUsage(
+                        input_tokens=3, output_tokens=1, total_tokens=4
+                    )
+                },
+                size=1234,
+                etag='"0123abcd"',
+                mtime=1790247600.5,
+            ),
+            EvalShardEntry(
+                shard="1",
+                log="2026-09-24T11-05-00+00-00_task_bbb.eval",
+                attempts=2,
+                eval_id="eval-1",
+                task_id="task-1",
+                status="error",
+                error=EvalError(
+                    message="boom", traceback="Traceback", traceback_ansi="Traceback"
+                ),
+                sample_keys=[EvalShardSampleKey(id=2, epoch=1)],
+                started_at="2026-09-24T11:05:00+00:00",
+                size=99,
+            ),
+        ],
+    )
+
+
+def _eval_log_header_json(location: str) -> dict[str, Any]:
+    with ZipFile(location) as zf:
+        return cast(dict[str, Any], json.loads(zf.read("header.json")))
+
+
+@pytest.mark.parametrize("selection", ["ids", "count"])
+def test_eval_log_header_round_trips_shards(
+    tmp_path: Path, selection: Literal["ids", "count"]
+) -> None:
+    log = read_eval_log(log_formats_eval, header_only=True)
+    shards = _eval_shards(selection)
+    log.eval.shards = shards
+    location = str(tmp_path / "merged.eval")
+    write_eval_log(log, location)
+
+    stored = _eval_log_header_json(location)["eval"]["shards"]
+    if selection == "ids":
+        assert stored["sample_ids"] == ["a", 2]
+        assert "sample_count" not in stored
+    else:
+        assert stored["sample_count"] == 3
+        assert "sample_ids" not in stored
+    assert stored["ledger"][0]["etag"] == '"0123abcd"'
+    assert "error" not in stored["ledger"][0]
+    assert stored["ledger"][1]["error"]["message"] == "boom"
+    assert "etag" not in stored["ledger"][1]
+    assert "mtime" not in stored["ledger"][1]
+
+    assert read_eval_log(location).eval.shards == shards
+    read = read_eval_log(location, header_only=True).eval.shards
+    assert read == shards
+    # ids keep their type: the string "2" and the integer 2 are different ids
+    assert read is not None
+    assert [k.id for k in read.ledger[0].sample_keys] == ["a", "a", "2"]
+    assert [k.id for k in read.ledger[1].sample_keys] == [2]
+
+
+def test_eval_log_header_without_shards_has_no_shards_key(tmp_path: Path) -> None:
+    log = read_eval_log(log_formats_eval, header_only=True)
+    assert log.eval.shards is None
+    location = str(tmp_path / "plain.eval")
+    write_eval_log(log, location)
+
+    assert "shards" not in _eval_log_header_json(location)["eval"]
+    assert read_eval_log(location, header_only=True).eval.shards is None
+
+
+def test_eval_log_header_with_unknown_keys_validates(tmp_path: Path) -> None:
+    log = read_eval_log(log_formats_eval, header_only=True)
+    shards = _eval_shards("ids")
+    log.eval.shards = shards
+    written = str(tmp_path / "written.eval")
+    write_eval_log(log, written)
+
+    # a header from a newer writer, with keys this version does not know
+    header = _eval_log_header_json(written)
+    header["eval"]["future_eval_field"] = "x"
+    header["eval"]["shards"]["future_shards_field"] = 1
+    header["eval"]["shards"]["ledger"][0]["future_entry_field"] = {"x": 1}
+    location = str(tmp_path / "newer.eval")
+    with ZipFile(written) as src, ZipFile(location, "w") as dst:
+        for info in src.infolist():
+            if info.filename != "header.json":
+                dst.writestr(info, src.read(info))
+        dst.writestr("header.json", json.dumps(header))
+
+    read = read_eval_log(location, header_only=True)
+    assert read.eval.shards == shards
 
 
 list_logs_dir = os.path.join("tests", "log", "test_list_logs")

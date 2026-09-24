@@ -1010,6 +1010,90 @@ class EvalRevision(BaseModel):
     """Working tree has uncommitted changes or untracked files."""
 
 
+class EvalShardSampleKey(BaseModel):
+    """One `(id, epoch)` record merged from a shard."""
+
+    id: str | int
+    epoch: int
+
+
+class EvalShardEntry(BaseModel):
+    """Ledger entry for one shard, as of the merge that last read it."""
+
+    shard: str
+    """Name of the shard's directory (`<k>`) in the companion."""
+
+    log: str
+    """File name of the shard's current attempt (the newest `.eval` in `<k>/`)."""
+
+    attempts: int
+    """Number of `.eval` files in `<k>/` (superseded attempts plus the current one)."""
+
+    eval_id: str
+    """`eval_id` of the current attempt."""
+
+    task_id: str
+    """`task_id` of the current attempt (each shard has its own)."""
+
+    eval_set_id: str | None = Field(default=None)
+    """`eval_set_id` of the current attempt."""
+
+    status: EvalStatus
+    """Status of the current attempt when it was read."""
+
+    error: EvalError | None = Field(default=None)
+    """Error of the current attempt when its status is `error` or `cancelled`."""
+
+    sample_keys: list[EvalShardSampleKey]
+    """The `(id, epoch)` records merged from this shard, exactly as held."""
+
+    started_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
+    """`stats.started_at` of the current attempt."""
+
+    completed_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
+    """`stats.completed_at` of the current attempt (empty while it runs)."""
+
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """`stats.model_usage` of the current attempt."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """`stats.role_usage` of the current attempt."""
+
+    size: int
+    """Size in bytes of the current attempt when it was read."""
+
+    etag: str | None = Field(default=None)
+    """ETag of the bytes read (object stores that report one)."""
+
+    mtime: float | None = Field(default=None)
+    """Modification time of the current attempt when it was read."""
+
+
+class EvalShards(BaseModel):
+    """Provenance of a merged log: its shards and the ledger of the last merge."""
+
+    location: str
+    """Companion directory the last merge read (informational; readers derive it from the name)."""
+
+    sample_ids: list[str] | list[int] | list[str | int] | None = Field(default=None)
+    """Intended selection as ids, when the last merge had one."""
+
+    sample_count: int | None = Field(default=None)
+    """Intended selection as a count, when the last merge had one."""
+
+    template: str
+    """Name of the shard whose header supplied the merged header's task fields."""
+
+    merged_at: UtcDatetimeStr
+    """Time of the last merge that wrote this log."""
+
+    metrics_source: Literal["registry", "task_file"]
+    """Whether metrics were resolved from registered code or by importing the header's `task_file`."""
+
+    ledger: list[EvalShardEntry]
+    """One entry per shard with a current attempt, in shard order."""
+
+
 class EvalSpec(BaseModel):
     """Eval target and configuration."""
 
@@ -1115,6 +1199,9 @@ class EvalSpec(BaseModel):
     """Headline metric declared by the task — which score/metric best summarises
     this eval. Authored via `Task(headline_metric=...)`. When unset, readers fall
     back to the first metric of the first score."""
+
+    shards: EvalShards | None = Field(default=None)
+    """Shards merged into this log (merged logs only)."""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())
