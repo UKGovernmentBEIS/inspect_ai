@@ -3,7 +3,7 @@ import json
 import math
 import tempfile
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -579,6 +579,93 @@ def test_sync_failure_keeps_removal_for_next_sync(
     assert manifest is not None
     assert len(manifest.samples) == 1
     assert _synced_attempt(filestore) == (["attempt-2"], ["attempt-2"])
+
+
+@pytest.mark.parametrize(
+    "boundary", ["reading_manifest", "before_sample_data", "after_sample_data"]
+)
+@pytest.mark.parametrize(
+    "restart_uuid",
+    [
+        pytest.param("uuid-1", id="retry-same-uuid"),
+        pytest.param("uuid-2", id="requeue-new-uuid"),
+    ],
+)
+def test_sync_overlapping_restart_publishes_no_mixed_attempt(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    monkeypatch: pytest.MonkeyPatch,
+    restart_uuid: str,
+    boundary: str,
+) -> None:
+    """A removal and restart while a sync is reading never publishes a row mixing both attempts."""
+    db, filestore = db_and_filestore
+
+    _log_attempt(db, "uuid-1", "attempt-1")
+    sync_to_filestore(db, filestore)
+
+    def restart() -> None:
+        db.remove_samples([("s1", 1)])
+        _log_attempt(db, restart_uuid, "attempt-2")
+
+    # the removal lands after the sync took the removal set: while it reads
+    # the manifest, after it read the summaries, or after it read the data
+    with monkeypatch.context() as m:
+        if boundary == "reading_manifest":
+            read_manifest = filestore.read_manifest
+
+            def racing_read_manifest() -> Manifest | None:
+                manifest = read_manifest()
+                restart()
+                return manifest
+
+            m.setattr(filestore, "read_manifest", racing_read_manifest)
+        else:
+            get_sample_data = db.get_sample_data
+
+            def racing_get_sample_data(**kwargs: Any) -> SampleData | None:
+                if boundary == "before_sample_data":
+                    restart()
+                    return get_sample_data(**kwargs)
+                data = get_sample_data(**kwargs)
+                restart()
+                return data
+
+            m.setattr(db, "get_sample_data", racing_get_sample_data)
+
+        sync_to_filestore(db, filestore)
+
+    raced = filestore.read_manifest()
+    assert raced is not None
+    assert raced.samples == []
+    assert filestore.get_sample_data("s1", 1) is None
+
+    sync_to_filestore(db, filestore)
+    manifest = filestore.read_manifest()
+    assert manifest is not None
+    assert len(manifest.samples) == 1
+    assert manifest.samples[0].summary.uuid == restart_uuid
+    assert _synced_attempt(filestore) == (["attempt-2"], ["attempt-2"])
+
+
+@pytest.mark.parametrize("log_shared", [None, 0])
+def test_removals_not_recorded_without_sync(
+    tmp_path: Path, log_shared: int | None
+) -> None:
+    """A buffer with shared sync off keeps no record of the samples it removes."""
+    db = SampleBufferDatabase(
+        location=str(tmp_path / "test.eval"),
+        db_dir=tmp_path / "db",
+        log_shared=log_shared,
+    )
+    try:
+        for i in range(3):
+            db.start_sample(
+                EvalSampleSummary(id=f"s{i}", epoch=1, input="x", target="y")
+            )
+        db.remove_samples([(f"s{i}", 1) for i in range(3)])
+        assert db.take_removed_since_sync() == set()
+    finally:
+        db.cleanup()
 
 
 def test_sync_incremental(
