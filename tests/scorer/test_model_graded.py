@@ -19,7 +19,8 @@ from inspect_ai.model import (
     ModelName,
     ModelRole,
 )
-from inspect_ai.model._model import get_model
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import get_model, init_active_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
     CORRECT,
@@ -32,6 +33,8 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.scorer._model import (
     DEFAULT_GRADE_PATTERN,
+    DEFAULT_MODEL_GRADED_QA_TEMPLATE,
+    _model_graded_qa_single,
     neutralize_structural_delimiters,
 )
 from inspect_ai.solver._task_state import TaskState
@@ -1063,3 +1066,49 @@ def test_model_role_override_warning_silent_by_default(clear_warned: Any) -> Non
     )
     model_graded_qa(model_role=ModelRole("grader", required=True))
     assert not [m for m in _warned if "required 'grader' role" in m]
+
+
+async def test_model_graded_qa_resolves_model_per_call() -> None:
+    # Regression for #4781: a model-graded scorer reused across evals must use
+    # the model active at call time, not the model resolved on the first call.
+
+    # infinite output generators so an unfixed closure-cache fails on the
+    # assertion below (wrong model answered) rather than on output exhaustion
+    model_a = get_model(
+        "mockllm/model-a",
+        custom_outputs=(
+            ModelOutput.from_content("mockllm/model-a", "GRADE: C")
+            for _ in iter(int, 1)
+        ),
+    )
+    model_b = get_model(
+        "mockllm/model-b",
+        custom_outputs=(
+            ModelOutput.from_content("mockllm/model-b", "GRADE: I")
+            for _ in iter(int, 1)
+        ),
+    )
+
+    scorer = _model_graded_qa_single(DEFAULT_MODEL_GRADED_QA_TEMPLATE, model=None)
+
+    def make_state() -> TaskState:
+        return TaskState(
+            model=ModelName("mockllm/model"),
+            sample_id=1,
+            epoch=1,
+            input="What is 2 + 2?",
+            messages=[ChatMessageUser(content="What is 2 + 2?")],
+            output=ModelOutput.from_content("mockllm/model", "4"),
+        )
+
+    target = Target("4")
+
+    init_active_model(model_a, GenerateConfig())
+    score_a = await scorer(make_state(), target)
+    assert score_a is not None
+    assert score_a.value == CORRECT
+
+    init_active_model(model_b, GenerateConfig())
+    score_b = await scorer(make_state(), target)
+    assert score_b is not None
+    assert score_b.value == INCORRECT

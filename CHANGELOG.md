@@ -8,6 +8,7 @@
 
 - LiteLLM Proxy: New `litellm-proxy` provider for models served by a LiteLLM proxy, which reads each model's upstream model for context window, cost, reasoning and Claude prompt caching.
 - CLI: Quoted YAML and JSON strings in `--env` arguments preserve commas as literal text (such as `--env 'NO_PROXY="localhost,127.0.0.1"'`) instead of being coerced into lists. (#5368)
+- Bugfix: Reusing a self-critique solver or model-graded scorer across evaluations now uses the model selected for each evaluation.
 - DeepSeek: Support for DeepSeek-V4.1-Flash (`deepseek-flash`), including image input; model info notes that the retired `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` names are now served by V4.1 Flash.
 - Sandbox agent bridge: host tools exposed with `bridged_tools` are again denied unless the model proposed the call in a bridged generation, once per proposal, with or without an approval policy (0.3.265 ran them regardless as a stopgap); `BridgedToolsSpec(require_proposal=False)` opts a server out.
 - Bugfix: Docker sandboxes for samples a `SampleSource` adds (including an empty-seed task with `sandbox="docker"`) no longer fail with a `LookupError`, and their containers and generated compose files are cleaned up at the end of the run.
