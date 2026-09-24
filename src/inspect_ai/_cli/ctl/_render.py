@@ -1013,7 +1013,9 @@ def _task_header(target: dict[str, Any]) -> str:
         parts.append(str(target["model"]))
     if target.get("status"):
         parts.append(str(target["status"]))
-    parts.append(_format_samples(target.get("samples") or {}))
+    # a --log-dir resolution row carries identity only (no samples block)
+    if "samples" in target:
+        parts.append(_format_samples(target.get("samples") or {}))
     attempts = int(target.get("attempts", 1) or 1)
     if attempts > 1:
         parts.append(f"{attempts} attempts")

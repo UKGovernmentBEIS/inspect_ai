@@ -246,7 +246,15 @@ def _fetch_sample_summaries(task_query: str | None = None) -> _FetchedSummaries:
     ``task_query`` is the command's TASK selector; an exact full task id
     stops the fan-out at the server holding it (see ``stop_on_task_id`` on
     :func:`_fetch_summaries`).
+
+    Under ``--log-dir`` the rows are identity-only rows from the directory's
+    logs (their plans, no sample summaries), each carrying the
+    ``log_target`` the sample reads route by.
     """
+    from . import _log_dir
+
+    if _log_dir._log_dir_root() is not None:
+        return _FetchedSummaries(summaries=_log_dir._identity_rows(), busy_pids=[])
     fetched = _fetch_summaries(
         _http.list_discovered_servers(),
         raise_on_busy=True,

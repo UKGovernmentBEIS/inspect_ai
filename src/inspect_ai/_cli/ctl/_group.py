@@ -325,7 +325,22 @@ _MUTATION_ENVELOPE_HELP = "a `{target, applied, dry_run, detail}` mutation envel
 
 
 @click.group("ctl")
-def ctl_command() -> None:
+@click.option(
+    "--log-dir",
+    "log_dir",
+    default=None,
+    metavar="DIR",
+    help=(
+        "Read-only log mode: serve `task list` and the sample reads (`sample "
+        "list` / `errors` / `show` / `events` / `messages` / `store`) from the "
+        "`.eval` logs in DIR (a local path or an s3:// or other fsspec URL) "
+        "instead of from live processes. Data is as of the last log flush; "
+        "running samples are not shown. Every other command fails with an "
+        "`unsupported` error."
+    ),
+)
+@click.pass_context
+def ctl_command(ctx: click.Context, log_dir: str | None) -> None:
     """Read and direct running evals and manage kept-alive processes.
 
     Commands are grouped by resource noun (listed below); `list` verbs are
@@ -346,8 +361,15 @@ def ctl_command() -> None:
     To launch an eval in the background — one that outlives your
     terminal and is driven entirely from here — use `inspect eval
     --detach` (see `inspect eval --help`).
+
+    With `--log-dir DIR`, commands read the eval logs in DIR instead of
+    live processes — for runs on other machines whose log directory you can
+    read. The mode is read-only.
     """
-    return None
+    if log_dir is not None:
+        from ._log_dir import _set_log_dir_root
+
+        _set_log_dir_root(ctx, log_dir)
 
 
 def _echo_no_running_evals() -> None:
@@ -355,8 +377,15 @@ def _echo_no_running_evals() -> None:
 
     Surfaces ``--ctl-server=keep`` here because this fires exactly
     when a user is confused that a just-finished eval isn't listed — its
-    process has already exited unless it was launched to park.
+    process has already exited unless it was launched to park. Under
+    ``--log-dir`` it names the directory instead.
     """
+    from ._log_dir import _log_dir_root
+
+    root = _log_dir_root()
+    if root is not None:
+        _echo(f"No eval logs found in {root}.")
+        return
     _echo(
         f"No running evals found in {discovery_dir()}.\n"
         "Start an eval with `inspect eval <task>` — add `--ctl-server=keep` "

@@ -16,7 +16,7 @@ from inspect_ai._control.cancel import TaskCancelAction
 # calls must resolve through the module object at call time — do not
 # "simplify" to `from ._http import _request_json` (see
 # design/ctl/cli-refactor.md).
-from . import _fetch, _http
+from . import _fetch, _http, _log_dir
 from ._failure import _envelope_failures
 from ._group import (
     _MUTATION_ENVELOPE_HELP,
@@ -376,10 +376,20 @@ def _run_task_list(as_json: bool) -> None:
     # Stamp as_of BEFORE the reads: anything that changes during them has a
     # timestamp >= as_of and is caught by the next poll rather than missed.
     as_of = time.time()
-    summaries = _fetch._fetch_summaries(_http.list_discovered_servers()).summaries
+    log_dir = _log_dir._log_dir_root() is not None
+    # --log-dir adds `incomplete` / `unreadable` (the logs the rows omit)
+    extra: dict[str, Any] = {}
+    if log_dir:
+        read = _log_dir._task_rows()
+        summaries = read.rows
+        extra = {"incomplete": bool(read.unreadable), "unreadable": read.unreadable}
+    else:
+        summaries = _fetch._fetch_summaries(_http.list_discovered_servers()).summaries
 
     if as_json:
-        _echo_raw(json_lib.dumps({"as_of": as_of, "tasks": summaries}, indent=2))
+        _echo_raw(
+            json_lib.dumps({"as_of": as_of, "tasks": summaries, **extra}, indent=2)
+        )
         return
 
     if not summaries:
@@ -387,7 +397,10 @@ def _run_task_list(as_json: bool) -> None:
         return
 
     _print_human_table(summaries)
-    _print_keep_alive_footer(summaries)
+    if log_dir:
+        _log_dir._print_quiet_footer(summaries)
+    else:
+        _print_keep_alive_footer(summaries)
     _print_errored_samples_footer(summaries)
 
 

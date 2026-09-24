@@ -30,6 +30,7 @@ from inspect_ai._cli.ctl._fetch import (
 )
 from inspect_ai._cli.ctl._http import _failure_prefix, _resolve_target_server
 from inspect_ai._cli.ctl._knobs import _KNOB_SCOPE
+from inspect_ai._cli.ctl._log_dir import LOG_DIR_COMMANDS
 from inspect_ai._cli.ctl._model import _format_backoff, _print_throughput_table
 from inspect_ai._cli.ctl._render import (
     _SHORT_ID_LEN,
@@ -9466,3 +9467,184 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
         )
         Visitor(module_file.name).visit(tree)
     assert not offenders, f"direct output calls outside _echo/_echo_raw: {offenders}"
+
+
+# --- --log-dir mode: the contract (design/ctl/log-dir-mode.md) ----------------
+#
+# The reads themselves are tested in test_log_dir.py; these pin the mode's
+# fail-closed command contract and its error kinds.
+
+
+def _ctl_leaf_commands(
+    group: click.Group, path: tuple[str, ...] = ()
+) -> list[tuple[tuple[str, ...], click.Command]]:
+    leaves: list[tuple[tuple[str, ...], click.Command]] = []
+    for name, command in sorted(group.commands.items()):
+        if isinstance(command, click.Group):
+            leaves.extend(_ctl_leaf_commands(command, (*path, name)))
+        else:
+            leaves.append(((*path, name), command))
+    return leaves
+
+
+def _leaf_args(command: click.Command) -> list[str]:
+    """A value for each required argument (and one variadic target)."""
+    return [
+        "1"
+        for param in command.params
+        if isinstance(param, click.Argument) and (param.required or param.nargs == -1)
+    ]
+
+
+def test_log_dir_commands_name_registered_leaf_commands() -> None:
+    leaves = {" ".join(path) for path, _ in _ctl_leaf_commands(ctl_command)}
+    assert LOG_DIR_COMMANDS <= leaves, LOG_DIR_COMMANDS - leaves
+
+
+@pytest.fixture
+def no_log_dir_reads(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail the test on any discovery or storage access."""
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("unexpected discovery or storage access")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", forbidden)
+    monkeypatch.setattr(AsyncFilesystem, "list_dir", forbidden)
+    monkeypatch.setattr(AsyncFilesystem, "read_file_suffix", forbidden)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        path
+        for path, _ in _ctl_leaf_commands(ctl_command)
+        if " ".join(path) not in LOG_DIR_COMMANDS
+    ],
+    ids=lambda path: " ".join(path),
+)
+def test_log_dir_unsupported_command_fails_before_any_read(
+    path: tuple[str, ...], tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    command: click.Command = ctl_command
+    for name in path:
+        assert isinstance(command, click.Group)
+        command = command.commands[name]
+    result = cli_runner().invoke(
+        ctl_command,
+        ["--log-dir", str(tmp_path), *path, *_leaf_args(command), "--json"],
+    )
+    assert result.exit_code == 1, result.output
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "unsupported"
+    assert f"`inspect ctl {' '.join(path)}`" in error["message"]
+    assert error["exception"] is None and error["status"] is None
+
+
+def test_log_dir_bare_noun_follows_its_list_verb(
+    tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    # the bare `process` noun is `process list`, which the mode refuses
+    result = cli_runner().invoke(
+        ctl_command, ["--log-dir", str(tmp_path), "process", "--json"]
+    )
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["error"]["kind"] == "unsupported"
+
+
+def test_log_dir_bare_task_noun_lists_the_directory(tmp_path: Path) -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["--log-dir", str(tmp_path), "task", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["tasks"] == [] and payload["incomplete"] is False
+
+
+def test_log_dir_active_since_is_unsupported(
+    tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    result = cli_runner().invoke(
+        ctl_command,
+        ["--log-dir", str(tmp_path), "sample", "list", "--active-since", "5", "--json"],
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "unsupported"
+    assert "--active-since" in error["message"]
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["task", "list"],
+        ["sample", "list"],
+        ["sample", "show", "t", "1"],
+        ["sample", "events", "t", "1"],
+    ],
+)
+def test_log_dir_missing_directory_is_not_found(
+    tmp_path: Path, args: list[str]
+) -> None:
+    missing = tmp_path / "absent"
+    result = cli_runner().invoke(
+        ctl_command, ["--log-dir", str(missing), *args, "--json"]
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "not_found"
+    assert str(missing) in error["message"]
+
+
+def test_log_dir_storage_failure_is_storage_error_with_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from botocore.exceptions import ClientError
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+
+    response: Any = {
+        "Error": {"Code": "AccessDenied", "Message": "Access Denied"},
+        "ResponseMetadata": {"HTTPStatusCode": 403},
+    }
+
+    async def denied(self: Any, base: str) -> Any:
+        raise ClientError(response, "ListObjectsV2")
+
+    monkeypatch.setattr(AsyncFilesystem, "list_dir", denied)
+    result = cli_runner().invoke(
+        ctl_command, ["--log-dir", "s3://bucket/run", "task", "list", "--json"]
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error == {
+        "kind": "storage_error",
+        "exception": "botocore.ClientError",
+        "message": error["message"],
+        "status": 403,
+    }
+    assert "s3://bucket/run" in error["message"]
+
+
+def test_log_dir_empty_directory_human_output(tmp_path: Path) -> None:
+    result = cli_runner().invoke(ctl_command, ["--log-dir", str(tmp_path), "task"])
+    assert result.exit_code == 0
+    assert result.stdout.strip() == f"No eval logs found in {tmp_path}."
+    assert f"Reading logs in {tmp_path} (read-only, not live" in result.stderr
+
+
+def test_log_dir_live_mode_is_unchanged_without_the_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # no --log-dir: the discovery layer is what `task list` reads
+    calls: list[bool] = []
+
+    def discovered() -> list[Any]:
+        calls.append(True)
+        return []
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", discovered)
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--json"])
+    assert result.exit_code == 0
+    assert calls == [True]
+    assert set(json.loads(result.stdout)) == {"as_of", "tasks"}

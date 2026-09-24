@@ -186,6 +186,16 @@ class SuffixResult:
     etag: str | None = None
 
 
+class DirListing(NamedTuple):
+    """One directory's direct children (see :meth:`AsyncFilesystem.list_dir`)."""
+
+    files: list[FileInfo]
+    """The files directly under the directory."""
+
+    dirs: list[str]
+    """The subdirectories' paths, each without a trailing separator."""
+
+
 class _S3ETagCapture:
     """Proxy an S3 client and retain the exact completed-upload ETag."""
 
@@ -1016,6 +1026,65 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         if fnmatchcase(dirname, pattern):
                             yield f"{dirpath.rstrip('/')}/{dirname}/"
 
+    async def list_dir(self, base: str) -> DirListing:
+        """List the files and subdirectories directly under ``base``.
+
+        One delimited listing: on S3 a single ``list_objects_v2`` sweep with
+        ``Delimiter="/"``, taking ``Contents`` and ``CommonPrefixes`` from the
+        same pages (``iter_files`` and ``iter_dirs`` would each sweep). Local
+        directories use ``os.scandir`` without following directory symlinks,
+        so a symlink loop cannot recurse; other fsspec backends use ``ls``.
+
+        Paths are ``base`` joined with each child name, so they keep the form
+        ``base`` was given in (plain path, ``file://`` or ``s3://``). Local
+        ``mtime`` is in milliseconds, as on the other backends.
+
+        Raises ``FileNotFoundError`` when a local ``base`` does not exist; an
+        S3 prefix with no objects lists as empty.
+        """
+        prefix_path = base.rstrip("/")
+        if is_s3_filename(base):
+            bucket, prefix = s3_bucket_and_key(base)
+            prefix = prefix.rstrip("/") + "/" if prefix else ""
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                paginator = client.get_paginator("list_objects_v2")
+                pages = [
+                    page
+                    async for page in paginator.paginate(
+                        Bucket=bucket, Prefix=prefix, Delimiter="/"
+                    )
+                ]
+            else:
+                pages = await anyio.to_thread.run_sync(
+                    _s3_list_pages, self.s3_client(), bucket, prefix
+                )
+            files: list[FileInfo] = []
+            dirs: list[str] = []
+            for page in pages:
+                for obj in page.get("Contents", []):
+                    if _is_s3_file_key(obj["Key"], "*"):
+                        files.append(_s3_obj_to_file_info(bucket, obj))
+                for cp in page.get("CommonPrefixes", []):
+                    dirs.append(f"s3://{bucket}/{cp['Prefix'].rstrip('/')}")
+            return DirListing(files=files, dirs=dirs)
+
+        fsw = filesystem(base)
+        if fsw.is_local():
+            return await anyio.to_thread.run_sync(
+                _scandir_listing, local_path(base), prefix_path
+            )
+        files = []
+        dirs = []
+        for entry in fsw.fs.ls(base, detail=True):
+            name = entry["name"].rstrip("/").rsplit("/", 1)[-1]
+            if entry["type"] == "directory":
+                dirs.append(f"{prefix_path}/{name}")
+            elif entry["type"] == "file":
+                info = fsw._file_info(entry)
+                files.append(info.model_copy(update={"name": f"{prefix_path}/{name}"}))
+        return DirListing(files=files, dirs=dirs)
+
     @override
     async def __aenter__(self) -> "AsyncFilesystem":
         existing = _current_async_fs.get()
@@ -1392,6 +1461,33 @@ def s3_iter_files(
                     else f"s3://{bucket}/{obj['Key']}"
                 )
     return results
+
+
+def _s3_list_pages(s3: Any, bucket: str, prefix: str) -> list[dict[str, Any]]:
+    paginator = s3.get_paginator("list_objects_v2")
+    return list(paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"))
+
+
+def _scandir_listing(directory: str, prefix_path: str) -> DirListing:
+    """A local directory's children (see :meth:`AsyncFilesystem.list_dir`)."""
+    files: list[FileInfo] = []
+    dirs: list[str] = []
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            path = f"{prefix_path}/{entry.name}"
+            if entry.is_dir(follow_symlinks=False):
+                dirs.append(path)
+            elif entry.is_file():
+                stat = entry.stat()
+                files.append(
+                    FileInfo(
+                        name=path,
+                        type="file",
+                        size=stat.st_size,
+                        mtime=stat.st_mtime * 1000,
+                    )
+                )
+    return DirListing(files=files, dirs=dirs)
 
 
 def s3_iter_dirs(
