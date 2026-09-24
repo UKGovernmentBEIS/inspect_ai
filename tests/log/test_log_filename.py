@@ -94,8 +94,13 @@ def test_eval_log_name_matches_eval_location() -> None:
     "log,shards",
     [
         ("/logs/run.eval", "/logs/run.shards"),
+        ("/run.eval", "/run.shards"),
+        ("run.eval", "run.shards"),
+        ("./logs/run.eval", "./logs/run.shards"),
         ("file:///tmp/my%20logs/run.eval", "file:///tmp/my%20logs/run.shards"),
+        ("file:///run.eval", "file:///run.shards"),
         ("s3://bucket/logs/run.eval", "s3://bucket/logs/run.shards"),
+        ("s3://bucket/run.eval", "s3://bucket/run.shards"),
     ],
 )
 def test_eval_shards_dir_round_trip(log: str, shards: str) -> None:
@@ -108,6 +113,7 @@ def test_eval_shards_dir_round_trip(log: str, shards: str) -> None:
     "recovered,shards,log",
     [
         ("/logs/run-recovered.eval", "/logs/run.shards", "/logs/run.eval"),
+        ("run-recovered.eval", "run.shards", "run.eval"),
         (
             "file:///tmp/logs/run-recovered.eval",
             "file:///tmp/logs/run.shards",

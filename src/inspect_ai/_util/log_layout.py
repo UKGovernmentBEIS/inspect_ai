@@ -87,8 +87,7 @@ def eval_shards_dir(log_location: str) -> str:
     :func:`eval_checkpoints_dir`. The inverse is
     :func:`eval_log_for_shards_dir`.
     """
-    parent = dirname(log_location).rstrip("/")
-    return f"{parent}/{log_basename(log_location)}{_SHARDS_SUFFIX}"
+    return _with_basename(log_location, f"{log_basename(log_location)}{_SHARDS_SUFFIX}")
 
 
 def eval_log_for_shards_dir(shards_dir: str) -> str:
@@ -102,11 +101,20 @@ def eval_log_for_shards_dir(shards_dir: str) -> str:
     Raises:
         ValueError: If the directory name does not end in ``.shards``.
     """
-    shards_dir = shards_dir.rstrip("/")
     base = basename(shards_dir)
     if not base.endswith(_SHARDS_SUFFIX) or base == _SHARDS_SUFFIX:
         raise ValueError(
             f"Not a shards directory (expected '<name>{_SHARDS_SUFFIX}'): {shards_dir}"
         )
-    parent = dirname(shards_dir).rstrip("/")
-    return f"{parent}/{base[: -len(_SHARDS_SUFFIX)]}{_LOG_SUFFIX}"
+    return _with_basename(shards_dir, f"{base[: -len(_SHARDS_SUFFIX)]}{_LOG_SUFFIX}")
+
+
+def _with_basename(location: str, name: str) -> str:
+    """Replace the last path component of ``location`` with ``name``.
+
+    Everything before that component is kept verbatim, so a bare relative
+    name stays relative and a ``file:///`` or ``s3://bucket/`` prefix keeps
+    its separators. A trailing slash on ``location`` is dropped.
+    """
+    location = location.rstrip("/")
+    return location[: len(location) - len(basename(location))] + name
