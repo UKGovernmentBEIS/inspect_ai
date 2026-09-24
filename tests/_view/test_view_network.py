@@ -568,6 +568,28 @@ def test_read_content_security_policy_joins_directives_in_file_order(
     assert read_content_security_policy(dist_dir) == _VIEWER_CSP
 
 
+def test_read_content_security_policy_allows_value_less_directives(
+    tmp_path: Path,
+) -> None:
+    dist_dir = _dist_with_policy(
+        tmp_path,
+        json.dumps(
+            {
+                "version": 1,
+                "directives": {
+                    "default-src": ["'none'"],
+                    "upgrade-insecure-requests": [],
+                    "img-src": ["'self'"],
+                },
+            }
+        ),
+    )
+    assert (
+        read_content_security_policy(dist_dir)
+        == "default-src 'none'; upgrade-insecure-requests; img-src 'self'"
+    )
+
+
 def test_read_content_security_policy_absent_file_is_none(tmp_path: Path) -> None:
     assert read_content_security_policy(_dist_with_policy(tmp_path, None)) is None
 
@@ -586,7 +608,7 @@ def test_read_content_security_policy_absent_file_is_none(tmp_path: Path) -> Non
         json.dumps({"version": 1, "directives": {}}),
         json.dumps({"version": 1, "directives": [["default-src", ["'none'"]]]}),
         json.dumps({"version": 1, "directives": {"": ["'none'"]}}),
-        json.dumps({"version": 1, "directives": {"default-src": []}}),
+        json.dumps({"version": 1, "directives": {"default-src": None}}),
         json.dumps({"version": 1, "directives": {"default-src": "'none'"}}),
         json.dumps({"version": 1, "directives": {"default-src": [""]}}),
         json.dumps({"version": 1, "directives": {"default-src": [1]}}),

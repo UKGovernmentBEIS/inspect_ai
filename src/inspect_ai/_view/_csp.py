@@ -32,7 +32,7 @@ def read_content_security_policy(dist_dir: Path) -> str | None:
 
     Returns:
         The policy string (directives in file order, each name followed by its
-        space-separated sources, joined with `"; "`), or `None` if the dist
+        space-separated sources, if any, joined with `"; "`), or `None` if the dist
         has no policy file (a viewer built before the policy existed).
 
     Raises:
@@ -85,10 +85,9 @@ def _policy_string(data: Any) -> str:
         if folded in _HOST_OWNED_DIRECTIVES:
             raise ValueError(f"directive {name!r} is set by the host, not the dist")
 
-        if not isinstance(sources, list) or not sources:
-            raise ValueError(
-                f"directive {name!r} must have a non-empty list of sources"
-            )
+        # An empty list is a value-less directive (`upgrade-insecure-requests`).
+        if not isinstance(sources, list):
+            raise ValueError(f"directive {name!r} must have a list of sources")
         for source in sources:
             _validate_token(source, f"source in directive {name!r}")
 
