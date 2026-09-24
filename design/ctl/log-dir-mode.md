@@ -1371,6 +1371,17 @@ None open. Ransom resolved all three on 2026-09-23, each as recommended:
   reader.
 - `AsyncFilesystem` has no conditional GET; `If-None-Match` on manifest
   reads would make an unchanged running shard's poll a 304.
+- The buffer writer carries a sample's segment list forward by `(id,
+  epoch)` alone (`sync_to_filestore`,
+  `src/inspect_ai/log/_recorders/buffer/database.py`). A sample removed and
+  restarted between two buffer syncs (a `retry_on_error` retry or an
+  in-process requeue) therefore lists the previous attempt's segments too, and
+  `sample events --log-dir` shows the previous attempt's events together
+  with the new attempt's (pooled model inputs can resolve against the old
+  attempt's pool) until the writer is fixed:
+  [meridianlabs-ai/inspect_ai#538](https://github.com/meridianlabs-ai/inspect_ai/issues/538).
+  The viewer's pending-sample reads and filestore recovery read the same
+  segment lists.
 - A crashed worker's log stays `started` forever; nothing records a
   heartbeat. The status-push alternative above, or a heartbeat in the
   buffer manifest, would let every reader tell crashed from running.
