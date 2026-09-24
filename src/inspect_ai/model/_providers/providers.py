@@ -207,14 +207,6 @@ def meta() -> type[ModelAPI]:
     return MetaAPI
 
 
-@modelapi(name="litellm-proxy")
-def litellm_proxy() -> type[ModelAPI]:
-    validate_openai_client("LiteLLM Proxy")
-    from .litellm_proxy import LiteLLMProxyAPI
-
-    return LiteLLMProxyAPI
-
-
 @modelapi(name="deepseek")
 def deepseek() -> type[ModelAPI]:
     validate_openai_client("DeepSeek API")
