@@ -44,6 +44,7 @@ from inspect_ai.log._recorders.buffer.types import (
     Samples,
 )
 
+from ._csp import read_content_security_policy
 from ._dist import resolve_dist_directory
 from .common import (
     AppConfig,
@@ -765,6 +766,7 @@ def standalone_view_app(
     )
 
     resolved_dist_dir = dist_dir or resolve_dist_directory()
+    content_security_policy = read_content_security_policy(resolved_dist_dir)
 
     @api.get("/dist")
     async def api_dist() -> dict[str, str]:
@@ -782,7 +784,9 @@ def standalone_view_app(
         app.add_middleware(authorization_middleware(network_policy.authorization))
 
     protected_app: ASGIApp = HostValidationMiddleware(app, network_policy)
-    return SecurityHeadersMiddleware(protected_app)
+    return SecurityHeadersMiddleware(
+        protected_app, content_security_policy=content_security_policy
+    )
 
 
 def view_server(

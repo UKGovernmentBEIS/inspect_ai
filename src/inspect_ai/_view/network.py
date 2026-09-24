@@ -12,6 +12,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 _DNS_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _VALIDATED_HOST_SCOPE_KEY = "inspect_ai.viewer_authority"
 _VIEW_DOCS_URL = "https://inspect.aisi.org.uk/log-viewer.html"
+_FRAME_ANCESTORS_NONE = "frame-ancestors 'none'"
 
 
 class ViewerNetworkPolicyError(ValueError):
@@ -221,8 +222,27 @@ class BrowserOriginMiddleware:
 
 
 class SecurityHeadersMiddleware:
-    def __init__(self, app: ASGIApp) -> None:
+    """Add framing and Content-Security-Policy headers to every HTTP response.
+
+    Every response carries the policy, not just `index.html`: a worker script
+    takes its policy from its own response headers.
+
+    Args:
+        app: The ASGI app to wrap.
+        content_security_policy: The policy of the viewer dist being served
+            (see `read_content_security_policy`), or `None` for a dist without
+            one. `frame-ancestors 'none'` is always appended.
+    """
+
+    def __init__(
+        self, app: ASGIApp, content_security_policy: str | None = None
+    ) -> None:
         self.app = app
+        self._content_security_policy = (
+            f"{content_security_policy}; {_FRAME_ANCESTORS_NONE}"
+            if content_security_policy is not None
+            else _FRAME_ANCESTORS_NONE
+        )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -232,7 +252,7 @@ class SecurityHeadersMiddleware:
         async def send_with_security_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = MutableHeaders(scope=message)
-                headers.append("Content-Security-Policy", "frame-ancestors 'none'")
+                headers.append("Content-Security-Policy", self._content_security_policy)
                 headers["X-Frame-Options"] = "DENY"
             await send(message)
 

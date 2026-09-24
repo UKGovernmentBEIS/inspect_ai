@@ -1,5 +1,6 @@
 import importlib
 import inspect
+import json
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Protocol
@@ -8,6 +9,11 @@ import pytest
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp
 
+from inspect_ai._view._csp import (
+    CSP_FILENAME,
+    ContentSecurityPolicyError,
+    read_content_security_policy,
+)
 from inspect_ai._view.fastapi_server import (
     VIEW_REQUEST_HEADER,
     VIEW_REQUEST_HEADER_VALUE,
@@ -487,6 +493,134 @@ def test_framing_headers_cover_static_and_error_responses(
     _assert_framing_headers(root)
     _assert_framing_headers(missing)
     _assert_framing_headers(forbidden)
+
+
+_VIEWER_CSP_DIRECTIVES: dict[str, list[str]] = {
+    "default-src": ["'none'"],
+    "script-src": ["'self'", "'sha256-abc+/='", "'wasm-unsafe-eval'"],
+    "worker-src": ["'self'"],
+    "style-src-attr": ["'unsafe-inline'"],
+    "img-src": ["'self'", "data:"],
+}
+_VIEWER_CSP = (
+    "default-src 'none'; "
+    "script-src 'self' 'sha256-abc+/=' 'wasm-unsafe-eval'; "
+    "worker-src 'self'; "
+    "style-src-attr 'unsafe-inline'; "
+    "img-src 'self' data:"
+)
+
+
+def _dist_with_policy(tmp_path: Path, policy_json: str | None) -> Path:
+    dist_dir = tmp_path / "dist"
+    (dist_dir / "assets").mkdir(parents=True)
+    (dist_dir / "index.html").write_text("<html>viewer</html>", encoding="utf-8")
+    (dist_dir / "assets" / "worker.js").write_text("", encoding="utf-8")
+    if policy_json is not None:
+        (dist_dir / CSP_FILENAME).write_text(policy_json, encoding="utf-8")
+    return dist_dir
+
+
+@pytest.mark.parametrize(
+    ("policy_json", "expected"),
+    [
+        (None, "frame-ancestors 'none'"),
+        (
+            json.dumps({"version": 1, "directives": _VIEWER_CSP_DIRECTIVES}),
+            f"{_VIEWER_CSP}; frame-ancestors 'none'",
+        ),
+    ],
+    ids=["no-policy-file", "policy-file"],
+)
+def test_viewer_csp_header_covers_every_response(
+    tmp_path: Path, policy_json: str | None, expected: str
+) -> None:
+    dist_dir = _dist_with_policy(tmp_path, policy_json)
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    app = standalone_view_app(
+        log_dir=str(log_dir), network_policy=_policy(), dist_dir=dist_dir
+    )
+    with TestClient(app, base_url="http://localhost:7575") as client:
+        responses = [
+            client.get("/"),
+            client.get("/assets/worker.js"),
+            client.get("/missing"),
+            client.get(
+                "/api/app-config",
+                headers={"Origin": "https://attacker.example"},
+            ),
+        ]
+
+    assert [r.status_code for r in responses] == [200, 200, 404, 403]
+    for response in responses:
+        # a duplicate header would read back comma-joined, failing equality
+        assert response.headers["content-security-policy"] == expected
+        assert response.headers["x-frame-options"] == "DENY"
+
+
+def test_read_content_security_policy_joins_directives_in_file_order(
+    tmp_path: Path,
+) -> None:
+    dist_dir = _dist_with_policy(
+        tmp_path, json.dumps({"version": 1, "directives": _VIEWER_CSP_DIRECTIVES})
+    )
+    assert read_content_security_policy(dist_dir) == _VIEWER_CSP
+
+
+def test_read_content_security_policy_absent_file_is_none(tmp_path: Path) -> None:
+    assert read_content_security_policy(_dist_with_policy(tmp_path, None)) is None
+
+
+@pytest.mark.parametrize(
+    "policy_json",
+    [
+        "",
+        "{not json",
+        "[]",
+        json.dumps({"directives": {"default-src": ["'none'"]}}),
+        json.dumps({"version": 2, "directives": {"default-src": ["'none'"]}}),
+        json.dumps({"version": "1", "directives": {"default-src": ["'none'"]}}),
+        json.dumps({"version": True, "directives": {"default-src": ["'none'"]}}),
+        json.dumps({"version": 1}),
+        json.dumps({"version": 1, "directives": {}}),
+        json.dumps({"version": 1, "directives": [["default-src", ["'none'"]]]}),
+        json.dumps({"version": 1, "directives": {"": ["'none'"]}}),
+        json.dumps({"version": 1, "directives": {"default-src": []}}),
+        json.dumps({"version": 1, "directives": {"default-src": "'none'"}}),
+        json.dumps({"version": 1, "directives": {"default-src": [""]}}),
+        json.dumps({"version": 1, "directives": {"default-src": [1]}}),
+        json.dumps({"version": 1, "directives": {"default-src": ["'none';"]}}),
+        json.dumps({"version": 1, "directives": {"default-src": ["'none',"]}}),
+        json.dumps({"version": 1, "directives": {"default-src": ["a\nb"]}}),
+        json.dumps({"version": 1, "directives": {"default-src": ["a\u0000"]}}),
+        json.dumps({"version": 1, "directives": {"default-src": ["a b"]}}),
+        json.dumps({"version": 1, "directives": {"default-src": ["\u00e9"]}}),
+        json.dumps({"version": 1, "directives": {"default;src": ["'none'"]}}),
+        json.dumps({"version": 1, "directives": {"frame-ancestors": ["'none'"]}}),
+        json.dumps(
+            {
+                "version": 1,
+                "directives": {"default-src": ["'none'"], "Default-Src": ["'self'"]},
+            }
+        ),
+        '{"version": 1, "directives": {"img-src": ["data:"], "img-src": ["*"]}}',
+    ],
+)
+def test_malformed_viewer_csp_file_raises(tmp_path: Path, policy_json: str) -> None:
+    dist_dir = _dist_with_policy(tmp_path, policy_json)
+    with pytest.raises(ContentSecurityPolicyError, match=CSP_FILENAME):
+        read_content_security_policy(dist_dir)
+
+
+def test_malformed_viewer_csp_file_fails_server_startup(tmp_path: Path) -> None:
+    dist_dir = _dist_with_policy(tmp_path, json.dumps({"version": 1}))
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    with pytest.raises(ContentSecurityPolicyError):
+        standalone_view_app(
+            log_dir=str(log_dir), network_policy=_policy(), dist_dir=dist_dir
+        )
 
 
 def test_unsafe_bind_is_rejected_before_port_acquisition(
