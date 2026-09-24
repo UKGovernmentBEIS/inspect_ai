@@ -426,12 +426,14 @@ async def _write_stdin(stream: ByteSendStream | None, input: bytes | None) -> bo
     """Write `input` to the child's stdin and close it.
 
     A child that exits or closes its stdin before consuming the input makes the
-    write fail (EPIPE/ECONNRESET, surfaced by anyio as `BrokenResourceError`).
-    That is the child's business, not a launch failure: its exit status and
-    stderr describe what happened, so the caller should still get an
-    `ExecResult` rather than an exception. Whether the write or the exit wins
-    is timing-dependent, so tolerating it here is what makes such commands
-    behave deterministically.
+    write fail with EPIPE/ECONNRESET. anyio surfaces that as
+    `BrokenResourceError`, except on asyncio when the pipe breaks before its
+    transport starts closing, where `drain()`'s raw `BrokenPipeError` or
+    `ConnectionResetError` escapes unconverted. That is the child's business,
+    not a launch failure: its exit status and stderr describe what happened,
+    so the caller should still get an `ExecResult` rather than an exception.
+    Whether the write or the exit wins is timing-dependent, so tolerating it
+    here is what makes such commands behave deterministically.
 
     Returns whether the input was fully written (`True` when there was none).
     """
@@ -439,7 +441,12 @@ async def _write_stdin(stream: ByteSendStream | None, input: bytes | None) -> bo
         try:
             await stream.send(input)
             await stream.aclose()
-        except (BrokenResourceError, ClosedResourceError):
+        except (
+            BrokenResourceError,
+            ClosedResourceError,
+            BrokenPipeError,
+            ConnectionResetError,
+        ):
             return False
     return True
 

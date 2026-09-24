@@ -1,3 +1,4 @@
+import asyncio
 import os
 import shutil
 import sys
@@ -10,6 +11,7 @@ import anyio
 import psutil
 import pytest
 from anyio.abc import ByteReceiveStream
+from test_helpers.utils import skip_if_trio
 
 import inspect_ai.util._subprocess as _subprocess_mod
 from inspect_ai.util import subprocess
@@ -95,6 +97,32 @@ async def test_run_subprocess_reports_whether_stdin_was_written():
     no_input = await run_subprocess(["python3", "-c", "import sys; sys.exit(3)"])
     assert no_input.stdin_written is True
     assert no_input.result.returncode == 3
+
+
+@skip_if_trio
+@pytest.mark.parametrize("error", [BrokenPipeError, ConnectionResetError])
+async def test_run_subprocess_raw_pipe_error_from_drain(
+    monkeypatch: pytest.MonkeyPatch, error: type[OSError]
+):
+    """A raw pipe error from asyncio's `drain()` reports stdin as unwritten.
+
+    anyio converts a broken pipe to `BrokenResourceError` only once the
+    transport is closing; if the pipe breaks first, `drain()`'s own
+    `BrokenPipeError` or `ConnectionResetError` reaches the caller. Forcing
+    `drain()` to raise while the child still holds its stdin open reproduces
+    that ordering deterministically.
+    """
+
+    async def broken_drain(self: asyncio.StreamWriter) -> None:
+        raise error()
+
+    monkeypatch.setattr(asyncio.StreamWriter, "drain", broken_drain)
+    run = await run_subprocess(
+        ["python3", "-c", "import sys, time; time.sleep(0.5); sys.exit(3)"],
+        input="unread",
+    )
+    assert run.stdin_written is False
+    assert run.result.returncode == 3
 
 
 @pytest.mark.anyio
