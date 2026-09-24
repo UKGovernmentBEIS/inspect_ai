@@ -739,9 +739,10 @@ Additive keys, present on every log-dir row and absent in live mode:
   total that no record names (0 when there are none, null when
   `total_final` is false). They are in `counts.pending` of `sample list`
   but have no rows.
-- `live_samples`: `"buffer"` when every running member has a manifest,
-  `"none"` when none does, `"partial"` otherwise, so a caller knows whether
-  `in_flight` and running sample rows are complete.
+- `live_samples`: `"buffer"` when every running member has a manifest
+  (so also when no member is running, and `in_flight` is 0), `"none"` when
+  none does, `"partial"` otherwise, so a caller knows whether `in_flight`
+  and running sample rows are complete.
 - `current_attempt`: `"log"` or `"shards"`.
 - `shards` (null when the task has no shard set): `{total, running,
   success, error, cancelled, overlapping, mismatched}` over the shard set's

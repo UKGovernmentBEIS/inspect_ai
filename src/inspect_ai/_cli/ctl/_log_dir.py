@@ -71,7 +71,7 @@ def _announce_mode(as_json: bool) -> None:
     _echo(
         f"Reading logs in {root} (read-only, not live; completed samples "
         "normally reach the log within about 60 s; running samples are "
-        "not shown).",
+        "visible only with --log-shared, as of its last sync).",
         err=True,
     )
 
@@ -122,6 +122,7 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
     from inspect_ai._control.log_dir.samples import (
         SampleAmbiguousError,
         SampleNotFoundError,
+        SampleUnsupportedError,
     )
     from inspect_ai._control.log_dir.snapshot import UnsupportedLogFormatError
 
@@ -138,6 +139,24 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
         kind, message = "ambiguous", str(ex)
     elif isinstance(ex, UnsupportedLogFormatError):
         kind, message = "unsupported", str(ex)
+    elif isinstance(ex, SampleUnsupportedError):
+        events = " ".join(
+            shlex.quote(arg)
+            for arg in (
+                "inspect",
+                "ctl",
+                "sample",
+                "events",
+                ex.task_id,
+                ex.sample_id,
+                str(ex.epoch),
+                "--type",
+                "model",
+                "--log-dir",
+                root or "",
+            )
+        )
+        kind, message = "unsupported", f"{ex} `{events}` shows its model calls."
     elif isinstance(ex, LogUnparseableError):
         kind, message = "invalid_response", f"{ex}."
     elif isinstance(ex, LogChangedError):
@@ -159,9 +178,9 @@ def _fail_from(ex: BaseException, *, walking: bool) -> NoReturn:
     else:
         raise ex
     _echo(message, err=True)
-    raise _CtlFailure(
-        kind, message, exception=_exception_name(ex), status=status
-    ) from ex
+    # an unsupported read is not a failure of anything, so it names no exception
+    exception = None if kind == "unsupported" else _exception_name(ex)
+    raise _CtlFailure(kind, message, exception=exception, status=status) from ex
 
 
 def _index() -> LogDirIndex:

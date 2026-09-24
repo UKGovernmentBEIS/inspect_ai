@@ -6,20 +6,23 @@ walk, and the request counts the design states for these reads (see
 design/ctl/log-dir-mode.md). The CLI surface is tested in test_ctl.py.
 """
 
+import errno
 import functools
+import os
 import shutil
 import zipfile
 from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import anyio
 import boto3
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, eval_async
+from inspect_ai._control.events import decode_cursor
 from inspect_ai._control.log_dir import consistency
 from inspect_ai._control.log_dir.consistency import (
     LogChangedError,
@@ -28,6 +31,7 @@ from inspect_ai._control.log_dir.consistency import (
 )
 from inspect_ai._control.log_dir.samples import (
     SampleNotFoundError,
+    SampleUnsupportedError,
     sample_detail,
     sample_events,
     sample_messages,
@@ -52,11 +56,34 @@ from inspect_ai._control.log_dir.snapshot import (
     task_row,
 )
 from inspect_ai._control.log_dir.walk import walk_log_dir
+from inspect_ai._control.state import _iso_to_timestamp
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, FileContent
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, read_eval_log_async, write_eval_log_async
+from inspect_ai.event import InfoEvent, ModelEvent
+from inspect_ai.log import (
+    EvalLog,
+    EvalSample,
+    EvalSpec,
+    read_eval_log_async,
+    write_eval_log_async,
+)
+from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.log._recorders.buffer.filestore import (
+    Manifest,
+    SampleBufferFilestore,
+    SampleManifest,
+    SampleSegmentEntry,
+    Segment,
+    SegmentFile,
+)
+from inspect_ai.log._recorders.buffer.types import (
+    EventData,
+    MessagePoolData,
+    SampleData,
+)
 from inspect_ai.log._recorders.eval import EvalRecorder
+from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util import store
@@ -98,6 +125,7 @@ _LOG_DIR_TASK_ROW_KEYS = {
     "source",
     "log_target",
     "updated_at",
+    "live_samples",
     "current_attempt",
     "incomplete",
     "unreadable",
@@ -175,6 +203,47 @@ async def _write_running_log(
     sample_ids: list[int] | None,
 ) -> Path:
     """A running log (journal only, no header.json) holding ``logged`` samples."""
+    running = await _start_running_log(
+        directory, source, logged=logged, sample_ids=sample_ids
+    )
+    return running.location
+
+
+class _RunningLog(NamedTuple):
+    location: Path
+    recorder: EvalRecorder
+    spec: EvalSpec
+    samples: dict[int | str, EvalSample]
+    """The source log's samples by id, to flush more of them later."""
+
+    def sample(self, sample_id: int, **update: Any) -> EvalSample:
+        """A source sample (sample 1 renamed, for an id the source lacks)."""
+        base = self.samples.get(sample_id) or self.samples[1].model_copy(
+            update={"id": sample_id}
+        )
+        return base.model_copy(update=update)
+
+
+async def _flush(running: _RunningLog, samples: list[EvalSample]) -> None:
+    """Log ``samples`` and flush, as a worker's flush does (the log is replaced)."""
+    for sample in samples:
+        await running.recorder.log_sample(running.spec, sample)
+    await running.recorder.flush(running.spec)
+
+
+async def _start_running_log(
+    directory: Path,
+    source: EvalLog,
+    *,
+    logged: list[int],
+    sample_ids: list[int] | None,
+    log_shared: int | None = None,
+) -> _RunningLog:
+    """A running log holding ``logged`` samples, with its recorder kept open.
+
+    ``log_shared`` records the eval as run with ``--log-shared``, so a
+    shared buffer beside it is read.
+    """
     assert source.samples is not None
     spec = source.eval.model_copy(
         update={
@@ -183,6 +252,7 @@ async def _write_running_log(
             "dataset": source.eval.dataset.model_copy(
                 update={"sample_ids": sample_ids}
             ),
+            "config": source.eval.config.model_copy(update={"log_shared": log_shared}),
         }
     )
     location = (
@@ -191,12 +261,9 @@ async def _write_running_log(
     recorder = EvalRecorder(str(directory))
     await recorder.log_init(spec, str(location))
     await recorder.log_start(spec, source.plan)
-    by_id = {s.id: s for s in source.samples}
-    for sample_id in logged:
-        sample = by_id.get(sample_id) or by_id[1].model_copy(update={"id": sample_id})
-        await recorder.log_sample(spec, sample)
-    await recorder.flush(spec)
-    return location
+    running = _RunningLog(location, recorder, spec, {s.id: s for s in source.samples})
+    await _flush(running, [running.sample(i) for i in logged])
+    return running
 
 
 # --- task rows -----------------------------------------------------------------
@@ -290,8 +357,9 @@ async def test_running_log_reports_a_lower_bound_and_pending_rows(
     assert samples["total"] == 3
     assert samples["total_final"] is False
     assert samples["pending_unlisted"] is None
-    # running samples are in shared buffers, which this step does not read
+    # running samples are visible only in a shared buffer, which it has none of
     assert samples["in_flight"] is None
+    assert row["live_samples"] == "none"
     assert samples["completed"] == 1 and samples["unfinished"] == 2
 
     [view] = await _views(index)
@@ -1275,3 +1343,631 @@ def test_cli_model_filter_still_disambiguates_healthy_tasks(
         "--json",
     )
     assert _json(mismatch)["error"]["kind"] == "not_found"
+
+
+# --- shared sample buffers -----------------------------------------------------
+
+# A start time after every record the fixture logs, as for a key re-run
+# after its record was flushed (a requeue, or a seeded retry's re-run).
+_LATER = "2099-01-01T00:00:00+00:00"
+
+
+def _buffer_summary(
+    sample_id: int,
+    *,
+    started_at: str = _LATER,
+    completed: bool = False,
+    error: str | None = None,
+) -> EvalSampleSummary:
+    """A manifest row: a running start snapshot, or a completed sample's summary."""
+    return EvalSampleSummary(
+        id=sample_id,
+        epoch=1,
+        input=f"q{sample_id}",
+        target="x",
+        started_at=started_at,
+        completed_at=started_at if completed else None,
+        completed=completed,
+        error=error,
+        uuid=f"uuid-{sample_id}",
+    )
+
+
+def _info(data: str, uuid: str) -> dict[str, Any]:
+    return InfoEvent(data=data, uuid=uuid).model_dump(mode="json")
+
+
+def _write_buffer(
+    log: Path, rows: list[tuple[EvalSampleSummary, list[list[dict[str, Any]]]]]
+) -> Path:
+    """Write the shared buffer a ``--log-shared`` worker syncs beside ``log``.
+
+    Each row is a manifest entry and its event batches, one segment per
+    batch. Returns the ``.buffer/<stem>/`` directory.
+    """
+    store = SampleBufferFilestore(str(log))
+    segments: list[Segment] = []
+    samples: list[SampleManifest] = []
+    event_id = 0
+    for summary, batches in rows:
+        sample_segments: list[SampleSegmentEntry] = []
+        for batch in batches:
+            events = []
+            for event in batch:
+                event_id += 1
+                events.append(
+                    EventData(
+                        id=event_id,
+                        event_id=event["uuid"],
+                        sample_id=str(summary.id),
+                        epoch=summary.epoch,
+                        event=event,
+                    )
+                )
+            segment = Segment(
+                id=len(segments) + 1, last_event_id=event_id, last_attachment_id=0
+            )
+            store.write_segment(
+                segment["id"],
+                [
+                    SegmentFile(
+                        id=summary.id,
+                        epoch=summary.epoch,
+                        data=SampleData(events=events, attachments=[]),
+                    )
+                ],
+            )
+            segments.append(segment)
+            sample_segments.append(segment)
+        samples.append(SampleManifest(summary=summary, segments=sample_segments))
+    store.write_manifest(Manifest(samples=samples, segments=segments))
+    return log.parent / ".buffer" / log.stem
+
+
+# the segment reader, as the per-sample reads call it
+_READ_SAMPLE_DATA = "inspect_ai._control.log_dir.samples.read_sample_data"
+
+
+def _statuses(listing: Any) -> dict[Any, str]:
+    return {r["sample_id"]: r["status"] for r in listing.samples}
+
+
+async def test_buffer_rows_show_running_and_unflushed_samples(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2, 3, 4], log_shared=10
+    )
+    logged_start = running.sample(1).started_at
+    assert logged_start is not None
+    buffer = _write_buffer(
+        running.location,
+        [
+            # already flushed, not yet dropped from the manifest: the log wins
+            (_buffer_summary(1, started_at=logged_start, completed=True), []),
+            (_buffer_summary(2), [[_info("a", "e1")]]),
+            (_buffer_summary(3, completed=True), [[_info("b", "e2")]]),
+            # admitted by a SampleSource: named by the manifest alone
+            (_buffer_summary(99), []),
+        ],
+    )
+    synced = running.location.stat().st_mtime + 100
+    os.utime(buffer / "manifest.json", (synced, synced))
+
+    index, rows = await _index(tmp_path)
+    [row] = rows
+    assert row["live_samples"] == "buffer"
+    assert row["updated_at"] == pytest.approx(synced)
+    assert row["samples"] == {
+        "total": 5,
+        "completed": 2,
+        "errored": 0,
+        "cancelled": 0,
+        "in_flight": 2,
+        "queued": None,
+        "conflicted": 0,
+        "unfinished": 3,
+        "total_final": False,
+        "pending_unlisted": None,
+    }
+
+    [view] = await _views(index)
+    listing = sample_listing(view)
+    assert _statuses(listing) == {
+        1: "completed",
+        2: "running",
+        3: "completed",
+        4: "pending",
+        99: "running",
+    }
+    assert listing.counts["running"] == 2 and listing.counts["pending"] == 1
+    [two] = [r for r in listing.samples if r["sample_id"] == 2]
+    # a running row is the start snapshot: no live progress fields
+    assert two["activity"] is None and two["events"] is None
+    assert two["last_activity_at"] is None and two["total_tokens"] == 0
+    assert two["log_location"] == str(running.location)
+    [one] = [r for r in listing.samples if r["sample_id"] == 1]
+    assert one["completed_at"] != _iso_to_timestamp(logged_start)
+
+    async with AsyncFilesystem() as fs:
+        added = await sample_detail(fs, index.tasks[0], "99", 1)
+    assert added["status"] == "running" and added["error_retries"] == []
+
+
+async def test_a_running_log_with_no_manifest_yet_reports_unknown_in_flight(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2], log_shared=10
+    )
+    # another log's buffer: this log has not synced one yet
+    (tmp_path / ".buffer" / "other").mkdir(parents=True)
+    index, rows = await _index(tmp_path)
+    [row] = rows
+    assert row["samples"]["in_flight"] is None and row["live_samples"] == "none"
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(SampleNotFoundError, match="--log-shared"):
+            await sample_detail(fs, index.tasks[0], "2", 1)
+
+
+async def test_a_manifest_is_not_read_without_log_shared(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2]
+    )
+    _write_buffer(running.location, [(_buffer_summary(2), [])])
+    _, rows = await _index(tmp_path)
+    [row] = rows
+    assert row["samples"]["in_flight"] is None and row["live_samples"] == "none"
+
+
+async def test_every_read_follows_a_re_run_key_through_its_attempt(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1, 2], sample_ids=[1, 2], log_shared=10
+    )
+    events = [_info("a", "e1"), _info("b", "e2")]
+    everything = frozenset({"*"})
+
+    async def reads() -> tuple[Any, dict[str, Any], dict[str, Any]]:
+        index, _ = await _index(tmp_path)
+        task = index.tasks[0]
+        [view] = await _views(index)
+        async with AsyncFilesystem() as fs:
+            detail = await sample_detail(fs, task, "1", 1, content=True)
+            page = await sample_events(fs, task, "1", 1, types=everything, full=True)
+        return sample_listing(view), detail, page
+
+    # the flushed key re-runs: its new attempt is running
+    _write_buffer(running.location, [(_buffer_summary(1), [events])])
+    listing, detail, page = await reads()
+    assert _statuses(listing)[1] == "running"
+    assert detail["status"] == "running" and detail["error_retries"] == []
+    assert [e["data"] for e in page["events"]] == ["a", "b"]
+    assert page["done"] is False
+    buffer_cursor = page["next"]
+    index, _ = await _index(tmp_path)
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(SampleUnsupportedError, match="still running; its message"):
+            await sample_messages(fs, index.tasks[0], "1", 1)
+        with pytest.raises(SampleUnsupportedError, match="its store"):
+            await sample_store(fs, index.tasks[0], "1", 1)
+
+    # completed, not yet flushed
+    _write_buffer(
+        running.location,
+        [(_buffer_summary(1, completed=True, error="boom"), [events])],
+    )
+    listing, detail, page = await reads()
+    assert _statuses(listing)[1] == "error"
+    [view] = await _views((await _index(tmp_path))[0])
+    errors = sample_listing(view, sample_filter="errors", content=True)
+    # the unflushed error is listed with the flushed one (sample 2)
+    assert {r["sample_id"]: r["error"] for r in errors.samples}[1] == "boom"
+    assert {r["sample_id"] for r in errors.samples} == {1, 2}
+    assert detail["status"] == "error"
+    assert detail["error"] == {
+        "message": "boom",
+        "traceback": None,
+        "traceback_ansi": None,
+    }
+    assert page["done"] is True
+    async with AsyncFilesystem() as fs:
+        withheld = await sample_detail(fs, index.tasks[0], "1", 1)
+        assert withheld["error"] == {}
+        with pytest.raises(SampleUnsupportedError, match="not yet in the log"):
+            await sample_messages(fs, index.tasks[0], "1", 1)
+
+    # flushed: the log holds the new attempt and the manifest drops it
+    await _flush(running, [running.sample(1, started_at=_LATER, completed_at=_LATER)])
+    _write_buffer(running.location, [])
+    listing, detail, page = await reads()
+    assert _statuses(listing)[1] == "completed"
+    assert detail["status"] == "completed" and detail["started_at"] == (
+        _iso_to_timestamp(_LATER)
+    )
+    index, _ = await _index(tmp_path)
+    async with AsyncFilesystem() as fs:
+        # the buffer cursor is foreign to the logged source: the read restarts
+        resumed = await sample_events(
+            fs,
+            index.tasks[0],
+            "1",
+            1,
+            types=everything,
+            full=True,
+            since=buffer_cursor,
+        )
+        assert resumed == page and resumed["done"] is True
+        convo = await sample_messages(fs, index.tasks[0], "1", 1)
+    assert convo["messages"]
+
+
+async def test_a_key_flushed_after_the_plan_read_is_read_from_the_log(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2], log_shared=10
+    )
+    _write_buffer(running.location, [(_buffer_summary(2, completed=True), [])])
+    async with AsyncFilesystem() as fs:
+        index = await index_log_dir(fs, str(tmp_path))
+        plan = index.tasks[0].current
+        # unchanged since the plan: its central directory is reused
+        [view] = await read_task_views(fs, index.tasks)
+        assert view.member is not None
+        assert view.member.plan.central_directory is plan.central_directory
+
+        # the worker flushes sample 2 and drops it from the manifest, both
+        # after this poll's listing and plan read
+        await _flush(running, [running.sample(2)])
+        _write_buffer(running.location, [])
+        # the flush appended to the log, so the plan's central directory
+        # still reads cleanly, without sample 2: the stale view
+        stale = await read_snapshot(fs, plan)
+        assert SampleKey("2", 1) not in stale.summaries
+
+        [view] = await read_task_views(fs, index.tasks)
+    # the freshness check after the manifest saw the new log
+    assert view.member is not None
+    assert view.member.plan.central_directory is not plan.central_directory
+    assert _statuses(sample_listing(view))[2] == "error"
+    assert task_row(view)["samples"]["unfinished"] == 0
+
+
+async def test_a_segment_removed_mid_read_re_selects_the_flushed_record(
+    tmp_path: Path, finished_log: EvalLog, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._control.log_dir.buffer import read_sample_data
+
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2], log_shared=10
+    )
+    buffer = _write_buffer(
+        running.location, [(_buffer_summary(2, completed=True), [[_info("a", "e1")]])]
+    )
+    index, _ = await _index(tmp_path)
+    calls = 0
+
+    async def worker_finishes_first(*args: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            # the worker's final flush, then its buffer cleanup
+            await _flush(running, [running.sample(2)])
+            shutil.rmtree(buffer)
+        return await read_sample_data(*args)
+
+    monkeypatch.setattr(_READ_SAMPLE_DATA, worker_finishes_first)
+    async with AsyncFilesystem() as fs:
+        page = await sample_events(fs, index.tasks[0], "2", 1, types=frozenset({"*"}))
+    assert calls == 1
+    # served from the flushed record: the log's cursor nonce, all its events
+    nonce, _ = decode_cursor(page["next"])
+    assert nonce is not None and not nonce.startswith("buffer:")
+    assert page["done"] is True and page["events"]
+
+
+async def test_segments_that_keep_disappearing_fail_the_read(
+    tmp_path: Path, finished_log: EvalLog, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2], log_shared=10
+    )
+    _write_buffer(running.location, [(_buffer_summary(2), [[_info("a", "e1")]])])
+    index, _ = await _index(tmp_path)
+    calls = 0
+
+    async def gone(*args: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        raise FileNotFoundError(errno.ENOENT, "gone", "segment.1.zip")
+
+    monkeypatch.setattr(_READ_SAMPLE_DATA, gone)
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(LogChangedError, match="segment.1.zip"):
+            await sample_events(fs, index.tasks[0], "2", 1)
+    assert calls == consistency.MAX_REREADS + 1
+
+
+async def test_a_torn_manifest_is_re_read_and_an_unparseable_one_reported(
+    tmp_path: Path, finished_log: EvalLog, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2], log_shared=10
+    )
+    buffer = _write_buffer(running.location, [(_buffer_summary(2), [])])
+    read_file_info = AsyncFilesystem.read_file_info
+    reads = 0
+
+    async def torn_once(self: AsyncFilesystem, filename: str) -> FileContent:
+        nonlocal reads
+        reads += 1
+        content = await read_file_info(self, filename)
+        # a local manifest is rewritten in place: the first read sees half
+        return content._replace(data=content.data[:10]) if reads == 1 else content
+
+    monkeypatch.setattr(AsyncFilesystem, "read_file_info", torn_once)
+    _, rows = await _index(tmp_path)
+    assert reads == 2 and rows[0]["samples"]["in_flight"] == 1
+    monkeypatch.undo()
+
+    (buffer / "manifest.json").write_text("{")
+    index, rows = await _index(tmp_path)
+    [row] = rows
+    assert row["incomplete"] is True
+    assert "manifest.json" in row["unreadable"][0]["reason"]
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(LogUnparseableError, match="manifest.json"):
+            await sample_detail(fs, index.tasks[0], "2", 1)
+
+
+def test_buffered_events_collapse_versions_and_resolve_pools() -> None:
+    from inspect_ai._control.log_dir.buffer import buffered_events
+    from inspect_ai.event._pool import condense_model_event_inputs
+    from inspect_ai.model import ChatMessageUser, ModelOutput
+
+    model = ModelEvent(
+        model="mockllm/model",
+        input=[ChatMessageUser(content="hi")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", "hello"),
+    )
+    [condensed], _, pool = condense_model_event_inputs([model], 0, {})
+    assert isinstance(condensed, ModelEvent) and not condensed.input
+    rows = [
+        EventData(
+            id=i + 1,
+            event_id=event["uuid"],
+            sample_id="1",
+            epoch=1,
+            event=event,
+        )
+        for i, event in enumerate(
+            [
+                _info("pending", "e1"),
+                condensed.model_dump(mode="json"),
+                _info("resolved", "e1"),
+            ]
+        )
+    ]
+    data = SampleData(
+        events=rows,
+        attachments=[],
+        message_pool=[
+            MessagePoolData(
+                id=1, sample_id="1", epoch=1, msg_id=msg_id, data=msg.model_dump_json()
+            )
+            for msg_id, msg in pool
+        ],
+    )
+    events = buffered_events(data)
+    # the superseded version collapses in place; the pooled input is restored
+    assert [e.event for e in events] == ["info", "model"]
+    info, model_event = events
+    assert isinstance(info, InfoEvent) and info.data == "resolved"
+    assert isinstance(model_event, ModelEvent) and model_event.input[0].text == "hi"
+
+
+@skip_if_trio
+async def test_s3_request_counts_for_buffer_reads(
+    mock_s3: None, tmp_path: Path, finished_log: EvalLog, s3_requests: Counter[str]
+) -> None:
+    running = await _start_running_log(
+        tmp_path, finished_log, logged=[1], sample_ids=[1, 2, 3], log_shared=10
+    )
+    buffer = _write_buffer(
+        running.location,
+        [(_buffer_summary(2), [[_info("a", "e1")], [_info("b", "e2")]])],
+    )
+    prefix = "log-dir-buffer"
+    root = f"s3://test-bucket/{prefix}"
+
+    def upload() -> int:
+        _upload(running.location, f"{prefix}/{running.location.name}")
+        return len(
+            [
+                n
+                for n in zipfile.ZipFile(running.location).namelist()
+                if n.startswith("_journal/summaries/")
+            ]
+        )
+
+    journal = upload()
+    for path in buffer.iterdir():
+        _upload(path, f"{prefix}/.buffer/{buffer.name}/{path.name}")
+    async with AsyncFilesystem() as fs:
+        index = await index_log_dir(fs, root)
+        # the walk never lists .buffer/; the plan reads no manifest
+        assert s3_requests == Counter({"ListObjectsV2": 1, "GetObject": 2})
+        s3_requests.clear()
+        task = index.tasks[0]
+
+        [view] = await read_task_views(fs, index.tasks)
+        # the manifest, the freshness check, then the journal summaries
+        # through the plan's (still current) central directory
+        assert s3_requests == Counter({"GetObject": 1 + journal, "HeadObject": 1})
+        assert task_row(view)["samples"]["in_flight"] == 1
+        s3_requests.clear()
+
+        await sample_detail(fs, task, "2", 1)
+        # the key refresh only: a buffer row's detail is its manifest summary
+        assert s3_requests == Counter({"GetObject": 1 + journal, "HeadObject": 1})
+        s3_requests.clear()
+
+        page = await sample_events(fs, task, "2", 1, types=frozenset({"*"}), full=True)
+        # the key refresh, then one GET per segment the manifest lists
+        assert s3_requests == Counter({"GetObject": 1 + journal + 2, "HeadObject": 1})
+        assert [e["data"] for e in page["events"]] == ["a", "b"]
+        s3_requests.clear()
+
+        # a flush after the plan read: the freshness check sees it, and the
+        # central directory and journal are re-read (start.json is not)
+        await _flush(running, [running.sample(3)])
+        journal = upload()
+        [view] = await read_task_views(fs, index.tasks)
+        assert s3_requests == Counter({"GetObject": 1 + 1 + journal, "HeadObject": 1})
+        assert task_row(view)["samples"]["completed"] == 2
+
+
+def test_cli_buffer_rows_messages_and_store_are_unsupported(
+    tmp_path: Path, finished_log: EvalLog, no_discovery: None
+) -> None:
+    running = anyio.run(
+        functools.partial(
+            _start_running_log,
+            tmp_path,
+            finished_log,
+            logged=[1],
+            sample_ids=[1, 2],
+            log_shared=10,
+        )
+    )
+    _write_buffer(running.location, [(_buffer_summary(2), [[_info("a", "e1")]])])
+    task_id = running.spec.task_id
+
+    listed = _json(_ctl(str(tmp_path), "task", "list", "--json"))
+    [row] = listed["tasks"]
+    assert row["samples"]["in_flight"] == 1 and row["live_samples"] == "buffer"
+    shown = _ctl(str(tmp_path), "sample", "show", task_id, "2", "--json")
+    assert shown.exit_code == 0 and _json(shown)["status"] == "running"
+    for verb, read in (("messages", "message list"), ("store", "store")):
+        result = _ctl(str(tmp_path), "sample", verb, task_id, "2", "--json")
+        assert result.exit_code == 1
+        error = _json(result)["error"]
+        assert error["kind"] == "unsupported"
+        assert error["status"] is None and error["exception"] is None
+        assert f"its {read} is not in the shared buffer" in error["message"]
+        assert (
+            f"`inspect ctl sample events {task_id} 2 1 --type model --log-dir "
+            f"{tmp_path}` shows its model calls." in error["message"]
+        )
+    human = _ctl(str(tmp_path), "task", "list")
+    assert "running samples are visible only with --log-shared" in human.stderr
+
+
+def test_cli_buffer_reads_leave_the_directory_unchanged(
+    tmp_path: Path, finished_log: EvalLog
+) -> None:
+    running = anyio.run(
+        functools.partial(
+            _start_running_log,
+            tmp_path,
+            finished_log,
+            logged=[1],
+            sample_ids=[1, 2],
+            log_shared=10,
+        )
+    )
+    _write_buffer(running.location, [(_buffer_summary(2), [[_info("a", "e1")]])])
+    task_id = running.spec.task_id
+
+    def snapshot() -> dict[str, tuple[int, int]]:
+        return {
+            str(p): (p.stat().st_size, p.stat().st_mtime_ns)
+            for p in tmp_path.rglob("*")
+        }
+
+    before = snapshot()
+    for args in (
+        ["task", "list"],
+        ["sample", "list"],
+        ["sample", "errors"],
+        ["sample", "show", task_id, "2"],
+        ["sample", "events", task_id, "2"],
+        ["sample", "messages", task_id, "2"],
+        ["sample", "store", task_id, "2"],
+    ):
+        _ctl(str(tmp_path), *args, "--json")
+    assert snapshot() == before
+
+
+@solver
+def _wait_after_generate(started: anyio.Event, release: anyio.Event) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state = await generate(state)
+        started.set()
+        await release.wait()
+        return state
+
+    return solve
+
+
+@skip_if_trio
+async def test_a_running_eval_with_log_shared_is_read_from_its_buffer(
+    tmp_path: Path,
+) -> None:
+    started, release = anyio.Event(), anyio.Event()
+    task = Task(
+        name="live",
+        dataset=[Sample(id=1, input="q", target="x")],
+        solver=_wait_after_generate(started, release),
+    )
+    everything = frozenset({"*"})
+    buffered: dict[str, Any] = {}
+
+    async def read_while_running() -> None:
+        await started.wait()
+        with anyio.fail_after(60):
+            while True:
+                index, rows = await _index(tmp_path)
+                if rows and rows[0]["samples"]["in_flight"] == 1:
+                    break
+                # polling the worker's buffer sync thread, not a sibling task
+                await anyio.sleep(0.2)
+        async with AsyncFilesystem() as fs:
+            buffered["detail"] = await sample_detail(fs, index.tasks[0], "1", 1)
+            buffered["page"] = await sample_events(
+                fs, index.tasks[0], "1", 1, types=everything, full=True
+            )
+        release.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(read_while_running)
+        [log] = await eval_async(
+            task,
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            log_shared=1,
+        )
+    assert log.status == "success"
+    assert buffered["detail"]["status"] == "running"
+    page = buffered["page"]
+    assert page["done"] is False and page["events"]
+
+    # the buffered events are the flushed sample's, up to the last sync
+    index, _ = await _index(tmp_path)
+    async with AsyncFilesystem() as fs:
+        logged = await sample_events(
+            fs, index.tasks[0], "1", 1, types=everything, full=True
+        )
+    prefix = logged["events"][: len(page["events"])]
+    assert [e["uuid"] for e in page["events"]] == [e["uuid"] for e in prefix]
+    buffered_model = next(e for e in page["events"] if e["event"] == "model")
+    logged_model = next(e for e in prefix if e["event"] == "model")
+    assert buffered_model["input"] == logged_model["input"]
+    assert buffered_model["output"] == logged_model["output"]
