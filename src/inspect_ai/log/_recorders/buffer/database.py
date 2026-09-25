@@ -540,6 +540,7 @@ class SampleBufferDatabase(SampleBuffer):
         until their leases end. SQLite data and shared buffer files remain
         available for recovery.
         """
+        _unfinished_shutdowns.add(self)
         if not self._close_sync_worker_for_cleanup(drain=True):
             return
 
@@ -563,6 +564,7 @@ class SampleBufferDatabase(SampleBuffer):
         stop in time) or deferred until the last sample reader's lease ends —
         the lease release then runs :meth:`_cleanup_now`, filestore included.
         """
+        _unfinished_shutdowns.add(self)
         if not self._close_sync_worker_for_cleanup():
             return False
 
@@ -1268,6 +1270,7 @@ class SampleBufferDatabase(SampleBuffer):
                 pass
         # clear the calling thread's handle (other threads are no longer running)
         self._local.conn = None
+        _unfinished_shutdowns.discard(self)
 
     @contextmanager
     def _get_connection(
@@ -2142,6 +2145,29 @@ def sample_buffer_dbs(location: str, db_dir: Path | None = None) -> list[Path]:
     dir, file = location_dir_and_file(filesystem(location).path_as_uri(location))
     # the log file name is a literal, not a pattern (it may contain brackets)
     return list((resolve_db_dir(db_dir) / dir).glob(f"{glob.escape(file)}.*.db"))
+
+
+# Buffers whose close or cleanup started in this process but has not finished:
+# the sync worker outlived its join, or a sample reader's lease deferred it. A
+# buffer leaves once its connections close. No lock: set add/discard are atomic
+# under the GIL, and sample_buffer_shutdown_pending iterates a copy.
+_unfinished_shutdowns: set[SampleBufferDatabase] = set()
+
+
+def sample_buffer_shutdown_pending(location: str) -> bool:
+    """Whether a buffer this process opened for ``location`` is still shutting down.
+
+    Such a buffer's files are still in use (by its sync worker or a sample
+    reader), so they must not be removed by path.
+
+    Args:
+        location: Eval log location the buffer belongs to.
+
+    Returns:
+        True when a close or cleanup of the log's buffer has not finished.
+    """
+    location = filesystem(location).path_as_uri(location)
+    return any(db.location == location for db in tuple(_unfinished_shutdowns))
 
 
 def resolve_db_dir(db_dir: Path | None = None) -> Path:

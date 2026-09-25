@@ -21,6 +21,7 @@ from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer import types as buffer_types_module
 from inspect_ai.log._recorders.buffer.database import (
     sample_buffer_dbs,
+    sample_buffer_shutdown_pending,
     sync_to_filestore,
 )
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
@@ -759,12 +760,14 @@ def test_close_preserves_data_until_readers_finish(
             with db._acquire_sample_read_lease(sample.id, sample.epoch):
                 db.close()
                 assert not db._closed
+                assert sample_buffer_shutdown_pending(db.location)
                 assert get_samples(db).samples == [sample]
             assert not db._closed
             if reader_fails:
                 raise ValueError("reader failed")
 
     assert db._closed and not db._connections
+    assert not sample_buffer_shutdown_pending(db.location)
     for conn in tracked:
         with pytest.raises(sqlite3.ProgrammingError):
             conn.execute("SELECT 1")

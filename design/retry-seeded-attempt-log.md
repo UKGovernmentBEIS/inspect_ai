@@ -1251,7 +1251,10 @@ second or two and the local numbers apply.
   process has stopped writing a `started` log: its buffer database may
   live in another data directory or pid namespace, and a recovered
   snapshot carries the crashed log's run id. `started` logs from other
-  runs therefore stay, as before.
+  runs therefore stay, as before. An owned `started` log also stays, with
+  its buffer, while that buffer has not finished shutting down: its sync
+  worker outlived the close timeout (a slow shared upload), or a sample
+  reader's lease deferred the close. Its files are still in use.
 - **Server-side compose for remote logs** (see Performance). #479: the
   seeded start flush composes the destination from the prior object's
   member area plus a small uploaded tail instead of re-uploading the seeded

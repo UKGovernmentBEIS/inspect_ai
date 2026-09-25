@@ -81,6 +81,7 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._log import EvalConfig
 from inspect_ai.log._recorders.buffer.buffer import cleanup_sample_buffers_for_log
+from inspect_ai.log._recorders.buffer.database import sample_buffer_shutdown_pending
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
@@ -1966,7 +1967,9 @@ def latest_completed_task_eval_logs(
     another process has stopped writing a `started` log (its buffer database
     may live in another data directory or pid namespace, and a recovered
     snapshot carries the crashed log's run id), so `started` logs from other
-    runs stay.
+    runs stay. So does an owned `started` log whose sample buffer has not
+    finished shutting down (its sync worker outlived the close timeout, or a
+    sample reader still holds it): the buffer's files are still in use.
 
     Args:
         logs: Logs of the tasks to select from.
@@ -2010,6 +2013,12 @@ def latest_completed_task_eval_logs(
                             logger.info(
                                 f"Not removing '{id_log.info.name}': another "
                                 "run wrote it and may still be writing it"
+                            )
+                            continue
+                        if sample_buffer_shutdown_pending(id_log.info.name):
+                            logger.info(
+                                f"Not removing '{id_log.info.name}': its sample "
+                                "buffer has not finished shutting down"
                             )
                             continue
                         cleanup_sample_buffers_for_log(id_log.info.name)

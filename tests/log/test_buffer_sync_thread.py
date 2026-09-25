@@ -8,7 +8,10 @@ import pytest
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import database as database_module
-from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.database import (
+    SampleBufferDatabase,
+    sample_buffer_shutdown_pending,
+)
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.types import SampleEvent
 
@@ -433,7 +436,12 @@ def test_cleanup_skips_deletion_when_sync_remains_active(
     assert cleanup_recorder.calls == []
     assert shared_db._sync_closed is True
     assert not shared_db._closed
+    # retry cleanup must not sweep the files the worker still uses
+    assert sample_buffer_shutdown_pending(shared_db.location)
     release.set()
+    _current_sync_thread(shared_db).join(timeout=5)
+    shared_db.close()
+    assert not sample_buffer_shutdown_pending(shared_db.location)
 
 
 def test_cleanup_from_sync_worker_does_not_delete_while_worker_is_on_stack(

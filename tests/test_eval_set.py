@@ -43,7 +43,7 @@ from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import basename, local_path, size_in_mb
+from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.dataset import Sample
 from inspect_ai.event import SampleInitEvent
@@ -56,7 +56,11 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
 from inspect_ai.log._recorders.buffer import database as database_module
-from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.database import (
+    SampleBufferDatabase,
+    sample_buffer_dbs,
+    sample_buffer_shutdown_pending,
+)
 from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import CachePolicy, Model, get_model
@@ -344,6 +348,43 @@ def test_retry_cleanup_keeps_started_logs_of_other_runs(
     assert len(list(db_dir.rglob("*.db"))) == 1
     assert filestore_dir.exists()
     assert not any(r.levelno >= logging.WARNING for r in caplog.records)
+
+
+def test_retry_cleanup_keeps_owned_started_log_while_its_buffer_is_in_use(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An owned `started` log stays while a sample reader defers its buffer's close.
+
+    The buffer's files are still in use, so the sweep keeps the log and its
+    buffer. Once the reader lets go and the close finishes, the next sweep
+    removes both.
+    """
+    db_dir = tmp_path / "db"
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    older = log_dir / "a.eval"
+    newest = log_dir / "b.eval"
+    for log in (older, newest):
+        log.touch()
+    buffer = SampleBufferDatabase(str(older), create=True)
+    buffer.start_sample(EvalSampleSummary(id=1, epoch=1, input="q", target="a"))
+    logs = [
+        _sweep_log(older, "a1", mtime=1.0, status="started", run_id="mine"),
+        _sweep_log(newest, "a2", mtime=2.0, status="success", run_id="mine"),
+    ]
+
+    with buffer._acquire_sample_read_lease(1, 1):
+        buffer.close()
+        latest_completed_task_eval_logs(
+            logs=logs, cleanup_older=True, owned_run_ids={"mine"}
+        )
+        assert older.exists() and buffer.db_path.exists()
+
+    latest_completed_task_eval_logs(
+        logs=logs, cleanup_older=True, owned_run_ids={"mine"}
+    )
+    assert not older.exists() and not buffer.db_path.exists()
 
 
 def test_validate_eval_set_prerequisites_ok() -> None:
@@ -2736,6 +2777,85 @@ def test_retry_log_finish_failure_keeps_partial_log_as_next_source(
         assert {s.id for s in log.samples if s.error is not None} == (
             {"s4"} if log.status == "error" else set()
         )
+
+
+def test_retry_cleanup_keeps_started_log_whose_buffer_close_timed_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry whose buffer close times out keeps its `started` log and buffer.
+
+    Attempt 2's final log write fails, so the pass loop closes its buffer,
+    which drains the pending shared upload first. The upload outlasts
+    ``SYNC_CLEANUP_TIMEOUT``, so the buffer's sync worker is still alive when
+    the eval set's final sweep runs. The sweep keeps attempt 2's `started`
+    log and its buffer db rather than delete files the worker is using;
+    attempt 1's errored log is removed as usual.
+    """
+    db_dir = tmp_path / "db"
+    monkeypatch.setattr(database_module, "resolve_db_dir", lambda _: db_dir)
+    monkeypatch.setattr(database_module, "SYNC_CLEANUP_TIMEOUT", 0.1)
+    original_flush = ZipLogFile.flush
+    finished_logs: list[ZipLogFile] = []
+
+    async def flaky_final_flush(self: ZipLogFile, fsync: bool = False) -> None:
+        # every finish write of the second attempt's log fails
+        if fsync:
+            if not any(log is self for log in finished_logs):
+                finished_logs.append(self)
+            if len(finished_logs) > 1 and finished_logs[1] is self:
+                raise OSError("simulated storage failure at finish")
+        await original_flush(self, fsync=fsync)
+
+    monkeypatch.setattr(ZipLogFile, "flush", flaky_final_flush)
+
+    release_upload = threading.Event()
+    uploaded: list[SampleBufferDatabase] = []
+
+    def delayed_upload(db: SampleBufferDatabase, filestore: object) -> None:
+        uploaded.append(db)
+        release_upload.wait(timeout=30)
+
+    monkeypatch.setattr(database_module, "sync_to_filestore", delayed_upload)
+
+    calls: list[str] = []
+    log_dir = str(tmp_path / "logs")
+    try:
+        success, _ = eval_set(
+            tasks=[_seeded_retry_task(calls, fail_s4_times=1)],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=3,
+            retry_wait=0.1,
+            retry_immediate=False,
+            retry_cleanup=True,
+            retry_on_error=0,
+            max_samples=1,
+            log_buffer=1,
+            # no upload falls due during the run; only the close drains one
+            log_shared=3600,
+        )
+        assert success
+        assert calls == ["s1", "s2", "s3", "s4", "s4"], calls
+
+        infos = sorted(list_eval_logs(log_dir), key=lambda info: info.mtime or 0)
+        assert [read_eval_log(info.name).status for info in infos] == [
+            "started",
+            "success",
+        ]
+        started = infos[0].name
+        # the only upload is attempt 2's close drain, still blocked
+        assert [db.location for db in uploaded] == [
+            filesystem(started).path_as_uri(started)
+        ]
+        assert sample_buffer_shutdown_pending(started)
+        assert list(db_dir.rglob("*.db")) == sample_buffer_dbs(started)
+    finally:
+        release_upload.set()
+        for db in uploaded:
+            if db._sync_thread is not None:
+                db._sync_thread.join(timeout=5)
+            db.close()
+    assert not any(sample_buffer_shutdown_pending(db.location) for db in uploaded)
 
 
 def test_retry_abandoned_during_seed_never_starts_the_log(
