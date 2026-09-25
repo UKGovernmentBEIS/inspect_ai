@@ -60,8 +60,7 @@ decides which model serves a request.
   agent is not supposed to talk to. Today `grader` or `inspect/grader` from
   inside the sandbox resolves to that role's model (util.py:678-679), so the
   agent can query, probe or spend on its own grader. Roles become
-  unreachable by name unless the author aliases one in or opts into
-  pass-through.
+  unreachable by name unless the author aliases one in.
 - **Eval integrity by model substitution.** An agent evaluated on a weak
   model can send its hard sub-steps to `inspect/<the strongest model the
   host has a key for>` and report the results as its own. Unrecognised
@@ -81,8 +80,7 @@ decides which model serves a request.
 
 What the design deliberately leaves alone: provider-side tools
 (`web_search`, `code_execution`, remote MCP) are a separate, already
-withheld channel; `forward_model_names=True` reopens all of the above by
-explicit author choice; `model_resolver` still receives the untrusted
+withheld channel; `model_resolver` still receives the untrusted
 string, but that is author code; the in-process bridge gets no mitigation
 because its scaffold already holds the host's credentials; and nothing here
 constrains what the sandbox sends *to* the eval's model.
@@ -126,8 +124,9 @@ Goals:
    author says so.
 2. Multi-model scaffolds route through the existing mechanisms:
    `model_aliases` for exact names (the inspect_swe pattern),
-   `model_resolver` for routing by policy, plus one explicit opt-in that
-   restores today's pass-through for the faithful-proxy case.
+   `model_resolver` for routing by policy. The sandbox bridge gains no new
+   routing parameter (see Alternatives for the pass-through opt-in that was
+   considered and left out).
 3. Redirects are visible: one warning per redirected name pointing at
    `model_aliases`, and the client-requested name recorded in a new
    `requested_model` field on the `ModelEvent`.
@@ -288,7 +287,9 @@ everything.
   the active `Model` instance (today's rule at util.py:700-705, applied to
   the pin); otherwise `get_model(spec)`. `model="inspect"` is identical to
   `model=None`.
-- **pass-through**: `forward_model_names=True`.
+- **pass-through**: today's `model=None` routing, where a name the bridge
+  does not recognise resolves to the role or model it names. Kept for the
+  in-process bridge only, through `allow_client_model_names=True` (below).
 - **redirect**: a request served by a model the requested name does not
   denote, by the default rule or by a pin.
 
@@ -296,23 +297,23 @@ everything.
 
 ```
 resolve_bridge_model(requested, *, model_aliases, model_resolver, model,
-                     forward_model_names, provider) -> BridgeModelResolution
+                     allow_client_model_names, provider) -> BridgeModelResolution
 
  1. requested in model_aliases              -> alias target            route="alias"
  2. qualified = provider-qualify(requested)    (unchanged rule)
  3. model_resolver(qualified) is not None   -> that                    route="resolver"
  4. requested == "inspect"                  -> get_model()             route="inspect"
  5. pin set                                 -> D                       route="model"
- 6. forward_model_names and the stripped
-    name is in model_roles()                -> get_model(role=name)    route="role"
+ 6. allow_client_model_names and the
+    stripped name is in model_roles()       -> get_model(role=name)    route="role"
  7. qualified (inspect/ stripped) or requested
     names the active model                  -> active instance         route="active"
- 8. forward_model_names                     -> get_model(name)         route="passthrough"
+ 8. allow_client_model_names                -> get_model(name)         route="passthrough"
  9. otherwise                               -> get_model()             route="default"
 ```
 
 What changes relative to today: step 4 no longer depends on how the pin is
-spelled; steps 6 and 8 run only on opt-in; step 9 is new. Every other
+spelled; steps 6 and 8 run only for the in-process bridge; step 9 is new. Every other
 precedence is today's: alias and resolver beat the pin (util.py:639-663
 run before 669), the pin beats roles and the active-model match (669-672
 before 678 and 700), a role beats the active-model match (678-679 before
@@ -337,64 +338,55 @@ model without a warning, because the name denotes the active model.
 
 Active model `A`; role `grader`; pin target `D`. "warn" means the redirect
 warning below fires once per requested name; the warning is new wherever it
-appears, so the last column lists routing changes only.
+appears, so the last column lists routing changes only. The matrix is the
+sandbox bridge's routing; the in-process bridge keeps today's `model=None`
+routing (pass-through, below).
 
-| requested name | default (`model=None` or `"inspect"`) | pinned (`model="inspect/<spec>"` or `"<spec>"`) | pass-through (`forward_model_names=True`, no pin) | change from today: example, previous behaviour, who is affected |
-|---|---|---|---|---|
-| a name listed in `model_aliases` | the model it maps to | the model it maps to | the model it maps to | none |
-| a name the `model_resolver` returns a model for | the resolver's model | the resolver's model | the resolver's model | none |
-| `inspect` | `A` | `A` (**change**) | `A` | Only for a pin spelled without `inspect/`. Example: `model="openai/gpt-4o"` and the scaffold sends `inspect`: today `openai/gpt-4o`, now `A`. Affects bridges pinned without the prefix whose scaffold sends `inspect`: none in this repo or inspect_swe (ACP Gemini pins that way, but Gemini CLI never sends `inspect`). |
-| `A`'s full name, or its short name (bare, any endpoint) | `A` instance, no warning | `D`, warn (pin wins) | `A` instance | none in routing |
-| `inspect/<A's spec>` | `A` instance | `D`, warn | `A` instance | none in routing |
-| `grader` (a role) | `A`, warn (**change**) | `D`, warn | role `grader` | Unpinned bridges only. Example: `eval(..., model_roles={"grader": "openai/gpt-4o-mini"})`, `sandbox_agent_bridge(state)`, scaffold sends `grader`: today the grader model, now `A`. Affects unpinned bridges whose scaffold names a role: none found (inspect_swe's unpinned ACP agents send provider model ids). Fix: `model_aliases={"grader": get_model(role="grader")}` or `forward_model_names=True`. |
-| `inspect/grader` | `A`, warn (**change**) | `D`, warn | role `grader` | As the row above. |
-| `grader` when `A`'s short name is also `grader` | `A` instance, no warning (**change**) | `D`, warn | role `grader` | Default only: today the role wins over the active-model match; now roles are not reachable by default, so the name resolves as `A`'s own. Same population and fix as the `grader` row. |
-| `inspect/grader` when `A`'s short name is also `grader` | `A` instance, no warning (**change**) | `D`, warn | role `grader` | As the row above. |
-| `inspect/openai/gpt-4o-mini` | `A`, warn (**change**) | `D`, warn | `get_model("openai/gpt-4o-mini")` | Unpinned bridges only. Example: `sandbox_agent_bridge(state)`, scaffold sends `inspect/openai/gpt-4o-mini`: today Inspect's OpenAI provider on the host's `OPENAI_API_KEY`, now `A`. Affects unpinned sandbox bridges whose scaffold uses the `inspect/` form for another model: none in this repo (the docs example is in-process, unchanged). Fix: alias or `forward_model_names=True`. |
-| `gpt-4o-mini` on the OpenAI endpoint (any bare native name) | `A`, warn (**change**) | `D`, warn | `get_model("openai/gpt-4o-mini")` | Unpinned bridges only; the case this design exists for. Example: eval on `openai/gpt-5`, `sandbox_agent_bridge(state)`, Claude Code's background call sends `claude-haiku-4-5` on the Anthropic endpoint: today Inspect's Anthropic provider on the host's `ANTHROPIC_API_KEY`, now `A`. Affects inspect_swe's ACP Claude Code and Codex agents (`model=None`) and any direct `sandbox_agent_bridge()` caller without `model=`. Fix: alias the tier, pin, or `forward_model_names=True`. |
-| `unknown-model` with no endpoint provider | `A`, warn (**change**) | `D`, warn | `ValueError` from `get_model` | Resolver level only: every bridge dialect passes a provider, so no bridged request reaches this row. Direct callers of `resolve_inspect_model()` without a provider or pin: none (Kimi pins). |
-| pinned spec names `A` | n/a | `A` instance | n/a | none |
-| `forward_model_names=True` with a pin | n/a | `ValueError` at construction | n/a | New: the flag does not exist today. |
+| requested name | default (`model=None` or `"inspect"`) | pinned (`model="inspect/<spec>"` or `"<spec>"`) | change from today: example, previous behaviour, who is affected |
+|---|---|---|---|
+| a name listed in `model_aliases` | the model it maps to | the model it maps to | none |
+| a name the `model_resolver` returns a model for | the resolver's model | the resolver's model | none |
+| `inspect` | `A` | `A` (**change**) | Only for a pin spelled without `inspect/`. Example: `model="openai/gpt-4o"` and the scaffold sends `inspect`: today `openai/gpt-4o`, now `A`. Affects bridges pinned without the prefix whose scaffold sends `inspect`: none in this repo or inspect_swe (ACP Gemini pins that way, but Gemini CLI never sends `inspect`). |
+| `A`'s full name, or its short name (bare, any endpoint) | `A` instance, no warning | `D`, warn (pin wins) | none in routing |
+| `inspect/<A's spec>` | `A` instance | `D`, warn | none in routing |
+| `grader` (a role) | `A`, warn (**change**) | `D`, warn | Unpinned bridges only. Example: `eval(..., model_roles={"grader": "openai/gpt-4o-mini"})`, `sandbox_agent_bridge(state)`, scaffold sends `grader`: today the grader model, now `A`. Affects unpinned bridges whose scaffold names a role: none found (inspect_swe's unpinned ACP agents send provider model ids). Fix: `model_aliases={"grader": get_model(role="grader")}`. |
+| `inspect/grader` | `A`, warn (**change**) | `D`, warn | As the row above; the alias key is `"inspect/grader"`. |
+| `grader` when `A`'s short name is also `grader` | `A` instance, no warning (**change**) | `D`, warn | Default only: today the role wins over the active-model match; now roles are not reachable by default, so the name resolves as `A`'s own. Same population and fix as the `grader` row. |
+| `inspect/grader` when `A`'s short name is also `grader` | `A` instance, no warning (**change**) | `D`, warn | As the row above. |
+| `inspect/openai/gpt-4o-mini` | `A`, warn (**change**) | `D`, warn | Unpinned bridges only. Example: `sandbox_agent_bridge(state)`, scaffold sends `inspect/openai/gpt-4o-mini`: today Inspect's OpenAI provider on the host's `OPENAI_API_KEY`, now `A`. Affects unpinned sandbox bridges whose scaffold uses the `inspect/` form for another model: none in this repo (the docs example is in-process, unchanged). Fix: `model_aliases={"inspect/openai/gpt-4o-mini": "openai/gpt-4o-mini"}`. |
+| `gpt-4o-mini` on the OpenAI endpoint (any bare native name) | `A`, warn (**change**) | `D`, warn | Unpinned bridges only; the case this design exists for. Example: eval on `openai/gpt-5`, `sandbox_agent_bridge(state)`, Claude Code's background call sends `claude-haiku-4-5` on the Anthropic endpoint: today Inspect's Anthropic provider on the host's `ANTHROPIC_API_KEY`, now `A`. Affects inspect_swe's ACP Claude Code and Codex agents (`model=None`) and any direct `sandbox_agent_bridge()` caller without `model=`. Fix: alias the tier, or pin. |
+| `unknown-model` with no endpoint provider | `A`, warn (**change**) | `D`, warn | Resolver level only: every bridge dialect passes a provider, so no bridged request reaches this row. Direct callers of `resolve_inspect_model()` without a provider or pin: none (Kimi pins). |
+| pinned spec names `A` | n/a | `A` instance | none |
 
-### The opt-in: `forward_model_names`
+### Pass-through stays in-process only
+
+`AgentBridge.__init__` (types.py) gains one capability keyword next to
+`allow_remote_mcp` and `allow_remote_media`:
 
 ```python
-forward_model_names: bool = False
+allow_client_model_names: bool = False
 ```
 
-on `AgentBridge.__init__` (types.py), `SandboxAgentBridge.__init__`
-(`sandbox/types.py`) and `sandbox_agent_bridge()` (sandbox/bridge.py),
-documented next to `forward_generation_config`:
-
-> Honour the client's model name. Defaults to `False`: a name the bridge
-> does not recognise (not an alias, resolver result, `"inspect"`, or the
-> eval's model) is served by the eval's model, so a scaffold's sub-agent and
-> side calls stay on the model under evaluation. Set `True` for
-> faithful-proxy behaviour where the client's model name is authoritative:
-> an `inspect/<provider>/<model>` or bare name is resolved with
-> `get_model()` on the host's credentials and a model role name reaches
-> that role. Cannot be combined with `model=`.
-
-`AgentBridge.__init__` raises `ValueError("forward_model_names=True cannot
-be combined with model=...: the pin routes every unrecognised name to one
-model, pass-through routes each to the model it names")` when both are set.
-The two options describe contradictory routing, and silently letting one
-win would be exactly the kind of masked configuration this design removes.
-
-The in-process `agent_bridge()` constructs its `AgentBridge` with
-`forward_model_names=True` (bridge.py:180-190) and does not expose the
-option. Same reasoning as its `default_grant=True` for web search
+It enables steps 6 and 8 of the resolution order: a name the bridge does
+not otherwise recognise reaches the role or model it names. It defaults
+closed for the same reason `allow_remote_media` does (types.py:60-62): a
+bridge subclass cannot reopen the channel by accident. The in-process
+`agent_bridge()` constructs its `AgentBridge` with
+`allow_client_model_names=True` (bridge.py:180-190), as it passes
+`allow_remote_media=True` and `default_grant=True` for web search
 (bridge.py:168-174): the scaffold already runs with the host's credentials
 and can call any provider directly, so redirecting `inspect/<spec>` buys
 nothing and would break the documented LangChain example. Its behaviour is
 unchanged.
 
-Spelling: `forward_model_names` parallels `forward_generation_config`, the
-option it accompanies in the faithful-proxy configuration
-(`forward_generation_config=True, forward_model_names=True`). Alternatives
-considered: `model_passthrough` (reads well but the repo's bridge flags are
-verb-first), `route_unknown_models="passthrough"` (a string enum for a
-two-way choice).
+`SandboxAgentBridge` and `sandbox_agent_bridge()` do not take or pass it, so
+every sandbox bridge routes by the matrix above. A sandbox author who wants
+another model reached names it in `model_aliases`, whose keys are the exact
+strings the scaffold sends (the warning and `ModelEvent.requested_model`
+show them), or routes by policy with `model_resolver`. There is no public
+opt-in that restores open-ended pass-through; see Alternatives. The pin and
+the capability do not conflict: no caller sets both, and if one did the pin
+would win at step 5, as it wins over roles and the active match today.
 
 ### The redirect warning
 
@@ -409,8 +401,7 @@ Message for the default route:
 
 > Agent bridge routed a request for model 'claude-haiku-4-5' to the eval
 > model 'anthropic/claude-fable-5'. Add 'claude-haiku-4-5' to model_aliases
-> to route it to a model of your choice, or pass forward_model_names=True to
-> honour client model names.
+> to route it to a model of your choice.
 
 For the pinned route the second sentence is "Add ... to model_aliases to
 route it elsewhere; it was pinned by model='inspect/openai/gpt-4o'." When
@@ -553,7 +544,7 @@ field won (decision: Ransom, 2026-09-16).
 ```python
 BridgeModelRoute = Literal[
     "alias", "resolver", "inspect", "model", "active", "role", "passthrough", "default"
-]
+]  # "role" and "passthrough" only with allow_client_model_names
 
 class BridgeModelResolution(NamedTuple):
     model: Model
@@ -567,7 +558,7 @@ def resolve_bridge_model(
     model_aliases: dict[str, str | Model] | None,
     model_resolver: ModelResolver | None,
     model: str | None,
-    forward_model_names: bool,
+    allow_client_model_names: bool,
     provider: str = "",
 ) -> BridgeModelResolution: ...
 
@@ -578,42 +569,39 @@ def resolve_inspect_model(
     *,
     model_resolver: ModelResolver | None = None,
     provider: str = "",
-    forward_model_names: bool = False,
 ) -> Model:
-    """Compatibility wrapper: `resolve_bridge_model(...).model`."""
+    """Compatibility wrapper: `resolve_bridge_model(...,
+    allow_client_model_names=False).model`."""
 ```
 
 `resolve_inspect_model` stays because inspect_swe imports it
 (`_kimi_code/kimi_code.py:18, 525`); Kimi always passes a pin, so its result
-is unchanged.
+is unchanged. Its signature is unchanged too; tests of the in-process
+routing call `resolve_bridge_model` directly.
 
 `bridge_generate()` gains the `routing` keyword and fires the warning. A
 NamedTuple rather than a bare tuple per the repo's typed-returns rule.
 
 The four dialect functions (call sites in the table above) call
 `resolve_bridge_model(...)` with `bridge.model`, `bridge.model_aliases`,
-`bridge.model_resolver`, `bridge.forward_model_names` and their provider,
+`bridge.model_resolver`, `bridge.allow_client_model_names` and their provider,
 use `.model` where they used the `Model`, and pass `routing=` to
 `bridge_generate`.
 
-`src/inspect_ai/agent/_bridge/types.py`: `forward_model_names` parameter,
-attribute and docstring; the `ValueError` above; the `model` attribute
-docstring rewritten to the semantics in the matrix.
+`src/inspect_ai/agent/_bridge/types.py`: `allow_client_model_names`
+parameter and attribute, with the capability comment extended to cover it;
+the `model` attribute docstring rewritten to the semantics in the matrix.
 
-`src/inspect_ai/agent/_bridge/sandbox/types.py`: thread
-`forward_model_names` through `SandboxAgentBridge.__init__`.
-
-`src/inspect_ai/agent/_bridge/sandbox/bridge.py`: new parameter; `model`
-docstring rewritten:
+`src/inspect_ai/agent/_bridge/sandbox/bridge.py`: no new parameter; the
+`model` docstring rewritten:
 
 > Pin every request the bridge does not otherwise recognise to this model
 > (e.g. `"inspect/openai/gpt-4o"`; the `inspect/` prefix is optional).
 > Aliases, resolver results and the name `"inspect"` are not pinned.
 > Defaults to `None`, which routes unrecognised names to the eval's active
-> model (`"inspect"` means the same). Cannot be combined with
-> `forward_model_names=True`.
+> model (`"inspect"` means the same); map other names with `model_aliases`.
 
-`src/inspect_ai/agent/_bridge/bridge.py`: pass `forward_model_names=True`;
+`src/inspect_ai/agent/_bridge/bridge.py`: pass `allow_client_model_names=True`;
 add `_google_api_requested_model(path)` and pass its result as
 `requested_model=` from `patched_async_request`.
 
@@ -635,8 +623,12 @@ with the ts-mono pointer bump (`.agents/skills/land-ts-mono/SKILL.md`).
 `docs/agent-bridge.qmd`: the "Models" section (196-204) is rewritten to
 state the default, show the alias pattern for a scaffold's sub-agent tiers,
 and move the `inspect/<provider>/<model>` example under the in-process
-bridge with a note that the sandbox bridge needs `forward_model_names=True`
-for it:
+bridge with a note that the sandbox bridge serves such a name with the
+eval's model unless it is aliased. The migration paragraph says: map each
+name the scaffold sends that should reach another model; keys are the exact
+requested strings, which the warning and `requested_model` show; names for
+the eval's own model need no alias (the active-model match serves them with
+the eval's config, which an alias to a spec string would not):
 
 ```python
 async with sandbox_agent_bridge(
@@ -652,8 +644,7 @@ async with sandbox_agent_bridge(
 `CHANGELOG.md`, under `## Unreleased`: "Agent Bridge: `sandbox_agent_bridge()`
 now serves requests for model names it does not recognise with the eval's
 model instead of the provider the name implies, and records the requested
-name on the `ModelEvent`; pass `forward_model_names=True` to restore
-pass-through, or map names with `model_aliases`."
+name on the `ModelEvent`; map names to other models with `model_aliases`."
 
 ## Alternatives considered
 
@@ -684,12 +675,29 @@ routing part of the chosen design, spelled differently: under the new
 semantics `model="inspect"` and `model=None` are the same. Keeping `None` as
 the signature default keeps "not pinned" distinguishable in the code and
 docs, and the design adds what a bare default change would not: the
-pass-through opt-in, the warning and the log record.
+warning and the log record.
 
 **Honour `inspect/`-prefixed names by default and redirect only bare
 names.** The prefix is the scaffold's spelling, not the eval author's
 intent, and it keeps roles reachable via `inspect/grader`. It is the right
 behaviour for the in-process bridge, where it stays.
+
+**A public pass-through opt-in (`forward_model_names=True`).** Earlier
+revisions added this flag to `sandbox_agent_bridge()` to restore today's
+routing for a faithful proxy, where the client's model name is
+authoritative. Left out because no known caller needs it: the unpinned
+bridges this design affects (inspect_swe's ACP Claude Code and Codex
+agents) want their side calls on the eval model, and a scaffold that should
+reach specific other models names them in `model_aliases`. The flag also
+needed a rule against combining it with a pin. Adding it later breaks
+nothing; removing it would. Open-ended pass-through on the sandbox bridge is
+therefore unsupported. A `model_resolver` can approximate it, but the
+resolver receives the provider-qualified name before the `"inspect"`,
+`inspect/`-prefix, role and active-model steps, so `lambda name:
+get_model(name)` is not equivalent: it raises on `"inspect"`,
+`inspect/<spec>` and role names, and returns a separate instance for the
+eval's own model without the eval's config. Decision: Ransom, 2026-09-25,
+after review.
 
 **Record the requested name in `ModelEvent.metadata`.** The first draft of
 this design. No schema, OpenAPI or TypeScript change and old logs untouched,
@@ -719,11 +727,11 @@ agent runs a model other than the eval's active model and wants unknown
 names to collapse onto *its* model, it pins `model=str(model)` as the ACP
 Gemini agent already does (`acp/_agents/gemini_cli/gemini_cli.py:70-76`).
 That is a one-line follow-up in inspect_swe, not a prerequisite. Anyone else
-who wants the old behaviour passes `forward_model_names=True`. The
-CHANGELOG entry and the docs section carry the change.
+who relied on a name reaching its own model aliases that name; the warning
+names each one. The CHANGELOG entry and the docs section carry the change.
 
 **Model roles.** Unreachable by name from a sandbox by default. To expose
-one: `model_aliases={"grader": get_model(role="grader")}`, or pass-through.
+one: `model_aliases={"grader": get_model(role="grader")}`.
 Pinned bridges already had this behaviour (table row `grader` /
 `fallback_model="inspect"`).
 
@@ -744,18 +752,19 @@ aliases first, then resolver, then pin, then active match. The active match
 still runs before the new default rule, so a client naming the eval's model
 gets the active instance (and its eval config) without a warning.
 
-**`resolve_inspect_model()`.** Signature preserved with one added keyword;
-its default now follows the new routing. Its only external caller (Kimi)
+**`resolve_inspect_model()`.** Signature unchanged; its default now
+follows the new routing. Its only external caller (Kimi)
 pins and is unaffected. Its tests in `tests/agent/test_bridge_model_aliases.py`
 and `test_bridge_model_resolver.py` change where they asserted pass-through
 (`test_resolve_inspect_model_prefixed`,
 `test_no_resolver_no_fallback_resolves_via_get_model_with_provider`,
 `test_other_model_does_not_get_the_eval_config` in
-`test_bridge_generate_config_propagation.py`); each gains a pass-through
-variant.
+`test_bridge_generate_config_propagation.py`); each keeps its pass-through
+expectation as an in-process variant that calls `resolve_bridge_model` with
+`allow_client_model_names=True`.
 
 **In-process `agent_bridge()`.** Shares the resolver and the dialect
-functions; constructed with pass-through on, so its routing is unchanged
+functions; constructed with `allow_client_model_names=True`, so its routing is unchanged
 and the LangChain `inspect/google/...` example keeps working. Its
 `ModelEvent`s gain `requested_model` (`"inspect"` or the `inspect/` name),
 on the Google path taken from the SDK URL rather than the body (see
@@ -780,8 +789,15 @@ names and is unaffected. inspect_scout consumes `ModelEvent` through
 and gains an optional attribute it can ignore. The `inspect_sandbox_tools`
 binaries are untouched. Round-trip coverage is under Testing.
 
-**Public API.** `sandbox_agent_bridge()`, `AgentBridge` and
-`SandboxAgentBridge` gain one keyword argument with a default. `ModelResolver`
+**Public API.** `sandbox_agent_bridge()` and `SandboxAgentBridge` keep
+their signatures. `AgentBridge` gains `allow_client_model_names`, a
+capability keyword beside `allow_remote_mcp` and `allow_remote_media`,
+closed by default and set only by `agent_bridge()`. Code that constructs
+`AgentBridge` directly gets the sandbox routing unless it passes the
+keyword; outside `agent_bridge()` and `SandboxAgentBridge` there is no
+such constructor in this repo, inspect_swe or inspect_evals (the
+`PatchConfig` default at bridge.py:217-219 is used only while the patch is
+disabled). `ModelResolver`
 is unchanged. `ModelEvent` gains one optional field. The `requested_model()`
 context manager and `resolve_bridge_model` are internal.
 
@@ -797,9 +813,9 @@ receives it today), string comparison against the active model's names, the
 warning message (escaped with `repr()`, truncated, deduped with a capped
 set) and `ModelEvent.requested_model` (stored verbatim, as the rest of the
 request body already is in the bridge's tracked messages). `get_model()`,
-`model_roles()` and provider construction see it only under
-`forward_model_names=True`, which restores today's exposure by explicit
-choice. Nothing in the design executes, formats into a template, or opens a
+`model_roles()` and provider construction see it only on the in-process
+bridge (`allow_client_model_names=True`), whose scaffold already holds the
+host's credentials; no sandbox bridge option reopens that path. Nothing in the design executes, formats into a template, or opens a
 file based on the name.
 
 ## Testing
@@ -808,21 +824,23 @@ Unit, `tests/agent/test_bridge_model_resolver.py` (existing file; the
 matrix replaces the ad-hoc default-route tests):
 
 - `test_routing_matrix`: `@pytest.mark.parametrize` over the rows of the
-  matrix above, each row `(requested, provider, model, forward_model_names,
-  expected)` where `expected` is one of `active`, `alias`, `resolver`,
-  `role:grader`, `pin`, `spec:<name>`, `error`, plus the expected `route`
-  and `redirected`. Active model and role set with `init_active_model` /
+  matrix above, each row `(requested, provider, model, expected)` where
+  `expected` is one of `active`, `alias`, `resolver`, `pin`, plus the
+  expected `route` and `redirected`. Active model and role set with `init_active_model` /
   `init_model_roles` under the `_isolate_active_model` fixture pattern from
   `tests/agent/test_bridge_generate_config_propagation.py:35-53`. Pins and
-  pass-through targets use `mockllm/...` specs so no provider key is
-  needed.
+  alias targets use `mockllm/...` specs so no provider key is needed.
+- `test_in_process_routing_unchanged`: the same names with
+  `allow_client_model_names=True` resolve as today (role, `get_model(name)`
+  on a `mockllm/...` spec, active instance), covering steps 6 and 8.
 - The existing regressions stay as named tests:
   `test_bare_name_matches_active_model_under_different_provider`,
   `test_fallback_model_wins_over_active_model_raw_name_match`, alias before
   resolver, resolver `None` defers.
 - `test_pin_spec_naming_active_model_returns_active_instance`.
-- `test_forward_model_names_with_pin_raises` (construction of
-  `AgentBridge` and of `SandboxAgentBridge`).
+- `test_client_model_names_closed_by_default`: `AgentBridge` and
+  `SandboxAgentBridge` default to `allow_client_model_names=False`;
+  `agent_bridge()` sets it.
 
 Warning, same file, with `caplog`:
 
@@ -873,8 +891,9 @@ bridge)` directly. The dialect functions do not touch the sandbox, so this
 covers dialect → resolver → `bridge_generate` → `ModelEvent`. Asserts: the
 response came from `mockllm/model`, and the log's `ModelEvent` has
 `model == "mockllm/model"` and `requested_model == "gpt-4o-mini"`; a second
-test with `forward_model_names=True` and `"model": "mockllm/other"` is
-served by `mockllm/other` with `requested_model == "mockllm/other"`. Repeat
+test builds `AgentBridge(..., allow_client_model_names=True)`, as
+`agent_bridge()` does, and sends `"model": "inspect/mockllm/other"`, served
+by `mockllm/other` with `requested_model == "inspect/mockllm/other"`. Repeat
 one redirected case for the Anthropic and Google dialect functions.
 `test_bridge_filter_generated_event_records_requested_name`: the bridge has
 a `GenerateFilter` that calls `model.generate()` itself and returns that
@@ -932,9 +951,8 @@ an implementer can land in order:
    coordinated ts-mono landing rather than a Python-only change.
 3. **Resolver.** `BridgeModelRoute`, `BridgeModelResolution`,
    `resolve_bridge_model`, the wrapper and the warning in
-   `src/inspect_ai/agent/_bridge/util.py`; `forward_model_names` on
-   `AgentBridge` (`types.py`) with the `ValueError`; `SandboxAgentBridge`
-   threading (`sandbox/types.py`); `agent_bridge()` passes `True`
+   `src/inspect_ai/agent/_bridge/util.py`; `allow_client_model_names` on
+   `AgentBridge` (`types.py`); `agent_bridge()` passes `True`
    (`bridge.py`). Rewrite `tests/agent/test_bridge_model_resolver.py` with
    the matrix and warning tests; adjust the three pass-through assertions
    named under Compatibility.
@@ -943,8 +961,8 @@ an implementer can land in order:
    and pass `routing=` to `bridge_generate`; `bridge_generate` sets the
    requested name. Add the no-Docker end-to-end tests to
    `tests/agent/test_agent_bridge.py`.
-5. **Sandbox surface and Docker test.** `sandbox_agent_bridge()` parameter
-   and docstrings (`sandbox/bridge.py`); the Docker test in
+5. **Sandbox surface and Docker test.** `sandbox_agent_bridge()`
+   docstrings (`sandbox/bridge.py`); the Docker test in
    `tests/tools/test_tools_bridge.py`.
 6. **Docs and CHANGELOG.** `docs/agent-bridge.qmd` Models section and the
    alias example; the `## Unreleased` entry.
@@ -963,9 +981,6 @@ from the eval's, matching its ACP Gemini agent.
    Recommendation: keep it; it is one line per process per name and
    inspect_swe can alias the presented name to silence it, as Claude Code
    does.
-2. **Flag spelling.** `forward_model_names` as proposed, or
-   `model_passthrough`. Recommendation: `forward_model_names`, for the
-   pairing with `forward_generation_config`.
 
 ## Not this design
 
