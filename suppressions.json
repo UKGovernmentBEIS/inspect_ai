@@ -616,12 +616,6 @@
       "undescribed": 2
     }
   },
-  "src/inspect_ai/log/_recorders/file.py": {
-    "noqa:F841": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "src/inspect_ai/log/_recorders/json.py": {
     "type: ignore": {
       "count": 2,

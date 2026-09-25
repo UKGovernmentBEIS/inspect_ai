@@ -40,10 +40,11 @@ jobs:
         run: python3 .github/scripts/check_suppressions.py
 
       # --noconftest / addopts="": the gate test is self-contained; skip
-      # tests/conftest.py (imports boto3/moto) and the xdist addopts so a
-      # bare pytest install suffices.
+      # tests/conftest.py (imports boto3/moto) and the xdist addopts so
+      # pytest plus markdown-it-py (which the delta-comment tests render
+      # with) suffices, with no project install.
       - name: Test the gate script
         run: |
-          python3 -m pip install --quiet pytest
+          python3 -m pip install --quiet pytest "markdown-it-py>=2.2.0"
           python3 -m pytest --noconftest -o addopts="" -q tests/test_check_suppressions.py
 
