@@ -14,5 +14,7 @@ If the provider you are using is not listed above, you may still be able to use 
 
 2. It is available via OpenRouter (see the docs on using [OpenRouter](providers.qmd#openrouter) with Inspect).
 
+3. It is served by a LiteLLM proxy (see the docs on using a [LiteLLM Proxy](providers.qmd#litellm-proxy) with Inspect).
+
 
 You can also create [Model API Extensions](extensions-model-api.qmd#model-apis) to add model providers using their native interface.
