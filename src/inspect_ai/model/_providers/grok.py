@@ -546,7 +546,11 @@ class GrokAPI(ModelAPI):
 
     def _handle_grpc_permission_denied(self, ex: grpc.RpcError) -> ModelOutput | None:
         details = ex.details() or ""
-        if "safety_check" in details.lower():
+        normalized_details = details.casefold()
+        if (
+            "safety_check" in normalized_details
+            or "can't help with that request" in normalized_details
+        ):
             return ModelOutput.from_content(
                 model=self.model_name,
                 content=details,
