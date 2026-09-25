@@ -160,10 +160,16 @@ class Dataset(Sequence[Sample], abc.ABC):
     @abc.abstractmethod
     def shuffled(self) -> bool: ...
 
+    # concrete and settable (not abstract) so existing subclasses, including
+    # ones that assign `self.revision` themselves, keep working
     @property
     def revision(self) -> str | None:
         """Dataset revision (e.g. a Hugging Face commit SHA, branch, or tag)."""
-        return None
+        return getattr(self, "_revision", None)
+
+    @revision.setter
+    def revision(self, revision: str | None) -> None:
+        self._revision = revision
 
     @overload
     def __getitem__(self, index: int) -> Sample: ...
@@ -305,12 +311,6 @@ class MemoryDataset(Dataset):
     def shuffled(self) -> bool:
         """Was the dataset shuffled."""
         return self._shuffled
-
-    @override
-    @property
-    def revision(self) -> str | None:
-        """Dataset revision."""
-        return self._revision
 
     @overload
     def __getitem__(self, index: int) -> Sample: ...

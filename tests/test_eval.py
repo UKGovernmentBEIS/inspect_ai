@@ -118,6 +118,18 @@ def test_eval_dataset_revision_backwards_compatible(tmp_path: Path) -> None:
     assert log.status == "success"
     assert log.eval.dataset.revision is None
 
+    # subclasses that assign their own `revision` attribute
+    dataset.revision = "v2"
+    log = eval(Task(dataset=dataset), model="mockllm/model", log_dir=str(tmp_path))[0]
+    assert log.eval.dataset.revision == "v2"
+
+    class _AssigningMemoryDataset(MemoryDataset):
+        def __init__(self, samples: list[Sample], revision: str) -> None:
+            super().__init__(samples)
+            self.revision = revision
+
+    assert _AssigningMemoryDataset([Sample(input="s1")], "v3").revision == "v3"
+
     # logs written before the field existed
     assert EvalDataset.model_validate({"name": "ds", "samples": 1}).revision is None
 
