@@ -9,6 +9,7 @@ active session).
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -25,11 +26,13 @@ import pytest
 from pydantic import JsonValue
 from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
 
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import Transcript, expand_events
 from inspect_ai.log._transcript import init_transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
@@ -2700,6 +2703,139 @@ async def test_materialize_pooled_model_event_expands_seed_payload(
     assert seeded_model.call is not None
     assert seeded_model.call.call_refs is None
     assert seeded_model.call.request == call_request
+
+
+async def test_resume_delivers_restored_events_with_attachments_resolved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Restored events reach subscribers and resident readers resolved.
+
+    The checkpoint stores long text and images as ``attachment://`` refs.
+    Transcript subscribers (the sample buffer, hooks, the ACP router) and
+    readers of the resident events must see the content, as they do for
+    live events, except the model call, which stays condensed; the next
+    checkpoint must still hold it.
+    """
+    from types import SimpleNamespace
+
+    from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
+    from inspect_ai.agent._acp.transport_live import LiveAcpTransport
+    from inspect_ai.event._pool import materialize_pooled_events
+    from inspect_ai.log._condense import resolve_events_attachments
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint.hydrate import _load_host_state, _push_host_state
+
+    prompt = "restored prompt " * 20
+    answer = "restored answer " * 20
+    command = "echo restored " * 20
+    image = "data:image/png;base64," + base64.b64encode(bytes(range(256))).decode()
+    call_request: dict[str, JsonValue] = {
+        "messages": [{"role": "user", "content": prompt}]
+    }
+    model = make_model_event(
+        [
+            ChatMessageUser(
+                content=[ContentText(text=prompt), ContentImage(image=image)]
+            )
+        ],
+        uuid="model-1",
+        content=answer,
+        call=ModelCall.create(call_request, None),
+    )
+    tool = ToolEvent(
+        uuid="tool-1",
+        id="call-1",
+        function="bash",
+        arguments={"cmd": command},
+        result="ok",
+    )
+
+    # the first attempt commits checkpoint 1 holding both events
+    sample_root = tmp_path / "sample"
+    context_dir = sample_root / "context"
+    context_dir.mkdir(parents=True)
+    first_attempt: list[Event] = [
+        SpanBeginEvent(id="checkpoint-1", name="checkpoint 1", type="checkpoint"),
+        model,
+        tool,
+        SpanEndEvent(id="checkpoint-1"),
+    ]
+    writer = _make_cp()
+    for event in first_attempt:
+        writer._track_transcript_event(event)
+    await writer._write_host_context(str(context_dir), Store())
+    writer.close()
+    _write_checkpoint_files(sample_root, 1)
+    stored = (context_dir / "events.json").read_text()
+    assert command not in stored and "attachment://" in stored
+
+    # the resume pushes it into a transcript with live subscribers
+    live = Transcript(bounded=False)
+    init_transcript(live)
+    delivered: list[Event] = []
+    live._subscribe(delivered.append)
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    published: list[Any] = []
+    monkeypatch.setattr(session, "publish", published.append)
+    _AcpEventRouter(session).attach()
+
+    host = _load_host_state(str(context_dir), str(sample_root), 1, None)
+    with patch(
+        "inspect_ai.util._checkpoint.hydrate.sample_state",
+        return_value=SimpleNamespace(store=Store()),
+    ):
+        _push_host_state(host, str(sample_root), 1)
+
+    subscribed = "".join(event.model_dump_json(exclude={"call"}) for event in delivered)
+    assert "attachment://" not in subscribed
+    for content in (prompt, answer, command, image):
+        assert content in subscribed
+    delivered_model = next(e for e in delivered if isinstance(e, ModelEvent))
+    assert delivered_model.call is not None
+    call_content = str(delivered_model.call.request["messages"])
+    assert prompt not in call_content and "attachment://" in call_content
+
+    acp = "".join(notification.model_dump_json() for notification in published)
+    assert "attachment://" not in acp
+    assert answer in acp and command in acp
+
+    resident_model = next(e for e in live.events if isinstance(e, ModelEvent))
+    assert resident_model.input[0].content == [
+        ContentText(text=prompt),
+        ContentImage(image=image),
+    ]
+    assert resident_model.output.completion == answer
+    resident_tool = next(e for e in live.events if isinstance(e, ToolEvent))
+    assert resident_tool.arguments == {"cmd": command}
+
+    # the next checkpoint still holds the restored content
+    hydration = _fake_hydration(str(sample_root), str(tmp_path / "resumed-state"))
+    hydration.host = host
+    resumed = _EnteredCheckpointer(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        hydration=hydration,
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
+        reset_transcript_store=True,
+    )
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    await resumed._write_host_context(str(snapshot), Store())
+    resumed.close()
+    next_context = host_context.read(str(snapshot))
+    next_events = resolve_events_attachments(
+        materialize_pooled_events(
+            next_context.condensed_events,
+            next_context.msg_pool,
+            next_context.call_pool,
+        ),
+        next_context.attachments,
+        "full",
+    )
+    next_json = "".join(event.model_dump_json() for event in next_events)
+    assert "attachment://" not in next_json
+    for content in (prompt, answer, command, image):
+        assert content in next_json
 
 
 def test_resume_report_defaults_and_coercion() -> None:
