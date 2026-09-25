@@ -14,6 +14,7 @@ no raw bytes for streamed responses. Send an `x-litellm-call-id` header with a
 request to find its records with `upstream_exchange()`.
 """
 
+import functools
 import json
 import os
 import shutil
@@ -111,6 +112,7 @@ def isolate_model_info(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(litellm_proxy, "_registrations", {})
 
 
+@functools.cache
 def litellm_proxy_image_available() -> bool:
     if shutil.which("docker") is None:
         return False

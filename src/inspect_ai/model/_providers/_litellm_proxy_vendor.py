@@ -23,6 +23,17 @@ _LITELLM_PROVIDERS: dict[Vendor, str] = {
     "grok": "xai",
 }
 
+VENDOR_NAMES: dict[Vendor, str] = {
+    "anthropic": "Anthropic",
+    "openai": "OpenAI",
+    "google": "Google",
+    "grok": "xAI",
+}
+"""Display names, for messages."""
+
+# gpt-oss is OpenAI's open-weights family, served by many providers; unlike
+# the org rules for database matching (`_litellm_proxy_names.NAME_ORGS`), it
+# is not the OpenAI vendor here (no OpenAI frontier suggestion for it)
 _OPENAI_MODEL = re.compile(r"(^|[/.])(gpt-(?!oss)|o\d|chatgpt|codex)")
 
 

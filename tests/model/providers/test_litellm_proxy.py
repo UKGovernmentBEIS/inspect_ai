@@ -1,11 +1,10 @@
 """Tests for the LiteLLM proxy provider.
 
-Most run against a local LiteLLM proxy in Docker. The proxy runs from a locally
-available image with a mock-response config, so these tests need no network
-access or provider keys (see `test_helpers.litellm_proxy.proxy`). The
-reasoning conversion tests below need no proxy; round trips through a proxy
-are in `test_litellm_proxy_reasoning.py`. The model info fetch tests use a
-local stub server.
+Most are unit tests or use a local stub server for the proxy's model info
+listing. Those marked `skip_if_no_litellm_proxy` run against a local LiteLLM
+proxy in Docker, from a locally available image with fake upstreams, so they
+need no network access or provider keys (see `test_helpers.litellm_proxy.proxy`).
+Reasoning round trips through a proxy are in `test_litellm_proxy_reasoning.py`.
 """
 
 import json
@@ -70,6 +69,7 @@ from inspect_ai.model._providers import (
     _litellm_proxy_names,
 )
 from inspect_ai.model._providers import litellm_proxy as litellm_proxy_module
+from inspect_ai.model._providers._first_party import FRONTIER_MODELS
 from inspect_ai.model._providers._litellm_proxy_caching import (
     cache_write_ttl,
     with_cache_breakpoints,
@@ -92,6 +92,7 @@ from inspect_ai.model._providers._litellm_proxy_reasoning_effort import (
     rejected_effort,
 )
 from inspect_ai.model._providers._litellm_proxy_vendor import (
+    Vendor,
     frontier_base_model,
     upstream_vendor,
 )
@@ -204,7 +205,7 @@ def clear_model_info_cache() -> Iterator[None]:
 def test_litellm_proxy_fetches_model_info(
     litellm_proxy: LiteLLMProxy, clear_model_info_cache: None
 ) -> None:
-    [deployment] = _proxy_api(_proxy_model(litellm_proxy)).proxy_deployments() or []
+    [deployment] = _proxy_api(_proxy_model(litellm_proxy))._deployments or []
     assert deployment.model_name == MOCK_MODEL
     assert deployment.model == f"openai/{MOCK_MODEL}"
     assert deployment.model_info["max_input_tokens"] == 200000
@@ -220,7 +221,7 @@ def test_litellm_proxy_fetches_model_info_without_v1(
         base_url=litellm_proxy.base_url.removesuffix("/v1"),
         api_key=litellm_proxy.api_key,
     )
-    [deployment] = _proxy_api(model).proxy_deployments() or []
+    [deployment] = _proxy_api(model)._deployments or []
     assert deployment.model_name == MOCK_MODEL
 
 
@@ -365,7 +366,7 @@ def test_model_info_deployments_for_alias(model_info_stub: ModelInfoStub) -> Non
     provider = _stub_provider(
         model_info_stub, default_headers={"x-gateway-token": "gateway"}
     )
-    assert provider.proxy_deployments() == [
+    assert provider._deployments == [
         ProxyDeployment(
             model_name="claude",
             model="anthropic/claude-sonnet-4-5",
@@ -395,7 +396,7 @@ def test_model_info_alias_not_listed(model_info_stub: ModelInfoStub) -> None:
     provider = _stub_provider(
         model_info_stub, alias="missing", require_model_info=False
     )
-    assert provider.proxy_deployments() == []
+    assert provider._deployments == []
 
 
 @skip_if_no_openai_package
@@ -411,9 +412,9 @@ def test_model_info_cached_per_base_url_and_key(
 
 @skip_if_no_openai_package
 def test_model_info_fetch_skipped(model_info_stub: ModelInfoStub) -> None:
-    assert _stub_provider(model_info_stub, model_info=False).proxy_deployments() is None
+    assert _stub_provider(model_info_stub, model_info=False)._deployments is None
     placeholder = _stub_provider(model_info_stub, api_key=MODEL_INFO_LOOKUP_API_KEY)
-    assert placeholder.proxy_deployments() is None
+    assert placeholder._deployments is None
     assert model_info_stub.requests == []
 
 
@@ -431,7 +432,7 @@ def test_model_info_base_url_alias(
     monkeypatch.setenv(LITELLM_PROXY_API_BASE, model_info_stub.url)
     provider = _proxy_api(get_model("litellm-proxy/claude", api_key="sk-stub"))
     assert provider.base_url == model_info_stub.url
-    assert len(provider.proxy_deployments() or []) == 2
+    assert len(provider._deployments or []) == 2
 
 
 @pytest.mark.parametrize(
@@ -1150,6 +1151,39 @@ def test_registers_proxy_only_model(model_info_stub: ModelInfoStub) -> None:
 
 
 @skip_if_no_openai_package
+def test_same_alias_on_two_proxies_warns(
+    model_info_stub: ModelInfoStub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    _serve(model_info_stub, [_row("big", "anthropic/claude-opus-4-5")])
+    _stub_model(model_info_stub, "big", memoize=False)
+    # the same server under another URL stands in for a second proxy
+    other_url = model_info_stub.url.replace("127.0.0.1", "localhost")
+    _serve(model_info_stub, [_row("big", "anthropic/claude-haiku-4-5")])
+    _stub_model(model_info_stub, "big", base_url=other_url, memoize=False)
+    assert len(warnings) == 1
+    assert "served by more than one proxy" in warnings[0]
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("other_host", ["127.0.0.1", "localhost"])
+def test_same_alias_same_info_does_not_warn(
+    model_info_stub: ModelInfoStub, monkeypatch: pytest.MonkeyPatch, other_host: str
+) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    _serve(model_info_stub, [_row("big", "anthropic/claude-opus-4-5")])
+    _stub_model(model_info_stub, "big", memoize=False)
+    # the same proxy again, or another URL listing the same deployment
+    other_url = model_info_stub.url.replace("127.0.0.1", other_host)
+    _stub_model(model_info_stub, "big", base_url=other_url, memoize=False)
+    assert warnings == []
+
+
+@skip_if_no_openai_package
 def test_user_registration_fields_win(model_info_stub: ModelInfoStub) -> None:
     _serve(model_info_stub, [_row("claude", "anthropic/claude-sonnet-4-5", **PRICES)])
     set_model_info("litellm-proxy/claude", ModelInfo(output_tokens=1000))
@@ -1859,11 +1893,23 @@ def test_upstream_vendor(names: list[str | None], vendor: str | None) -> None:
     assert upstream_vendor(names) == vendor
 
 
-def test_frontier_base_model() -> None:
-    assert frontier_base_model("anthropic") == "anthropic/claude-opus-5-5"
-    assert frontier_base_model("openai") == "openai/gpt-6-astra"
-    assert frontier_base_model("google") == "gemini/gemini-3.8-flash"
-    assert frontier_base_model("grok") == "xai/grok-4.7"
+def _frontier_model(vendor: str) -> str:
+    return FRONTIER_MODELS[vendor].split("/", 1)[1]
+
+
+@pytest.mark.parametrize(
+    "vendor,litellm_provider",
+    [
+        ("anthropic", "anthropic"),
+        ("openai", "openai"),
+        ("google", "gemini"),
+        ("grok", "xai"),
+    ],
+)
+def test_frontier_base_model(vendor: Vendor, litellm_provider: str) -> None:
+    assert frontier_base_model(vendor) == (
+        f"{litellm_provider}/{_frontier_model(vendor)}"
+    )
 
 
 def _cached(block: dict[str, Any]) -> bool:
@@ -1950,15 +1996,40 @@ def _alias_provider(alias: str, **model_args: Any) -> LiteLLMProxyAPI:
     "config,max_tokens",
     [
         (GenerateConfig(), 32000),
+        (GenerateConfig(reasoning_effort="none"), 32000),
+        (GenerateConfig(reasoning_effort="minimal"), 36096),
         (GenerateConfig(reasoning_effort="low"), 36096),
         (GenerateConfig(reasoning_effort="high"), 48000),
         (GenerateConfig(reasoning_effort="xhigh"), 64000),
         (GenerateConfig(reasoning_effort="max"), 64000),
-        (GenerateConfig(reasoning_tokens=8000), 40000),
+        # not sent through the proxy, so no room is made for it
+        (GenerateConfig(reasoning_tokens=8000), 32000),
     ],
 )
 def test_claude_max_tokens(config: GenerateConfig, max_tokens: int) -> None:
     assert _alias_provider("claude-metis").max_tokens_for_config(config) == max_tokens
+
+
+@skip_if_no_openai_package
+async def test_reasoning_tokens_warns(monkeypatch: pytest.MonkeyPatch) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+
+    async def generate(self: Any, *args: Any) -> ModelOutput:
+        return ModelOutput.from_content("claude", "Hi")
+
+    monkeypatch.setattr(OpenAICompatibleAPI, "generate", generate)
+    api = _alias_provider("claude-metis")
+    for _ in range(2):
+        await api.generate(
+            [ChatMessageUser(content="Hi")],
+            [],
+            "none",
+            GenerateConfig(reasoning_tokens=8000),
+        )
+    assert len(warnings) == 1
+    assert "so it is ignored" in warnings[0]
 
 
 @skip_if_no_openai_package
@@ -2032,21 +2103,19 @@ def test_env_var_fallbacks(
 
 @skip_if_no_openai_package
 @pytest.mark.parametrize(
-    "upstream,base_model",
+    "upstream,vendor",
     [
-        ("anthropic/claude-metis-v1", "anthropic/claude-opus-5-5"),
-        (
-            "bedrock/converse/us.anthropic.claude-metis-v1:0",
-            "anthropic/claude-opus-5-5",
-        ),
-        ("openai/gpt-7-preview", "openai/gpt-6-astra"),
-        ("gemini/gemini-4-pro", "gemini/gemini-3.8-flash"),
-        ("xai/mimas", "xai/grok-4.7"),
+        ("anthropic/claude-metis-v1", "anthropic"),
+        ("bedrock/converse/us.anthropic.claude-metis-v1:0", "anthropic"),
+        ("openai/gpt-7-preview", "openai"),
+        ("gemini/gemini-4-pro", "google"),
+        ("xai/mimas", "grok"),
     ],
 )
 def test_gate_suggests_frontier_base_model(
-    model_info_stub: ModelInfoStub, upstream: str, base_model: str
+    model_info_stub: ModelInfoStub, upstream: str, vendor: Vendor
 ) -> None:
+    base_model = frontier_base_model(vendor)
     _serve(model_info_stub, [_row("next", upstream)])
     with pytest.raises(PrerequisiteError) as ex:
         _stub_model(model_info_stub, "next")

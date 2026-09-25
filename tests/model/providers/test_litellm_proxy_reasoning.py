@@ -23,6 +23,7 @@ from test_helpers.litellm_proxy.artifacts import (
     check_reasoning_content_replay,
 )
 from test_helpers.litellm_proxy.proxy import (
+    CALL_ID_HEADER,
     LiteLLMProxy,
     UpstreamExchange,
     isolate_model_info,
@@ -51,8 +52,6 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.tool import Tool, tool
-
-CALL_ID = "x-litellm-call-id"
 
 
 @pytest.fixture(autouse=True)
@@ -378,7 +377,9 @@ async def _generate(
     assert proxy.capture_dir is not None
     call_id = f"inspect-{uuid.uuid4().hex}"
     output = await model.generate(
-        messages, config=GenerateConfig(extra_headers={CALL_ID: call_id}), **kwargs
+        messages,
+        config=GenerateConfig(extra_headers={CALL_ID_HEADER: call_id}),
+        **kwargs,
     )
     return output, upstream_exchange(proxy.capture_dir, call_id)
 

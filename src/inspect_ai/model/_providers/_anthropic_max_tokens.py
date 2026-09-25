@@ -19,3 +19,14 @@ ANTHROPIC_EFFORT_MAX_TOKENS = {
 
 ANTHROPIC_HIGH_EFFORT_MAX_TOKENS = 64000
 """Minimum max_tokens at xhigh/max effort (Anthropic's migration guide)."""
+
+
+def anthropic_effort_max_tokens(effort: str | None) -> int:
+    """Tokens added to the default max_tokens for thinking at `effort`.
+
+    Takes Inspect's `reasoning_effort` values: `minimal` counts as `low`, and
+    `none` (or no effort) adds nothing.
+    """
+    if effort == "minimal":
+        effort = "low"
+    return ANTHROPIC_EFFORT_MAX_TOKENS.get(effort or "", 0)

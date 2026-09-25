@@ -42,9 +42,9 @@ from .._openai import (
     openai_refusal_model_output,
 )
 from ._anthropic_max_tokens import (
-    ANTHROPIC_EFFORT_MAX_TOKENS,
     ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
     ANTHROPIC_MAX_TOKENS,
+    anthropic_effort_max_tokens,
 )
 from ._litellm_proxy_caching import (
     cache_write_ttl,
@@ -66,7 +66,12 @@ from ._litellm_proxy_reasoning import (
     without_thinking_block_deltas,
 )
 from ._litellm_proxy_reasoning_effort import next_effort, rejected_effort
-from ._litellm_proxy_vendor import Vendor, frontier_base_model, upstream_vendor
+from ._litellm_proxy_vendor import (
+    VENDOR_NAMES,
+    Vendor,
+    frontier_base_model,
+    upstream_vendor,
+)
 from .openai_compatible import ModelInfo as CompatibleModelInfo
 from .openai_compatible import OpenAICompatibleAPI
 from .util import environment_prerequisite_error, model_base_url
@@ -75,11 +80,11 @@ logger = getLogger(__name__)
 
 LITELLM_PROXY_API_KEY = "LITELLM_PROXY_API_KEY"
 LITELLM_PROXY_BASE_URL = "LITELLM_PROXY_BASE_URL"
+# base URL variable used by LiteLLM's own SDK; accepted as an alias
 LITELLM_PROXY_API_BASE = "LITELLM_PROXY_API_BASE"
-"""Base URL variable used by LiteLLM's own SDK; accepted as an alias."""
+# shorter names, accepted when the `LITELLM_PROXY_` ones are unset
 LITELLM_API_KEY = "LITELLM_API_KEY"
 LITELLM_BASE_URL = "LITELLM_BASE_URL"
-"""Shorter names, accepted when the `LITELLM_PROXY_` ones are unset."""
 
 
 _cache_prompt: ContextVar[bool] = ContextVar(
@@ -103,6 +108,9 @@ class _Registration(NamedTuple):
 
     registered: ModelInfo
     """What this provider registered."""
+
+    base_url: str | None
+    """The proxy it was registered from."""
 
 
 _registrations: dict[str, _Registration] = {}
@@ -207,7 +215,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
 
     def _model_info_key(self) -> str:
         """The `str(model)` key that model lookups for this model check first."""
-        return f"litellm-proxy/{self.model_name}"
+        return f"litellm-proxy/{self.service_model_name()}"
 
     def _register_model_info(self) -> None:
         """Register model info, merged field by field.
@@ -229,8 +237,25 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         db = _get_model_info_direct(db_key) if db_key else None
         proxy = proxy_model_info(self._deployments or [])
         info = merged_model_info(user, merged_model_info(db, proxy))
+        if (
+            previous is not None
+            and current is previous.registered
+            and previous.base_url != self.base_url
+            and previous.registered != info
+        ):
+            # the model info key is the model name, which has no proxy URL
+            warn_once(
+                logger,
+                f"LiteLLM proxy model '{self.service_model_name()}' is served "
+                f"by more than one proxy "
+                f"({', '.join(sorted([str(previous.base_url), str(self.base_url)]))}) "
+                "with different model info; models with this name use the "
+                "info from the one created last.",
+            )
         set_model_info(key, info)
-        _registrations[key] = _Registration(user=user, registered=info)
+        _registrations[key] = _Registration(
+            user=user, registered=info, base_url=self.base_url
+        )
 
     def _check_model_info(self) -> None:
         info = _get_custom_model_info(self._model_info_key())
@@ -264,32 +289,34 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             f"{found}\n\n"
             "Inspect uses it for the context window (compaction) and cost. "
             "To fix, do one of:\n\n"
-            f"- add model_info to the '{alias}' deployment in the proxy config"
-            f"{self._model_info_suggestion()}\n"
+            f"{self._model_info_fix()}\n"
             f'- call set_model_info("{self._model_info_key()}", '
             "ModelInfo(context_length=...)) before creating the model;\n"
             "- pass -M require_model_info=false."
         )
 
-    def _model_info_suggestion(self) -> str:
-        """Proxy `model_info` to suggest, completing a sentence of the error."""
+    def _model_info_fix(self) -> str:
+        """The error's first fix: `model_info` to add to the proxy config."""
+        alias = self.service_model_name()
         if self._vendor is not None:
-            base_model = frontier_base_model(self._vendor)
             return (
-                ", naming the model it is closest to as base_model. For "
-                f"the current frontier {_VENDOR_NAMES[self._vendor]} model:\n\n"
+                f"- add model_info to the '{alias}' deployment in the proxy "
+                "config, naming the model it is closest to as base_model. For "
+                f"the current frontier {VENDOR_NAMES[self._vendor]} model:\n\n"
                 "      model_info:\n"
-                f"        base_model: {base_model}\n\n"
+                f"        base_model: {frontier_base_model(self._vendor)}\n\n"
                 "  base_model also gives LiteLLM the model's capabilities "
                 "(e.g. reasoning effort, adaptive thinking, prompt caching), "
                 "which it otherwise lacks for a model it doesn't know;"
             )
         return (
-            ", naming the model it is closest to as base_model (e.g. "
+            f"- add model_info to the '{alias}' deployment in the proxy "
+            "config, naming the model it is closest to as base_model (e.g. "
             "openai/gpt-5), or its limits:\n\n"
             "      model_info:\n"
             "        max_input_tokens: <context window>\n"
-            "        max_output_tokens: <output limit>\n"
+            "        max_output_tokens: <output limit>\n\n"
+            "  base_model also gives LiteLLM the model's capabilities;"
         )
 
     def _is_claude(self) -> bool:
@@ -314,19 +341,18 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
 
     @override
     def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
-        """For Claude, sized as the native provider does.
+        """For Claude, sized as the native provider does for adaptive thinking.
 
         Anthropic requires max_tokens, and LiteLLM sends 4096 when it lacks
-        one for the model. The model's registered output limit caps it.
+        one for the model. The model's registered output limit caps it. The
+        64k floor keys on `reasoning_effort`, which LiteLLM maps to Anthropic's
+        effort (the native provider keys it on `config.effort`, which this
+        provider does not send).
         """
         if not self._is_claude():
             return super().max_tokens_for_config(config)
-        max_tokens = ANTHROPIC_MAX_TOKENS
         effort = config.reasoning_effort
-        if effort is not None and effort in ANTHROPIC_EFFORT_MAX_TOKENS:
-            max_tokens += ANTHROPIC_EFFORT_MAX_TOKENS[effort]
-        elif config.reasoning_tokens:
-            max_tokens += config.reasoning_tokens
+        max_tokens = ANTHROPIC_MAX_TOKENS + anthropic_effort_max_tokens(effort)
         if effort in ("xhigh", "max"):
             max_tokens = max(max_tokens, ANTHROPIC_HIGH_EFFORT_MAX_TOKENS)
         info = _get_custom_model_info(self._model_info_key())
@@ -372,10 +398,6 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             return key
         return super().input_tokens_name()
 
-    def proxy_deployments(self) -> list[ProxyDeployment] | None:
-        """The proxy's deployments for this alias (None if not fetched)."""
-        return self._deployments
-
     @override
     def canonical_name(self) -> str:
         """The Inspect database key of the upstream model, when it resolves.
@@ -401,7 +423,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         """
         alias = self.service_model_name()
         canonical = self.canonical_name()
-        for name in (alias, f"litellm-proxy/{alias}", canonical):
+        for name in (alias, self._model_info_key(), canonical):
             info = _get_model_info_direct(name)
             if info is not None and info.family:
                 return info.family
@@ -449,13 +471,20 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         """Generate, lowering or dropping a `reasoning_effort` the proxy rejects.
 
-        Requests to Claude models get prompt cache breakpoints unless
-        `cache_prompt` is false (see `_litellm_proxy_caching`).
+        Chat completions requests to Claude models get prompt cache
+        breakpoints unless `cache_prompt` is false (see
+        `_litellm_proxy_caching`).
 
         A rejection (see `_litellm_proxy_reasoning_effort`) is remembered for
         this model, a warning names the value used instead, and the request is
         retried. Later requests use the lowered value directly.
         """
+        if config.reasoning_tokens is not None:
+            warn_once(
+                logger,
+                "reasoning_tokens is not sent to LiteLLM proxy models (only "
+                "reasoning_effort is), so it is ignored.",
+            )
         _cache_prompt.set(self._is_claude() and config.cache_prompt is not False)
         _cache_write_ttl.set(None)
         requested = config.reasoning_effort
@@ -565,14 +594,6 @@ class PrefillNotSupportedError(RuntimeError):
             "message sent to generate() must be a user or tool message.\n\n"
             f"Proxy error: {upstream_message(message)}"
         )
-
-
-_VENDOR_NAMES: dict[Vendor, str] = {
-    "anthropic": "Anthropic",
-    "openai": "OpenAI",
-    "google": "Google",
-    "grok": "xAI",
-}
 
 
 def _error_message(ex: APIError) -> str:

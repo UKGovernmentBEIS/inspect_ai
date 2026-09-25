@@ -214,9 +214,9 @@ from .._stream import (
 )
 from ._anthropic_batch import AnthropicBatcher
 from ._anthropic_max_tokens import (
-    ANTHROPIC_EFFORT_MAX_TOKENS,
     ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
     ANTHROPIC_MAX_TOKENS,
+    anthropic_effort_max_tokens,
 )
 from ._first_party import FRONTIER_MODELS
 from .util import (
@@ -1420,9 +1420,7 @@ class AnthropicAPI(ModelAPI):
             if reasoning_effort is not None:
                 # xhigh/max sized to reach the migration-guide floor of 64k
                 # on top of the 32k base for thinking models.
-                max_tokens = max_tokens + ANTHROPIC_EFFORT_MAX_TOKENS.get(
-                    reasoning_effort, 16000
-                )
+                max_tokens = max_tokens + anthropic_effort_max_tokens(reasoning_effort)
             else:
                 # pre-4.6 path: size for explicit reasoning_tokens, or for
                 # the bridged effort->tokens translation when only effort is set.

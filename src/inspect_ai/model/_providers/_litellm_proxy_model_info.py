@@ -8,6 +8,12 @@ fetched synchronously the first time a provider is constructed for a
 (base URL, API key) pair and cached for the process. The key is part of the
 cache key because the listing is filtered to the models the key may use.
 
+The fetch is synchronous because provider construction is. Models are
+usually constructed before an eval starts; constructing the first one for a
+proxy during an eval (e.g. a grader created in a scorer) blocks the event
+loop until the proxy answers or `MODEL_INFO_TIMEOUT` passes, once per
+(base URL, API key).
+
 There is no lock around the cache: Inspect constructs providers on a single
 event loop thread, and two constructions racing the same key would at worst
 fetch twice and store equal values.
