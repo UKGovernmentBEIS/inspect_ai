@@ -39,13 +39,14 @@ jobs:
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
 
+      # Release builds resolve every dependency from the lockfile and the
+      # registry; they never restore or save a shared dependency cache.
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
-          cache: pnpm
-          cache-dependency-path: src/inspect_ai/_view/ts-mono/pnpm-lock.yaml
+          package-manager-cache: false
 
       - name: Upgrade npm (for Trusted Publishing)
         run: |
@@ -69,20 +70,27 @@ jobs:
       - name: Bump to prerelease version
         if: ${{ inputs.prerelease }}
         run: |
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
           TIMESTAMP=$(date +%s)
           npm version patch --no-git-tag-version
           NEW_VERSION=$(node -p "require('./package.json').version")
           npm version "${NEW_VERSION}-beta.${TIMESTAMP}" --no-git-tag-version
 
+      # check-all and build:lib run tsc and vite-plugin-dts directly, not
+      # through turbo, so turbo's generate:css dependency never fires here.
+      # The *.module.css.d.ts typings are gitignored, and the viewer
+      # type-checks its workspace dependencies' sources too, hence `...`.
+      - name: Generate CSS module typings
+        working-directory: src/inspect_ai/_view/ts-mono
+        run: pnpm --filter '@meridianlabs/log-viewer...' --fail-if-no-match run generate:css
+
       - name: Run quality checks
         working-directory: src/inspect_ai/_view/ts-mono
-        run: pnpm --filter inspect check-all
+        run: pnpm --filter @meridianlabs/log-viewer --fail-if-no-match check-all
 
       - name: Build library for prerelease
         if: ${{ inputs.prerelease }}
         working-directory: src/inspect_ai/_view/ts-mono
-        run: pnpm --filter inspect build:lib
+        run: pnpm --filter @meridianlabs/log-viewer --fail-if-no-match build:lib
 
       - name: Publish to NPM (dry-run)
         if: ${{ inputs.dry-run }}
