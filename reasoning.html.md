@@ -107,7 +107,7 @@ Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reaso
 
 #### DeepSeek
 
-DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default (at `high` effort) and document a [three-level effort scale](https://api-docs.deepseek.com/guides/thinking_mode) of `low` / `high` / `max`. Inspect maps `reasoning_effort` as follows:
+DeepSeek models (`deepseek-flash` and `deepseek-v4-pro`) think by default (at `high` effort) and document a [three-level effort scale](https://api-docs.deepseek.com/guides/thinking_mode) of `low` / `high` / `max`. Inspect maps `reasoning_effort` as follows:
 
 | Inspect input     | API value         |
 |-------------------|-------------------|
@@ -116,7 +116,7 @@ DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default 
 | `medium` / `high` | `high`            |
 | `xhigh` / `max`   | `max`             |
 
-Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
+DeepSeek’s own server-side mapping treats a raw `xhigh` as `high`; Inspect sends `max` for `xhigh` so the top of Inspect’s scale reaches the top of DeepSeek’s. Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
 
 #### Mistral
 
@@ -141,6 +141,10 @@ Passes through to the underlying model; OpenRouter itself maps `effort` to `budg
 | `medium`        | `medium`          | 0.5   |
 | `high`          | `high`            | 0.8   |
 | `max` / `xhigh` | `xhigh`           | 0.95  |
+
+#### LiteLLM Proxy
+
+Sends the requested value, which LiteLLM maps to the upstream provider’s parameter (e.g. adaptive thinking with `output_config.effort` for Claude). When LiteLLM or the upstream model rejects the value, Inspect retries with the strongest effort the model accepts at or below it (otherwise the weakest above it), or with no effort if the model takes none, and warns once. LiteLLM decides which values a model takes from its model map, so for models it doesn’t know set `base_model` in the proxy config (see [LiteLLM Proxy](./providers.html.md#litellm-proxy-model-info)).
 
 #### Groq / Ollama / SageMaker / SambaNova
 
@@ -208,6 +212,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | anthropic/claude-opus-5-5            | medium          |
 | anthropic/claude-sonnet-4-6          | adaptive        |
 | anthropic/claude-sonnet-5            | high            |
+| deepseek/deepseek-flash              | high            |
 | deepseek/deepseek-reasoner           | no effort scale |
 | deepseek/deepseek-v4-flash           | high            |
 | deepseek/deepseek-v4-pro             | high            |

@@ -850,6 +850,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#openai-api-completions" id="toc-openai-api-completions" class="nav-link" data-scroll-target="#openai-api-completions">Completions API</a></li>
   </ul></li>
   <li><a href="#openrouter" id="toc-openrouter" class="nav-link" data-scroll-target="#openrouter">OpenRouter</a></li>
+  <li><a href="#litellm-proxy" id="toc-litellm-proxy" class="nav-link" data-scroll-target="#litellm-proxy">LiteLLM Proxy</a>
+  <ul class="collapse">
+  <li><a href="#litellm-proxy-model-info" id="toc-litellm-proxy-model-info" class="nav-link" data-scroll-target="#litellm-proxy-model-info">Model Info</a></li>
+  <li><a href="#litellm-proxy-claude" id="toc-litellm-proxy-claude" class="nav-link" data-scroll-target="#litellm-proxy-claude">Claude Models</a></li>
+  <li><a href="#litellm-proxy-reasoning-effort" id="toc-litellm-proxy-reasoning-effort" class="nav-link" data-scroll-target="#litellm-proxy-reasoning-effort">Reasoning Effort</a></li>
+  <li><a href="#litellm-proxy-streaming" id="toc-litellm-proxy-streaming" class="nav-link" data-scroll-target="#litellm-proxy-streaming">Streaming and Responses API</a></li>
+  <li><a href="#litellm-proxy-model-args" id="toc-litellm-proxy-model-args" class="nav-link" data-scroll-target="#litellm-proxy-model-args">Model Args</a></li>
+  </ul></li>
   <li><a href="#hugging-face-inference-providers" id="toc-hugging-face-inference-providers" class="nav-link" data-scroll-target="#hugging-face-inference-providers">Hugging Face Inference Providers</a>
   <ul class="collapse">
   <li><a href="#streaming-hf-inference" id="toc-streaming-hf-inference" class="nav-link" data-scroll-target="#streaming-hf-inference">Streaming</a></li>
@@ -908,6 +916,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ol type="1">
 <li><p>It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect <a href="./providers.html#openai-api">OpenAI Compatible API</a> interface.</p></li>
 <li><p>It is available via OpenRouter (see the docs on using <a href="./providers.html#openrouter">OpenRouter</a> with Inspect).</p></li>
+<li><p>It is served by a LiteLLM proxy (see the docs on using a <a href="./providers.html#litellm-proxy">LiteLLM Proxy</a> with Inspect).</p></li>
 </ol>
 <p>You can also create <a href="./extensions-model-api.html#model-apis">Model API Extensions</a> to add model providers using their native interface.</p>
 </section>
@@ -1013,7 +1022,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="af07f695" class="cell">
+<div id="c9113e22" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
@@ -1506,8 +1515,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>To use the <a href="https://www.deepseek.com/">DeepSeek</a> provider, install the <code>openai</code> package (which the DeepSeek service provides a compatible backend for), set your credentials, and specify a model using the <code>--model</code> option:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb39"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
 <span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_API_KEY</span><span class="op">=</span>your-deepseek-api-key</span>
-<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> deepseek/deepseek-v4-pro</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>DeepSeek V4 models (<code>deepseek-v4-pro</code> and <code>deepseek-v4-flash</code>) think by default. Use <code>--reasoning-effort</code> to control thinking (<code>none</code> disables it entirely) — see <a href="./reasoning.html#reasoning-effort">Reasoning Effort</a> for details. While thinking is enabled the API rejects forced tool choice, so the <code>deepseek</code> provider submits forced tool choices as <code>"auto"</code> (disable thinking to force tool use). Note that the legacy <code>deepseek-chat</code> and <code>deepseek-reasoner</code> model names were retired from the DeepSeek API on July 24th, 2026.</p>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> deepseek/deepseek-flash</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The current DeepSeek models are <code>deepseek-flash</code> (DeepSeek-V4.1-Flash, which also accepts image input) and <code>deepseek-v4-pro</code>. Both think by default. Use <code>--reasoning-effort</code> to control thinking (<code>none</code> disables it entirely) — see <a href="./reasoning.html#reasoning-effort">Reasoning Effort</a> for details. While thinking is enabled the API rejects forced tool choice, so the <code>deepseek</code> provider submits forced tool choices as <code>"auto"</code> (disable thinking to force tool use).</p>
+<p>The <code>deepseek-v4-flash</code> and <code>deepseek-v4-flash-vision-exp</code> model names were retired on September 10th, 2026: requests using them are served by V4.1 Flash (<code>deepseek-flash</code>) at Flash pricing, so logs dated after that point reflect V4.1 Flash. The legacy <code>deepseek-chat</code> and <code>deepseek-reasoner</code> model names were retired on July 24th, 2026.</p>
 <p>The following environment variables are supported by the DeepSeek provider</p>
 <table class="caption-top table">
 <colgroup>
@@ -2556,7 +2566,7 @@ Note
 <p>Here is how you would access DeepSeek using the <code>openai-api</code> provider:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb117"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb117-1"><a href="#cb117-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_API_KEY</span><span class="op">=</span>your-deepseek-api-key</span>
 <span id="cb117-2"><a href="#cb117-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_BASE_URL</span><span class="op">=</span>https://api.deepseek.com</span>
-<span id="cb117-3"><a href="#cb117-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai-api/deepseek/deepseek-v4-flash</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb117-3"><a href="#cb117-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai-api/deepseek/deepseek-flash</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="responses-api-1" class="level3">
 <h3 class="anchored" data-anchor-id="responses-api-1">Responses API</h3>
@@ -2669,16 +2679,119 @@ Note
 </tbody>
 </table>
 </section>
+<section id="litellm-proxy" class="level2">
+<h2 class="anchored" data-anchor-id="litellm-proxy">LiteLLM Proxy</h2>
+<p>To use models served by a <a href="https://docs.litellm.ai/docs/simple_proxy">LiteLLM proxy</a>, install the <code>openai</code> package, set the proxy’s URL and your key, and specify a model using the <code>model_name</code> of its deployment in the proxy config. For example, for this deployment:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb127"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb127-1"><a href="#cb127-1" aria-hidden="true" tabindex="-1"></a><span class="fu">model_list</span><span class="kw">:</span></span>
+<span id="cb127-2"><a href="#cb127-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">model_name</span><span class="kw">:</span><span class="at"> claude-sonnet-5</span></span>
+<span id="cb127-3"><a href="#cb127-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">litellm_params</span><span class="kw">:</span></span>
+<span id="cb127-4"><a href="#cb127-4" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">model</span><span class="kw">:</span><span class="at"> anthropic/claude-sonnet-5</span></span>
+<span id="cb127-5"><a href="#cb127-5" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">api_key</span><span class="kw">:</span><span class="at"> os.environ/ANTHROPIC_API_KEY</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb128"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb128-1"><a href="#cb128-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb128-2"><a href="#cb128-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">LITELLM_PROXY_BASE_URL</span><span class="op">=</span>https://litellm.example.com</span>
+<span id="cb128-3"><a href="#cb128-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">LITELLM_PROXY_API_KEY</span><span class="op">=</span>your-litellm-key</span>
+<span id="cb128-4"><a href="#cb128-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> litellm-proxy/claude-sonnet-5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <code>model_name</code> is chosen by the proxy’s operator and need not be a model id. Inspect reads the proxy’s <code>/model/info</code> listing to find the upstream model behind it (<code>litellm_params.model</code>, or <code>model_info.base_model</code> when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use.</p>
+<section id="litellm-proxy-model-info" class="level3">
+<h3 class="anchored" data-anchor-id="litellm-proxy-model-info">Model Info</h3>
+<p>If Inspect can’t determine the context window of a proxy model, creating the model fails with an error that explains how to fix it. This happens for models the proxy lists without an upstream model Inspect knows (for example, a predeployment codename or an opaque deployment name). The best fix is to add <code>base_model</code> to the deployment in the proxy config, naming the known model it is closest to:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb129"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb129-1"><a href="#cb129-1" aria-hidden="true" tabindex="-1"></a><span class="fu">model_list</span><span class="kw">:</span></span>
+<span id="cb129-2"><a href="#cb129-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">model_name</span><span class="kw">:</span><span class="at"> pillow</span></span>
+<span id="cb129-3"><a href="#cb129-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">litellm_params</span><span class="kw">:</span></span>
+<span id="cb129-4"><a href="#cb129-4" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">model</span><span class="kw">:</span><span class="at"> anthropic/claude-pillow-v1</span></span>
+<span id="cb129-5"><a href="#cb129-5" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">api_key</span><span class="kw">:</span><span class="at"> os.environ/ANTHROPIC_API_KEY</span></span>
+<span id="cb129-6"><a href="#cb129-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">model_info</span><span class="kw">:</span></span>
+<span id="cb129-7"><a href="#cb129-7" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">base_model</span><span class="kw">:</span><span class="at"> anthropic/claude-opus-5-5</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>base_model</code> also tells LiteLLM the model’s capabilities. Without it, LiteLLM treats an unknown model as supporting no reasoning effort, adaptive thinking or (for Bedrock) tool choice. For Anthropic, OpenAI, Google and xAI models the error message suggests that vendor’s current frontier model.</p>
+<p>Alternatively, set <code>max_input_tokens</code> (and <code>max_output_tokens</code>) in the deployment’s <code>model_info</code>, register the model’s info with <code>set_model_info("litellm-proxy/&lt;name&gt;", ModelInfo(...))</code>, or pass <code>-M require_model_info=false</code> to use the model without model info.</p>
+<p>Costs are taken from Inspect’s model database or, where it has none, from the prices in the proxy’s <code>model_info</code>.</p>
+</section>
+<section id="litellm-proxy-claude" class="level3">
+<h3 class="anchored" data-anchor-id="litellm-proxy-claude">Claude Models</h3>
+<p>When the upstream model is a Claude model (recognized by its name, including models Inspect and LiteLLM don’t know), requests follow the native <code>anthropic</code> provider:</p>
+<ul>
+<li><code>max_tokens</code> defaults to 32,000 plus an increment for the reasoning effort, rather than LiteLLM’s 4,096.</li>
+<li><a href="https://docs.claude.com/en/docs/build-with-claude/prompt-caching">Prompt caching</a> is enabled with cache breakpoints on the system prompt, the last tool definition and the last two messages. Pass <code>--cache-prompt=false</code> to disable. Cache writes are costed at the TTL the proxy reports for them (a proxy can apply a 1 hour TTL).</li>
+<li>Tool schemas keep their full JSON Schema (e.g.&nbsp;<code>pattern</code> and <code>minLength</code>).</li>
+</ul>
+<p>A model that does not accept a conversation ending with an assistant message (assistant prefill) fails with an error saying so rather than being retried.</p>
+</section>
+<section id="litellm-proxy-reasoning-effort" class="level3">
+<h3 class="anchored" data-anchor-id="litellm-proxy-reasoning-effort">Reasoning Effort</h3>
+<p>When the proxy or upstream model rejects the requested <code>reasoning_effort</code>, Inspect retries with the nearest effort the model accepts (or with no effort, if the model takes none), warns once, and uses that effort for later requests. Reasoning returned by the upstream model (including Claude thinking blocks and Gemini thought signatures) is sent back on the next turn.</p>
+</section>
+<section id="litellm-proxy-streaming" class="level3">
+<h3 class="anchored" data-anchor-id="litellm-proxy-streaming">Streaming and Responses API</h3>
+<p>Requests stream by default, so long generations don’t hit client or proxy timeouts. Pass <code>-M stream=false</code> to disable streaming.</p>
+<p>Requests use the Chat Completions API. Pass <code>-M responses_api=true</code> to use the proxy’s Responses API instead (which is not streamed by default).</p>
+</section>
+<section id="litellm-proxy-model-args" class="level3">
+<h3 class="anchored" data-anchor-id="litellm-proxy-model-args">Model Args</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>require_model_info</code></td>
+<td>Fail if the model has no context window (default: <code>true</code>).</td>
+</tr>
+<tr class="even">
+<td><code>model_info</code></td>
+<td>Read the proxy’s <code>/model/info</code> listing (default: <code>true</code>). With <code>false</code>, Inspect does not look up the upstream model and requests are shaped by the proxy model name alone.</td>
+</tr>
+<tr class="odd">
+<td><code>stream</code></td>
+<td>Stream requests (default: <code>true</code> for Chat Completions).</td>
+</tr>
+<tr class="even">
+<td><code>responses_api</code></td>
+<td>Use the Responses API (default: <code>false</code>).</td>
+</tr>
+</tbody>
+</table>
+<p>The following environment variables are supported by the LiteLLM Proxy provider:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>LITELLM_PROXY_API_KEY</code></td>
+<td>API key credentials (required). <code>LITELLM_API_KEY</code> is used when it is not set.</td>
+</tr>
+<tr class="even">
+<td><code>LITELLM_PROXY_BASE_URL</code></td>
+<td>Base URL of the proxy (required). <code>LITELLM_PROXY_API_BASE</code> and <code>LITELLM_BASE_URL</code> are used when it is not set.</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
 <section id="hugging-face-inference-providers" class="level2">
 <h2 class="anchored" data-anchor-id="hugging-face-inference-providers">Hugging Face Inference Providers</h2>
 <p>To use <a href="https://huggingface.co/docs/inference-providers">Hugging Face Inference Providers</a>, install the <code>openai</code> package (which provides the compatibility layer), set your Hugging Face token, and specify a model using the <code>--model</code> option:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb127"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb127-1"><a href="#cb127-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
-<span id="cb127-2"><a href="#cb127-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">HF_TOKEN</span><span class="op">=</span>your-huggingface-token</span>
-<span id="cb127-3"><a href="#cb127-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf-inference-providers/openai/gpt-oss-120b</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb130"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb130-1"><a href="#cb130-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb130-2"><a href="#cb130-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">HF_TOKEN</span><span class="op">=</span>your-huggingface-token</span>
+<span id="cb130-3"><a href="#cb130-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf-inference-providers/openai/gpt-oss-120b</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The above will automatically select the provider for you. If you want to use a specific provider you can append <code>:</code> followed by the provider name. To use cerebras for example, you would do the following:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb128"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb128-1"><a href="#cb128-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
-<span id="cb128-2"><a href="#cb128-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">HF_TOKEN</span><span class="op">=</span>your-huggingface-token</span>
-<span id="cb128-3"><a href="#cb128-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf-inference-providers/openai/gpt-oss-120b:cerebras</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb131"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb131-1"><a href="#cb131-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb131-2"><a href="#cb131-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">HF_TOKEN</span><span class="op">=</span>your-huggingface-token</span>
+<span id="cb131-3"><a href="#cb131-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf-inference-providers/openai/gpt-oss-120b:cerebras</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>HF Inference Providers provides unified access to hundreds of machine learning models through multiple world-class inference providers (Cerebras, Groq, Together AI, etc.) with automatic provider routing and failover.</p>
 <p>The following environment variables are supported by the HF Inference Providers:</p>
 <table class="caption-top table">
@@ -2702,7 +2815,7 @@ Note
 <section id="streaming-hf-inference" class="level3">
 <h3 class="anchored" data-anchor-id="streaming-hf-inference">Streaming</h3>
 <p>HF Interference Providers uses streaming by default for requests. You can disable streaming using the <code>stream</code> model arg (or pass <code>auto</code> to stream only when the caller passes an <code>on_stream</code> callback to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>). For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb129"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb129-1"><a href="#cb129-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf-inference-providers/openai/gpt-oss-120b <span class="at">-M</span> stream=false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb132"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb132-1"><a href="#cb132-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf-inference-providers/openai/gpt-oss-120b <span class="at">-M</span> stream=false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>
 <section id="custom-models" class="level2">

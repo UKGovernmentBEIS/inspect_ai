@@ -3019,7 +3019,7 @@ Check whether the `target` appears anywhere in the model output (a substring mat
 Check whether the `target` appears at a known position: `begin`, `end` (the default), or `any`. With `location="exact"` the whole output must equal the target. Ignores case and white-space by default. Pass `numeric=True` to compare numbers rather than text; currency symbols (`$`, `€`, `£`), thousands separators (`,`), and formatting markers (`*`, `_`) are stripped first.
 
 [pattern()](./reference/inspect_ai.scorer.html.md#pattern)  
-Extract an answer using a regular expression and compare it with the target. Uses the captured values when capture groups are present, or the full match otherwise. For example, `pattern(r"\d+")` extracts `42` from `The answer is 42`. With multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns `INCORRECT` (with `reason="invalid_response_format"`) when the pattern does not match.
+Extract an answer using a regular expression and compare it with the target. Uses the captured values when capture groups are present, or the full match otherwise. For example, `pattern(r"\d+")` extracts `42` from `The answer is 42`. With multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns `INCORRECT` (with `reason="invalid_response_format"`) when the pattern does not match, or `reason="no_response"` when the completion was empty.
 
 [answer()](./reference/inspect_ai.scorer.html.md#answer)  
 For prompts that instruct the model to end with `ANSWER: X`. Extracts the letter, word, or remainder of the line that follows.
@@ -3050,7 +3050,7 @@ Compute NLL of target-completion tokens only, given a prompt context, for benchm
 
 ## When the output doesn’t match
 
-[includes()](./reference/inspect_ai.scorer.html.md#includes), [match()](./reference/inspect_ai.scorer.html.md#match), and [exact()](./reference/inspect_ai.scorer.html.md#exact) return `INCORRECT` for a non-matching response. [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` when the extracted answer is wrong or the required pattern is absent. An absent pattern also sets `reason="invalid_response_format"`.
+[includes()](./reference/inspect_ai.scorer.html.md#includes), [match()](./reference/inspect_ai.scorer.html.md#match), and [exact()](./reference/inspect_ai.scorer.html.md#exact) return `INCORRECT` for a non-matching response. [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` when the extracted answer is wrong or the required pattern is absent. An absent pattern also sets `reason="invalid_response_format"`. An empty or whitespace-only completion sets `reason="no_response"` on all six, since there was no output to violate a format.
 
 These incorrect scores contribute `0.0` to the default metrics. See [Scoring Policy](./scoring-policy.html.md) for how scores, unscored results, and errors affect metrics and coverage.
 
@@ -3106,6 +3106,8 @@ If the provider you are using is not listed above, you may still be able to use 
 1.  It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect [OpenAI Compatible API](./providers.html.md#openai-api) interface.
 
 2.  It is available via OpenRouter (see the docs on using [OpenRouter](./providers.html.md#openrouter) with Inspect).
+
+3.  It is served by a LiteLLM proxy (see the docs on using a [LiteLLM Proxy](./providers.html.md#litellm-proxy) with Inspect).
 
 You can also create [Model API Extensions](./extensions-model-api.html.md#model-apis) to add model providers using their native interface.
 
@@ -3538,6 +3540,8 @@ If the provider you are using is not listed above, you may still be able to use 
 1.  It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect [OpenAI Compatible API](./providers.html.md#openai-api) interface.
 
 2.  It is available via OpenRouter (see the docs on using [OpenRouter](./providers.html.md#openrouter) with Inspect).
+
+3.  It is served by a LiteLLM proxy (see the docs on using a [LiteLLM Proxy](./providers.html.md#litellm-proxy) with Inspect).
 
 You can also create [Model API Extensions](./extensions-model-api.html.md#model-apis) to add model providers using their native interface.
 
@@ -4050,10 +4054,12 @@ To use the [DeepSeek](https://www.deepseek.com/) provider, install the `openai` 
 ``` bash
 pip install openai
 export DEEPSEEK_API_KEY=your-deepseek-api-key
-inspect eval arc.py --model deepseek/deepseek-v4-pro
+inspect eval arc.py --model deepseek/deepseek-flash
 ```
 
-DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default. Use `--reasoning-effort` to control thinking (`none` disables it entirely) — see [Reasoning Effort](./reasoning.html.md#reasoning-effort) for details. While thinking is enabled the API rejects forced tool choice, so the `deepseek` provider submits forced tool choices as `"auto"` (disable thinking to force tool use). Note that the legacy `deepseek-chat` and `deepseek-reasoner` model names were retired from the DeepSeek API on July 24th, 2026.
+The current DeepSeek models are `deepseek-flash` (DeepSeek-V4.1-Flash, which also accepts image input) and `deepseek-v4-pro`. Both think by default. Use `--reasoning-effort` to control thinking (`none` disables it entirely) — see [Reasoning Effort](./reasoning.html.md#reasoning-effort) for details. While thinking is enabled the API rejects forced tool choice, so the `deepseek` provider submits forced tool choices as `"auto"` (disable thinking to force tool use).
+
+The `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` model names were retired on September 10th, 2026: requests using them are served by V4.1 Flash (`deepseek-flash`) at Flash pricing, so logs dated after that point reflect V4.1 Flash. The legacy `deepseek-chat` and `deepseek-reasoner` model names were retired on July 24th, 2026.
 
 The following environment variables are supported by the DeepSeek provider
 
@@ -5064,7 +5070,7 @@ Here is how you would access DeepSeek using the `openai-api` provider:
 ``` bash
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-v4-flash
+inspect eval arc.py --model openai-api/deepseek/deepseek-flash
 ```
 
 ### Responses API
@@ -5176,6 +5182,83 @@ The following environment variables are supported by the OpenRouter AI provider
 |----|----|
 | `OPENROUTER_API_KEY` | API key credentials (required). |
 | `OPENROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://openrouter.ai/api/v1`) |
+
+## LiteLLM Proxy
+
+To use models served by a [LiteLLM proxy](https://docs.litellm.ai/docs/simple_proxy), install the `openai` package, set the proxy’s URL and your key, and specify a model using the `model_name` of its deployment in the proxy config. For example, for this deployment:
+
+``` yaml
+model_list:
+  - model_name: claude-sonnet-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+```
+
+``` bash
+pip install openai
+export LITELLM_PROXY_BASE_URL=https://litellm.example.com
+export LITELLM_PROXY_API_KEY=your-litellm-key
+inspect eval arc.py --model litellm-proxy/claude-sonnet-5
+```
+
+The `model_name` is chosen by the proxy’s operator and need not be a model id. Inspect reads the proxy’s `/model/info` listing to find the upstream model behind it (`litellm_params.model`, or `model_info.base_model` when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use.
+
+### Model Info
+
+If Inspect can’t determine the context window of a proxy model, creating the model fails with an error that explains how to fix it. This happens for models the proxy lists without an upstream model Inspect knows (for example, a predeployment codename or an opaque deployment name). The best fix is to add `base_model` to the deployment in the proxy config, naming the known model it is closest to:
+
+``` yaml
+model_list:
+  - model_name: pillow
+    litellm_params:
+      model: anthropic/claude-pillow-v1
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info:
+      base_model: anthropic/claude-opus-5-5
+```
+
+`base_model` also tells LiteLLM the model’s capabilities. Without it, LiteLLM treats an unknown model as supporting no reasoning effort, adaptive thinking or (for Bedrock) tool choice. For Anthropic, OpenAI, Google and xAI models the error message suggests that vendor’s current frontier model.
+
+Alternatively, set `max_input_tokens` (and `max_output_tokens`) in the deployment’s `model_info`, register the model’s info with `set_model_info("litellm-proxy/<name>", ModelInfo(...))`, or pass `-M require_model_info=false` to use the model without model info.
+
+Costs are taken from Inspect’s model database or, where it has none, from the prices in the proxy’s `model_info`.
+
+### Claude Models
+
+When the upstream model is a Claude model (recognized by its name, including models Inspect and LiteLLM don’t know), requests follow the native `anthropic` provider:
+
+- `max_tokens` defaults to 32,000 plus an increment for the reasoning effort, rather than LiteLLM’s 4,096.
+- [Prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled with cache breakpoints on the system prompt, the last tool definition and the last two messages. Pass `--cache-prompt=false` to disable. Cache writes are costed at the TTL the proxy reports for them (a proxy can apply a 1 hour TTL).
+- Tool schemas keep their full JSON Schema (e.g. `pattern` and `minLength`).
+
+A model that does not accept a conversation ending with an assistant message (assistant prefill) fails with an error saying so rather than being retried.
+
+### Reasoning Effort
+
+When the proxy or upstream model rejects the requested `reasoning_effort`, Inspect retries with the nearest effort the model accepts (or with no effort, if the model takes none), warns once, and uses that effort for later requests. Reasoning returned by the upstream model (including Claude thinking blocks and Gemini thought signatures) is sent back on the next turn.
+
+### Streaming and Responses API
+
+Requests stream by default, so long generations don’t hit client or proxy timeouts. Pass `-M stream=false` to disable streaming.
+
+Requests use the Chat Completions API. Pass `-M responses_api=true` to use the proxy’s Responses API instead (which is not streamed by default).
+
+### Model Args
+
+| Argument | Description |
+|----|----|
+| `require_model_info` | Fail if the model has no context window (default: `true`). |
+| `model_info` | Read the proxy’s `/model/info` listing (default: `true`). With `false`, Inspect does not look up the upstream model and requests are shaped by the proxy model name alone. |
+| `stream` | Stream requests (default: `true` for Chat Completions). |
+| `responses_api` | Use the Responses API (default: `false`). |
+
+The following environment variables are supported by the LiteLLM Proxy provider:
+
+| Variable | Description |
+|----|----|
+| `LITELLM_PROXY_API_KEY` | API key credentials (required). `LITELLM_API_KEY` is used when it is not set. |
+| `LITELLM_PROXY_BASE_URL` | Base URL of the proxy (required). `LITELLM_PROXY_API_BASE` and `LITELLM_BASE_URL` are used when it is not set. |
 
 ## Hugging Face Inference Providers
 
@@ -6397,7 +6480,7 @@ Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reaso
 
 #### DeepSeek
 
-DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default (at `high` effort) and document a [three-level effort scale](https://api-docs.deepseek.com/guides/thinking_mode) of `low` / `high` / `max`. Inspect maps `reasoning_effort` as follows:
+DeepSeek models (`deepseek-flash` and `deepseek-v4-pro`) think by default (at `high` effort) and document a [three-level effort scale](https://api-docs.deepseek.com/guides/thinking_mode) of `low` / `high` / `max`. Inspect maps `reasoning_effort` as follows:
 
 | Inspect input     | API value         |
 |-------------------|-------------------|
@@ -6406,7 +6489,7 @@ DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default 
 | `medium` / `high` | `high`            |
 | `xhigh` / `max`   | `max`             |
 
-Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
+DeepSeek’s own server-side mapping treats a raw `xhigh` as `high`; Inspect sends `max` for `xhigh` so the top of Inspect’s scale reaches the top of DeepSeek’s. Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
 
 #### Mistral
 
@@ -6431,6 +6514,10 @@ Passes through to the underlying model; OpenRouter itself maps `effort` to `budg
 | `medium`        | `medium`          | 0.5   |
 | `high`          | `high`            | 0.8   |
 | `max` / `xhigh` | `xhigh`           | 0.95  |
+
+#### LiteLLM Proxy
+
+Sends the requested value, which LiteLLM maps to the upstream provider’s parameter (e.g. adaptive thinking with `output_config.effort` for Claude). When LiteLLM or the upstream model rejects the value, Inspect retries with the strongest effort the model accepts at or below it (otherwise the weakest above it), or with no effort if the model takes none, and warns once. LiteLLM decides which values a model takes from its model map, so for models it doesn’t know set `base_model` in the proxy config (see [LiteLLM Proxy](./providers.html.md#litellm-proxy-model-info)).
 
 #### Groq / Ollama / SageMaker / SambaNova
 
@@ -6498,6 +6585,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | anthropic/claude-opus-5-5            | medium          |
 | anthropic/claude-sonnet-4-6          | adaptive        |
 | anthropic/claude-sonnet-5            | high            |
+| deepseek/deepseek-flash              | high            |
 | deepseek/deepseek-reasoner           | no effort scale |
 | deepseek/deepseek-v4-flash           | high            |
 | deepseek/deepseek-v4-pro             | high            |
@@ -6963,7 +7051,7 @@ Check whether the `target` appears anywhere in the model output (a substring mat
 Check whether the `target` appears at a known position: `begin`, `end` (the default), or `any`. With `location="exact"` the whole output must equal the target. Ignores case and white-space by default. Pass `numeric=True` to compare numbers rather than text; currency symbols (`$`, `€`, `£`), thousands separators (`,`), and formatting markers (`*`, `_`) are stripped first.
 
 [pattern()](./reference/inspect_ai.scorer.html.md#pattern)  
-Extract an answer using a regular expression and compare it with the target. Uses the captured values when capture groups are present, or the full match otherwise. For example, `pattern(r"\d+")` extracts `42` from `The answer is 42`. With multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns `INCORRECT` (with `reason="invalid_response_format"`) when the pattern does not match.
+Extract an answer using a regular expression and compare it with the target. Uses the captured values when capture groups are present, or the full match otherwise. For example, `pattern(r"\d+")` extracts `42` from `The answer is 42`. With multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns `INCORRECT` (with `reason="invalid_response_format"`) when the pattern does not match, or `reason="no_response"` when the completion was empty.
 
 [answer()](./reference/inspect_ai.scorer.html.md#answer)  
 For prompts that instruct the model to end with `ANSWER: X`. Extracts the letter, word, or remainder of the line that follows.
@@ -6994,7 +7082,7 @@ Compute NLL of target-completion tokens only, given a prompt context, for benchm
 
 ## When the output doesn’t match
 
-[includes()](./reference/inspect_ai.scorer.html.md#includes), [match()](./reference/inspect_ai.scorer.html.md#match), and [exact()](./reference/inspect_ai.scorer.html.md#exact) return `INCORRECT` for a non-matching response. [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` when the extracted answer is wrong or the required pattern is absent. An absent pattern also sets `reason="invalid_response_format"`.
+[includes()](./reference/inspect_ai.scorer.html.md#includes), [match()](./reference/inspect_ai.scorer.html.md#match), and [exact()](./reference/inspect_ai.scorer.html.md#exact) return `INCORRECT` for a non-matching response. [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` when the extracted answer is wrong or the required pattern is absent. An absent pattern also sets `reason="invalid_response_format"`. An empty or whitespace-only completion sets `reason="no_response"` on all six, since there was no output to violate a format.
 
 These incorrect scores contribute `0.0` to the default metrics. See [Scoring Policy](./scoring-policy.html.md) for how scores, unscored results, and errors affect metrics and coverage.
 
@@ -7360,7 +7448,7 @@ The sections below work through each outcome and the details recorded by Inspect
 
 ### Verdicts on the model
 
-An incorrect answer stays in the denominator. This includes output that doesn’t follow the requested format: [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` with `reason="invalid_response_format"` when the expected answer pattern is absent, and [math()](./reference/inspect_ai.scorer.html.md#math) does the same when the output contains no readable answer at all. Use extraction rules that match the answer format requested in the task.
+An incorrect answer stays in the denominator. This includes output that doesn’t follow the requested format: [pattern()](./reference/inspect_ai.scorer.html.md#pattern) and [answer()](./reference/inspect_ai.scorer.html.md#answer) return `INCORRECT` with `reason="invalid_response_format"` when the expected answer pattern is absent, [math()](./reference/inspect_ai.scorer.html.md#math) does the same when the output contains no readable answer at all, and the text scorers record `reason="no_response"` when the raw completion was empty. Use extraction rules that match the answer format requested in the task.
 
 Inspect provides two labels for incorrect or missing answers. Both map to `0.0` by default and both stay in the denominator:
 
@@ -11109,6 +11197,31 @@ The bridge handles:
 - Writing an MCP server script to the sandbox that forwards tool calls to the host
 - Returning [MCPServerConfigStdio](./reference/inspect_ai.tool.html.md#mcpserverconfigstdio) configs that CLI agents can use to connect
 
+### Execution Contract
+
+Bridged tools execute only for calls the model proposed in a bridged generation, once per proposal. Each tool call in a model response handed to the agent grants one execution of exactly that tool with exactly those arguments (as approved, or as modified by an [approval policy](#tool-approval)); a `tools/call` request with no matching grant is denied and the error is returned to the agent, which surfaces it to the model. This holds whether or not an approval policy is active. Tool discovery (`tools/list`) is unaffected.
+
+Two consequences follow:
+
+- An agent that retries a `tools/call` after a transport failure is denied, since the proposal has already executed once. The agent should return the error to the model, which re-proposes the call.
+- Only the primary choice of a multi-choice response is granted; alternate choices that carry tool calls are dropped (with a warning). Request a single choice (`n=1`) from a bridged agent.
+
+An agent that legitimately calls a host tool programmatically, outside a model turn, can opt a server out with `require_proposal=False`. That server’s tools then execute for any `tools/call` it receives, and the bridge no longer guarantees that they run only for calls the model made:
+
+``` python
+BridgedToolsSpec(
+    name="host_tools",
+    tools=[search_database()],
+    require_proposal=False,
+)
+```
+
+### Matching a Proposal
+
+Agents rename MCP tools to their models under their own schemes (Claude Code declares `mcp__<server>__<tool>`, Codex CLI the bare name inside a Responses API namespace, Gemini CLI `mcp_<server>_<tool>`, OpenCode `<server>_<tool>`, some cut or hash long names), so the bridge does not match a proposed call by name. It matches the call’s declaration in the agent’s request to a bridged tool by the description the bridge itself served in `tools/list`. A declaration whose description matches no bridged tool denotes nothing and the call is denied. Tools an agent discovers through the Responses API’s `tool_search` (declared to the model inside a `tool_search_output` item rather than the request’s tool list) count as declarations too. Two or more bridged tools the served content cannot tell apart are each granted by a proposal for any of them: one proposal then authorizes one execution of each, still bound to the proposed arguments. An empty description is matched like any other, so an undocumented bridged tool is indistinguishable from every other undocumented tool. The bridge warns at setup, naming the tools that share a description (an empty one included); give bridged tools distinct docstrings to keep matching one-to-one. The supported agents forward the served description to their models unchanged. An agent that truncates long descriptions is tolerated: a declaration that agrees with a served description for at least 64 characters and adds at most a short trailing marker identifies that tool. An exact description match wins even when that description is a prefix of another bridged tool’s; a truncated declaration that could refer to both grants both. An agent that rewrote the leading text would be denied on every call. An agent-local tool declared with a bridged tool’s exact description is indistinguishable from it and would grant it.
+
+One other shape is recognized: an agent that exposes every MCP tool through a single dispatcher function, Antigravity’s `call_mcp_tool`, whose arguments carry string `ServerName` and `ToolName` values naming a bridged tool and an object `Arguments`. Such a call denotes that tool with those nested arguments. The dispatcher is recognized by that function name together with the argument shape, so an ordinary tool call cannot denote a bridged tool by naming it in its arguments; a dispatcher with another name or other parameter names is not supported and its calls are denied.
+
 ## Models
 
 As demonstrated above, communication with Inspect models is done by using the OpenAI API with `model="inspect"`. You can use the same technique to interface with other Inspect models. To do this, preface the model name with “inspect” followed by the rest of the fully qualified model name.
@@ -11157,7 +11270,7 @@ async with sandbox_agent_bridge(
 
 Rejection works by telling the model rather than by editing the response: the rejected call and an explanation are replayed to the model, which then generates again. The agent sees only the replacement, so its loop continues normally. See [Bridged Agents](./approval.html.md#bridged-agents) for the full semantics.
 
-When combining approval policies with `bridged_tools`, give bridged tools names that are unique across bridged servers and distinct from the agent’s own tools: an approval identifies a call only by function name and arguments, so a name shared with an agent-local tool also authorizes one execution of the same-named bridged tool, and a name shared across bridged servers is ambiguous and will be denied.
+For `bridged_tools`, the approved call is also what the agent may execute on the host: a bridged tool runs once per proposed call, with the arguments as approved or modified (see [Execution Contract](#bridged-tools-execution)).
 
 An agent that reaches every bridged tool through one dispatcher function (Antigravity’s `call_mcp_tool`) is approved as if the model had called the bridged tool directly: policies match the tool’s own name, and approvers see and modify the tool’s own arguments.
 
@@ -14098,6 +14211,8 @@ Because Inspect doesn’t execute these tool calls, no tool event is recorded fo
 - Automatic approvals by the `auto` approver are not shown at all. If you want a visible record of every decision, use an approver other than `auto`.
 
 A `modify` decision leaves the original call intact in the log: the recorded model output and approval event show what the model proposed, and the approval event’s `modified` field shows what was substituted.
+
+For a sandbox bridge with [bridged tools](./agent-bridge.html.md#bridged-tools), the decision also determines what the agent can execute on the host. A bridged tool runs only for a call the model proposed in a bridged generation, once per proposal, with the arguments as approved (so a `modify` decision grants the modified call, not the original); a `tools/call` with no matching proposal is denied and the agent surfaces the error to the model, which re-proposes. This holds with no approval policy configured as well. A server registered with `BridgedToolsSpec(require_proposal=False)` gives up this correspondence: its tools run for any `tools/call` the agent sends. See [Execution Contract](./agent-bridge.html.md#bridged-tools-execution).
 
 ## Custom Approvers
 

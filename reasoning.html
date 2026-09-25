@@ -1003,7 +1003,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="deepseek" class="level4">
 <h4 class="anchored" data-anchor-id="deepseek">DeepSeek</h4>
-<p>DeepSeek V4 models (<code>deepseek-v4-pro</code> and <code>deepseek-v4-flash</code>) think by default (at <code>high</code> effort) and document a <a href="https://api-docs.deepseek.com/guides/thinking_mode">three-level effort scale</a> of <code>low</code> / <code>high</code> / <code>max</code>. Inspect maps <code>reasoning_effort</code> as follows:</p>
+<p>DeepSeek models (<code>deepseek-flash</code> and <code>deepseek-v4-pro</code>) think by default (at <code>high</code> effort) and document a <a href="https://api-docs.deepseek.com/guides/thinking_mode">three-level effort scale</a> of <code>low</code> / <code>high</code> / <code>max</code>. Inspect maps <code>reasoning_effort</code> as follows:</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -1030,7 +1030,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p>Note that <code>deepseek-v4-pro</code> currently runs <code>low</code> effort requests at <code>high</code> effort server-side (DeepSeek has indicated this will change in a future update).</p>
+<p>DeepSeek’s own server-side mapping treats a raw <code>xhigh</code> as <code>high</code>; Inspect sends <code>max</code> for <code>xhigh</code> so the top of Inspect’s scale reaches the top of DeepSeek’s. Note that <code>deepseek-v4-pro</code> currently runs <code>low</code> effort requests at <code>high</code> effort server-side (DeepSeek has indicated this will change in a future update).</p>
 </section>
 <section id="mistral" class="level4">
 <h4 class="anchored" data-anchor-id="mistral">Mistral</h4>
@@ -1099,6 +1099,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
+</section>
+<section id="litellm-proxy" class="level4">
+<h4 class="anchored" data-anchor-id="litellm-proxy">LiteLLM Proxy</h4>
+<p>Sends the requested value, which LiteLLM maps to the upstream provider’s parameter (e.g.&nbsp;adaptive thinking with <code>output_config.effort</code> for Claude). When LiteLLM or the upstream model rejects the value, Inspect retries with the strongest effort the model accepts at or below it (otherwise the weakest above it), or with no effort if the model takes none, and warns once. LiteLLM decides which values a model takes from its model map, so for models it doesn’t know set <code>base_model</code> in the proxy config (see <a href="./providers.html#litellm-proxy-model-info">LiteLLM Proxy</a>).</p>
 </section>
 <section id="groq-ollama-sagemaker-sambanova" class="level4">
 <h4 class="anchored" data-anchor-id="groq-ollama-sagemaker-sambanova">Groq / Ollama / SageMaker / SambaNova</h4>
@@ -1305,214 +1309,218 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>high</td>
 </tr>
 <tr class="even">
+<td>deepseek/deepseek-flash</td>
+<td>high</td>
+</tr>
+<tr class="odd">
 <td>deepseek/deepseek-reasoner</td>
 <td>no effort scale</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>deepseek/deepseek-v4-flash</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>deepseek/deepseek-v4-pro</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>fireworks/glm-5p3</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>fireworks/glm-5p3-flash</td>
 <td>max</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>google/gemini-3-flash-preview</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3-pro</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>google/gemini-3.1-flash-lite-preview</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3.1-pro</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>google/gemini-3.5-flash</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3.5-flash-lite</td>
 <td>minimal</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>google/gemini-3.6-flash</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3.7-flash</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>google/gemini-3.8-flash</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>grok/grok-3-mini</td>
 <td>low</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>grok/grok-4</td>
 <td>no effort scale</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>grok/grok-4.3</td>
 <td>low</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>grok/grok-4.5</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>grok/grok-4.6</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>grok/grok-4.7</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>mistral/magistral-medium-2506</td>
 <td>no effort scale</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>mistral/magistral-small-2506</td>
 <td>no effort scale</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>mistral/mistral-medium-2604</td>
 <td>none</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>mistral/mistral-small-2603</td>
 <td>none</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>moonshotai/kimi-k3</td>
 <td>max</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5-mini</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5-nano</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.1</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.1-codex</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.2</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.2-codex</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.2-pro</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.3-codex</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.4</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.4-mini</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.4-nano</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.4-pro</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.5</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.5-pro</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.6</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.6-luna</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.6-sol</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.6-terra</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-6-astra</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-6-luna</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-6-sol</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>z-ai/glm-5.3</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>z-ai/glm-5.3-flash</td>
 <td>max</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>zai-org/GLM-5.3-FP8</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>zai-org/GLM-5.3-FP8-Lora</td>
 <td>max</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>zai-org/glm-5.3</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>zai-org/glm-5.3-flash</td>
 <td>max</td>
 </tr>

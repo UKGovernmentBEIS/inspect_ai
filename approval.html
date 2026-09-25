@@ -941,6 +941,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>Automatic approvals by the <code>auto</code> approver are not shown at all. If you want a visible record of every decision, use an approver other than <code>auto</code>.</p></li>
 </ul>
 <p>A <code>modify</code> decision leaves the original call intact in the log: the recorded model output and approval event show what the model proposed, and the approval event’s <code>modified</code> field shows what was substituted.</p>
+<p>For a sandbox bridge with <a href="./agent-bridge.html#bridged-tools">bridged tools</a>, the decision also determines what the agent can execute on the host. A bridged tool runs only for a call the model proposed in a bridged generation, once per proposal, with the arguments as approved (so a <code>modify</code> decision grants the modified call, not the original); a <code>tools/call</code> with no matching proposal is denied and the agent surfaces the error to the model, which re-proposes. This holds with no approval policy configured as well. A server registered with <code>BridgedToolsSpec(require_proposal=False)</code> gives up this correspondence: its tools run for any <code>tools/call</code> the agent sends. See <a href="./agent-bridge.html#bridged-tools-execution">Execution Contract</a>.</p>
 </section>
 <section id="custom-approvers" class="level2">
 <h2 class="anchored" data-anchor-id="custom-approvers">Custom Approvers</h2>
