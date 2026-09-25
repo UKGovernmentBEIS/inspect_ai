@@ -10,9 +10,6 @@ import anyio
 import pytest
 from botocore.exceptions import ClientError
 
-if TYPE_CHECKING:
-    from _typeshed import SupportsRichComparison
-
 from inspect_ai import (
     Epochs,
     Task,
@@ -29,8 +26,12 @@ from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_no
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.dataset._dataset import sample_input_len
+from inspect_ai.log import read_eval_log
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+if TYPE_CHECKING:
+    from _typeshed import SupportsRichComparison
 
 
 def test_eval_epochs_sample_count():
@@ -47,6 +48,7 @@ def test_eval_log_records_dataset_revision():
     )
     log = eval(Task(dataset=dataset), model="mockllm/model", limit=1)[0]
     assert log.eval.dataset.revision == "abc123"
+    assert read_eval_log(log.location).eval.dataset.revision == "abc123"
 
     log = eval(Task(dataset=[Sample(input="s1")]), model="mockllm/model")[0]
     assert log.eval.dataset.revision is None
