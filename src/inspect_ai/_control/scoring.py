@@ -869,9 +869,15 @@ async def run_score_pass(
                 metrics=handle.metrics,
                 scorer_names=handle.scorer_names,
             )
+            # mirror EvalScore's own fields (name, scorer, reducer) so a
+            # consumer can reconstruct the score and resolve a HeadlineMetric:
+            # a dict-valued scorer names its scores for its value keys, so
+            # `name` alone can't tell two scorers' same-key scores apart —
+            # `scorer` (the originating scorer) disambiguates them.
             score_pass.metrics = [
                 {
-                    "scorer": score.name,
+                    "name": score.name,
+                    "scorer": score.scorer,
                     "reducer": score.reducer,
                     "metrics": {
                         key: metric.value for key, metric in score.metrics.items()

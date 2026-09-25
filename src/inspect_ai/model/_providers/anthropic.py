@@ -2,14 +2,17 @@ import functools
 import json
 import os
 import re
+import time
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
     Any,
+    Collection,
     Iterable,
     Literal,
+    NamedTuple,
     Sequence,
     Tuple,
     TypeGuard,
@@ -83,10 +86,10 @@ from anthropic.types.beta import (
     BetaCompact20260112EditParam,
     BetaCompactionBlock,
     BetaCompactionBlockParam,
+    BetaComputerToolset20260801Param,
     BetaDirectCaller,
     BetaFallbackBlock,
     BetaFallbackBlockParam,
-    BetaFallbackInfoParam,
     BetaInputTokensTriggerParam,
     BetaMCPToolResultBlock,
     BetaMCPToolUseBlock,
@@ -149,7 +152,10 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
-from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._samples import (
+    sample_active,
+    set_active_model_event_call,
+)
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
     is_result_cleared,
@@ -171,6 +177,7 @@ from inspect_ai.util._json import (
 )
 
 from ..._util.httpx import httpx_classify_retry
+from .._call_tools import TOOL_CALLS_FAIL_FAST
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -206,14 +213,22 @@ from .._stream import (
     report_model_stream_start,
 )
 from ._anthropic_batch import AnthropicBatcher
+from ._anthropic_max_tokens import (
+    ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
+    ANTHROPIC_MAX_TOKENS,
+    anthropic_effort_max_tokens,
+)
+from ._first_party import FRONTIER_MODELS
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
     forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
+    is_claude_opus_5_5_model,
     is_forced_tool_choice,
     model_base_url,
     normalize_stream_arg,
+    rejects_forced_tool_choice,
     require_azure_base_url,
     resolve_api_key,
 )
@@ -246,6 +261,11 @@ _FORCED_TOOL_CHOICE_WARNING = (
     "(tool_choice 'any' or a specific tool returns a 400 error); using "
     "tool_choice 'auto' instead."
 )
+_COMPUTER_TOOLSET_TOOL_CHOICE_WARNING = (
+    "anthropic model '{model}' declares the computer tool as Anthropic's "
+    "computer toolset, which cannot be forced with tool_choice (the API "
+    "rejects a tool choice naming the toolset); using tool_choice 'auto' instead."
+)
 _THINKING_DROPPED_WARNING = (
     "anthropic model '{model}' dropped replayed thinking block(s) from the "
     "request (reason: {reason}), so their reasoning is no longer visible to "
@@ -268,6 +288,50 @@ _REMINDER_SYSTEM_HOISTED_WARNING = (
     "(tool results map to user-role messages), which strips prior thinking and "
     "cache context on tool-use continuations."
 )
+# A 5m cache entry's TTL clock starts at prefill of the request that wrote or
+# read it, so a gap exceeding the TTL means the entry has expired and the next
+# request rewrites the full prefix whatever TTL we pick — writing it at 1h then
+# costs only the write premium on tokens already being repaid, and protects the
+# rest of the sample from further expiry.
+CACHE_TTL_ESCALATION_GAP = 300.0  # seconds (= the default 5m cache TTL)
+
+# TTL sent on the request whose usage is currently being recorded, read back by
+# cache_write_ttl() for cost accounting: escalation state is sticky and shared,
+# so a sibling that escalates mid-flight (or a batched call, which never
+# escalates) would otherwise bill this request at a TTL it was not sent with.
+# Concurrent calls are separate tasks with their own context copies, and both
+# generate() and compact() (which delegates to generate) resolve before the
+# caller records usage in that same task.
+_cache_write_ttl: ContextVar[Literal["5m", "1h"] | None] = ContextVar(
+    "anthropic_cache_write_ttl", default=None
+)
+
+# `time.monotonic()` at the start of the most recent request issued in this
+# task. pause_turn/server-tool continuations re-send the same cache_control and
+# refresh the entry at their own prefill, so the gap baseline must come from the
+# last one, not from the start of generate().
+_last_request_start: ContextVar[float | None] = ContextVar(
+    "anthropic_last_request_start", default=None
+)
+
+
+@dataclass
+class _SampleCacheTtlState:
+    last_cached_request_start: float
+    """`time.monotonic()` at the start of the last request that read or wrote the prompt cache."""
+
+    escalated: bool = False
+    """Sticky flag: sample observed a >5m gap and now uses the 1h TTL."""
+
+
+class _ResolvedCacheTtl(NamedTuple):
+    ttl: Literal["5m", "1h"] | None
+    """TTL for this request's cache_control (None omits the ttl key = 5m)."""
+
+    request_start: float | None
+    """`time.monotonic()` at resolve time when sample gap tracking applied."""
+
+
 _CACHE_DIAGNOSIS_BETA = "cache-diagnosis-2026-04-07"
 _THINKING_BINDING_BETA = "thinking-binding-controls-2026-08-01"
 _CACHE_MISS_WARNING = (
@@ -283,6 +347,15 @@ AZURE_ANTHROPIC_BASE_URL_VARS = [
 
 INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
+# Anthropic's computer toolset: one `tools` entry (no name, no display
+# dimensions) whose members arrive as `tool_use` blocks named for the member
+# (e.g. `left_click`) with `toolset_name="computer"`, which every answering
+# `tool_result` must echo.
+COMPUTER_TOOLSET_TYPE: Literal["computer_toolset_20260801"] = (
+    "computer_toolset_20260801"
+)
+COMPUTER_TOOLSET_NAME = "computer"
+
 
 class AnthropicAPI(ModelAPI):
     def __init__(
@@ -293,7 +366,8 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         streaming: bool | Literal["auto"] = "auto",
         betas: str | list[str] = [],
-        cache_ttl: Literal["5m", "1h"] | None = None,
+        cache_ttl: Literal["5m", "1h", "auto"] | None = None,
+        computer_toolset: bool | None = None,
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -307,12 +381,18 @@ class AnthropicAPI(ModelAPI):
         self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
         self.betas = betas if isinstance(betas, list) else [str(betas)]
 
-        # validate and record prompt cache ttl
-        if cache_ttl is not None and cache_ttl not in ("5m", "1h"):
+        # validate and record prompt cache ttl (None is equivalent to "auto")
+        if cache_ttl is not None and cache_ttl not in ("5m", "1h", "auto"):
             raise ValueError(
-                f"Invalid cache_ttl '{cache_ttl}': valid values are '5m' and '1h'."
+                f"Invalid cache_ttl '{cache_ttl}': valid values are '5m', '1h', "
+                "and 'auto'."
             )
         self.cache_ttl = cache_ttl
+
+        # computer use mode override (None selects the mode per model/platform)
+        self.computer_toolset = normalize_stream_arg(
+            computer_toolset, "computer_toolset"
+        )
 
         # collect generate model_args (then delete them so we can pass the rest on)
         def collect_model_arg(name: str) -> Any | None:
@@ -458,12 +538,11 @@ class AnthropicAPI(ModelAPI):
             # we must use one or the other — not both.
             auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
             if auth_token:
+                default_headers = self._oauth_default_headers(model_args)
                 return AsyncAnthropic(
                     base_url=base_url,
                     auth_token=auth_token,
-                    default_headers={
-                        "anthropic-beta": "oauth-2025-04-20",
-                    },
+                    default_headers=default_headers,
                     **model_args,
                 )
             # resolve api_key
@@ -497,6 +576,143 @@ class AnthropicAPI(ModelAPI):
     def is_azure(self) -> bool:
         return self.service == "azure"
 
+    def _resolve_cache_ttl(self, config: GenerateConfig) -> _ResolvedCacheTtl:
+        """Resolve the prompt-cache TTL for this request.
+
+        An explicit `cache_ttl` of "5m" or "1h" pins the TTL unconditionally.
+        Otherwise ("auto", the default) requests start on the standard 5m TTL
+        (returned as None so the `ttl` key is omitted from `cache_control`) and
+        the active sample is escalated to the 1h TTL — permanently, for the
+        remainder of the sample — once the gap since its last request that
+        actually touched the prompt cache exceeds the 5m TTL. At that point the
+        cache has already expired and the full prefix is being rewritten
+        regardless, so the 1h write premium applies only to tokens already
+        being repaid while protecting the rest of the sample (whose gaps have
+        proven able to outlive the 5m TTL).
+
+        Auto mode never escalates on non-first-party services (block-level
+        `ttl` support on Bedrock/Vertex/Azure is unverified, and auto is the
+        default — explicit "1h" still applies everywhere), when prompt caching
+        is disabled, for batched requests (batch queuing has no meaningful
+        inter-request gap), or outside a sample context.
+
+        Escalation is sample-wide, so a one-shot call that happens to run in an
+        escalated sample (a `model_graded_qa` grader, an approver, a compaction
+        summary) writes its unrelated prefix at 1h too. The gap is evidence
+        about the sample's pacing rather than about one prompt lineage, and
+        tracking lineages separately is not worth the bookkeeping.
+
+        The returned `request_start` is set only when gap tracking applied;
+        pass it to `_record_cache_ttl_refresh` with the response usage once the
+        request succeeds.
+        """
+        resolved = self._cache_ttl_for_request(config)
+        _cache_write_ttl.set(resolved.ttl)
+        return resolved
+
+    def _cache_ttl_state(self) -> dict[str, _SampleCacheTtlState] | None:
+        """Escalation state for the active sample, or None outside a sample.
+
+        Lives on the sample's `_AssistantInternal`, so its lifetime is the
+        sample's and it needs no pruning. Outside a sample that struct is a
+        process-global default instance, hence the `sample_active()` gate.
+        """
+        if sample_active() is None:
+            return None
+        return assistant_internal().cache_ttl
+
+    def _cache_ttl_for_request(self, config: GenerateConfig) -> _ResolvedCacheTtl:
+        if self.cache_ttl in ("5m", "1h"):
+            return _ResolvedCacheTtl(ttl=self.cache_ttl, request_start=None)
+        if (
+            self.service is not None
+            or config.cache_prompt is False
+            or normalized_batch_config(config.batch)
+        ):
+            return _ResolvedCacheTtl(ttl=None, request_start=None)
+        sample_state = self._cache_ttl_state()
+        if sample_state is None:
+            return _ResolvedCacheTtl(ttl=None, request_start=None)
+
+        now = time.monotonic()
+        state = sample_state.get(self.service_model_name())
+        if state is not None and not state.escalated:
+            gap = now - state.last_cached_request_start
+            if gap > CACHE_TTL_ESCALATION_GAP:
+                state.escalated = True
+                logger.info(
+                    f"anthropic prompt cache: gap of {gap:.0f}s since the last "
+                    f"cached request exceeded the {CACHE_TTL_ESCALATION_GAP:.0f}s "
+                    f"cache TTL for {self.service_model_name()}; using the 1h "
+                    "cache TTL for the remainder of the sample (cache writes "
+                    "billed at 2x base input price rather than 1.25x)."
+                )
+
+        return _ResolvedCacheTtl(
+            ttl="1h" if state is not None and state.escalated else None,
+            request_start=now,
+        )
+
+    def _record_cache_ttl_refresh(
+        self, resolved: _ResolvedCacheTtl, usage: ModelUsage | None
+    ) -> None:
+        """Advance the sample's cache baseline after a request that used the cache.
+
+        Only a response reporting a cache read or write proves an entry exists
+        whose TTL clock started at this request, so only those establish the
+        baseline a later gap is measured against. Requests that never reached
+        the API (rate limit, connection error) and those the server declined to
+        cache (a prefix below the model's minimum cacheable length, which
+        silently reports zero cache tokens) leave the baseline alone —
+        otherwise a long retry backoff or a stretch of short prompts would
+        escalate a sample whose first real cache write is still ahead of it,
+        billing that unavoidable write at 2x rather than 1.25x.
+
+        The cache entry the next request reads is written/refreshed at prefill
+        (near request start), so the baseline is a request's start time — and
+        specifically the *last* request issued, since pause_turn/server-tool
+        continuations each refresh the entry at their own prefill.
+
+        Residual: an attempt cancelled by an attempt/stream-idle timeout unwinds
+        before this runs, so a request that did prefill and write leaves the
+        baseline where it was and the retry measures its gap from further back
+        than it should. Erring that way only over-escalates; there is no usage
+        to prove caching happened on a response we never received.
+        """
+        if resolved.request_start is None:
+            return
+        if usage is None or not (
+            (usage.input_tokens_cache_write or 0)
+            or (usage.input_tokens_cache_read or 0)
+        ):
+            return
+        sample_state = self._cache_ttl_state()
+        if sample_state is None:
+            return
+        # a continuation chain's last prefill, when later than resolve time; a
+        # value left by an earlier generate in this task is necessarily earlier
+        request_start = max(resolved.request_start, _last_request_start.get() or 0.0)
+        key = self.service_model_name()
+        state = sample_state.get(key)
+        if state is None:
+            sample_state[key] = _SampleCacheTtlState(
+                last_cached_request_start=request_start
+            )
+        elif request_start > state.last_cached_request_start:
+            # ignore out-of-order completions from parallel calls in one sample
+            state.last_cached_request_start = request_start
+
+    @override
+    def cache_write_ttl(self) -> str | None:
+        # the TTL this call was sent with, not the sample's current escalation
+        # state — a sibling may have escalated while this one was in flight.
+        # Residual: server tools insert their own 5m cache write after tool
+        # results, which an escalated sample still bills at 1h; only mapping the
+        # ephemeral_5m/1h split from response usage would price those exactly.
+        if self.cache_ttl in ("5m", "1h"):
+            return self.cache_ttl
+        return _cache_write_ttl.get()
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -511,13 +727,16 @@ class AnthropicAPI(ModelAPI):
 
         # generate
         try:
+            resolved_cache_ttl = self._resolve_cache_ttl(config)
+            cache_ttl = resolved_cache_ttl.ttl
+
             (
                 system_param,
                 tools_param,
                 mcp_servers_param,
                 messages,
                 cache_prompt,
-            ) = await self.resolve_chat_input(input, tools, config)
+            ) = await self.resolve_chat_input(input, tools, config, cache_ttl)
 
             # prepare request params (assembled this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
@@ -531,7 +750,7 @@ class AnthropicAPI(ModelAPI):
             # per-block markers added in resolve_chat_input on those services.
             # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
             if cache_prompt and not (self.is_bedrock() or self.is_vertex()):
-                request["cache_control"] = cache_control_param(self.cache_ttl)
+                request["cache_control"] = cache_control_param(cache_ttl)
 
             # system messages and tools
             if system_param is not None:
@@ -543,6 +762,21 @@ class AnthropicAPI(ModelAPI):
             tool_choice_degraded = False
             if len(tools_param) > 0:
                 resolved_choice = self.resolved_tool_choice(tool_choice)
+                # the computer toolset has no tool named `computer` to force
+                # (the API rejects a tool choice naming the toolset or a
+                # member), so degrade a forced computer tool choice to auto
+                if (
+                    isinstance(resolved_choice, ToolFunction)
+                    and resolved_choice.name == INTERNAL_COMPUTER_TOOL_NAME
+                    and any(is_computer_toolset(tool) for tool in tools_param)
+                ):
+                    warn_once(
+                        logger,
+                        _COMPUTER_TOOLSET_TOOL_CHOICE_WARNING.format(
+                            model=self.service_model_name()
+                        ),
+                    )
+                    resolved_choice = "auto"
                 tool_choice_degraded = resolved_choice != tool_choice
                 if not self.is_using_thinking(config):
                     request["tool_choice"] = message_tool_choice(
@@ -673,6 +907,8 @@ class AnthropicAPI(ModelAPI):
                 output.metadata = (
                     output.metadata or {}
                 ) | forced_tool_choice_degraded_metadata(tool_choice)
+
+            self._record_cache_ttl_refresh(resolved_cache_ttl, output.usage)
 
             return output, model_call
 
@@ -858,6 +1094,9 @@ class AnthropicAPI(ModelAPI):
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
         """
+        # each continuation re-sends the same cache_control, so it refreshes the
+        # cache entry at its own prefill -- record it as the gap baseline
+        _last_request_start.set(time.monotonic())
         if pending_tool_uses is None:
             pending_tool_uses = dict()
         if pending_mcp_tool_uses is None:
@@ -973,6 +1212,22 @@ class AnthropicAPI(ModelAPI):
             for b in headers.pop(key).split(",")
             if (beta := b.strip())
         ]
+
+    def _oauth_default_headers(self, model_args: dict[str, Any]) -> dict[str, str]:
+        """Default headers for the OAuth client, merging in the caller's own.
+
+        Popping the caller's `default_headers` out of `model_args` (rather
+        than letting it also flow through `**model_args`) avoids a duplicate
+        `default_headers` keyword argument. The OAuth beta is then combined
+        with any caller-supplied `anthropic-beta` (or `anthropic_beta`)
+        value, as `_beta_header_value` combines it for per-request betas.
+        """
+        headers: dict[str, str] = dict(model_args.pop("default_headers", None) or {})
+        caller_betas = self._pull_betas_from_headers(headers)
+        headers["anthropic-beta"] = ",".join(
+            dict.fromkeys(["oauth-2025-04-20", *caller_betas])
+        )
+        return headers
 
     def _beta_header_value(self, betas: list[str]) -> str:
         """Value for a per-request anthropic-beta header.
@@ -1155,7 +1410,7 @@ class AnthropicAPI(ModelAPI):
         if self.is_claude_3() or self.is_claude_3_5():
             return 4096
         else:
-            return 32000
+            return ANTHROPIC_MAX_TOKENS
 
     @override
     def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
@@ -1165,14 +1420,7 @@ class AnthropicAPI(ModelAPI):
             if reasoning_effort is not None:
                 # xhigh/max sized to reach the migration-guide floor of 64k
                 # on top of the 32k base for thinking models.
-                effort_tokens = {
-                    "low": 4096,
-                    "medium": 10000,
-                    "high": 16000,
-                    "xhigh": 32000,
-                    "max": 32000,
-                }
-                max_tokens = max_tokens + effort_tokens.get(reasoning_effort, 16000)
+                max_tokens = max_tokens + anthropic_effort_max_tokens(reasoning_effort)
             else:
                 # pre-4.6 path: size for explicit reasoning_tokens, or for
                 # the bridged effort->tokens translation when only effort is set.
@@ -1182,8 +1430,8 @@ class AnthropicAPI(ModelAPI):
 
         # migration-guide floor: xhigh/max effort wants ≥64k max_tokens
         # (model caps below will still clamp on older models)
-        if config.effort in ("xhigh", "max") and max_tokens < 64000:
-            max_tokens = 64000
+        if config.effort in ("xhigh", "max"):
+            max_tokens = max(max_tokens, ANTHROPIC_HIGH_EFFORT_MAX_TOKENS)
 
         # apply caps after bumping for reasoning
         if self.is_claude_frontier() and self.is_claude_4_opus():
@@ -1215,7 +1463,9 @@ class AnthropicAPI(ModelAPI):
 
         Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5) run adaptive thinking by
         default and accept `disabled` to turn it off (on Opus 5 only at effort
-        `high` or below — see completion_config).
+        `high` or below — see completion_config). Fable/Mythos 5 and Opus 5.5
+        always think and reject `disabled` (400), so `"none"` leaves thinking
+        on for them (the field is omitted).
         """
         if not self.is_claude_4_7_or_later():
             # pre-4.7 models default to no thinking, so `"none"` is honored by
@@ -1224,6 +1474,9 @@ class AnthropicAPI(ModelAPI):
         if not self.is_claude_5():
             # Opus 4.7 / 4.8 (and future 4.x minors)
             return True
+        if self.is_claude_opus_5_5_or_later():
+            # unlike Opus 5, Opus 5.5 can't disable thinking at any effort
+            return False
         # Claude 5: only tier-named models accept `disabled`. Fable/Mythos also
         # always think but reject `disabled` (400) — as do unknown codename
         # Claude 5 models, which are assumed to follow Fable rather than the
@@ -1233,25 +1486,26 @@ class AnthropicAPI(ModelAPI):
     def apply_thinking_block_binding(
         self, request: dict[str, Any], betas: list[str]
     ) -> None:
-        """Opt into dropping prefix-mismatched thinking blocks on Fable 5.1.
+        """Opt into dropping prefix-mismatched thinking blocks on Fable 5.1 / Opus 5.5.
 
-        Fable 5.1 binds thinking blocks to the request prefix that produced
-        them; solvers legitimately edit history, and without drop_block such an
-        edit fails the replay with a 400. Applied to every Fable 5.1 request —
-        not only those replaying thinking blocks — so the beta header stays
-        uniform across a task's requests (the batcher submits a single header
-        set per batch). Mythos 5.1 does not run the binding check, so it is
-        excluded. First-party API only for now: the binding-controls beta
-        arrives per model on bedrock/vertex (the header is rejected until
-        then) and is not offered on foundry — until those platforms enable it,
-        a history edit there will still 400. A caller-supplied
-        `extra_body.thinking` shallow-merges over the request body and
-        replaces this binding config.
+        Fable 5.1 and Opus 5.5 bind thinking blocks to the request prefix that
+        produced them; solvers legitimately edit history, and without
+        drop_block such an edit fails the replay with a 400. Applied to every
+        request for these models — not only those replaying thinking blocks —
+        so the beta header stays uniform across a task's requests (the batcher
+        submits a single header set per batch). Mythos 5.1 does not run the
+        binding check, so it is excluded. First-party API only for now: the
+        binding-controls beta arrives per model on bedrock/vertex (the header
+        is rejected until then) and is not offered on foundry — until those
+        platforms enable it, a history edit there will still 400. A
+        caller-supplied `extra_body.thinking` shallow-merges over the request
+        body and replaces this binding config.
         """
-        if (
-            self.is_claude_fable_5_1_or_later()
-            and "mythos" not in self.model_family()
-            and not (self.is_bedrock() or self.is_vertex() or self.is_azure())
+        binds_thinking = (
+            self.is_claude_fable_5_1_or_later() and "mythos" not in self.model_family()
+        ) or self.is_claude_opus_5_5_or_later()
+        if binds_thinking and not (
+            self.is_bedrock() or self.is_vertex() or self.is_azure()
         ):
             betas.append(_THINKING_BINDING_BETA)
             # thinking is always on for these models, so explicit adaptive
@@ -1264,9 +1518,11 @@ class AnthropicAPI(ModelAPI):
         """Degrade forced tool choice to auto on models that reject it (400).
 
         "auto" and "none" pass through unchanged; strict tool use with auto
-        remains the schema-enforcement path on Fable/Mythos 5.1.
+        remains the schema-enforcement path on Fable/Mythos 5.1 and Opus 5.5.
         """
-        if is_forced_tool_choice(tool_choice) and self.is_claude_fable_5_1_or_later():
+        if is_forced_tool_choice(tool_choice) and rejects_forced_tool_choice(
+            self.model_family()
+        ):
             warn_once(
                 logger,
                 _FORCED_TOOL_CHOICE_WARNING.format(model=self.service_model_name()),
@@ -1350,6 +1606,57 @@ class AnthropicAPI(ModelAPI):
 
     def is_claude_fable_5_1_or_later(self) -> bool:
         return is_claude_fable_5_1_model(self.model_family())
+
+    def is_claude_opus_5_5_or_later(self) -> bool:
+        """Opus 5.5 or a later point release (a subset of is_claude_opus_5)."""
+        return is_claude_opus_5_5_model(self.model_family())
+
+    def computer_use_toolset(self) -> bool:
+        """Whether the computer tool is declared as Anthropic's computer toolset.
+
+        Auto mode (no `computer_toolset` model arg) uses the toolset where the
+        legacy `computer_20251124` tool is rejected (Opus 5.5 on the Claude API
+        and Vertex) and, where the platform offers it, for Fable/Mythos 5.x and
+        any other non-Sonnet/Opus Claude 5 model. Every other model keeps the
+        legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock and
+        Foundry, which offer only the legacy tool.
+        """
+        if self.computer_toolset is not None:
+            return self.computer_toolset
+        return self.computer_toolset_required() or (
+            self.computer_toolset_preferred() and self.computer_toolset_available()
+        )
+
+    def computer_toolset_preferred(self) -> bool:
+        """Whether the toolset is the default computer use path where offered.
+
+        Fable/Mythos 5.x (and any other non-Sonnet/Opus Claude 5 codename)
+        default to the toolset, which is GA for them on the Claude API and
+        Vertex; they also accept the legacy tool, so `computer_toolset=false`
+        and platforms without the toolset fall back to it.
+        """
+        return self.is_claude_5() and not (
+            self.is_claude_sonnet_5() or self.is_claude_opus_5()
+        )
+
+    def computer_toolset_available(self) -> bool:
+        """Whether this platform offers the computer toolset at all.
+
+        Per Anthropic's computer-use docs, platforms other than the Claude API
+        and Google Cloud (Vertex) currently offer only the earlier tool
+        versions. (Claude Platform on AWS also offers only those, but this
+        provider has no client for it, so it needs no case here.)
+        """
+        return not (self.is_bedrock() or self.is_azure())
+
+    def computer_toolset_required(self) -> bool:
+        """Whether the legacy computer tool is rejected for this model/platform.
+
+        Only Opus 5.5 on the Claude API and Vertex rejects `computer_20251124`;
+        Bedrock and Foundry keep accepting it there, and every other model
+        listed for the legacy tool (Fable/Mythos 5.x included) still accepts it.
+        """
+        return self.is_claude_opus_5_5_or_later() and self.computer_toolset_available()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -1464,7 +1771,7 @@ class AnthropicAPI(ModelAPI):
             return "anthropic/claude-opus-4-6"  # 1MM
         elif self.is_claude_latest():
             # Unknown future version: assume the current 1M frontier.
-            return "anthropic/claude-opus-5"  # 1MM
+            return FRONTIER_MODELS["anthropic"]  # 1MM
         elif (
             self.is_claude_5() and _get_model_info_direct(self.canonical_name()) is None
         ):
@@ -1474,7 +1781,7 @@ class AnthropicAPI(ModelAPI):
             # Claude 5 models (Opus/Sonnet/Fable/Mythos and their point
             # releases, which fuzzy-match their base entry) fall through to the
             # database below.
-            return "anthropic/claude-opus-5"  # 1MM
+            return FRONTIER_MODELS["anthropic"]  # 1MM
         else:
             return super().input_tokens_name()
 
@@ -1610,6 +1917,7 @@ class AnthropicAPI(ModelAPI):
         input: list[ChatMessage],
         tools: list[ToolInfo],
         config: GenerateConfig,
+        cache_ttl: Literal["5m", "1h"] | None,
     ) -> Tuple[
         list[TextBlockParam] | None,
         list["ToolParamDef"],
@@ -1633,14 +1941,6 @@ class AnthropicAPI(ModelAPI):
         else:
             system_messages, messages = _split_system_as_reminders(input)
 
-        # messages
-        message_params = [(await message_param(message)) for message in messages]
-
-        # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
-        message_params = functools.reduce(
-            consecutive_user_message_reducer, message_params, []
-        )
-
         # cleave out MCP servers from tools
         tools, mcp_servers = self.partition_tools(tools)
 
@@ -1650,6 +1950,35 @@ class AnthropicAPI(ModelAPI):
             for tool in tools
             for param in self.tool_params_for_tool_info(tool, config)
         ]
+
+        # with the computer toolset declared, every call to the computer tool
+        # in the history replays as a toolset member (name = action, with
+        # toolset_name) and its result must echo toolset_name -- whichever
+        # tool declaration originally produced it
+        computer_toolset_call_ids: set[str] = set()
+        if any(is_computer_toolset(param) for param in tools_params):
+            computer_toolset_call_ids = {
+                tool_call.id
+                for message in messages
+                if isinstance(message, ChatMessageAssistant)
+                for tool_call in message.tool_calls or []
+                if tool_call.function == INTERNAL_COMPUTER_TOOL_NAME
+            }
+
+        # messages
+        message_params = [
+            (
+                await message_param(
+                    message, computer_toolset_call_ids=computer_toolset_call_ids
+                )
+            )
+            for message in messages
+        ]
+
+        # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
+        message_params = functools.reduce(
+            consecutive_user_message_reducer, message_params, []
+        )
 
         # mcp servers
         mcp_server_params = [
@@ -1687,10 +2016,10 @@ class AnthropicAPI(ModelAPI):
         if cache_prompt:
             # system
             if system_param:
-                add_cache_control(system_param[-1], self.cache_ttl)
+                add_cache_control(system_param[-1], cache_ttl)
             # tools
             if tools_params:
-                add_cache_control(tools_params[-1], self.cache_ttl)
+                add_cache_control(tools_params[-1], cache_ttl)
             # mark the second-to-last cacheable block. auto-cache marks the
             # last; this write gives lookback a fallback when that block
             # changes (RAG, scorers, approvers, branching evals). harmless
@@ -1698,7 +2027,7 @@ class AnthropicAPI(ModelAPI):
             # suffices. Skip thinking/redacted_thinking blocks — the API
             # rejects cache_control on those.
             if message_params:
-                add_lookback_cache_control(message_params, self.cache_ttl)
+                add_lookback_cache_control(message_params, cache_ttl)
 
         normalize_document_citations(message_params)
 
@@ -1775,7 +2104,12 @@ class AnthropicAPI(ModelAPI):
 
     def computer_use_tool_param(
         self, tool: ToolInfo
-    ) -> BetaToolComputerUse20250124Param | BetaToolComputerUse20251124Param | None:
+    ) -> (
+        BetaToolComputerUse20250124Param
+        | BetaToolComputerUse20251124Param
+        | BetaComputerToolset20260801Param
+        | None
+    ):
         # check for compatible 'computer' tool
         if is_computer_tool_info(tool):
             if self.is_claude_3_5():
@@ -1784,18 +2118,38 @@ class AnthropicAPI(ModelAPI):
                     "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
                 )
                 return None
-            # Among Claude 5 models only Sonnet 5 and Opus 5 are documented to
-            # support native computer use (the computer-use-2025-11-24 tool).
-            # Fable/Mythos 5 are not listed in Anthropic's computer-use docs, so
-            # error for those rather than degrade to a non-native fallback tool.
-            if self.is_claude_5() and not (
-                self.is_claude_sonnet_5() or self.is_claude_opus_5()
-            ):
+            if self.computer_use_toolset():
+                # only reachable when forced: auto mode never picks the toolset
+                # on a platform that does not offer it
+                if not self.computer_toolset_available():
+                    raise PrerequisiteError(
+                        f"Anthropic's computer toolset (computer_toolset_20260801) "
+                        f"is only offered on the Claude API and Vertex, not for "
+                        f"'{self.service_model_name()}' on this platform. Remove "
+                        "computer_toolset=true to use the legacy computer tool."
+                    )
+                # the toolset is documented for Opus 4.8, Sonnet 5, Opus 5/5.5
+                # and Fable/Mythos 5.x (so a forced opt-in on older models errors)
+                if not self.is_claude_4_8_or_later():
+                    raise PrerequisiteError(
+                        f"Anthropic's computer toolset (computer_toolset_20260801) is "
+                        f"not supported by the model '{self.service_model_name()}'. "
+                        "It requires Claude Opus 4.8, Sonnet 5, Opus 5 or later; "
+                        "remove the computer_toolset model arg to use the legacy "
+                        "computer tool."
+                    )
+                # no display dimensions (coordinates are in the pixel space of
+                # the screenshots we return); zoom is enabled by default and the
+                # inspect computer tool always supports it, so no configs.
+                return BetaComputerToolset20260801Param(type=COMPUTER_TOOLSET_TYPE)
+            # legacy path forced (computer_toolset=false) where the legacy tool
+            # is rejected (Opus 5.5 on the Claude API / Vertex)
+            if self.computer_toolset_required():
                 raise PrerequisiteError(
-                    f"Computer use is not supported by the model '{self.service_model_name()}'. "
-                    "Anthropic's native computer use requires a Claude 4.x model, "
-                    "Claude Sonnet 5, or Claude Opus 5 (e.g. claude-opus-4-8, "
-                    "claude-sonnet-5, or claude-opus-5)."
+                    f"The legacy computer tool (computer_20251124) is not supported "
+                    f"by the model '{self.service_model_name()}' on this platform. "
+                    "Remove computer_toolset=false to use Anthropic's computer "
+                    "toolset (computer_toolset_20260801)."
                 )
             # Note: The dimensions passed here for display_width_px and display_height_px
             # should match the dimensions of screenshots returned by the tool. Those
@@ -1808,7 +2162,8 @@ class AnthropicAPI(ModelAPI):
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
             # computer_20251124 is supported by Claude Opus 5, Sonnet 5,
-            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5
+            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5 (and by Opus 5.5 on
+            # Bedrock and Foundry, where the toolset is not offered)
             if self.is_claude_frontier() or (
                 self.is_claude_4_5() and self.is_claude_4_opus()
             ):
@@ -2118,6 +2473,7 @@ ToolParamDef = (
     ToolParam
     | BetaToolComputerUse20250124Param
     | BetaToolComputerUse20251124Param
+    | BetaComputerToolset20260801Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
     | BetaToolTextEditor20250429Param
@@ -2154,6 +2510,12 @@ def is_computer_tool(
     param: ToolParamDef,
 ) -> TypeGuard[BetaToolComputerUse20250124Param | BetaToolComputerUse20251124Param]:
     return param.get("name") == "computer" and not is_tool_param(param)
+
+
+def is_computer_toolset(
+    param: ToolParamDef,
+) -> TypeGuard[BetaComputerToolset20260801Param]:
+    return param.get("type") == COMPUTER_TOOLSET_TYPE
 
 
 def is_web_search_tool(
@@ -2231,6 +2593,7 @@ def add_cache_control(
     | ToolParam
     | BetaToolComputerUse20250124Param
     | BetaToolComputerUse20251124Param
+    | BetaComputerToolset20260801Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
     | BetaToolTextEditor20250429Param
@@ -2535,7 +2898,15 @@ def _previous_assistant_message_id(input: list[ChatMessage]) -> str | None:
     return None
 
 
-async def message_param(message: ChatMessage) -> MessageParam:
+async def message_param(
+    message: ChatMessage, *, computer_toolset_call_ids: Collection[str] = frozenset()
+) -> MessageParam:
+    """Convert a chat message to an Anthropic message param.
+
+    `computer_toolset_call_ids` holds the tool call ids that replay as computer
+    toolset members (their `tool_use` and `tool_result` blocks carry
+    `toolset_name`); it is empty whenever the toolset is not declared.
+    """
     # if content is empty that is going to result in an error when we replay
     # this message to claude, so in that case insert a NO_CONTENT message
     if isinstance(message.content, list) and len(message.content) == 0:
@@ -2585,21 +2956,21 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 for item in await message_block_params(content)
             ]
 
-        return MessageParam(
-            role="user",
-            content=[
-                ToolResultBlockParam(
-                    tool_use_id=str(message.tool_call_id),
-                    type="tool_result",
-                    content=cast(list[TextBlockParam | ImageBlockParam], content),
-                    is_error=message.error is not None,
-                )
-            ],
+        tool_result = ToolResultBlockParam(
+            tool_use_id=str(message.tool_call_id),
+            type="tool_result",
+            content=cast(list[TextBlockParam | ImageBlockParam], content),
+            is_error=message.error is not None,
         )
+        if message.tool_call_id in computer_toolset_call_ids:
+            tool_result["toolset_name"] = COMPUTER_TOOLSET_NAME
+        return MessageParam(role="user", content=[tool_result])
 
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant":
-        block_params = await assistant_message_block_params(message)
+        block_params = await assistant_message_block_params(
+            message, computer_toolset_call_ids=computer_toolset_call_ids
+        )
 
         return MessageParam(
             role=message.role,
@@ -2809,6 +3180,8 @@ async def assistant_message_blocks(
 
 async def assistant_message_block_params(
     message: ChatMessageAssistant,
+    *,
+    computer_toolset_call_ids: Collection[str] = frozenset(),
 ) -> list[MessageBlockParam]:
     block_params: list[MessageBlockParam] = []
 
@@ -2884,15 +3257,17 @@ async def assistant_message_block_params(
             )
         )
         position = min(max(position, 0), content_len)
-        internal_name = _internal_name_from_tool_call(tool_call)
-        tools_by_position.setdefault(position, []).append(
-            ToolUseBlockParam(
+        if tool_call.id in computer_toolset_call_ids:
+            tool_use = computer_toolset_tool_use_param(tool_call)
+        else:
+            internal_name = _internal_name_from_tool_call(tool_call)
+            tool_use = ToolUseBlockParam(
                 type="tool_use",
                 id=tool_call.id,
                 name=internal_name or tool_call.function,
                 input=tool_call.arguments,
             )
-        )
+        tools_by_position.setdefault(position, []).append(tool_use)
     for position, segment in enumerate(segments):
         block_params.extend(tools_by_position.get(position, []))
         block_params.extend(segment)
@@ -3082,6 +3457,14 @@ class _AssistantInternal:
     """Server tool spans keyed by member tool use id (for replay of messages
     whose id was rewritten, e.g. by the agent bridge -- server tool use ids
     survive the bridge whereas message ids do not)."""
+    cache_ttl: dict[str, _SampleCacheTtlState] = field(default_factory=dict)
+    """Prompt-cache TTL escalation state for "auto" mode, keyed by service model
+    name (two Anthropic models in one sample track their own caches).
+
+    Lives here because this struct is bound per sample, so the state's lifetime
+    is the sample's -- no registry, prune or cap needed. Deliberately absent
+    from `dump_anthropic_assistant_internal`: `time.monotonic()` is
+    process-local and meaningless once restored elsewhere."""
     containers: dict[str, str] = field(default_factory=dict)
     """Code execution container ids keyed by assistant message id.
 
@@ -3501,6 +3884,12 @@ async def model_output_from_message(
         msg_id = getattr(message, "id", None)
         if msg_id:
             asst_metadata["message_id"] = msg_id
+
+    # computer toolset members in one response form a batch that stops at
+    # the first failure (Anthropic's batch contract); tell execute_tools
+    fail_fast_tools = _computer_toolset_fail_fast_tools(message, tool_calls)
+    if fail_fast_tools:
+        asst_metadata[TOOL_CALLS_FAIL_FAST] = fail_fast_tools
 
     # server-side refusal fallback: collect handoffs (in content order) so we
     # can surface the serving model and a structured metadata entry. on a
@@ -3939,7 +4328,19 @@ def content_and_tool_calls_from_assistant_content_blocks(
             )
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
-            (tool_name, internal_name) = _names_for_tool_call(content_block.name, tools)
+            arguments: dict[str, Any] = content_block.model_dump().get("input", {})
+            if getattr(content_block, "toolset_name", None) == COMPUTER_TOOLSET_NAME:
+                # computer toolset member: dispatch to the inspect computer
+                # tool with the member name as its `action`
+                tool_name, internal_name = _names_for_computer_toolset_call(
+                    content_block.name, tools
+                )
+                # the member name is authoritative for `action`
+                arguments = arguments | {"action": content_block.name}
+            else:
+                (tool_name, internal_name) = _names_for_tool_call(
+                    content_block.name, tools
+                )
             assistant_internal().tool_call_internal_names[content_block.id] = (
                 internal_name
             )
@@ -3954,7 +4355,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
                 ToolCall(
                     id=content_block.id,
                     function=tool_name,
-                    arguments=content_block.model_dump().get("input", {}),
+                    arguments=arguments,
                 )
             )
         elif isinstance(content_block, (ServerToolUseBlock, BetaServerToolUseBlock)):
@@ -4207,15 +4608,13 @@ def _fallback_from_content_data(
             from_info = fallback_metadata.get("from")
             to_info = fallback_metadata.get("to")
             to_model = to_info.get("model") if isinstance(to_info, dict) else None
-            param = BetaFallbackBlockParam(
-                type="fallback",
-                to=BetaFallbackInfoParam(model=to_model),  # type: ignore[typeddict-item]
-            )
-            # `from` is a reserved keyword — set via dict key
             from_model = from_info.get("model") if isinstance(from_info, dict) else None
+            # a plain dict: `from` is a reserved keyword, and the SDK marks
+            # it Required, so the TypedDict constructor can't express it
+            param: dict[str, Any] = {"type": "fallback", "to": {"model": to_model}}
             if from_model is not None:
-                cast(dict[str, Any], param)["from"] = {"model": from_model}
-            return param
+                param["from"] = {"model": from_model}
+            return cast(BetaFallbackBlockParam, param)
 
     return None
 
@@ -4413,6 +4812,54 @@ def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
     return assistant_internal().tool_call_internal_names.get(tool_call.id, None)
 
 
+def _computer_toolset_fail_fast_tools(
+    message: Message, tool_calls: list[ToolCall] | None
+) -> list[str]:
+    """Names of the tools called through computer toolset members in `message`."""
+    member_ids = {
+        block.id
+        for block in message.content
+        if isinstance(block, ToolUseBlock)
+        and getattr(block, "toolset_name", None) == COMPUTER_TOOLSET_NAME
+    }
+    if not member_ids:
+        return []
+    return sorted({call.function for call in tool_calls or [] if call.id in member_ids})
+
+
+def _names_for_computer_toolset_call(
+    member: str, tools: list[ToolInfo]
+) -> tuple[str, str | None]:
+    """Return the tool to call for a computer toolset member `tool_use`.
+
+    Members dispatch to inspect's computer tool (the only tool the toolset is
+    declared for). The member name is carried in the call's `action` argument
+    rather than as an internal name, so replay derives the wire shape from the
+    logged arguments (see `computer_toolset_tool_use_param`).
+    """
+    if any(tool.name == INTERNAL_COMPUTER_TOOL_NAME for tool in tools):
+        return INTERNAL_COMPUTER_TOOL_NAME, None
+    return member, None
+
+
+def computer_toolset_tool_use_param(tool_call: ToolCall) -> ToolUseBlockParam:
+    """Replay a computer tool call as a computer toolset member `tool_use`.
+
+    The member name is the call's `action` and the member input is the rest of
+    the arguments. Calls recorded under the legacy `computer` tool replay the
+    same way, so a conversation can move onto a toolset-only model.
+    """
+    arguments = dict(tool_call.arguments)
+    member = str(arguments.pop("action", tool_call.function))
+    return ToolUseBlockParam(
+        type="tool_use",
+        id=tool_call.id,
+        name=member,
+        toolset_name=COMPUTER_TOOLSET_NAME,
+        input=arguments,
+    )
+
+
 def _names_for_tool_call(
     tool_called: str, tools: list[ToolInfo]
 ) -> tuple[str, str | None]:
@@ -4459,8 +4906,9 @@ def message_stop_reason(message: Message) -> tuple[StopReason, bool]:
 def message_stop_details(message: Message) -> StopDetails | None:
     """Extract refusal detail from an Anthropic `Message.stop_details` (Opus 4.7+).
 
-    Anthropic reports a single named category (`cyber`/`bio`); it is mirrored into
-    `categories` so callers can read the list uniformly across providers.
+    Anthropic reports a single named category (`cyber`/`bio`/`reasoning_extraction`);
+    it is mirrored into `categories` so callers can read the list uniformly across
+    providers.
     """
     details = getattr(message, "stop_details", None)
     if details is None:

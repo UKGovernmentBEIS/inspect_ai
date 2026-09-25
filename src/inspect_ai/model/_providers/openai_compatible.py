@@ -1,4 +1,5 @@
 import os
+from collections.abc import AsyncIterable
 from logging import getLogger
 from typing import Any, Literal, cast
 
@@ -15,6 +16,7 @@ from openai import (
 from openai._types import NOT_GIVEN
 from openai.types.chat import (
     ChatCompletion,
+    ChatCompletionChunk,
     ChatCompletionMessageParam,
     ChatCompletionToolParam,
 )
@@ -47,9 +49,9 @@ from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIResponseError,
+    always_reasons_model,
     is_gpt_5_model,
     is_gpt_5_plus_model,
-    is_gpt_6_model,
     is_o_series_model,
     messages_to_openai,
     model_output_from_openai,
@@ -231,9 +233,10 @@ class OpenAICompatibleAPI(ModelAPI):
                 safety_identifier=NOT_GIVEN,
                 responses_store=self.responses_store,
                 synthesize_phase=self.responses_phase,
-                model_info=ModelInfo(self.model_family()),
+                model_info=self.responses_model_info(),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
+                handle_stream_error=self.handle_stream_error,
                 streaming=self.resolve_stream(config),
             )
 
@@ -339,7 +342,7 @@ class OpenAICompatibleAPI(ModelAPI):
                     return self.handle_bad_request(ex), model_call
                 raise
             except APIError as ex:
-                output = openai_handle_stream_error(self.service_model_name(), ex)
+                output = self.handle_stream_error(ex)
                 if output is None:
                     raise
                 model_call.set_error(
@@ -365,11 +368,21 @@ class OpenAICompatibleAPI(ModelAPI):
                     "probabilities.",
                 )
             async with await self.client.chat.completions.create(**request) as stream:
-                return await openai_chat_completion_stream_final(stream)
+                return await self.stream_completion(stream)
         else:
             return cast(
                 ChatCompletion, await self.client.chat.completions.create(**request)
             )
+
+    async def stream_completion(
+        self, stream: AsyncIterable[ChatCompletionChunk]
+    ) -> ChatCompletion:
+        """Consume a chat completions stream and return the final completion.
+
+        Subclasses override this to handle provider fields the OpenAI SDK's
+        stream accumulator cannot merge.
+        """
+        return await openai_chat_completion_stream_final(stream)
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -416,6 +429,22 @@ class OpenAICompatibleAPI(ModelAPI):
         Subclasses can override to return None (allow all) or a custom set.
         """
         return JSON_SCHEMA_EXTENDED_FIELDS
+
+    def responses_model_info(self) -> "ModelInfo":
+        """Model capabilities used to build Responses API requests."""
+        return ModelInfo(
+            self.model_family(),
+            supports_max_reasoning_effort=self.supports_max_reasoning_effort(),
+        )
+
+    def supports_max_reasoning_effort(self) -> bool:
+        """Whether the service accepts `reasoning_effort="max"` for this model.
+
+        Recognizes the OpenAI model families that ship `max`; a provider whose
+        service documents `max` for other models overrides this. The Responses
+        request builder submits `max` as `xhigh` when this is false.
+        """
+        return supports_native_max_reasoning_effort(self.model_family())
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = openai_completion_params(
@@ -510,6 +539,15 @@ class OpenAICompatibleAPI(ModelAPI):
 
         return openai_handle_bad_request(self.service_model_name(), ex)
 
+    def handle_stream_error(
+        self, ex: APIError | OpenAIResponseError
+    ) -> ModelOutput | None:
+        """Hook for subclasses to convert a mid-stream error into model output.
+
+        Returns None when the error should be re-raised.
+        """
+        return openai_handle_stream_error(self.service_model_name(), ex)
+
 
 class OpenAICompatibleHandler(Llama31Handler):
     @override
@@ -544,14 +582,31 @@ def _resolve_chat_choice(
 
 
 class ModelInfo(ResponsesModelInfo):
-    def __init__(self, model_family: str = "") -> None:
+    def __init__(
+        self,
+        model_family: str = "",
+        supports_max_reasoning_effort: bool | None = None,
+        replays_reasoning_text: bool = False,
+        omits_empty_tool_call_text: bool = False,
+    ) -> None:
         self.model_family = model_family.lower()
+        # a provider's own answer for `max` reasoning support; None keeps the
+        # OpenAI-family detection
+        self._supports_max_reasoning_effort = supports_max_reasoning_effort
+        self._replays_reasoning_text = replays_reasoning_text
+        self._omits_empty_tool_call_text = omits_empty_tool_call_text
 
     def has_reasoning_options(self) -> bool:
         return True
 
     def reasoning_only_fallback(self) -> bool:
         return True
+
+    def replays_reasoning_text(self) -> bool:
+        return self._replays_reasoning_text
+
+    def omits_empty_tool_call_text(self) -> bool:
+        return self._omits_empty_tool_call_text
 
     def is_latest(self) -> bool:
         return False
@@ -562,8 +617,8 @@ class ModelInfo(ResponsesModelInfo):
     def is_gpt_5_plus(self) -> bool:
         return is_gpt_5_plus_model(self.model_family)
 
-    def is_gpt_6(self) -> bool:
-        return is_gpt_6_model(self.model_family)
+    def always_reasons(self) -> bool:
+        return always_reasons_model(self.model_family)
 
     def is_gpt_5(self) -> bool:
         return is_gpt_5_model(self.model_family)
@@ -572,6 +627,8 @@ class ModelInfo(ResponsesModelInfo):
         return self.is_gpt_5() and "-pro" in self.model_family
 
     def supports_max_reasoning_effort(self) -> bool:
+        if self._supports_max_reasoning_effort is not None:
+            return self._supports_max_reasoning_effort
         return supports_native_max_reasoning_effort(self.model_family)
 
     def reasons_by_default(self) -> bool:
