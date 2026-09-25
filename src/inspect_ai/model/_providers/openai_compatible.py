@@ -203,8 +203,8 @@ class OpenAICompatibleAPI(ModelAPI):
 
     @override
     async def refresh_credentials(self) -> None:
-        # No await between the synchronous credential hook and the SDK update,
-        # so concurrent auth retries cannot interleave these operations.
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples.
         super().initialize()
         self.client.api_key = cast(str, self.api_key)
 
