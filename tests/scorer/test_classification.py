@@ -101,6 +101,20 @@ def test_max_score_empty_target_no_index_error():
     assert max_f1_score("hello", ["", "hello"]) == 1.0
 
 
+def test_f1_duplicate_tokens_pay_precision_cost():
+    # SQuAD F1 is count-sensitive: repeating a target word must not score 1.0.
+    assert max_f1_score("hello hello", ["hello"]) == 0.67
+    assert max_f1_score("Paris Paris Paris Paris Paris", ["Paris"]) == 0.33
+    assert max_f1_score("the answer is 42 42", ["the answer is 42"]) == 0.86
+
+
+def test_f1_multiset_overlap_counts_multiplicity_on_both_sides():
+    assert max_f1_score("cat cat dog", ["cat dog dog"]) == 0.67
+    # Order-insensitivity is deliberate and stays: same counts, any order.
+    assert max_f1_score("dog cat", ["cat dog"]) == 1.0
+    assert max_f1_score("dog dog cat", ["cat dog dog"]) == 1.0
+
+
 @pytest.mark.anyio
 async def test_f1_decimal_number_with_punctuation():
     scorer = f1()

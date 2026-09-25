@@ -2,7 +2,7 @@ import functools
 import json
 import logging
 import re
-from collections.abc import Collection, Mapping
+from collections.abc import AsyncIterable, Collection, Mapping
 from copy import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, TypeAlias, cast
@@ -16,7 +16,6 @@ from openai import (
     APIResponseValidationError,
     APIStatusError,
     APITimeoutError,
-    AsyncStream,
     ContentFilterFinishReasonError,
     LengthFinishReasonError,
     OpenAIError,
@@ -153,15 +152,32 @@ def is_gpt_5_model(model_name: str) -> bool:
 
 
 def is_gpt_5_plus_model(model_name: str) -> bool:
-    """gpt-5.1 or later: reasoning can be turned off with `none` effort (until gpt-6, see `is_gpt_6_model`)."""
+    """gpt-5.1 or later: reasoning can be turned off with `none` effort (except the models in `always_reasons_model`)."""
     version = openai_gpt_version(model_name)
     return version is not None and version >= (5, 1)
 
 
 def is_gpt_6_model(model_name: str) -> bool:
-    """gpt-6 or later: always reasons, so sampling params are rejected outright."""
+    """gpt-6 or any later major version (family detection only; see `always_reasons_model` for which members can't disable reasoning)."""
     version = openai_gpt_version(model_name)
     return version is not None and version >= (6, 0)
+
+
+def always_reasons_model(model_name: str) -> bool:
+    """Models whose reasoning can't be turned off with `none` effort.
+
+    The API rejects `none` and, since reasoning is always on, rejects sampling
+    params (`temperature`, `top_p`, logprobs) outright: o-series, gpt-5.0, and
+    GPT-6 Astra. Sol and Luna accept `none` like gpt-5.1+ (see
+    https://developers.openai.com/api/docs/guides/reasoning). The Astra check is
+    a substring match so hosting prefixes and Azure deployment names resolve.
+    Codenames don't match, so they keep the gpt-5.x sampling-param behavior.
+    """
+    return (
+        is_o_series_model(model_name)
+        or (is_gpt_5_model(model_name) and not is_gpt_5_plus_model(model_name))
+        or "gpt-6-astra" in model_name.lower()
+    )
 
 
 def is_o_series_model(model_name: str) -> bool:
@@ -1197,7 +1213,7 @@ def model_output_from_openai(
 
 
 async def openai_chat_completion_stream_final(
-    stream: AsyncStream[ChatCompletionChunk],
+    stream: AsyncIterable[ChatCompletionChunk],
 ) -> ChatCompletion:
     """Consume a raw chat-completions chunk stream and return the final completion.
 
