@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.269 (25 September 2026)
 
 - LiteLLM Proxy: New `litellm-proxy` provider for models served by a LiteLLM proxy, which reads each model's upstream model for context window, cost, reasoning and Claude prompt caching.
 - CLI: Quoted YAML and JSON strings in `--env` arguments preserve commas as literal text (such as `--env 'NO_PROXY="localhost,127.0.0.1"'`) instead of being coerced into lists. (#5368)
