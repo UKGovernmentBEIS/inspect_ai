@@ -2539,6 +2539,7 @@ async def _task_run_sample_attempt(
             error: EvalError | None = None
             raise_error: BaseException | None = None
             cancelled_error: BaseException | None = None
+            solver_cancel: BaseException | None = None
             operator_cancelled = False
             results: ScoresByScorer = {}
             limit: EvalSampleLimit | None = None
@@ -2694,6 +2695,7 @@ async def _task_run_sample_attempt(
                                 # access to state, limit, and errors
                                 nonlocal state, limit, error, raise_error
                                 nonlocal cancelled_error, operator_cancelled
+                                nonlocal solver_cancel
 
                                 try:
                                     # start the sample
@@ -2851,8 +2853,11 @@ async def _task_run_sample_attempt(
                                             reason=err.message,
                                         )
 
-                                    # this was not a user interrupt or working time limit so propagate
+                                    # not an interrupt or a limit: either an external cancel
+                                    # (which the task group re-raises) or a cancellation nothing
+                                    # in inspect is delivering (which the group absorbs)
                                     else:
+                                        solver_cancel = ex
                                         raise
                                 finally:
                                     # ensures that monitor_working_limit() and any coroutines
@@ -2886,6 +2891,14 @@ async def _task_run_sample_attempt(
 
                                 async with anyio.create_task_group() as tg:
                                     tg.start_soon(run, tg)
+                                if solver_cancel is not None:
+                                    # the group exited normally, so no enclosing scope was
+                                    # cancelled: nothing inspect issued cancelled the solver
+                                    raise RuntimeError(
+                                        "Sample errored: solver cancelled by an unattributed "
+                                        "cancellation (not a sample limit, an operator "
+                                        "interrupt, or an eval cancel)"
+                                    ) from solver_cancel
                             except Exception as ex:
                                 raise inner_exception(ex)
                             finally:

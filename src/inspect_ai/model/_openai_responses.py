@@ -393,10 +393,18 @@ async def _openai_input_item_from_chat_message(
         raise ValueError(f"Unexpected message role '{message.role}'")
 
 
-def _tool_search_output_param_from_tool_message(
-    message: ChatMessageTool,
-) -> ResponseToolSearchOutputItemParamParam:
-    # tools were carried as JSON in the tool message content; parse them back
+def tool_search_output_tools(message: ChatMessageTool) -> list[Any]:
+    """The discovered tools a `tool_search` result message carries, as sent on the wire.
+
+    The tools were carried as JSON in the tool message content
+    (`messages_from_responses_input`); this parses them back and validates the
+    whole list as `list[ToolParam]`. Validation is all-or-nothing: if any entry
+    is invalid (content cleared by compaction, a rewrite, a malformed entry) the
+    result is an empty list, and that is what the `tool_search_output` item
+    replayed to the model carries. Anything else that reasons about what the
+    model was told by a tool-search result (the agent bridge's grant resolution)
+    must go through this same function so it cannot disagree with the wire.
+    """
     content = message.content
     tools_json = (
         content
@@ -412,14 +420,19 @@ def _tool_search_output_param_from_tool_message(
         # exhausted on the first pass and the wire body carries an empty `tools`
         # array (OpenAI then rejects it as "empty array"). dump_python
         # materializes the iterators into plain lists that survive re-serialization.
-        tools = tool_search_tools_adapter.dump_python(validated, mode="json")
+        tools: list[Any] = tool_search_tools_adapter.dump_python(validated, mode="json")
     except (ValidationError, ValueError):
-        # e.g. content cleared by compaction; fall back to an empty tool list
         tools = []
+    return tools
+
+
+def _tool_search_output_param_from_tool_message(
+    message: ChatMessageTool,
+) -> ResponseToolSearchOutputItemParamParam:
     return ResponseToolSearchOutputItemParamParam(
         type="tool_search_output",
         call_id=message.tool_call_id or str(message.function),
-        tools=tools,
+        tools=tool_search_output_tools(message),
         execution="client",
         status="completed",
     )

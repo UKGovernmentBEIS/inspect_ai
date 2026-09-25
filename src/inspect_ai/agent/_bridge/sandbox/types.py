@@ -1,5 +1,6 @@
 from collections import deque
 from logging import getLogger
+from os.path import commonprefix
 from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
 import anyio
@@ -9,6 +10,7 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
+from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -19,6 +21,7 @@ from inspect_ai.model._model import (
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 
 if TYPE_CHECKING:
@@ -47,6 +50,7 @@ class SandboxAgentBridge(AgentBridge):
         model_aliases: dict[str, str | Model] | None = None,
         mcp_server_configs: list[MCPServerConfigHTTP] | None = None,
         bridged_tools: dict[str, dict[str, Tool]] | None = None,
+        proposal_exempt_servers: set[str] | None = None,
         model_event_sink: ModelEventSink | None = None,
         forward_generation_config: bool = False,
         approval: list["ApprovalPolicy"] | None = None,
@@ -72,7 +76,11 @@ class SandboxAgentBridge(AgentBridge):
         )
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []
-        self.bridged_tools = bridged_tools or {}
+        self.bridged_tools = {}
+        self.served_tools = {}
+        self.proposal_exempt_servers = proposal_exempt_servers or set()
+        for server, tools in (bridged_tools or {}).items():
+            self.register_bridged_tools(server, tools)
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
@@ -88,55 +96,111 @@ class SandboxAgentBridge(AgentBridge):
     bridged_tools: dict[str, dict[str, Tool]]
     """Registry of bridged tools by server name, then tool name."""
 
-    def register_tool_execution_grants(self, calls: Sequence[ToolCall]) -> None:
-        """Add one-shot host-tool grants from an approved response.
+    served_tools: dict["_BridgedToolId", ToolInfo]
+    """What `list_tools` serves the scaffold for each bridged tool.
 
-        Each grant binds the exact bridged (server, tool) the approved call's
-        model-facing function name denotes plus the approved arguments
-        (JSON-normalized, since the scaffold re-sends them as parsed JSON), and
-        is consumed once. A name that denotes more than one bridged tool is
-        ambiguous — no grant is registered (fail closed, with a warning). A
-        grant is not scoped to the turn it was approved in: it persists until
-        consumed (or evicted, with a warning, once `_MAX_TOOL_EXECUTION_GRANTS`
-        unconsumed grants accumulate) — including when the approved response
-        never reached the scaffold (serialization or transport failure) — but
-        only ever re-authorizes the exact approved action. The approval API carries no execution target, so an
-        approved scaffold-local call whose name denotes a bridged tool also
-        mints a grant for it — still bounded to the approved arguments.
+    The same `get_tools_info` view the service returns, so a scaffold's
+    declaration can be matched to the tool by the description it was given.
+    """
+
+    proposal_exempt_servers: set[str]
+    """Bridged servers registered with `BridgedToolsSpec(require_proposal=False)`.
+
+    Their tools execute without an execution grant, so for them the bridge does
+    not guarantee that a host tool runs only for a call the model proposed.
+    """
+
+    grants_tool_execution = True
+    """Host tools run only against a grant minted here from a response."""
+
+    def register_bridged_tools(
+        self, server: str, tools: dict[str, Tool], require_proposal: bool = True
+    ) -> None:
+        """Register `tools` (by name) as bridged server `server`."""
+        self.bridged_tools[server] = tools
+        for info in get_tools_info(list(tools.values())):
+            self.served_tools[_BridgedToolId(server=server, tool=info.name)] = info
+        if not require_proposal:
+            self.proposal_exempt_servers.add(server)
+
+    def register_tool_execution_grants(
+        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+    ) -> None:
+        """Add one-shot host-tool grants for the calls in a response handed to the scaffold.
+
+        `call_tool` consumes a matching grant before running a host tool and
+        denies a call without one, with or without an approval policy. A grant
+        binds the bridged (server, tool) the call denotes (`_proposed_call`,
+        resolved against `tools`, the declarations the scaffold made to the model)
+        and the arguments handed to the scaffold, JSON-normalized since the
+        scaffold re-sends them as parsed JSON. A call denoting several bridged
+        tools (a shared description; `warn_indistinct_tools` names them at setup)
+        gets one grant for each. No grant is stored for a server in
+        `proposal_exempt_servers`.
+
+        A grant persists until consumed or evicted (with a warning, once
+        `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants accumulate), including when
+        the response never reached the scaffold, but only ever authorizes the
+        exact proposed action.
         """
-        if not self.tool_approval_required():
-            return
-
+        declared: dict[str, list[ToolInfo]] = {}
+        for tool in tools:
+            if isinstance(tool, ToolInfo):
+                declared.setdefault(tool.name, []).append(tool)
         for call in calls:
-            targets = _resolve_bridged_tools(self.bridged_tools, call.function)
-            if not targets:
-                continue
+            targets, arguments = _proposed_call(
+                self.bridged_tools, self.served_tools, call, declared
+            )
             if len(targets) > 1:
                 warn_once(
                     logger,
-                    f"Approved tool call '{call.function}' denotes more than "
-                    "one bridged tool; no execution grant registered (the "
-                    "call will be denied). Use unique tool names across "
-                    "bridged servers, or a qualified name "
-                    "('mcp__<server>__<tool>').",
+                    f"Tool call '{call.function}' denotes several bridged tools "
+                    "sharing a description ("
+                    + ", ".join(f"{t.server}/{t.tool}" for t in targets)
+                    + "); an execution grant was registered for each of them.",
                 )
-                continue
-            if len(self._tool_execution_grants) == self._tool_execution_grants.maxlen:
-                warn_once(
-                    logger,
-                    "Bridged tool execution grants exceeded "
-                    f"{_MAX_TOOL_EXECUTION_GRANTS}; evicting the oldest "
-                    "unconsumed grant. An approved-but-never-executed call "
-                    "that old can no longer be executed.",
+            for target in targets:
+                if target.server in self.proposal_exempt_servers:
+                    continue
+                if (
+                    len(self._tool_execution_grants)
+                    == self._tool_execution_grants.maxlen
+                ):
+                    warn_once(
+                        logger,
+                        "Bridged tool execution grants exceeded "
+                        f"{_MAX_TOOL_EXECUTION_GRANTS}; evicting the oldest "
+                        "unconsumed grant. A proposed-but-never-executed call "
+                        "that old can no longer be executed.",
+                    )
+                self._tool_execution_grants.append(
+                    _ToolExecutionGrant(
+                        server=target.server,
+                        tool=target.tool,
+                        arguments=to_jsonable_python(arguments, fallback=str),
+                    )
                 )
-            target = targets[0]
-            self._tool_execution_grants.append(
-                _ToolExecutionGrant(
-                    server=target.server,
-                    tool=target.tool,
-                    arguments=to_jsonable_python(dict(call.arguments), fallback=str),
+
+    def warn_indistinct_tools(self) -> None:
+        """Warn the eval author about bridged tools a proposal cannot single out.
+
+        Run once, after every `BridgedToolsSpec` is registered and before the
+        service starts, so the collision is visible at setup rather than at the
+        first call. Two or more bridged tools with the same served description
+        (whitespace-trimmed, so empty descriptions collide too) are each granted
+        by a proposal for any of them (`register_tool_execution_grants`).
+        """
+        by_description: dict[str, list[_BridgedToolId]] = {}
+        for tool_id, info in self.served_tools.items():
+            by_description.setdefault(info.description.strip(), []).append(tool_id)
+        for tool_ids in by_description.values():
+            if len(tool_ids) > 1:
+                names = ", ".join(f"{t.server}/{t.tool}" for t in tool_ids)
+                logger.warning(
+                    f"Bridged tools sharing a description ({names}): a proposal "
+                    "for one of them grants each of them one execution. Give "
+                    "them distinct docstrings to restore one-to-one matching."
                 )
-            )
 
     def consume_tool_execution_grant(
         self, server: str, tool: str, arguments: dict[str, Any]
@@ -145,7 +209,7 @@ class SandboxAgentBridge(AgentBridge):
 
         Arguments match by JSON semantics (`_json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
-        JSON round-trip cannot turn an approved call into a denial; any other
+        JSON round-trip cannot turn a proposed call into a denial; any other
         difference (including bool vs number) is denied.
         """
         for index, grant in enumerate(self._tool_execution_grants):
@@ -161,14 +225,6 @@ class SandboxAgentBridge(AgentBridge):
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
         return _dispatched_call(self.bridged_tools, call)
-
-    def tool_approval_required(self) -> bool:
-        """Return whether explicit or ambient approval governs host tool calls."""
-        from inspect_ai.agent._bridge._approval import bridge_approval_scope
-        from inspect_ai.approval._apply import have_tool_approval
-
-        with bridge_approval_scope(self.approval):
-            return have_tool_approval()
 
     def request_fail(self, error: Exception) -> None:
         """Fail the sample with `error` from a bridged generation or tool call.
@@ -204,7 +260,7 @@ class SandboxAgentBridge(AgentBridge):
 
 
 class _ToolExecutionGrant(NamedTuple):
-    """Identity of one approved host tool execution."""
+    """Identity of one host tool execution the model proposed."""
 
     server: str
     """Bridged server the grant is bound to."""
@@ -213,19 +269,7 @@ class _ToolExecutionGrant(NamedTuple):
     """Tool name within the bridged server."""
 
     arguments: dict[str, Any]
-    """The approved arguments, JSON-normalized and matched via `_json_equal`."""
-
-
-def _candidate_functions(server: str, tool: str) -> tuple[str, str, str]:
-    """The names a scaffold could have declared this bridged tool as to its model.
-
-    Scaffolds name MCP tools under their own scheme: the bare tool name, Claude
-    Code's ``mcp__<server>__<tool>``, or Gemini CLI's ``<server>__<tool>`` (used
-    for conflicting names). Each candidate is an exact string computed from the
-    known (server, tool) — never parsed out of a call name — so an unrecognized
-    scheme matches nothing (deny-safe) rather than the wrong tool.
-    """
-    return (tool, f"mcp__{server}__{tool}", f"{server}__{tool}")
+    """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
 
 
 class _BridgedToolId(NamedTuple):
@@ -235,16 +279,109 @@ class _BridgedToolId(NamedTuple):
     tool: str
 
 
-def _resolve_bridged_tools(
-    bridged_tools: dict[str, dict[str, Tool]], function: str
+class _ProposedCall(NamedTuple):
+    """What a proposed call would execute: the bridged tools it could denote, with what."""
+
+    targets: list[_BridgedToolId]
+    arguments: dict[str, Any]
+
+
+_NO_PROPOSAL = _ProposedCall([], {})
+
+
+def _proposed_call(
+    bridged_tools: dict[str, dict[str, Tool]],
+    served: dict[_BridgedToolId, ToolInfo],
+    call: ToolCall,
+    declared: dict[str, list[ToolInfo]],
+) -> _ProposedCall:
+    """Resolve a proposed call to the bridged tools it denotes and its arguments.
+
+    Scaffolds rename MCP tools to their models under their own schemes, so the
+    called name is ignored. `declared` are the tools the scaffold declared to the
+    model in this request, by name; a call to a name the scaffold never declared
+    denotes nothing. The call's declaration is matched to a bridged tool by the
+    content the bridge served for it in `tools/list`
+    (`_resolve_by_served_content`); when nothing matches, the call may be a
+    dispatcher call, recognised by its function name and argument shape
+    (`_dispatched_call`), denoting the bridged tool its arguments name.
+    """
+    declarations = declared.get(call.function)
+    if not declarations:
+        return _NO_PROPOSAL
+    targets = _resolve_by_served_content(served, declarations)
+    if targets:
+        return _ProposedCall(targets, dict(call.arguments))
+    dispatched = _dispatched_call(bridged_tools, call)
+    if dispatched is None:
+        return _NO_PROPOSAL
+    return _ProposedCall(
+        [_BridgedToolId(server=dispatched.server, tool=dispatched.target.function)],
+        dispatched.target.arguments,
+    )
+
+
+def _resolve_by_served_content(
+    served: dict[_BridgedToolId, ToolInfo], declarations: Sequence[ToolInfo]
 ) -> list[_BridgedToolId]:
-    """Every bridged (server, tool) a call's function name could denote."""
-    return [
-        _BridgedToolId(server=server, tool=tool)
-        for server, tools in bridged_tools.items()
-        for tool in tools
-        if function in _candidate_functions(server, tool)
-    ]
+    """The bridged tools a declaration denotes by what the bridge served for them.
+
+    The description is the key: the scaffolds forward the MCP description to
+    their models unchanged (verified per scaffold in the PR), so equality after
+    trimming whitespace identifies the tool whatever name it was given; an empty
+    description is matched like any other, so it identifies every bridged tool
+    served without one. Failing an exact match, a declaration that is a
+    truncation of a served description identifies it too
+    (`_is_truncation_of`), since a scaffold may cut a long description before
+    the model sees it. Schemas are not consulted: scaffolds rewrite them. Tools
+    that cannot be told apart are all returned, and the caller grants each. An
+    exact match wins even when that description is a prefix of another bridged
+    tool's; a truncated declaration which could refer to both denotes both.
+    """
+    targets: list[_BridgedToolId] = []
+    for declaration in declarations:
+        description = declaration.description.strip()
+        matched = [
+            tool_id
+            for tool_id, info in served.items()
+            if info.description.strip() == description
+        ] or [
+            tool_id
+            for tool_id, info in served.items()
+            if _is_truncation_of(description, info.description.strip())
+        ]
+        targets.extend(tool_id for tool_id in matched if tool_id not in targets)
+    return targets
+
+
+_MIN_TRUNCATED_PREFIX = 64
+"""Shortest declared text accepted as a truncation of a served description.
+
+Longer than inspect's shortest built-in tool descriptions (`bash`, 43
+characters; `text_editor`, 51) and far below any scaffold's truncation limit
+(the one known, Claude Code's, is 2048), so a genuine truncation always
+qualifies while a short description can never match another tool's as an
+accidental prefix.
+"""
+
+_MAX_TRUNCATION_MARKER = 24
+"""Longest tail a truncating scaffold is assumed to append (``… [truncated]``)."""
+
+
+def _is_truncation_of(declared: str, served: str) -> bool:
+    """Whether a declared description is a served description cut short.
+
+    Scaffold-agnostic: no scaffold's marker is looked for. The two texts must
+    agree for at least `_MIN_TRUNCATED_PREFIX` characters, and whatever the
+    declared text carries beyond that common prefix (an ellipsis, ``[...]``,
+    ``… [truncated]``) must be at most `_MAX_TRUNCATION_MARKER` characters. A
+    scaffold that rewrites the leading text is not tolerated.
+    """
+    common = len(commonprefix([declared, served]))
+    return (
+        common >= _MIN_TRUNCATED_PREFIX
+        and len(declared) - common <= _MAX_TRUNCATION_MARKER
+    )
 
 
 def _dispatched_call(
@@ -261,7 +398,10 @@ def _dispatched_call(
     parameter names, a target that is not a bridged tool, and in particular an
     ordinary call whose own arguments happen to carry these fields (the function
     name is checked first, so no other tool's call can borrow a bridged tool's
-    policy by naming it in its arguments).
+    policy, or mint an execution grant for it, by naming it in its arguments).
+    Both approval (`SandboxAgentBridge.dispatched_call`) and grant resolution
+    (`_proposed_call`) recognise a dispatcher call through this one function, so
+    they cannot disagree about what is one.
     """
     if call.function != "call_mcp_tool":
         return None
@@ -275,6 +415,7 @@ def _dispatched_call(
         and tool in bridged_tools.get(server, {})
     ):
         return DispatchedCall(
+            server=server,
             target=ToolCall(id=call.id, function=tool, arguments=arguments),
             dispatch=lambda modified: {**call.arguments, "Arguments": modified},
         )

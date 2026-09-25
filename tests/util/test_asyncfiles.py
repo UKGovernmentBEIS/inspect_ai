@@ -607,6 +607,76 @@ async def test_write_file_local():
 
 
 # =============================================================================
+# Tests for list_dir
+# =============================================================================
+
+
+async def test_list_dir_local_lists_direct_children_only(tmp_path: Path) -> None:
+    (tmp_path / "a.eval").write_bytes(b"abc")
+    (tmp_path / "sub" / "deeper").mkdir(parents=True)
+    (tmp_path / "sub" / "b.eval").write_bytes(b"b")
+    # a directory symlink is neither listed as a directory nor followed
+    (tmp_path / "loop").symlink_to(tmp_path, target_is_directory=True)
+
+    async with AsyncFilesystem() as fs:
+        listing = await fs.list_dir(str(tmp_path))
+        uri_listing = await fs.list_dir(tmp_path.as_uri())
+
+    assert [f.name for f in listing.files] == [f"{tmp_path}/a.eval"]
+    assert listing.files[0].size == 3
+    assert listing.files[0].mtime == pytest.approx(
+        (tmp_path / "a.eval").stat().st_mtime * 1000
+    )
+    assert listing.dirs == [f"{tmp_path}/sub"]
+    # paths keep the form the base was given in
+    assert [f.name for f in uri_listing.files] == [f"{tmp_path.as_uri()}/a.eval"]
+
+
+async def test_list_dir_file_uri_encodes_reserved_characters(tmp_path: Path) -> None:
+    from inspect_ai._util.file import local_path
+
+    (tmp_path / "percent%20literal.eval").write_bytes(b"x")
+    (tmp_path / "dir #1?x").mkdir()
+
+    async with AsyncFilesystem() as fs:
+        listing = await fs.list_dir(tmp_path.as_uri())
+
+    # each child decodes back to the real path, not a sibling or a fragment
+    assert [local_path(f.name) for f in listing.files] == [
+        str(tmp_path / "percent%20literal.eval")
+    ]
+    assert [local_path(d) for d in listing.dirs] == [str(tmp_path / "dir #1?x")]
+    assert all(d.startswith("file://") for d in listing.dirs)
+
+
+async def test_list_dir_local_missing_raises(tmp_path: Path) -> None:
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(FileNotFoundError):
+            await fs.list_dir(str(tmp_path / "absent"))
+
+
+async def test_list_dir_s3_returns_files_and_prefixes_from_one_listing(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    for key in ("list_dir/a.eval", "list_dir/sub/b.eval", "list_dir/sub/c/d.eval"):
+        s3.put_object(Bucket="test-bucket", Key=key, Body=b"xy")
+    # a zero-byte "folder" marker is not a file
+    s3.put_object(Bucket="test-bucket", Key="list_dir/", Body=b"")
+
+    async with AsyncFilesystem() as fs:
+        listing = await fs.list_dir(f"{S3_BUCKET}/list_dir/")
+        empty = await fs.list_dir(f"{S3_BUCKET}/no_such_prefix")
+
+    assert [f.name for f in listing.files] == [f"{S3_BUCKET}/list_dir/a.eval"]
+    assert listing.files[0].size == 2 and listing.files[0].etag
+    assert listing.dirs == [f"{S3_BUCKET}/list_dir/sub"]
+    assert empty.files == [] and empty.dirs == []
+
+
+# =============================================================================
 # Tests for write_file_streaming
 # =============================================================================
 
