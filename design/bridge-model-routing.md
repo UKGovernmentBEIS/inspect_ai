@@ -408,6 +408,13 @@ route it elsewhere; it was pinned by model='inspect/openai/gpt-4o'." When
 the requested name is a model role the hint is specific: "'grader' is a
 model role; expose it with model_aliases={'grader': get_model(role='grader')}".
 
+The warning fires under an explicit pin too, including for scaffolds whose
+model selection this design leaves unchanged (inspect_swe's Gemini CLI and
+OpenCode agents warn once about their presented name). The pin collapses
+names the author may not know the scaffold sends, and one line per name per
+process is cheap; an agent that wants silence aliases its presented name, as
+inspect_swe's Claude Code agent already does. Decision: Ransom, 2026-09-25.
+
 Dedupe is a module-level `set[str]` of requested names in util.py (not
 `warn_once`, whose list membership is linear in distinct messages), capped
 at `_MAX_REDIRECT_WARNINGS = 64` names; on reaching the cap one final
@@ -973,14 +980,8 @@ from the eval's, matching its ACP Gemini agent.
 
 ## Open questions
 
-1. **Warning under a pin.** The design warns once per redirected name for
-   pinned bridges too, since the requested name is still information the
-   author did not choose to collapse. If that is noise for inspect_swe users
-   (every Gemini CLI run warns once about `gemini-2.5-pro`), drop the
-   warning for `route == "model"` and rely on the `ModelEvent` record.
-   Recommendation: keep it; it is one line per process per name and
-   inspect_swe can alias the presented name to silence it, as Claude Code
-   does.
+None. The warning under a pin (kept) and the pass-through opt-in (dropped)
+were decided on 2026-09-25; see The redirect warning and Alternatives.
 
 ## Not this design
 
