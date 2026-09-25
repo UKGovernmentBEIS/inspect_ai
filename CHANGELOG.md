@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Bugfix: `f1()` now counts repeated tokens (multiset overlap, matching SQuAD F1); scores can rise or fall for answers or targets containing repeated words.
+- OpenAI Compatible: Fixed concurrent sample failures during credential refresh, including OpenRouter evaluations on Hawk, and added an overridable `ModelAPI.refresh_credentials()` for model API extensions.
 
 ## 0.3.269 (25 September 2026)
 
@@ -15,7 +16,6 @@
 - Grok: Safety refusals that report "I can't help with that request" now produce a content-filter response instead of failing the sample.
 - Bugfix: Samples whose solver is cut off by a cancellation that inspect did not issue are now recorded as sample errors instead of being scored as completed.
 - Control Channel: `inspect ctl task list` and the `inspect ctl sample` reads take `--log-dir <dir>` to read task and sample status, events, messages and store from the `.eval` logs in a local or S3 directory, without a live eval process.
-- OpenAI Compatible: Fixed concurrent sample failures during credential refresh, including OpenRouter evaluations running on Hawk.
 
 ## 0.3.268 (22 September 2026)
 

@@ -188,6 +188,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         self._resolved_epoch = -1
         self._context_window_registered = False
         self._context_window_attempts = 0
+        self._context_window_generation = 0
         self._context_window_lock = anyio.Lock()
 
         self.is_mistral = is_mistral
@@ -280,14 +281,23 @@ class VLLMAPI(OpenAICompatibleAPI):
 
         A ``/v1/models`` request that failed authentication latches discovery
         like any other HTTP response, so the next ``generate()`` after a
-        refresh fetches the served window again. The reset waits for the
-        discovery lock so a response to a request that was already in flight
-        with the old credentials cannot latch discovery after the reset.
+        refresh fetches the served window again. The reset runs even if the
+        refresh is cancelled, since other samples share the new credentials.
         """
-        await super().refresh_credentials()
-        async with self._context_window_lock:
-            self._context_window_registered = False
-            self._context_window_attempts = 0
+        try:
+            await super().refresh_credentials()
+        finally:
+            self._reset_context_window_discovery()
+
+    def _reset_context_window_discovery(self) -> None:
+        """Let the next ``generate()`` fetch the served context window again.
+
+        Bumping the generation stops a ``/v1/models`` request that is already
+        in flight from latching discovery when its response arrives.
+        """
+        self._context_window_registered = False
+        self._context_window_attempts = 0
+        self._context_window_generation += 1
 
     async def _ensure_server_started(self) -> None:
         """Lazy version of ``_resolve_server`` — thread-safe for concurrent ``generate()`` calls."""
@@ -320,6 +330,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             if self._context_window_registered:
                 return
             self._context_window_attempts += 1
+            generation = self._context_window_generation
 
             headers: dict[str, str] = {}
             if self.api_key:
@@ -331,6 +342,8 @@ class VLLMAPI(OpenAICompatibleAPI):
                     timeout=CONTEXT_WINDOW_TIMEOUT,
                 )
             except Exception as ex:
+                if generation != self._context_window_generation:
+                    return
                 # No response at all: the server may be briefly unreachable,
                 # which generate() itself retries through. Latching here would
                 # revert to the catalog for the rest of the run, so leave the
@@ -342,6 +355,9 @@ class VLLMAPI(OpenAICompatibleAPI):
                 logger.debug(f"Could not reach vLLM /v1/models: {ex}")
                 return
 
+            if generation != self._context_window_generation:
+                # sent before a credential refresh or server restart
+                return
             # A response settles the question for this server, whatever it says.
             self._context_window_registered = True
             try:
@@ -509,8 +525,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         self._server.loaded_adapters.clear()
         self._server._epoch += 1
         # a restarted server may be serving a different max_model_len
-        self._context_window_registered = False
-        self._context_window_attempts = 0
+        self._reset_context_window_discovery()
 
     # -- ModelAPI overrides --------------------------------------------------
 

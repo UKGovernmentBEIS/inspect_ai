@@ -558,10 +558,15 @@ async def test_vllm_refresh_rediscovers_context_window(
 
 
 @pytest.mark.parametrize("provider", [VLLMAPI, VLLMCompletionsAPI])
+@pytest.mark.parametrize("cancel_refresh", [False, True])
 async def test_vllm_refresh_during_discovery(
-    monkeypatch: pytest.MonkeyPatch, provider: type[VLLMAPI]
+    monkeypatch: pytest.MonkeyPatch, provider: type[VLLMAPI], cancel_refresh: bool
 ) -> None:
-    """A discovery response sent with old credentials cannot undo a refresh."""
+    """A discovery response sent with old credentials cannot undo a refresh.
+
+    That holds even when the sample doing the refresh is cancelled once the
+    new key is in place, since other samples keep using it.
+    """
     server = _VLLMDiscoveryServer(monkeypatch, managed=False)
     server.reject_once = {"models"}
     server.release_models = anyio.Event()
@@ -571,15 +576,23 @@ async def test_vllm_refresh_during_discovery(
         base_url="http://localhost:8000/v1",
         lazy_init=False,
     )
+    refresh_scope = anyio.CancelScope()
+
+    async def refresh() -> None:
+        with refresh_scope:
+            await api.refresh_credentials()
+
     try:
         with anyio.fail_after(10):
             async with anyio.create_task_group() as tg:
                 tg.start_soon(api._register_context_window)
                 await server.models_started.wait()
                 server.token = "rotated-key"
-                tg.start_soon(api.refresh_credentials)
+                tg.start_soon(refresh)
                 # the refresh has updated the key; release the stale 401
                 await server.key_refreshed.wait()
+                if cancel_refresh:
+                    refresh_scope.cancel()
                 server.release_models.set()
         server.release_models = None
         await _generate_ok(api)
