@@ -737,9 +737,6 @@ def test_resolve_full_expanded_shared_call_messages() -> None:
     ]
     assert msgs == requests
     assert ATTACHMENT_PROTOCOL not in resolved.model_dump_json()
-    # the shared message is walked once and reused, not re-walked per event
-    assert isinstance(msgs[0], list) and isinstance(msgs[1], list)
-    assert msgs[0][0] is msgs[1][0]
 
 
 def log_path(log: str) -> str:

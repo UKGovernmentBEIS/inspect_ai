@@ -15,7 +15,7 @@ from typing import (
 )
 
 from pydantic import BaseModel, JsonValue
-from typing_extensions import NotRequired, TypedDict
+from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
@@ -122,15 +122,6 @@ class WalkContext(TypedDict):
     """
 
     only_core: bool
-
-    call_message_cache: NotRequired[dict[int, tuple[JsonValue, JsonValue]]]
-    """Cache of walked ``ModelCall`` request messages keyed by ``id()``.
-
-    Pool expansion shares request message objects across model events;
-    this walks each shared message once. Values hold the pre-walk message
-    so its id cannot be reused while cached. The same staleness and single
-    content function rules as ``message_cache`` apply.
-    """
 
 
 def attachment_refs_from_value(value: JsonValue) -> set[str]:
@@ -768,7 +759,6 @@ def resolve_sample_attachments(
     context = WalkContext(
         message_cache={},
         only_core=resolve_attachments == "core",
-        call_message_cache={},
     )
 
     # Resolve pools before events — pool messages may contain attachment:// refs
@@ -1047,7 +1037,7 @@ def walk_model_call(
     if call:
         return call.model_copy(
             update={
-                "request": _walk_call_request(call.request, content_fn, context),
+                "request": walk_json_dict(call.request, content_fn, context),
                 "response": walk_json_dict(call.response, content_fn, context)
                 if call.response
                 else None,
@@ -1055,34 +1045,6 @@ def walk_model_call(
         )
     else:
         return None
-
-
-def _walk_call_request(
-    request: dict[str, JsonValue],
-    content_fn: Callable[[str], str],
-    context: WalkContext,
-) -> dict[str, JsonValue]:
-    cache = context.get("call_message_cache")
-    msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in request), None)
-    msgs = request.get(msg_key) if msg_key is not None else None
-    if cache is None or not isinstance(msgs, list):
-        return walk_json_dict(request, content_fn, context)
-
-    walked_msgs: list[JsonValue] = []
-    for msg in msgs:
-        hit = cache.get(id(msg))
-        if hit is not None and hit[0] is msg:
-            walked_msgs.append(hit[1])
-        else:
-            # depth 2 (request dict -> messages list -> message), as
-            # walk_json_dict(request) would reach it
-            walked = walk_json_value(msg, content_fn, context, depth=2)
-            cache[id(msg)] = (msg, walked)
-            walked_msgs.append(walked)
-    rest = walk_json_dict(
-        {k: v for k, v in request.items() if k != msg_key}, content_fn, context
-    )
-    return {k: walked_msgs if k == msg_key else rest[k] for k in request}
 
 
 def walk_state_event(
