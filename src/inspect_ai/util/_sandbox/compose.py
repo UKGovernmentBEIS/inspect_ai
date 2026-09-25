@@ -476,7 +476,11 @@ def parse_compose_yaml(
     if not path.exists():
         raise FileNotFoundError(f"Compose file not found: {file}")
 
-    with open(path) as f:
+    # Compose files are UTF-8 by convention (Docker Compose itself reads them
+    # as UTF-8); without an explicit encoding, `open()` falls back to the
+    # platform default (e.g. cp936 on Chinese-locale Windows), silently
+    # corrupting non-ASCII environment values.
+    with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
 
     if not isinstance(raw, dict):
