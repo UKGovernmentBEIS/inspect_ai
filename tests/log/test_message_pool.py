@@ -493,6 +493,31 @@ def test_resolve_call_request_messages():
     assert resolved.events_data is None
 
 
+@pytest.mark.parametrize("mode", ["core", "full"])
+def test_resolve_pooled_matches_resolve_expanded(
+    mode: Literal["core", "full"],
+) -> None:
+    """Resolving pools directly matches resolving after pool expansion."""
+    long_text = "long-shared-content-" + ("x" * 200)
+    sample = _make_sample_with_call_messages()
+    for event in sample.events:
+        assert isinstance(event, ModelEvent) and event.call
+        event.input = [ChatMessageUser(content=long_text)]
+        messages = event.call.request["messages"]
+        assert isinstance(messages, list)
+        event.call.request["messages"] = [
+            {"role": "user", "content": long_text},
+            *messages,
+        ]
+    condensed = condense_sample(sample)
+    assert condensed.attachments and condensed.events_data
+
+    pooled = resolve_sample_attachments(condensed, mode)
+    expanded = resolve_sample_attachments(resolve_sample_events_data(condensed), mode)
+
+    assert pooled.model_dump(mode="json") == expanded.model_dump(mode="json")
+
+
 def test_call_pool_round_trip_content_preserved():
     """Condense then resolve should preserve message content exactly."""
     sample = _make_sample_with_call_messages()

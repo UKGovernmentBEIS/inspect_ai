@@ -779,10 +779,11 @@ def resolve_sample_attachments(
     resolved_pool: list[ChatMessage] = [
         walk_chat_message(v, content_fn, context) for v in msg_pool
     ]
+    # depth 2: where each entry sits once expanded into a call request
     resolved_call_pool: list[JsonValue] = (
         call_pool
         if context.get("only_core")
-        else [walk_json_value(v, content_fn, context) for v in call_pool]
+        else [walk_json_value(v, content_fn, context, depth=2) for v in call_pool]
     )
 
     resolved_events = walk_events(sample.events, content_fn, context)
