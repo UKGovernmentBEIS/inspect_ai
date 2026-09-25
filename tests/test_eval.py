@@ -3,12 +3,15 @@ import logging
 import tempfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Callable, Literal, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, cast, overload
 from unittest import mock
 
 import anyio
 import pytest
 from botocore.exceptions import ClientError
+
+if TYPE_CHECKING:
+    from _typeshed import SupportsRichComparison
 
 from inspect_ai import (
     Epochs,
@@ -24,7 +27,8 @@ from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_now_utc
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
-from inspect_ai.dataset import Sample
+from inspect_ai.dataset import Dataset, MemoryDataset, Sample
+from inspect_ai.dataset._dataset import sample_input_len
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
@@ -35,6 +39,79 @@ def test_eval_epochs_sample_count():
     assert log.status == "success"
     assert log.samples is not None
     assert len(log.samples) == 6  # 2 samples * 3 epochs
+
+
+def test_eval_log_records_dataset_revision():
+    dataset = MemoryDataset(
+        [Sample(input="s1"), Sample(input="s2")], name="ds", revision="abc123"
+    )
+    log = eval(Task(dataset=dataset), model="mockllm/model", limit=1)[0]
+    assert log.eval.dataset.revision == "abc123"
+
+    log = eval(Task(dataset=[Sample(input="s1")]), model="mockllm/model")[0]
+    assert log.eval.dataset.revision is None
+
+
+class _DatasetWithoutRevision(Dataset):
+    """A third-party Dataset written before `Dataset.revision` existed."""
+
+    def __init__(self, samples: list[Sample]) -> None:
+        self._inner = MemoryDataset(samples)
+
+    @property
+    def name(self) -> str | None:
+        return "legacy"
+
+    @property
+    def location(self) -> str | None:
+        return None
+
+    @property
+    def shuffled(self) -> bool:
+        return False
+
+    @overload
+    def __getitem__(self, index: int) -> Sample: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> Dataset: ...
+
+    def __getitem__(self, index: int | slice) -> Sample | Dataset:
+        return self._inner[index]
+
+    def __len__(self) -> int:
+        return len(self._inner)
+
+    def sort(
+        self,
+        reverse: bool = False,
+        key: Callable[[Sample], "SupportsRichComparison"] = sample_input_len,
+    ) -> None:
+        self._inner.sort(reverse=reverse, key=key)
+
+    def filter(
+        self, predicate: Callable[[Sample], bool], name: str | None = None
+    ) -> Dataset:
+        return self._inner.filter(predicate, name)
+
+    def shuffle(self, seed: int | None = None) -> None:
+        self._inner.shuffle(seed)
+
+    def shuffle_choices(self, seed: int | None = None) -> None:
+        self._inner.shuffle_choices(seed)
+
+
+def test_eval_dataset_revision_backwards_compatible():
+    from inspect_ai.log import EvalDataset
+
+    dataset = _DatasetWithoutRevision([Sample(input="s1")])
+    assert dataset.revision is None
+    log = eval(Task(dataset=dataset), model="mockllm/model")[0]
+    assert log.status == "success"
+    assert log.eval.dataset.revision is None
+
+    # logs written before the field existed
+    assert EvalDataset.model_validate({"name": "ds", "samples": 1}).revision is None
 
 
 def test_eval_sample_records_turn_count_and_token_limit_usage():

@@ -160,6 +160,11 @@ class Dataset(Sequence[Sample], abc.ABC):
     @abc.abstractmethod
     def shuffled(self) -> bool: ...
 
+    @property
+    def revision(self) -> str | None:
+        """Dataset revision (e.g. a Hugging Face commit SHA, branch, or tag)."""
+        return None
+
     @overload
     def __getitem__(self, index: int) -> Sample: ...
 
@@ -262,6 +267,7 @@ class MemoryDataset(Dataset):
         name: str | None = None,
         location: str | None = None,
         shuffled: bool = False,
+        revision: str | None = None,
     ) -> None:
         r"""A dataset of samples held in an in-memory list.
 
@@ -274,11 +280,13 @@ class MemoryDataset(Dataset):
             name (str | None): Optional name for dataset.
             location (str | None): Optional location for dataset.
             shuffled (bool): Was the dataset shuffled after reading.
+            revision (str | None): Optional revision for dataset.
         """
         self.samples = samples
         self._name = name
         self._location = location
         self._shuffled = shuffled
+        self._revision = revision
 
     @override
     @property
@@ -298,6 +306,12 @@ class MemoryDataset(Dataset):
         """Was the dataset shuffled."""
         return self._shuffled
 
+    @override
+    @property
+    def revision(self) -> str | None:
+        """Dataset revision."""
+        return self._revision
+
     @overload
     def __getitem__(self, index: int) -> Sample: ...
 
@@ -314,6 +328,7 @@ class MemoryDataset(Dataset):
                 name=self.name,
                 location=self.location,
                 shuffled=self.shuffled,
+                revision=self.revision,
             )
 
     @override
@@ -375,4 +390,5 @@ class MemoryDataset(Dataset):
             location=self.location,
             samples=[sample for sample in self if predicate(sample)],
             shuffled=self.shuffled,
+            revision=self.revision,
         )

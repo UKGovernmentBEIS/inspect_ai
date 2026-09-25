@@ -969,6 +969,9 @@ class EvalDataset(BaseModel):
     shuffled: bool | None = Field(default=None)
     """Was the dataset shuffled after reading."""
 
+    revision: str | None = Field(default=None)
+    """Dataset revision (e.g. a Hugging Face commit SHA, branch, or tag)."""
+
 
 class EvalMetricDefinition(BaseModel):
     name: str
