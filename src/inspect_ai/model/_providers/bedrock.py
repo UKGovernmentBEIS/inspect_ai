@@ -80,7 +80,7 @@ logger = getLogger(__name__)
 REDACTED_CONTENT_KEY = "bedrock_redacted_content"
 
 NOVA_REASONING_MODEL_PATTERN = re.compile(
-    r"(?:^|\.)amazon\.nova-(?:2-lite|lite-1-5)-v\d+(?::|$)"
+    r"(?:^|[./])amazon\.nova-(?:2-lite|lite-1-5)-v\d+(?::|$)"
 )
 
 # Model for Bedrock Converse API (Response)
@@ -573,7 +573,9 @@ class BedrockAPI(ModelAPI):
 
     def supports_nova_reasoning(self) -> bool:
         """Whether the model accepts Amazon Nova's reasoningConfig field."""
-        return NOVA_REASONING_MODEL_PATTERN.search(self.model_name.lower()) is not None
+        return (
+            NOVA_REASONING_MODEL_PATTERN.search(self.model_family().lower()) is not None
+        )
 
     def supports_prompt_cache(self) -> bool:
         """Whether this model accepts Converse `cachePoint` blocks.

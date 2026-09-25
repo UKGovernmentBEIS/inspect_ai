@@ -10,7 +10,13 @@ reasoning effort levels.
 
 from __future__ import annotations
 
+from typing import Any, Literal
+
 import pytest
+from test_helpers.utils import skip_if_trio
+
+from inspect_ai.model import ChatMessageUser, ModelInfo, set_model_info
+from inspect_ai.model._model_info import clear_model_info_cache
 
 pytest.importorskip("aiobotocore")
 pytest.importorskip("botocore")
@@ -165,3 +171,84 @@ def test_adaptive_thinking_model_omits_top_k():
     config = GenerateConfig(top_k=50)
     fields = api._additional_model_request_fields(config, True)
     assert fields == {}
+
+
+@pytest.mark.parametrize(
+    "model_name,effort,expected_reasoning,expected_max_tokens",
+    [
+        ("us.amazon.nova-pro-v1:0", "high", False, 2048),
+        ("us.amazon.nova-pro-v1:0", "low", False, 2048),
+        ("amazon.nova-lite-v1:0", "high", False, 2048),
+        ("amazon.nova-micro-v1:0", "high", False, 2048),
+        ("amazon.nova-premier-v1:0", "high", False, 2048),
+        ("global.amazon.nova-2-lite-v1:0", "high", True, None),
+        ("us.amazon.nova-2-lite-v1:0", "low", True, 2048),
+        ("amazon.nova-lite-1-5-v1:0", "medium", True, 2048),
+        ("custom-nova-test", "medium", True, 2048),
+        (
+            "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-2-lite-v1:0",
+            "medium",
+            True,
+            2048,
+        ),
+        (
+            "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0",
+            "high",
+            False,
+            2048,
+        ),
+    ],
+)
+@skip_if_trio
+async def test_nova_generate_request(
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+    model_name: str,
+    effort: Literal["low", "medium", "high"],
+    expected_reasoning: bool,
+    expected_max_tokens: int | None,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class Client:
+        async def converse(self, **kwargs: Any) -> dict[str, Any]:
+            captured.update(kwargs)
+            return {
+                "output": {
+                    "message": {"role": "assistant", "content": [{"text": "4"}]}
+                },
+                "stopReason": "end_turn",
+                "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+                "metrics": {"latencyMs": 1},
+            }
+
+        async def __aenter__(self) -> "Client":
+            return self
+
+        async def __aexit__(self, *exc: Any) -> None:
+            return None
+
+    if model_name == "custom-nova-test":
+        set_model_info(model_name, ModelInfo(family="amazon.nova-2-lite-v1:0"))
+        request.addfinalizer(clear_model_info_cache)
+    api = BedrockAPI(model_name=model_name, base_url=None, streaming=False)
+    monkeypatch.setattr(api.session, "create_client", lambda **kwargs: Client())
+    result = await api.generate(
+        input=[ChatMessageUser(content="What is 2 + 2?")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(reasoning_effort=effort, max_tokens=2048),
+    )
+    assert isinstance(result, tuple)
+    assert not isinstance(result[0], Exception)
+    assert result[0].completion == "4"
+    assert captured["modelId"] == model_name
+    assert captured["inferenceConfig"].get("maxTokens") == expected_max_tokens
+    fields = captured["additionalModelRequestFields"]
+    if expected_reasoning:
+        assert fields["reasoningConfig"] == {
+            "type": "enabled",
+            "maxReasoningEffort": effort,
+        }
+    else:
+        assert "reasoningConfig" not in fields
