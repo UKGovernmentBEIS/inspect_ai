@@ -648,6 +648,38 @@ def test_extend_restored_events_notifies_subscribers() -> None:
     assert subscriber_events == [restored]
 
 
+def test_extend_restored_events_resolves_attachments() -> None:
+    condensed_message = ChatMessageUser(content="attachment://text-ref")
+    call = ModelCall.create(
+        {"messages": [{"role": "user", "content": "attachment://call-ref"}]}, None
+    )
+    restored = make_model_event([condensed_message], uuid="restored-1", call=call)
+    attachments = {"text-ref": "restored text", "call-ref": "restored call"}
+    transcript = Transcript(bounded=True, resident_tail=1, log_model_api=True)
+    delivered: list[dict[str, Any]] = []
+    transcript._subscribe(lambda event: delivered.append(event.model_dump(mode="json")))
+
+    transcript._extend_restored_events([restored], attachments, notify_subscribers=True)
+
+    # subscribers see the event resolved except its model call
+    assert delivered[0]["input"][0]["content"] == "restored text"
+    assert delivered[0]["call"]["request"]["messages"][0]["content"] == (
+        "attachment://call-ref"
+    )
+    resident = transcript.history.resident_events[0]
+    assert isinstance(resident, ModelEvent)
+    assert resident.input[0].content == "restored text"
+    assert resident.call is call
+    # the caller's event is not mutated
+    assert restored.input == [condensed_message]
+    assert condensed_message.content == "attachment://text-ref"
+    # restored attachments are released when the event is evicted
+    assert transcript.attachments == attachments
+    transcript._event(InfoEvent(uuid="filler-1", data="x"))
+    assert transcript.history.resident_events_truncated is True
+    assert transcript.attachments == {}
+
+
 def test_transcript_subscriber_exception_does_not_skip_processing(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

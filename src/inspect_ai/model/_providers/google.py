@@ -141,6 +141,7 @@ from inspect_ai.tool import (
 )
 from inspect_ai.util._json import json_schema_dump
 
+from ._first_party import FRONTIER_MODELS
 from .util import (
     OAUTH_PLACEHOLDER_API_KEY,
     GoogleOAuthCredentials,
@@ -818,7 +819,7 @@ class GoogleGenAIAPI(ModelAPI):
         # context window / compaction match. Bump when a newer frontier ships.
         # Mirrors OpenAI's and Anthropic's input_tokens_name() aliasing.
         if self.is_gemini() and _get_model_info_direct(self.canonical_name()) is None:
-            return "google/gemini-3.8-flash"
+            return FRONTIER_MODELS["google"]
         return super().input_tokens_name()
 
     def is_latest(self) -> bool:
