@@ -864,12 +864,9 @@ LIVE_PROVIDERS = [
             "model": "together_ai/deepseek-ai/DeepSeek-V4.1-Flash",
             "api_key": "os.environ/TOGETHER_API_KEY",
         },
+        # LiteLLM rejects reasoning_effort for this model; the provider drops
+        # it and retries (see "Reasoning effort" in design/litellm-proxy.md)
         check=check_reasoning_content_replay,
-        gap=Gap(
-            "LiteLLM rejects reasoning_effort for this model (UnsupportedParamsError); "
-            "see reasoning effort normalization in design/litellm-proxy.md",
-            Exception,
-        ),
     ),
     LiveProvider(
         name="together-gpt-oss-120b",
