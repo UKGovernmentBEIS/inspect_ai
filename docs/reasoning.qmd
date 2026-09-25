@@ -150,6 +150,10 @@ Passes through to the underlying model; OpenRouter itself maps `effort` to `budg
 
 
 
+#### LiteLLM Proxy
+
+Sends the requested value, which LiteLLM maps to the upstream provider's parameter (e.g. adaptive thinking with `output_config.effort` for Claude). When LiteLLM or the upstream model rejects the value, Inspect retries with the strongest effort the model accepts at or below it (otherwise the weakest above it), or with no effort if the model takes none, and warns once. LiteLLM decides which values a model takes from its model map, so for models it doesn't know set `base_model` in the proxy config (see [LiteLLM Proxy](providers.qmd#litellm-proxy-model-info)).
+
 #### Groq / Ollama / SageMaker / SambaNova
 
 Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values. `none` is not a supported value, so it is omitted and the provider/model default applies — this does not disable reasoning (always-on models keep reasoning):

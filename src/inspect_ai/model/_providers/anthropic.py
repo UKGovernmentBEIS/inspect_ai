@@ -213,6 +213,12 @@ from .._stream import (
     report_model_stream_start,
 )
 from ._anthropic_batch import AnthropicBatcher
+from ._anthropic_max_tokens import (
+    ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
+    ANTHROPIC_MAX_TOKENS,
+    anthropic_effort_max_tokens,
+)
+from ._first_party import FRONTIER_MODELS
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
@@ -1404,7 +1410,7 @@ class AnthropicAPI(ModelAPI):
         if self.is_claude_3() or self.is_claude_3_5():
             return 4096
         else:
-            return 32000
+            return ANTHROPIC_MAX_TOKENS
 
     @override
     def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
@@ -1414,14 +1420,7 @@ class AnthropicAPI(ModelAPI):
             if reasoning_effort is not None:
                 # xhigh/max sized to reach the migration-guide floor of 64k
                 # on top of the 32k base for thinking models.
-                effort_tokens = {
-                    "low": 4096,
-                    "medium": 10000,
-                    "high": 16000,
-                    "xhigh": 32000,
-                    "max": 32000,
-                }
-                max_tokens = max_tokens + effort_tokens.get(reasoning_effort, 16000)
+                max_tokens = max_tokens + anthropic_effort_max_tokens(reasoning_effort)
             else:
                 # pre-4.6 path: size for explicit reasoning_tokens, or for
                 # the bridged effort->tokens translation when only effort is set.
@@ -1431,8 +1430,8 @@ class AnthropicAPI(ModelAPI):
 
         # migration-guide floor: xhigh/max effort wants ≥64k max_tokens
         # (model caps below will still clamp on older models)
-        if config.effort in ("xhigh", "max") and max_tokens < 64000:
-            max_tokens = 64000
+        if config.effort in ("xhigh", "max"):
+            max_tokens = max(max_tokens, ANTHROPIC_HIGH_EFFORT_MAX_TOKENS)
 
         # apply caps after bumping for reasoning
         if self.is_claude_frontier() and self.is_claude_4_opus():
@@ -1772,7 +1771,7 @@ class AnthropicAPI(ModelAPI):
             return "anthropic/claude-opus-4-6"  # 1MM
         elif self.is_claude_latest():
             # Unknown future version: assume the current 1M frontier.
-            return "anthropic/claude-opus-5-5"  # 1MM
+            return FRONTIER_MODELS["anthropic"]  # 1MM
         elif (
             self.is_claude_5() and _get_model_info_direct(self.canonical_name()) is None
         ):
@@ -1782,7 +1781,7 @@ class AnthropicAPI(ModelAPI):
             # Claude 5 models (Opus/Sonnet/Fable/Mythos and their point
             # releases, which fuzzy-match their base entry) fall through to the
             # database below.
-            return "anthropic/claude-opus-5-5"  # 1MM
+            return FRONTIER_MODELS["anthropic"]  # 1MM
         else:
             return super().input_tokens_name()
 
