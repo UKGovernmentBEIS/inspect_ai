@@ -24,6 +24,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.model._model_info import _get_model_info_direct
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.openrouter import OpenRouterAPI
 from inspect_ai.model._providers.vllm import VLLMAPI
@@ -396,3 +397,195 @@ async def test_vllm_credentials_match_server(
         for http_client in clients:
             await http_client.aclose()
         assert all(process.poll() == 0 for process in processes)
+
+
+class _VLLMDiscoveryServer:
+    """vLLM stand-in that rejects the first request of each kind in ``reject_once``."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, managed: bool) -> None:
+        import inspect_ai.model._model_info as _model_info
+
+        self.managed = managed
+        self.token = "hook-key"
+        self.launches: list[str] = []
+        self.processes: list[Mock] = []
+        self.http_clients: list[DefaultAsyncHttpxClient] = []
+        self.models_auth: list[str] = []
+        self.models_started = anyio.Event()
+        self.release_models: anyio.Event | None = None
+        self.key_refreshed = anyio.Event()
+        self.reject_once = {"models", "generate"}
+
+        # keep set_model_info() writes out of the process-wide registry
+        monkeypatch.setattr(
+            _model_info, "_custom_models", dict(_model_info._custom_models)
+        )
+        monkeypatch.setattr(_model_info, "_result_cache", {})
+        monkeypatch.setattr(
+            "inspect_ai.model._providers.vllm._registered_context_windows", {}
+        )
+        monkeypatch.setattr("inspect_ai.model._providers.vllm._vllm_servers", {})
+        monkeypatch.delenv("VLLM_BASE_URL", raising=False)
+        monkeypatch.setattr(
+            "inspect_ai.hooks._hooks.override_api_key", self._override_key
+        )
+        # plain functions, so the patched methods receive the provider
+        monkeypatch.setattr(
+            VLLMAPI,
+            "_start_server",
+            lambda api, model_path, port=None: self._launch(api, model_path, port),
+        )
+        monkeypatch.setattr(
+            VLLMAPI, "_create_http_client", lambda api: self._make_client(api)
+        )
+        monkeypatch.setattr(
+            "inspect_ai.model._providers.vllm.terminate_process", self._terminate
+        )
+
+    def _override_key(self, env_var_name: str, value: str) -> str | None:
+        if env_var_name != "VLLM_API_KEY":
+            return None
+        if self.token != "hook-key":
+            self.key_refreshed.set()
+        return self.token
+
+    def _launch(
+        self, api: VLLMAPI, model_path: str, port: int | None
+    ) -> tuple[str, Popen[str], int]:
+        assert api.api_key is not None
+        self.launches.append(api.api_key)
+        process = Mock(spec=Popen)
+        process.poll.return_value = None
+        self.processes.append(process)
+        return "http://localhost:8000/v1", cast(Popen[str], process), 8000
+
+    @staticmethod
+    def _terminate(process: Mock) -> None:
+        process.poll.return_value = 0
+
+    def _make_client(self, api: VLLMAPI) -> DefaultAsyncHttpxClient:
+        client = DefaultAsyncHttpxClient(transport=httpx2.MockTransport(self._respond))
+        self.http_clients.append(client)
+        return client
+
+    async def _respond(self, request: httpx2.Request) -> httpx2.Response:
+        is_models = request.url.path.endswith("/models")
+        is_chat = "/chat/" in request.url.path
+        kind = "models" if is_models else "generate"
+        if is_models:
+            self.models_auth.append(request.headers["authorization"])
+            self.models_started.set()
+            if self.release_models is not None:
+                await self.release_models.wait()
+        expected_key = self.launches[-1] if self.managed else self.token
+        if (
+            kind in self.reject_once
+            or request.headers["authorization"] != f"Bearer {expected_key}"
+        ):
+            self.reject_once.discard(kind)
+            return httpx2.Response(401, json={"error": {"message": "expired"}})
+        if is_models:
+            return httpx2.Response(
+                200,
+                json={"data": [{"id": "credential-test", "max_model_len": 4096}]},
+            )
+        choice = (
+            {"message": {"role": "assistant", "content": "ok"}}
+            if is_chat
+            else {"text": "ok"}
+        )
+        return httpx2.Response(
+            200,
+            json={
+                "id": "test",
+                "object": "chat.completion" if is_chat else "text_completion",
+                "created": 0,
+                "model": "credential-test",
+                "choices": [{"index": 0, "finish_reason": "stop", **choice}],
+            },
+        )
+
+    async def aclose(self, api: VLLMAPI) -> None:
+        await api.aclose()
+        for http_client in self.http_clients:
+            await http_client.aclose()
+
+
+async def _generate_ok(api: VLLMAPI) -> None:
+    result = await api.generate(
+        [ChatMessageUser(content="hello")], [], "none", GenerateConfig(max_tokens=1)
+    )
+    output = result[0] if isinstance(result, tuple) else result
+    assert isinstance(output, ModelOutput)
+    assert output.completion == "ok"
+
+
+@pytest.mark.parametrize("provider", [VLLMAPI, VLLMCompletionsAPI])
+@pytest.mark.parametrize("managed", [True, False])
+async def test_vllm_refresh_rediscovers_context_window(
+    monkeypatch: pytest.MonkeyPatch, provider: type[VLLMAPI], managed: bool
+) -> None:
+    """Discovery that failed authentication runs again after a refresh."""
+    server = _VLLMDiscoveryServer(monkeypatch, managed)
+    api = provider(
+        "credential-test",
+        api_key="initial-key",
+        base_url=None if managed else "http://localhost:8000/v1",
+        lazy_init=False,
+    )
+    try:
+        client = api.client
+        http_client = api.http_client
+        with pytest.raises(AuthenticationError) as exc:
+            await _generate_ok(api)
+        assert _get_model_info_direct(api.input_tokens_name()) is None
+
+        server.token = "rotated-key"
+        await Model(api=api, config=GenerateConfig()).before_retry(exc.value)
+        await _generate_ok(api)
+
+        refreshed_key = "hook-key" if managed else "rotated-key"
+        assert server.models_auth == ["Bearer hook-key", f"Bearer {refreshed_key}"]
+        registered = _get_model_info_direct(api.input_tokens_name())
+        assert registered is not None and registered.context_length == 4096
+        assert api.client is client
+        assert api.http_client is http_client
+        assert not client.is_closed()
+        assert server.launches == (["hook-key"] if managed else [])
+        assert all(process.poll() is None for process in server.processes)
+    finally:
+        await server.aclose(api)
+
+
+@pytest.mark.parametrize("provider", [VLLMAPI, VLLMCompletionsAPI])
+async def test_vllm_refresh_during_discovery(
+    monkeypatch: pytest.MonkeyPatch, provider: type[VLLMAPI]
+) -> None:
+    """A discovery response sent with old credentials cannot undo a refresh."""
+    server = _VLLMDiscoveryServer(monkeypatch, managed=False)
+    server.reject_once = {"models"}
+    server.release_models = anyio.Event()
+    api = provider(
+        "credential-test",
+        api_key="initial-key",
+        base_url="http://localhost:8000/v1",
+        lazy_init=False,
+    )
+    try:
+        with anyio.fail_after(10):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(api._register_context_window)
+                await server.models_started.wait()
+                server.token = "rotated-key"
+                tg.start_soon(api.refresh_credentials)
+                # the refresh has updated the key; release the stale 401
+                await server.key_refreshed.wait()
+                server.release_models.set()
+        server.release_models = None
+        await _generate_ok(api)
+
+        assert server.models_auth == ["Bearer hook-key", "Bearer rotated-key"]
+        registered = _get_model_info_direct(api.input_tokens_name())
+        assert registered is not None and registered.context_length == 4096
+    finally:
+        await server.aclose(api)

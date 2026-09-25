@@ -274,6 +274,21 @@ class VLLMAPI(OpenAICompatibleAPI):
             super()._apply_api_key_overrides()
             self._server.api_key = self.api_key
 
+    @override
+    async def refresh_credentials(self) -> None:
+        """Refresh credentials and allow context-window discovery to run again.
+
+        A ``/v1/models`` request that failed authentication latches discovery
+        like any other HTTP response, so the next ``generate()`` after a
+        refresh fetches the served window again. The reset waits for the
+        discovery lock so a response to a request that was already in flight
+        with the old credentials cannot latch discovery after the reset.
+        """
+        await super().refresh_credentials()
+        async with self._context_window_lock:
+            self._context_window_registered = False
+            self._context_window_attempts = 0
+
     async def _ensure_server_started(self) -> None:
         """Lazy version of ``_resolve_server`` — thread-safe for concurrent ``generate()`` calls."""
         if self._resolved_epoch != self._server._epoch:
