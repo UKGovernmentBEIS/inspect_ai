@@ -1,12 +1,13 @@
 import dataclasses
 import os
 from collections.abc import Callable
+from datetime import datetime, timezone
 
 import pytest
 from pydantic import BaseModel, ConfigDict
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
-from inspect_ai._util.content import ContentImage
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import JsonChange
 from inspect_ai.dataset._dataset import Sample
@@ -16,6 +17,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._subtask import SubtaskEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import EvalRetryError, EvalSample
 from inspect_ai.log._condense import (
     ATTACHMENT_PROTOCOL,
@@ -25,11 +27,17 @@ from inspect_ai.log._condense import (
     condense_sample,
     resolve_sample_attachments,
 )
-from inspect_ai.log._file import read_eval_log
-from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
+from inspect_ai.log._file import read_eval_log, write_eval_log
+from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
+from inspect_ai.model._chat_message import (
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
@@ -624,6 +632,324 @@ def test_condense_event_function() -> None:
     attachment_hash = condensed_content.replace(ATTACHMENT_PROTOCOL, "")
     assert attachment_hash in attachments
     assert attachments[attachment_hash] == long_text
+
+
+_TOOL_RESULT_IMAGE = "data:image/png;base64," + ("B" * 120)
+_TOOL_RESULT_TEXT = "tool text"
+
+
+def _sample_with_tool_result(result: ToolResult) -> EvalSample:
+    """A sample whose only tool call returned ``result``.
+
+    The tool message and the tool event carry the same result, as they do
+    in a recorded eval, so a test can check that both copies follow the
+    image logging policy.
+    """
+    content: str | list[Content]
+    if isinstance(result, list):
+        content = list(result)
+    elif isinstance(result, str | int | float | bool):
+        content = str(result)
+    else:
+        content = [result]
+    tool_message = ChatMessageTool(content=content, tool_call_id="call", function="fn")
+    event = ToolEvent(
+        id="call",
+        function="fn",
+        arguments={},
+        result=result,
+        timestamp=datetime.now(timezone.utc),
+        message_id=tool_message.id,
+    )
+    return EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        messages=[ChatMessageUser(content="hello"), tool_message],
+        events=[event],
+    )
+
+
+def _tool_event(sample: EvalSample) -> ToolEvent:
+    tool_events = [event for event in sample.events if isinstance(event, ToolEvent)]
+    assert len(tool_events) == 1
+    return tool_events[0]
+
+
+def _tool_message_image(sample: EvalSample) -> str:
+    message = sample.messages[1]
+    assert isinstance(message, ChatMessageTool)
+    assert isinstance(message.content, list)
+    image = message.content[1]
+    assert isinstance(image, ContentImage)
+    return image.image
+
+
+def test_tool_event_result_image_becomes_attachment() -> None:
+    sample = _sample_with_tool_result(
+        [ContentText(text=_TOOL_RESULT_TEXT), ContentImage(image=_TOOL_RESULT_IMAGE)]
+    )
+
+    condensed = condense_sample(sample, log_images=True)
+    result = _tool_event(condensed).result
+    assert isinstance(result, list)
+    text, image = result
+    assert isinstance(text, ContentText)
+    assert text.text == _TOOL_RESULT_TEXT
+    assert isinstance(image, ContentImage)
+    assert image.image.startswith(ATTACHMENT_PROTOCOL)
+    # the event and the tool message share one attachment
+    assert image.image == _tool_message_image(condensed)
+    assert condensed.attachments[image.image.removeprefix(ATTACHMENT_PROTOCOL)] == (
+        _TOOL_RESULT_IMAGE
+    )
+
+    resolved = resolve_sample_attachments(condensed, "full")
+    result = _tool_event(resolved).result
+    assert isinstance(result, list)
+    text, image = result
+    assert isinstance(text, ContentText)
+    assert text.text == _TOOL_RESULT_TEXT
+    assert isinstance(image, ContentImage)
+    assert image.image == _TOOL_RESULT_IMAGE
+    assert _tool_message_image(resolved) == _TOOL_RESULT_IMAGE
+
+
+def test_tool_event_result_image_removed_without_log_images() -> None:
+    sample = _sample_with_tool_result(
+        [ContentText(text=_TOOL_RESULT_TEXT), ContentImage(image=_TOOL_RESULT_IMAGE)]
+    )
+
+    condensed = condense_sample(sample, log_images=False)
+    result = _tool_event(condensed).result
+    assert isinstance(result, list)
+    text, image = result
+    assert isinstance(text, ContentText)
+    assert text.text == _TOOL_RESULT_TEXT
+    assert isinstance(image, ContentImage)
+    assert image.image == BASE_64_DATA_REMOVED
+    assert _tool_message_image(condensed) == BASE_64_DATA_REMOVED
+    assert _TOOL_RESULT_IMAGE not in condensed.attachments.values()
+
+
+@pytest.mark.parametrize("log_images", [True, False])
+def test_tool_event_single_content_result_follows_log_images(
+    log_images: bool,
+) -> None:
+    sample = _sample_with_tool_result(ContentImage(image=_TOOL_RESULT_IMAGE))
+
+    condensed = condense_sample(sample, log_images=log_images)
+    image = _tool_event(condensed).result
+    assert isinstance(image, ContentImage)
+    if log_images:
+        assert image.image.startswith(ATTACHMENT_PROTOCOL)
+        resolved = _tool_event(resolve_sample_attachments(condensed, "full")).result
+        assert isinstance(resolved, ContentImage)
+        assert resolved.image == _TOOL_RESULT_IMAGE
+    else:
+        assert image.image == BASE_64_DATA_REMOVED
+
+
+@pytest.mark.parametrize("log_images", [True, False])
+def test_tool_event_long_text_result_stays_inline(log_images: bool) -> None:
+    long_text = "tool output " * 20
+    assert len(long_text) > 100
+    sample = _sample_with_tool_result(long_text)
+
+    condensed = condense_sample(sample, log_images=log_images)
+    assert _tool_event(condensed).result == long_text
+    assert long_text not in condensed.attachments.values()
+
+
+def _eval_log(sample: EvalSample) -> EvalLog:
+    return EvalLog(
+        eval=EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="test_task",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=1),
+            config=EvalConfig(),
+        ),
+        samples=[sample],
+    )
+
+
+def test_tool_event_result_image_round_trips_through_eval_log(tmp_path: str) -> None:
+    sample = _sample_with_tool_result(
+        [ContentText(text=_TOOL_RESULT_TEXT), ContentImage(image=_TOOL_RESULT_IMAGE)]
+    )
+    log_file = os.path.join(tmp_path, "tool_result.eval")
+    write_eval_log(_eval_log(sample), log_file)
+
+    # the persisted form holds the image once, as an attachment
+    stored = read_eval_log(log_file, resolve_attachments=False)
+    assert stored.samples
+    result = _tool_event(stored.samples[0]).result
+    assert isinstance(result, list)
+    image = result[1]
+    assert isinstance(image, ContentImage)
+    assert image.image.startswith(ATTACHMENT_PROTOCOL)
+    assert image.image == _tool_message_image(stored.samples[0])
+    assert list(stored.samples[0].attachments.values()) == [_TOOL_RESULT_IMAGE]
+
+    # and reading with attachments resolved restores it byte-identically
+    resolved = read_eval_log(log_file, resolve_attachments="full")
+    assert resolved.samples
+    result = _tool_event(resolved.samples[0]).result
+    assert isinstance(result, list)
+    text, image = result
+    assert isinstance(text, ContentText)
+    assert text.text == _TOOL_RESULT_TEXT
+    assert isinstance(image, ContentImage)
+    assert image.image == _TOOL_RESULT_IMAGE
+
+
+# a 1x1 GIF: a valid data URI shorter than the event text-pooling threshold
+_SHORT_IMAGE = (
+    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+)
+_URL_IMAGE = "https://example.org/" + ("x" * 120) + ".png"
+
+
+def _image_result(image: str, as_list: bool) -> ToolResult:
+    return (
+        [ContentText(text=_TOOL_RESULT_TEXT), ContentImage(image=image)]
+        if as_list
+        else ContentImage(image=image)
+    )
+
+
+def _result_image(result: ToolResult) -> str:
+    image = result[-1] if isinstance(result, list) else result
+    assert isinstance(image, ContentImage)
+    return image.image
+
+
+@pytest.mark.parametrize("log_images", [True, False])
+@pytest.mark.parametrize("as_list", [True, False])
+def test_tool_event_short_data_uri_result_follows_message_policy(
+    log_images: bool, as_list: bool
+) -> None:
+    # message media policy: every data URI is pooled or removed, whatever its
+    # length; the event text policy would leave this one inline
+    assert len(_SHORT_IMAGE) <= 100
+    sample = _sample_with_tool_result(_image_result(_SHORT_IMAGE, as_list))
+
+    condensed = condense_sample(sample, log_images=log_images)
+    image = _result_image(_tool_event(condensed).result)
+    message = condensed.messages[1]
+    assert isinstance(message, ChatMessageTool)
+    assert isinstance(message.content, list)
+    message_image = message.content[-1]
+    assert isinstance(message_image, ContentImage)
+    assert image == message_image.image
+    if log_images:
+        assert image.startswith(ATTACHMENT_PROTOCOL)
+        resolved = resolve_sample_attachments(condensed, "full")
+        assert _result_image(_tool_event(resolved).result) == _SHORT_IMAGE
+    else:
+        assert image == BASE_64_DATA_REMOVED
+
+
+@pytest.mark.parametrize("log_images", [True, False])
+@pytest.mark.parametrize("as_list", [True, False])
+def test_tool_event_url_result_stays_inline(log_images: bool, as_list: bool) -> None:
+    # message media policy: a URL is not a data URI, so it stays inline
+    # whatever its length; the event text policy would pool it
+    assert len(_URL_IMAGE) > 100
+    sample = _sample_with_tool_result(_image_result(_URL_IMAGE, as_list))
+
+    condensed = condense_sample(sample, log_images=log_images)
+    assert _result_image(_tool_event(condensed).result) == _URL_IMAGE
+    assert _URL_IMAGE not in condensed.attachments.values()
+
+
+def test_condense_event_tool_result_follows_message_policy() -> None:
+    # condense_event (transcript store, log recovery) pools the event's text
+    # under the event policy and its result media under the message policy
+    attachments: dict[str, str] = {}
+    long_argument = "z" * 200
+    event = ToolEvent(
+        id="call",
+        function="fn",
+        arguments={"path": long_argument},
+        result=[ContentText(text=_TOOL_RESULT_TEXT), ContentImage(image=_SHORT_IMAGE)],
+        timestamp=datetime.now(timezone.utc),
+    )
+
+    condensed = condense_event(event, attachments, log_images=True)
+    assert isinstance(condensed, ToolEvent)
+    argument = condensed.arguments["path"]
+    assert isinstance(argument, str)
+    assert argument.startswith(ATTACHMENT_PROTOCOL)
+    image = _result_image(condensed.result)
+    assert image.startswith(ATTACHMENT_PROTOCOL)
+    assert attachments[image.removeprefix(ATTACHMENT_PROTOCOL)] == _SHORT_IMAGE
+    assert set(attachments.values()) == {long_argument, _SHORT_IMAGE}
+
+    removed = condense_event(event, {}, log_images=False)
+    assert isinstance(removed, ToolEvent)
+    assert _result_image(removed.result) == BASE_64_DATA_REMOVED
+
+
+@pytest.mark.parametrize("container", ["tool", "subtask"])
+def test_nested_tool_event_result_stays_inline_through_eval_log(
+    container: str, tmp_path: str
+) -> None:
+    # deprecated nested events reload as dicts that the attachment walk skips,
+    # so a nested result image must stay inline or it could not be resolved
+    nested = ToolEvent(
+        id="nested",
+        function="nested_fn",
+        arguments={},
+        result=[
+            ContentText(text=_TOOL_RESULT_TEXT),
+            ContentImage(image=_TOOL_RESULT_IMAGE),
+        ],
+        timestamp=datetime.now(timezone.utc),
+    )
+    parent: Event
+    if container == "tool":
+        parent = ToolEvent(
+            id="parent",
+            function="fn",
+            arguments={},
+            events=[nested],
+            timestamp=datetime.now(timezone.utc),
+        )
+    else:
+        parent = SubtaskEvent(
+            name="sub", input={}, events=[nested], timestamp=datetime.now(timezone.utc)
+        )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        messages=[ChatMessageUser(content="hello")],
+        events=[parent],
+    )
+
+    condensed = condense_sample(sample, log_images=True)
+    parent_condensed = condensed.events[0]
+    assert isinstance(parent_condensed, ToolEvent | SubtaskEvent)
+    nested_condensed = parent_condensed.events[0]
+    assert isinstance(nested_condensed, ToolEvent)
+    assert _result_image(nested_condensed.result) == _TOOL_RESULT_IMAGE
+    assert _TOOL_RESULT_IMAGE not in condensed.attachments.values()
+
+    log_file = os.path.join(tmp_path, "nested.eval")
+    write_eval_log(_eval_log(sample), log_file)
+    resolved = read_eval_log(log_file, resolve_attachments="full")
+    assert resolved.samples
+    parent_read = resolved.samples[0].events[0]
+    assert isinstance(parent_read, ToolEvent | SubtaskEvent)
+    nested_read = parent_read.events[0]
+    assert isinstance(nested_read, dict)
+    assert nested_read["result"][1]["image"] == _TOOL_RESULT_IMAGE
+    assert resolved.samples[0].attachments == {}
+    assert ATTACHMENT_PROTOCOL not in resolved.model_dump_json()
 
 
 def _sample_with_model_call_payload(payload: str) -> EvalSample:

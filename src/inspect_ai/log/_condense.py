@@ -15,7 +15,7 @@ from typing import (
 )
 
 from pydantic import BaseModel, JsonValue
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
@@ -52,6 +52,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -122,6 +123,17 @@ class WalkContext(TypedDict):
     """
 
     only_core: bool
+
+    media_fn: NotRequired[Callable[[str], str]]
+    """Content function for media in tool results (``walk_tool_result``).
+
+    Condensation sets it to the message media policy (every data URI
+    pooled or removed, other values inline) so a result image is treated
+    exactly like the same image in the tool message, while ``content_fn``
+    keeps pooling the event's text. When absent, media go through
+    ``content_fn``: resolution needs no distinction, and the sample buffer
+    applies its one policy to messages and events alike.
+    """
 
 
 def attachment_refs_from_value(value: JsonValue) -> set[str]:
@@ -298,10 +310,14 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     # must not share a message cache: sample.messages contains the same
     # objects/ids as event inputs and a shared cache would return
     # event-walked results during the messages walk.
-    events_context = WalkContext(message_cache={}, only_core=False)
+    events_context = WalkContext(
+        message_cache={}, only_core=False, media_fn=messages_fn
+    )
     messages_context = WalkContext(message_cache={}, only_core=False)
     condensed_events = walk_events(sample.events, events_fn, events_context)
-    retry_events_context = WalkContext(message_cache={}, only_core=False)
+    retry_events_context = WalkContext(
+        message_cache={}, only_core=False, media_fn=messages_fn
+    )
     condensed_error_retries = (
         [
             retry.model_copy(
@@ -416,8 +432,12 @@ def condense_event(
     context: WalkContext | None = None,
 ) -> Event:
     event_fn = events_attachment_fn(attachments, log_images)
-    if context is None:
-        context = WalkContext(message_cache={}, only_core=False)
+    media_fn = messages_attachment_fn(attachments, log_images)
+    context = WalkContext(
+        message_cache=context["message_cache"] if context else {},
+        only_core=False,
+        media_fn=media_fn,
+    )
     return walk_event(event, event_fn, context)
 
 
@@ -929,19 +949,84 @@ def walk_subtask_event(
     event: SubtaskEvent, content_fn: Callable[[str], str], context: WalkContext
 ) -> SubtaskEvent:
     return event.model_copy(
-        update=dict(events=walk_events(event.events, content_fn, context))
+        update=dict(events=walk_nested_events(event.events, content_fn, context))
     )
 
 
 def walk_tool_event(
-    event: ToolEvent, content_fn: Callable[[str], str], context: WalkContext
+    event: ToolEvent,
+    content_fn: Callable[[str], str],
+    context: WalkContext,
+    *,
+    walk_result: bool = True,
 ) -> ToolEvent:
     return event.model_copy(
         update=dict(
             arguments=walk_json_dict(event.arguments, content_fn, context),
-            events=walk_events(event.events, content_fn, context),
+            result=walk_tool_result(event.result, context.get("media_fn", content_fn))
+            if walk_result
+            else event.result,
+            events=walk_nested_events(event.events, content_fn, context),
         )
     )
+
+
+def walk_nested_events(
+    events: list[Event], content_fn: Callable[[str], str], context: WalkContext
+) -> list[Event]:
+    """Walk the deprecated nested ``events`` of a tool or subtask event.
+
+    Nested events are typed ``list[Any]`` and reload from a log as plain
+    dicts, which ``walk_event`` leaves untouched, so a reference written
+    into a nested tool result could never be resolved on read. The results
+    of nested tool events therefore stay inline.
+    """
+    return [
+        walk_tool_event(event, content_fn, context, walk_result=False)
+        if isinstance(event, ToolEvent)
+        else walk_event(event, content_fn, context)
+        for event in events
+    ]
+
+
+_ToolResultContent = (
+    ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument
+)
+
+
+def walk_tool_result(
+    result: ToolResult, content_fn: Callable[[str], str]
+) -> ToolResult:
+    """Apply ``content_fn`` to the media in a tool result.
+
+    Only media fields (image, audio, video, document) are walked, with the
+    media content function from ``WalkContext`` when condensing, so a result
+    image is pooled or removed exactly as the same image in a message. Text
+    (a ``str`` result or ``ContentText``) stays inline: the same text is
+    already inline in the tool message the model sees next, so pooling it
+    would add an attachment without removing a copy.
+    """
+    if isinstance(result, list):
+        return [_walk_tool_result_content(content, content_fn) for content in result]
+    elif isinstance(result, _ToolResultContent):
+        return _walk_tool_result_content(result, content_fn)
+    else:
+        return result
+
+
+def _walk_tool_result_content(
+    content: _ToolResultContent, content_fn: Callable[[str], str]
+) -> _ToolResultContent:
+    if isinstance(content, ContentImage):
+        return content.model_copy(update=dict(image=content_fn(content.image)))
+    elif isinstance(content, ContentAudio):
+        return content.model_copy(update=dict(audio=content_fn(content.audio)))
+    elif isinstance(content, ContentVideo):
+        return content.model_copy(update=dict(video=content_fn(content.video)))
+    elif isinstance(content, ContentDocument):
+        return content.model_copy(update=dict(document=content_fn(content.document)))
+    else:
+        return content
 
 
 def walk_info_event(

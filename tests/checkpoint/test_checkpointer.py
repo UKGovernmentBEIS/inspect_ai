@@ -2729,6 +2729,8 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
     answer = "restored answer " * 20
     command = "echo restored " * 20
     image = "data:image/png;base64," + base64.b64encode(bytes(range(256))).decode()
+    tool_image_data = base64.b64encode(bytes(reversed(range(256)))).decode()
+    tool_image = "data:image/png;base64," + tool_image_data
     call_request: dict[str, JsonValue] = {
         "messages": [{"role": "user", "content": prompt}]
     }
@@ -2747,7 +2749,7 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
         id="call-1",
         function="bash",
         arguments={"cmd": command},
-        result="ok",
+        result=[ContentText(text="ok"), ContentImage(image=tool_image)],
     )
 
     # the first attempt commits checkpoint 1 holding both events
@@ -2768,6 +2770,7 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
     _write_checkpoint_files(sample_root, 1)
     stored = (context_dir / "events.json").read_text()
     assert command not in stored and "attachment://" in stored
+    assert tool_image_data not in stored
 
     # the resume pushes it into a transcript with live subscribers
     live = Transcript(bounded=False)
@@ -2789,7 +2792,7 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
 
     subscribed = "".join(event.model_dump_json(exclude={"call"}) for event in delivered)
     assert "attachment://" not in subscribed
-    for content in (prompt, answer, command, image):
+    for content in (prompt, answer, command, image, tool_image):
         assert content in subscribed
     delivered_model = next(e for e in delivered if isinstance(e, ModelEvent))
     assert delivered_model.call is not None
@@ -2799,6 +2802,8 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
     acp = "".join(notification.model_dump_json() for notification in published)
     assert "attachment://" not in acp
     assert answer in acp and command in acp
+    # the tool result image reaches the ACP client as its base64 payload
+    assert tool_image_data in acp
 
     resident_model = next(e for e in live.events if isinstance(e, ModelEvent))
     assert resident_model.input[0].content == [
@@ -2808,6 +2813,10 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
     assert resident_model.output.completion == answer
     resident_tool = next(e for e in live.events if isinstance(e, ToolEvent))
     assert resident_tool.arguments == {"cmd": command}
+    assert resident_tool.result == [
+        ContentText(text="ok"),
+        ContentImage(image=tool_image),
+    ]
 
     # the next checkpoint still holds the restored content
     hydration = _fake_hydration(str(sample_root), str(tmp_path / "resumed-state"))
@@ -2834,7 +2843,7 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
     )
     next_json = "".join(event.model_dump_json() for event in next_events)
     assert "attachment://" not in next_json
-    for content in (prompt, answer, command, image):
+    for content in (prompt, answer, command, image, tool_image):
         assert content in next_json
 
 
