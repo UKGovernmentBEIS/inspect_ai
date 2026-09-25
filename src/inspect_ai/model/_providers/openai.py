@@ -55,6 +55,7 @@ from .._openai_responses import (
     pad_tool_messages_for_token_counting,
 )
 from .._stream import model_stream_requested
+from ._first_party import FRONTIER_MODELS
 from ._openai_batch import OpenAIBatcher
 from .util import (
     check_azure_deployment_mismatch,
@@ -679,7 +680,7 @@ class OpenAIAPI(ModelAPI):
         # context window / token accounting match (bump when a newer frontier
         # ships). Mirrors Anthropic's is_claude_latest() aliasing.
         if self.is_latest():
-            return "openai/gpt-6-astra"
+            return FRONTIER_MODELS["openai"]
         return super().input_tokens_name()
 
     @override

@@ -133,7 +133,14 @@ async def _litellm_message_to_openai(
     message: ChatMessage,
 ) -> ChatCompletionMessageParam:
     param = await openai_chat_message(message, "system", _reasoning_handler)
-    if message.role != "assistant" or isinstance(message.content, str):
+    if message.role != "assistant":
+        return param
+    if param.get("tool_calls") and _is_empty(param.get("content")):
+        # LiteLLM replaces empty text sent to Anthropic with a placeholder
+        # ("[System: Empty message content sanitised ...]") that the model
+        # then sees; null content with tool calls passes through unchanged
+        param = cast(ChatCompletionAssistantMessageParam, param | {"content": None})
+    if isinstance(message.content, str):
         return param
 
     reasoning = [c for c in message.content if isinstance(c, ContentReasoning)]
@@ -151,6 +158,19 @@ async def _litellm_message_to_openai(
     if signatures:
         fields[PROVIDER_SPECIFIC_FIELDS] = {THOUGHT_SIGNATURES: signatures}
     return cast(ChatCompletionAssistantMessageParam, param | fields)
+
+
+def _is_empty(content: Any) -> bool:
+    """Whether message content has no text (or other) blocks to send."""
+    if content is None:
+        return True
+    if isinstance(content, str):
+        return not content.strip()
+    return all(
+        not block
+        or (block.get("type") == "text" and not str(block.get("text") or "").strip())
+        for block in content
+    )
 
 
 def _reasoning_handler(content: ContentReasoning) -> dict[str, Any] | str:

@@ -11,10 +11,11 @@ local stub server.
 import json
 import socket
 import threading
+import uuid
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
+from typing import Any, Literal, NamedTuple
 
 import httpx
 import httpx2
@@ -22,18 +23,30 @@ import pytest
 from openai import APIError, APIStatusError, BadRequestError
 from test_helpers.litellm_proxy.errors import error_deployments, error_route
 from test_helpers.litellm_proxy.proxy import (
+    CALL_ID_HEADER,
     LiteLLMProxy,
     isolate_model_info,
     run_litellm_proxy,
     skip_if_no_litellm_proxy,
+    upstream_exchange,
 )
-from test_helpers.litellm_proxy.stubs import fake_upstream
+from test_helpers.litellm_proxy.stubs import (
+    SSE,
+    Reply,
+    StubRequest,
+    fake_upstream,
+    route,
+)
 from test_helpers.utils import skip_if_no_openai_package
 
+from inspect_ai._util import logger as inspect_logger
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     Model,
@@ -52,7 +65,16 @@ from inspect_ai.model._model_info import (
     set_model_cost,
 )
 from inspect_ai.model._openai import OpenAIResponseError
-from inspect_ai.model._providers import _litellm_proxy_model_info, _litellm_proxy_names
+from inspect_ai.model._providers import (
+    _litellm_proxy_model_info,
+    _litellm_proxy_names,
+)
+from inspect_ai.model._providers import litellm_proxy as litellm_proxy_module
+from inspect_ai.model._providers._litellm_proxy_caching import (
+    cache_write_ttl,
+    with_cache_breakpoints,
+    with_tool_cache_breakpoint,
+)
 from inspect_ai.model._providers._litellm_proxy_errors import (
     litellm_error_model_output,
     upstream_message,
@@ -65,12 +87,23 @@ from inspect_ai.model._providers._litellm_proxy_names import resolve_deployments
 from inspect_ai.model._providers._litellm_proxy_reasoning import (
     ThinkingBlocksAccumulator,
 )
+from inspect_ai.model._providers._litellm_proxy_reasoning_effort import (
+    next_effort,
+    rejected_effort,
+)
+from inspect_ai.model._providers._litellm_proxy_vendor import (
+    frontier_base_model,
+    upstream_vendor,
+)
 from inspect_ai.model._providers.litellm_proxy import (
     LITELLM_PROXY_API_BASE,
     LITELLM_PROXY_BASE_URL,
     LiteLLMProxyAPI,
+    PrefillNotSupportedError,
     merged_model_info,
 )
+from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams
 
 MOCK_MODEL = "mock-model"
 MOCK_RESPONSE = "Hello from the mock proxy"
@@ -1448,3 +1481,788 @@ async def test_litellm_proxy_error_handling(
     else:
         assert isinstance(output, ModelOutput), output
         assert output.stop_reason == expected
+
+
+# Reasoning effort ---------------------------------------------------------------
+
+# rejections as LiteLLM proxy 1.104 (and OpenAI, for values it forwards) word them
+PARAMETER_REJECTED = (
+    "litellm.UnsupportedParamsError: xai does not support parameters: "
+    "['reasoning_effort'], for model=grok-4. To drop these, set "
+    "`litellm.drop_params=True` or for proxy:\n\n`litellm_settings:\n drop_params: "
+    "true`\n."
+)
+
+
+@pytest.mark.parametrize(
+    "message,sent,kind",
+    [
+        (PARAMETER_REJECTED, "high", "parameter"),
+        (
+            "litellm.UnsupportedParamsError: gpt-4.1 doesn't support "
+            "`reasoning.effort` (its model cost map entry lacks "
+            "`supports_reasoning`). To drop unsupported params set "
+            "`litellm.drop_params = True`",
+            "none",
+            "parameter",
+        ),
+        (
+            "litellm.UnsupportedParamsError: reasoning_effort=xhigh is not "
+            "supported for this model.",
+            "xhigh",
+            "value",
+        ),
+        (
+            "litellm.UnsupportedParamsError: Invalid `reasoning_effort`: 'max'. Must "
+            "be one of: 'minimal', 'low', 'medium', 'high', 'none', 'disable'.",
+            "max",
+            "value",
+        ),
+        (
+            "litellm.BadRequestError: effort='xhigh' is not supported by this "
+            "model. Got model: claude-opus-4-6",
+            "xhigh",
+            "value",
+        ),
+        (
+            "litellm.BadRequestError: OpenAIException - Unsupported value: "
+            "'reasoning_effort' does not support 'max' with this model. Supported "
+            "values are: 'minimal', 'low', 'medium', and 'high'.",
+            "max",
+            "value",
+        ),
+        (
+            'litellm.BadRequestError: OpenAIException - {\n  "error": {\n    '
+            '"message": "Unsupported value: \'none\' is not supported with the '
+            "'gpt-5' model. Supported values are: 'minimal', 'low', 'medium', and "
+            '\'high\'.",\n    "type": "invalid_request_error",\n    "param": '
+            '"reasoning.effort",\n    "code": "unsupported_value"\n  }\n}',
+            "none",
+            "value",
+        ),
+        # an unsupported value for another parameter
+        (
+            'litellm.BadRequestError: OpenAIException - {"error": {"message": '
+            "\"Unsupported value: 'none' is not supported with the 'gpt-5' "
+            'model.", "param": "temperature"}}',
+            "none",
+            None,
+        ),
+        # a value rejection names a different value than the one sent
+        (
+            "litellm.UnsupportedParamsError: reasoning_effort=xhigh is not "
+            "supported for this model.",
+            "high",
+            None,
+        ),
+        (
+            "litellm.BadRequestError: OpenAIException - Invalid 'tools[0].name'",
+            "high",
+            None,
+        ),
+    ],
+)
+def test_rejected_effort(message: str, sent: str, kind: str | None) -> None:
+    rejection = rejected_effort(message, sent)
+    assert (rejection.kind if rejection else None) == kind
+
+
+@pytest.mark.parametrize(
+    "requested,rejected,expected",
+    [
+        ("xhigh", {"xhigh"}, "high"),
+        ("max", {"max", "xhigh"}, "high"),
+        ("minimal", {"minimal"}, "low"),
+        ("minimal", {"minimal", "low"}, "medium"),
+        ("high", set(), "high"),
+        ("none", {"none"}, None),
+        ("turbo", {"turbo"}, None),
+        ("high", {"minimal", "low", "medium", "high", "xhigh", "max"}, None),
+    ],
+)
+def test_next_effort(requested: str, rejected: set[str], expected: str | None) -> None:
+    assert next_effort(requested, rejected) == expected
+
+
+Effort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+
+EFFORTS: list[Effort] = ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+
+STRICT_OPENAI_EFFORTS = ("low", "medium", "high")
+"""Efforts the strict fake OpenAI upstream accepts (like o3)."""
+
+
+def _strict_openai_route(request: StubRequest) -> dict[str, Any] | SSE | Reply | None:
+    """The fake upstreams, plus an OpenAI model that rejects other efforts."""
+    body = request.body or {}
+    if body.get("model") == "strict-openai":
+        param = "reasoning_effort" if "messages" in body else "reasoning.effort"
+        effort = (
+            body.get("reasoning_effort")
+            if "messages" in body
+            else (body.get("reasoning") or {}).get("effort")
+        )
+        if effort is not None and effort not in STRICT_OPENAI_EFFORTS:
+            # OpenAI's wording differs between chat completions and Responses
+            message = (
+                f"Unsupported value: '{param}' does not support '{effort}' with "
+                "this model."
+                if "messages" in body
+                else f"Unsupported value: '{effort}' is not supported with the "
+                "'strict-openai' model."
+            )
+            return Reply(
+                400,
+                {
+                    "error": {
+                        "message": f"{message} Supported values are: 'low', "
+                        "'medium', and 'high'.",
+                        "type": "invalid_request_error",
+                        "param": param,
+                        "code": "unsupported_value",
+                    }
+                },
+            )
+    return route(request)
+
+
+EFFORT_DEPLOYMENTS = {
+    "claude-3-5-haiku": "anthropic/claude-3-5-haiku-20241022",
+    "claude-opus-4-6": "anthropic/claude-opus-4-6",
+    "claude-opus-5-5": "anthropic/claude-opus-5-5",
+    "gemini-2.5-pro": "gemini/gemini-2.5-pro",
+    "gemini-3-pro": "gemini/gemini-3-pro-preview",
+    "gpt-5": "openai/gpt-5",
+    "gpt-5.5": "openai/gpt-5.5",
+    "gpt-4.1": "openai/gpt-4.1",
+    "grok-4": "xai/grok-4",
+    "deepseek-reasoner": "deepseek/deepseek-reasoner",
+    "strict-openai": "openai/strict-openai",
+}
+
+
+def _effort_params(model: str, url: str) -> dict[str, Any]:
+    if model.startswith("anthropic/"):
+        return {"model": model, "api_base": url, "api_key": "fake"}
+    if model.startswith("gemini/"):
+        return {"model": model, "api_base": f"{url}/v1beta", "api_key": "fake"}
+    return {"model": model, "api_base": f"{url}/v1", "api_key": "fake"}
+
+
+@pytest.fixture(scope="module")
+def effort_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLMProxy]:
+    with fake_upstream(_strict_openai_route) as upstream:
+        config = {
+            "model_list": [
+                {
+                    "model_name": alias,
+                    "litellm_params": _effort_params(model, upstream.docker_url),
+                    # LiteLLM's map does not know it; without this, LiteLLM
+                    # refuses reasoning.effort on the Responses path
+                    "model_info": (
+                        {"supports_reasoning": True} if alias == "strict-openai" else {}
+                    ),
+                }
+                for alias, model in EFFORT_DEPLOYMENTS.items()
+            ],
+            "router_settings": {"num_retries": 0},
+        }
+        with run_litellm_proxy(
+            tmp_path_factory.mktemp("litellm-effort"), config, capture=True
+        ) as proxy:
+            yield proxy
+
+
+def _sent_effort(request: dict[str, Any]) -> Any:
+    """The effort-related part of an upstream request."""
+    if "generationConfig" in request or "contents" in request:
+        return (request.get("generationConfig") or {}).get("thinkingConfig")
+    if "output_config" in request or "thinking" in request:
+        return (request.get("output_config") or {}).get("effort")
+    if "reasoning" in request:
+        return (request.get("reasoning") or {}).get("effort")
+    return request.get("reasoning_effort")
+
+
+async def _generate_effort(
+    proxy: LiteLLMProxy, alias: str, responses_api: bool, effort: Effort
+) -> tuple[ModelOutput | Exception, Any]:
+    api = _proxy_api(
+        get_model(
+            f"litellm-proxy/{alias}",
+            base_url=proxy.base_url,
+            api_key=proxy.api_key,
+            responses_api=responses_api,
+            model_info=False,
+            max_retries=0,
+            memoize=False,
+        )
+    )
+    call_id = str(uuid.uuid4())
+    result = await api.generate(
+        [ChatMessageUser(content="Hello")],
+        [],
+        "none",
+        GenerateConfig(
+            reasoning_effort=effort, extra_headers={CALL_ID_HEADER: call_id}
+        ),
+    )
+    output = result[0] if isinstance(result, tuple) else result
+    sent = None
+    if isinstance(output, ModelOutput):
+        assert proxy.capture_dir is not None
+        sent = _sent_effort(upstream_exchange(proxy.capture_dir, call_id).request)
+    return output, sent
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("responses_api", [False, True], ids=["chat", "responses"])
+@pytest.mark.parametrize("alias", list(EFFORT_DEPLOYMENTS))
+async def test_litellm_proxy_reasoning_effort_never_fails(
+    effort_proxy: LiteLLMProxy, alias: str, responses_api: bool
+) -> None:
+    for effort in EFFORTS:
+        output, _ = await _generate_effort(effort_proxy, alias, responses_api, effort)
+        assert isinstance(output, ModelOutput), f"{effort}: {output}"
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize(
+    "alias,responses_api,effort,sent",
+    [
+        ("claude-opus-4-6", False, "xhigh", "high"),
+        ("claude-opus-4-6", True, "xhigh", "high"),
+        ("claude-opus-5-5", True, "max", "max"),
+        (
+            "gemini-3-pro",
+            False,
+            "max",
+            {"thinkingLevel": "high", "includeThoughts": True},
+        ),
+        ("gpt-5", False, "xhigh", "high"),
+        ("gpt-5.5", False, "minimal", "low"),
+        ("gpt-4.1", False, "high", None),
+        ("grok-4", False, "high", None),
+        ("strict-openai", False, "max", "high"),
+        ("strict-openai", True, "max", "high"),
+        ("strict-openai", False, "none", None),
+    ],
+)
+async def test_litellm_proxy_reasoning_effort_lowered(
+    effort_proxy: LiteLLMProxy,
+    alias: str,
+    responses_api: bool,
+    effort: Effort,
+    sent: Any,
+) -> None:
+    output, upstream = await _generate_effort(
+        effort_proxy, alias, responses_api, effort
+    )
+    assert isinstance(output, ModelOutput), output
+    assert upstream == sent
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+async def test_litellm_proxy_reasoning_effort_remembered(
+    effort_proxy: LiteLLMProxy, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    attempts = 0
+    generate = OpenAICompatibleAPI.generate
+
+    async def counting_generate(self: Any, *args: Any) -> Any:
+        nonlocal attempts
+        attempts += 1
+        return await generate(self, *args)
+
+    monkeypatch.setattr(OpenAICompatibleAPI, "generate", counting_generate)
+    api = _proxy_api(
+        get_model(
+            "litellm-proxy/gpt-5.5",
+            base_url=effort_proxy.base_url,
+            api_key=effort_proxy.api_key,
+            model_info=False,
+            max_retries=0,
+            memoize=False,
+        )
+    )
+    for expected_attempts in (2, 3):
+        result = await api.generate(
+            [ChatMessageUser(content="Hello")],
+            [],
+            "none",
+            GenerateConfig(reasoning_effort="minimal"),
+        )
+        output = result[0] if isinstance(result, tuple) else result
+        assert isinstance(output, ModelOutput)
+        assert attempts == expected_attempts
+    assert warnings == [
+        "LiteLLM proxy model 'gpt-5.5' does not accept reasoning_effort='minimal'; "
+        "using 'low'."
+    ]
+
+
+# Claude request shaping, prompt caching and defaults ----------------------
+
+
+@pytest.mark.parametrize(
+    "names,vendor",
+    [
+        (["anthropic/claude-metis-v1"], "anthropic"),
+        (["bedrock/converse/us.anthropic.claude-metis-v1:0"], "anthropic"),
+        (["vertex_ai/claude-opus-5-5@default"], "anthropic"),
+        (["anthropic/metis"], "anthropic"),
+        ([None, None, "claude-metis"], "anthropic"),
+        (["hosted_vllm/llama-4", "claude-metis"], "anthropic"),
+        (["xai/mimas"], "grok"),
+        (["openrouter/x-ai/grok-5"], "grok"),
+        (["gemini/gemini-4-pro"], "google"),
+        (["openai/gpt-7-preview"], "openai"),
+        (["azure/o5-mini"], "openai"),
+        (["bedrock/converse/us.openai.gpt-6-astra"], "openai"),
+        (["openai/gpt-oss-120b"], None),
+        (["hosted_vllm/llama-4"], None),
+        (["openai/mimas"], None),
+        ([None], None),
+    ],
+)
+def test_upstream_vendor(names: list[str | None], vendor: str | None) -> None:
+    assert upstream_vendor(names) == vendor
+
+
+def test_frontier_base_model() -> None:
+    assert frontier_base_model("anthropic") == "anthropic/claude-opus-5-5"
+    assert frontier_base_model("openai") == "openai/gpt-6-astra"
+    assert frontier_base_model("google") == "gemini/gemini-3.8-flash"
+    assert frontier_base_model("grok") == "xai/grok-4.7"
+
+
+def _cached(block: dict[str, Any]) -> bool:
+    return block.get("cache_control") == {"type": "ephemeral"}
+
+
+def test_with_cache_breakpoints() -> None:
+    messages: list[Any] = [
+        {"role": "system", "content": "Be helpful."},
+        {"role": "user", "content": [{"type": "text", "text": "Look up ABC."}]},
+        {"role": "assistant", "content": None, "tool_calls": [TOOL_CALL]},
+        {"role": "tool", "tool_call_id": "call_1", "content": "ABC is 1."},
+        {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "Done."}],
+            "thinking_blocks": [THINKING],
+        },
+    ]
+    result: list[Any] = with_cache_breakpoints(messages)
+    assert _cached(result[0]["content"][-1])
+    assert not _cached(result[1]["content"][-1])
+    # an assistant turn with only tool calls has no block to mark
+    assert result[2]["content"] is None
+    assert result[3]["content"] == [
+        {"type": "text", "text": "ABC is 1.", "cache_control": {"type": "ephemeral"}}
+    ]
+    assert _cached(result[4]["content"][-1])
+    assert result[4]["thinking_blocks"] == [THINKING]
+    # the input is not modified
+    assert messages[0]["content"] == "Be helpful."
+    assert "cache_control" not in messages[4]["content"][-1]
+
+
+def test_with_cache_breakpoints_single_message() -> None:
+    result: list[Any] = with_cache_breakpoints([{"role": "user", "content": "Hi"}])
+    assert _cached(result[0]["content"][-1])
+    assert with_cache_breakpoints([]) == []
+
+
+def test_with_tool_cache_breakpoint() -> None:
+    tools: list[Any] = [
+        {"type": "function", "function": {"name": name, "parameters": {}}}
+        for name in ("a", "b")
+    ]
+    result: list[Any] = with_tool_cache_breakpoint(tools)
+    assert "cache_control" not in result[0]["function"]
+    assert _cached(result[1]["function"])
+    assert "cache_control" not in tools[1]["function"]
+    assert with_tool_cache_breakpoint([]) == []
+
+
+@pytest.mark.parametrize(
+    "details,ttl",
+    [
+        ({"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 20}, "1h"),
+        ({"ephemeral_5m_input_tokens": 20, "ephemeral_1h_input_tokens": 0}, "5m"),
+        ({"ephemeral_5m_input_tokens": 5, "ephemeral_1h_input_tokens": 20}, "1h"),
+        ({"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 0}, None),
+        (None, None),
+    ],
+)
+def test_cache_write_ttl(details: dict[str, int] | None, ttl: str | None) -> None:
+    prompt_tokens_details: dict[str, Any] = {"cache_write_tokens": 20}
+    if details is not None:
+        prompt_tokens_details["cache_creation_token_details"] = details
+    assert cache_write_ttl({"prompt_tokens_details": prompt_tokens_details}) == ttl
+
+
+def _alias_provider(alias: str, **model_args: Any) -> LiteLLMProxyAPI:
+    api = get_model(
+        f"litellm-proxy/{alias}",
+        base_url="http://localhost:4000/v1",
+        api_key="key",
+        model_info=False,
+        memoize=False,
+        **model_args,
+    ).api
+    assert isinstance(api, LiteLLMProxyAPI)
+    return api
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "config,max_tokens",
+    [
+        (GenerateConfig(), 32000),
+        (GenerateConfig(reasoning_effort="low"), 36096),
+        (GenerateConfig(reasoning_effort="high"), 48000),
+        (GenerateConfig(reasoning_effort="xhigh"), 64000),
+        (GenerateConfig(reasoning_effort="max"), 64000),
+        (GenerateConfig(reasoning_tokens=8000), 40000),
+    ],
+)
+def test_claude_max_tokens(config: GenerateConfig, max_tokens: int) -> None:
+    assert _alias_provider("claude-metis").max_tokens_for_config(config) == max_tokens
+
+
+@skip_if_no_openai_package
+def test_claude_max_tokens_capped_by_output_limit() -> None:
+    set_model_info("litellm-proxy/claude-small", ModelInfo(output_tokens=8192))
+    api = _alias_provider("claude-small")
+    assert api.max_tokens_for_config(GenerateConfig(reasoning_effort="max")) == 8192
+
+
+@skip_if_no_openai_package
+def test_max_tokens_default_only_for_claude() -> None:
+    assert _alias_provider("gpt-5").max_tokens_for_config(GenerateConfig()) is None
+
+
+@skip_if_no_openai_package
+def test_claude_keeps_full_tool_schemas() -> None:
+    assert _alias_provider("claude-metis").schema_exclude_fields is None
+    assert _alias_provider("gpt-5").schema_exclude_fields is not None
+
+
+@skip_if_no_openai_package
+def test_streams_by_default() -> None:
+    config = GenerateConfig()
+    assert _alias_provider("gpt-5").resolve_stream(config)
+    assert not _alias_provider("gpt-5", stream=False).resolve_stream(config)
+    assert not _alias_provider("gpt-5", responses_api=True).resolve_stream(config)
+    assert not _alias_provider("gpt-5").resolve_stream(
+        GenerateConfig(prompt_logprobs=1)
+    )
+
+
+@skip_if_no_openai_package
+def test_provider_bad_request_prefill() -> None:
+    message = (
+        "litellm.BadRequestError: AnthropicException - "
+        '{"type":"error","error":{"type":"invalid_request_error","message":'
+        '"This model does not support assistant message prefill. The '
+        'conversation must end with a user message."}}\nmodel=claude-metis'
+    )
+    error = _provider().handle_bad_request(_bad_request(message))
+    assert isinstance(error, PrefillNotSupportedError)
+    assert "ends with an assistant message" in str(error)
+    assert "This model does not support assistant message prefill." in str(error)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "env,key",
+    [
+        ({"LITELLM_PROXY_API_KEY": "proxy", "LITELLM_API_KEY": "short"}, "proxy"),
+        ({"LITELLM_API_KEY": "short"}, "short"),
+    ],
+)
+def test_env_var_fallbacks(
+    monkeypatch: pytest.MonkeyPatch, env: dict[str, str], key: str
+) -> None:
+    for var in (
+        "LITELLM_PROXY_BASE_URL",
+        "LITELLM_PROXY_API_BASE",
+        "LITELLM_PROXY_API_KEY",
+        "LITELLM_API_KEY",
+    ):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("LITELLM_BASE_URL", "http://proxy.example:4000")
+    for var, value in env.items():
+        monkeypatch.setenv(var, value)
+    api = get_model("litellm-proxy/claude", model_info=False, memoize=False).api
+    assert api.base_url == "http://proxy.example:4000"
+    assert api.api_key == key
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "upstream,base_model",
+    [
+        ("anthropic/claude-metis-v1", "anthropic/claude-opus-5-5"),
+        (
+            "bedrock/converse/us.anthropic.claude-metis-v1:0",
+            "anthropic/claude-opus-5-5",
+        ),
+        ("openai/gpt-7-preview", "openai/gpt-6-astra"),
+        ("gemini/gemini-4-pro", "gemini/gemini-3.8-flash"),
+        ("xai/mimas", "xai/grok-4.7"),
+    ],
+)
+def test_gate_suggests_frontier_base_model(
+    model_info_stub: ModelInfoStub, upstream: str, base_model: str
+) -> None:
+    _serve(model_info_stub, [_row("next", upstream)])
+    with pytest.raises(PrerequisiteError) as ex:
+        _stub_model(model_info_stub, "next")
+    assert f"        base_model: {base_model}\n" in str(ex.value.message)
+
+
+@skip_if_no_openai_package
+def test_gate_suggests_limits_for_other_vendors(
+    model_info_stub: ModelInfoStub,
+) -> None:
+    _serve(model_info_stub, [_row("next", "hosted_vllm/llama-5")])
+    with pytest.raises(PrerequisiteError) as ex:
+        _stub_model(model_info_stub, "next")
+    message = str(ex.value.message)
+    assert "max_input_tokens: <context window>" in message
+    assert "max_output_tokens: <output limit>" in message
+
+
+# The upstream's usage for a call that writes the prompt cache with a 1 hour TTL
+CACHE_USAGE = {
+    "input_tokens": 10,
+    "output_tokens": 5,
+    "cache_read_input_tokens": 3000,
+    "cache_creation_input_tokens": 2000,
+    "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 2000,
+    },
+}
+
+
+def _cache_usage_route(request: StubRequest) -> dict[str, Any] | SSE | None:
+    response = route(request)
+    if request.path.split("?")[0].endswith("/v1/messages"):
+        if isinstance(response, SSE):
+            response.events[0][1]["message"]["usage"] = CACHE_USAGE
+        elif isinstance(response, dict):
+            response["usage"] = CACHE_USAGE
+    return response
+
+
+CLAUDE_DEPLOYMENTS = {
+    # names neither LiteLLM nor Inspect know
+    "claude-metis": "anthropic/claude-metis-v1",
+    "bedrock-metis": "bedrock/converse/us.anthropic.claude-metis-v1:0",
+}
+CLAUDE_MODEL_INFO = {
+    # without it LiteLLM rejects tool_choice for an unknown Bedrock model
+    "bedrock-metis": {"base_model": "anthropic/claude-opus-5-5"},
+}
+
+
+@pytest.fixture(scope="module")
+def claude_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLMProxy]:
+    with fake_upstream(_cache_usage_route) as upstream:
+        credentials = {
+            "anthropic": {"api_key": "fake"},
+            "bedrock": {
+                "aws_access_key_id": "fake",
+                "aws_secret_access_key": "fake",
+                "aws_region_name": "us-east-1",
+            },
+        }
+        config = {
+            "model_list": [
+                {
+                    "model_name": alias,
+                    "litellm_params": {
+                        "model": model,
+                        "api_base": upstream.docker_url,
+                    }
+                    | credentials[model.split("/")[0]],
+                    "model_info": CLAUDE_MODEL_INFO.get(alias, {}),
+                }
+                for alias, model in CLAUDE_DEPLOYMENTS.items()
+            ],
+            "router_settings": {"num_retries": 0},
+        }
+        with run_litellm_proxy(
+            tmp_path_factory.mktemp("litellm-claude"), config, capture=True
+        ) as proxy:
+            yield proxy
+
+
+def _lookup_tool() -> ToolInfo:
+    return ToolInfo(
+        name="lookup",
+        description="Look up a code.",
+        parameters=ToolParams(
+            properties={
+                "code": ToolParam(type="string", pattern="^[A-Z]{3}$", minLength=3)
+            },
+            required=["code"],
+        ),
+    )
+
+
+def _tool_conversation() -> list[ChatMessage]:
+    return [
+        ChatMessageSystem(content="Be helpful."),
+        ChatMessageUser(content="Look up ABC."),
+        ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(id="toolu_1", function="lookup", arguments={"code": "ABC"})
+            ],
+        ),
+        ChatMessageTool(content="ABC is 1.", tool_call_id="toolu_1", function="lookup"),
+    ]
+
+
+class ClaudeCall(NamedTuple):
+    api: LiteLLMProxyAPI
+    output: ModelOutput
+    request: dict[str, Any]
+    """The request the provider sent to the proxy."""
+
+    upstream: dict[str, Any]
+    """The request the proxy sent upstream."""
+
+
+async def _generate_claude(
+    proxy: LiteLLMProxy, alias: str, config: GenerateConfig, **model_args: Any
+) -> ClaudeCall:
+    api = _proxy_api(
+        get_model(
+            f"litellm-proxy/{alias}",
+            base_url=proxy.base_url,
+            api_key=proxy.api_key,
+            max_retries=0,
+            memoize=False,
+            **({"model_info": False} | model_args),
+        )
+    )
+    call_id = str(uuid.uuid4())
+    config = config.merge(GenerateConfig(extra_headers={CALL_ID_HEADER: call_id}))
+    if config.max_tokens is None:
+        config.max_tokens = api.max_tokens_for_config(config)
+    result = await api.generate(_tool_conversation(), [_lookup_tool()], "auto", config)
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert isinstance(output, ModelOutput), output
+    assert proxy.capture_dir is not None
+    return ClaudeCall(
+        api=api,
+        output=output,
+        request=model_call.request,
+        upstream=upstream_exchange(proxy.capture_dir, call_id).request,
+    )
+
+
+def _anthropic_breakpoints(request: dict[str, Any]) -> list[str]:
+    """Where an Anthropic Messages request has cache breakpoints."""
+    system = request["system"]
+    blocks = system if isinstance(system, list) else []
+    marked = [f"system[{i}]" for i, b in enumerate(blocks) if _cached(b)]
+    marked += [f"tools[{i}]" for i, t in enumerate(request["tools"]) if _cached(t)]
+    for i, message in enumerate(request["messages"]):
+        content = message["content"]
+        for block in content if isinstance(content, list) else []:
+            nested = block.get("content") if block["type"] == "tool_result" else None
+            nested = nested if isinstance(nested, list) else []
+            if _cached(block) or any(_cached(b) for b in nested):
+                marked.append(f"messages[{i}].{block['type']}")
+    return marked
+
+
+def _bedrock_breakpoints(request: dict[str, Any]) -> list[str]:
+    """Where a Bedrock Converse request has cache points."""
+    marked = [
+        f"system[{i - 1}]"
+        for i, block in enumerate(request["system"])
+        if "cachePoint" in block
+    ]
+    for i, message in enumerate(request["messages"]):
+        for j, block in enumerate(message["content"]):
+            if "cachePoint" in block:
+                marked.append(f"messages[{i}].{next(iter(message['content'][j - 1]))}")
+    return marked
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+async def test_litellm_proxy_claude_request(claude_proxy: LiteLLMProxy) -> None:
+    call = await _generate_claude(
+        claude_proxy, "claude-metis", GenerateConfig(reasoning_effort="high")
+    )
+    assert call.request["stream"] is True
+    request = call.upstream
+    assert request["max_tokens"] == 48000
+    schema = request["tools"][0]["input_schema"]
+    assert schema["properties"]["code"]["pattern"] == "^[A-Z]{3}$"
+    assert schema["properties"]["code"]["minLength"] == 3
+    assert _anthropic_breakpoints(request) == [
+        "system[0]",
+        "tools[0]",
+        "messages[0].text",
+        "messages[2].tool_result",
+    ]
+    # no placeholder for the tool call turn's missing text
+    assert request["messages"][1]["content"] == [
+        {
+            "type": "tool_use",
+            "id": "toolu_1",
+            "name": "lookup",
+            "input": {"code": "ABC"},
+        }
+    ]
+    usage = call.output.usage
+    assert usage is not None
+    assert usage.input_tokens_cache_write == 2000
+    assert usage.input_tokens_cache_read == 3000
+    assert call.api.cache_write_ttl() == "1h"
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+async def test_litellm_proxy_claude_request_bedrock(
+    claude_proxy: LiteLLMProxy,
+) -> None:
+    call = await _generate_claude(
+        claude_proxy, "bedrock-metis", GenerateConfig(), stream=False, model_info=True
+    )
+    request = call.upstream
+    assert request["inferenceConfig"]["maxTokens"] == 32000
+    schema = request["toolConfig"]["tools"][0]["toolSpec"]["inputSchema"]["json"]
+    assert schema["properties"]["code"]["pattern"] == "^[A-Z]{3}$"
+    assert _bedrock_breakpoints(request) == [
+        "system[0]",
+        "messages[0].text",
+        "messages[2].toolResult",
+    ]
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+async def test_litellm_proxy_claude_cache_prompt_false(
+    claude_proxy: LiteLLMProxy,
+) -> None:
+    call = await _generate_claude(
+        claude_proxy, "claude-metis", GenerateConfig(cache_prompt=False)
+    )
+    assert _anthropic_breakpoints(call.upstream) == []

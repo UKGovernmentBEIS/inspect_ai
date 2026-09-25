@@ -25,9 +25,9 @@ the upstream model string. The plan:
    filling fields the database lacks.
 4. By default, fail when the alias resolves to no model info. A model
    argument turns this off.
-5. Normalize `reasoning_effort` so that an unsupported value never produces an
-   error, using the proxy's reported support first and then per-vendor rules
-   factored out of the native providers into a shared module.
+5. Make an unsupported `reasoning_effort` never produce an error: recognize
+   the proxy's rejection, lower the value (or drop it) with a warning, and
+   retry.
 
 ## Background: the provider today
 
@@ -311,8 +311,8 @@ completions worked.
    ([#43011](https://github.com/BerriAI/litellm/issues/43011)). The
    same Gemini 2.5 tool-loop impact as gap 5.
 9. **`reasoning_effort` is rejected** for some deployments (Together
-   DeepSeek V4.1 raises `UnsupportedParamsError`). This is covered by §6
-   below.
+   DeepSeek V4.1 raises `UnsupportedParamsError`). Covered by §6: the
+   parameter is dropped with a warning.
 
 Live streaming runs can only check that the provider accepts the replayed
 turn, because LiteLLM keeps no raw streamed responses. The offline fakes check
@@ -410,8 +410,9 @@ inside generate.
 
 | Setting | Source | Default |
 |---|---|---|
-| API key | `api_key`, `LITELLM_PROXY_API_KEY` | required |
-| Base URL | `base_url`, `LITELLM_PROXY_BASE_URL`, `LITELLM_PROXY_API_BASE` (alias used by LiteLLM's SDK) | required |
+| API key | `api_key`, `LITELLM_PROXY_API_KEY`, then `LITELLM_API_KEY` | required |
+| Base URL | `base_url`, `LITELLM_PROXY_BASE_URL`, `LITELLM_PROXY_API_BASE` (alias used by LiteLLM's SDK), then `LITELLM_BASE_URL` | required |
+| `stream` | model arg | on for chat completions (§8) |
 | `model_info` | model arg | `True`: fetch `/v1/model/info`. `False` skips the fetch, the gate and proxy-derived normalization. |
 | `require_model_info` | model arg | `True`: see §5. |
 
@@ -581,7 +582,13 @@ alias resolves to model info, meaning either:
 The error lists the three fixes:
 
 - add `model_info` (with `base_model` or `max_input_tokens`) to the proxy
-  config;
+  config. When the upstream is an Anthropic, OpenAI, Google or xAI model, the
+  error suggests `base_model` set to that vendor's current frontier model (in
+  LiteLLM's naming, e.g. `anthropic/claude-opus-5-5`); otherwise it shows a
+  `max_input_tokens`/`max_output_tokens` template. There is no automatic
+  fallback to the frontier model's info: an unrecognized model stops with the
+  error, because without `base_model` LiteLLM also lacks the model's
+  capabilities (see §8);
 - call `set_model_info("litellm-proxy/<alias>", …)`;
 - pass `-M require_model_info=false`.
 
@@ -590,61 +597,71 @@ gate mainly catches unreleased models without configured `model_info`,
 opaque deployments without `base_model`, and aliases that `/v1/model/info`
 does not list.
 
-### 6. Reasoning effort normalization
+### 6. Reasoning effort
 
 **Goal:** the same guarantee as the native providers. A `reasoning_effort`
 the upstream model does not support never causes an error. It is lowered to
-the closest supported value, or dropped with a warning.
+the closest supported value, or dropped, with a warning.
 
-**Shared module.** Add `src/inspect_ai/model/_reasoning_effort.py` with pure
-functions of a model name that describe each vendor's effort support.
-Candidates to move there:
+**Why not per-vendor rules.** An earlier version of this design moved the
+native providers' effort predicates into a shared module and chose values
+from per-vendor tables. Capturing what LiteLLM 1.104 does with each effort
+(fake upstreams, chat completions) showed that most rejections come from
+LiteLLM's own gates, not the upstream provider's:
 
-- **Anthropic:** `is_claude_frontier`, `is_claude_4_7_or_later`,
-  `_supports_disabling_thinking`, and the mapping in
-  `effort_from_reasoning_effort`.
-- **Google:** `is_gemini_2_5`, `is_gemini_3_plus`.
-- **xAI:** the effort gate and mapping in `grok.py` (`is_grok_3_mini`,
-  `is_at_least_grok_4`, `is_grok_4_original`).
-- **OpenAI:** `supports_native_max_reasoning_effort` (already a function in
-  `_openai.py`).
-
-The native providers keep their methods but delegate to these functions, so
-their behavior is unchanged and the LiteLLM provider does not import other
-providers. The generic clamps in `_reasoning.py`
-(`clamp_reasoning_effort_to_low_medium_high`,
-`clamp_reasoning_effort_to_minimal_low_medium_high`) stay where they are.
-
-Some predicates depend on model database state rather than only the name.
-For example, `is_claude_latest` treats a Claude model that is missing from
-the database as the latest one. Those take the database lookup as an explicit
-argument, or keep the database check in the provider. This is decided per
-predicate when moving it.
-
-**Resolution in `LiteLLMProxyAPI.resolve_config`:** the same logic for chat
-completions and Responses.
-
-1. **The proxy's reported support.** Use `supported_reasoning_efforts` from
-   `/model_group/info`, or the `supports_*_reasoning_effort` flags, when
-   present. `/model_group/info` is fetched with `/v1/model/info` and cached
-   the same way. An empty list means a non-reasoning model.
-2. **Vendor rules** from `_reasoning_effort.py`, chosen by the resolved
-   upstream vendor:
-
-| Vendor | Rule |
+| Model | LiteLLM rejects |
 |---|---|
-| Not a reasoning model (neither proxy `supports_reasoning` nor the database `reasoning` is true) | Drop reasoning options and warn, using the existing "reasoning options ignored for non-reasoning model" message. |
-| Gemini (`gemini/`, `vertex_ai/`) | `minimal`–`high`; `xhigh`/`max` → `high`. |
-| Anthropic (native, Bedrock, Vertex) | The native provider's rules (`xhigh` → `high` before 4.7; `max` → `high` below frontier models). |
-| OpenAI (native, Azure) | `max` → `xhigh` unless supported. |
-| xAI | The Grok provider's effort gate and mapping. |
+| claude-3-5-haiku, gpt-4.1 | the parameter |
+| grok-4, grok-3-mini, grok-4-fast-reasoning | the parameter (its map lacks `supports_reasoning`; xAI accepts effort on grok-3-mini) |
+| claude-opus-4-6 | `xhigh` |
+| gemini-2.5, gemini-3 | `xhigh`, `max` |
+| gpt-5 | `xhigh` (forwards `none` and `max`, which OpenAI rejects) |
+| gpt-5.5 | `minimal` |
+| any model its map does not mark as reasoning, on Responses | the parameter |
 
-3. **Unknown upstream:** pass the value through unchanged. With the gate on
-   this is rare.
+LiteLLM also maps values itself (its own Claude thinking budgets, Gemini
+budgets and levels), so the native providers' mapping tables do not apply.
+Tables would have to replicate LiteLLM's map and gates, which change between
+versions, and the native predicates are instance methods over
+`model_family()` with no shared lowering logic to reuse. So the provider
+detects rejections instead (see "Working around LiteLLM behavior").
 
-Lowering follows Inspect's usual semantics: the highest supported level at or
-below the requested one, otherwise the lowest level above it. An unsupported
-`none` is dropped with a warning, leaving the model's default.
+**Detection** (`_litellm_proxy_reasoning_effort.py`). LiteLLM answers 400
+before calling upstream, and OpenAI answers 400 for values LiteLLM forwards.
+The messages name what was rejected:
+
+- the parameter: `<provider> does not support parameters:
+  ['reasoning_effort']` (chat), `<model> doesn't support \`reasoning.effort\``
+  (Responses);
+- a value: `reasoning_effort=xhigh is not supported` (OpenAI, Azure),
+  ``Invalid `reasoning_effort`: 'max'`` (Gemini), `effort='xhigh' is not
+  supported` (Anthropic), and from OpenAI `Unsupported value:
+  'reasoning_effort' does not support 'max'` (chat) or `Unsupported value:
+  'max' is not supported with the 'gpt-5' model` with `param:
+  reasoning.effort` (Responses).
+
+A value rejection counts only when it names the value sent.
+
+**Handling** (`LiteLLMProxyAPI.generate`). On a rejection the provider records
+it for the model (per provider instance), picks the next value, and retries:
+the strongest accepted value at or below the requested one, otherwise the
+weakest above it; a rejected `none` or parameter is dropped, leaving the
+model's default. One warning names the requested and the sent value. Later
+requests use the recorded result without a failed attempt. Rejections are
+fast 400s (LiteLLM's before any upstream call). `supports_max_reasoning_effort()`
+is true, so `max` is sent rather than lowered by the family check (which only
+recognizes OpenAI models, and would lower Claude's `max`).
+
+**Limitation.** LiteLLM refuses effort entirely for models its map does not
+mark as reasoning models (e.g. grok-3-mini, and any unknown model on the
+Responses path), so the effort is dropped with a warning. Operators can set
+`supports_reasoning: true` in the deployment's `model_info`.
+
+**Native provider inconsistencies found** (separate from this work): Bedrock
+Converse gives Claude 5 no adaptive thinking from `reasoning_effort`, and has
+no effort-to-budget bridge before 4.6; OpenAI chat completions send `max` raw
+while Responses lower it to `xhigh`; `none` is dropped silently on Grok and on
+Anthropic models that cannot disable thinking.
 
 ### 7. Testing
 
@@ -665,17 +682,68 @@ are `slow` and use the local image with `--pull=never`.
   context window and cost, `cost_limit` accepting the model, and the gate
   error text.
 - **Effort guarantee (offline):** for every (deployment, effort) pair,
-  generate through the provider with fake upstream keys and assert that no
-  `UnsupportedParamsError` comes back. Supported values fail later with a
-  connection or authentication error. Run on both chat completions and
-  Responses.
-- **Refactor check:** the existing native provider tests confirm the moved
-  predicates did not change behavior.
+  generate through the provider against fake upstreams, on chat completions
+  and Responses, and assert that it succeeds; check the value sent upstream
+  for the lowered cases, including a fake OpenAI upstream that rejects values
+  with OpenAI's wording.
 - **Live (`--runapi`):** a proxy with real keys for Anthropic, OpenAI and
   Gemini, covering generate, multi-turn reasoning and the effort extremes, to
   confirm the upstream providers accept the lowered values.
 - **Non-admin keys:** a Postgres-backed proxy (docker compose) to confirm that
   a virtual key sees `litellm_params.model` in `/v1/model/info`.
+
+### 8. Claude requests and defaults
+
+A deployment running Claude codenames through the generic `openai-api`
+provider showed replies cut at 4096 tokens, no prompt caching, 600s
+timeouts, assistant-prefill 400s and stripped tool schemas. LiteLLM 1.104
+decides several of these from its model map, which does not know codenames.
+The provider now recognizes the vendor from the upstream model string, then
+the alias (`_litellm_proxy_vendor.py`: an `anthropic`/`xai` provider segment,
+or `claude`, `gemini`, `grok`, or an OpenAI model name), and for Claude:
+
+- **max_tokens.** Without one, LiteLLM sends 4096, even with `base_model`
+  set. The provider sends the native Anthropic default (32000, plus the
+  reasoning effort's increment, at least 64000 for `xhigh`/`max`), capped by
+  the registered output limit. The constants live in
+  `_anthropic_max_tokens.py`, shared with the native provider.
+- **Prompt caching.** LiteLLM adds breakpoints only for models its map marks
+  `supports_prompt_caching`, but forwards the client's `cache_control` for any
+  model (as `cachePoint` for Bedrock, including tool results). Unless
+  `cache_prompt` is false the provider marks the system prompt, the last tool
+  and the last two messages, as the native provider does. LiteLLM reports
+  cache writes in `prompt_tokens_details.cache_write_tokens` and their split
+  by TTL in `cache_creation_token_details`; cost uses the reported TTL, since
+  a proxy can rewrite the TTL of forwarded breakpoints. There is no TTL model
+  arg. A response with cache writes but no split warns once and is costed at
+  the 5-minute rate.
+- **Tool schemas** keep `pattern`, `minLength` and the other extended fields,
+  which LiteLLM forwards to Anthropic and Bedrock.
+- **Empty assistant text.** An assistant turn with tool calls and no text is
+  sent with `content: null`. LiteLLM replaces empty text sent to Anthropic
+  with `[System: Empty message content sanitised to satisfy protocol]`, which
+  the model then reads.
+- **Assistant prefill.** A 400 naming assistant prefill becomes a
+  `PrefillNotSupportedError` saying the conversation must end with a user or
+  tool message (not retried).
+
+For every model, chat completions stream by default (`-M stream=false` opts
+out); the Responses path does not, because of LiteLLM #43010.
+
+What `base_model` adds: for a codename, LiteLLM rejects `thinking`, maps
+`reasoning_effort` to a small fixed thinking budget (4096 at `high`) when
+forced with `allowed_openai_params`, and for Bedrock rejects `tool_choice`,
+so every request with tools fails. With `base_model: anthropic/claude-opus-5-5`
+the deployment gets that model's capabilities, including adaptive thinking
+and `xhigh`/`max` effort. So the provider does not try
+`allowed_openai_params` (plan item 6, dropped); the gate points the operator
+at `base_model` instead.
+
+Verified in 1.104: with a Postgres-backed proxy, `/model/info` called with a
+virtual key returns `litellm_params.model` and `base_model` for the models
+the key may use, and omits the others. OpenAI's `prompt_cache_key` passes
+through `extra_body`, and the native provider sets it only from a model arg,
+so the provider does nothing for it.
 
 ## Phases
 
@@ -688,9 +756,9 @@ Each phase ends with review and approval before the next starts.
    deployment selection.
 3. **Registration and gate.** `set_model_info` registration with the
    precedence and combining rules, `family`, `require_model_info`, and cost.
-4. **Reasoning effort.** The `_reasoning_effort.py` refactor with native
-   providers delegating, then proxy normalization and the offline effort
-   guarantee test.
+4. **Reasoning effort.** Rejection detection, lowering and retry, and the
+   offline effort guarantee test (the shared-module refactor was dropped;
+   see §6).
 5. **Reasoning round trips.** Fix Inspect gaps 1–5 under "Reasoning round
    trips":
    - capture and send back `thinking_blocks` and
@@ -704,7 +772,12 @@ Each phase ends with review and approval before the next starts.
    Then turn the matching strict xfails into passing tests, rerun the live
    matrix, and report LiteLLM bugs 6–8 upstream with captured payloads
    (done: #43009–#43011).
-6. **Docs, CHANGELOG, live tests.** Provider docs (including `base_model`
+6. **Deployment findings.** §8: vendor detection, Claude `max_tokens`,
+   prompt caching and cache-write cost, full tool schemas, null content for
+   text-less tool call turns, the prefill error, default streaming, the
+   environment variable fallbacks, the gate's `base_model` suggestion, and
+   the virtual key check.
+7. **Docs, CHANGELOG, live tests.** Provider docs (including `base_model`
    guidance for opaque deployments), the CHANGELOG entry, and adding the
    provider to the `slow-tests` skill.
 

@@ -554,8 +554,10 @@ def without_nulls(value: Any) -> Any:
 @skip_if_no_openai_package
 @skip_if_no_litellm_proxy
 async def test_capture_records_exact_upstream_traffic(fake_proxy: FakeProxy) -> None:
+    # LiteLLM records no response body for streamed calls
     turns = await run_tool_loop(
-        fake_proxy.proxy, proxy_model(fake_proxy.proxy, "fake-deepseek")
+        fake_proxy.proxy,
+        proxy_model(fake_proxy.proxy, "fake-deepseek", stream=False),
     )
     received = [r.body for r in fake_proxy.upstream.requests]
     assert turns.first.request in received
