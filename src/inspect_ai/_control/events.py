@@ -43,6 +43,7 @@ from inspect_ai._control.terminal_cache import (
 
 if TYPE_CHECKING:
     from inspect_ai.event._event import Event
+    from inspect_ai.log._log import EvalSample
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
 logger = getLogger(__name__)
@@ -186,7 +187,37 @@ async def sample_events(
     )
     if source is None:
         return None
+    return page_events(
+        source,
+        since=since,
+        tail=tail,
+        types=types,
+        content=content,
+        full=full,
+        since_time=since_time,
+        until=until,
+        limit=limit,
+    )
 
+
+def page_events(
+    source: EventsSource,
+    *,
+    since: str | None = None,
+    tail: int | None = None,
+    types: frozenset[str] | None = None,
+    content: bool = False,
+    full: bool = False,
+    since_time: float | None = None,
+    until: float | None = None,
+    limit: int = DEFAULT_PAGE_LIMIT,
+) -> dict[str, Any]:
+    """One ``{events, next, done}`` page of a resolved source.
+
+    The cursor, tail, filter and projection half of :func:`sample_events`
+    (see it for the arguments), shared with the ``--log-dir`` reader, which
+    resolves its sources from log files instead of this process.
+    """
     nonce, fetch, total, done = source
 
     # Resolve the start offset: resume from the cursor (reset to 0 if the nonce
@@ -326,12 +357,9 @@ async def _resolve_logged_source(
     if sample is None:
         return None
 
-    nonce = _attempt_nonce(
-        sample.uuid, sample.id, epoch, len(sample.error_retries or [])
-    )
-
-    events = list(sample.events)
-    if not events:
+    listed = events_source_from_sample(sample, epoch)
+    nonce = listed.nonce
+    if listed.total == 0:
         # Streaming completion path: page through the eval's own buffer
         # instance via the registered events provider — the same
         # materialization as live bounded-transcript reads, with the page
@@ -389,6 +417,16 @@ async def _resolve_logged_source(
                 return EventsSource(
                     nonce=nonce, fetch=fetch_buffered, total=total, done=True
                 )
+
+    return listed
+
+
+def events_source_from_sample(sample: "EvalSample", epoch: int) -> EventsSource:
+    """The terminal source over a logged sample's own event list (always done)."""
+    nonce = _attempt_nonce(
+        sample.uuid, sample.id, epoch, len(sample.error_retries or [])
+    )
+    events = list(sample.events)
 
     def fetch(start: int, limit: int) -> list["Event"]:
         return events[start : start + limit]
