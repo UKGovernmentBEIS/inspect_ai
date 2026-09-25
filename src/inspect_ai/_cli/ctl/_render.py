@@ -983,7 +983,9 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
         )
 
 
-def _print_errored_samples_footer(summaries: list[dict[str, Any]]) -> None:
+def _print_errored_samples_footer(
+    summaries: list[dict[str, Any]], command: str = "inspect ctl sample errors"
+) -> None:
     """Print a one-line errored-samples footer below the tasks table.
 
     Points at the triage command when any row reports errored samples.
@@ -992,12 +994,13 @@ def _print_errored_samples_footer(summaries: list[dict[str, Any]]) -> None:
     errors only, while `sample errors` also lists retried samples — so the
     view may show more rows than the count here, never fewer, and the
     count must not be "fixed" to match the view's row count (see
-    design/ctl/agent-discoverability.md §3b).
+    design/ctl/agent-discoverability.md §3b). ``command`` is the triage
+    command to point at (``--log-dir`` mode names its directory).
     """
     errored = sum((s.get("samples") or {}).get("errored", 0) for s in summaries)
     if errored > 0:
         noun = "sample" if errored == 1 else "samples"
-        _echo(f"{errored} {noun} errored — see `inspect ctl sample errors`")
+        _echo(f"{errored} {noun} errored — see `{command}`")
 
 
 def _task_header(target: dict[str, Any]) -> str:
@@ -1013,7 +1016,9 @@ def _task_header(target: dict[str, Any]) -> str:
         parts.append(str(target["model"]))
     if target.get("status"):
         parts.append(str(target["status"]))
-    parts.append(_format_samples(target.get("samples") or {}))
+    # a --log-dir resolution row carries identity only (no samples block)
+    if "samples" in target:
+        parts.append(_format_samples(target.get("samples") or {}))
     attempts = int(target.get("attempts", 1) or 1)
     if attempts > 1:
         parts.append(f"{attempts} attempts")

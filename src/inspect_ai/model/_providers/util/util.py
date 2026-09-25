@@ -155,6 +155,31 @@ def is_claude_fable_5_1_model(model_name: str) -> bool:
     return _CLAUDE_FABLE_5_POINT_RELEASE.search(model_name) is not None
 
 
+# Opus 5.5 and later point releases (5-5, 5.5, 5-6, ..., 5-99) but not the base
+# release (-5 or -5-0), earlier point releases (-5-1), 1M-context style
+# suffixes (-5-5m), or date suffixes (-5-20260922)
+_CLAUDE_OPUS_5_5_OR_LATER = re.compile(
+    r"claude-opus-5[-.](?:[5-9]|[1-9]\d)(?![0-9A-Za-z])"
+)
+
+
+def is_claude_opus_5_5_model(model_name: str) -> bool:
+    """Opus 5.5 or a later Opus 5 point release.
+
+    Opus 5.5 shares three of Fable 5.1's breaking changes: thinking can't be
+    disabled, forced tool choice is rejected (400), and thinking blocks are
+    bound to the conversation prefix that produced them. It additionally
+    rejects the `computer_20251124` tool on the Claude API and Vertex. These
+    behaviors are assumed to persist in later point releases.
+    """
+    return _CLAUDE_OPUS_5_5_OR_LATER.search(model_name) is not None
+
+
+def rejects_forced_tool_choice(model_name: str) -> bool:
+    """Whether the model returns a 400 for `tool_choice` `any` / a specific tool."""
+    return is_claude_fable_5_1_model(model_name) or is_claude_opus_5_5_model(model_name)
+
+
 def is_forced_tool_choice(tool_choice: ToolChoice) -> bool:
     """A tool choice that requires a tool call ("any" or a specific tool)."""
     return tool_choice == "any" or isinstance(tool_choice, ToolFunction)

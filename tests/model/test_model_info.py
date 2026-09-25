@@ -128,6 +128,18 @@ class TestGetModelInfo:
         assert info.reasoning is True
         assert info.reasoning_effort_default == "high"
 
+    def test_known_deepseek_flash_model(self):
+        """Test lookup of DeepSeek-V4.1-Flash (`deepseek-flash`)."""
+        info = get_model_info("deepseek/deepseek-flash")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.model == "V4.1 Flash"
+        assert info.release_date == date(2026, 9, 10)
+        assert info.context_length == 1048576
+        assert info.output_tokens == 393216
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "high"
+
     def test_deepseek_v4_flash_snapshot(self):
         """Test lookup of a DeepSeek V4 Flash versioned snapshot."""
         info = get_model_info("deepseek/DeepSeek-V4-Flash-0731")
@@ -589,6 +601,23 @@ class TestGetModelInputTokens:
         model = get_model("anthropic/claude-opus-5")
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
+
+    def test_claude_opus_5_5(self):
+        """Test that Claude Opus 5.5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-opus-5-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # distinguishes the explicit entry from a fuzzy match of opus-5
+        info = get_model_info("anthropic/claude-opus-5-5")
+        assert info is not None
+        assert info.snapshot == "20260922"
+        assert str(info.release_date) == "2026-09-22"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.reasoning_effort_default == "medium"
+        # the Bedrock id resolves to the same entry via its alias
+        bedrock_info = get_model_info("bedrock/anthropic.claude-opus-5-5")
+        assert bedrock_info is not None
+        assert bedrock_info.snapshot == "20260922"
 
     def test_claude_fable_5(self):
         """Test that Claude Fable 5 reports 1MM input tokens."""

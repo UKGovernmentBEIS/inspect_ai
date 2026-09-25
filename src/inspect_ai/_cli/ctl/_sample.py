@@ -31,6 +31,7 @@ from ._group import (
     _echo_no_running_evals,
     _forward_group_options,
     _json_option,
+    _log_dir_option,
     _mirror_list_options,
     _model_option,
     _NounGroup,
@@ -88,6 +89,7 @@ sample_group.hint = lambda token: (
 
 
 @sample_group.command("list")
+@_log_dir_option()
 @click.argument("task", required=False)
 @_model_option()
 @click.option(
@@ -182,6 +184,7 @@ _mirror_list_options(sample_group, sample_list_command)
 
 
 @sample_group.command("errors")
+@_log_dir_option()
 @click.argument("task", required=False)
 @_model_option()
 @click.option(
@@ -207,6 +210,7 @@ def sample_errors_command(
 
 
 @sample_group.command("show")
+@_log_dir_option()
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
@@ -261,6 +265,7 @@ def sample_show_command(
 
 
 @sample_group.command("events")
+@_log_dir_option()
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
@@ -399,6 +404,7 @@ def sample_events_command(
 
 
 @sample_group.command("messages")
+@_log_dir_option()
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
@@ -475,6 +481,7 @@ def sample_messages_command(
 
 
 @sample_group.command("store")
+@_log_dir_option()
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
