@@ -817,6 +817,8 @@ Each phase ends with review and approval before the next starts.
 
 ## Open questions
 
+- Server-side tools (built-in web search) through the proxy: deferred; see
+  [litellm-proxy-server-tools.md](litellm-proxy-server-tools.md).
 - Does `/v2/model/info?model=` behave as the source suggests? If it does, it
   would avoid fetching every deployment on large proxies, but it skips the key
   allowlist, so v1 stays the default.
