@@ -20,6 +20,7 @@ from typing import (
     TypeAlias,
     TypeVar,
 )
+from weakref import WeakSet
 
 import anyio
 import anyio.to_thread
@@ -2149,9 +2150,11 @@ def sample_buffer_dbs(location: str, db_dir: Path | None = None) -> list[Path]:
 
 # Buffers whose close or cleanup started in this process but has not finished:
 # the sync worker outlived its join, or a sample reader's lease deferred it. A
-# buffer leaves once its connections close. No lock: set add/discard are atomic
-# under the GIL, and sample_buffer_shutdown_pending iterates a copy.
-_unfinished_shutdowns: set[SampleBufferDatabase] = set()
+# buffer leaves once its connections close. Weak, so that a buffer whose owner
+# let go after a timed-out join is still finalized (by __del__) once its worker
+# and readers, which hold it while they run, are done. No lock: add/discard are
+# atomic under the GIL, and sample_buffer_shutdown_pending iterates a copy.
+_unfinished_shutdowns: WeakSet[SampleBufferDatabase] = WeakSet()
 
 
 def sample_buffer_shutdown_pending(location: str) -> bool:

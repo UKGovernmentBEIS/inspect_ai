@@ -1,3 +1,5 @@
+import gc
+import sqlite3
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -442,6 +444,51 @@ def test_cleanup_skips_deletion_when_sync_remains_active(
     _current_sync_thread(shared_db).join(timeout=5)
     shared_db.close()
     assert not sample_buffer_shutdown_pending(shared_db.location)
+
+
+@pytest.mark.parametrize("keep_files", [False, True])
+def test_timed_out_shutdown_is_finalized_once_worker_and_owner_let_go(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, keep_files: bool
+) -> None:
+    # the running worker holds the buffer, so it stays pending; once the worker
+    # exits and the owner has dropped it, it is finalized with no second close
+    started = threading.Event()
+    release = threading.Event()
+    monkeypatch.setattr(database_module, "SYNC_CLEANUP_TIMEOUT", 0.01)
+    monkeypatch.setattr(
+        database_module, "sync_to_filestore", _blocking_sync(started, release)
+    )
+    db = SampleBufferDatabase(
+        location=str(tmp_path / "shared.eval"),
+        create=True,
+        log_shared=30,
+        db_dir=tmp_path / "db",
+    )
+    location = db.location
+    try:
+        db.start_sample(
+            EvalSampleSummary(id="sample", epoch=1, input="in", target="out")
+        )
+        _request_sync(db, "blocked")
+        _assert_event(started, "sync worker did not start")
+        conn = db._connections[0]
+        worker = _current_sync_thread(db)
+        if keep_files:
+            db.close()
+        else:
+            db.cleanup()
+        del db
+        gc.collect()
+        assert sample_buffer_shutdown_pending(location)
+    finally:
+        release.set()
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    gc.collect()
+    assert not sample_buffer_shutdown_pending(location)
+    with pytest.raises(sqlite3.ProgrammingError):
+        conn.execute("SELECT 1")
 
 
 def test_cleanup_from_sync_worker_does_not_delete_while_worker_is_on_stack(

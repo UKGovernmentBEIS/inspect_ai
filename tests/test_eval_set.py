@@ -1,3 +1,4 @@
+import gc
 import json
 import logging
 import math
@@ -2809,10 +2810,12 @@ def test_retry_cleanup_keeps_started_log_whose_buffer_close_timed_out(
     monkeypatch.setattr(ZipLogFile, "flush", flaky_final_flush)
 
     release_upload = threading.Event()
-    uploaded: list[SampleBufferDatabase] = []
+    # (location, worker thread) per upload; no reference to the buffer itself,
+    # which must be finalized once its worker exits
+    uploaded: list[tuple[str, threading.Thread]] = []
 
     def delayed_upload(db: SampleBufferDatabase, filestore: object) -> None:
-        uploaded.append(db)
+        uploaded.append((db.location, threading.current_thread()))
         release_upload.wait(timeout=30)
 
     monkeypatch.setattr(database_module, "sync_to_filestore", delayed_upload)
@@ -2844,18 +2847,18 @@ def test_retry_cleanup_keeps_started_log_whose_buffer_close_timed_out(
         ]
         started = infos[0].name
         # the only upload is attempt 2's close drain, still blocked
-        assert [db.location for db in uploaded] == [
+        assert [location for location, _ in uploaded] == [
             filesystem(started).path_as_uri(started)
         ]
         assert sample_buffer_shutdown_pending(started)
         assert list(db_dir.rglob("*.db")) == sample_buffer_dbs(started)
     finally:
         release_upload.set()
-        for db in uploaded:
-            if db._sync_thread is not None:
-                db._sync_thread.join(timeout=5)
-            db.close()
-    assert not any(sample_buffer_shutdown_pending(db.location) for db in uploaded)
+        for _, worker in uploaded:
+            worker.join(timeout=5)
+    # once the worker exits the buffer is finalized, and a later sweep may go
+    gc.collect()
+    assert not sample_buffer_shutdown_pending(started)
 
 
 def test_retry_abandoned_during_seed_never_starts_the_log(
