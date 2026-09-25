@@ -8,7 +8,7 @@
 - Grok: Safety refusals that report "I can't help with that request" now produce a content-filter response instead of failing the sample.
 - Bugfix: Samples whose solver is cut off by a cancellation that inspect did not issue are now recorded as sample errors instead of being scored as completed.
 - Control Channel: `inspect ctl task list` and the `inspect ctl sample` reads take `--log-dir <dir>` to read task and sample status, events, messages and store from the `.eval` logs in a local or S3 directory, without a live eval process.
-- Eval logs now record the dataset revision (e.g. the `revision` passed to `hf_dataset()`) in `eval.dataset.revision`, and `evals_df()` includes it as `dataset_revision`.
+- Eval logs now record the `revision` passed to `hf_dataset()` in `eval.dataset.revision`, and `evals_df()` includes it as `dataset_revision`.
 
 ## 0.3.268 (22 September 2026)
 

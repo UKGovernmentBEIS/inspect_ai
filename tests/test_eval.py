@@ -42,15 +42,21 @@ def test_eval_epochs_sample_count():
     assert len(log.samples) == 6  # 2 samples * 3 epochs
 
 
-def test_eval_log_records_dataset_revision():
+def test_eval_log_records_dataset_revision(tmp_path: Path) -> None:
     dataset = MemoryDataset(
         [Sample(input="s1"), Sample(input="s2")], name="ds", revision="abc123"
     )
-    log = eval(Task(dataset=dataset), model="mockllm/model", limit=1)[0]
+    log = eval(
+        Task(dataset=dataset), model="mockllm/model", limit=1, log_dir=str(tmp_path)
+    )[0]
     assert log.eval.dataset.revision == "abc123"
     assert read_eval_log(log.location).eval.dataset.revision == "abc123"
 
-    log = eval(Task(dataset=[Sample(input="s1")]), model="mockllm/model")[0]
+    log = eval(
+        Task(dataset=[Sample(input="s1")]),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+    )[0]
     assert log.eval.dataset.revision is None
 
 
@@ -103,12 +109,12 @@ class _DatasetWithoutRevision(Dataset):
         self._inner.shuffle_choices(seed)
 
 
-def test_eval_dataset_revision_backwards_compatible():
+def test_eval_dataset_revision_backwards_compatible(tmp_path: Path) -> None:
     from inspect_ai.log import EvalDataset
 
     dataset = _DatasetWithoutRevision([Sample(input="s1")])
     assert dataset.revision is None
-    log = eval(Task(dataset=dataset), model="mockllm/model")[0]
+    log = eval(Task(dataset=dataset), model="mockllm/model", log_dir=str(tmp_path))[0]
     assert log.status == "success"
     assert log.eval.dataset.revision is None
 
