@@ -1,7 +1,11 @@
 import json
 from collections.abc import Generator
+from subprocess import Popen
+from typing import cast
+from unittest.mock import Mock
 
 import anyio
+import httpx
 import httpx2
 import pytest
 from openai import AuthenticationError, DefaultAsyncHttpxClient
@@ -13,6 +17,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.hooks import ApiKeyOverride, Hooks, hooks
 from inspect_ai.model import (
     ChatMessage,
+    ChatMessageUser,
     GenerateConfig,
     Model,
     ModelAPI,
@@ -21,6 +26,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.openrouter import OpenRouterAPI
+from inspect_ai.model._providers.vllm import VLLMAPI
+from inspect_ai.model._providers.vllm_completions import VLLMCompletionsAPI
 from inspect_ai.model._registry import modelapi
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -245,3 +252,147 @@ async def test_refresh_preserves_concurrent_requests(
         await api.aclose()
         await http_client.aclose()
     assert http_client.is_closed
+
+
+@pytest.mark.parametrize("provider", [VLLMAPI, VLLMCompletionsAPI])
+@pytest.mark.parametrize("managed", [True, False])
+@pytest.mark.parametrize("lazy_init", [True, False])
+async def test_vllm_credentials_match_server(
+    monkeypatch: pytest.MonkeyPatch,
+    provider: type[VLLMAPI],
+    managed: bool,
+    lazy_init: bool,
+) -> None:
+    """Managed credentials last until restart; external credentials can rotate."""
+    token = "hook-key"
+    launches: list[str] = []
+    processes: list[Mock] = []
+    clients: list[DefaultAsyncHttpxClient] = []
+    reject_next = False
+    monkeypatch.delenv("VLLM_BASE_URL", raising=False)
+    monkeypatch.setattr("inspect_ai.model._providers.vllm._vllm_servers", {})
+
+    def override_key(env_var_name: str, value: str) -> str | None:
+        return token if env_var_name == "VLLM_API_KEY" else None
+
+    def launch(
+        api: VLLMAPI, model_path: str, port: int | None
+    ) -> tuple[str, Popen[str], int]:
+        assert api.api_key is not None
+        launches.append(api.api_key)
+        process = Mock(spec=Popen)
+        process.poll.return_value = None
+        processes.append(process)
+        return "http://localhost:8000/v1", cast(Popen[str], process), 8000
+
+    def terminate(process: Mock) -> None:
+        process.poll.return_value = 0
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        nonlocal reject_next
+        expected_key = launches[-1] if managed else token
+        if request.headers.get("authorization") != f"Bearer {expected_key}":
+            return httpx2.Response(401, json={"error": {"message": "wrong key"}})
+        if request.url.path.endswith("/models"):
+            return httpx2.Response(200, json={"data": []})
+        if reject_next:
+            reject_next = False
+            return httpx2.Response(401, json={"error": {"message": "retry auth"}})
+        choice = (
+            {"message": {"role": "assistant", "content": "ok"}}
+            if "/chat/" in request.url.path
+            else {"text": "ok"}
+        )
+        return httpx2.Response(
+            200,
+            json={
+                "id": "test",
+                "object": "chat.completion"
+                if "/chat/" in request.url.path
+                else "text_completion",
+                "created": 0,
+                "model": "credential-test",
+                "choices": [{"index": 0, "finish_reason": "stop", **choice}],
+            },
+        )
+
+    def make_client(api: VLLMAPI) -> DefaultAsyncHttpxClient:
+        client = DefaultAsyncHttpxClient(transport=httpx2.MockTransport(respond))
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("inspect_ai.hooks._hooks.override_api_key", override_key)
+    monkeypatch.setattr(VLLMAPI, "_start_server", launch)
+    monkeypatch.setattr(VLLMAPI, "_create_http_client", make_client)
+    monkeypatch.setattr("inspect_ai.model._providers.vllm.terminate_process", terminate)
+    api = provider(
+        "credential-test",
+        api_key="initial-key",
+        base_url=None if managed else "http://localhost:8000/v1",
+        lazy_init=lazy_init,
+    )
+
+    async def generate(instance: VLLMAPI) -> None:
+        result = await instance.generate(
+            [ChatMessageUser(content="hello")], [], "none", GenerateConfig(max_tokens=1)
+        )
+        output = result[0] if isinstance(result, tuple) else result
+        assert isinstance(output, ModelOutput)
+        assert output.completion == "ok"
+
+    try:
+        await generate(api)
+        assert launches == (["hook-key"] if managed else [])
+        client = api.client
+        token = "rotated-key"
+        reject_next = managed
+        with pytest.raises(AuthenticationError) as exc:
+            await generate(api)
+        await Model(api=api, config=GenerateConfig()).before_retry(exc.value)
+        await generate(api)
+        assert api.client is client
+        assert not client.is_closed()
+        assert launches == (["hook-key"] if managed else [])
+        if managed:
+            # A second client must reuse the live server's key even if the
+            # hook now supplies a different key for a future server launch.
+            other = provider("credential-test", api_key="another-initial-key")
+            await generate(other)
+            await other.client.close()
+            assert other.api_key == "hook-key"
+            await api.aclose()
+            await generate(api)
+            assert launches == ["hook-key", "rotated-key"]
+        else:
+            adapter_headers: list[str] = []
+
+            def adapter_models(request: httpx.Request) -> httpx.Response:
+                authorization = request.headers["authorization"]
+                adapter_headers.append(authorization)
+                if authorization != f"Bearer {token}":
+                    return httpx.Response(401)
+                return httpx.Response(200, json={"data": [{"id": "preloaded"}]})
+
+            class AdapterClient(httpx.Client):
+                def __init__(self) -> None:
+                    super().__init__(transport=httpx.MockTransport(adapter_models))
+
+            monkeypatch.setattr(
+                "inspect_ai.model._providers._vllm_lora.httpx.Client",
+                AdapterClient,
+            )
+            other = provider(
+                "credential-test:preloaded",
+                api_key=token,
+                base_url="http://localhost:8000/v1",
+            )
+            try:
+                await generate(other)
+            finally:
+                await other.client.close()
+            assert adapter_headers == ["Bearer rotated-key"]
+    finally:
+        await api.aclose()
+        for http_client in clients:
+            await http_client.aclose()
+        assert all(process.poll() == 0 for process in processes)

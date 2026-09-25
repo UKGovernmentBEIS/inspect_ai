@@ -178,6 +178,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             raise ValueError("base_url and port cannot both be provided.")
 
         self.api_key = api_key or os.environ.get("VLLM_API_KEY", "inspectai")
+        self.api_key_vars = ["VLLM_API_KEY"]
         self.model_name = model_name
         self.base_url: str | None = None
 
@@ -229,6 +230,8 @@ class VLLMAPI(OpenAICompatibleAPI):
 
         if server.base_url is None:
             external_url = self._init_base_url or os.environ.get("VLLM_BASE_URL")
+            if not external_url:
+                self._apply_api_key_overrides()
             server.api_key = self.api_key
             if external_url:
                 server.base_url = external_url
@@ -259,6 +262,17 @@ class VLLMAPI(OpenAICompatibleAPI):
 
         if self.adapter:
             ensure_adapter_loaded(self._server, self.adapter)
+
+    @override
+    def _apply_api_key_overrides(self) -> None:
+        # Managed servers accept the fixed key passed at launch. Reuse it
+        # across clients and refreshes until that server is restarted.
+        if self._server.process is not None:
+            assert self._server.api_key is not None
+            self.api_key = self._server.api_key
+        else:
+            super()._apply_api_key_overrides()
+            self._server.api_key = self.api_key
 
     async def _ensure_server_started(self) -> None:
         """Lazy version of ``_resolve_server`` — thread-safe for concurrent ``generate()`` calls."""
