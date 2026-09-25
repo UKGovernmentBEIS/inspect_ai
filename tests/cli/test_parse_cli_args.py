@@ -9,7 +9,7 @@ import os
 import pytest
 import yaml
 
-from inspect_ai._cli.common import process_common_options
+from inspect_ai._cli.common import CommonOptions, process_common_options
 from inspect_ai._util.config import parse_cli_args
 
 
@@ -159,7 +159,9 @@ def test_process_common_options_env_quoted_commas(
     monkeypatch.delenv("NO_PROXY", raising=False)
     monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
 
-    options = {
+    options: CommonOptions = {
+        "log_level": "info",
+        "log_dir": "./logs",
         "env": (
             'NO_PROXY="localhost,127.0.0.1"',
             "CUDA_VISIBLE_DEVICES='0,1'",
@@ -167,9 +169,11 @@ def test_process_common_options_env_quoted_commas(
         "display": "none",
         "no_ansi": True,
         "debug": False,
+        "debug_port": 5678,
+        "debug_errors": False,
         "traceback_locals": False,
     }
-    process_common_options(options)  # type: ignore[arg-type]
+    process_common_options(options)
 
     assert os.environ["NO_PROXY"] == "localhost,127.0.0.1"
     assert os.environ["CUDA_VISIBLE_DEVICES"] == "0,1"
