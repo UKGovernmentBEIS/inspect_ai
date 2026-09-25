@@ -3,7 +3,7 @@ import os
 from collections.abc import Callable
 
 import pytest
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, JsonValue
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import ContentImage
@@ -16,6 +16,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._subtask import SubtaskEvent
+from inspect_ai.event._timeline import Timeline, TimelineEvent, TimelineSpan
 from inspect_ai.log import EvalRetryError, EvalSample
 from inspect_ai.log._condense import (
     ATTACHMENT_PROTOCOL,
@@ -26,6 +27,7 @@ from inspect_ai.log._condense import (
     resolve_sample_attachments,
 )
 from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._resolve import resolve_sample_events_data
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
@@ -672,6 +674,72 @@ def test_resolve_full_clears_attachments() -> None:
     # "full" resolves every reference inline, so nothing points at the map.
     assert len(resolved.attachments) == 0
     assert ATTACHMENT_PROTOCOL not in resolved.model_dump_json()
+
+
+def test_resolve_core_ignores_refs_held_by_timeline_events() -> None:
+    call_payload = "model-call-payload-" + ("q" * 200)
+    output_text = "model-output-" + ("o" * 200)
+    sample = _sample_with_model_call_payload(call_payload)
+    event = sample.events[0]
+    assert isinstance(event, ModelEvent)
+    event.output = ModelOutput.from_content("test-model", output_text)
+    condensed = condense_sample(sample)
+    assert output_text in condensed.attachments.values()
+    # timelines are rebound only after resolution, so while resolving they
+    # still hold the condensed events (whose output is an attachment ref)
+    condensed.timelines = [
+        Timeline(
+            name="t",
+            description="",
+            root=TimelineSpan(
+                id="root",
+                name="root",
+                span_type="agent",
+                content=[TimelineEvent(event=e) for e in condensed.events],
+            ),
+        )
+    ]
+
+    resolved = resolve_sample_attachments(condensed, "core")
+
+    assert list(resolved.attachments.values()) == [call_payload]
+
+
+def test_resolve_full_expanded_shared_call_messages() -> None:
+    long_text = "shared-call-message-" + ("m" * 200)
+    shared: dict[str, JsonValue] = {"role": "user", "content": long_text}
+    reply: dict[str, JsonValue] = {"role": "assistant", "content": "hi"}
+    requests: list[list[JsonValue]] = [[shared], [shared, reply]]
+    events: list[Event] = [
+        ModelEvent(
+            model="test-model",
+            input=[],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(),
+            call=ModelCall(request={"messages": msgs}, response={"ok": True}),
+        )
+        for msgs in requests
+    ]
+    sample = EvalSample(
+        id="sample", epoch=1, input="input", target="target", events=events
+    )
+    # pool refs expanded before resolving, as recorder read_log does
+    expanded = resolve_sample_events_data(condense_sample(sample))
+
+    resolved = resolve_sample_attachments(expanded, "full")
+
+    msgs = [
+        e.call.request["messages"]
+        for e in resolved.events
+        if isinstance(e, ModelEvent) and e.call
+    ]
+    assert msgs == requests
+    assert ATTACHMENT_PROTOCOL not in resolved.model_dump_json()
+    # the shared message is walked once and reused, not re-walked per event
+    assert isinstance(msgs[0], list) and isinstance(msgs[1], list)
+    assert msgs[0][0] is msgs[1][0]
 
 
 def log_path(log: str) -> str:

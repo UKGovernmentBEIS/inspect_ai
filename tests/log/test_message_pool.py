@@ -301,6 +301,7 @@ def test_eval_sample_validation_preserves_condensed_timeline_events_data():
     "resolve_attachments",
     [
         pytest.param(False, id="no-attachments"),
+        pytest.param("core", id="core-attachments"),
         pytest.param("full", id="full-attachments"),
     ],
 )

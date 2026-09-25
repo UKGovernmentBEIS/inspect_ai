@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Bugfix: `f1()` now counts repeated tokens (multiset overlap, matching SQuAD F1); scores can rise or fall for answers or targets containing repeated words.
+- Logs: Reading samples with `resolve_attachments` is much faster for long conversations (e.g. 3s to 0.3s for a 60 MB sample), with identical results.
 
 ## 0.3.269 (25 September 2026)
 

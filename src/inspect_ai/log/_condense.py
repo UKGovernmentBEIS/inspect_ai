@@ -15,7 +15,7 @@ from typing import (
 )
 
 from pydantic import BaseModel, JsonValue
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
@@ -122,6 +122,15 @@ class WalkContext(TypedDict):
     """
 
     only_core: bool
+
+    call_message_cache: NotRequired[dict[int, tuple[JsonValue, JsonValue]]]
+    """Cache of walked ``ModelCall`` request messages keyed by ``id()``.
+
+    Pool expansion shares request message objects across model events;
+    this walks each shared message once. Values hold the pre-walk message
+    so its id cannot be reused while cached. The same staleness and single
+    content function rules as ``message_cache`` apply.
+    """
 
 
 def attachment_refs_from_value(value: JsonValue) -> set[str]:
@@ -759,6 +768,7 @@ def resolve_sample_attachments(
     context = WalkContext(
         message_cache={},
         only_core=resolve_attachments == "core",
+        call_message_cache={},
     )
 
     # Resolve pools before events — pool messages may contain attachment:// refs
@@ -819,8 +829,12 @@ def resolve_sample_attachments(
     # "core" leaves ModelEvent.call condensed, so its attachment:// refs
     # survive into the resolved sample. Retain what they point at (the same
     # liveness pass condense_sample runs) or they become unresolvable.
-    referenced_attachments = attachment_refs_from_value(
-        resolved_sample.model_dump(mode="python", exclude={"attachments"})
+    # Timelines still hold the pre-resolution events (rebound after this
+    # returns), so scan their dump, which serializes events as uuids.
+    referenced_attachments = attachment_refs_from_object(
+        resolved_sample.model_copy(update={"timelines": None})
+    ) | attachment_refs_from_value(
+        [t.model_dump(mode="python") for t in resolved_sample.timelines or []]
     )
     if not referenced_attachments:
         return resolved_sample
@@ -1032,7 +1046,7 @@ def walk_model_call(
     if call:
         return call.model_copy(
             update={
-                "request": walk_json_dict(call.request, content_fn, context),
+                "request": _walk_call_request(call.request, content_fn, context),
                 "response": walk_json_dict(call.response, content_fn, context)
                 if call.response
                 else None,
@@ -1040,6 +1054,34 @@ def walk_model_call(
         )
     else:
         return None
+
+
+def _walk_call_request(
+    request: dict[str, JsonValue],
+    content_fn: Callable[[str], str],
+    context: WalkContext,
+) -> dict[str, JsonValue]:
+    cache = context.get("call_message_cache")
+    msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in request), None)
+    msgs = request.get(msg_key) if msg_key is not None else None
+    if cache is None or not isinstance(msgs, list):
+        return walk_json_dict(request, content_fn, context)
+
+    walked_msgs: list[JsonValue] = []
+    for msg in msgs:
+        hit = cache.get(id(msg))
+        if hit is not None and hit[0] is msg:
+            walked_msgs.append(hit[1])
+        else:
+            # depth 2 (request dict -> messages list -> message), as
+            # walk_json_dict(request) would reach it
+            walked = walk_json_value(msg, content_fn, context, depth=2)
+            cache[id(msg)] = (msg, walked)
+            walked_msgs.append(walked)
+    rest = walk_json_dict(
+        {k: v for k, v in request.items() if k != msg_key}, content_fn, context
+    )
+    return {k: walked_msgs if k == msg_key else rest[k] for k in request}
 
 
 def walk_state_event(
