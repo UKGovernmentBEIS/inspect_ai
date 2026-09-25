@@ -1,3 +1,4 @@
+import logging
 import math
 import re
 from typing import Callable, Literal
@@ -12,6 +13,8 @@ from inspect_ai.solver._task_state import TaskState
 from ._metric import CORRECT, INCORRECT, Score
 from ._scorer import Scorer
 from ._target import Target
+
+logger = logging.getLogger(__name__)
 
 
 def no_response(completion: str) -> bool:
@@ -47,7 +50,23 @@ def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
         # so the value is preserved here and only the reason is added.
         empty = no_response(state.output.completion or "")
         answer: str | None = None
-        for value in target:
+
+        # A blank target matches every completion: includes() finds "" in any
+        # string and match() finds any string ends with "". A missing target
+        # column, or a FieldSpec naming one that does not exist, both yield a
+        # blank target, so every sample would score CORRECT and the log would be
+        # indistinguishable from a genuine pass. Skip blank targets as
+        # _classification.py does, and warn rather than silently scoring
+        # INCORRECT, because nothing here is scoreable at all.
+        values = [value for value in target if value.strip()]
+        if not values:
+            logger.warning(
+                "Sample target is blank, so there is nothing to match against. "
+                "Check that the dataset has a target column and that any FieldSpec "
+                "names it correctly. Scoring this sample INCORRECT."
+            )
+
+        for value in values:
             answer, matched = match(state.output.completion, value)
             if matched:
                 return Score(

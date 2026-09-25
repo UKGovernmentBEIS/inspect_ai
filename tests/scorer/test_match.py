@@ -1,7 +1,7 @@
 import pytest
 from test_helpers.utils import simple_task_state
 
-from inspect_ai.scorer import CORRECT, INCORRECT, Target, match
+from inspect_ai.scorer import CORRECT, INCORRECT, Target, includes, match
 
 
 @pytest.mark.anyio
@@ -402,3 +402,64 @@ async def test_numeric_match_exact_still_matches_clean_number():
 
     assert result is not None
     assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_blank_target_is_incorrect_for_match():
+    """A blank target must not match. It previously scored every sample CORRECT.
+
+    `match()` ends up asking whether the completion ends with "", which is true of
+    every string, so a missing or misnamed target column produced a log that was
+    indistinguishable from a genuine pass.
+    """
+    scorer = match()
+    state = simple_task_state(model_output="The answer is 60")
+
+    result = await scorer(state, Target([""]))
+
+    assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_blank_target_is_incorrect_for_includes():
+    """`includes()` finds "" inside any string, so a blank target matched everything."""
+    scorer = includes()
+    state = simple_task_state(model_output="The answer is 60")
+
+    result = await scorer(state, Target([""]))
+
+    assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_blank_target_warns(caplog):
+    """The misconfiguration must be reported, not scored silently."""
+    scorer = includes()
+    state = simple_task_state(model_output="The answer is 60")
+
+    with caplog.at_level("WARNING", logger="inspect_ai.scorer._common"):
+        result = await scorer(state, Target([""]))
+
+    assert result.text == INCORRECT
+    assert "target is blank" in caplog.text
+
+
+@pytest.mark.anyio
+async def test_whitespace_only_target_is_incorrect():
+    """A single space is contained in almost any completion, so it matched too."""
+    scorer = includes()
+    state = simple_task_state(model_output="The answer is 60")
+
+    result = await scorer(state, Target([" "]))
+
+    assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_blank_target_among_real_targets_is_skipped():
+    """One blank entry must not short-circuit the real ones."""
+    scorer = includes()
+    state = simple_task_state(model_output="The answer is 60")
+
+    assert (await scorer(state, Target(["", "60"]))).text == CORRECT
+    assert (await scorer(state, Target(["", "99"]))).text == INCORRECT
