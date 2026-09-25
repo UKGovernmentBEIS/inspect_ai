@@ -1685,16 +1685,24 @@ The following environment variables are supported by the OpenRouter AI provider
 
 ## LiteLLM Proxy {#litellm-proxy}
 
-To use models served by a [LiteLLM proxy](https://docs.litellm.ai/docs/simple_proxy), install the `openai` package, set the proxy's URL and your key, and specify a model using the name (`model_name`) of its deployment in the proxy config:
+To use models served by a [LiteLLM proxy](https://docs.litellm.ai/docs/simple_proxy), install the `openai` package, set the proxy's URL and your key, and specify a model using the `model_name` of its deployment in the proxy config. For example, for this deployment:
+
+``` yaml
+model_list:
+  - model_name: claude-sonnet-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+```
 
 ``` bash
 pip install openai
 export LITELLM_PROXY_BASE_URL=https://litellm.example.com
 export LITELLM_PROXY_API_KEY=your-litellm-key
-inspect eval arc.py --model litellm-proxy/claude-sonnet
+inspect eval arc.py --model litellm-proxy/claude-sonnet-5
 ```
 
-Inspect reads the proxy's `/model/info` listing to find the upstream model behind each name (e.g. `anthropic/claude-sonnet-5` or `bedrock/us.anthropic.claude-sonnet-5-v1:0`), and uses it to look up the model's context window and cost and to shape requests for the upstream model. Virtual keys work; the listing shows only the models a key may use.
+The `model_name` is chosen by the proxy's operator and need not be a model id. Inspect reads the proxy's `/model/info` listing to find the upstream model behind it (`litellm_params.model`, or `model_info.base_model` when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use.
 
 ### Model Info {#litellm-proxy-model-info}
 

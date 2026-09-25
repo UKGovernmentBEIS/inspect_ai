@@ -612,9 +612,8 @@ async def test_litellm_proxy_replays_litellm_reasoning_fields() -> None:
     assert replayed_dict["provider_specific_fields"] == {
         "thought_signatures": ["gsig-1"]
     }
-    # reasoning is not also written into the text
-    assert "<think>" not in str(replayed_dict["content"])
-    assert "opaque-1" not in str(replayed_dict["content"])
+    # the text goes back exactly as returned, without the reasoning
+    assert replayed_dict["content"] == "Answer."
 
 
 @skip_if_no_openai_package
@@ -625,6 +624,31 @@ async def test_litellm_proxy_replays_reasoning_content_unchanged() -> None:
     replayed_dict = dict(replayed)
     assert replayed_dict["reasoning_content"] == "Because."
     assert "thinking_blocks" not in replayed_dict
+
+
+@skip_if_no_openai_package
+async def test_litellm_proxy_replays_text_parts_joined() -> None:
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning="Hmm.", signature="s", internal="thinking_blocks"
+            ),
+            ContentText(text="First. "),
+            ContentText(text="Second."),
+        ]
+    )
+    [replayed] = await _provider().messages_to_openai([message])
+    assert dict(replayed)["content"] == "First. Second."
+
+
+@skip_if_no_openai_package
+async def test_litellm_proxy_replays_other_reasoning_as_base() -> None:
+    # reasoning LiteLLM did not return goes into the text, as for other providers
+    message = ChatMessageAssistant(
+        content=[ContentReasoning(reasoning="Hmm."), ContentText(text="Answer.")]
+    )
+    [replayed] = await _provider().messages_to_openai([message])
+    assert "<think>" in str(dict(replayed)["content"])
 
 
 def _accumulate(*entries: dict[str, Any]) -> list[dict[str, Any]]:

@@ -314,6 +314,30 @@ completions worked.
    DeepSeek V4.1 raises `UnsupportedParamsError`). Covered by §6: the
    parameter is dropped with a warning.
 
+**Block order within a Claude turn.** Chat completions has separate fields
+for text, thinking and tool calls, so LiteLLM flattens a response's content
+blocks: text blocks are joined with no separator, thinking and redacted
+blocks go to `thinking_blocks` in order, and `tool_use` and `server_tool_use`
+blocks become `tool_calls` (`extract_response_content` in
+`llms/anthropic/chat/transformation.py`). On replay
+(`anthropic_messages_pt` in `prompt_templates/factory.py`) it rebuilds the
+turn as all thinking, then text, then `tool_use`, except when the turn has
+server tool calls (`srvtoolu_` ids, e.g. web search): it then interleaves
+each thinking block with one server tool call and its result, since
+Anthropic checks thinking signatures by position (LiteLLM #23047). Assistant
+`content` sent as a list with thinking blocks inline keeps its order, but a
+chat response carries no order to rebuild it from.
+
+The provider's chat path sends only function tools, so only the first form
+applies. In a live run (Sonnet 5 and Opus 5.5, high and max effort, 34
+responses in multi-step tool loops with parallel calls) every response was
+ordered thinking, text, then tool calls, and every replayed thinking block
+and signature was identical to the response. The run also found that the
+base conversion puts a newline before each text part on replay; the
+provider now joins text parts as LiteLLM does, so replayed text is
+unchanged. (Every `openai-api` provider has the leading newline; not changed
+here.)
+
 Live streaming runs can only check that the provider accepts the replayed
 turn, because LiteLLM keeps no raw streamed responses. The offline fakes check
 streamed replays exactly.

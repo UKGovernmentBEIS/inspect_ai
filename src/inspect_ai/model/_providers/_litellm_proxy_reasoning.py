@@ -135,6 +135,9 @@ async def _litellm_message_to_openai(
     param = await openai_chat_message(message, "system", _reasoning_handler)
     if message.role != "assistant":
         return param
+    text = _litellm_text(message.content)
+    if text is not None:
+        param = cast(ChatCompletionAssistantMessageParam, param | {"content": text})
     if param.get("tool_calls") and _is_empty(param.get("content")):
         # LiteLLM replaces empty text sent to Anthropic with a placeholder
         # ("[System: Empty message content sanitised ...]") that the model
@@ -158,6 +161,29 @@ async def _litellm_message_to_openai(
     if signatures:
         fields[PROVIDER_SPECIFIC_FIELDS] = {THOUGHT_SIGNATURES: signatures}
     return cast(ChatCompletionAssistantMessageParam, param | fields)
+
+
+def _litellm_text(content: str | list[Content]) -> str | None:
+    """The message text as LiteLLM returned it, if it can be rebuilt exactly.
+
+    LiteLLM joins a response's text blocks with no separator, so joining the
+    text parts reproduces it. The base conversion instead puts a newline
+    before each part, which would change the model's earlier text on replay.
+    None when some content must go through the base conversion (reasoning
+    not carried in LiteLLM's fields, or text with Inspect internal data).
+    """
+    if isinstance(content, str):
+        return None
+    texts: list[str] = []
+    for part in content:
+        if isinstance(part, ContentReasoning):
+            if part.internal not in (THINKING_BLOCKS, THOUGHT_SIGNATURES):
+                return None
+        elif isinstance(part, ContentText):
+            if part.internal is not None:
+                return None
+            texts.append(part.text)
+    return "".join(texts)
 
 
 def _is_empty(content: Any) -> bool:
