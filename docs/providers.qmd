@@ -1683,6 +1683,85 @@ The following environment variables are supported by the OpenRouter AI provider
 | `OPENROUTER_API_KEY` | API key credentials (required). |
 | `OPENROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://openrouter.ai/api/v1`) |
 
+## LiteLLM Proxy {#litellm-proxy}
+
+To use models served by a [LiteLLM proxy](https://docs.litellm.ai/docs/simple_proxy), install the `openai` package, set the proxy's URL and your key, and specify a model using the `model_name` of its deployment in the proxy config. For example, for this deployment:
+
+``` yaml
+model_list:
+  - model_name: claude-sonnet-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+```
+
+``` bash
+pip install openai
+export LITELLM_PROXY_BASE_URL=https://litellm.example.com
+export LITELLM_PROXY_API_KEY=your-litellm-key
+inspect eval arc.py --model litellm-proxy/claude-sonnet-5
+```
+
+The `model_name` is chosen by the proxy's operator and need not be a model id. Inspect reads the proxy's `/model/info` listing to find the upstream model behind it (`litellm_params.model`, or `model_info.base_model` when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use.
+
+### Model Info {#litellm-proxy-model-info}
+
+If Inspect can't determine the context window of a proxy model, creating the model fails with an error that explains how to fix it. This happens for models the proxy lists without an upstream model Inspect knows (for example, a predeployment codename or an opaque deployment name). The best fix is to add `base_model` to the deployment in the proxy config, naming the known model it is closest to:
+
+``` yaml
+model_list:
+  - model_name: pillow
+    litellm_params:
+      model: anthropic/claude-pillow-v1
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info:
+      base_model: anthropic/claude-opus-5-5
+```
+
+`base_model` also tells LiteLLM the model's capabilities. Without it, LiteLLM treats an unknown model as supporting no reasoning effort, adaptive thinking or (for Bedrock) tool choice. For Anthropic, OpenAI, Google and xAI models the error message suggests that vendor's current frontier model.
+
+Alternatively, set `max_input_tokens` (and `max_output_tokens`) in the deployment's `model_info`, register the model's info with `set_model_info("litellm-proxy/<name>", ModelInfo(...))`, or pass `-M require_model_info=false` to use the model without model info.
+
+Costs are taken from Inspect's model database or, where it has none, from the prices in the proxy's `model_info`.
+
+### Claude Models {#litellm-proxy-claude}
+
+When the upstream model is a Claude model (recognized by its name, including models Inspect and LiteLLM don't know), requests follow the native `anthropic` provider:
+
+-   `max_tokens` defaults to 32,000 plus an increment for the reasoning effort, rather than LiteLLM's 4,096.
+-   [Prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled with cache breakpoints on the system prompt, the last tool definition and the last two messages. Pass `--cache-prompt=false` to disable. Cache writes are costed at the TTL the proxy reports for them (a proxy can apply a 1 hour TTL).
+-   Tool schemas keep their full JSON Schema (e.g. `pattern` and `minLength`).
+
+A model that does not accept a conversation ending with an assistant message (assistant prefill) fails with an error saying so rather than being retried.
+
+### Reasoning Effort {#litellm-proxy-reasoning-effort}
+
+When the proxy or upstream model rejects the requested `reasoning_effort`, Inspect retries with the nearest effort the model accepts (or with no effort, if the model takes none), warns once, and uses that effort for later requests. Reasoning returned by the upstream model (including Claude thinking blocks and Gemini thought signatures) is sent back on the next turn.
+
+### Streaming and Responses API {#litellm-proxy-streaming}
+
+Requests stream by default, so long generations don't hit client or proxy timeouts. Pass `-M stream=false` to disable streaming.
+
+Requests use the Chat Completions API. Pass `-M responses_api=true` to use the proxy's Responses API instead (which is not streamed by default).
+
+### Model Args {#litellm-proxy-model-args}
+
+| Argument | Description |
+|------------------------------------|------------------------------------|
+| `require_model_info` | Fail if the model has no context window (default: `true`). |
+| `model_info` | Read the proxy's `/model/info` listing (default: `true`). With `false`, Inspect does not look up the upstream model and requests are shaped by the proxy model name alone. |
+| `stream` | Stream requests (default: `true` for Chat Completions). |
+| `responses_api` | Use the Responses API (default: `false`). |
+
+: {tbl-colwidths=\[25,75\]}
+
+The following environment variables are supported by the LiteLLM Proxy provider:
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `LITELLM_PROXY_API_KEY` | API key credentials (required). `LITELLM_API_KEY` is used when it is not set. |
+| `LITELLM_PROXY_BASE_URL` | Base URL of the proxy (required). `LITELLM_PROXY_API_BASE` and `LITELLM_BASE_URL` are used when it is not set. |
+
 ## Hugging Face Inference Providers
 
 To use [Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers), install the `openai` package (which provides the compatibility layer), set your Hugging Face token, and specify a model using the `--model` option:
