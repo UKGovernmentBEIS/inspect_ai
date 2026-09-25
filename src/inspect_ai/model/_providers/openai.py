@@ -563,9 +563,16 @@ class OpenAIAPI(ModelAPI):
 
         streaming = self._resolve_streaming(use_responses)
 
-        # explicit prompt caching is only verified against the direct OpenAI
-        # endpoint; Azure, Bedrock, and custom base URLs are unverified
-        supports_explicit_prompt_cache = not (self.is_azure() or self.is_bedrock())
+        # explicit prompt caching is only verified against the unconfigured,
+        # direct OpenAI endpoint; Azure, Bedrock, and any custom base URL
+        # (explicit base_url, OPENAI_BASE_URL, or INSPECT_EVAL_MODEL_BASE_URL)
+        # are unverified — a resolved base_url means the request is going
+        # somewhere other than api.openai.com
+        supports_explicit_prompt_cache = (
+            not self.is_azure()
+            and not self.is_bedrock()
+            and model_base_url(self.base_url, "OPENAI_BASE_URL") is None
+        )
 
         async def generate_once(
             streaming: bool,

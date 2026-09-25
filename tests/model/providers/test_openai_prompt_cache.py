@@ -809,6 +809,37 @@ async def test_bedrock_endpoint_declines_explicit_cache(
     assert await _generate_and_capture_cache_flag(api, monkeypatch) is False
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "use_responses", [False, True], ids=["completions", "responses"]
+)
+async def test_custom_base_url_endpoint_declines_explicit_cache(
+    monkeypatch: pytest.MonkeyPatch, use_responses: bool
+) -> None:
+    # a custom base_url points OpenAIAPI at some other (unverified) gateway
+    # even though it isn't Azure or Bedrock and the model name still matches
+    # the gpt-5.6+ pattern
+    api = _openai_api(
+        "gpt-5.6",
+        base_url="https://gateway.example.com/v1",
+        responses_api=use_responses,
+    )
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is False
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "use_responses", [False, True], ids=["completions", "responses"]
+)
+async def test_openai_base_url_env_var_declines_explicit_cache(
+    monkeypatch: pytest.MonkeyPatch, use_responses: bool
+) -> None:
+    # OPENAI_BASE_URL is the same kind of override as an explicit base_url
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://gateway.example.com/v1")
+    api = _openai_api("gpt-5.6", responses_api=use_responses)
+    assert await _generate_and_capture_cache_flag(api, monkeypatch) is False
+
+
 # ---------------------------------------------------------------------------
 # Live tests (--runapi, need OPENAI_API_KEY and access to the gpt-5.6 model)
 # ---------------------------------------------------------------------------
