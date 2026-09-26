@@ -855,7 +855,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#litellm-proxy-model-info" id="toc-litellm-proxy-model-info" class="nav-link" data-scroll-target="#litellm-proxy-model-info">Model Info</a></li>
   <li><a href="#litellm-proxy-claude" id="toc-litellm-proxy-claude" class="nav-link" data-scroll-target="#litellm-proxy-claude">Claude Models</a></li>
   <li><a href="#litellm-proxy-reasoning-effort" id="toc-litellm-proxy-reasoning-effort" class="nav-link" data-scroll-target="#litellm-proxy-reasoning-effort">Reasoning Effort</a></li>
-  <li><a href="#litellm-proxy-streaming" id="toc-litellm-proxy-streaming" class="nav-link" data-scroll-target="#litellm-proxy-streaming">Streaming and Responses API</a></li>
+  <li><a href="#litellm-proxy-streaming" id="toc-litellm-proxy-streaming" class="nav-link" data-scroll-target="#litellm-proxy-streaming">Responses API and Streaming</a></li>
+  <li><a href="#litellm-proxy-web-search" id="toc-litellm-proxy-web-search" class="nav-link" data-scroll-target="#litellm-proxy-web-search">Web Search</a></li>
   <li><a href="#litellm-proxy-model-args" id="toc-litellm-proxy-model-args" class="nav-link" data-scroll-target="#litellm-proxy-model-args">Model Args</a></li>
   </ul></li>
   <li><a href="#hugging-face-inference-providers" id="toc-hugging-face-inference-providers" class="nav-link" data-scroll-target="#hugging-face-inference-providers">Hugging Face Inference Providers</a>
@@ -1022,7 +1023,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="c9113e22" class="cell">
+<div id="b02edccf" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
@@ -2691,7 +2692,7 @@ Note
 <span id="cb128-2"><a href="#cb128-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">LITELLM_PROXY_BASE_URL</span><span class="op">=</span>https://litellm.example.com</span>
 <span id="cb128-3"><a href="#cb128-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">LITELLM_PROXY_API_KEY</span><span class="op">=</span>your-litellm-key</span>
 <span id="cb128-4"><a href="#cb128-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> litellm-proxy/claude-sonnet-5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The <code>model_name</code> is chosen by the proxy’s operator and need not be a model id. Inspect reads the proxy’s <code>/model/info</code> listing to find the upstream model behind it (<code>litellm_params.model</code>, or <code>model_info.base_model</code> when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use.</p>
+<p>The <code>model_name</code> is chosen by the proxy’s operator and need not be a model id. Inspect reads the proxy’s <code>/model/info</code> listing to find the upstream model behind it (<code>litellm_params.model</code>, or <code>model_info.base_model</code> when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use. Aliases defined on your key or its team are resolved to the model they route to.</p>
 <section id="litellm-proxy-model-info" class="level3">
 <h3 class="anchored" data-anchor-id="litellm-proxy-model-info">Model Info</h3>
 <p>If Inspect can’t determine the context window of a proxy model, creating the model fails with an error that explains how to fix it. This happens for models the proxy lists without an upstream model Inspect knows (for example, a predeployment codename or an opaque deployment name). The best fix is to add <code>base_model</code> to the deployment in the proxy config, naming the known model it is closest to:</p>
@@ -2701,9 +2702,12 @@ Note
 <span id="cb129-4"><a href="#cb129-4" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">model</span><span class="kw">:</span><span class="at"> anthropic/claude-pillow-v1</span></span>
 <span id="cb129-5"><a href="#cb129-5" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">api_key</span><span class="kw">:</span><span class="at"> os.environ/ANTHROPIC_API_KEY</span></span>
 <span id="cb129-6"><a href="#cb129-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">model_info</span><span class="kw">:</span></span>
-<span id="cb129-7"><a href="#cb129-7" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">base_model</span><span class="kw">:</span><span class="at"> anthropic/claude-opus-5-5</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p><code>base_model</code> also tells LiteLLM the model’s capabilities. Without it, LiteLLM treats an unknown model as supporting no reasoning effort, adaptive thinking or (for Bedrock) tool choice. For Anthropic, OpenAI, Google and xAI models the error message suggests that vendor’s current frontier model.</p>
-<p>Alternatively, set <code>max_input_tokens</code> (and <code>max_output_tokens</code>) in the deployment’s <code>model_info</code>, register the model’s info with <code>set_model_info("litellm-proxy/&lt;name&gt;", ModelInfo(...))</code>, or pass <code>-M require_model_info=false</code> to use the model without model info.</p>
+<span id="cb129-7"><a href="#cb129-7" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">base_model</span><span class="kw">:</span><span class="at"> anthropic/claude-opus-5-5</span></span>
+<span id="cb129-8"><a href="#cb129-8" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">supports_reasoning</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb129-9"><a href="#cb129-9" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">supports_adaptive_thinking</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>base_model</code> also lets LiteLLM accept parameters it would otherwise reject for an unknown model, such as reasoning effort and (for Bedrock) tool choice. For Anthropic, OpenAI, Google and xAI models the error message suggests that vendor’s current frontier model.</p>
+<p>For a Claude 4.6 or later model under a name LiteLLM doesn’t know (such as a codename), also set <code>supports_reasoning</code> and <code>supports_adaptive_thinking</code> as above. LiteLLM uses adaptive thinking only for Claude models it recognizes by their upstream name, and <code>base_model</code> does not change this. Without the flags, LiteLLM either sends extended thinking with a reasoning effort, which Claude 4.7 and later reject (Inspect then fails with an error naming this fix), or, without <code>base_model</code>, refuses the reasoning effort (Inspect then sends none and warns with this fix).</p>
+<p>Alternatively, set <code>max_input_tokens</code> (and <code>max_output_tokens</code>) in the deployment’s <code>model_info</code>, register the model’s info with <code>set_model_info("litellm-proxy/&lt;name&gt;", ModelInfo(...))</code>, or pass <code>-M require_model_info=false</code> to use the model without model info. The last two are the only fixes for an alias from the proxy’s <code>model_alias_map</code> setting, which the proxy doesn’t show to clients.</p>
 <p>Costs are taken from Inspect’s model database or, where it has none, from the prices in the proxy’s <code>model_info</code>.</p>
 </section>
 <section id="litellm-proxy-claude" class="level3">
@@ -2713,6 +2717,7 @@ Note
 <li><code>max_tokens</code> defaults to 32,000 plus an increment for the reasoning effort, rather than LiteLLM’s 4,096.</li>
 <li><a href="https://docs.claude.com/en/docs/build-with-claude/prompt-caching">Prompt caching</a> is enabled with cache breakpoints on the system prompt, the last tool definition and the last two messages. Pass <code>--cache-prompt=false</code> to disable. Cache writes are costed at the TTL the proxy reports for them (a proxy can apply a 1 hour TTL).</li>
 <li>Tool schemas keep their full JSON Schema (e.g.&nbsp;<code>pattern</code> and <code>minLength</code>).</li>
+<li>With a <code>reasoning_effort</code>, Claude 4.6 and later models return summarized thinking, which is recorded in the log and streamed during long thinking phases. Earlier LiteLLM versions otherwise return no thinking text for Claude 4.7 and later. Pass <code>-M thinking_display=omitted</code> to receive no thinking text.</li>
 </ul>
 <p>A model that does not accept a conversation ending with an assistant message (assistant prefill) fails with an error saying so rather than being retried.</p>
 </section>
@@ -2721,9 +2726,13 @@ Note
 <p>When the proxy or upstream model rejects the requested <code>reasoning_effort</code>, Inspect retries with the nearest effort the model accepts (or with no effort, if the model takes none), warns once, and uses that effort for later requests. Reasoning returned by the upstream model (including Claude thinking blocks and Gemini thought signatures) is sent back on the next turn.</p>
 </section>
 <section id="litellm-proxy-streaming" class="level3">
-<h3 class="anchored" data-anchor-id="litellm-proxy-streaming">Streaming and Responses API</h3>
-<p>Requests stream by default, so long generations don’t hit client or proxy timeouts. Pass <code>-M stream=false</code> to disable streaming.</p>
-<p>Requests use the Chat Completions API. Pass <code>-M responses_api=true</code> to use the proxy’s Responses API instead (which is not streamed by default).</p>
+<h3 class="anchored" data-anchor-id="litellm-proxy-streaming">Responses API and Streaming</h3>
+<p>GPT-5 and later, o-series and Codex models served directly by OpenAI use the proxy’s Responses API, as they do with the <code>openai</code> provider, so their reasoning is carried from one turn to the next. This applies when every deployment of the model uses LiteLLM’s <code>openai</code> provider with no <code>api_base</code> other than OpenAI’s (Azure deployments and OpenAI-compatible servers are not included). A predeployment model qualifies when its deployment sets <code>model_info.base_model</code> (see <a href="#litellm-proxy-model-info">Model Info</a>). Other models use the Chat Completions API. Pass <code>-M responses_api=true</code> or <code>-M responses_api=false</code> to choose the API. Through the proxy, web search is the only OpenAI built-in tool used on the Responses API; <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#computer">computer()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#code_execution">code_execution()</a></span> and remote MCP servers are sent as ordinary tools, as on the Chat Completions API.</p>
+<p>Requests stream by default, so long generations don’t hit client or proxy timeouts, except Responses API requests for models not served by OpenAI. Pass <code>-M stream=false</code> to disable streaming.</p>
+</section>
+<section id="litellm-proxy-web-search" class="level3">
+<h3 class="anchored" data-anchor-id="litellm-proxy-web-search">Web Search</h3>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool uses OpenAI’s built-in search (its <code>openai</code> provider) for OpenAI models that use the Responses API. Otherwise it needs an external search provider (<code>tavily</code>, <code>exa</code> or <code>google</code>), for example <code>web_search(["anthropic", "tavily"])</code>; other built-in search providers are not supported through the proxy.</p>
 </section>
 <section id="litellm-proxy-model-args" class="level3">
 <h3 class="anchored" data-anchor-id="litellm-proxy-model-args">Model Args</h3>
@@ -2749,11 +2758,15 @@ Note
 </tr>
 <tr class="odd">
 <td><code>stream</code></td>
-<td>Stream requests (default: <code>true</code> for Chat Completions).</td>
+<td>Stream requests (default: <code>true</code>, except Responses API requests for models not served by OpenAI).</td>
 </tr>
 <tr class="even">
 <td><code>responses_api</code></td>
-<td>Use the Responses API (default: <code>false</code>).</td>
+<td>Use the Responses API (default: <code>true</code> for GPT-5 and later, o-series and Codex models served by OpenAI, <code>false</code> otherwise).</td>
+</tr>
+<tr class="odd">
+<td><code>thinking_display</code></td>
+<td>Thinking text Claude 4.6 and later models return when a <code>reasoning_effort</code> is set: <code>summarized</code> (default) or <code>omitted</code>.</td>
 </tr>
 </tbody>
 </table>

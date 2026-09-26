@@ -197,14 +197,15 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#september-2026" id="toc-september-2026" class="nav-link active" data-scroll-target="#september-2026">0.3.269 (25 September 2026)</a></li>
-  <li><a href="#september-2026-1" id="toc-september-2026-1" class="nav-link" data-scroll-target="#september-2026-1">0.3.268 (22 September 2026)</a></li>
-  <li><a href="#september-2026-2" id="toc-september-2026-2" class="nav-link" data-scroll-target="#september-2026-2">0.3.267 (22 September 2026)</a></li>
-  <li><a href="#september-2026-3" id="toc-september-2026-3" class="nav-link" data-scroll-target="#september-2026-3">0.3.266 (19 September 2026)</a></li>
-  <li><a href="#september-2026-4" id="toc-september-2026-4" class="nav-link" data-scroll-target="#september-2026-4">0.3.265 (17 September 2026)</a></li>
-  <li><a href="#september-2026-5" id="toc-september-2026-5" class="nav-link" data-scroll-target="#september-2026-5">0.3.264 (16 September 2026)</a></li>
-  <li><a href="#september-2026-6" id="toc-september-2026-6" class="nav-link" data-scroll-target="#september-2026-6">0.3.263 (03 September 2026)</a></li>
-  <li><a href="#september-2026-7" id="toc-september-2026-7" class="nav-link" data-scroll-target="#september-2026-7">0.3.262 (02 September 2026)</a></li>
+  <li><a href="#september-2026" id="toc-september-2026" class="nav-link active" data-scroll-target="#september-2026">0.3.270 (25 September 2026)</a></li>
+  <li><a href="#september-2026-1" id="toc-september-2026-1" class="nav-link" data-scroll-target="#september-2026-1">0.3.269 (25 September 2026)</a></li>
+  <li><a href="#september-2026-2" id="toc-september-2026-2" class="nav-link" data-scroll-target="#september-2026-2">0.3.268 (22 September 2026)</a></li>
+  <li><a href="#september-2026-3" id="toc-september-2026-3" class="nav-link" data-scroll-target="#september-2026-3">0.3.267 (22 September 2026)</a></li>
+  <li><a href="#september-2026-4" id="toc-september-2026-4" class="nav-link" data-scroll-target="#september-2026-4">0.3.266 (19 September 2026)</a></li>
+  <li><a href="#september-2026-5" id="toc-september-2026-5" class="nav-link" data-scroll-target="#september-2026-5">0.3.265 (17 September 2026)</a></li>
+  <li><a href="#september-2026-6" id="toc-september-2026-6" class="nav-link" data-scroll-target="#september-2026-6">0.3.264 (16 September 2026)</a></li>
+  <li><a href="#september-2026-7" id="toc-september-2026-7" class="nav-link" data-scroll-target="#september-2026-7">0.3.263 (03 September 2026)</a></li>
+  <li><a href="#september-2026-8" id="toc-september-2026-8" class="nav-link" data-scroll-target="#september-2026-8">0.3.262 (02 September 2026)</a></li>
   <li><a href="#august-2026" id="toc-august-2026" class="nav-link" data-scroll-target="#august-2026">0.3.261 (30 August 2026)</a></li>
   <li><a href="#august-2026-1" id="toc-august-2026-1" class="nav-link" data-scroll-target="#august-2026-1">0.3.260 (21 August 2026)</a></li>
   <li><a href="#august-2026-2" id="toc-august-2026-2" class="nav-link" data-scroll-target="#august-2026-2">0.3.259 (16 August 2026)</a></li>
@@ -473,7 +474,21 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="september-2026" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026">0.3.269 (25 September 2026)</h2>
+<h2 class="anchored" data-anchor-id="september-2026">0.3.270 (25 September 2026)</h2>
+<ul>
+<li><code>eval_set</code>: a task whose dataset GREW since its last run (a strict superset, with stable sample ids) is now topped up in place — the prior samples are reused and only the newly added samples run — instead of re-running the whole dataset. A shrunk dataset, or growth without stable ids, still triggers a full re-run.</li>
+<li>LiteLLM Proxy: GPT-5 and later, o-series and Codex models served by OpenAI use the Responses API by default, streamed, carrying reasoning between turns (<code>-M responses_api=false</code> to opt out).</li>
+<li>LiteLLM Proxy: Key and team aliases resolve to the model they route to, instead of failing for lack of model info.</li>
+<li>LiteLLM Proxy: Claude 4.7 and later models with a reasoning effort record summarized thinking in the log, including through older LiteLLM versions, which returned none (<code>-M thinking_display=omitted</code> to opt out).</li>
+<li>LiteLLM Proxy: Claude codename deployments that LiteLLM sends extended thinking fail with an error naming the proxy <code>model_info</code> flags that enable adaptive thinking.</li>
+<li>LiteLLM Proxy: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> without a search provider usable through the proxy fails when the model is first called, with an error naming the fix.</li>
+<li>Checkpointing: after a resume, restored events reach hooks, the live viewer, ACP clients and transcript readers with long text and images inline instead of as <code>attachment://</code> references; raw model API calls stay condensed until the sample completes.</li>
+<li>Bugfix: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#f1">f1()</a></span> now counts repeated tokens (multiset overlap, matching SQuAD F1); scores can rise or fall for answers or targets containing repeated words.</li>
+<li>Bugfix: A sample retried or requeued in a shared log directory no longer shows the previous attempt’s events alongside its own while it runs.</li>
+</ul>
+</section>
+<section id="september-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-1">0.3.269 (25 September 2026)</h2>
 <ul>
 <li>LiteLLM Proxy: New <code>litellm-proxy</code> provider for models served by a LiteLLM proxy, which reads each model’s upstream model for context window, cost, reasoning and Claude prompt caching.</li>
 <li>CLI: Quoted YAML and JSON strings in <code>--env</code> arguments preserve commas as literal text (such as <code>--env 'NO_PROXY="localhost,127.0.0.1"'</code>) instead of being coerced into lists. (#5368)</li>
@@ -488,14 +503,14 @@ ul.task-list li input[type="checkbox"] {
 <li>Control Channel: <code>inspect ctl task list</code> and the <code>inspect ctl sample</code> reads take <code>--log-dir &lt;dir&gt;</code> to read task and sample status, events, messages and store from the <code>.eval</code> logs in a local or S3 directory, without a live eval process.</li>
 </ul>
 </section>
-<section id="september-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026-1">0.3.268 (22 September 2026)</h2>
+<section id="september-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-2">0.3.268 (22 September 2026)</h2>
 <ul>
 <li>Agent Bridge: Bridged Anthropic requests no longer fail under anthropic SDK 1.8.0 or later, including requests with iterator, file-path or pydantic inputs.</li>
 </ul>
 </section>
-<section id="september-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026-2">0.3.267 (22 September 2026)</h2>
+<section id="september-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-3">0.3.267 (22 September 2026)</h2>
 <ul>
 <li>Anthropic: Computer use now works on Claude Opus 5.5, Fable 5/5.1 and Mythos 5/5.1 via Anthropic’s <code>computer_toolset_20260801</code> toolset; pass <code>-M computer_toolset=true</code> to use the toolset on Claude Opus 4.8, Sonnet 5 and Opus 5.</li>
 <li>Computer Use: the <code>key</code> action now honors <code>repeat</code>.</li>
@@ -519,21 +534,21 @@ ul.task-list li input[type="checkbox"] {
 <li>Anthropic: Support for Claude Opus 5.5 (<code>claude-opus-5-5</code>): thinking can’t be disabled, forced tool choice degrades to auto, and computer use is not yet supported on the Claude API and Vertex.</li>
 </ul>
 </section>
-<section id="september-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026-3">0.3.266 (19 September 2026)</h2>
+<section id="september-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-4">0.3.266 (19 September 2026)</h2>
 <ul>
 <li>Bugfix: <code>inspect score --scorer pkg/name</code> now resolves <code>@scanner</code> functions from installed packages (e.g.&nbsp;<code>inspect_petri/audit_judge</code>) instead of failing with <code>LookupError</code>; unknown names now report the “scorer couldn’t be loaded” guidance rather than a raw traceback.</li>
 <li>Control channel: the <code>inspect ctl task score</code> interim-metrics payload now reports each entry’s originating scorer under <code>scorer</code> and the score’s name under <code>name</code> (previously <code>scorer</code> held the score name). This lets consumers disambiguate scores from dict-valued scorers — where several scorers can share a score name — and reconstruct the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalscore">EvalScore</a></span> needed to resolve a task’s headline metric. Breaking for clients that read the old <code>scorer</code> field as the score name.</li>
 </ul>
 </section>
-<section id="september-2026-4" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026-4">0.3.265 (17 September 2026)</h2>
+<section id="september-2026-5" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-5">0.3.265 (17 September 2026)</h2>
 <ul>
 <li>Agent Bridge: Bridged host tools are no longer denied under an approval policy when the sandboxed agent presents them to its model under a different name.</li>
 </ul>
 </section>
-<section id="september-2026-5" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026-5">0.3.264 (16 September 2026)</h2>
+<section id="september-2026-6" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-6">0.3.264 (16 September 2026)</h2>
 <ul>
 <li>Agent Bridge: Sandboxed agents using the Responses API no longer stall after a single model turn when the model calls a tool; <code>function_call</code> and <code>custom_tool_call</code> output items now carry a non-null item id, and streamed custom tool calls now report <code>completed</code> status so client SDKs dispatch them.</li>
 <li>Bugfix: Closing cached S3 sessions after an eval no longer leaves s3fs to close them again at garbage collection, which raised a stray <code>AssertionError: Session was never entered</code> in unrelated code.</li>
@@ -625,8 +640,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Sandboxes: The standard tool-support image now offers an opt-in non-root <code>nonroot</code> account (UID/GID 65532; default user unchanged) and installs the web browser’s Playwright browsers to a shared path so the browser tool works under a non-root user.</li>
 </ul>
 </section>
-<section id="september-2026-6" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026-6">0.3.263 (03 September 2026)</h2>
+<section id="september-2026-7" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-7">0.3.263 (03 September 2026)</h2>
 <ul>
 <li>OpenAI: Added support for GPT-6 Astra (<code>gpt-6-astra</code>).</li>
 <li>OpenAI: Fixed <code>temperature</code>, <code>top_p</code>, and <code>logprobs</code> causing a 400 error on GPT-5.5+ models when no <code>reasoning_effort</code> is set (they are now dropped with a warning).</li>
@@ -650,8 +665,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).</li>
 </ul>
 </section>
-<section id="september-2026-7" class="level2">
-<h2 class="anchored" data-anchor-id="september-2026-7">0.3.262 (02 September 2026)</h2>
+<section id="september-2026-8" class="level2">
+<h2 class="anchored" data-anchor-id="september-2026-8">0.3.262 (02 September 2026)</h2>
 <ul>
 <li>Scorer (breaking): Model-graded scorers with a panel of graders now require a strict majority: samples with no majority grade (even-split ties, three-way splits, or ties after a grader returns no parseable grade) come back unscored and leave the metric denominator, rather than the most common grade winning with ties broken by grader order. Pass <code>reducer="mode"</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span> to restore the previous behavior. (#4721)</li>
 <li>Scorer: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#pattern">pattern()</a></span> now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)</li>
