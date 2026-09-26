@@ -41,6 +41,9 @@ if TYPE_CHECKING:
 class DispatchedCall(NamedTuple):
     """A bridged tool call the model made through a scaffold's dispatcher function."""
 
+    server: str
+    """The bridged server the target tool is registered under."""
+
     target: ToolCall
     """The call to the bridged tool itself, under the dispatcher call's id."""
 
@@ -209,12 +212,27 @@ class AgentBridge:
         """
         raise TerminateSampleError(reason)
 
-    def register_tool_execution_grants(self, calls: Sequence[ToolCall]) -> None:
-        """Register calls from an approved response for execution-edge checks.
+    grants_tool_execution: bool = False
+    """Whether this bridge binds host-tool execution to the calls in each response.
 
-        In-process bridges execute no host tools through a separate service, so the
-        base implementation has nothing to register. Sandbox bridges override this
-        to bind later service requests to the calls approval actually reviewed.
+    In-process bridges execute no host tools through a separate service, so nothing
+    is granted or checked. `SandboxAgentBridge` sets this and overrides
+    `register_tool_execution_grants`; `apply_bridge_tool_approval` reads it to
+    decide whether alternate choices must be dropped without an approval policy.
+    """
+
+    def register_tool_execution_grants(
+        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+    ) -> None:
+        """Register the calls in a response handed to the scaffold for execution-edge checks.
+
+        `tools` are the declarations the scaffold made to the model in the request
+        that produced the response; a subclass overriding this hook must accept
+        them (the parameter is new, and required, since the calls cannot be
+        resolved without it). In-process bridges execute no host tools through a
+        separate service, so the base implementation has nothing to register.
+        Sandbox bridges override this to bind later service requests to the calls
+        the model actually made.
         """
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:

@@ -273,6 +273,14 @@ class SampleBufferDatabase(SampleBuffer):
 
         self._sample_read_leases: dict[tuple[str, int], int] = {}
         self._pending_sample_removals: set[tuple[str, int]] = set()
+
+        # Samples removed since the last filestore sync (see
+        # take_removed_since_sync), recorded only once a sync has run so the
+        # set stays empty when nothing syncs. The lock is needed because the
+        # sync worker thread takes the set while the event loop adds to it.
+        self._removed_since_sync: set[SampleKey] = set()
+        self._track_removals = False
+        self._removed_since_sync_lock = threading.Lock()
         self._cleanup_pending = False
         self._close_pending = False
         # set under _lease_lock the moment a close or cleanup decides to
@@ -506,6 +514,39 @@ class SampleBufferDatabase(SampleBuffer):
                 logger.warning(f"Unexpcted error cleaning up samples: {ex}")
             finally:
                 cursor.close()
+
+        # after the delete commits, so a sync that takes the set sees no row
+        with self._removed_since_sync_lock:
+            if self._track_removals:
+                self._removed_since_sync.update(samples)
+
+    def take_removed_since_sync(self) -> set[SampleKey]:
+        """Take the samples removed from the buffer since the last call.
+
+        ``sync_to_filestore`` drops these samples' manifest entries so that a
+        sample removed and restarted between two syncs (a retry or a requeue)
+        starts with no segments instead of inheriting the previous attempt's.
+        Keys are ``(str(id), epoch)``.
+
+        Removals are recorded only after the first call: before any sync there
+        is no manifest entry to drop, and a buffer that never syncs keeps no
+        record of its removals.
+        """
+        with self._removed_since_sync_lock:
+            self._track_removals = True
+            removed = self._removed_since_sync
+            self._removed_since_sync = set()
+            return removed
+
+    def restore_removed_since_sync(self, removed: set[SampleKey]) -> None:
+        """Return keys from ``take_removed_since_sync`` after a failed sync."""
+        with self._removed_since_sync_lock:
+            self._removed_since_sync.update(removed)
+
+    def removed_since_sync(self) -> set[SampleKey]:
+        """Samples removed since the last ``take_removed_since_sync``, left recorded."""
+        with self._removed_since_sync_lock:
+            return set(self._removed_since_sync)
 
     async def aclose(self) -> None:
         """:meth:`close` off the event loop.
@@ -1894,12 +1935,28 @@ class SampleBufferDatabase(SampleBuffer):
 def sync_to_filestore(
     db: SampleBufferDatabase, filestore: SampleBufferFilestore
 ) -> None:
+    # taken before the db samples are read: a removal after this point stays
+    # recorded for the next sync
+    removed = db.take_removed_since_sync()
+    try:
+        _sync_samples_to_filestore(db, filestore, removed)
+    except BaseException:
+        db.restore_removed_since_sync(removed)
+        raise
+
+
+def _sync_samples_to_filestore(
+    db: SampleBufferDatabase,
+    filestore: SampleBufferFilestore,
+    removed: set[SampleKey],
+) -> None:
     # read existing manifest (create an empty one if there is none)
     manifest = filestore.read_manifest() or Manifest()
 
     # prepare a list of buffered samples from the db
     samples = db.get_samples()
     if samples is None:
+        db.restore_removed_since_sync(removed)
         return
     assert isinstance(samples, Samples)
 
@@ -1908,13 +1965,16 @@ def sync_to_filestore(
     # segment lists from the existing sample manifests
     sample_manifests: list[SampleManifest] = []
     for sample in samples.samples:
-        # lookup sample segments in the existing manifest
+        # lookup sample segments in the existing manifest (none for a sample
+        # removed since the last sync: a restarted attempt starts empty)
         # Copy before appending the next segment below.
         existing = next(
             (
                 s
                 for s in manifest.samples
-                if s.summary.id == sample.id and s.summary.epoch == sample.epoch
+                if s.summary.id == sample.id
+                and s.summary.epoch == sample.epoch
+                and (str(s.summary.id), s.summary.epoch) not in removed
             ),
             None,
         )
@@ -2043,6 +2103,20 @@ def sync_to_filestore(
                 last_message_pool_id, segment_last_message_pool_id
             )
             last_call_pool_id = max(last_call_pool_id, segment_last_call_pool_id)
+
+    # A sample removed while this sync was reading may have been restarted, so
+    # its row could pair the previous attempt's segments or summary with the
+    # new attempt's data. Leave it out; the next sync takes the removal and
+    # rebuilds the row from the start. (The segment's maxima may still count
+    # its data, which only makes them over-inclusive.)
+    raced = db.removed_since_sync()
+    if raced:
+        manifest.samples = [
+            s
+            for s in manifest.samples
+            if (str(s.summary.id), s.summary.epoch) not in raced
+        ]
+        segment_files = [f for f in segment_files if (str(f.id), f.epoch) not in raced]
 
     # write the segment file and update the manifest
     if len(segment_files) > 0:
