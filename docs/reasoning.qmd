@@ -254,7 +254,7 @@ The following reasoning options are available from the CLI and within `GenerateC
 
 ## vLLM / SGLang {#vllm-sglang}
 
-vLLM and SGLang both support reasoning outputs, but the configuration is model-specific. See the [vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [SGLang](https://docs.sglang.ai/backend/separate_reasoning.html) docs for details.
+vLLM and SGLang both support reasoning outputs, but the configuration is model-specific. See the [vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [SGLang](https://docs.sglang.ai/advanced_features/separate_reasoning.html) docs for details.
 
 For vLLM, configure the model's reasoning parser using `-M` model arguments. For example, Qwen3:
 
