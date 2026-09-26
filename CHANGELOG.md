@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.271 (26 September 2026)
 
 - CLI: New `--extra-headers` and `--extra-body` options for `inspect eval` and `inspect eval-set`, taking an inline JSON or YAML mapping.
 - Google: Token counting falls back to a local estimate, with a warning, when the countTokens endpoint is unavailable or rejects the request.
