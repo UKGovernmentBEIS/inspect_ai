@@ -326,6 +326,29 @@ def test_hf_dataset_shuffle_sets_shuffled_flag(tmp_path, monkeypatch):
     assert ds_unshuffled.shuffled is False
 
 
+def test_hf_dataset_records_revision(tmp_path, monkeypatch):
+    # The requested revision must survive the slicing and filtering applied by
+    # --limit / --sample-id so the eval log header can record it.
+    records = [{"input": "a", "target": "1"}, {"input": "b", "target": "2"}]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    ds = hf_dataset(path="org/ds", split="test", revision="abc123", cached=False)
+    assert ds.revision == "abc123"
+    assert ds[0:1].revision == "abc123"
+    assert ds.filter(lambda sample: sample.input == "a").revision == "abc123"
+
+    ds_unpinned = hf_dataset(path="org/ds", split="test", cached=False)
+    assert ds_unpinned.revision is None
+
+
 def test_hf_dataset_auto_id_stable_across_shuffle_seeds(tmp_path, monkeypatch):
     # Regression (#4459): with auto_id + shuffle the id must attach to the
     # record, not the shuffled position, so a given record keeps the same

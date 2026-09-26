@@ -280,6 +280,7 @@ def hf_dataset(
         name=Path(path).stem if Path(path).exists() else path,
         location=path,
         shuffled=shuffle,
+        revision=revision,
     )
 
     shuffle_choices_if_requested(memory_dataset, shuffle_choices)
