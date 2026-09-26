@@ -4459,6 +4459,18 @@ ul.task-list li input[type="checkbox"] {
 <td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
+<td><code>--extra-headers</code></td>
+<td>text</td>
+<td>Extra headers to send with requests, as a JSON or YAML mapping (e.g.&nbsp;‘{“X-Trace-Id”: “abc”}’). Not supported by all providers.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr class="even">
+<td><code>--extra-body</code></td>
+<td>text</td>
+<td>Extra fields to add to the request body, as a JSON or YAML mapping (e.g.&nbsp;‘{“chat_template_kwargs”: {“enable_thinking”: true}}’). Not supported by all providers.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr class="odd">
 <td><code>--cache</code></td>
 <td>text</td>
 <td>Policy for caching of model generations. Specify –cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g.&nbsp;(e.g.&nbsp;1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.model.html#cachepolicy">CachePolicy</a></span> configuration.</td>

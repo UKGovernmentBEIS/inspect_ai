@@ -98,6 +98,8 @@ For more detail on the different methods of configuration, see [Configuration](.
 | `--reasoning-tokens` | Maximum number of tokens to use for reasoning. Anthropic Claude models only. |
 | `--reasoning-history` | Values: `none`, `all`, `last`, or `auto`. Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider) |
 | `--response-schema` | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. |
+| `--extra-headers` | Extra headers to send with requests, as a JSON or YAML mapping (e.g. `'{"X-Trace-Id": "abc"}'`). Not supported by all providers. |
+| `--extra-body` | Extra fields to add to the request body, as a JSON or YAML mapping (e.g. `'{"chat_template_kwargs": {"enable_thinking": true}}'`). Not supported by all providers. |
 | `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only. |
 | `--max-tool-output` | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. |
 | `--internal-tools` | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for Anthropic). |
