@@ -926,6 +926,18 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_RESPONSE_SCHEMA",
     )
     @click.option(
+        "--extra-headers",
+        type=str,
+        help="Extra headers to send with requests, as a YAML or JSON mapping (or a path to a YAML or JSON file). Not supported for AzureAI, Bedrock, and Grok.",
+        envvar="INSPECT_EVAL_EXTRA_HEADERS",
+    )
+    @click.option(
+        "--extra-body",
+        type=str,
+        help="Extra body fields to send with requests, as a YAML or JSON mapping (or a path to a YAML or JSON file). OpenAI, vLLM, and SGLang only.",
+        envvar="INSPECT_EVAL_EXTRA_BODY",
+    )
+    @click.option(
         "--cache",
         is_flag=False,
         flag_value="true",
@@ -1178,6 +1190,8 @@ def _eval_command_impl(
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    extra_headers: str | None,
+    extra_body: str | None,
     cache: int | str | None,
     batch: int | str | None,
     modalities: str | None,
@@ -1499,6 +1513,8 @@ def eval_set_command(
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    extra_headers: str | None,
+    extra_body: str | None,
     cache: int | str | None,
     batch: int | str | None,
     modalities: str | None,

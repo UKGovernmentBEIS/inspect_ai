@@ -3,7 +3,8 @@
 `GenerateConfigArgs` is a typed mapping; the strings a person types at a shell
 are not. Between the two sits a normalisation pass — `--stop-seqs` splits on
 commas, `--cache 7` becomes a seven-day `CachePolicy`, `--batch` alone becomes
-the default batch size, `--logit-bias` parses to a token map — and that pass is
+the default batch size, `--logit-bias` parses to a token map, `--extra-body`
+parses a YAML or JSON mapping — and that pass is
 what `config_from_locals` is.
 
 **It lives here rather than in `_cli` because the CLI is no longer its only
@@ -28,7 +29,7 @@ import click
 import yaml
 from pydantic import TypeAdapter
 
-from inspect_ai._util.config import parse_cli_args, resolve_args
+from inspect_ai._util.config import parse_cli_args, read_config_object, resolve_args
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 from inspect_ai.model._cache import CachePolicy
@@ -93,6 +94,10 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
             if key == "response_schema":
                 if value is not None:
                     value = ResponseSchema.model_validate_json(value)
+            if key == "extra_headers":
+                value = parse_extra_headers(value)
+            if key == "extra_body":
+                value = parse_config_mapping(value, "--extra-body")
             if key == "cache":
                 match value:
                     case str():
@@ -147,6 +152,51 @@ def parse_modalities(value: str) -> list[Any]:
         # Comma-separated literal names (e.g. "image" or "image,audio")
         tokens = [m.strip() for m in value.split(",")]
         return [t for t in tokens if t]  # type: ignore[misc]
+
+
+def parse_config_mapping(value: str, option: str) -> dict[str, Any]:
+    """Parse a YAML or JSON mapping given inline or as the path to a file.
+
+    Error messages never quote the value: `--extra-headers` can carry a token.
+    """
+    try:
+        parsed: Any = yaml.safe_load(value)
+    except yaml.YAMLError:
+        parsed = None
+    mapping: dict[Any, Any]
+    if isinstance(parsed, dict):
+        mapping = parsed
+    else:
+        if not filesystem(value).exists(value):
+            raise click.BadParameter(
+                "expected a YAML or JSON mapping (e.g. '{key: value}') or the "
+                "path to a YAML or JSON file.",
+                param_hint=option,
+            )
+        try:
+            mapping = read_config_object(resource(value, type="file"))
+        except Exception:
+            raise click.BadParameter(
+                f"the file {value} does not contain a YAML or JSON mapping.",
+                param_hint=option,
+            ) from None
+    for field in mapping:
+        if not isinstance(field, str):
+            raise click.BadParameter("every key must be a string.", param_hint=option)
+    return mapping
+
+
+def parse_extra_headers(value: str) -> dict[str, str]:
+    """Parse `--extra-headers`, whose values must be strings (as sent on the wire)."""
+    headers = parse_config_mapping(value, "--extra-headers")
+    for name, header in headers.items():
+        if not isinstance(header, str):
+            raise click.BadParameter(
+                f"the value of header '{name}' must be a string (quote it, "
+                "e.g. '{X-Retry: \"3\"}').",
+                param_hint="--extra-headers",
+            )
+    return headers
 
 
 def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
