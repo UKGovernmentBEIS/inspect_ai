@@ -60,6 +60,7 @@ from .._stream import (
     report_model_stream_progress,
     report_model_stream_start,
 )
+from ._anthropic_max_tokens import ANTHROPIC_MAX_TOKENS
 from .util import (
     forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
@@ -462,6 +463,11 @@ class BedrockAPI(ModelAPI):
 
         if any(name in family for name in ("llama3", "llama-3", "claude3", "claude-3")):
             return 4096
+
+        if self.is_claude():
+            # Claude 4 and later, mirroring the anthropic provider default;
+            # otherwise agentic calls get cut at the 2048-token floor (#5569).
+            return ANTHROPIC_MAX_TOKENS
 
         elif "mistral-large" in family:
             return 8192
