@@ -308,6 +308,17 @@
     ]
   },
   {
+    "id": "inspect-boltons",
+    "name": "Inspect boltons",
+    "url": "https://github.com/tadamcz/inspect_boltons",
+    "desc": "Reusable tools and utilities for Inspect, in the spirit of the Python boltons library.",
+    "author": "Tom Adamczewski",
+    "author_url": "https://github.com/tadamcz",
+    "categories": [
+      "Frameworks"
+    ]
+  },
+  {
     "id": "evalport",
     "name": "EvalPort",
     "url": "https://github.com/adhabnr-ux/evalport",
