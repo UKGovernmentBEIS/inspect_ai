@@ -20,7 +20,11 @@ import httpx
 import httpx2
 import pytest
 from openai import APIError, APIStatusError, BadRequestError
-from test_helpers.litellm_proxy.errors import error_deployments, error_route
+from test_helpers.litellm_proxy.errors import (
+    _anthropic_error,
+    error_deployments,
+    error_route,
+)
 from test_helpers.litellm_proxy.proxy import (
     CALL_ID_HEADER,
     LiteLLMProxy,
@@ -93,9 +97,11 @@ from inspect_ai.model._providers._litellm_proxy_reasoning import (
 from inspect_ai.model._providers._litellm_proxy_reasoning_effort import (
     next_effort,
     rejected_effort,
+    rejected_thinking,
 )
 from inspect_ai.model._providers._litellm_proxy_vendor import (
     Vendor,
+    claude_thinks_adaptively,
     frontier_base_model,
     upstream_vendor,
 )
@@ -1257,6 +1263,29 @@ def test_thinking_blocks_accumulator_separates_blocks() -> None:
     ]
 
 
+def test_thinking_blocks_accumulator_many_summary_deltas() -> None:
+    # summarized thinking streams one entry per small delta (1,181 in one
+    # live run), then the signature entry repeating the whole text
+    words = [f"word{i} " for i in range(1200)]
+    summary = "".join(words)
+    assert _accumulate(
+        *({"type": "thinking", "thinking": word} for word in words),
+        {"type": "thinking", "thinking": summary, "signature": "sig-1"},
+    ) == [{"type": "thinking", "thinking": summary, "signature": "sig-1"}]
+
+
+def test_thinking_blocks_accumulator_omitted_text() -> None:
+    # omitted thinking: a signature entry with no text and no deltas before it
+    assert _accumulate({"type": "thinking", "thinking": "", "signature": "sig-1"}) == [
+        {"type": "thinking", "thinking": "", "signature": "sig-1"}
+    ]
+
+
+def test_thinking_blocks_accumulator_no_blocks() -> None:
+    # at low effort Claude may not think at all
+    assert _accumulate() == []
+
+
 def _chunk(delta: dict[str, Any], finish_reason: str | None = None) -> Any:
     from openai.types.chat import ChatCompletionChunk
 
@@ -2208,6 +2237,9 @@ EFFORTS: list[Effort] = ["none", "minimal", "low", "medium", "high", "xhigh", "m
 STRICT_OPENAI_EFFORTS = ("low", "medium", "high")
 """Efforts the strict fake OpenAI upstream accepts (like o3)."""
 
+SUMMARIZED = {"type": "adaptive", "display": "summarized"}
+"""The `thinking` the provider sends to Claude 4.6+ with an effort."""
+
 
 def _strict_openai_route(request: StubRequest) -> dict[str, Any] | SSE | Reply | None:
     """The fake upstreams, plus an OpenAI model that rejects other efforts."""
@@ -2476,6 +2508,214 @@ async def test_litellm_proxy_reasoning_effort_remembered(
     ]
 
 
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize(
+    "alias,effort,display,upstream",
+    [
+        (
+            "claude-opus-5-5",
+            "xhigh",
+            "summarized",
+            {"thinking": SUMMARIZED, "output_config": {"effort": "xhigh"}},
+        ),
+        (
+            "claude-opus-5-5",
+            "high",
+            "omitted",
+            {
+                "thinking": {"type": "adaptive", "display": "omitted"},
+                "output_config": {"effort": "high"},
+            },
+        ),
+        # LiteLLM rejects xhigh for 4.6; the lowered effort keeps the thinking
+        (
+            "claude-opus-4-6",
+            "xhigh",
+            "summarized",
+            {"thinking": SUMMARIZED, "output_config": {"effort": "high"}},
+        ),
+        # no effort: LiteLLM's default thinking, not ours
+        ("claude-opus-5-5", "none", "summarized", {}),
+    ],
+)
+async def test_litellm_proxy_claude_thinking_upstream(
+    effort_proxy: LiteLLMProxy,
+    alias: str,
+    effort: Effort,
+    display: str,
+    upstream: dict[str, Any],
+) -> None:
+    api = _proxy_api(
+        get_model(
+            f"litellm-proxy/{alias}",
+            base_url=effort_proxy.base_url,
+            api_key=effort_proxy.api_key,
+            model_info=False,
+            max_retries=0,
+            memoize=False,
+            thinking_display=display,
+        )
+    )
+    call_id = str(uuid.uuid4())
+    result = await api.generate(
+        [ChatMessageUser(content="Hello")],
+        [],
+        "none",
+        GenerateConfig(
+            reasoning_effort=effort, extra_headers={CALL_ID_HEADER: call_id}
+        ),
+    )
+    output = result[0] if isinstance(result, tuple) else result
+    assert isinstance(output, ModelOutput), output
+    assert effort_proxy.capture_dir is not None
+    request = upstream_exchange(effort_proxy.capture_dir, call_id).request
+    sent = {
+        key: request[key] for key in ("thinking", "output_config") if key in request
+    }
+    assert sent == upstream
+
+
+def _adaptive_only_route(request: StubRequest) -> dict[str, Any] | SSE | Reply | None:
+    """The fake upstreams, with Claude rejecting extended thinking as 4.7+ do."""
+    body = request.body or {}
+    if (body.get("thinking") or {}).get("type") == "enabled":
+        return Reply(
+            400, _anthropic_error("invalid_request_error", ADAPTIVE_THINKING_REJECTION)
+        )
+    return route(request)
+
+
+CODENAME_BASE_MODEL = {"base_model": "anthropic/claude-opus-5-5"}
+
+
+@pytest.fixture(scope="module")
+def codename_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLMProxy]:
+    with fake_upstream(_adaptive_only_route) as upstream:
+
+        def params(model: str) -> dict[str, Any]:
+            return {"model": model, "api_base": upstream.docker_url, "api_key": "fake"}
+
+        # distinct upstream names: LiteLLM applies a deployment's model_info
+        # flags to every deployment of the same upstream model
+        config = {
+            "model_list": [
+                {
+                    "model_name": "metis",
+                    "litellm_params": params("anthropic/metis-v2"),
+                    "model_info": CODENAME_BASE_MODEL,
+                },
+                {
+                    "model_name": "metis-adaptive",
+                    "litellm_params": params("anthropic/metis-v3"),
+                    "model_info": CODENAME_BASE_MODEL
+                    | {"supports_reasoning": True, "supports_adaptive_thinking": True},
+                },
+                # model info from limits alone: LiteLLM refuses the effort
+                {
+                    "model_name": "metis-limits",
+                    "litellm_params": params("anthropic/metis-v4"),
+                    "model_info": {"max_input_tokens": 200000},
+                },
+                {
+                    "model_name": "bedrock-metis-limits",
+                    "litellm_params": {
+                        "model": "bedrock/converse/us.anthropic.metis-v5:0",
+                        "api_base": upstream.docker_url,
+                        "aws_access_key_id": "fake",
+                        "aws_secret_access_key": "fake",
+                        "aws_region_name": "us-east-1",
+                    },
+                    "model_info": {"max_input_tokens": 200000},
+                },
+            ],
+            "router_settings": {"num_retries": 0},
+        }
+        with run_litellm_proxy(
+            tmp_path_factory.mktemp("litellm-codename"), config, capture=True
+        ) as proxy:
+            yield proxy
+
+
+async def _generate_codename(
+    proxy: LiteLLMProxy, alias: str, stream: bool
+) -> tuple[ModelOutput | Exception, str]:
+    api = _proxy_api(
+        get_model(
+            f"litellm-proxy/{alias}",
+            base_url=proxy.base_url,
+            api_key=proxy.api_key,
+            max_retries=0,
+            memoize=False,
+            stream=stream,
+        )
+    )
+    call_id = str(uuid.uuid4())
+    result = await api.generate(
+        [ChatMessageUser(content="Hello")],
+        [],
+        "none",
+        GenerateConfig(
+            reasoning_effort="high", extra_headers={CALL_ID_HEADER: call_id}
+        ),
+    )
+    return (result[0] if isinstance(result, tuple) else result), call_id
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("stream", [False, True])
+async def test_litellm_proxy_codename_extended_thinking_rejected(
+    codename_proxy: LiteLLMProxy, stream: bool
+) -> None:
+    # LiteLLM sends extended thinking to a codename, even with base_model
+    output, _ = await _generate_codename(codename_proxy, "metis", stream)
+    assert isinstance(output, PrerequisiteError), output
+    assert "supports_adaptive_thinking: true" in str(output.message)
+    assert "add to the 'metis' deployment" in str(output.message)
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize(
+    "alias,base_model", [("metis-limits", False), ("bedrock-metis-limits", True)]
+)
+async def test_litellm_proxy_codename_effort_refused_names_fix(
+    codename_proxy: LiteLLMProxy,
+    monkeypatch: pytest.MonkeyPatch,
+    alias: str,
+    base_model: bool,
+) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    # the fake Bedrock upstream speaks Converse JSON only, not the eventstream
+    output, _ = await _generate_codename(codename_proxy, alias, stream=False)
+    assert isinstance(output, ModelOutput), output
+    [warning] = warnings
+    assert "does not accept reasoning_effort='high'; sending no reasoning_effort" in (
+        warning
+    )
+    assert "supports_adaptive_thinking: true" in warning
+    assert f"add to the '{alias}' deployment" in warning
+    assert ("base_model: anthropic/" in warning) == base_model
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("stream", [False, True])
+async def test_litellm_proxy_codename_adaptive_thinking_flag(
+    codename_proxy: LiteLLMProxy, stream: bool
+) -> None:
+    # the fix the error names
+    output, call_id = await _generate_codename(codename_proxy, "metis-adaptive", stream)
+    assert isinstance(output, ModelOutput), output
+    assert codename_proxy.capture_dir is not None
+    request = upstream_exchange(codename_proxy.capture_dir, call_id).request
+    assert request["thinking"] == SUMMARIZED
+    assert request["output_config"] == {"effort": "high"}
+
+
 # Claude request shaping, prompt caching and defaults ----------------------
 
 
@@ -2655,6 +2895,277 @@ def test_max_tokens_default_only_for_claude() -> None:
     assert _alias_provider("gpt-5").max_tokens_for_config(GenerateConfig()) is None
 
 
+@pytest.mark.parametrize(
+    "family,adaptive",
+    [
+        ("claude-opus-4-6", True),
+        ("claude-opus-4-7", True),
+        ("claude-sonnet-5", True),
+        ("claude-opus-5-5", True),
+        ("claude-fable-5-1", True),
+        ("claude-metis", True),
+        ("metis", True),
+        ("claude-sonnet-4-5", False),
+        ("claude-sonnet-4-5-20250929", False),
+        ("claude-haiku-4-5", False),
+        ("claude-opus-4-1", False),
+        ("claude-opus-4-0", False),
+        ("claude-sonnet-4", False),
+        ("claude-sonnet-4-20250514", False),
+        ("claude-sonnet-4@20250514", False),
+        ("claude-3-7-sonnet-20250219", False),
+        ("claude-3-5-haiku-20241022", False),
+        ("claude-3-opus-20240229", False),
+        ("claude-2.1", False),
+        ("claude-instant-1.2", False),
+        # dotted versions (e.g. OpenRouter) and version-first names
+        ("claude-3.5-sonnet", False),
+        ("claude-3.7-sonnet", False),
+        ("claude-sonnet-4.5", False),
+        ("claude-opus-4.1", False),
+        ("claude-4-sonnet", False),
+        ("claude-4-opus", False),
+        ("claude-4.5-sonnet", False),
+        ("claude-v2", False),
+        ("claude-sonnet-4-latest", False),
+        ("claude-sonnet-4.6", True),
+        ("claude-opus-4.7", True),
+        ("claude-opus-5.5", True),
+        ("claude-opus-4-6-20260101", True),
+    ],
+)
+def test_claude_thinks_adaptively(family: str, adaptive: bool) -> None:
+    assert claude_thinks_adaptively(family) == adaptive
+
+
+class _SentConfigs(NamedTuple):
+    configs: list[GenerateConfig]
+    """The config of each request the provider made."""
+
+
+@pytest.fixture
+def sent_configs(monkeypatch: pytest.MonkeyPatch) -> _SentConfigs:
+    """Record each request's config instead of sending it."""
+    sent = _SentConfigs(configs=[])
+
+    async def generate(
+        self: Any, input: Any, tools: Any, tool_choice: Any, config: GenerateConfig
+    ) -> ModelOutput:
+        sent.configs.append(config)
+        return ModelOutput.from_content("claude", "Hi")
+
+    monkeypatch.setattr(OpenAICompatibleAPI, "generate", generate)
+    return sent
+
+
+async def _sent_thinking(
+    api: LiteLLMProxyAPI, sent: _SentConfigs, config: GenerateConfig
+) -> Any:
+    await api.generate([ChatMessageUser(content="Hi")], [], "none", config)
+    return (sent.configs[-1].extra_body or {}).get("thinking")
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "alias,effort,thinking",
+    [
+        ("claude-opus-5-5", "high", SUMMARIZED),
+        ("claude-opus-4-6", "low", SUMMARIZED),
+        ("claude-metis", "max", SUMMARIZED),
+        # LiteLLM would replace the effort's thinking budget with its own
+        ("claude-sonnet-4-5", "high", None),
+        ("claude-3-7-sonnet", "high", None),
+        # adaptive thinking without an effort would change the model's behavior
+        ("claude-opus-5-5", None, None),
+        ("claude-opus-5-5", "none", None),
+        ("gpt-5.5", "high", None),
+        ("gemini-3-pro", "high", None),
+    ],
+)
+async def test_claude_thinking_display(
+    sent_configs: _SentConfigs, alias: str, effort: Any, thinking: Any
+) -> None:
+    config = GenerateConfig(reasoning_effort=effort)
+    assert await _sent_thinking(_alias_provider(alias), sent_configs, config) == (
+        thinking
+    )
+
+
+@skip_if_no_openai_package
+async def test_claude_thinking_display_omitted(sent_configs: _SentConfigs) -> None:
+    api = _alias_provider("claude-opus-5-5", thinking_display="omitted")
+    config = GenerateConfig(reasoning_effort="high")
+    assert await _sent_thinking(api, sent_configs, config) == {
+        "type": "adaptive",
+        "display": "omitted",
+    }
+
+
+@skip_if_no_openai_package
+def test_claude_thinking_display_must_be_valid() -> None:
+    with pytest.raises(ValueError, match="thinking_display"):
+        _alias_provider("claude-opus-5-5", thinking_display="full")
+
+
+@skip_if_no_openai_package
+async def test_claude_thinking_not_on_responses(sent_configs: _SentConfigs) -> None:
+    api = _alias_provider("claude-opus-5-5", responses_api=True)
+    config = GenerateConfig(reasoning_effort="high")
+    assert await _sent_thinking(api, sent_configs, config) is None
+
+
+@skip_if_no_openai_package
+async def test_claude_thinking_keeps_extra_body(sent_configs: _SentConfigs) -> None:
+    api = _alias_provider("claude-opus-5-5")
+    await _sent_thinking(
+        api,
+        sent_configs,
+        GenerateConfig(reasoning_effort="high", extra_body={"top_k": 5}),
+    )
+    assert sent_configs.configs[-1].extra_body == {"top_k": 5, "thinking": SUMMARIZED}
+    user_thinking = {"type": "adaptive", "display": "omitted"}
+    config = GenerateConfig(
+        reasoning_effort="high", extra_body={"thinking": user_thinking}
+    )
+    assert await _sent_thinking(api, sent_configs, config) == user_thinking
+
+
+@skip_if_no_openai_package
+def test_claude_thinking_in_request_body() -> None:
+    api = _alias_provider("claude-opus-5-5")
+    config = GenerateConfig(
+        reasoning_effort="high",
+        extra_body={"thinking": SUMMARIZED},
+    )
+    params = api.completion_params(config, tools=False)
+    assert params["reasoning_effort"] == "high"
+    assert params["extra_body"] == {"thinking": SUMMARIZED}
+
+
+@pytest.mark.parametrize(
+    "message,rejected",
+    [
+        (
+            "litellm.UnsupportedParamsError: anthropic does not support "
+            "parameters: ['thinking'], for model=metis.",
+            True,
+        ),
+        (
+            "litellm.BadRequestError: AnthropicException - "
+            '{"type":"error","error":{"type":"invalid_request_error","message":'
+            "\"thinking.adaptive.display: Input should be 'summarized', "
+            "'omitted'\"}}",
+            True,
+        ),
+        (
+            "litellm.BadRequestError: AnthropicException - "
+            '{"type":"error","error":{"type":"invalid_request_error","message":'
+            '"adaptive thinking is not supported on this model"}}',
+            True,
+        ),
+        # both words, but not about the thinking parameter
+        (
+            "messages.3.content.0: the display of a thinking block is invalid",
+            False,
+        ),
+        (
+            "litellm.UnsupportedParamsError: anthropic does not support "
+            "parameters: ['reasoning_effort'], for model=metis.",
+            False,
+        ),
+        ("prompt is too long: 250000 tokens > 200000 maximum", False),
+    ],
+)
+def test_rejected_thinking(message: str, rejected: bool) -> None:
+    assert rejected_thinking(message) == rejected
+
+
+@skip_if_no_openai_package
+def test_thinking_rejection_reaches_generate_unchanged() -> None:
+    # generate() retries on the BadRequestError that handle_bad_request returns
+    for message in (
+        "thinking.adaptive.display: Input should be 'summarized', 'omitted'",
+        "adaptive thinking is not supported on this model",
+        "litellm.UnsupportedParamsError: anthropic does not support "
+        "parameters: ['thinking'], for model=metis.",
+    ):
+        error = _bad_request(message)
+        assert _alias_provider("claude-opus-5-5").handle_bad_request(error) is error
+
+
+@skip_if_no_openai_package
+async def test_claude_thinking_rejected_is_dropped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    configs: list[GenerateConfig] = []
+
+    async def generate(
+        self: Any, input: Any, tools: Any, tool_choice: Any, config: GenerateConfig
+    ) -> ModelOutput | BadRequestError:
+        configs.append(config)
+        if "thinking" in (config.extra_body or {}):
+            return _bad_request(
+                "litellm.BadRequestError: AnthropicException - thinking.adaptive."
+                "display: Extra inputs are not permitted"
+            )
+        return ModelOutput.from_content("claude", "Hi")
+
+    monkeypatch.setattr(OpenAICompatibleAPI, "generate", generate)
+    api = _alias_provider("claude-opus-5-5")
+    for expected_attempts in (2, 3):
+        result = await api.generate(
+            [ChatMessageUser(content="Hi")],
+            [],
+            "none",
+            GenerateConfig(reasoning_effort="high"),
+        )
+        assert isinstance(result, ModelOutput)
+        assert len(configs) == expected_attempts
+    # the effort is still sent
+    assert configs[-1].reasoning_effort == "high"
+    assert warnings == [
+        "LiteLLM proxy model 'claude-opus-5-5' does not accept "
+        "thinking={'type': 'adaptive', 'display': 'summarized'}; sending no "
+        "thinking parameter, so its thinking may not be summarized."
+    ]
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "alias,hint",
+    [("claude-metis", True), ("claude-sonnet-4-5", False), ("gpt-5.5", False)],
+)
+async def test_effort_refused_hint_only_for_adaptive_claude(
+    monkeypatch: pytest.MonkeyPatch, alias: str, hint: bool
+) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+
+    async def generate(
+        self: Any, input: Any, tools: Any, tool_choice: Any, config: GenerateConfig
+    ) -> ModelOutput | BadRequestError:
+        if config.reasoning_effort is not None:
+            return _bad_request(
+                "litellm.UnsupportedParamsError: anthropic does not support "
+                f"parameters: ['reasoning_effort'], for model={alias}."
+            )
+        return ModelOutput.from_content(alias, "Hi")
+
+    monkeypatch.setattr(OpenAICompatibleAPI, "generate", generate)
+    await _alias_provider(alias).generate(
+        [ChatMessageUser(content="Hi")],
+        [],
+        "none",
+        GenerateConfig(reasoning_effort="high"),
+    )
+    [warning] = warnings
+    assert ("supports_adaptive_thinking: true" in warning) == hint
+
+
 @skip_if_no_openai_package
 def test_claude_keeps_full_tool_schemas() -> None:
     assert _alias_provider("claude-metis").schema_exclude_fields is None
@@ -2684,6 +3195,41 @@ def test_provider_bad_request_prefill() -> None:
     assert isinstance(error, PrefillNotSupportedError)
     assert "ends with an assistant message" in str(error)
     assert "This model does not support assistant message prefill." in str(error)
+
+
+ADAPTIVE_THINKING_REJECTION = (
+    '"thinking.type.enabled" is not supported for this model. Use '
+    '"thinking.type.adaptive" and "output_config.effort" to control thinking '
+    "behavior."
+)
+"""Anthropic's message for extended thinking sent to Claude 4.7+."""
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "message",
+    [
+        # as LiteLLM wraps it: the upstream body, JSON-escaped
+        "litellm.BadRequestError: AnthropicException - "
+        + json.dumps(
+            _anthropic_error("invalid_request_error", ADAPTIVE_THINKING_REJECTION)
+        )
+        + "\nmodel=metis",
+        ADAPTIVE_THINKING_REJECTION,
+    ],
+)
+def test_provider_bad_request_adaptive_thinking_required(message: str) -> None:
+    error = _alias_provider("metis").handle_bad_request(_bad_request(message))
+    assert isinstance(error, PrerequisiteError)
+    text = str(error.message)
+    assert "LiteLLM proxy model 'metis' takes only adaptive thinking" in text
+    assert "add to the 'metis' deployment" in text
+    assert (
+        "        supports_reasoning: true\n        supports_adaptive_thinking: true\n"
+        in text
+    )
+    assert "base_model does not change this" in text
+    assert f"Proxy error: {ADAPTIVE_THINKING_REJECTION}" in text
 
 
 def _search_provider(alias: str, **model_args: Any) -> LiteLLMProxyAPI:
@@ -2796,6 +3342,29 @@ def test_gate_suggests_frontier_base_model(
     with pytest.raises(PrerequisiteError) as ex:
         _stub_model(model_info_stub, "next")
     assert f"        base_model: {base_model}\n" in str(ex.value.message)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "upstream,adaptive",
+    [
+        ("anthropic/claude-metis-v1", True),
+        ("bedrock/converse/us.anthropic.claude-metis-v1:0", True),
+        ("openai/gpt-7-preview", False),
+    ],
+)
+def test_gate_suggests_adaptive_thinking_for_claude(
+    model_info_stub: ModelInfoStub, upstream: str, adaptive: bool
+) -> None:
+    _serve(model_info_stub, [_row("next", upstream)])
+    with pytest.raises(PrerequisiteError) as ex:
+        _stub_model(model_info_stub, "next")
+    message = str(ex.value.message)
+    assert (
+        "        supports_reasoning: true\n"
+        "        supports_adaptive_thinking: true\n" in message
+    ) == adaptive
+    assert ("base_model does not change this" in message) == adaptive
 
 
 @skip_if_no_openai_package

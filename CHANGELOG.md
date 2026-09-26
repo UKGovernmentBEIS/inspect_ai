@@ -2,6 +2,8 @@
 
 - LiteLLM Proxy: GPT-5 and later, o-series and Codex models served by OpenAI use the Responses API by default, streamed, carrying reasoning between turns (`-M responses_api=false` to opt out).
 - LiteLLM Proxy: Key and team aliases resolve to the model they route to, instead of failing for lack of model info.
+- LiteLLM Proxy: Claude 4.7 and later models with a reasoning effort record summarized thinking in the log, including through older LiteLLM versions, which returned none (`-M thinking_display=omitted` to opt out).
+- LiteLLM Proxy: Claude codename deployments that LiteLLM sends extended thinking fail with an error naming the proxy `model_info` flags that enable adaptive thinking.
 - LiteLLM Proxy: `web_search()` without a search provider usable through the proxy fails when the model is first called, with an error naming the fix.
 - Checkpointing: after a resume, restored events reach hooks, the live viewer, ACP clients and transcript readers with long text and images inline instead of as `attachment://` references; raw model API calls stay condensed until the sample completes.
 - Bugfix: `f1()` now counts repeated tokens (multiset overlap, matching SQuAD F1); scores can rise or fall for answers or targets containing repeated words.

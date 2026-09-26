@@ -53,6 +53,26 @@ def upstream_vendor(names: Iterable[str | None]) -> Vendor | None:
     return None
 
 
+# Claude models from before adaptive thinking (4.6), with dotted versions
+# written with dashes: instant, v1/v2, 2.x, 3.x, and 4.0 (`-4`, `-4-0`,
+# `-4-<date>`, `-4-latest`), 4.1 and 4.5, tier before or after the version
+_CLAUDE_BEFORE_ADAPTIVE = re.compile(
+    r"claude-(?:instant|v\d|[23](?:-|$)|4(?:-[015])?-[a-z]"
+    r"|[a-z]+-4(?:-[015](?!\d)|-[a-z]|[-@]20\d{6}|$))"
+)
+_DOTTED_VERSION = re.compile(r"(?<=\d)\.(?=\d)")
+
+
+def claude_thinks_adaptively(family: str) -> bool:
+    """Whether a Claude model family takes adaptive thinking (Claude 4.6+).
+
+    Names that are not a known earlier model (e.g. codenames) count as
+    later models, as in the native Anthropic provider.
+    """
+    name = _DOTTED_VERSION.sub("-", family.lower())
+    return _CLAUDE_BEFORE_ADAPTIVE.search(name) is None
+
+
 def _name_vendor(name: str) -> Vendor | None:
     provider = name.split("/", 1)[0] if "/" in name else None
     if provider in _VENDOR_PROVIDERS:

@@ -750,6 +750,25 @@ or `claude`, `gemini`, `grok`, or an OpenAI model name), and for Claude:
 - **Assistant prefill.** A 400 naming assistant prefill becomes a
   `PrefillNotSupportedError` saying the conversation must end with a user or
   tool message (not retried).
+- **Thinking display.** Claude 4.7+ defaults adaptive thinking to
+  `display: omitted`: empty thinking text with a signature, and no stream
+  data until the reply, so a long think can outlast the 600s request
+  timeout. LiteLLM 1.104 sends `display: summarized` for models its map marks
+  `supports_adaptive_thinking`; 1.96 does not. With a `reasoning_effort`
+  (not `none`), the provider sends `thinking: {type: adaptive, display:
+  summarized}` (`-M thinking_display=omitted`), which LiteLLM forwards as is
+  for adaptive models, so it has no effect on 1.104. It is sent only for
+  Claude 4.6+ by family (`claude_thinks_adaptively`; codenames count):
+  for a model LiteLLM does not treat as adaptive, 1.104 replaces the
+  effort's thinking budget with a fixed 2048. It is still sent for a codename
+  whose `base_model` is Claude 4.6+, since effort alone already gets the
+  legacy shape there (see "What `base_model` adds"); for a Claude 4.6
+  codename, which accepts that shape, 1.104 then sends a 2048 budget rather
+  than the effort's (the `model_info` flags fix both). A user
+  `extra_body["thinking"]` wins; a 400 naming `thinking` or its `display`
+  drops it with a warning. Verified against the 1.96.0 image: effort alone
+  sends bare `{type: adaptive}`, and the provider's dict arrives upstream
+  with `display: summarized`.
 
 For every model, chat completions stream by default (`-M stream=false` opts
 out); the Responses path does not, because of LiteLLM #43010, except to
@@ -758,11 +777,33 @@ OpenAI (see §9).
 What `base_model` adds: for a codename, LiteLLM rejects `thinking`, maps
 `reasoning_effort` to a small fixed thinking budget (4096 at `high`) when
 forced with `allowed_openai_params`, and for Bedrock rejects `tool_choice`,
-so every request with tools fails. With `base_model: anthropic/claude-opus-5-5`
-the deployment gets that model's capabilities, including adaptive thinking
-and `xhigh`/`max` effort. So the provider does not try
-`allowed_openai_params` (plan item 6, dropped); the gate points the operator
-at `base_model` instead.
+so every request with tools fails. `base_model` makes LiteLLM accept those
+parameters (it is passed to `get_supported_openai_params`), so the provider
+does not try `allowed_openai_params` (plan item 6, dropped).
+
+`base_model` does not give adaptive thinking. LiteLLM's Anthropic mapping
+(`map_openai_params`) checks the upstream model name alone: against its
+model map, and in 1.104 also against a `claude-adaptive-thinking` name rule
+(`claude-<family>-4.6+` or `claude-<family>-5+`). 1.96 has no such rule, so
+it rejects `reasoning_effort` for `anthropic/claude-metis-5`, which 1.104
+maps to adaptive thinking. A codename such as `anthropic/metis-v2` with
+`base_model: anthropic/claude-opus-5-5` gets `thinking: {type: enabled,
+budget_tokens: 4096}` for `reasoning_effort=high`, and Claude 4.7+ reject
+that (`"thinking.type.enabled" is not supported for this model`, verified
+against Opus 4.7, Sonnet 5 and Opus 5.5). Deployment `model_info` flags
+`supports_reasoning: true` and `supports_adaptive_thinking: true` fix it
+on 1.96 and 1.104 alike (Anthropic and Bedrock routes; Bedrock also needs
+`base_model`, and still rejects `max` for the codename, which the effort
+lowering handles). LiteLLM
+registers them under the upstream model name, so they apply to every
+deployment of that model. `/model/info` reports
+`supports_adaptive_thinking` from `base_model`, so it can't show the
+problem. The gate suggests the flags with `base_model` for Claude, and
+`handle_bad_request` turns the upstream rejection into a
+`PrerequisiteError` naming them. Without `base_model` (e.g. only
+`max_input_tokens`), LiteLLM refuses `reasoning_effort`; the provider drops
+it as for any model, and for Claude 4.6+ its warning names the flags (with
+`base_model` on Bedrock, which needs both).
 
 Verified in 1.104: with a Postgres-backed proxy, `/model/info` called with a
 virtual key returns `litellm_params.model` and `base_model` for the models

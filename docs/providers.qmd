@@ -1716,9 +1716,13 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
     model_info:
       base_model: anthropic/claude-opus-5-5
+      supports_reasoning: true
+      supports_adaptive_thinking: true
 ```
 
-`base_model` also tells LiteLLM the model's capabilities. Without it, LiteLLM treats an unknown model as supporting no reasoning effort, adaptive thinking or (for Bedrock) tool choice. For Anthropic, OpenAI, Google and xAI models the error message suggests that vendor's current frontier model.
+`base_model` also lets LiteLLM accept parameters it would otherwise reject for an unknown model, such as reasoning effort and (for Bedrock) tool choice. For Anthropic, OpenAI, Google and xAI models the error message suggests that vendor's current frontier model.
+
+For a Claude 4.6 or later model under a name LiteLLM doesn't know (such as a codename), also set `supports_reasoning` and `supports_adaptive_thinking` as above. LiteLLM uses adaptive thinking only for Claude models it recognizes by their upstream name, and `base_model` does not change this. Without the flags, LiteLLM either sends extended thinking with a reasoning effort, which Claude 4.7 and later reject (Inspect then fails with an error naming this fix), or, without `base_model`, refuses the reasoning effort (Inspect then sends none and warns with this fix).
 
 Alternatively, set `max_input_tokens` (and `max_output_tokens`) in the deployment's `model_info`, register the model's info with `set_model_info("litellm-proxy/<name>", ModelInfo(...))`, or pass `-M require_model_info=false` to use the model without model info. The last two are the only fixes for an alias from the proxy's `model_alias_map` setting, which the proxy doesn't show to clients.
 
@@ -1731,6 +1735,7 @@ When the upstream model is a Claude model (recognized by its name, including mod
 -   `max_tokens` defaults to 32,000 plus an increment for the reasoning effort, rather than LiteLLM's 4,096.
 -   [Prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled with cache breakpoints on the system prompt, the last tool definition and the last two messages. Pass `--cache-prompt=false` to disable. Cache writes are costed at the TTL the proxy reports for them (a proxy can apply a 1 hour TTL).
 -   Tool schemas keep their full JSON Schema (e.g. `pattern` and `minLength`).
+-   With a `reasoning_effort`, Claude 4.6 and later models return summarized thinking, which is recorded in the log and streamed during long thinking phases. Earlier LiteLLM versions otherwise return no thinking text for Claude 4.7 and later. Pass `-M thinking_display=omitted` to receive no thinking text.
 
 A model that does not accept a conversation ending with an assistant message (assistant prefill) fails with an error saying so rather than being retried.
 
@@ -1756,6 +1761,7 @@ The `web_search()` tool uses OpenAI's built-in search (its `openai` provider) fo
 | `model_info` | Read the proxy's `/model/info` listing (default: `true`). With `false`, Inspect does not look up the upstream model and requests are shaped by the proxy model name alone. |
 | `stream` | Stream requests (default: `true`, except Responses API requests for models not served by OpenAI). |
 | `responses_api` | Use the Responses API (default: `true` for GPT-5 and later, o-series and Codex models served by OpenAI, `false` otherwise). |
+| `thinking_display` | Thinking text Claude 4.6 and later models return when a `reasoning_effort` is set: `summarized` (default) or `omitted`. |
 
 : {tbl-colwidths=\[25,75\]}
 
