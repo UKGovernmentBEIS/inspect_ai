@@ -28,6 +28,9 @@ class ContentText(ContentBase):
     citations: Sequence[Citation] | None = Field(default=None)
     """Citations supporting the text block."""
 
+    cache_breakpoint: bool | None = Field(default=None)
+    """Place an explicit prompt-cache boundary after this block, replacing the provider's automatic breakpoints for the whole request. Unsupported placements (e.g. tool results, mid-conversation system messages, empty blocks) or models fall back to normal automatic caching. Anthropic Claude API and OpenAI `gpt-5.6`+ only."""
+
 
 class ContentReasoning(ContentBase):
     """Reasoning content.

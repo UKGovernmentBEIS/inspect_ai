@@ -2879,6 +2879,50 @@ a._citationLink_1gzkd_9:hover {
   color: var(--bs-secondary-color);
   font-variant-numeric: tabular-nums;
 }
+._gate_fvpnz_1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  padding: 1rem;
+}
+
+._card_fvpnz_10 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 32rem;
+  color: var(--vscode-foreground);
+}
+
+._title_fvpnz_18 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+._body_fvpnz_25 {
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+}
+
+._location_fvpnz_30 {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  background: var(--vscode-textCodeBlock-background);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+._actions_fvpnz_40 {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
 /*!
  * Bootstrap Icons v1.13.1 (https://icons.getbootstrap.com/)
  * Copyright 2019-2024 The Bootstrap Authors
@@ -18078,21 +18122,6 @@ body:not([class^="vscode-"]) button {
   --bs-nav-pills-link-active-bg: #e3eaf1;
   --bs-nav-pills-link-active-color: black;
   --bs-nav-link-color: black;
-}
-
-/* AG Grid Theming */
-body {
-  --ag-background-color: var(--bs-body-bg);
-  --ag-foreground-color: var(--bs-body-color);
-  --ag-header-background-color: var(--bs-light-bg-subtle);
-  --ag-header-font-size: var(--inspect-font-size-small);
-  --ag-header-font-weight: 500;
-  --ag-header-text-color: var(--bs-secondary);
-  --ag-font-family: var(--bs-body-font-family);
-  --ag-wrapper-border: none;
-  --ag-row-hover-color: var(--bs-secondary-bg-subtle);
-  --ag-selected-row-background-color: var(--bs-secondary-bg-subtle);
-  --ag-border-radius: var(--bs-border-radius);
 }
 
 #app {

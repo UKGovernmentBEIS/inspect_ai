@@ -1,3 +1,8 @@
+## Unreleased
+
+- Anthropic: Prompts can mark a stable prefix for caching while allowing the remaining text to change.
+- OpenAI: GPT-5.6 and later support explicit prompt-cache boundaries; other models retain automatic caching.
+
 ## 0.3.270 (25 September 2026)
 
 - `eval_set`: a task whose dataset GREW since its last run (a strict superset, with stable sample ids) is now topped up in place — the prior samples are reused and only the newly added samples run — instead of re-running the whole dataset. A shrunk dataset, or growth without stable ids, still triggers a full re-run.

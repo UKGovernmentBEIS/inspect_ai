@@ -151,7 +151,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
     cache_prompt: Literal["auto"] | bool | None
-    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic and Bedrock Converse (Claude and Nova) only."""
+    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable: on Anthropic and Bedrock Converse (Claude and Nova) this turns off the provider's own automatic caching; on OpenAI it only turns off explicit `cache_breakpoint` marks — the model's own implicit caching still applies regardless. Use `ContentText(cache_breakpoint=True)` to mark an explicit cache boundary (e.g. a fixed rubric ahead of a varying item) instead of relying on automatic caching; Anthropic and OpenAI `gpt-5.6`+ only."""
 
     fallback_models: list[str] | None
     """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""
@@ -284,7 +284,7 @@ class GenerateConfig(BaseModel):
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
-    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic and Bedrock Converse (Claude and Nova) only."""
+    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable: on Anthropic and Bedrock Converse (Claude and Nova) this turns off the provider's own automatic caching; on OpenAI it only turns off explicit `cache_breakpoint` marks — the model's own implicit caching still applies regardless. Use `ContentText(cache_breakpoint=True)` to mark an explicit cache boundary (e.g. a fixed rubric ahead of a varying item) instead of relying on automatic caching; Anthropic and OpenAI `gpt-5.6`+ only."""
 
     fallback_models: list[str] | None = Field(default=None)
     """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""

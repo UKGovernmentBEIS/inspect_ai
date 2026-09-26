@@ -217,6 +217,8 @@ class OpenAICompatibleAPI(ModelAPI):
         tools, tool_choice, config = self.resolve_tools(tools, tool_choice, config)
 
         if self.responses_api:
+            # supports_explicit_prompt_cache intentionally left False: other
+            # OpenAI-compatible providers' support for these fields is unverified.
             return await generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,

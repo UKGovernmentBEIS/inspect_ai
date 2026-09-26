@@ -52,13 +52,17 @@ from .._model_call import ModelCall, as_error_response
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
+    apply_initial_system_checkpoint,
+    count_cache_breakpoints,
     openai_handle_bad_request,
     openai_handle_stream_error,
     openai_media_filter,
+    resolve_explicit_prompt_cache,
 )
 from .._openai_responses import (
     RESPONSES_VERBATIM,
     ResponsesModelInfo,
+    message_bypasses_content_conversion,
     model_usage_from_response_usage,
     openai_responses_chat_choices,
     openai_responses_inputs,
@@ -122,6 +126,7 @@ async def generate_responses(
     | None = None,
     model_family: str | None = None,
     streaming: bool = False,
+    supports_explicit_prompt_cache: bool = False,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
@@ -157,12 +162,34 @@ async def generate_responses(
         else NOT_GIVEN
     )
 
+    # explicit cache breakpoints (ContentText.cache_breakpoint): any
+    # ineligible condition falls back to normal implicit caching for the
+    # whole request. Also reject a mark on a message replayed natively
+    # (compaction/agent_message) — resolve_explicit_prompt_cache only sees
+    # roles, not this bypass. supports_explicit_prompt_cache gates callers
+    # other than the direct OpenAI provider (e.g. OpenRouter), whose
+    # endpoints' support for these fields is unverified.
+    explicit_cache = (
+        supports_explicit_prompt_cache
+        and resolve_explicit_prompt_cache(input, model_name, config.cache_prompt)
+        and not any(
+            message_bypasses_content_conversion(m) and count_cache_breakpoints([m]) > 0
+            for m in input
+        )
+    )
+    if explicit_cache:
+        # retain a checkpoint at the end of the initial system/developer
+        # block (cumulatively covering preceding tools) when the caller left
+        # it unmarked — see `apply_initial_system_checkpoint`.
+        input = apply_initial_system_checkpoint(input)
+
     request = dict(
         input=await openai_responses_inputs(
             input,
             model_info,
             synthesize_phase=synthesize_phase,
             swap_todo_write=swap_todo_write,
+            cache_breakpoints=explicit_cache,
         ),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
@@ -191,6 +218,8 @@ async def generate_responses(
     )
     if isinstance(background, bool):
         request["background"] = background
+    if explicit_cache:
+        request["prompt_cache_options"] = {"mode": "explicit"}
 
     # stream goes into the request pre-snapshot so the logged ModelCall
     # matches the wire request (batched and background requests can't stream)

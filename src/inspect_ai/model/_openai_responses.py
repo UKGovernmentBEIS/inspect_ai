@@ -194,6 +194,7 @@ from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._json import json_schema_dump
 
+from ._openai import _cache_breakpoint
 from ._providers._openai_computer_use import (
     computer_call_output,
     maybe_computer_use_tool,
@@ -315,17 +316,33 @@ def _extract_agent_message_from_internal(
     return None
 
 
+def message_bypasses_content_conversion(message: ChatMessage) -> bool:
+    """Whether `message` takes a native-replay path in the Responses API.
+
+    A compaction marker or stashed Codex `agent_message` is replayed
+    verbatim instead of being converted through
+    `_openai_responses_content_list_param` — the function that emits
+    `prompt_cache_breakpoint` — so a mark on such a message can never be
+    honored, regardless of its (eligible) role.
+    """
+    return message.role == "user" and (
+        _extract_compaction_from_content_data(message.content) is not None
+        or _extract_agent_message_from_internal(message.content) is not None
+    )
+
+
 async def openai_responses_inputs(
     messages: list[ChatMessage],
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
     swap_todo_write: bool = False,
+    cache_breakpoints: bool = False,
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
         for item in await _openai_input_item_from_chat_message(
-            message, model_info, synthesize_phase, swap_todo_write
+            message, model_info, synthesize_phase, swap_todo_write, cache_breakpoints
         )
     ]
 
@@ -335,9 +352,12 @@ async def _openai_input_item_from_chat_message(
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
     swap_todo_write: bool = False,
+    cache_breakpoints: bool = False,
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
-        content = await _openai_responses_content_list_param(message.content)
+        content = await _openai_responses_content_list_param(
+            message.content, cache_breakpoints
+        )
         return [Message(type="message", role="developer", content=content)]
     elif message.role == "user":
         # Check if this is a compaction marker message
@@ -356,7 +376,9 @@ async def _openai_input_item_from_chat_message(
             Message(
                 type="message",
                 role="user",
-                content=await _openai_responses_content_list_param(message.content),
+                content=await _openai_responses_content_list_param(
+                    message.content, cache_breakpoints
+                ),
             )
         ]
     elif message.role == "assistant":
@@ -505,18 +527,23 @@ async def _openai_responses_custom_tool_call_output(
 
 async def _openai_responses_content_list_param(
     content: str | list[Content],
+    cache_breakpoints: bool = False,
 ) -> ResponseInputMessageContentListParam:
     return [
-        await _openai_responses_content_param(c)
+        await _openai_responses_content_param(c, cache_breakpoints)
         for c in ([ContentText(text=content)] if isinstance(content, str) else content)
     ]
 
 
 async def _openai_responses_content_param(
     content: Content,
+    cache_breakpoints: bool = False,
 ) -> ResponseInputContentParam:  # type: ignore[return]
     if isinstance(content, ContentText):
-        return ResponseInputTextParam(type="input_text", text=content.text)
+        part = ResponseInputTextParam(type="input_text", text=content.text)
+        if cache_breakpoints and _cache_breakpoint(content):
+            part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+        return part
     elif isinstance(content, ContentImage):
         return ResponseInputImageParam(
             type="input_image",

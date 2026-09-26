@@ -1014,6 +1014,9 @@ async def test_anthropic_cache_marks_penultimate_block() -> None:
     api.service_model_name.return_value = "claude-sonnet-4-6"
     api.partition_tools.return_value = ([], [])
     api.resolve_chat_input = types.MethodType(AnthropicAPI.resolve_chat_input, api)
+    api._resolve_chat_input_explicit = types.MethodType(
+        AnthropicAPI._resolve_chat_input_explicit, api
+    )
 
     def marked(content: Any) -> list[int]:
         assert isinstance(content, list)

@@ -675,3 +675,100 @@ def test_openrouter_session_id_omitted_without_active_sample(
     api = _make_api("anthropic/claude-sonnet-4-5")
 
     assert api.request_headers(GenerateConfig()) == {}
+
+
+@pytest.mark.anyio
+async def test_openrouter_responses_api_does_not_send_explicit_cache_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Assert no explicit-cache fields leak through OpenRouter's shared Responses path.
+
+    OpenRouter (and other OpenAI-compatible providers) must not send
+    OpenAI's `prompt_cache_options`/`prompt_cache_breakpoint` fields even
+    when routed through generate_responses with responses_api=True and a
+    model name matching OpenAI's gpt-5.6+ naming pattern.
+
+    generate_responses is shared with the direct OpenAI provider; only that
+    provider has verified support for these fields (live-tested against
+    the real API). OpenRouter's actual acceptance of them is unverified,
+    so ContentText.cache_breakpoint marks must stay unsupported here and
+    fall back to whatever implicit caching the model/provider already does
+    — see the `supports_explicit_prompt_cache` gate in
+    `_providers/openai_responses.py::generate_responses`.
+    """
+    from unittest.mock import AsyncMock
+
+    from openai.types.responses import (
+        Response,
+        ResponseOutputMessage,
+        ResponseOutputText,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai._util.content import ContentText
+    from inspect_ai.model._chat_message import ChatMessageUser
+
+    mock_response = Response.model_construct(
+        id="resp-test",
+        created_at=0,
+        model="gpt-5.6",
+        object="response",
+        output=[
+            ResponseOutputMessage.model_construct(
+                id="msg-1",
+                type="message",
+                role="assistant",
+                status="completed",
+                content=[
+                    ResponseOutputText.model_construct(
+                        type="output_text", text="ok", annotations=[]
+                    )
+                ],
+            )
+        ],
+        parallel_tool_calls=True,
+        tool_choice="auto",
+        tools=[],
+        usage=ResponseUsage.model_construct(
+            input_tokens=10,
+            output_tokens=5,
+            total_tokens=15,
+            input_tokens_details=InputTokensDetails.model_construct(cached_tokens=0),
+            output_tokens_details=OutputTokensDetails.model_construct(
+                reasoning_tokens=0
+            ),
+        ),
+        error=None,
+    )
+
+    # a model name that matches OpenAI's gpt-5.6+ pattern, routed through
+    # the Responses API — exactly the scenario the gate must cover
+    api = _make_api("openai/gpt-5.6", responses_api=True)
+    mock_create = AsyncMock(return_value=mock_response)
+    monkeypatch.setattr(api.client.responses, "create", mock_create)
+
+    await api.generate(
+        input=[
+            ChatMessageUser(
+                content=[
+                    ContentText(text="rubric", cache_breakpoint=True),
+                    ContentText(text="item"),
+                ]
+            )
+        ],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+    )
+
+    request = dict(mock_create.call_args.kwargs)
+    assert "prompt_cache_options" not in request
+    for item in request["input"]:
+        content = item.get("content")
+        if isinstance(content, list):
+            for block in content:
+                assert "prompt_cache_breakpoint" not in block
