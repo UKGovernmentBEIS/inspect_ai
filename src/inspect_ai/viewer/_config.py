@@ -271,8 +271,18 @@ class ViewerConfig(BaseModel):
     """Top-level viewer configuration.
 
     This allows per task customization of the
-    Task's sample list and each sample's score and scanner result display.
+    Task's sample list, each sample's score and scanner result display,
+    and whether log content is trusted enough to render richly.
     """
+
+    trust_content: bool | None = None
+    """Whether the viewer may render log content (model and tool output,
+    scores, metadata) richly: markdown, math, syntax highlighting, ANSI colors,
+    images/audio/video, and clickable links. Set to `False` when the content
+    can't be trusted (e.g. output from models without safeguards) to have the
+    viewer show it all as plain text, with media withheld and invisible or
+    bidirectional-override characters made visible. `None` (the default) is
+    treated as trusted."""
 
     scanner_result_view: ScannerResultView | dict[str, ScannerResultView] = Field(
         default_factory=dict

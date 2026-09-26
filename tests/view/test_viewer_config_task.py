@@ -1,6 +1,9 @@
 """Round-trip `Task.viewer` through `EvalSpec.viewer` via the eval log."""
 
+from pathlib import Path
+
 from inspect_ai import Task, eval
+from inspect_ai.log import read_eval_log
 from inspect_ai.viewer import (
     MetadataField,
     ScannerResultField,
@@ -81,3 +84,12 @@ def test_samples_view_list_form_roundtrips() -> None:
     assert log.eval.viewer == cfg
     assert isinstance(log.eval.viewer.task_samples_view, list)
     assert len(log.eval.viewer.task_samples_view) == 2
+
+
+def test_trust_content_false_is_recorded_in_eval_log_file(tmp_path: Path) -> None:
+    """`trust_content=False` survives the write to and read from the `.eval` file."""
+    cfg = ViewerConfig(trust_content=False)
+    log = eval(Task(viewer=cfg), model="mockllm/model", log_dir=str(tmp_path))[0]
+    persisted = read_eval_log(log.location, header_only=True)
+    assert persisted.eval.viewer is not None
+    assert persisted.eval.viewer.trust_content is False
