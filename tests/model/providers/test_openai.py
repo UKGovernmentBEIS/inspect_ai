@@ -16,7 +16,12 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
-from inspect_ai.model._internal import parse_content_with_internal
+from inspect_ai.model._internal import (
+    CONTENT_INTERNAL_TAG,
+    content_internal_tag,
+    parse_content_with_internal,
+    parse_content_with_internal_blocks,
+)
 from inspect_ai.model._openai import openai_completion_params
 from inspect_ai.tool import tool
 
@@ -241,6 +246,72 @@ def test_parse_content_with_internal_valid(s, exp_content, exp_internal):
     content, internal = parse_content_with_internal(s, "internal")
     assert content == exp_content
     assert internal == exp_internal
+
+
+def test_parse_content_with_internal_blocks_preserves_every_payload() -> None:
+    content = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+            content_internal_tag({"b": 2}),
+            "trailing text",
+        ]
+    )
+
+    blocks = parse_content_with_internal_blocks(content, CONTENT_INTERNAL_TAG)
+
+    assert [(block.text, block.internal) for block in blocks] == [
+        ("first", {"a": 1}),
+        ("second", {"b": 2}),
+        ("trailing text", None),
+    ]
+    with pytest.raises(ValueError, match="multiple.*content-internal"):
+        parse_content_with_internal(content, CONTENT_INTERNAL_TAG)
+
+
+def test_parse_content_with_internal_blocks_preserves_plain_trailing_block() -> None:
+    content = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+        ]
+    )
+
+    blocks = parse_content_with_internal_blocks(content, CONTENT_INTERNAL_TAG)
+
+    assert [(block.text, block.internal) for block in blocks] == [
+        ("first", {"a": 1}),
+        ("second", None),
+    ]
+    assert parse_content_with_internal(content, CONTENT_INTERNAL_TAG) == (
+        "first\n\nsecond",
+        {"a": 1},
+    )
+
+
+def test_parse_content_with_internal_blocks_preserves_payload_without_text() -> None:
+    blocks = parse_content_with_internal_blocks(
+        content_internal_tag({"a": 1}), CONTENT_INTERNAL_TAG
+    )
+
+    assert blocks == [("", {"a": 1})]
+
+
+def test_parse_content_with_internal_blocks_rejects_invalid_later_payload() -> None:
+    invalid_json = base64.b64encode(b"invalid json").decode("utf-8")
+    content = "\n".join(
+        [
+            "first",
+            content_internal_tag({"valid": True}),
+            "second",
+            f"<{CONTENT_INTERNAL_TAG}>{invalid_json}</{CONTENT_INTERNAL_TAG}>",
+        ]
+    )
+
+    with pytest.raises(json.JSONDecodeError):
+        parse_content_with_internal_blocks(content, CONTENT_INTERNAL_TAG)
 
 
 invalid_utf8_bytes = b"\xff\xfe\xfd"
