@@ -27,6 +27,7 @@ from test_helpers.litellm_proxy.proxy import (
     isolate_model_info,
     run_litellm_proxy,
     skip_if_no_litellm_proxy,
+    skip_if_no_litellm_proxy_database,
     upstream_exchange,
 )
 from test_helpers.litellm_proxy.stubs import (
@@ -55,6 +56,7 @@ from inspect_ai.model import (
     get_model,
     set_model_info,
 )
+from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_info import (
     MODEL_INFO_LOOKUP_API_KEY,
@@ -64,6 +66,7 @@ from inspect_ai.model._model_info import (
     set_model_cost,
 )
 from inspect_ai.model._openai import OpenAIResponseError
+from inspect_ai.model._openai_responses import openai_responses_tools
 from inspect_ai.model._providers import (
     _litellm_proxy_model_info,
     _litellm_proxy_names,
@@ -104,7 +107,16 @@ from inspect_ai.model._providers.litellm_proxy import (
     merged_model_info,
 )
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
-from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams
+from inspect_ai.tool import (
+    Tool,
+    ToolCall,
+    ToolInfo,
+    ToolParam,
+    ToolParams,
+    code_execution,
+    computer,
+    web_search,
+)
 
 MOCK_MODEL = "mock-model"
 MOCK_RESPONSE = "Hello from the mock proxy"
@@ -171,7 +183,10 @@ async def test_litellm_proxy_generate(litellm_proxy: LiteLLMProxy) -> None:
 async def test_litellm_proxy_generate_responses_api(
     litellm_proxy: LiteLLMProxy,
 ) -> None:
-    output = await _proxy_model(litellm_proxy, responses_api=True).generate("Hello")
+    # LiteLLM's mock_response can't stream Responses, which is the default for
+    # an OpenAI route (streaming is covered against fake upstreams)
+    model = _proxy_model(litellm_proxy, responses_api=True, stream=False)
+    output = await model.generate("Hello")
     assert output.completion == MOCK_RESPONSE
 
 
@@ -311,6 +326,13 @@ STUB_ROWS = [
 ]
 
 
+KEY_NOT_FOUND = (
+    404,
+    {"error": {"message": "Key not found in database", "type": "not_found_error"}},
+)
+"""LiteLLM's /key/info answer for the master key (no key record)."""
+
+
 @dataclass
 class ModelInfoStub:
     url: str
@@ -319,6 +341,13 @@ class ModelInfoStub:
     requests: list[dict[str, str]] = field(default_factory=list)
     release: threading.Event = field(default_factory=threading.Event)
     hang: bool = False
+    key_info: tuple[int, Any] = KEY_NOT_FOUND
+    """Status and body for /key/info."""
+    team_info: tuple[int, Any] = KEY_NOT_FOUND
+    """Status and body for /team/info."""
+
+    def model_info_requests(self) -> list[dict[str, str]]:
+        return [r for r in self.requests if r["path"].endswith("/model/info")]
 
 
 @pytest.fixture
@@ -332,11 +361,15 @@ def model_info_stub(clear_model_info_cache: None) -> Iterator[ModelInfoStub]:
             if stub.hang:
                 stub.release.wait()
                 return
-            self.send_response(stub.status)
+            status, body = stub.status, stub.body
+            if "/key/info" in self.path or "/team/info" in self.path:
+                reply = stub.key_info if "/key/info" in self.path else stub.team_info
+                status, body = reply[0], json.dumps(reply[1]).encode()
+            self.send_response(status)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(stub.body)))
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(stub.body)
+            self.wfile.write(body)
 
         def log_message(self, format: str, *args: Any) -> None:
             pass
@@ -385,7 +418,7 @@ def test_model_info_deployments_for_alias(model_info_stub: ModelInfoStub) -> Non
             },
         ),
     ]
-    [request] = model_info_stub.requests
+    [request] = model_info_stub.model_info_requests()
     assert request["path"] == "/v1/model/info"
     assert request["Authorization"] == "Bearer sk-stub"
     assert request["x-gateway-token"] == "gateway"
@@ -405,9 +438,9 @@ def test_model_info_cached_per_base_url_and_key(
 ) -> None:
     _stub_provider(model_info_stub)
     _stub_provider(model_info_stub, alias="other")
-    assert len(model_info_stub.requests) == 1
+    assert len(model_info_stub.model_info_requests()) == 1
     _stub_provider(model_info_stub, api_key="sk-other")
-    assert len(model_info_stub.requests) == 2
+    assert len(model_info_stub.model_info_requests()) == 2
 
 
 @skip_if_no_openai_package
@@ -416,6 +449,532 @@ def test_model_info_fetch_skipped(model_info_stub: ModelInfoStub) -> None:
     placeholder = _stub_provider(model_info_stub, api_key=MODEL_INFO_LOOKUP_API_KEY)
     assert placeholder._deployments is None
     assert model_info_stub.requests == []
+
+
+# Key and team aliases ---------------------------------------------------------
+
+ALIAS_ROWS = [
+    {
+        "model_name": "target-a",
+        "litellm_params": {"model": "anthropic/claude-sonnet-4-5"},
+        "model_info": {"max_input_tokens": 200000},
+    },
+    {
+        "model_name": "target-b",
+        "litellm_params": {"model": "openai/gpt-5"},
+        "model_info": {"max_input_tokens": 272000},
+    },
+    {
+        "model_name": "shadow",
+        "litellm_params": {"model": "openai/gpt-5-mini"},
+        "model_info": {"max_input_tokens": 272000},
+    },
+]
+
+
+def _key_info(aliases: dict[str, str], team_id: str | None = None) -> Any:
+    return (200, {"key": "hash", "info": {"aliases": aliases, "team_id": team_id}})
+
+
+def _team_info(aliases: dict[str, str]) -> Any:
+    return (
+        200,
+        {
+            "team_id": "t1",
+            "team_info": {
+                "model_aliases": None,
+                "litellm_model_table": {"model_aliases": aliases},
+            },
+        },
+    )
+
+
+def _key_alias_provider(
+    stub: ModelInfoStub, alias: str, **model_args: Any
+) -> LiteLLMProxyAPI:
+    stub.body = json.dumps({"data": ALIAS_ROWS}).encode()
+    return _stub_provider(stub, alias=alias, memoize=False, **model_args)
+
+
+@skip_if_no_openai_package
+def test_key_alias_resolves(model_info_stub: ModelInfoStub) -> None:
+    model_info_stub.key_info = _key_info({"my-alias": "target-a"})
+    provider = _key_alias_provider(model_info_stub, "my-alias")
+    assert provider._alias_target == "target-a"
+    assert [d.model_name for d in provider._deployments or []] == ["target-a"]
+    assert provider.canonical_name() == "anthropic/claude-sonnet-4-5"
+    info = _get_model_info_direct("litellm-proxy/my-alias")
+    assert info is not None and info.context_length == 200000
+    # served at the proxy root, not under /v1
+    paths = [r["path"] for r in model_info_stub.requests]
+    assert paths == ["/v1/model/info", "/key/info"]
+    assert model_info_stub.requests[1]["Authorization"] == "Bearer sk-stub"
+
+
+@skip_if_no_openai_package
+def test_team_alias_resolves(model_info_stub: ModelInfoStub) -> None:
+    model_info_stub.key_info = _key_info({}, team_id="t1")
+    model_info_stub.team_info = _team_info({"team-alias": "target-a"})
+    provider = _key_alias_provider(model_info_stub, "team-alias")
+    assert provider._alias_target == "target-a"
+    assert model_info_stub.requests[-1]["path"] == "/team/info?team_id=t1"
+
+
+@skip_if_no_openai_package
+def test_team_alias_wins_over_key_alias(model_info_stub: ModelInfoStub) -> None:
+    model_info_stub.key_info = _key_info({"both": "target-a"}, team_id="t1")
+    model_info_stub.team_info = _team_info({"both": "target-b"})
+    assert _key_alias_provider(model_info_stub, "both")._alias_target == "target-b"
+
+
+@skip_if_no_openai_package
+def test_key_alias_shadows_listed_model(model_info_stub: ModelInfoStub) -> None:
+    # LiteLLM routes a key alias before looking at model names
+    model_info_stub.key_info = _key_info({"shadow": "target-a"})
+    provider = _key_alias_provider(model_info_stub, "shadow")
+    assert provider.canonical_name() == "anthropic/claude-sonnet-4-5"
+
+
+@skip_if_no_openai_package
+def test_alias_chain_and_cycle(model_info_stub: ModelInfoStub) -> None:
+    model_info_stub.key_info = _key_info(
+        {"k1": "k2", "k2": "target-a", "c1": "c2", "c2": "c1"}
+    )
+    assert _key_alias_provider(model_info_stub, "k1")._alias_target == "target-a"
+    cycle = _key_alias_provider(model_info_stub, "c1", require_model_info=False)
+    assert cycle._alias_target == "c2"
+    assert cycle._deployments == []
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "key_aliases,team_aliases,alias,target",
+    [
+        # LiteLLM applies a team alias once, without following team chains
+        ({}, {"t1": "target-b", "target-b": "target-a"}, "t1", "target-b"),
+        # a key alias's target is not looked up in the team aliases
+        ({"a": "target-b"}, {"target-b": "target-a"}, "a", "target-b"),
+        # key aliases apply to the team alias's target
+        ({"target-b": "target-a"}, {"t1": "target-b"}, "t1", "target-a"),
+    ],
+)
+def test_alias_order_matches_litellm(
+    model_info_stub: ModelInfoStub,
+    key_aliases: dict[str, str],
+    team_aliases: dict[str, str],
+    alias: str,
+    target: str,
+) -> None:
+    model_info_stub.key_info = _key_info(key_aliases, team_id="t1")
+    model_info_stub.team_info = _team_info(team_aliases)
+    assert _key_alias_provider(model_info_stub, alias)._routed_name() == target
+
+
+@skip_if_no_openai_package
+def test_alias_default_follows_target_route(model_info_stub: ModelInfoStub) -> None:
+    model_info_stub.key_info = _key_info({"fast": "target-b"})
+    assert _key_alias_provider(model_info_stub, "fast").responses_api is True
+
+
+@skip_if_no_openai_package
+def test_alias_lookups_cached(model_info_stub: ModelInfoStub) -> None:
+    model_info_stub.key_info = _key_info({"my-alias": "target-a"})
+    _key_alias_provider(model_info_stub, "my-alias")
+    _key_alias_provider(model_info_stub, "target-a")
+    paths = [r["path"] for r in model_info_stub.requests]
+    assert paths.count("/key/info") == 1
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "key_info",
+    [
+        KEY_NOT_FOUND,
+        # a proxy without a database, for the master key and for other keys
+        (
+            500,
+            {
+                "error": {
+                    "message": "Database not connected. Connect a database to "
+                    "your proxy",
+                    "type": "internal_server_error",
+                }
+            },
+        ),
+        (400, {"error": {"message": "No connected db.", "type": "no_db_connection"}}),
+    ],
+)
+def test_no_aliases_is_not_an_error(
+    model_info_stub: ModelInfoStub, key_info: Any
+) -> None:
+    model_info_stub.key_info = key_info
+    with pytest.raises(PrerequisiteError) as ex:
+        _key_alias_provider(model_info_stub, "unlisted")
+    assert "not an alias of the API key or its team" in str(ex.value)
+    assert "could not be read" not in str(ex.value)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "key_info,team_info,cause",
+    [
+        (
+            _key_info({}, team_id="t2"),
+            (
+                403,
+                {"error": {"message": "Team key not authorized", "type": "auth_error"}},
+            ),
+            "HTTP 403: Team key not authorized",
+        ),
+        # a 404 that isn't LiteLLM's "no key record" (e.g. from a gateway)
+        ((404, {"detail": "Not Found"}), KEY_NOT_FOUND, "HTTP 404"),
+    ],
+)
+def test_alias_read_failure_reported(
+    model_info_stub: ModelInfoStub,
+    monkeypatch: pytest.MonkeyPatch,
+    key_info: Any,
+    team_info: Any,
+    cause: str,
+) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    model_info_stub.key_info = key_info
+    model_info_stub.team_info = team_info
+    with pytest.raises(PrerequisiteError) as ex:
+        _key_alias_provider(model_info_stub, "unlisted")
+    assert "could not be read" in str(ex.value)
+    assert cause in str(ex.value)
+    # a listed model is still usable, with a warning that aliases were not
+    # applied
+    assert _key_alias_provider(model_info_stub, "target-a")._deployments
+    [warning] = warnings
+    assert "Could not read the key and team model aliases" in warning
+    assert cause in warning
+
+
+@skip_if_no_openai_package
+def test_alias_target_not_listed(model_info_stub: ModelInfoStub) -> None:
+    model_info_stub.key_info = _key_info({"gone": "retired-model"})
+    with pytest.raises(PrerequisiteError, match="alias for 'retired-model'"):
+        _key_alias_provider(model_info_stub, "gone")
+    provider = _key_alias_provider(model_info_stub, "gone", require_model_info=False)
+    assert provider.canonical_name() == "retired-model"
+    assert provider.model_family() == "retired-model"
+
+
+@skip_if_no_openai_package
+def test_alias_model_info_error_names_target(model_info_stub: ModelInfoStub) -> None:
+    model_info_stub.key_info = _key_info({"fast": "target-x"})
+    model_info_stub.body = json.dumps(
+        {"data": [_row("target-x", "openai/orion-22")]}
+    ).encode()
+    with pytest.raises(PrerequisiteError) as ex:
+        _stub_provider(model_info_stub, alias="fast", memoize=False)
+    message = str(ex.value)
+    assert "model 'fast' (a key or team alias for 'target-x')" in message
+    assert "add model_info to the 'target-x' deployment" in message
+
+
+@skip_if_no_openai_package
+def test_alias_vendor_from_target(model_info_stub: ModelInfoStub) -> None:
+    # an opaque upstream: the target's name is the best evidence of the vendor
+    model_info_stub.key_info = _key_info({"gpt-fast": "claude-x"})
+    arn = "bedrock/arn:aws:bedrock:us-east-1:1:application-inference-profile/x"
+    model_info_stub.body = json.dumps(
+        {"data": [_row("claude-x", arn, max_input_tokens=200000)]}
+    ).encode()
+    provider = _stub_provider(model_info_stub, alias="gpt-fast", memoize=False)
+    assert provider._vendor == "anthropic"
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "suffix,key_info_path",
+    [("", "/key/info"), ("/v1/", "/key/info"), ("/litellm/v1", "/litellm/key/info")],
+)
+def test_alias_urls(
+    model_info_stub: ModelInfoStub, suffix: str, key_info_path: str
+) -> None:
+    root = model_info_stub.url.removesuffix("/v1")
+    model_info_stub.key_info = _key_info({"my-alias": "target-a"})
+    _key_alias_provider(model_info_stub, "target-a", base_url=root + suffix)
+    paths = [r["path"] for r in model_info_stub.requests]
+    assert key_info_path in paths
+
+
+DB_PROXY_CONFIG: dict[str, Any] = {
+    "model_list": [
+        {
+            "model_name": name,
+            "litellm_params": {
+                "model": model,
+                "api_key": "fake",
+                "mock_response": name,
+            },
+        }
+        for name, model in [
+            ("target-a", "openai/gpt-5"),
+            ("target-b", "anthropic/claude-sonnet-4-5"),
+            ("shadow", "openai/gpt-5-mini"),
+        ]
+    ]
+}
+
+
+class AliasKeys(NamedTuple):
+    proxy: LiteLLMProxy
+    key: str
+    """A virtual key with key aliases."""
+
+    team_key: str
+    """A key of a team with team aliases."""
+
+
+@pytest.fixture(scope="module")
+def alias_keys(tmp_path_factory: pytest.TempPathFactory) -> Iterator[AliasKeys]:
+    with run_litellm_proxy(
+        tmp_path_factory.mktemp("litellm-db"), DB_PROXY_CONFIG, database=True
+    ) as proxy:
+        admin = {"Authorization": f"Bearer {proxy.api_key}"}
+        root = proxy.base_url.removesuffix("/v1")
+
+        def post(path: str, body: dict[str, Any]) -> dict[str, Any]:
+            response = httpx.post(f"{root}{path}", json=body, headers=admin, timeout=60)
+            response.raise_for_status()
+            result: dict[str, Any] = response.json()
+            return result
+
+        key = post(
+            "/key/generate",
+            {"aliases": {"key-alias": "target-a", "shadow": "target-a"}},
+        )
+        team = post("/team/new", {"model_aliases": {"team-alias": "target-b"}})
+        team_key = post("/key/generate", {"team_id": team["team_id"]})
+        yield AliasKeys(proxy=proxy, key=key["key"], team_key=team_key["key"])
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy_database
+@pytest.mark.parametrize(
+    "alias,team,target,canonical",
+    [
+        ("key-alias", False, "target-a", "openai/gpt-5"),
+        # the key alias wins over the listed model of the same name
+        ("shadow", False, "target-a", "openai/gpt-5"),
+        ("team-alias", True, "target-b", "anthropic/claude-sonnet-4-5"),
+    ],
+)
+async def test_aliases_through_proxy(
+    alias_keys: AliasKeys,
+    clear_model_info_cache: None,
+    alias: str,
+    team: bool,
+    target: str,
+    canonical: str,
+) -> None:
+    model = get_model(
+        f"litellm-proxy/{alias}",
+        base_url=alias_keys.proxy.base_url,
+        api_key=alias_keys.team_key if team else alias_keys.key,
+        # LiteLLM's mock_response can't stream Responses
+        stream=False,
+        memoize=False,
+    )
+    api = _proxy_api(model)
+    assert api._alias_target == target
+    assert api.canonical_name() == canonical
+    # the proxy routes the alias to the same deployment (its mock response)
+    output = await model.generate("Hello")
+    assert output.completion == target
+
+
+# Responses API default -------------------------------------------------------
+
+VLLM_BASE = "http://vllm.internal:8000/v1"
+
+
+def _route_row(
+    model: str,
+    *,
+    alias: str = "m",
+    custom_llm_provider: str | None = None,
+    api_base: str | None = None,
+    base_model: str | None = None,
+) -> dict[str, Any]:
+    params: dict[str, Any] = {"model": model}
+    if custom_llm_provider:
+        params["custom_llm_provider"] = custom_llm_provider
+    if api_base:
+        params["api_base"] = api_base
+    info: dict[str, Any] = {"max_input_tokens": 200000}
+    if base_model:
+        info["base_model"] = base_model
+    return {"model_name": alias, "litellm_params": params, "model_info": info}
+
+
+def _route_provider(
+    stub: ModelInfoStub, rows: list[dict[str, Any]], **model_args: Any
+) -> LiteLLMProxyAPI:
+    stub.body = json.dumps({"data": rows}).encode()
+    _litellm_proxy_model_info._clear_cache()
+    return _stub_provider(stub, alias="m", memoize=False, **model_args)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "rows,expected",
+    [
+        ([_route_row("openai/gpt-5.5")], True),
+        ([_route_row("gpt-5")], True),
+        ([_route_row("openai/o3")], True),
+        ([_route_row("openai/codex-mini-latest")], True),
+        ([_route_row("openai/responses/gpt-5")], True),
+        ([_route_row("openai/gpt-5", api_base="https://api.openai.com/v1")], True),
+        ([_route_row("openai/gpt-5", api_base="https://us.api.openai.com/v1")], True),
+        ([_route_row("openai/gpt-5", custom_llm_provider="openai")], True),
+        # later GPT versions, including ones Inspect's database doesn't know
+        ([_route_row("openai/gpt-6-astra")], True),
+        ([_route_row("openai/gpt-7")], True),
+        ([_route_row("openai/orion-22", base_model="openai/gpt-6-astra")], True),
+        # an unrecognized name may be another server behind OPENAI_API_BASE
+        ([_route_row("openai/orion-22")], False),
+        ([_route_row("azure/orion-22", api_base="https://x.azure.com")], False),
+        ([_route_row("openai/text-embedding-3-large")], False),
+        ([_route_row("openai/gpt-4.1")], False),
+        ([_route_row("openai/gpt-oss-120b")], False),
+        ([_route_row("azure/gpt-5", api_base="https://x.openai.azure.com")], False),
+        ([_route_row("openai/gpt-5", api_base=VLLM_BASE)], False),
+        (
+            [
+                _route_row(
+                    "my-served-model",
+                    custom_llm_provider="openai",
+                    api_base=VLLM_BASE,
+                    base_model="openai/gpt-5",
+                )
+            ],
+            False,
+        ),
+        (
+            [_route_row("anthropic/claude-sonnet-5", base_model="openai/gpt-5")],
+            False,
+        ),
+        ([_route_row("openai/gpt-5"), _route_row("azure/gpt-5")], False),
+        ([_route_row("anthropic/claude-sonnet-5")], False),
+    ],
+)
+def test_responses_default_route(
+    model_info_stub: ModelInfoStub, rows: list[dict[str, Any]], expected: bool
+) -> None:
+    assert bool(_route_provider(model_info_stub, rows).responses_api) is expected
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "model_args,config",
+    [
+        ({"responses_api": False}, GenerateConfig()),
+        ({"emulate_tools": True}, GenerateConfig()),
+        ({}, GenerateConfig(num_choices=2)),
+        ({"model_info": False}, GenerateConfig()),
+    ],
+)
+def test_responses_default_off(
+    model_info_stub: ModelInfoStub, model_args: dict[str, Any], config: GenerateConfig
+) -> None:
+    provider = _route_provider(
+        model_info_stub, [_route_row("openai/gpt-5")], config=config, **model_args
+    )
+    assert not provider.responses_api
+
+
+@skip_if_no_openai_package
+def test_responses_explicit_kept_for_other_routes(
+    model_info_stub: ModelInfoStub,
+) -> None:
+    provider = _route_provider(
+        model_info_stub, [_route_row("anthropic/claude-sonnet-5")], responses_api=True
+    )
+    assert provider.responses_api is True
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "row,model_args,streams",
+    [
+        # Responses to OpenAI streams, by default or explicitly
+        (_route_row("openai/gpt-5"), {}, True),
+        (_route_row("openai/gpt-5.5"), {"responses_api": True}, True),
+        # Responses to other upstreams doesn't (LiteLLM #43010)
+        (_route_row("anthropic/claude-sonnet-5"), {"responses_api": True}, False),
+        (
+            _route_row("openai/gpt-5", api_base=VLLM_BASE),
+            {"responses_api": True},
+            False,
+        ),
+        # Chat Completions streams for every upstream
+        (_route_row("openai/gpt-4.1"), {}, True),
+        (_route_row("openai/gpt-5"), {"responses_api": False}, True),
+        # an explicit stream arg wins
+        (_route_row("openai/gpt-5"), {"stream": False}, False),
+    ],
+)
+def test_responses_streaming(
+    model_info_stub: ModelInfoStub,
+    row: dict[str, Any],
+    model_args: dict[str, Any],
+    streams: bool,
+) -> None:
+    provider = _route_provider(model_info_stub, [row], **model_args)
+    assert provider.resolve_stream(GenerateConfig()) is streams
+
+
+def _wire_tool_types(provider: LiteLLMProxyAPI, tools: list[Tool]) -> dict[str, str]:
+    """Tool name to the type it is sent as on the Responses API."""
+    config = GenerateConfig()
+    resolved, _, _ = provider.resolve_tools(get_tools_info(tools), "auto", config)
+    params = openai_responses_tools(resolved, provider.model_family(), config)
+    return {str(param.get("name", param["type"])): param["type"] for param in params}
+
+
+@skip_if_no_openai_package
+# gpt-5.5 has native computer use and code interpreter; gpt-5 only the latter
+@pytest.mark.parametrize("model", ["openai/gpt-5.5", "openai/gpt-5"])
+def test_responses_default_hosts_only_web_search(
+    model_info_stub: ModelInfoStub, model: str
+) -> None:
+    provider = _route_provider(model_info_stub, [_route_row(model)])
+    assert provider.responses_api is True
+    types = _wire_tool_types(provider, [web_search(), computer(), code_execution()])
+    # OpenAI hosts web search; the other tools are function tools, as on
+    # Chat Completions
+    assert types == {
+        "web_search": "web_search",
+        "computer": "function",
+        "code_execution": "function",
+    }
+
+
+@skip_if_no_openai_package
+def test_chat_tools_unchanged(model_info_stub: ModelInfoStub) -> None:
+    provider = _route_provider(model_info_stub, [_route_row("openai/gpt-4.1")])
+    tools = get_tools_info([computer(), code_execution()])
+    resolved, _, _ = provider.resolve_tools(tools, "auto", GenerateConfig())
+    assert resolved == tools
+
+
+@skip_if_no_openai_package
+def test_responses_default_claims_web_search(model_info_stub: ModelInfoStub) -> None:
+    provider = _route_provider(model_info_stub, [_route_row("openai/gpt-5.5")])
+    _resolve_search_tools(provider, web_search())
+    # a route the default doesn't cover still gets the error, and its hint
+    azure = _route_provider(
+        model_info_stub, [_route_row("azure/gpt-5", api_base="https://x.azure.com")]
+    )
+    with pytest.raises(PrerequisiteError, match="responses_api=true"):
+        _resolve_search_tools(azure, web_search())
 
 
 @skip_if_no_openai_package
@@ -1696,6 +2255,8 @@ EFFORT_DEPLOYMENTS = {
     "grok-4": "xai/grok-4",
     "deepseek-reasoner": "deepseek/deepseek-reasoner",
     "strict-openai": "openai/strict-openai",
+    # the strict fake as a codename identified by base_model
+    "strict-codename": "openai/strict-openai",
 }
 
 
@@ -1707,6 +2268,16 @@ def _effort_params(model: str, url: str) -> dict[str, Any]:
     return {"model": model, "api_base": f"{url}/v1", "api_key": "fake"}
 
 
+def _effort_model_info(alias: str) -> dict[str, Any]:
+    # LiteLLM's map does not know the strict fake; without supports_reasoning,
+    # LiteLLM refuses reasoning.effort on the Responses path
+    if alias == "strict-openai":
+        return {"supports_reasoning": True}
+    if alias == "strict-codename":
+        return {"supports_reasoning": True, "base_model": "openai/gpt-5.5"}
+    return {}
+
+
 @pytest.fixture(scope="module")
 def effort_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLMProxy]:
     with fake_upstream(_strict_openai_route) as upstream:
@@ -1715,11 +2286,7 @@ def effort_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLMPr
                 {
                     "model_name": alias,
                     "litellm_params": _effort_params(model, upstream.docker_url),
-                    # LiteLLM's map does not know it; without this, LiteLLM
-                    # refuses reasoning.effort on the Responses path
-                    "model_info": (
-                        {"supports_reasoning": True} if alias == "strict-openai" else {}
-                    ),
+                    "model_info": _effort_model_info(alias),
                 }
                 for alias, model in EFFORT_DEPLOYMENTS.items()
             ],
@@ -1743,17 +2310,23 @@ def _sent_effort(request: dict[str, Any]) -> Any:
 
 
 async def _generate_effort(
-    proxy: LiteLLMProxy, alias: str, responses_api: bool, effort: Effort
+    proxy: LiteLLMProxy, alias: str, responses_api: bool | None, effort: Effort
 ) -> tuple[ModelOutput | Exception, Any]:
+    """Generate with `effort`; `responses_api=None` uses the provider default."""
+    model_args: dict[str, Any] = (
+        # the default needs the route from model info
+        {"require_model_info": False}
+        if responses_api is None
+        else {"responses_api": responses_api, "model_info": False}
+    )
     api = _proxy_api(
         get_model(
             f"litellm-proxy/{alias}",
             base_url=proxy.base_url,
             api_key=proxy.api_key,
-            responses_api=responses_api,
-            model_info=False,
             max_retries=0,
             memoize=False,
+            **model_args,
         )
     )
     call_id = str(uuid.uuid4())
@@ -1818,6 +2391,44 @@ async def test_litellm_proxy_reasoning_effort_lowered(
     output, upstream = await _generate_effort(
         effort_proxy, alias, responses_api, effort
     )
+    assert isinstance(output, ModelOutput), output
+    assert upstream == sent
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize(
+    "alias,effort,sent",
+    [
+        ("strict-codename", "max", "high"),
+        ("strict-codename", "xhigh", "high"),
+        ("strict-codename", "none", None),
+        # OpenAI applies its own rules to gpt-5 on Responses
+        ("gpt-5", "high", "high"),
+    ],
+)
+async def test_litellm_proxy_reasoning_effort_lowered_responses_default(
+    effort_proxy: LiteLLMProxy,
+    monkeypatch: pytest.MonkeyPatch,
+    alias: str,
+    effort: Effort,
+    sent: Any,
+) -> None:
+    # the fake upstream stands in for OpenAI's API
+    monkeypatch.setattr(
+        litellm_proxy_module, "is_openai_api_base", lambda api_base: True
+    )
+    default = _proxy_api(
+        get_model(
+            f"litellm-proxy/{alias}",
+            base_url=effort_proxy.base_url,
+            api_key=effort_proxy.api_key,
+            require_model_info=False,
+            memoize=False,
+        )
+    )
+    assert default.responses_api is True
+    output, upstream = await _generate_effort(effort_proxy, alias, None, effort)
     assert isinstance(output, ModelOutput), output
     assert upstream == sent
 
@@ -2073,6 +2684,71 @@ def test_provider_bad_request_prefill() -> None:
     assert isinstance(error, PrefillNotSupportedError)
     assert "ends with an assistant message" in str(error)
     assert "This model does not support assistant message prefill." in str(error)
+
+
+def _search_provider(alias: str, **model_args: Any) -> LiteLLMProxyAPI:
+    api = get_model(
+        f"litellm-proxy/{alias}",
+        base_url="http://localhost:4000/v1",
+        api_key="key",
+        model_info=False,
+        **model_args,
+    ).api
+    assert isinstance(api, LiteLLMProxyAPI)
+    return api
+
+
+def _resolve_search_tools(
+    api: LiteLLMProxyAPI, search: Tool, config: GenerateConfig = GenerateConfig()
+) -> None:
+    api.resolve_tools(get_tools_info([search]), "auto", config)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("alias", ["claude-sonnet-5", "gemini-3.1-pro", "gpt-5.5"])
+def test_web_search_built_in_only_fails(alias: str) -> None:
+    with pytest.raises(PrerequisiteError) as ex:
+        _resolve_search_tools(_search_provider(alias), web_search())
+    assert "web_search() has no provider" in str(ex.value)
+    assert 'web_search("tavily")' in str(ex.value)
+    # the Responses API fix is offered only for OpenAI models
+    assert ("responses_api=true" in str(ex.value)) == alias.startswith("gpt")
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("external", ["tavily", "exa", "google"])
+def test_web_search_external_provider_passes(
+    external: Literal["tavily", "exa", "google"],
+) -> None:
+    _resolve_search_tools(
+        _search_provider("claude-sonnet-5"), web_search(["anthropic", external])
+    )
+
+
+@skip_if_no_openai_package
+def test_web_search_openai_responses_passes() -> None:
+    _resolve_search_tools(_search_provider("gpt-5.5", responses_api=True), web_search())
+
+
+@skip_if_no_openai_package
+def test_web_search_openai_responses_internal_tools_off_fails() -> None:
+    with pytest.raises(PrerequisiteError) as ex:
+        _resolve_search_tools(
+            _search_provider("gpt-5.5", responses_api=True),
+            web_search(),
+            GenerateConfig(internal_tools=False),
+        )
+    # already on the Responses API, so that fix is not offered
+    assert "responses_api=true" not in str(ex.value)
+
+
+@skip_if_no_openai_package
+def test_web_search_responses_non_openai_fails() -> None:
+    with pytest.raises(PrerequisiteError):
+        _resolve_search_tools(
+            _search_provider("claude-sonnet-5", responses_api=True),
+            web_search(["anthropic"]),
+        )
 
 
 @skip_if_no_openai_package

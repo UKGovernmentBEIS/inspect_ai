@@ -23,6 +23,8 @@ from typing_extensions import override
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE
+from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
@@ -38,8 +40,15 @@ from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIResponseError,
     chat_choices_from_openai,
+    is_gpt_5_model,
+    is_o_series_model,
     openai_chat_completion_stream_final,
     openai_refusal_model_output,
+)
+from .._openai_responses import (
+    RESPONSES_VERBATIM,
+    _maybe_native_tool_param,
+    _tool_param_for_tool_info,
 )
 from ._anthropic_max_tokens import (
     ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
@@ -54,6 +63,7 @@ from ._litellm_proxy_caching import (
 from ._litellm_proxy_errors import litellm_error_model_output, upstream_message
 from ._litellm_proxy_model_info import (
     ProxyDeployment,
+    proxy_aliases,
     proxy_deployments,
     proxy_model_info,
 )
@@ -69,9 +79,12 @@ from ._litellm_proxy_reasoning_effort import next_effort, rejected_effort
 from ._litellm_proxy_vendor import (
     VENDOR_NAMES,
     Vendor,
+    deployment_route,
     frontier_base_model,
+    is_openai_api_base,
     upstream_vendor,
 )
+from ._openai_web_search import maybe_web_search_tool
 from .openai_compatible import ModelInfo as CompatibleModelInfo
 from .openai_compatible import OpenAICompatibleAPI
 from .util import environment_prerequisite_error, model_base_url
@@ -96,6 +109,8 @@ _cache_write_ttl: ContextVar[Literal["5m", "1h"] | None] = ContextVar(
     "litellm_proxy_cache_write_ttl", default=None
 )
 """TTL of the current request's cache writes, from its usage (for cost)."""
+
+_EXTERNAL_SEARCH_PROVIDERS = ("tavily", "exa", "google")
 
 _PREFILL_REJECTED = re.compile(
     r"assistant (message )?prefill|prefill(ing)? (the )?assistant", re.IGNORECASE
@@ -130,8 +145,10 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     `LITELLM_PROXY_API_BASE`, or `LITELLM_BASE_URL`). The API key is read
     from `LITELLM_PROXY_API_KEY`, or `LITELLM_API_KEY` when that is unset.
 
-    Construction reads the proxy's `/model/info` listing (see
-    `_litellm_proxy_model_info`) and fails if it cannot. It then registers
+    Construction reads the proxy's `/model/info` listing and the API key's
+    key and team aliases (see `_litellm_proxy_model_info`), and fails if it
+    cannot read the listing. An alias is resolved to the model name it
+    routes to before its deployments are looked up. It then registers
     model info for `litellm-proxy/<alias>`: Inspect's entry for the resolved
     upstream model, with fields it lacks (often cost) filled from the proxy's
     metadata. A registration the user made for `litellm-proxy/<alias>` is
@@ -140,6 +157,10 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     Construction fails unless that model info has a context window. Pass
     `require_model_info=False` to allow it anyway, or `model_info=False` to
     skip the listing, the registration and the check.
+
+    When `responses_api` is not passed, GPT-5, o-series and Codex models
+    served directly by OpenAI use the Responses API, as with the native
+    `openai` provider; everything else uses Chat Completions.
     """
 
     def __init__(
@@ -182,18 +203,28 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         # get_model_info() constructs providers with a placeholder key, which
         # the proxy would reject
         self._deployments: list[ProxyDeployment] | None = None
+        # the model name a key or team alias routes to, and why aliases
+        # couldn't be read
+        self._alias_target: str | None = None
+        self._alias_error: str | None = None
         if fetch_model_info and self.api_key != MODEL_INFO_LOOKUP_API_KEY:
             assert self.base_url is not None and self.api_key is not None
+            headers = dict(self.model_args.get("default_headers") or {})
+            deployments = proxy_deployments(self.base_url, self.api_key, headers)
+            aliases = proxy_aliases(self.base_url, self.api_key, headers)
             alias = self.service_model_name()
-            self._deployments = [
-                deployment
-                for deployment in proxy_deployments(
-                    self.base_url,
-                    self.api_key,
-                    dict(self.model_args.get("default_headers") or {}),
+            target = aliases.resolve(alias)
+            self._alias_target = target if target != alias else None
+            self._alias_error = aliases.error
+            if aliases.error:
+                warn_once(
+                    logger,
+                    "Could not read the key and team model aliases from the "
+                    f"LiteLLM proxy ({aliases.error}). Model names are looked up "
+                    "as listed, so a name that is also an alias of your key or "
+                    "team gets the model info of the listed model.",
                 )
-                if deployment.model_name == alias
-            ]
+            self._deployments = [d for d in deployments if d.model_name == target]
         self._resolution: ProxyResolution | None = resolve_deployments(
             self.service_model_name(), self._deployments or []
         )
@@ -201,6 +232,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             [
                 self._resolution.upstream if self._resolution else None,
                 self._resolution.db_key if self._resolution else None,
+                self._alias_target,
                 self.service_model_name(),
             ]
         )
@@ -208,6 +240,20 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             self._register_model_info()
             if require_model_info:
                 self._check_model_info()
+
+        self._openai_route = bool(self._deployments) and all(
+            deployment_route(d.model, d.custom_llm_provider) == "openai"
+            and is_openai_api_base(d.api_base)
+            for d in self._deployments or []
+        )
+        if (
+            self.responses_api is None
+            and self._openai_route
+            and self._responses_preferred()
+            and config.num_choices is None
+            and not self.emulate_tools
+        ):
+            self.responses_api = True
 
         # reasoning_effort values the proxy rejected for this model (see generate)
         self._rejected_efforts: set[str] = set()
@@ -257,18 +303,35 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             user=user, registered=info, base_url=self.base_url
         )
 
+    def _routed_name(self) -> str:
+        """The model name requests are routed to (the alias target, if any)."""
+        return self._alias_target or self.service_model_name()
+
     def _check_model_info(self) -> None:
         info = _get_custom_model_info(self._model_info_key())
         if info is not None and info.input_tokens is not None:
             return
         alias = self.service_model_name()
+        about = (
+            f" (a key or team alias for '{self._alias_target}')"
+            if self._alias_target
+            else ""
+        )
         db_key = self._resolution.db_key if self._resolution else None
         upstream = self._resolution.upstream if self._resolution else None
-        if not self._deployments:
+        if not self._deployments and self._alias_target:
+            found = (
+                "The proxy's /model/info listing has no deployment for "
+                f"'{self._alias_target}'."
+            )
+        elif not self._deployments:
             found = (
                 "The proxy's /model/info listing has no deployment for it (it "
-                "lists only the models the API key may use)."
+                "lists only the models the API key may use), and it is not an "
+                "alias of the API key or its team."
             )
+            if self._alias_error:
+                found += f" (The aliases could not be read: {self._alias_error})"
         elif db_key:
             found = (
                 f"Inspect's model database has no context window for its upstream "
@@ -285,8 +348,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                 "max_input_tokens for it."
             )
         raise PrerequisiteError(
-            f"No model info (context window) for LiteLLM proxy model '{alias}'. "
-            f"{found}\n\n"
+            f"No model info (context window) for LiteLLM proxy model "
+            f"'{alias}'{about}. {found}\n\n"
             "Inspect uses it for the context window (compaction) and cost. "
             "To fix, do one of:\n\n"
             f"{self._model_info_fix()}\n"
@@ -297,7 +360,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
 
     def _model_info_fix(self) -> str:
         """The error's first fix: `model_info` to add to the proxy config."""
-        alias = self.service_model_name()
+        alias = self._routed_name()
         if self._vendor is not None:
             return (
                 f"- add model_info to the '{alias}' deployment in the proxy "
@@ -319,6 +382,20 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             "  base_model also gives LiteLLM the model's capabilities;"
         )
 
+    def _responses_preferred(self) -> bool:
+        """GPT-5 or later, o-series and Codex models, by upstream model family.
+
+        The native `openai` provider uses the Responses API for these. On
+        Chat Completions, OpenAI returns none of their reasoning, so it can't
+        be carried to the next turn. Unlike the native provider, unrecognized
+        names are not treated as frontier codenames: a proxy can send every
+        `openai/` deployment to another server (`OPENAI_API_BASE`) without
+        listing an `api_base`. A codename gets the default through
+        `model_info.base_model`, which the model info check asks for.
+        """
+        family = self.model_family()
+        return is_gpt_5_model(family) or is_o_series_model(family) or "codex" in family
+
     def _is_claude(self) -> bool:
         return self._vendor == "anthropic"
 
@@ -330,14 +407,16 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
 
     @override
     def should_stream(self, config: GenerateConfig) -> bool:
-        """Stream chat completions unless the request can't be streamed.
+        """Stream unless the request can't be streamed.
 
         Long generations (e.g. high reasoning effort) otherwise hit client
         and proxy timeouts, and a streamed reply keeps its thinking blocks.
-        `-M stream=false` opts out. Responses requests are not streamed by
-        default (LiteLLM #43010).
+        `-M stream=false` opts out. Responses requests are streamed only to
+        OpenAI (LiteLLM #43010 affects its conversion for other upstreams).
         """
-        return not self.responses_api and self.auto_streamable(config)
+        return (not self.responses_api or self._openai_route) and self.auto_streamable(
+            config
+        )
 
     @override
     def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
@@ -391,6 +470,80 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         return _cache_write_ttl.get()
 
     @override
+    def resolve_tools(
+        self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
+    ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
+        for tool in tools:
+            self._check_web_search(tool, config)
+        if self.responses_api:
+            tools = [self._as_function_tool(tool, config) for tool in tools]
+        return super().resolve_tools(tools, tool_choice, config)
+
+    def _as_function_tool(self, tool: ToolInfo, config: GenerateConfig) -> ToolInfo:
+        """`tool`, sent as a function tool if OpenAI would otherwise host it.
+
+        Of OpenAI's hosted tools, only web search has been verified through
+        the proxy. The others (code interpreter, computer use, remote MCP,
+        tool search) are sent as function tools, as on Chat Completions.
+        `computer()` is always marked as sent verbatim: the Responses code
+        requires `store=True` for any `computer()` tool, even one sent as a
+        function tool (for models without native computer use).
+        """
+        options = tool.options or {}
+        if (
+            options.get(INTERNAL_TOOL_TYPE) == "web_search"
+            or RESPONSES_VERBATIM in options
+        ):
+            return tool
+        family = self.model_family()
+        is_latest = self.responses_model_info().is_latest()
+        if _maybe_native_tool_param(
+            tool, family, config, is_latest
+        ) is None and not is_computer_tool_info(tool):
+            return tool
+        param = _tool_param_for_tool_info(
+            tool, family, config.model_copy(update={"internal_tools": False}), is_latest
+        )
+        return tool.model_copy(update={"options": {RESPONSES_VERBATIM: dict(param)}})
+
+    def _check_web_search(self, tool: ToolInfo, config: GenerateConfig) -> None:
+        """Fail before sending a `web_search()` that has no provider here.
+
+        Of the built-in providers, only OpenAI's (on the Responses API) is
+        sent to the proxy as a hosted tool. Otherwise the tool goes out as a
+        function tool, whose execution fails when there is no external
+        provider to run the search.
+        """
+        options = tool.options or {}
+        if options.get(INTERNAL_TOOL_TYPE) != "web_search":
+            return
+        if any(provider in options for provider in _EXTERNAL_SEARCH_PROVIDERS):
+            return
+        if (
+            self.responses_api
+            and config.internal_tools is not False
+            and maybe_web_search_tool(self.model_family(), tool) is not None
+        ):
+            return
+        fixes = [
+            'add an external provider, e.g. web_search("tavily") or '
+            'web_search(["anthropic", "tavily"]) ("exa" and "google" also work).'
+        ]
+        if self._vendor == "openai" and not self.responses_api:
+            fixes.append(
+                "pass -M responses_api=true to use OpenAI's built-in search "
+                '(with the "openai" provider).'
+            )
+        raise PrerequisiteError(
+            f"web_search() has no provider for LiteLLM proxy model "
+            f"'{self.service_model_name()}'. Built-in search providers other "
+            "than OpenAI's (on the Responses API) are not supported through a "
+            "LiteLLM proxy. "
+            + ("To fix, do one of:\n\n" if len(fixes) > 1 else "To fix:\n\n")
+            + "\n".join(f"- {fix}" for fix in fixes)
+        )
+
+    @override
     def input_tokens_name(self) -> str:
         """The registered key, when there is one, so lookups stop there."""
         key = self._model_info_key()
@@ -402,15 +555,17 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     def canonical_name(self) -> str:
         """The Inspect database key of the upstream model, when it resolves.
 
-        Otherwise the normalized upstream model name, or the alias when the
-        proxy listed no deployment for it (or model info was not fetched).
+        Otherwise the normalized upstream model name, or the model name
+        requests are routed to (the alias, or its target for a key or team
+        alias) when the proxy listed no deployment for it or model info was
+        not fetched.
         """
         resolution = self._resolution
         if resolution is not None:
             name = resolution.db_key or resolution.upstream
             if name:
                 return name
-        return self.service_model_name()
+        return self._routed_name()
 
     @override
     def model_family(self) -> str:
@@ -428,7 +583,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             if info is not None and info.family:
                 return info.family
         if self._resolution is None:
-            return alias
+            return self._routed_name()
         return canonical.split("/")[-1]
 
     @override

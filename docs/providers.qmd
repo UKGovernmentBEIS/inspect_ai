@@ -1702,7 +1702,7 @@ export LITELLM_PROXY_API_KEY=your-litellm-key
 inspect eval arc.py --model litellm-proxy/claude-sonnet-5
 ```
 
-The `model_name` is chosen by the proxy's operator and need not be a model id. Inspect reads the proxy's `/model/info` listing to find the upstream model behind it (`litellm_params.model`, or `model_info.base_model` when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use.
+The `model_name` is chosen by the proxy's operator and need not be a model id. Inspect reads the proxy's `/model/info` listing to find the upstream model behind it (`litellm_params.model`, or `model_info.base_model` when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use. Aliases defined on your key or its team are resolved to the model they route to.
 
 ### Model Info {#litellm-proxy-model-info}
 
@@ -1720,7 +1720,7 @@ model_list:
 
 `base_model` also tells LiteLLM the model's capabilities. Without it, LiteLLM treats an unknown model as supporting no reasoning effort, adaptive thinking or (for Bedrock) tool choice. For Anthropic, OpenAI, Google and xAI models the error message suggests that vendor's current frontier model.
 
-Alternatively, set `max_input_tokens` (and `max_output_tokens`) in the deployment's `model_info`, register the model's info with `set_model_info("litellm-proxy/<name>", ModelInfo(...))`, or pass `-M require_model_info=false` to use the model without model info.
+Alternatively, set `max_input_tokens` (and `max_output_tokens`) in the deployment's `model_info`, register the model's info with `set_model_info("litellm-proxy/<name>", ModelInfo(...))`, or pass `-M require_model_info=false` to use the model without model info. The last two are the only fixes for an alias from the proxy's `model_alias_map` setting, which the proxy doesn't show to clients.
 
 Costs are taken from Inspect's model database or, where it has none, from the prices in the proxy's `model_info`.
 
@@ -1738,11 +1738,15 @@ A model that does not accept a conversation ending with an assistant message (as
 
 When the proxy or upstream model rejects the requested `reasoning_effort`, Inspect retries with the nearest effort the model accepts (or with no effort, if the model takes none), warns once, and uses that effort for later requests. Reasoning returned by the upstream model (including Claude thinking blocks and Gemini thought signatures) is sent back on the next turn.
 
-### Streaming and Responses API {#litellm-proxy-streaming}
+### Responses API and Streaming {#litellm-proxy-streaming}
 
-Requests stream by default, so long generations don't hit client or proxy timeouts. Pass `-M stream=false` to disable streaming.
+GPT-5 and later, o-series and Codex models served directly by OpenAI use the proxy's Responses API, as they do with the `openai` provider, so their reasoning is carried from one turn to the next. This applies when every deployment of the model uses LiteLLM's `openai` provider with no `api_base` other than OpenAI's (Azure deployments and OpenAI-compatible servers are not included). A predeployment model qualifies when its deployment sets `model_info.base_model` (see [Model Info](#litellm-proxy-model-info)). Other models use the Chat Completions API. Pass `-M responses_api=true` or `-M responses_api=false` to choose the API. Through the proxy, web search is the only OpenAI built-in tool used on the Responses API; `computer()`, `code_execution()` and remote MCP servers are sent as ordinary tools, as on the Chat Completions API.
 
-Requests use the Chat Completions API. Pass `-M responses_api=true` to use the proxy's Responses API instead (which is not streamed by default).
+Requests stream by default, so long generations don't hit client or proxy timeouts, except Responses API requests for models not served by OpenAI. Pass `-M stream=false` to disable streaming.
+
+### Web Search {#litellm-proxy-web-search}
+
+The `web_search()` tool uses OpenAI's built-in search (its `openai` provider) for OpenAI models that use the Responses API. Otherwise it needs an external search provider (`tavily`, `exa` or `google`), for example `web_search(["anthropic", "tavily"])`; other built-in search providers are not supported through the proxy.
 
 ### Model Args {#litellm-proxy-model-args}
 
@@ -1750,8 +1754,8 @@ Requests use the Chat Completions API. Pass `-M responses_api=true` to use the p
 |------------------------------------|------------------------------------|
 | `require_model_info` | Fail if the model has no context window (default: `true`). |
 | `model_info` | Read the proxy's `/model/info` listing (default: `true`). With `false`, Inspect does not look up the upstream model and requests are shaped by the proxy model name alone. |
-| `stream` | Stream requests (default: `true` for Chat Completions). |
-| `responses_api` | Use the Responses API (default: `false`). |
+| `stream` | Stream requests (default: `true`, except Responses API requests for models not served by OpenAI). |
+| `responses_api` | Use the Responses API (default: `true` for GPT-5 and later, o-series and Codex models served by OpenAI, `false` otherwise). |
 
 : {tbl-colwidths=\[25,75\]}
 
