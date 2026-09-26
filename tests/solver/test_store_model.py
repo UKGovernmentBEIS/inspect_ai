@@ -4,6 +4,7 @@ import pytest
 from pydantic import BaseModel, Field, ValidationError
 
 from inspect_ai import Task, eval
+from inspect_ai.log import EvalSample
 from inspect_ai.solver._solver import Solver, solver
 from inspect_ai.util import Store, StoreModel, store, store_as
 
@@ -74,6 +75,28 @@ def test_store_model_log() -> None:
     assert my_model.x == 1
     assert my_model.y == "a"
     assert isinstance(my_model.steps[0], Step)
+
+
+def test_store_model_log_instance() -> None:
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="input",
+        target="target",
+        store={"MyModel:x": 1, "MyModel:i1:x": 2},
+    )
+
+    # instanced read returns the instance's data
+    instanced = sample.store_as(MyModel, instance="i1")
+    assert instanced.x == 2
+
+    # default read still ignores instanced keys
+    default = sample.store_as(MyModel)
+    assert default.x == 1
+
+    # instance with no keys in the store falls back to field defaults
+    other = sample.store_as(MyModel, instance="i2")
+    assert other.x == 5
 
 
 def test_store_model_assignment():
