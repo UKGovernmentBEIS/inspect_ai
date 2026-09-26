@@ -4756,6 +4756,260 @@
         "title": "EvalSetTask",
         "type": "object"
       },
+      "EvalShardEntry": {
+        "description": "Ledger entry for one shard, as of the merge that last read it.",
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "const": "",
+                "type": "string"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "etag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etag"
+          },
+          "eval_id": {
+            "title": "Eval Id",
+            "type": "string"
+          },
+          "eval_set_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eval Set Id"
+          },
+          "log": {
+            "title": "Log",
+            "type": "string"
+          },
+          "model_usage": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "title": "Model Usage",
+            "type": "object"
+          },
+          "mtime": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mtime"
+          },
+          "role_usage": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "title": "Role Usage",
+            "type": "object"
+          },
+          "sample_keys": {
+            "items": {
+              "$ref": "#/components/schemas/EvalShardSampleKey"
+            },
+            "title": "Sample Keys",
+            "type": "array"
+          },
+          "shard": {
+            "title": "Shard",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "const": "",
+                "type": "string"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "started",
+              "success",
+              "cancelled",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "shard",
+          "log",
+          "attempts",
+          "eval_id",
+          "task_id",
+          "status",
+          "sample_keys",
+          "started_at",
+          "completed_at",
+          "model_usage",
+          "role_usage",
+          "size"
+        ],
+        "title": "EvalShardEntry",
+        "type": "object"
+      },
+      "EvalShardSampleKey": {
+        "description": "One `(id, epoch)` record merged from a shard.",
+        "properties": {
+          "epoch": {
+            "title": "Epoch",
+            "type": "integer"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          }
+        },
+        "required": [
+          "id",
+          "epoch"
+        ],
+        "title": "EvalShardSampleKey",
+        "type": "object"
+      },
+      "EvalShards": {
+        "description": "Provenance of a merged log: its shards and the ledger of the last merge.",
+        "properties": {
+          "ledger": {
+            "items": {
+              "$ref": "#/components/schemas/EvalShardEntry"
+            },
+            "title": "Ledger",
+            "type": "array"
+          },
+          "location": {
+            "title": "Location",
+            "type": "string"
+          },
+          "merged_at": {
+            "title": "Merged At",
+            "type": "string"
+          },
+          "metrics_source": {
+            "enum": [
+              "registry",
+              "task_file"
+            ],
+            "title": "Metrics Source",
+            "type": "string"
+          },
+          "sample_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Count"
+          },
+          "sample_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Ids"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location",
+          "template",
+          "merged_at",
+          "metrics_source",
+          "ledger"
+        ],
+        "title": "EvalShards",
+        "type": "object"
+      },
       "EvalSpec": {
         "description": "Eval target and configuration.",
         "properties": {
@@ -4933,6 +5187,16 @@
               }
             ],
             "title": "Scorers"
+          },
+          "shards": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalShards"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "solver": {
             "anyOf": [
