@@ -14,7 +14,10 @@ proxy during an eval (e.g. a grader created in a scorer) blocks the event
 loop until the proxy answers or `MODEL_INFO_TIMEOUT` passes, once per
 (base URL, API key).
 
-There is no lock around the cache: Inspect constructs providers on a single
+Key and team aliases (`proxy_aliases()`) are not in the listing. They are
+read from `/key/info` and `/team/info`, fetched and cached the same way.
+
+There is no lock around the caches: Inspect constructs providers on a single
 event loop thread, and two constructions racing the same key would at worst
 fetch twice and store equal values.
 """
@@ -76,6 +79,125 @@ def proxy_deployments(
 
 def _clear_cache() -> None:
     _deployments.clear()
+    _aliases.clear()
+
+
+class ProxyAliases(NamedTuple):
+    """Model aliases of an API key, from its key and team settings."""
+
+    aliases: dict[str, str]
+    """Alias to the model name requests for it are routed to."""
+
+    error: str | None
+    """Why the aliases could not be read, if they couldn't."""
+
+
+_aliases: dict[tuple[str, str], ProxyAliases] = {}
+
+
+def proxy_aliases(
+    base_url: str, api_key: str, headers: dict[str, str] | None = None
+) -> ProxyAliases:
+    """The key's and its team's model aliases, fetching on first use.
+
+    LiteLLM applies these before routing, so they take precedence over the
+    `/model/info` listing, and a team alias over a key alias of the same
+    name. They are served only at the proxy root (`/key/info`, not
+    `/v1/key/info`).
+
+    A proxy without a database has no virtual keys, and the master key has no
+    key record, so both have no aliases. Other failures don't raise (the
+    `/model/info` fetch is the one that fails construction); they are
+    reported in `error`.
+    """
+    base_url = base_url.rstrip("/")
+    key = (base_url, api_key)
+    if key not in _aliases:
+        root = base_url.removesuffix("/v1")
+        _aliases[key] = _fetch_aliases(root, api_key, headers or {})
+    return _aliases[key]
+
+
+def _fetch_aliases(root: str, api_key: str, headers: dict[str, str]) -> ProxyAliases:
+    request_headers = {"Authorization": f"Bearer {api_key}"} | headers
+    key_info = _get_json(f"{root}/key/info", request_headers)
+    if isinstance(key_info, _NoAliases):
+        return ProxyAliases({}, None)
+    if isinstance(key_info, str):
+        return ProxyAliases({}, key_info)
+    info = key_info.get("info")
+    info = info if isinstance(info, dict) else {}
+    aliases = _alias_map(info.get("aliases"))
+    team_id = info.get("team_id")
+    if not isinstance(team_id, str) or not team_id:
+        return ProxyAliases(aliases, None)
+    team_info = _get_json(
+        f"{root}/team/info", request_headers, params={"team_id": team_id}
+    )
+    if isinstance(team_info, _NoAliases):
+        return ProxyAliases(aliases, None)
+    if isinstance(team_info, str):
+        return ProxyAliases(aliases, team_info)
+    team = team_info.get("team_info")
+    table = team.get("litellm_model_table") if isinstance(team, dict) else None
+    team_aliases = _alias_map(
+        table.get("model_aliases") if isinstance(table, dict) else None
+    )
+    return ProxyAliases(aliases | team_aliases, None)
+
+
+class _NoAliases(NamedTuple):
+    """A response meaning there are no aliases to read (not an error)."""
+
+
+def _get_json(
+    url: str, headers: dict[str, str], params: dict[str, str] | None = None
+) -> dict[str, Any] | _NoAliases | str:
+    """The response body, `_NoAliases`, or a description of the failure."""
+    try:
+        response = httpx.get(
+            url, headers=headers, params=params, timeout=MODEL_INFO_TIMEOUT
+        )
+    except httpx.TimeoutException:
+        return f"{url}: no response within {MODEL_INFO_TIMEOUT:g}s"
+    except httpx.HTTPError as ex:
+        return f"{url}: {type(ex).__name__}: {ex}"
+    if not response.is_success:
+        message = _error_message(response)
+        # the master key has no key record; a proxy without a database has no
+        # virtual keys (500 for the master key, 400 for others)
+        if (
+            response.status_code == 404
+            or "Database not connected" in message
+            or _error_type(response) == "no_db_connection"
+        ):
+            return _NoAliases()
+        return f"{url}: HTTP {response.status_code}: {message:.300}"
+    try:
+        body = response.json()
+    except ValueError:
+        return f"{url}: the response is not JSON: {response.text:.300}"
+    if not isinstance(body, dict):
+        return f"{url}: unexpected response: {body!r:.300}"
+    return body
+
+
+def _alias_map(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {k: v for k, v in value.items() if isinstance(k, str) and _str(v)}
+
+
+def resolve_alias(name: str, aliases: dict[str, str]) -> str:
+    """The model name `name` routes to, following alias chains.
+
+    A cycle stops at the last name before it repeats.
+    """
+    seen = {name}
+    while name in aliases and aliases[name] not in seen:
+        name = aliases[name]
+        seen.add(name)
+    return name
 
 
 def _fetch(
@@ -227,6 +349,16 @@ def _error_message(response: httpx.Response) -> str:
         return response.text
     message = error.get("message") if isinstance(error, dict) else None
     return message if isinstance(message, str) else response.text
+
+
+def _error_type(response: httpx.Response) -> str | None:
+    """The `type` from LiteLLM's `{"error": {"type": ...}}` body, if any."""
+    try:
+        error = response.json().get("error")
+    except (ValueError, AttributeError):
+        return None
+    value = error.get("type") if isinstance(error, dict) else None
+    return value if isinstance(value, str) else None
 
 
 def _str(value: Any) -> str | None:

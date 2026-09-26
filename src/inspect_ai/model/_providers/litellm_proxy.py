@@ -57,8 +57,10 @@ from ._litellm_proxy_caching import (
 from ._litellm_proxy_errors import litellm_error_model_output, upstream_message
 from ._litellm_proxy_model_info import (
     ProxyDeployment,
+    proxy_aliases,
     proxy_deployments,
     proxy_model_info,
+    resolve_alias,
 )
 from ._litellm_proxy_names import ProxyResolution, resolve_deployments
 from ._litellm_proxy_reasoning import (
@@ -138,8 +140,10 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     `LITELLM_PROXY_API_BASE`, or `LITELLM_BASE_URL`). The API key is read
     from `LITELLM_PROXY_API_KEY`, or `LITELLM_API_KEY` when that is unset.
 
-    Construction reads the proxy's `/model/info` listing (see
-    `_litellm_proxy_model_info`) and fails if it cannot. It then registers
+    Construction reads the proxy's `/model/info` listing and the API key's
+    key and team aliases (see `_litellm_proxy_model_info`), and fails if it
+    cannot read the listing. An alias is resolved to the model name it
+    routes to before its deployments are looked up. It then registers
     model info for `litellm-proxy/<alias>`: Inspect's entry for the resolved
     upstream model, with fields it lacks (often cost) filled from the proxy's
     metadata. A registration the user made for `litellm-proxy/<alias>` is
@@ -194,18 +198,20 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         # get_model_info() constructs providers with a placeholder key, which
         # the proxy would reject
         self._deployments: list[ProxyDeployment] | None = None
+        # the model name a key or team alias routes to, and why aliases
+        # couldn't be read
+        self._alias_target: str | None = None
+        self._alias_error: str | None = None
         if fetch_model_info and self.api_key != MODEL_INFO_LOOKUP_API_KEY:
             assert self.base_url is not None and self.api_key is not None
+            headers = dict(self.model_args.get("default_headers") or {})
+            deployments = proxy_deployments(self.base_url, self.api_key, headers)
+            aliases = proxy_aliases(self.base_url, self.api_key, headers)
             alias = self.service_model_name()
-            self._deployments = [
-                deployment
-                for deployment in proxy_deployments(
-                    self.base_url,
-                    self.api_key,
-                    dict(self.model_args.get("default_headers") or {}),
-                )
-                if deployment.model_name == alias
-            ]
+            target = resolve_alias(alias, aliases.aliases)
+            self._alias_target = target if target != alias else None
+            self._alias_error = aliases.error
+            self._deployments = [d for d in deployments if d.model_name == target]
         self._resolution: ProxyResolution | None = resolve_deployments(
             self.service_model_name(), self._deployments or []
         )
@@ -290,11 +296,19 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         alias = self.service_model_name()
         db_key = self._resolution.db_key if self._resolution else None
         upstream = self._resolution.upstream if self._resolution else None
-        if not self._deployments:
+        if not self._deployments and self._alias_target:
+            found = (
+                f"It is a key or team alias for '{self._alias_target}', which "
+                "the proxy's /model/info listing has no deployment for."
+            )
+        elif not self._deployments:
             found = (
                 "The proxy's /model/info listing has no deployment for it (it "
-                "lists only the models the API key may use)."
+                "lists only the models the API key may use), and it is not an "
+                "alias of the API key or its team."
             )
+            if self._alias_error:
+                found += f" (The aliases could not be read: {self._alias_error})"
         elif db_key:
             found = (
                 f"Inspect's model database has no context window for its upstream "
