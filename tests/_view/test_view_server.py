@@ -2292,6 +2292,104 @@ def test_api_pending_sample_data_urls_s3_populates_direct_url(
     assert "test-bucket" in direct_url
 
 
+_FAKE_DIRECT_URL = "https://test-bucket.s3.example/presigned"
+
+
+def _standalone_client_with_fake_presigning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    viewer_csp: bool,
+) -> tuple[TestClient, Path, list[str]]:
+    """A standalone view app whose presigning is faked and recorded."""
+    from inspect_ai._view import common
+    from inspect_ai._view._csp import CSP_FILENAME
+    from inspect_ai._view.network import resolve_viewer_network_policy
+
+    presigned: list[str] = []
+
+    async def fake_get_direct_url(path: str) -> str | None:
+        presigned.append(path)
+        return _FAKE_DIRECT_URL
+
+    monkeypatch.setattr(common, "get_direct_url", fake_get_direct_url)
+
+    dist_dir = tmp_path / "dist"
+    dist_dir.mkdir()
+    (dist_dir / "index.html").write_text("<html>viewer</html>", encoding="utf-8")
+    if viewer_csp:
+        (dist_dir / CSP_FILENAME).write_text(
+            json.dumps({"version": 1, "directives": {"connect-src": ["'self'"]}}),
+            encoding="utf-8",
+        )
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    app = fastapi_server.standalone_view_app(
+        log_dir=str(log_dir),
+        network_policy=resolve_viewer_network_policy(bind_host="127.0.0.1", port=7575),
+        generate_direct_urls=True,
+        dist_dir=dist_dir,
+    )
+    return TestClient(app, base_url="http://localhost:7575"), log_dir, presigned
+
+
+@pytest.mark.parametrize("viewer_csp", [False, True], ids=["no-csp", "csp"])
+def test_standalone_log_info_direct_url_disabled_by_viewer_csp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, viewer_csp: bool
+) -> None:
+    client, log_dir, presigned = _standalone_client_with_fake_presigning(
+        tmp_path, monkeypatch, viewer_csp=viewer_csp
+    )
+    log = write_eval_log(log_dir, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    with client:
+        resp = client.get(f"/api/log-info/{log}")
+    resp.raise_for_status()
+
+    if viewer_csp:
+        assert "direct_url" not in resp.json()
+        assert presigned == []
+    else:
+        assert resp.json()["direct_url"] == _FAKE_DIRECT_URL
+        assert presigned == [log]
+
+
+@pytest.mark.parametrize("viewer_csp", [False, True], ids=["no-csp", "csp"])
+def test_standalone_pending_sample_data_urls_disabled_by_viewer_csp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, viewer_csp: bool
+) -> None:
+    client, log_dir, presigned = _standalone_client_with_fake_presigning(
+        tmp_path, monkeypatch, viewer_csp=viewer_csp
+    )
+    log = write_eval_log(log_dir, "2025-01-01T00-00-00+00-00_task_taskid.eval")
+    _create_sample_buffer(log)
+    with client:
+        resp = client.get(
+            f"/api/pending-sample-data-urls?log={urllib.parse.quote_plus(log)}"
+            "&id=sample1&epoch=0"
+        )
+    resp.raise_for_status()
+
+    segments = resp.json()["segments"]
+    assert len(segments) == 1
+    if viewer_csp:
+        assert segments[0]["direct_url"] is None
+        assert presigned == []
+    else:
+        assert segments[0]["direct_url"] == _FAKE_DIRECT_URL
+        assert len(presigned) == 1
+
+
+def test_standalone_logs_when_viewer_csp_disables_direct_urls(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.INFO, logger=fastapi_server.logger.name):
+        _standalone_client_with_fake_presigning(tmp_path, monkeypatch, viewer_csp=True)
+    records = [r for r in caplog.records if "direct S3 URLs" in r.getMessage()]
+    assert [r.levelno for r in records] == [logging.INFO]
+
+
 async def test_get_log_bytes_local_does_not_block_event_loop(tmp_path: Path) -> None:
     """A local byte-range read must not pin the event loop.
 
