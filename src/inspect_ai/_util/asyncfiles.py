@@ -196,6 +196,18 @@ class DirListing(NamedTuple):
     """The subdirectories' paths, each without a trailing separator."""
 
 
+class FileContent(NamedTuple):
+    """A file's content and the version it was read from (see :meth:`AsyncFilesystem.read_file_info`)."""
+
+    data: bytes
+
+    etag: str | None
+    """The response's ETag (S3), ``None`` where the backend has none."""
+
+    mtime: float | None
+    """Last modification time in milliseconds, as ``FileInfo.mtime``."""
+
+
 class _S3ETagCapture:
     """Proxy an S3 client and retain the exact completed-upload ETag."""
 
@@ -541,6 +553,41 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             with file(filename, "rb") as f:
                 return f.read()
+
+    async def read_file_info(self, filename: str) -> FileContent:
+        """Read a file's full contents with the ETag and Last-Modified they came from.
+
+        One request on S3 (the ``get_object`` response carries both). A local
+        file is opened, ``fstat``-ed and read through the same descriptor, so
+        the time describes the bytes returned; other fsspec backends read, then
+        look the file up. Raises ``FileNotFoundError`` for a missing file on
+        every backend.
+        """
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            with _map_missing_s3_object(filename):
+                if current_async_backend() == "asyncio":
+                    response = await (await self.s3_client_async()).get_object(
+                        Bucket=bucket, Key=key
+                    )
+                    body = response["Body"]
+                    try:
+                        data = cast(bytes, await body.read())
+                    finally:
+                        body.close()
+                    return _s3_file_content(data, response)
+                return await anyio.to_thread.run_sync(
+                    s3_read_file_info, self.s3_client(), bucket, key
+                )
+        fsw = filesystem(filename)
+        if fsw.is_local():
+            return await anyio.to_thread.run_sync(
+                _local_read_file_info, local_path(filename)
+            )
+        with file(filename, "rb") as f:
+            data = f.read()
+        info = fsw.info(filename)
+        return FileContent(data=data, etag=info.etag, mtime=info.mtime)
 
     async def read_file_bytes(
         self, filename: str, start: int, end: int | None
@@ -1263,6 +1310,27 @@ def s3_info(s3: Any, bucket: str, key: str, filename: str) -> FileInfo:
 def s3_read_file(s3: Any, bucket: str, key: str) -> bytes:
     response = s3.get_object(Bucket=bucket, Key=key)
     return cast(bytes, response["Body"].read())
+
+
+def s3_read_file_info(s3: Any, bucket: str, key: str) -> FileContent:
+    response = s3.get_object(Bucket=bucket, Key=key)
+    return _s3_file_content(cast(bytes, response["Body"].read()), response)
+
+
+def _s3_file_content(data: bytes, response: dict[str, Any]) -> FileContent:
+    last_modified = response.get("LastModified")
+    etag_raw = response.get("ETag")
+    return FileContent(
+        data=data,
+        etag=cast(str, etag_raw).strip('"') if etag_raw else None,
+        mtime=last_modified.timestamp() * 1000 if last_modified else None,
+    )
+
+
+def _local_read_file_info(path: str) -> FileContent:
+    with open(path, "rb") as f:
+        mtime = os.fstat(f.fileno()).st_mtime * 1000
+        return FileContent(data=f.read(), etag=None, mtime=mtime)
 
 
 def s3_range_header(start: int, end: int | None) -> str:

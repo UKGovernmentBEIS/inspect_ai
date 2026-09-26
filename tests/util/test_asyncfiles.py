@@ -590,6 +590,38 @@ async def test_local_read_file():
         Path(temp_path).unlink()
 
 
+async def test_read_file_info_local_returns_the_content_and_its_mtime(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "manifest.json"
+    path.write_bytes(b"{}")
+    os.utime(path, (1_700_000_000, 1_700_000_000))
+    async with AsyncFilesystem() as fs:
+        content = await fs.read_file_info(str(path))
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file_info(str(tmp_path / "absent"))
+    assert content.data == b"{}"
+    assert content.etag is None
+    assert content.mtime == pytest.approx(1_700_000_000 * 1000)
+
+
+async def test_read_file_info_s3_returns_the_response_etag_and_last_modified(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    s3.put_object(Bucket="test-bucket", Key="read_file_info/m.json", Body=b"{}")
+    head = s3.head_object(Bucket="test-bucket", Key="read_file_info/m.json")
+    async with AsyncFilesystem() as fs:
+        content = await fs.read_file_info(f"{S3_BUCKET}/read_file_info/m.json")
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file_info(f"{S3_BUCKET}/read_file_info/absent.json")
+    assert content.data == b"{}"
+    assert content.etag == head["ETag"].strip('"')
+    assert content.mtime == head["LastModified"].timestamp() * 1000
+
+
 async def test_write_file_local():
     """Test AsyncFilesystem.write_file with local files."""
     test_data = b"Test write data"
