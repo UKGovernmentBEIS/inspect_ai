@@ -145,9 +145,14 @@ POSTGRES_IMAGE = os.environ.get("LITELLM_PROXY_POSTGRES_IMAGE", "postgres:16")
 def postgres_image_available() -> bool:
     if not litellm_proxy_image_available():
         return False
-    result = subprocess.run(
-        ["docker", "image", "inspect", POSTGRES_IMAGE], capture_output=True
-    )
+    try:
+        result = subprocess.run(
+            ["docker", "image", "inspect", POSTGRES_IMAGE],
+            capture_output=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
     return result.returncode == 0
 
 

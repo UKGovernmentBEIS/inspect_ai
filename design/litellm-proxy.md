@@ -752,7 +752,8 @@ or `claude`, `gemini`, `grok`, or an OpenAI model name), and for Claude:
   tool message (not retried).
 
 For every model, chat completions stream by default (`-M stream=false` opts
-out); the Responses path does not, because of LiteLLM #43010.
+out); the Responses path does not, because of LiteLLM #43010, except to
+OpenAI (see §9).
 
 What `base_model` adds: for a codename, LiteLLM rejects `thinking`, maps
 `reasoning_effort` to a small fixed thinking budget (4096 at `high`) when

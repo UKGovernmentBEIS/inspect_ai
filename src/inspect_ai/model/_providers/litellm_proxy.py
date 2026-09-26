@@ -60,7 +60,6 @@ from ._litellm_proxy_model_info import (
     proxy_aliases,
     proxy_deployments,
     proxy_model_info,
-    resolve_alias,
 )
 from ._litellm_proxy_names import ProxyResolution, resolve_deployments
 from ._litellm_proxy_reasoning import (
@@ -208,9 +207,17 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             deployments = proxy_deployments(self.base_url, self.api_key, headers)
             aliases = proxy_aliases(self.base_url, self.api_key, headers)
             alias = self.service_model_name()
-            target = resolve_alias(alias, aliases.aliases)
+            target = aliases.resolve(alias)
             self._alias_target = target if target != alias else None
             self._alias_error = aliases.error
+            if aliases.error:
+                warn_once(
+                    logger,
+                    "Could not read the key and team model aliases from the "
+                    f"LiteLLM proxy ({aliases.error}). Model names are looked up "
+                    "as listed, so a name that is also an alias of your key or "
+                    "team gets the model info of the listed model.",
+                )
             self._deployments = [d for d in deployments if d.model_name == target]
         self._resolution: ProxyResolution | None = resolve_deployments(
             self.service_model_name(), self._deployments or []
@@ -219,6 +226,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             [
                 self._resolution.upstream if self._resolution else None,
                 self._resolution.db_key if self._resolution else None,
+                self._alias_target,
                 self.service_model_name(),
             ]
         )
@@ -289,17 +297,26 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             user=user, registered=info, base_url=self.base_url
         )
 
+    def _routed_name(self) -> str:
+        """The model name requests are routed to (the alias target, if any)."""
+        return self._alias_target or self.service_model_name()
+
     def _check_model_info(self) -> None:
         info = _get_custom_model_info(self._model_info_key())
         if info is not None and info.input_tokens is not None:
             return
         alias = self.service_model_name()
+        about = (
+            f" (a key or team alias for '{self._alias_target}')"
+            if self._alias_target
+            else ""
+        )
         db_key = self._resolution.db_key if self._resolution else None
         upstream = self._resolution.upstream if self._resolution else None
         if not self._deployments and self._alias_target:
             found = (
-                f"It is a key or team alias for '{self._alias_target}', which "
-                "the proxy's /model/info listing has no deployment for."
+                "The proxy's /model/info listing has no deployment for "
+                f"'{self._alias_target}'."
             )
         elif not self._deployments:
             found = (
@@ -325,8 +342,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                 "max_input_tokens for it."
             )
         raise PrerequisiteError(
-            f"No model info (context window) for LiteLLM proxy model '{alias}'. "
-            f"{found}\n\n"
+            f"No model info (context window) for LiteLLM proxy model "
+            f"'{alias}'{about}. {found}\n\n"
             "Inspect uses it for the context window (compaction) and cost. "
             "To fix, do one of:\n\n"
             f"{self._model_info_fix()}\n"
@@ -337,7 +354,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
 
     def _model_info_fix(self) -> str:
         """The error's first fix: `model_info` to add to the proxy config."""
-        alias = self.service_model_name()
+        alias = self._routed_name()
         if self._vendor is not None:
             return (
                 f"- add model_info to the '{alias}' deployment in the proxy "
@@ -503,15 +520,17 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     def canonical_name(self) -> str:
         """The Inspect database key of the upstream model, when it resolves.
 
-        Otherwise the normalized upstream model name, or the alias when the
-        proxy listed no deployment for it (or model info was not fetched).
+        Otherwise the normalized upstream model name, or the model name
+        requests are routed to (the alias, or its target for a key or team
+        alias) when the proxy listed no deployment for it or model info was
+        not fetched.
         """
         resolution = self._resolution
         if resolution is not None:
             name = resolution.db_key or resolution.upstream
             if name:
                 return name
-        return self.service_model_name()
+        return self._routed_name()
 
     @override
     def model_family(self) -> str:
@@ -529,7 +548,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             if info is not None and info.family:
                 return info.family
         if self._resolution is None:
-            return alias
+            return self._routed_name()
         return canonical.split("/")[-1]
 
     @override

@@ -359,8 +359,8 @@ def model_info_stub(clear_model_info_cache: None) -> Iterator[ModelInfoStub]:
                 stub.release.wait()
                 return
             status, body = stub.status, stub.body
-            if self.path.startswith(("/key/info", "/team/info")):
-                reply = stub.key_info if "key" in self.path else stub.team_info
+            if "/key/info" in self.path or "/team/info" in self.path:
+                reply = stub.key_info if "/key/info" in self.path else stub.team_info
                 status, body = reply[0], json.dumps(reply[1]).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
@@ -544,6 +544,30 @@ def test_alias_chain_and_cycle(model_info_stub: ModelInfoStub) -> None:
 
 
 @skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "key_aliases,team_aliases,alias,target",
+    [
+        # LiteLLM applies a team alias once, without following team chains
+        ({}, {"t1": "target-b", "target-b": "target-a"}, "t1", "target-b"),
+        # a key alias's target is not looked up in the team aliases
+        ({"a": "target-b"}, {"target-b": "target-a"}, "a", "target-b"),
+        # key aliases apply to the team alias's target
+        ({"target-b": "target-a"}, {"t1": "target-b"}, "t1", "target-a"),
+    ],
+)
+def test_alias_order_matches_litellm(
+    model_info_stub: ModelInfoStub,
+    key_aliases: dict[str, str],
+    team_aliases: dict[str, str],
+    alias: str,
+    target: str,
+) -> None:
+    model_info_stub.key_info = _key_info(key_aliases, team_id="t1")
+    model_info_stub.team_info = _team_info(team_aliases)
+    assert _key_alias_provider(model_info_stub, alias)._routed_name() == target
+
+
+@skip_if_no_openai_package
 def test_alias_default_follows_target_route(model_info_stub: ModelInfoStub) -> None:
     model_info_stub.key_info = _key_info({"fast": "target-b"})
     assert _key_alias_provider(model_info_stub, "fast").responses_api is True
@@ -588,18 +612,43 @@ def test_no_aliases_is_not_an_error(
 
 
 @skip_if_no_openai_package
-def test_alias_read_failure_reported(model_info_stub: ModelInfoStub) -> None:
-    model_info_stub.key_info = _key_info({}, team_id="t2")
-    model_info_stub.team_info = (
-        403,
-        {"error": {"message": "Team key not authorized", "type": "auth_error"}},
-    )
+@pytest.mark.parametrize(
+    "key_info,team_info,cause",
+    [
+        (
+            _key_info({}, team_id="t2"),
+            (
+                403,
+                {"error": {"message": "Team key not authorized", "type": "auth_error"}},
+            ),
+            "HTTP 403: Team key not authorized",
+        ),
+        # a 404 that isn't LiteLLM's "no key record" (e.g. from a gateway)
+        ((404, {"detail": "Not Found"}), KEY_NOT_FOUND, "HTTP 404"),
+    ],
+)
+def test_alias_read_failure_reported(
+    model_info_stub: ModelInfoStub,
+    monkeypatch: pytest.MonkeyPatch,
+    key_info: Any,
+    team_info: Any,
+    cause: str,
+) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    model_info_stub.key_info = key_info
+    model_info_stub.team_info = team_info
     with pytest.raises(PrerequisiteError) as ex:
         _key_alias_provider(model_info_stub, "unlisted")
     assert "could not be read" in str(ex.value)
-    assert "HTTP 403: Team key not authorized" in str(ex.value)
-    # the failure doesn't stop a model that doesn't need its aliases
+    assert cause in str(ex.value)
+    # a listed model is still usable, with a warning that aliases were not
+    # applied
     assert _key_alias_provider(model_info_stub, "target-a")._deployments
+    [warning] = warnings
+    assert "Could not read the key and team model aliases" in warning
+    assert cause in warning
 
 
 @skip_if_no_openai_package
@@ -608,7 +657,48 @@ def test_alias_target_not_listed(model_info_stub: ModelInfoStub) -> None:
     with pytest.raises(PrerequisiteError, match="alias for 'retired-model'"):
         _key_alias_provider(model_info_stub, "gone")
     provider = _key_alias_provider(model_info_stub, "gone", require_model_info=False)
-    assert provider.canonical_name() == "gone"
+    assert provider.canonical_name() == "retired-model"
+    assert provider.model_family() == "retired-model"
+
+
+@skip_if_no_openai_package
+def test_alias_model_info_error_names_target(model_info_stub: ModelInfoStub) -> None:
+    model_info_stub.key_info = _key_info({"fast": "target-x"})
+    model_info_stub.body = json.dumps(
+        {"data": [_row("target-x", "openai/orion-22")]}
+    ).encode()
+    with pytest.raises(PrerequisiteError) as ex:
+        _stub_provider(model_info_stub, alias="fast", memoize=False)
+    message = str(ex.value)
+    assert "model 'fast' (a key or team alias for 'target-x')" in message
+    assert "add model_info to the 'target-x' deployment" in message
+
+
+@skip_if_no_openai_package
+def test_alias_vendor_from_target(model_info_stub: ModelInfoStub) -> None:
+    # an opaque upstream: the target's name is the best evidence of the vendor
+    model_info_stub.key_info = _key_info({"gpt-fast": "claude-x"})
+    arn = "bedrock/arn:aws:bedrock:us-east-1:1:application-inference-profile/x"
+    model_info_stub.body = json.dumps(
+        {"data": [_row("claude-x", arn, max_input_tokens=200000)]}
+    ).encode()
+    provider = _stub_provider(model_info_stub, alias="gpt-fast", memoize=False)
+    assert provider._vendor == "anthropic"
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "suffix,key_info_path",
+    [("", "/key/info"), ("/v1/", "/key/info"), ("/litellm/v1", "/litellm/key/info")],
+)
+def test_alias_urls(
+    model_info_stub: ModelInfoStub, suffix: str, key_info_path: str
+) -> None:
+    root = model_info_stub.url.removesuffix("/v1")
+    model_info_stub.key_info = _key_info({"my-alias": "target-a"})
+    _key_alias_provider(model_info_stub, "target-a", base_url=root + suffix)
+    paths = [r["path"] for r in model_info_stub.requests]
+    assert key_info_path in paths
 
 
 DB_PROXY_CONFIG: dict[str, Any] = {

@@ -1746,7 +1746,7 @@ Requests stream by default, so long generations don't hit client or proxy timeou
 
 ### Web Search {#litellm-proxy-web-search}
 
-The `web_search()` tool uses OpenAI's built-in search for models that use the Responses API. For other models it needs an external search provider (`tavily`, `exa` or `google`), for example `web_search(["anthropic", "tavily"])`; other built-in search providers are not supported through the proxy.
+The `web_search()` tool uses OpenAI's built-in search (its `openai` provider) for OpenAI models that use the Responses API. Otherwise it needs an external search provider (`tavily`, `exa` or `google`), for example `web_search(["anthropic", "tavily"])`; other built-in search providers are not supported through the proxy.
 
 ### Model Args {#litellm-proxy-model-args}
 
