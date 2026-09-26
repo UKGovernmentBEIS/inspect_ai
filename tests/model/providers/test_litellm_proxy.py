@@ -55,6 +55,7 @@ from inspect_ai.model import (
     get_model,
     set_model_info,
 )
+from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_info import (
     MODEL_INFO_LOOKUP_API_KEY,
@@ -104,7 +105,14 @@ from inspect_ai.model._providers.litellm_proxy import (
     merged_model_info,
 )
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
-from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams
+from inspect_ai.tool import (
+    Tool,
+    ToolCall,
+    ToolInfo,
+    ToolParam,
+    ToolParams,
+    web_search,
+)
 
 MOCK_MODEL = "mock-model"
 MOCK_RESPONSE = "Hello from the mock proxy"
@@ -171,7 +179,10 @@ async def test_litellm_proxy_generate(litellm_proxy: LiteLLMProxy) -> None:
 async def test_litellm_proxy_generate_responses_api(
     litellm_proxy: LiteLLMProxy,
 ) -> None:
-    output = await _proxy_model(litellm_proxy, responses_api=True).generate("Hello")
+    # LiteLLM's mock_response can't stream Responses, which is the default for
+    # an OpenAI route (streaming is covered against fake upstreams)
+    model = _proxy_model(litellm_proxy, responses_api=True, stream=False)
+    output = await model.generate("Hello")
     assert output.completion == MOCK_RESPONSE
 
 
@@ -416,6 +427,159 @@ def test_model_info_fetch_skipped(model_info_stub: ModelInfoStub) -> None:
     placeholder = _stub_provider(model_info_stub, api_key=MODEL_INFO_LOOKUP_API_KEY)
     assert placeholder._deployments is None
     assert model_info_stub.requests == []
+
+
+# Responses API default -------------------------------------------------------
+
+VLLM_BASE = "http://vllm.internal:8000/v1"
+
+
+def _route_row(
+    model: str,
+    *,
+    alias: str = "m",
+    custom_llm_provider: str | None = None,
+    api_base: str | None = None,
+    base_model: str | None = None,
+) -> dict[str, Any]:
+    params: dict[str, Any] = {"model": model}
+    if custom_llm_provider:
+        params["custom_llm_provider"] = custom_llm_provider
+    if api_base:
+        params["api_base"] = api_base
+    info: dict[str, Any] = {"max_input_tokens": 200000}
+    if base_model:
+        info["base_model"] = base_model
+    return {"model_name": alias, "litellm_params": params, "model_info": info}
+
+
+def _route_provider(
+    stub: ModelInfoStub, rows: list[dict[str, Any]], **model_args: Any
+) -> LiteLLMProxyAPI:
+    stub.body = json.dumps({"data": rows}).encode()
+    _litellm_proxy_model_info._clear_cache()
+    return _stub_provider(stub, alias="m", memoize=False, **model_args)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "rows,expected",
+    [
+        ([_route_row("openai/gpt-5.5")], True),
+        ([_route_row("gpt-5")], True),
+        ([_route_row("openai/o3")], True),
+        ([_route_row("openai/codex-mini-latest")], True),
+        ([_route_row("openai/responses/gpt-5")], True),
+        ([_route_row("openai/gpt-5", api_base="https://api.openai.com/v1")], True),
+        ([_route_row("openai/gpt-5", api_base="https://us.api.openai.com/v1")], True),
+        ([_route_row("openai/gpt-5", custom_llm_provider="openai")], True),
+        # later GPT versions, including ones Inspect's database doesn't know
+        ([_route_row("openai/gpt-6-astra")], True),
+        ([_route_row("openai/gpt-7")], True),
+        ([_route_row("openai/orion-22", base_model="openai/gpt-6-astra")], True),
+        # an unrecognized name may be another server behind OPENAI_API_BASE
+        ([_route_row("openai/orion-22")], False),
+        ([_route_row("azure/orion-22", api_base="https://x.azure.com")], False),
+        ([_route_row("openai/text-embedding-3-large")], False),
+        ([_route_row("openai/gpt-4.1")], False),
+        ([_route_row("openai/gpt-oss-120b")], False),
+        ([_route_row("azure/gpt-5", api_base="https://x.openai.azure.com")], False),
+        ([_route_row("openai/gpt-5", api_base=VLLM_BASE)], False),
+        (
+            [
+                _route_row(
+                    "my-served-model",
+                    custom_llm_provider="openai",
+                    api_base=VLLM_BASE,
+                    base_model="openai/gpt-5",
+                )
+            ],
+            False,
+        ),
+        (
+            [_route_row("anthropic/claude-sonnet-5", base_model="openai/gpt-5")],
+            False,
+        ),
+        ([_route_row("openai/gpt-5"), _route_row("azure/gpt-5")], False),
+        ([_route_row("anthropic/claude-sonnet-5")], False),
+    ],
+)
+def test_responses_default_route(
+    model_info_stub: ModelInfoStub, rows: list[dict[str, Any]], expected: bool
+) -> None:
+    assert bool(_route_provider(model_info_stub, rows).responses_api) is expected
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "model_args,config",
+    [
+        ({"responses_api": False}, GenerateConfig()),
+        ({"emulate_tools": True}, GenerateConfig()),
+        ({}, GenerateConfig(num_choices=2)),
+        ({"model_info": False}, GenerateConfig()),
+    ],
+)
+def test_responses_default_off(
+    model_info_stub: ModelInfoStub, model_args: dict[str, Any], config: GenerateConfig
+) -> None:
+    provider = _route_provider(
+        model_info_stub, [_route_row("openai/gpt-5")], config=config, **model_args
+    )
+    assert not provider.responses_api
+
+
+@skip_if_no_openai_package
+def test_responses_explicit_kept_for_other_routes(
+    model_info_stub: ModelInfoStub,
+) -> None:
+    provider = _route_provider(
+        model_info_stub, [_route_row("anthropic/claude-sonnet-5")], responses_api=True
+    )
+    assert provider.responses_api is True
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "row,model_args,streams",
+    [
+        # Responses to OpenAI streams, by default or explicitly
+        (_route_row("openai/gpt-5"), {}, True),
+        (_route_row("openai/gpt-5.5"), {"responses_api": True}, True),
+        # Responses to other upstreams doesn't (LiteLLM #43010)
+        (_route_row("anthropic/claude-sonnet-5"), {"responses_api": True}, False),
+        (
+            _route_row("openai/gpt-5", api_base=VLLM_BASE),
+            {"responses_api": True},
+            False,
+        ),
+        # Chat Completions streams for every upstream
+        (_route_row("openai/gpt-4.1"), {}, True),
+        (_route_row("openai/gpt-5"), {"responses_api": False}, True),
+        # an explicit stream arg wins
+        (_route_row("openai/gpt-5"), {"stream": False}, False),
+    ],
+)
+def test_responses_streaming(
+    model_info_stub: ModelInfoStub,
+    row: dict[str, Any],
+    model_args: dict[str, Any],
+    streams: bool,
+) -> None:
+    provider = _route_provider(model_info_stub, [row], **model_args)
+    assert provider.resolve_stream(GenerateConfig()) is streams
+
+
+@skip_if_no_openai_package
+def test_responses_default_claims_web_search(model_info_stub: ModelInfoStub) -> None:
+    provider = _route_provider(model_info_stub, [_route_row("openai/gpt-5.5")])
+    _resolve_search_tools(provider, web_search())
+    # a route the default doesn't cover still gets the error, and its hint
+    azure = _route_provider(
+        model_info_stub, [_route_row("azure/gpt-5", api_base="https://x.azure.com")]
+    )
+    with pytest.raises(PrerequisiteError, match="responses_api=true"):
+        _resolve_search_tools(azure, web_search())
 
 
 @skip_if_no_openai_package
@@ -1696,6 +1860,8 @@ EFFORT_DEPLOYMENTS = {
     "grok-4": "xai/grok-4",
     "deepseek-reasoner": "deepseek/deepseek-reasoner",
     "strict-openai": "openai/strict-openai",
+    # the strict fake as a codename identified by base_model
+    "strict-codename": "openai/strict-openai",
 }
 
 
@@ -1707,6 +1873,16 @@ def _effort_params(model: str, url: str) -> dict[str, Any]:
     return {"model": model, "api_base": f"{url}/v1", "api_key": "fake"}
 
 
+def _effort_model_info(alias: str) -> dict[str, Any]:
+    # LiteLLM's map does not know the strict fake; without supports_reasoning,
+    # LiteLLM refuses reasoning.effort on the Responses path
+    if alias == "strict-openai":
+        return {"supports_reasoning": True}
+    if alias == "strict-codename":
+        return {"supports_reasoning": True, "base_model": "openai/gpt-5.5"}
+    return {}
+
+
 @pytest.fixture(scope="module")
 def effort_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLMProxy]:
     with fake_upstream(_strict_openai_route) as upstream:
@@ -1715,11 +1891,7 @@ def effort_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLMPr
                 {
                     "model_name": alias,
                     "litellm_params": _effort_params(model, upstream.docker_url),
-                    # LiteLLM's map does not know it; without this, LiteLLM
-                    # refuses reasoning.effort on the Responses path
-                    "model_info": (
-                        {"supports_reasoning": True} if alias == "strict-openai" else {}
-                    ),
+                    "model_info": _effort_model_info(alias),
                 }
                 for alias, model in EFFORT_DEPLOYMENTS.items()
             ],
@@ -1743,17 +1915,23 @@ def _sent_effort(request: dict[str, Any]) -> Any:
 
 
 async def _generate_effort(
-    proxy: LiteLLMProxy, alias: str, responses_api: bool, effort: Effort
+    proxy: LiteLLMProxy, alias: str, responses_api: bool | None, effort: Effort
 ) -> tuple[ModelOutput | Exception, Any]:
+    """Generate with `effort`; `responses_api=None` uses the provider default."""
+    model_args: dict[str, Any] = (
+        # the default needs the route from model info
+        {"require_model_info": False}
+        if responses_api is None
+        else {"responses_api": responses_api, "model_info": False}
+    )
     api = _proxy_api(
         get_model(
             f"litellm-proxy/{alias}",
             base_url=proxy.base_url,
             api_key=proxy.api_key,
-            responses_api=responses_api,
-            model_info=False,
             max_retries=0,
             memoize=False,
+            **model_args,
         )
     )
     call_id = str(uuid.uuid4())
@@ -1818,6 +1996,44 @@ async def test_litellm_proxy_reasoning_effort_lowered(
     output, upstream = await _generate_effort(
         effort_proxy, alias, responses_api, effort
     )
+    assert isinstance(output, ModelOutput), output
+    assert upstream == sent
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize(
+    "alias,effort,sent",
+    [
+        ("strict-codename", "max", "high"),
+        ("strict-codename", "xhigh", "high"),
+        ("strict-codename", "none", None),
+        # OpenAI applies its own rules to gpt-5 on Responses
+        ("gpt-5", "high", "high"),
+    ],
+)
+async def test_litellm_proxy_reasoning_effort_lowered_responses_default(
+    effort_proxy: LiteLLMProxy,
+    monkeypatch: pytest.MonkeyPatch,
+    alias: str,
+    effort: Effort,
+    sent: Any,
+) -> None:
+    # the fake upstream stands in for OpenAI's API
+    monkeypatch.setattr(
+        litellm_proxy_module, "is_openai_api_base", lambda api_base: True
+    )
+    default = _proxy_api(
+        get_model(
+            f"litellm-proxy/{alias}",
+            base_url=effort_proxy.base_url,
+            api_key=effort_proxy.api_key,
+            require_model_info=False,
+            memoize=False,
+        )
+    )
+    assert default.responses_api is True
+    output, upstream = await _generate_effort(effort_proxy, alias, None, effort)
     assert isinstance(output, ModelOutput), output
     assert upstream == sent
 
@@ -2073,6 +2289,71 @@ def test_provider_bad_request_prefill() -> None:
     assert isinstance(error, PrefillNotSupportedError)
     assert "ends with an assistant message" in str(error)
     assert "This model does not support assistant message prefill." in str(error)
+
+
+def _search_provider(alias: str, **model_args: Any) -> LiteLLMProxyAPI:
+    api = get_model(
+        f"litellm-proxy/{alias}",
+        base_url="http://localhost:4000/v1",
+        api_key="key",
+        model_info=False,
+        **model_args,
+    ).api
+    assert isinstance(api, LiteLLMProxyAPI)
+    return api
+
+
+def _resolve_search_tools(
+    api: LiteLLMProxyAPI, search: Tool, config: GenerateConfig = GenerateConfig()
+) -> None:
+    api.resolve_tools(get_tools_info([search]), "auto", config)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("alias", ["claude-sonnet-5", "gemini-3.1-pro", "gpt-5.5"])
+def test_web_search_built_in_only_fails(alias: str) -> None:
+    with pytest.raises(PrerequisiteError) as ex:
+        _resolve_search_tools(_search_provider(alias), web_search())
+    assert "web_search() has no provider" in str(ex.value)
+    assert 'web_search("tavily")' in str(ex.value)
+    # the Responses API fix is offered only for OpenAI models
+    assert ("responses_api=true" in str(ex.value)) == alias.startswith("gpt")
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("external", ["tavily", "exa", "google"])
+def test_web_search_external_provider_passes(
+    external: Literal["tavily", "exa", "google"],
+) -> None:
+    _resolve_search_tools(
+        _search_provider("claude-sonnet-5"), web_search(["anthropic", external])
+    )
+
+
+@skip_if_no_openai_package
+def test_web_search_openai_responses_passes() -> None:
+    _resolve_search_tools(_search_provider("gpt-5.5", responses_api=True), web_search())
+
+
+@skip_if_no_openai_package
+def test_web_search_openai_responses_internal_tools_off_fails() -> None:
+    with pytest.raises(PrerequisiteError) as ex:
+        _resolve_search_tools(
+            _search_provider("gpt-5.5", responses_api=True),
+            web_search(),
+            GenerateConfig(internal_tools=False),
+        )
+    # already on the Responses API, so that fix is not offered
+    assert "responses_api=true" not in str(ex.value)
+
+
+@skip_if_no_openai_package
+def test_web_search_responses_non_openai_fails() -> None:
+    with pytest.raises(PrerequisiteError):
+        _resolve_search_tools(
+            _search_provider("claude-sonnet-5", responses_api=True),
+            web_search(["anthropic"]),
+        )
 
 
 @skip_if_no_openai_package

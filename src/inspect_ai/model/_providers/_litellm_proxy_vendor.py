@@ -7,6 +7,7 @@ codename), so this reads the names themselves rather than model info.
 
 import re
 from typing import Iterable, Literal
+from urllib.parse import urlparse
 
 from ._first_party import FRONTIER_MODELS
 
@@ -65,6 +66,35 @@ def _name_vendor(name: str) -> Vendor | None:
     if _OPENAI_MODEL.search(name):
         return "openai"
     return None
+
+
+def deployment_route(model: str | None, custom_llm_provider: str | None) -> str | None:
+    """The LiteLLM provider a deployment's requests are sent through.
+
+    `custom_llm_provider` when set, else the first segment of the upstream
+    model string (`litellm_params.model`). A bare name (e.g. `gpt-5`) has
+    its provider inferred by LiteLLM; of those, only OpenAI names are
+    recognized here. `model_info.base_model` never sets the route.
+    """
+    if custom_llm_provider:
+        return custom_llm_provider.lower()
+    if not model:
+        return None
+    if "/" in model:
+        return model.split("/", 1)[0].lower()
+    return "openai" if _OPENAI_MODEL.search(model.lower()) else None
+
+
+def is_openai_api_base(api_base: str | None) -> bool:
+    """Whether a deployment's `api_base` is OpenAI's own API (or unset).
+
+    An `openai/` route with another `api_base` is usually an
+    OpenAI-compatible server, which may not serve the Responses API.
+    """
+    if api_base is None:
+        return True
+    host = urlparse(api_base).hostname or ""
+    return host == "api.openai.com" or host.endswith(".api.openai.com")
 
 
 def frontier_base_model(vendor: Vendor) -> str:

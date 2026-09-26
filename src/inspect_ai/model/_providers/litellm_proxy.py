@@ -23,6 +23,7 @@ from typing_extensions import override
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
@@ -38,6 +39,8 @@ from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIResponseError,
     chat_choices_from_openai,
+    is_gpt_5_model,
+    is_o_series_model,
     openai_chat_completion_stream_final,
     openai_refusal_model_output,
 )
@@ -69,9 +72,12 @@ from ._litellm_proxy_reasoning_effort import next_effort, rejected_effort
 from ._litellm_proxy_vendor import (
     VENDOR_NAMES,
     Vendor,
+    deployment_route,
     frontier_base_model,
+    is_openai_api_base,
     upstream_vendor,
 )
+from ._openai_web_search import maybe_web_search_tool
 from .openai_compatible import ModelInfo as CompatibleModelInfo
 from .openai_compatible import OpenAICompatibleAPI
 from .util import environment_prerequisite_error, model_base_url
@@ -96,6 +102,8 @@ _cache_write_ttl: ContextVar[Literal["5m", "1h"] | None] = ContextVar(
     "litellm_proxy_cache_write_ttl", default=None
 )
 """TTL of the current request's cache writes, from its usage (for cost)."""
+
+_EXTERNAL_SEARCH_PROVIDERS = ("tavily", "exa", "google")
 
 _PREFILL_REJECTED = re.compile(
     r"assistant (message )?prefill|prefill(ing)? (the )?assistant", re.IGNORECASE
@@ -140,6 +148,10 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     Construction fails unless that model info has a context window. Pass
     `require_model_info=False` to allow it anyway, or `model_info=False` to
     skip the listing, the registration and the check.
+
+    When `responses_api` is not passed, GPT-5, o-series and Codex models
+    served directly by OpenAI use the Responses API, as with the native
+    `openai` provider; everything else uses Chat Completions.
     """
 
     def __init__(
@@ -208,6 +220,20 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             self._register_model_info()
             if require_model_info:
                 self._check_model_info()
+
+        self._openai_route = bool(self._deployments) and all(
+            deployment_route(d.model, d.custom_llm_provider) == "openai"
+            and is_openai_api_base(d.api_base)
+            for d in self._deployments or []
+        )
+        if (
+            self.responses_api is None
+            and self._openai_route
+            and self._responses_preferred()
+            and config.num_choices is None
+            and not self.emulate_tools
+        ):
+            self.responses_api = True
 
         # reasoning_effort values the proxy rejected for this model (see generate)
         self._rejected_efforts: set[str] = set()
@@ -319,6 +345,20 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             "  base_model also gives LiteLLM the model's capabilities;"
         )
 
+    def _responses_preferred(self) -> bool:
+        """GPT-5 or later, o-series and Codex models, by upstream model family.
+
+        The native `openai` provider uses the Responses API for these. On
+        Chat Completions, OpenAI returns none of their reasoning, so it can't
+        be carried to the next turn. Unlike the native provider, unrecognized
+        names are not treated as frontier codenames: a proxy can send every
+        `openai/` deployment to another server (`OPENAI_API_BASE`) without
+        listing an `api_base`. A codename gets the default through
+        `model_info.base_model`, which the model info check asks for.
+        """
+        family = self.model_family()
+        return is_gpt_5_model(family) or is_o_series_model(family) or "codex" in family
+
     def _is_claude(self) -> bool:
         return self._vendor == "anthropic"
 
@@ -330,14 +370,16 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
 
     @override
     def should_stream(self, config: GenerateConfig) -> bool:
-        """Stream chat completions unless the request can't be streamed.
+        """Stream unless the request can't be streamed.
 
         Long generations (e.g. high reasoning effort) otherwise hit client
         and proxy timeouts, and a streamed reply keeps its thinking blocks.
-        `-M stream=false` opts out. Responses requests are not streamed by
-        default (LiteLLM #43010).
+        `-M stream=false` opts out. Responses requests are streamed only to
+        OpenAI (LiteLLM #43010 affects its conversion for other upstreams).
         """
-        return not self.responses_api and self.auto_streamable(config)
+        return (not self.responses_api or self._openai_route) and self.auto_streamable(
+            config
+        )
 
     @override
     def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
@@ -389,6 +431,51 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     def cache_write_ttl(self) -> str | None:
         """The TTL the current request's usage reports for its cache writes."""
         return _cache_write_ttl.get()
+
+    @override
+    def resolve_tools(
+        self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
+    ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
+        for tool in tools:
+            self._check_web_search(tool, config)
+        return super().resolve_tools(tools, tool_choice, config)
+
+    def _check_web_search(self, tool: ToolInfo, config: GenerateConfig) -> None:
+        """Fail before sending a `web_search()` that has no provider here.
+
+        Of the built-in providers, only OpenAI's (on the Responses API) is
+        sent to the proxy as a hosted tool. Otherwise the tool goes out as a
+        function tool, whose execution fails when there is no external
+        provider to run the search.
+        """
+        options = tool.options or {}
+        if options.get(INTERNAL_TOOL_TYPE) != "web_search":
+            return
+        if any(provider in options for provider in _EXTERNAL_SEARCH_PROVIDERS):
+            return
+        if (
+            self.responses_api
+            and config.internal_tools is not False
+            and maybe_web_search_tool(self.model_family(), tool) is not None
+        ):
+            return
+        fixes = [
+            'add an external provider, e.g. web_search("tavily") or '
+            'web_search(["anthropic", "tavily"]) ("exa" and "google" also work).'
+        ]
+        if self._vendor == "openai" and not self.responses_api:
+            fixes.append(
+                "pass -M responses_api=true to use OpenAI's built-in search "
+                '(with the "openai" provider).'
+            )
+        raise PrerequisiteError(
+            f"web_search() has no provider for LiteLLM proxy model "
+            f"'{self.service_model_name()}'. Built-in search providers other "
+            "than OpenAI's (on the Responses API) are not supported through a "
+            "LiteLLM proxy. "
+            + ("To fix, do one of:\n\n" if len(fixes) > 1 else "To fix:\n\n")
+            + "\n".join(f"- {fix}" for fix in fixes)
+        )
 
     @override
     def input_tokens_name(self) -> str:

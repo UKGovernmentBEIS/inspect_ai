@@ -1744,6 +1744,10 @@ Requests stream by default, so long generations don't hit client or proxy timeou
 
 Requests use the Chat Completions API. Pass `-M responses_api=true` to use the proxy's Responses API instead (which is not streamed by default).
 
+### Web Search {#litellm-proxy-web-search}
+
+The `web_search()` tool needs an external search provider (`tavily`, `exa` or `google`) with proxy models, for example `web_search(["anthropic", "tavily"])`. Built-in search providers are not supported through the proxy, except OpenAI's for OpenAI models with `-M responses_api=true`.
+
 ### Model Args {#litellm-proxy-model-args}
 
 | Argument | Description |

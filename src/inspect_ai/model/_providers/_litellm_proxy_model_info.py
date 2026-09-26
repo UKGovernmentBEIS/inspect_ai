@@ -51,6 +51,9 @@ class ProxyDeployment(NamedTuple):
     model_info: dict[str, JsonValue]
     """The row's `model_info` as returned."""
 
+    api_base: str | None = None
+    """Upstream endpoint (`litellm_params.api_base`), when the operator set one."""
+
 
 _deployments: dict[tuple[str, str], list[ProxyDeployment]] = {}
 
@@ -125,6 +128,7 @@ def _deployment(url: str, row: Any) -> ProxyDeployment:
         custom_llm_provider=_str(params.get("custom_llm_provider")),
         base_model=_str(info.get("base_model")),
         model_info=info,
+        api_base=_str(params.get("api_base")),
     )
 
 

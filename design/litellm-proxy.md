@@ -1,10 +1,8 @@
 # LiteLLM Proxy provider
 
-> **Status: proposed.** Branch `feature/litellm-proxy`. A minimal provider
-> (`litellm-proxy/<alias>`, a thin `OpenAICompatibleAPI` subclass) and
-> Docker-based tests exist. This document plans the next phases: model
-> metadata from the proxy, upstream model resolution, a model info gate, and
-> reasoning effort normalization. Findings are against LiteLLM 1.104.0 (the
+> **Status: implemented** (#5559). Server-side web search is planned
+> separately in [litellm-proxy-server-tools.md](litellm-proxy-server-tools.md).
+> Findings are against LiteLLM 1.104.0 (the
 > `ghcr.io/berriai/litellm:main-latest` image pulled 2026-09-23).
 
 ## Summary
@@ -817,13 +815,21 @@ Each phase ends with review and approval before the next starts.
 
 ## Open questions
 
-- Server-side tools (built-in web search) through the proxy: deferred; see
+- Server-side tools (built-in web search) through the proxy: not pursued; see
   [litellm-proxy-server-tools.md](litellm-proxy-server-tools.md).
-- Does `/v2/model/info?model=` behave as the source suggests? If it does, it
-  would avoid fetching every deployment on large proxies, but it skips the key
-  allowlist, so v1 stays the default.
-- Should key, team and `model_alias_map` aliases be resolved through
-  `/key/info`? Unverified; the gate plus `set_model_info` covers them for now.
+- ~~Does `/v2/model/info?model=` behave as the source suggests?~~ Answered
+  (1.104, Postgres-backed proxy): `?model=` filters by exact `model_name` and
+  returns 403 for a model the key may not use, but unfiltered it ignores the
+  key's allowlist, it returns wildcard routes unexpanded (`anthropic/*`), and
+  it omits `model_group_alias` rows. v1 stays.
+- Key and team aliases (answered, not implemented): v1 lists neither. A key's
+  own `/key/info` returns its `aliases` (`{alias: model_name}`), and a team key
+  can read `/team/info?team_id=…`, whose
+  `team_info.litellm_model_table.model_aliases` maps team aliases. The target
+  is a `model_name` v1 lists. A fallback used only when v1 has no row for the
+  alias could resolve both with at most two requests. `model_alias_map`
+  aliases appear in no listing, even for the master key; the gate plus
+  `base_model` or `set_model_info` remains the fix for those.
 - Default for `responses_api`. It is off today. Given the translation layer
   for non-OpenAI upstreams, it could be chosen per resolved vendor. Deferred
   along with other provider-specific behavior.

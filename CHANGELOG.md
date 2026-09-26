@@ -1,5 +1,6 @@
 ## Unreleased
 
+- LiteLLM Proxy: `web_search()` with only built-in search providers fails before the request with an error naming the fix, rather than failing when the model calls it.
 - Checkpointing: after a resume, restored events reach hooks, the live viewer, ACP clients and transcript readers with long text and images inline instead of as `attachment://` references; raw model API calls stay condensed until the sample completes.
 - Bugfix: `f1()` now counts repeated tokens (multiset overlap, matching SQuAD F1); scores can rise or fall for answers or targets containing repeated words.
 - Bugfix: A sample retried or requeued in a shared log directory no longer shows the previous attempt's events alongside its own while it runs.
