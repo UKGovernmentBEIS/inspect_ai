@@ -16,6 +16,7 @@ from ._deepagent import Subagent, deepagent, general, plan, research, subagent
 from ._filter import MessageFilter, content_only, last_message, remove_tools
 from ._handoff import handoff
 from ._human.agent import human_cli
+from ._human.commands.command import HumanAgentCommand, HumanAgentCommandsFilter
 from ._react import react
 from ._run import run
 from ._types import (
@@ -29,6 +30,8 @@ __all__ = [
     "react",
     "bridge",
     "human_cli",
+    "HumanAgentCommand",
+    "HumanAgentCommandsFilter",
     "run",
     "handoff",
     "as_tool",
