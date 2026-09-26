@@ -3,7 +3,7 @@ import os
 from collections.abc import Callable
 
 import pytest
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import ContentImage
@@ -16,7 +16,9 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._subtask import SubtaskEvent
+from inspect_ai.event._timeline import Timeline, TimelineEvent, TimelineSpan
 from inspect_ai.log import EvalRetryError, EvalSample
+from inspect_ai.log import _condense as condense_module
 from inspect_ai.log._condense import (
     ATTACHMENT_PROTOCOL,
     attachment_refs_from_object,
@@ -26,7 +28,12 @@ from inspect_ai.log._condense import (
     resolve_sample_attachments,
 )
 from inspect_ai.log._file import read_eval_log
-from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
+from inspect_ai.log._resolve import resolve_sample_events_data
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
@@ -672,6 +679,185 @@ def test_resolve_full_clears_attachments() -> None:
     # "full" resolves every reference inline, so nothing points at the map.
     assert len(resolved.attachments) == 0
     assert ATTACHMENT_PROTOCOL not in resolved.model_dump_json()
+
+
+def test_resolve_core_ignores_refs_held_by_timeline_events() -> None:
+    call_payload = "model-call-payload-" + ("q" * 200)
+    output_text = "model-output-" + ("o" * 200)
+    sample = _sample_with_model_call_payload(call_payload)
+    event = sample.events[0]
+    assert isinstance(event, ModelEvent)
+    event.output = ModelOutput.from_content("test-model", output_text)
+    condensed = condense_sample(sample)
+    assert output_text in condensed.attachments.values()
+    # timelines are rebound only after resolution, so while resolving they
+    # still hold the condensed events (whose output is an attachment ref)
+    condensed.timelines = [
+        Timeline(
+            name="t",
+            description="",
+            root=TimelineSpan(
+                id="root",
+                name="root",
+                span_type="agent",
+                content=[TimelineEvent(event=e) for e in condensed.events],
+            ),
+        )
+    ]
+
+    resolved = resolve_sample_attachments(condensed, "core")
+
+    assert list(resolved.attachments.values()) == [call_payload]
+
+
+def test_resolve_full_expanded_shared_call_messages() -> None:
+    long_text = "shared-call-message-" + ("m" * 200)
+    shared: dict[str, JsonValue] = {"role": "user", "content": long_text}
+    reply: dict[str, JsonValue] = {"role": "assistant", "content": "hi"}
+    requests: list[list[JsonValue]] = [[shared], [shared, reply]]
+    events: list[Event] = [
+        ModelEvent(
+            model="test-model",
+            input=[],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(),
+            call=ModelCall(request={"messages": msgs}, response={"ok": True}),
+        )
+        for msgs in requests
+    ]
+    sample = EvalSample(
+        id="sample", epoch=1, input="input", target="target", events=events
+    )
+    # pool refs expanded before resolving, as recorder read_log does
+    expanded = resolve_sample_events_data(condense_sample(sample))
+
+    resolved = resolve_sample_attachments(expanded, "full")
+
+    msgs = [
+        e.call.request["messages"]
+        for e in resolved.events
+        if isinstance(e, ModelEvent) and e.call
+    ]
+    assert msgs == requests
+    assert ATTACHMENT_PROTOCOL not in resolved.model_dump_json()
+
+
+class _SerializesToRef(BaseModel):
+    key: str
+
+    @field_serializer("key")
+    def _ref(self, key: str) -> str:
+        return f"{ATTACHMENT_PROTOCOL}{key}"
+
+
+class _ExcludedRef(BaseModel):
+    ref: str = Field(exclude=True)
+
+
+def _sample_with_live_metadata(
+    sample_metadata: object, message_metadata: object
+) -> EvalSample:
+    sample = _sample_with_model_call_payload("payload")
+    event = sample.events[0]
+    assert isinstance(event, ModelEvent)
+    event.input = [
+        ChatMessageUser(content="hello", metadata={"live": message_metadata})
+    ]
+    sample.metadata = {"live": sample_metadata}
+    sample.attachments = {"payload": "content"}
+    return sample
+
+
+@pytest.mark.parametrize("where", ["sample", "message"])
+def test_resolve_core_retains_attachments_referenced_by_serializers(
+    where: str,
+) -> None:
+    live = _SerializesToRef(key="payload")
+    sample = _sample_with_live_metadata(
+        live if where == "sample" else None, live if where == "message" else None
+    )
+
+    resolved = resolve_sample_attachments(sample, "core")
+
+    assert f"{ATTACHMENT_PROTOCOL}payload" in resolved.model_dump_json()
+    assert resolved.attachments == {"payload": "content"}
+
+
+@pytest.mark.parametrize("where", ["sample", "message"])
+def test_resolve_core_ignores_refs_in_excluded_fields(where: str) -> None:
+    live = _ExcludedRef(ref=f"{ATTACHMENT_PROTOCOL}payload")
+    sample = _sample_with_live_metadata(
+        live if where == "sample" else None, live if where == "message" else None
+    )
+
+    resolved = resolve_sample_attachments(sample, "core")
+
+    assert resolved.attachments == {}
+
+
+def _count_strings(value: object) -> int:
+    if isinstance(value, str):
+        return 1
+    if isinstance(value, dict):
+        return sum(_count_strings(v) for v in value.values())
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return sum(_count_strings(v) for v in value)
+    return 0
+
+
+def _strings_scanned_resolving(turns: int, monkeypatch: pytest.MonkeyPatch) -> int:
+    payload = "model-call-payload-" + ("q" * 200)
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content=f"message {i}") for i in range(turns)
+    ]
+    call_messages: list[JsonValue] = [
+        {"role": "user", "content": f"message {i}"} for i in range(turns)
+    ]
+    events: list[Event] = [
+        ModelEvent(
+            model="test-model",
+            input=messages[: i + 1],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput.from_content("test-model", "response"),
+            call=ModelCall(
+                request={"system": payload, "messages": call_messages[: i + 1]},
+                response={"ok": True},
+            ),
+        )
+        for i in range(turns)
+    ]
+    sample = EvalSample(
+        id="sample", epoch=1, input="input", target="target", events=events
+    )
+    condensed = condense_sample(sample)
+
+    scanned = 0
+    scan = condense_module.attachment_refs_from_value
+
+    def counting_scan(value: JsonValue) -> set[str]:
+        nonlocal scanned
+        scanned += _count_strings(value)
+        return scan(value)
+
+    monkeypatch.setattr(condense_module, "attachment_refs_from_value", counting_scan)
+    resolved = resolve_sample_attachments(condensed, "core")
+    monkeypatch.undo()
+    assert resolved.attachments == {mm3_hash(payload): payload}
+    return scanned
+
+
+def test_resolve_core_scan_is_linear_in_conversation_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # each event's input and call messages extend a shared conversation, so
+    # scanning them per event would grow quadratically with its length
+    short = _strings_scanned_resolving(50, monkeypatch)
+    long = _strings_scanned_resolving(100, monkeypatch)
+    assert long < 2.5 * short
 
 
 def log_path(log: str) -> str:

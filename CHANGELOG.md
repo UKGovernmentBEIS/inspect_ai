@@ -1,3 +1,7 @@
+## Unreleased
+
+- Logs: Reading samples with `resolve_attachments` is much faster for long conversations; in full mode, deeply nested model API call content may keep two more nesting levels.
+
 ## 0.3.270 (25 September 2026)
 
 - `eval_set`: a task whose dataset GREW since its last run (a strict superset, with stable sample ids) is now topped up in place — the prior samples are reused and only the newly added samples run — instead of re-running the whole dataset. A shrunk dataset, or growth without stable ids, still triggers a full re-run.

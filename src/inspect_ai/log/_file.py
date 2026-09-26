@@ -1372,7 +1372,8 @@ def _resolve_sample_for_read(
     resolve_attachments: bool | Literal["full", "core"],
 ) -> "EvalSample":
     """Apply read-time event resolution and bind timelines to final events."""
-    sample = resolve_sample_events_data(sample)
     if resolve_attachments:
         sample = resolve_sample_attachments(sample, resolve_attachments)
+    else:
+        sample = resolve_sample_events_data(sample)
     return rebind_sample_timelines(sample)
