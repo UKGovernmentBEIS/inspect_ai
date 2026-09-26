@@ -20,8 +20,9 @@ import os
 import shutil
 import subprocess
 import time
+import uuid
 from collections.abc import Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any, Callable, NamedTuple, TypeVar
 
@@ -136,6 +137,35 @@ def skip_if_no_litellm_proxy(func: F) -> F:
     )
 
 
+POSTGRES_IMAGE = os.environ.get("LITELLM_PROXY_POSTGRES_IMAGE", "postgres:16")
+"""Database image for `run_litellm_proxy(database=True)` (virtual keys)."""
+
+
+@functools.cache
+def postgres_image_available() -> bool:
+    if not litellm_proxy_image_available():
+        return False
+    try:
+        result = subprocess.run(
+            ["docker", "image", "inspect", POSTGRES_IMAGE],
+            capture_output=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
+def skip_if_no_litellm_proxy_database(func: F) -> F:
+    return pytest.mark.slow(
+        pytest.mark.skipif(
+            not postgres_image_available(),
+            reason=f"Requires Docker and the {LITELLM_PROXY_IMAGE} and "
+            f"{POSTGRES_IMAGE} images available locally.",
+        )(func)
+    )
+
+
 class LiteLLMProxy(NamedTuple):
     base_url: str
     """OpenAI-compatible base URL (ends in `/v1`)."""
@@ -153,6 +183,7 @@ def run_litellm_proxy(
     *,
     capture: bool = False,
     env_vars: Sequence[str] = (),
+    database: bool = False,
 ) -> Iterator[LiteLLMProxy]:
     """Run a LiteLLM proxy container for the duration of the context.
 
@@ -162,6 +193,8 @@ def run_litellm_proxy(
         capture: Record upstream requests and responses (see module docstring).
         env_vars: Host environment variables to pass through to the proxy
             (e.g. provider API keys). Names that are unset are skipped.
+        database: Back the proxy with a Postgres container, which virtual
+            keys and teams (`/key/generate`, `/team/new`) require.
     """
     config = _with_master_key(config)
     config_dir = work_dir / "config"
@@ -174,14 +207,65 @@ def run_litellm_proxy(
         (config_dir / "custom_callbacks.py").write_text(CAPTURE_CALLBACK_SOURCE)
     (config_dir / "config.yaml").write_text(yaml.safe_dump(config))
 
-    container = _start_proxy(config_dir, capture_dir, env_vars)
+    with _postgres() if database else nullcontext(None) as db:
+        container = _start_proxy(config_dir, capture_dir, env_vars, db)
+        try:
+            base_url = _wait_for_proxy(container)
+            yield LiteLLMProxy(
+                base_url=f"{base_url}/v1", api_key=MASTER_KEY, capture_dir=capture_dir
+            )
+        finally:
+            subprocess.run(["docker", "rm", "-f", container], capture_output=True)
+
+
+class _Database(NamedTuple):
+    network: str
+    url: str
+
+
+@contextmanager
+def _postgres(timeout: float = 60) -> Iterator[_Database]:
+    name = f"inspect-litellm-db-{uuid.uuid4().hex[:8]}"
+    subprocess.run(
+        ["docker", "network", "create", name], capture_output=True, check=True
+    )
     try:
-        base_url = _wait_for_proxy(container)
-        yield LiteLLMProxy(
-            base_url=f"{base_url}/v1", api_key=MASTER_KEY, capture_dir=capture_dir
+        subprocess.run(
+            [
+                "docker",
+                "run",
+                "-d",
+                "--pull=never",
+                "--name",
+                name,
+                "--network",
+                name,
+                "-e",
+                "POSTGRES_PASSWORD=litellm",
+                "-e",
+                "POSTGRES_DB=litellm",
+                POSTGRES_IMAGE,
+            ],
+            capture_output=True,
+            check=True,
+        )
+        deadline = time.monotonic() + timeout
+        while (
+            subprocess.run(
+                ["docker", "exec", name, "pg_isready", "-U", "postgres"],
+                capture_output=True,
+            ).returncode
+            != 0
+        ):
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"Postgres did not start within {timeout:g}s")
+            time.sleep(0.5)
+        yield _Database(
+            network=name, url=f"postgresql://postgres:litellm@{name}:5432/litellm"
         )
     finally:
-        subprocess.run(["docker", "rm", "-f", container], capture_output=True)
+        subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+        subprocess.run(["docker", "network", "rm", name], capture_output=True)
 
 
 def _with_master_key(config: dict[str, Any]) -> dict[str, Any]:
@@ -198,7 +282,10 @@ def _with_capture(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def _start_proxy(
-    config_dir: Path, capture_dir: Path | None, env_vars: Sequence[str]
+    config_dir: Path,
+    capture_dir: Path | None,
+    env_vars: Sequence[str],
+    database: "_Database | None" = None,
 ) -> str:
     args = [
         "docker",
@@ -213,6 +300,8 @@ def _start_proxy(
     ]
     if capture_dir is not None:
         args += ["-v", f"{capture_dir}:/capture"]
+    if database is not None:
+        args += ["--network", database.network, "-e", f"DATABASE_URL={database.url}"]
     for name in env_vars:
         # `-e NAME` passes the host value without putting it on the command line
         if os.environ.get(name):
