@@ -49,6 +49,27 @@ def test_viewer_config_defaults() -> None:
     assert cfg.scanner_result_view == {}
 
 
+def test_viewer_config_trust_content_defaults_to_none() -> None:
+    assert ViewerConfig().trust_content is None
+
+
+def test_viewer_config_trust_content_absent_from_persisted_config() -> None:
+    """Configs persisted before `trust_content` existed read back as unset."""
+    cfg = ViewerConfig.model_validate({"scanner_result_view": {}})
+    assert cfg.trust_content is None
+
+
+def test_viewer_config_trust_content_false_roundtrips_via_json() -> None:
+    cfg = ViewerConfig(trust_content=False)
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored.trust_content is False
+
+
+def test_viewer_config_trust_content_rejects_non_bool() -> None:
+    with pytest.raises(ValidationError):
+        ViewerConfig.model_validate({"trust_content": "sometimes"})
+
+
 def test_roundtrip_preserves_all_fields() -> None:
     cfg = ViewerConfig(
         scanner_result_view={
