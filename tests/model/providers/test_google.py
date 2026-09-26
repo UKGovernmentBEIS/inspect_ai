@@ -795,11 +795,11 @@ async def test_google_count_tokens_falls_back_when_endpoint_unavailable(
     "error",
     [
         ClientError(400, {"error": {"code": 400, "message": "Bad request"}}),
-        ServerError(503, {"error": {"code": 503, "message": "Unavailable"}}),
+        ClientError(403, {"error": {"code": 403, "message": "Forbidden"}}),
     ],
-    ids=["400", "503"],
+    ids=["400", "403"],
 )
-async def test_google_count_tokens_falls_back_on_other_api_errors(
+async def test_google_count_tokens_falls_back_on_non_retryable_errors(
     error: APIError, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     warnings = _capture_google_warnings(monkeypatch)
@@ -818,6 +818,32 @@ async def test_google_count_tokens_falls_back_on_other_api_errors(
     assert mock_client.aio.models.count_tokens.await_count == 2
     assert len(warnings) == 1
     assert str(error.code) in warnings[0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "error",
+    [
+        ClientError(401, {"error": {"code": 401, "message": "Unauthorized"}}),
+        ClientError(429, {"error": {"code": 429, "message": "Too many requests"}}),
+        ServerError(503, {"error": {"code": 503, "message": "Unavailable"}}),
+    ],
+    ids=["401", "429", "503"],
+)
+async def test_google_count_tokens_propagates_retryable_and_auth_errors(
+    error: APIError,
+) -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = error
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        with pytest.raises(APIError) as exc_info:
+            await api.count_tokens("Hello world")
+
+    assert exc_info.value is error
 
 
 @pytest.mark.anyio

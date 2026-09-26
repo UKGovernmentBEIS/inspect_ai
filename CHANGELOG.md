@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Google: Token counting falls back to a local estimate, with a warning, when the countTokens endpoint is unavailable or returns an error.
+- Google: Token counting falls back to a local estimate, with a warning, when the countTokens endpoint is unavailable or rejects the request.
 
 ## 0.3.270 (25 September 2026)
 

@@ -778,8 +778,10 @@ class GoogleGenAIAPI(ModelAPI):
         """Count tokens using the native countTokens endpoint.
 
         Falls back to the local tiktoken-based estimate when the endpoint
-        fails with an API error. A 404 means the endpoint isn't available for
-        this configuration, so it is not called again for this model.
+        fails with a non-retryable API error (e.g. 400). A 404 means the
+        endpoint isn't available for this configuration, so it is not called
+        again for this model. Retryable and auth errors propagate so that
+        `Model.count_tokens` can retry them.
         """
         if self._count_tokens_unavailable:
             return await super().count_tokens(input, config)
@@ -809,6 +811,14 @@ class GoogleGenAIAPI(ModelAPI):
                     model=self.service_model_name(), contents=contents
                 )
             except APIError as ex:
+                # leave retryable and auth errors to Model.count_tokens' retry
+                # handling (backoff, OAuth refresh, api-key rotation)
+                decision = self.should_retry(ex)
+                retryable = (
+                    decision.retry if isinstance(decision, RetryDecision) else decision
+                )
+                if retryable or self.is_auth_failure(ex):
+                    raise
                 if ex.code == 404:
                     self._count_tokens_unavailable = True
                     warn_once(
