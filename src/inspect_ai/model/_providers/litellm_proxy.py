@@ -24,6 +24,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE
+from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
@@ -43,6 +44,11 @@ from .._openai import (
     is_o_series_model,
     openai_chat_completion_stream_final,
     openai_refusal_model_output,
+)
+from .._openai_responses import (
+    RESPONSES_VERBATIM,
+    _maybe_native_tool_param,
+    _tool_param_for_tool_info,
 )
 from ._anthropic_max_tokens import (
     ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
@@ -469,7 +475,36 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
         for tool in tools:
             self._check_web_search(tool, config)
+        if self.responses_api:
+            tools = [self._as_function_tool(tool, config) for tool in tools]
         return super().resolve_tools(tools, tool_choice, config)
+
+    def _as_function_tool(self, tool: ToolInfo, config: GenerateConfig) -> ToolInfo:
+        """`tool`, sent as a function tool if OpenAI would otherwise host it.
+
+        Of OpenAI's hosted tools, only web search has been verified through
+        the proxy. The others (code interpreter, computer use, remote MCP,
+        tool search) are sent as function tools, as on Chat Completions.
+        `computer()` is always marked as sent verbatim: the Responses code
+        requires `store=True` for any `computer()` tool, even one sent as a
+        function tool (for models without native computer use).
+        """
+        options = tool.options or {}
+        if (
+            options.get(INTERNAL_TOOL_TYPE) == "web_search"
+            or RESPONSES_VERBATIM in options
+        ):
+            return tool
+        family = self.model_family()
+        is_latest = self.responses_model_info().is_latest()
+        if _maybe_native_tool_param(
+            tool, family, config, is_latest
+        ) is None and not is_computer_tool_info(tool):
+            return tool
+        param = _tool_param_for_tool_info(
+            tool, family, config.model_copy(update={"internal_tools": False}), is_latest
+        )
+        return tool.model_copy(update={"options": {RESPONSES_VERBATIM: dict(param)}})
 
     def _check_web_search(self, tool: ToolInfo, config: GenerateConfig) -> None:
         """Fail before sending a `web_search()` that has no provider here.

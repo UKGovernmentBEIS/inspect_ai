@@ -54,7 +54,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._providers import litellm_proxy as litellm_proxy_module
 from inspect_ai.model._providers.litellm_proxy import LiteLLMProxyAPI
-from inspect_ai.tool import Tool, tool, web_search
+from inspect_ai.tool import Tool, code_execution, computer, tool, web_search
 
 
 @pytest.fixture(autouse=True)
@@ -743,6 +743,31 @@ async def test_responses_default_round_trip(
     for item in turns.second.request["input"]:
         if isinstance(item, dict) and item.get("type") == "reasoning":
             assert not item.get("content"), item
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+async def test_responses_default_hosted_tools_as_functions(
+    fake_proxy: FakeProxy, fake_openai_api_base: None
+) -> None:
+    model = _default_model(fake_proxy.proxy, "fake-openai")
+    _, exchange = await _generate(
+        fake_proxy.proxy,
+        model,
+        [ChatMessageUser(content=TOOL_PROMPT)],
+        tools=[get_weather(), computer(), code_execution()],
+    )
+    types = {
+        tool.get("name", tool["type"]): tool["type"]
+        for tool in exchange.request["tools"]
+    }
+    assert types == {
+        "get_weather": "function",
+        "computer": "function",
+        "code_execution": "function",
+    }
+    # computer() is not OpenAI's computer tool, so the request stays stateless
+    assert exchange.request.get("store") is False
 
 
 @skip_if_no_openai_package

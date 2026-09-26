@@ -66,6 +66,7 @@ from inspect_ai.model._model_info import (
     set_model_cost,
 )
 from inspect_ai.model._openai import OpenAIResponseError
+from inspect_ai.model._openai_responses import openai_responses_tools
 from inspect_ai.model._providers import (
     _litellm_proxy_model_info,
     _litellm_proxy_names,
@@ -112,6 +113,8 @@ from inspect_ai.tool import (
     ToolInfo,
     ToolParam,
     ToolParams,
+    code_execution,
+    computer,
     web_search,
 )
 
@@ -926,6 +929,40 @@ def test_responses_streaming(
 ) -> None:
     provider = _route_provider(model_info_stub, [row], **model_args)
     assert provider.resolve_stream(GenerateConfig()) is streams
+
+
+def _wire_tool_types(provider: LiteLLMProxyAPI, tools: list[Tool]) -> dict[str, str]:
+    """Tool name to the type it is sent as on the Responses API."""
+    config = GenerateConfig()
+    resolved, _, _ = provider.resolve_tools(get_tools_info(tools), "auto", config)
+    params = openai_responses_tools(resolved, provider.model_family(), config)
+    return {str(param.get("name", param["type"])): param["type"] for param in params}
+
+
+@skip_if_no_openai_package
+# gpt-5.5 has native computer use and code interpreter; gpt-5 only the latter
+@pytest.mark.parametrize("model", ["openai/gpt-5.5", "openai/gpt-5"])
+def test_responses_default_hosts_only_web_search(
+    model_info_stub: ModelInfoStub, model: str
+) -> None:
+    provider = _route_provider(model_info_stub, [_route_row(model)])
+    assert provider.responses_api is True
+    types = _wire_tool_types(provider, [web_search(), computer(), code_execution()])
+    # OpenAI hosts web search; the other tools are function tools, as on
+    # Chat Completions
+    assert types == {
+        "web_search": "web_search",
+        "computer": "function",
+        "code_execution": "function",
+    }
+
+
+@skip_if_no_openai_package
+def test_chat_tools_unchanged(model_info_stub: ModelInfoStub) -> None:
+    provider = _route_provider(model_info_stub, [_route_row("openai/gpt-4.1")])
+    tools = get_tools_info([computer(), code_execution()])
+    resolved, _, _ = provider.resolve_tools(tools, "auto", GenerateConfig())
+    assert resolved == tools
 
 
 @skip_if_no_openai_package

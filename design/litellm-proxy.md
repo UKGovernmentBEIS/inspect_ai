@@ -799,7 +799,18 @@ Verified live (gpt-5-mini, gpt-5.5, gpt-6-astra): encrypted reasoning
 replays across a tool loop, streamed and not; `store` is false; built-in web
 search works; `none` is dropped, `xhigh`/`max` are lowered to `high` for
 gpt-5-mini; cost includes cache reads at the cache rate; the request body
-matches `openai/gpt-5.5` except `stream`.
+matches `openai/gpt-5.5` except `stream`. Encrypted reasoning from one OpenAI
+account is accepted by another (turn 1 on one account, turn 2 on another,
+through the proxy and directly), so a proxy pooling keys from several
+accounts under one alias is fine.
+
+Of OpenAI's hosted tools, only web search is used through the proxy
+(`LiteLLMProxyAPI._as_function_tool`): code interpreter, computer use,
+remote MCP and tool search were not verified through LiteLLM, so they are
+sent as function tools, as on Chat Completions. `computer()` is always sent
+verbatim, because the Responses code otherwise requires `store=True` for any
+`computer()` tool; a verbatim tool no longer triggers that
+(`openai_responses.py`).
 
 **Key and team aliases.** Probed with a Postgres-backed proxy:
 
