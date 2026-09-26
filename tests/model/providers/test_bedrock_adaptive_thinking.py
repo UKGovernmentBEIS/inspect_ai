@@ -39,7 +39,7 @@ CLAUDE_46 = "anthropic.claude-sonnet-4-6-20260101-v1:0"
 CLAUDE_45 = "anthropic.claude-sonnet-4-5-20250929-v1:0"
 CLAUDE_37 = "anthropic.claude-3-7-sonnet-20250219-v1:0"
 CLAUDE_3_SONNET = "anthropic.claude-3-sonnet-20240229-v1:0"
-NOVA_LITE = "amazon.nova-lite-v1:0"
+NOVA_2_LITE = "amazon.nova-2-lite-v1:0"
 GPT_OSS = "openai.gpt-oss-120b-1:0"
 
 
@@ -154,7 +154,7 @@ def test_claude_3_sonnet_no_thinking_for_non_thinking_model():
 
 
 def test_nova_unaffected():
-    api = _make_api(NOVA_LITE)
+    api = _make_api(NOVA_2_LITE)
     config = GenerateConfig(reasoning_effort="medium")
     fields = api.reasoning_config(config)
     assert fields == {
@@ -206,7 +206,7 @@ def test_is_claude_4_6_or_later():
     assert _make_api(CLAUDE_46).is_claude_4_6_or_later() is True
     assert _make_api(CLAUDE_45).is_claude_4_6_or_later() is False
     assert _make_api(CLAUDE_3_SONNET).is_claude_4_6_or_later() is False
-    assert _make_api(NOVA_LITE).is_claude_4_6_or_later() is False
+    assert _make_api(NOVA_2_LITE).is_claude_4_6_or_later() is False
 
 
 # --- review-finding regressions (both fixed) -------------------------------
