@@ -35,7 +35,7 @@ The Inspect `Agent` protocol enables the creation of agent components that can b
 
 4.  Provided as a standard `Tool` to a model
 
-The agents module includes a flexible, general-purpose [react agent](react-agent.qmd), which can be used standalone or to orchestrate a [multi agent](#multi-agent) system.
+The agents module includes a flexible, general-purpose [react agent](react-agent.qmd), which can be used standalone or to orchestrate a [multi agent](multi-agent.qmd) system.
 
 ### Example
 
