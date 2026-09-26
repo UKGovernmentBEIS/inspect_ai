@@ -2,6 +2,7 @@ import json
 from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import jsonlines
 
@@ -68,9 +69,13 @@ def json_dataset(
     data_to_sample = record_to_sample_fn(sample_fields)
 
     # pick the right reader for the file extension
+    parsed_file = urlparse(json_file)
+    file_path = (
+        parsed_file.path if parsed_file.scheme in ("http", "https") else json_file
+    )
     dataset_reader = (
         jsonlines_dataset_reader
-        if json_file.lower().endswith(".jsonl")
+        if file_path.lower().endswith(".jsonl")
         else json_dataset_reader
     )
 
