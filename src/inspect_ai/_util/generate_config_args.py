@@ -4,7 +4,7 @@
 are not. Between the two sits a normalisation pass — `--stop-seqs` splits on
 commas, `--cache 7` becomes a seven-day `CachePolicy`, `--batch` alone becomes
 the default batch size, `--logit-bias` parses to a token map, `--extra-body`
-parses a YAML or JSON mapping — and that pass is
+parses an inline JSON or YAML mapping — and that pass is
 what `config_from_locals` is.
 
 **It lives here rather than in `_cli` because the CLI is no longer its only
@@ -29,7 +29,7 @@ import click
 import yaml
 from pydantic import TypeAdapter
 
-from inspect_ai._util.config import parse_cli_args, read_config_object, resolve_args
+from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 from inspect_ai.model._cache import CachePolicy
@@ -155,34 +155,35 @@ def parse_modalities(value: str) -> list[Any]:
 
 
 def parse_config_mapping(value: str, option: str) -> dict[str, Any]:
-    """Parse a YAML or JSON mapping given inline or as the path to a file.
+    """Parse an inline JSON mapping, falling back to YAML.
+
+    JSON is tried first so that a value round-trips exactly as JSON reads it
+    (YAML 1.1 reads `1e3` as a string); YAML allows the shorter
+    `{key: value}` form. File paths are not accepted: the value itself is what
+    the eval receives, so a command line reproduces it.
 
     Error messages never quote the value: `--extra-headers` can carry a token.
     """
-    try:
-        parsed: Any = yaml.safe_load(value)
-    except yaml.YAMLError:
-        parsed = None
-    mapping: dict[Any, Any]
-    if isinstance(parsed, dict):
-        mapping = parsed
-    else:
-        if not filesystem(value).exists(value):
-            raise click.BadParameter(
-                "expected a YAML or JSON mapping (e.g. '{key: value}') or the "
-                "path to a YAML or JSON file.",
-                param_hint=option,
-            )
+    parsed: Any = None
+    if value.strip():
         try:
-            mapping = read_config_object(resource(value, type="file"))
-        except Exception:
-            raise click.BadParameter(
-                f"the file {value} does not contain a YAML or JSON mapping.",
-                param_hint=option,
-            ) from None
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            try:
+                parsed = yaml.safe_load(value)
+            except yaml.YAMLError:
+                parsed = None
+    if not isinstance(parsed, dict):
+        raise click.BadParameter(
+            'expected a JSON or YAML mapping (e.g. \'{"key": "value"}\').',
+            param_hint=option,
+        )
+    mapping: dict[Any, Any] = parsed
     for field in mapping:
         if not isinstance(field, str):
-            raise click.BadParameter("every key must be a string.", param_hint=option)
+            raise click.BadParameter(
+                f"key {field!r} is not a string (quote it).", param_hint=option
+            )
     return mapping
 
 

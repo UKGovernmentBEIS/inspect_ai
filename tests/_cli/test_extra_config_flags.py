@@ -1,9 +1,10 @@
 """Tests for the `--extra-headers` and `--extra-body` CLI options.
 
-Both take a YAML or JSON mapping, inline or as the path to a file, and reach
-`GenerateConfigArgs` as a dict. Header values must be strings, since that is
-what is sent on the wire; a YAML scalar like `3` is refused rather than
-coerced.
+Both take an inline mapping, parsed as JSON first with a YAML fallback, and
+reach `GenerateConfigArgs` as a dict. A file path is not read, so the command
+line alone reproduces what the eval received. Header values must be strings,
+since that is what is sent on the wire; a YAML scalar like `3` is refused
+rather than coerced.
 """
 
 import json
@@ -58,38 +59,45 @@ def test_nested_body() -> None:
     ) == {"chat_template_kwargs": {"enable_thinking": True}, "top_n": 3}
 
 
-def test_yaml_file(tmp_path: Path) -> None:
-    body = {"chat_template_kwargs": {"enable_thinking": True}}
-    path = tmp_path / "body.yaml"
-    path.write_text(yaml.safe_dump(body))
-    assert parse_config_mapping(str(path), "--extra-body") == body
+def test_json_numbers_keep_their_json_type() -> None:
+    # YAML 1.1 would read `1e3` as the string "1e3"
+    assert parse_config_mapping('{"top_k": 1e3, "p": 1e-5}', "--extra-body") == {
+        "top_k": 1000.0,
+        "p": 1e-5,
+    }
 
 
-def test_json_file(tmp_path: Path) -> None:
-    headers = {"X-Trace-Id": "abc"}
-    path = tmp_path / "headers.json"
-    path.write_text(json.dumps(headers))
-    assert parse_extra_headers(str(path)) == headers
+def test_json_with_a_tab() -> None:
+    assert parse_config_mapping('{"x":\t1}', "--extra-body") == {"x": 1}
 
 
 @pytest.mark.parametrize(
-    "value", ["[1, 2]", "not-a-file", "missing.yaml", "{unterminated", "42"]
+    "value", ["[1, 2]", "not-a-mapping", "{unterminated", "42", "", "   "]
 )
 def test_not_a_mapping_is_refused(value: str) -> None:
-    with pytest.raises(click.BadParameter, match="YAML or JSON mapping"):
+    with pytest.raises(click.BadParameter, match="JSON or YAML mapping"):
         parse_config_mapping(value, "--extra-body")
 
 
-def test_file_without_a_mapping_is_refused(tmp_path: Path) -> None:
-    path = tmp_path / "body.yaml"
-    path.write_text("- secret-token\n")
-    with pytest.raises(click.BadParameter, match="does not contain") as ex:
-        parse_config_mapping(str(path), "--extra-body")
-    assert "secret-token" not in ex.value.format_message()
+@pytest.mark.parametrize("scheme", ["", "file://"])
+def test_a_file_path_is_not_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scheme: str
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "body.json").write_text(json.dumps({"top_n": 1}))
+    path = f"{scheme}{tmp_path / 'body.json'}" if scheme else "body.json"
+    with pytest.raises(click.BadParameter, match="JSON or YAML mapping"):
+        parse_config_mapping(path, "--extra-body")
+
+
+def test_a_url_like_value_is_refused_without_quoting_it() -> None:
+    with pytest.raises(click.BadParameter) as ex:
+        parse_extra_headers("SECRETTOKEN://x")
+    assert "SECRETTOKEN" not in ex.value.format_message()
 
 
 def test_non_string_key_is_refused() -> None:
-    with pytest.raises(click.BadParameter, match="key must be a string"):
+    with pytest.raises(click.BadParameter, match="key 1 is not a string"):
         parse_config_mapping("{1: a}", "--extra-body")
 
 

@@ -928,13 +928,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--extra-headers",
         type=str,
-        help="Extra headers to send with requests, as a YAML or JSON mapping (or a path to a YAML or JSON file). Not supported for AzureAI, Bedrock, and Grok.",
+        help='Extra headers to send with requests, as a JSON or YAML mapping (e.g. \'{"X-Trace-Id": "abc"}\'). Not supported by all providers.',
         envvar="INSPECT_EVAL_EXTRA_HEADERS",
     )
     @click.option(
         "--extra-body",
         type=str,
-        help="Extra body fields to send with requests, as a YAML or JSON mapping (or a path to a YAML or JSON file). OpenAI, vLLM, and SGLang only.",
+        help='Extra fields to add to the request body, as a JSON or YAML mapping (e.g. \'{"chat_template_kwargs": {"enable_thinking": true}}\'). Not supported by all providers.',
         envvar="INSPECT_EVAL_EXTRA_BODY",
     )
     @click.option(
