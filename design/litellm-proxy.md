@@ -1,7 +1,8 @@
 # LiteLLM Proxy provider
 
-> **Status: implemented** (#5559). Server-side web search is planned
-> separately in [litellm-proxy-server-tools.md](litellm-proxy-server-tools.md).
+> **Status: implemented** (#5559; the Responses API default and key/team
+> aliases in §9 followed). Server-side web search was spiked and not pursued;
+> see [litellm-proxy-server-tools.md](litellm-proxy-server-tools.md).
 > Findings are against LiteLLM 1.104.0 (the
 > `ghcr.io/berriai/litellm:main-latest` image pulled 2026-09-23).
 
@@ -127,7 +128,8 @@ handle (source citations are in the research notes):
   Exact matching works for provider-prefixed wildcards. A custom prefix
   (`llmengine/*` → `openai/*`) loses the upstream name.
 - **Aliases that never appear in `/v1/model/info`:** key, team and
-  `model_alias_map` aliases.
+  `model_alias_map` aliases (key and team aliases are resolved separately;
+  see §9).
 - **`router_settings.model_group_alias`** rows are listed as copies of the
   target deployments.
 
@@ -140,7 +142,7 @@ handle (source citations are in the research notes):
 - `litellm_proxy/` chaining;
 - `openai/`, `hosted_vllm/` and `ollama/` with arbitrary served names;
 - custom-prefix wildcards;
-- key, team and `model_alias_map` aliases.
+- `model_alias_map` aliases (which have no deployment row to set it on).
 
 ### Matching against Inspect's database
 
@@ -767,6 +769,58 @@ the key may use, and omits the others. OpenAI's `prompt_cache_key` passes
 through `extra_body`, and the native provider sets it only from a model arg,
 so the provider does nothing for it.
 
+### 9. Responses API default and key/team aliases
+
+Follow-ups to #5559, verified against LiteLLM 1.104.
+
+**Responses API default.** On Chat Completions, OpenAI returns none of a
+reasoning model's reasoning, so tool loops lose it between turns. When
+`responses_api` is not passed, the provider uses the Responses API if:
+
+- every deployment of the alias has the `openai` route
+  (`_litellm_proxy_vendor.deployment_route`: `custom_llm_provider`, else the
+  first segment of `litellm_params.model`, else OpenAI name inference for
+  bare names; never `base_model`), and an `api_base` that is unset or an
+  `api.openai.com` host (`/model/info` returns `api_base`, also to virtual
+  keys);
+- the model family is GPT-5 or later, o-series or Codex (the native
+  provider's rule, via `is_gpt_5_model`/`is_o_series_model`);
+- model info was fetched, `num_choices` is unset and `emulate_tools` is off.
+
+Unrecognized names are not treated as frontier codenames (unlike the native
+provider): a proxy can send every `openai/` deployment to another server with
+`OPENAI_API_BASE`, which `/model/info` does not show. A codename qualifies
+through `model_info.base_model`, which the model info gate asks for. Azure is
+excluded until verified. Responses to the OpenAI route streams by default
+(#43010 affects Anthropic only).
+
+Verified live (gpt-5-mini, gpt-5.5, gpt-6-astra): encrypted reasoning
+replays across a tool loop, streamed and not; `store` is false; built-in web
+search works; `none` is dropped, `xhigh`/`max` are lowered to `high` for
+gpt-5-mini; cost includes cache reads at the cache rate; the request body
+matches `openai/gpt-5.5` except `stream`.
+
+**Key and team aliases.** Probed with a Postgres-backed proxy:
+
+- `/key/info` (the calling key) returns `info.aliases` and `info.team_id`;
+  `/team/info?team_id=…` returns
+  `team_info.litellm_model_table.model_aliases`. Both are served only at the
+  proxy root (`/v1/key/info` is 404).
+- LiteLLM applies aliases before routing: a key alias with the name of a
+  listed model routes to the alias target, a team alias wins over a key alias
+  of the same name, and aliases chain.
+- The master key has no key record (404); a proxy without a database answers
+  500 "Database not connected" (master key) or 400 `no_db_connection`.
+
+So the provider fetches the aliases whenever it fetches `/model/info`
+(cached per base URL and key), merges `{**key, **team}`, follows chains with
+a cycle guard, and then selects deployments for the resulting name. 404 and
+no-database responses mean no aliases; other failures don't stop
+construction and are reported in the gate error when the alias is
+unresolved. `model_alias_map` aliases appear in no listing, even for the
+master key; `set_model_info` or `require_model_info=false` remain the fixes
+for those.
+
 ## Phases
 
 Each phase ends with review and approval before the next starts.
@@ -822,14 +876,5 @@ Each phase ends with review and approval before the next starts.
   returns 403 for a model the key may not use, but unfiltered it ignores the
   key's allowlist, it returns wildcard routes unexpanded (`anthropic/*`), and
   it omits `model_group_alias` rows. v1 stays.
-- Key and team aliases (answered, not implemented): v1 lists neither. A key's
-  own `/key/info` returns its `aliases` (`{alias: model_name}`), and a team key
-  can read `/team/info?team_id=…`, whose
-  `team_info.litellm_model_table.model_aliases` maps team aliases. The target
-  is a `model_name` v1 lists. A fallback used only when v1 has no row for the
-  alias could resolve both with at most two requests. `model_alias_map`
-  aliases appear in no listing, even for the master key; the gate plus
-  `base_model` or `set_model_info` remains the fix for those.
-- Default for `responses_api`. It is off today. Given the translation layer
-  for non-OpenAI upstreams, it could be chosen per resolved vendor. Deferred
-  along with other provider-specific behavior.
+- ~~Key and team aliases~~: implemented; see §9.
+- ~~Default for `responses_api`~~: on for OpenAI reasoning models; see §9.
