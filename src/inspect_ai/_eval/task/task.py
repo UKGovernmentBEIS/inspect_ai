@@ -193,8 +193,9 @@ class Task:
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
             tags: Tags to associate with the task.
-            viewer: Log viewer configuration for this task (controls how
-                scanner results are rendered in the sidebar).
+            viewer: Log viewer configuration for this task (how the log's
+                samples, scores and scanner results are displayed, and whether
+                its content is trusted to render richly).
             headline_metric: Which score/metric best summarises this task (e.g.
                 for a leaderboard or log listing). A `str` names the scorer, as
                 `"<scorer>"` or `"<scorer>.<score>"` to address one value of a
@@ -423,8 +424,9 @@ def task_with(
             of the task spec or breaking changes to it)
         metadata:  Additional metadata to associate with the task.
         tags: Tags to associate with the task.
-        viewer: Log viewer configuration for this task (controls how
-            scanner results are rendered in the sidebar).
+        viewer: Log viewer configuration for this task (how the log's
+            samples, scores and scanner results are displayed, and whether
+            its content is trusted to render richly).
         headline_metric: Which score/metric best summarises this task (e.g. for a
             leaderboard or log listing).
 
