@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import anyio
 import pytest
-from google.genai.errors import APIError
+from google.genai.errors import APIError, ClientError, ServerError
 from google.genai.types import (
     Blob,
     Candidate,
@@ -35,10 +35,10 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model import ChatMessage, ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
-from inspect_ai.model._model import RetryDecision
+from inspect_ai.model._model import ModelAPI, RetryDecision
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
 )
@@ -749,6 +749,88 @@ async def test_google_count_tokens_none_config_uses_default_http_timeout() -> No
     assert tokens == 7
     http_options = _client_http_options(client)
     assert http_options.timeout == 3_600_000
+
+
+def _capture_google_warnings(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    import inspect_ai._util.logger as logger_module
+    import inspect_ai.model._providers.google as google_module
+
+    warnings: list[str] = []
+    monkeypatch.setattr(logger_module, "_warned", [])
+    monkeypatch.setattr(google_module.logger, "warning", warnings.append)
+    return warnings
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "input",
+    ["Hello world", [ChatMessageUser(content="Hello world")]],
+    ids=["str", "messages"],
+)
+async def test_google_count_tokens_falls_back_when_endpoint_unavailable(
+    input: str | list[ChatMessage], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    warnings = _capture_google_warnings(monkeypatch)
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = ClientError(
+        404, {"error": {"code": 404, "message": "Not Found"}}
+    )
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        expected = await ModelAPI.count_tokens(api, input)
+        assert await api.count_tokens(input) == expected
+        # endpoint is not called again once it has returned 404
+        assert await api.count_tokens(input) == expected
+
+    assert mock_client.aio.models.count_tokens.await_count == 1
+    assert len(warnings) == 1
+    assert "not available" in warnings[0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "error",
+    [
+        ClientError(400, {"error": {"code": 400, "message": "Bad request"}}),
+        ServerError(503, {"error": {"code": 503, "message": "Unavailable"}}),
+    ],
+    ids=["400", "503"],
+)
+async def test_google_count_tokens_falls_back_on_other_api_errors(
+    error: APIError, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    warnings = _capture_google_warnings(monkeypatch)
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = error
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        expected = await ModelAPI.count_tokens(api, "Hello world")
+        assert await api.count_tokens("Hello world") == expected
+        # not memoized: the endpoint is tried again on the next call
+        assert await api.count_tokens("Hello world") == expected
+
+    assert mock_client.aio.models.count_tokens.await_count == 2
+    assert len(warnings) == 1
+    assert str(error.code) in warnings[0]
+
+
+@pytest.mark.anyio
+async def test_google_count_tokens_propagates_non_api_errors() -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = ValueError("boom")
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        with pytest.raises(ValueError, match="boom"):
+            await api.count_tokens("Hello world")
 
 
 @pytest.mark.anyio
