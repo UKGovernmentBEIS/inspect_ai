@@ -819,13 +819,7 @@ def resolve_sample_attachments(
     # "core" leaves ModelEvent.call condensed, so its attachment:// refs
     # survive into the resolved sample. Retain what they point at (the same
     # liveness pass condense_sample runs) or they become unresolvable.
-    # Timelines still hold the pre-resolution events (rebound after this
-    # returns), so scan their dump, which serializes events as uuids.
-    referenced_attachments = attachment_refs_from_object(
-        resolved_sample.model_copy(update={"timelines": None})
-    ) | attachment_refs_from_value(
-        [t.model_dump(mode="python") for t in resolved_sample.timelines or []]
-    )
+    referenced_attachments = _sample_attachment_refs(resolved_sample)
     if not referenced_attachments:
         return resolved_sample
     return resolved_sample.model_copy(
@@ -836,6 +830,66 @@ def resolve_sample_attachments(
                 if hash in referenced_attachments
             }
         }
+    )
+
+
+def _sample_attachment_refs(sample: EvalSample) -> set[str]:
+    """Collect refs from the sample's dump, dumping each shared message once.
+
+    Expanded pools share input and call request messages across model
+    events, so dumping them in place repeats them once per event.
+    """
+    messages: dict[int, ChatMessage] = {}
+    call_messages: dict[int, JsonValue] = {}
+
+    def without_shared(events: list[Event]) -> list[Event]:
+        stripped: list[Event] = []
+        for event in events:
+            if isinstance(event, ModelEvent):
+                messages.update((id(m), m) for m in event.input)
+                update: dict[str, object] = {"input": []}
+                if event.call is not None:
+                    request = event.call.request
+                    key = next((k for k in _CALL_MESSAGE_KEYS if k in request), None)
+                    msgs = request.get(key) if key is not None else None
+                    if isinstance(msgs, list):
+                        call_messages.update((id(m), m) for m in msgs)
+                        update["call"] = event.call.model_copy(
+                            update={
+                                "request": {
+                                    k: v for k, v in request.items() if k != key
+                                }
+                            }
+                        )
+                event = event.model_copy(update=update)
+            elif isinstance(event, (SubtaskEvent, ToolEvent)):
+                event = event.model_copy(
+                    update={"events": without_shared(event.events)}
+                )
+            stripped.append(event)
+        return stripped
+
+    stripped_sample = sample.model_copy(
+        update={
+            "events": without_shared(sample.events),
+            "error_retries": [
+                retry.model_copy(update={"events": without_shared(retry.events)})
+                if retry.events is not None
+                else retry
+                for retry in sample.error_retries
+            ]
+            if sample.error_retries is not None
+            else None,
+        }
+    )
+    return (
+        attachment_refs_from_value(
+            stripped_sample.model_dump(mode="python", exclude={"attachments"})
+        )
+        | attachment_refs_from_value(
+            [m.model_dump(mode="python") for m in messages.values()]
+        )
+        | attachment_refs_from_value(list(call_messages.values()))
     )
 
 
