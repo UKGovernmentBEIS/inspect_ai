@@ -51,13 +51,14 @@ def popularity():
 
 The configuration that you specify in your task will be serialized into the eval log when it is written, so the configuration will be used for anyone viewing the log file produced using the configuration.
 
-`ViewerConfig` covers three areas, each configured independently:
+`ViewerConfig` covers four areas, each configured independently:
 
 | Field | Configures |
 |---|---|
 | `task_samples_view` | The task's sample list — the grid of samples shown for an eval log. |
 | `sample_score_view` | The score panel in an individual sample's score display. |
 | `scanner_result_view` | The scanner results sidebar (for [scanners](scanners.qmd)). |
+| `trust_content` | Whether the log's content may be rendered richly (see [Untrusted Content](#untrusted-content)). |
 
 ::: {.callout-note}
 These settings are defaults, not overrides. The viewer honors them only until a reviewer customizes the view in their own browser. The resolution priority is `user override > view configuration > viewer built-in`, so a user's hand-picked columns or sort always win and are never clobbered by the eval default.
@@ -243,6 +244,48 @@ Keys are fnmatch-style globs (`"*"`, `"audit_*"`, or exact scanner names). As a 
 - A bare string — shorthand for the matching `ScannerResultField` name.
 
 `exclude_fields` subtracts sections from the resolved set. Excluding a `MetadataField` also removes that key from the generic `metadata` dump.
+
+## Untrusted Content
+
+By default the viewer renders log content richly: model output and scores are shown as markdown (with math and syntax highlighting), terminal output keeps its colors, and images, audio, and video are displayed. When the content comes from a model you can't trust (for example, during pre-deployment testing of a model without safeguards), set `trust_content=False` to have the viewer show all of the log's content as plain text instead:
+
+``` python
+@task
+def untrusted_eval():
+    return Task(
+        dataset=...,
+        solver=...,
+        viewer=ViewerConfig(trust_content=False),
+    )
+```
+
+For such logs, the viewer:
+
+- Shows markdown, math, and code as their literal source text.
+- Shows terminal escape sequences rather than interpreting them.
+- Replaces images, audio, video, and terminal recordings with a placeholder.
+- Shows links as text, with their destination, rather than making them clickable.
+- Makes invisible and bidirectional-override characters visible (e.g. `⟨U+202E⟩`).
+
+Unlike the other settings, this isn't a default that a reviewer's preferences override. To mark a task you didn't write as untrusted, use `task_with()`. Since `viewer` replaces the task's whole viewer configuration, copy the existing one to keep its other settings:
+
+``` python
+from inspect_ai import task_with
+
+task = existing_task()
+untrusted = task_with(
+    task,
+    viewer=(task.viewer or ViewerConfig()).model_copy(
+        update={"trust_content": False}
+    ),
+)
+```
+
+Retrying an eval (`eval_retry()` or `inspect eval-retry`) keeps its logs untrusted.
+
+::: {.callout-note}
+`trust_content` is applied by the viewer when it reads the log. Viewers that predate the setting (including older versions of the VS Code extension) ignore it, and older versions of Inspect drop it if they rewrite the log. Scout does not yet honor it. The setting controls rendering only; it doesn't make the content safe to copy or act on.
+:::
 
 ## Reference
 
