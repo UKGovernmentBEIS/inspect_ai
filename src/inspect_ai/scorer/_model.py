@@ -281,9 +281,10 @@ def _model_graded_qa_single(
     )
 
     async def score(state: TaskState, target: Target) -> Score:
-        # resolve model
-        nonlocal model
-        model = model if isinstance(model, Model) else get_model(model)
+        # resolve the model fresh on every call. caching the resolved model in
+        # the closure (e.g. with nonlocal) would keep using the model from the
+        # first call even when this scorer runs under a different model later
+        target_model = model if isinstance(model, Model) else get_model(model)
 
         # metadata without grading template variables
         metadata = omit(
@@ -309,7 +310,7 @@ def _model_graded_qa_single(
         )
 
         # query the model for the score
-        result = await model.generate([scoring_prompt])
+        result = await target_model.generate([scoring_prompt])
 
         # extract the grade
         match = re.search(resolved_grade_pattern, result.completion)

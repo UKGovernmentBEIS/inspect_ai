@@ -1,14 +1,26 @@
+from typing import Literal
+
 import pytest
+from typing_extensions import Unpack
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
+from inspect_ai.model import (
+    ChatMessageUser,
+    GenerateConfigArgs,
+    ModelName,
+    ModelOutput,
+    get_model,
+)
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import init_active_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import (
     Generate,
     TaskState,
     chain_of_thought,
     generate,
+    self_critique,
     solver,
 )
 from inspect_ai.solver._plan import Plan
@@ -101,3 +113,51 @@ def test_valid_solvers_succeed():
 
     for f in [is_async, IsAsyncCallable]:
         solver(name=f.__name__)(f)()
+
+
+async def test_self_critique_resolves_model_per_call() -> None:
+    # Regression for #4781: a self_critique solver reused across evals must use
+    # the model active at call time, not the model resolved on the first call.
+    # infinite output generators so an unfixed closure-cache fails on the
+    # assertion below (wrong model answered) rather than on output exhaustion
+    model_a = get_model(
+        "mockllm/model-a",
+        custom_outputs=(
+            ModelOutput.from_content("mockllm/model-a", "CRITIQUE-A")
+            for _ in iter(int, 1)
+        ),
+    )
+    model_b = get_model(
+        "mockllm/model-b",
+        custom_outputs=(
+            ModelOutput.from_content("mockllm/model-b", "CRITIQUE-B")
+            for _ in iter(int, 1)
+        ),
+    )
+
+    async def no_op_generate(
+        state: TaskState,
+        tool_calls: Literal["loop", "single", "none"] = "loop",
+        **kwargs: Unpack[GenerateConfigArgs],
+    ) -> TaskState:
+        return state
+
+    def make_state() -> TaskState:
+        return TaskState(
+            model=ModelName("mockllm/model"),
+            sample_id=1,
+            epoch=1,
+            input="What is 2 + 2?",
+            messages=[ChatMessageUser(content="What is 2 + 2?")],
+            output=ModelOutput.from_content("mockllm/model", "4"),
+        )
+
+    solve = self_critique()
+
+    init_active_model(model_a, GenerateConfig())
+    state_a = await solve(make_state(), no_op_generate)
+    assert "CRITIQUE-A" in state_a.messages[-1].text
+
+    init_active_model(model_b, GenerateConfig())
+    state_b = await solve(make_state(), no_op_generate)
+    assert "CRITIQUE-B" in state_b.messages[-1].text
