@@ -253,6 +253,10 @@ class GoogleGenAIAPI(ModelAPI):
         # record api version
         self.api_version = api_version
 
+        # set when the countTokens endpoint returns 404 (no route for this
+        # configuration); later counts use the local estimate
+        self._count_tokens_unavailable = False
+
         # record streaming preference (unset/"auto" streams when the caller
         # passes on_stream to generate; an explicit True/False overrides)
         self.streaming: bool | None = normalize_stream_arg(
@@ -771,6 +775,17 @@ class GoogleGenAIAPI(ModelAPI):
         input: str | list[ChatMessage],
         config: GenerateConfig | None = None,
     ) -> int:
+        """Count tokens using the native countTokens endpoint.
+
+        Falls back to the local tiktoken-based estimate when the endpoint
+        fails with a non-retryable API error (e.g. 400). A 404 means the
+        endpoint isn't available for this configuration, so it is not called
+        again for this model. Retryable and auth errors propagate so that
+        `Model.count_tokens` can retry them.
+        """
+        if self._count_tokens_unavailable:
+            return await super().count_tokens(input, config)
+
         await self._ensure_oauth_token()
         client = self.model_client(self._http_options(config))
         async with client.aio:
@@ -791,9 +806,34 @@ class GoogleGenAIAPI(ModelAPI):
                 )
                 for m in count_messages
             ]
-            response = await client.aio.models.count_tokens(
-                model=self.service_model_name(), contents=contents
-            )
+            try:
+                response = await client.aio.models.count_tokens(
+                    model=self.service_model_name(), contents=contents
+                )
+            except APIError as ex:
+                # leave retryable and auth errors to Model.count_tokens' retry
+                # handling (backoff, OAuth refresh, api-key rotation)
+                decision = self.should_retry(ex)
+                retryable = (
+                    decision.retry if isinstance(decision, RetryDecision) else decision
+                )
+                if retryable or self.is_auth_failure(ex):
+                    raise
+                if ex.code == 404:
+                    self._count_tokens_unavailable = True
+                    warn_once(
+                        logger,
+                        "Gemini countTokens endpoint not available for "
+                        f"{self.service_model_name()}; using local token "
+                        "estimates.",
+                    )
+                else:
+                    warn_once(
+                        logger,
+                        f"Gemini countTokens failed for {self.service_model_name()} "
+                        f"({ex.code}: {ex.message}); using local token estimate.",
+                    )
+                return await super().count_tokens(input, config)
             if response.total_tokens is not None:
                 return response.total_tokens
             else:
