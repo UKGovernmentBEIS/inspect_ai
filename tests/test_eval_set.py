@@ -3104,3 +3104,118 @@ def test_eval_set_incomplete_action_error_recovers_once(
         assert len(logs) == 1
         assert logs[0].status == "success"
         assert "-recovered" not in (logs[0].location or "")
+
+
+def test_eval_set_tops_up_grown_dataset_reusing_prior_samples() -> None:
+    # A dataset that grows between eval_set runs (a strict superset with stable
+    # ids) is topped up in place: the prior samples are reused and only the
+    # newly added samples run. This is the corpus-growth / "top-up" path — the
+    # task identity is unchanged (dataset content is not part of it), so the
+    # second run resumes the first run's log rather than starting fresh.
+    executed: list[int | str] = []
+    ids = {"n": 3}
+
+    @solver
+    def record() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            executed.append(state.sample_id)
+            return state
+
+        return solve
+
+    @task
+    def grow_task() -> Task:
+        return Task(
+            dataset=[
+                Sample(id=i, input="hi", target="ok") for i in range(1, ids["n"] + 1)
+            ],
+            solver=[record()],
+            name="grow_task",
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=[grow_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_wait=0.1,
+        )
+        assert success
+        assert sorted(executed) == [1, 2, 3]
+        first = read_eval_log(logs[0].location)
+        assert first.eval.dataset.samples == 3
+
+        # grow the dataset and re-run against the same log dir
+        executed.clear()
+        ids["n"] = 5
+        success, logs = eval_set(
+            tasks=[grow_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_wait=0.1,
+        )
+        assert success
+        # only the two NEW samples ran; the prior three were reused
+        assert sorted(executed) == [4, 5]
+        final = read_eval_log(logs[0].location)
+        assert final.status == "success"
+        assert final.eval.dataset.samples == 5
+        assert sorted(str(s.id) for s in (final.samples or [])) == [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+        ]
+
+
+def test_eval_set_grown_dataset_without_stable_ids_still_reruns() -> None:
+    # Growth without stable sample ids cannot be topped up safely: ids would be
+    # position-assigned and could map a reused record onto a different sample,
+    # so the guard falls back to a full re-run rather than a partial top-up.
+    executed: list[int | str] = []
+    count = {"n": 2}
+
+    @solver
+    def record() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            executed.append(state.sample_id)
+            return state
+
+        return solve
+
+    @task
+    def grow_noids_task() -> Task:
+        return Task(
+            dataset=[Sample(input="hi", target="ok") for _ in range(count["n"])],
+            solver=[record()],
+            name="grow_noids_task",
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=[grow_noids_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_wait=0.1,
+        )
+        assert success
+
+        executed.clear()
+        count["n"] = 4
+        success, logs = eval_set(
+            tasks=[grow_noids_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_wait=0.1,
+        )
+        assert success
+        # no stable ids -> the whole grown dataset re-ran (not a 2-sample top-up)
+        assert len(executed) == 4
+        final = read_eval_log(logs[0].location)
+        assert final.status == "success"
+        assert final.eval.dataset.samples == 4

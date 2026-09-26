@@ -1,10 +1,9 @@
 # LiteLLM Proxy provider
 
-> **Status: proposed.** Branch `feature/litellm-proxy`. A minimal provider
-> (`litellm-proxy/<alias>`, a thin `OpenAICompatibleAPI` subclass) and
-> Docker-based tests exist. This document plans the next phases: model
-> metadata from the proxy, upstream model resolution, a model info gate, and
-> reasoning effort normalization. Findings are against LiteLLM 1.104.0 (the
+> **Status: implemented** (#5559; the Responses API default and key/team
+> aliases in §9 followed). Server-side web search was spiked and not pursued;
+> see [litellm-proxy-server-tools.md](litellm-proxy-server-tools.md).
+> Findings are against LiteLLM 1.104.0 (the
 > `ghcr.io/berriai/litellm:main-latest` image pulled 2026-09-23).
 
 ## Summary
@@ -129,7 +128,8 @@ handle (source citations are in the research notes):
   Exact matching works for provider-prefixed wildcards. A custom prefix
   (`llmengine/*` → `openai/*`) loses the upstream name.
 - **Aliases that never appear in `/v1/model/info`:** key, team and
-  `model_alias_map` aliases.
+  `model_alias_map` aliases (key and team aliases are resolved separately;
+  see §9).
 - **`router_settings.model_group_alias`** rows are listed as copies of the
   target deployments.
 
@@ -142,7 +142,7 @@ handle (source citations are in the research notes):
 - `litellm_proxy/` chaining;
 - `openai/`, `hosted_vllm/` and `ollama/` with arbitrary served names;
 - custom-prefix wildcards;
-- key, team and `model_alias_map` aliases.
+- `model_alias_map` aliases (which have no deployment row to set it on).
 
 ### Matching against Inspect's database
 
@@ -750,24 +750,129 @@ or `claude`, `gemini`, `grok`, or an OpenAI model name), and for Claude:
 - **Assistant prefill.** A 400 naming assistant prefill becomes a
   `PrefillNotSupportedError` saying the conversation must end with a user or
   tool message (not retried).
+- **Thinking display.** Claude 4.7+ defaults adaptive thinking to
+  `display: omitted`: empty thinking text with a signature, and no stream
+  data until the reply, so a long think can outlast the 600s request
+  timeout. LiteLLM 1.104 sends `display: summarized` for models its map marks
+  `supports_adaptive_thinking`; 1.96 does not. With a `reasoning_effort`
+  (not `none`), the provider sends `thinking: {type: adaptive, display:
+  summarized}` (`-M thinking_display=omitted`), which LiteLLM forwards as is
+  for adaptive models, so it has no effect on 1.104. It is sent only for
+  Claude 4.6+ by family (`claude_thinks_adaptively`; codenames count):
+  for a model LiteLLM does not treat as adaptive, 1.104 replaces the
+  effort's thinking budget with a fixed 2048. It is still sent for a codename
+  whose `base_model` is Claude 4.6+, since effort alone already gets the
+  legacy shape there (see "What `base_model` adds"); for a Claude 4.6
+  codename, which accepts that shape, 1.104 then sends a 2048 budget rather
+  than the effort's (the `model_info` flags fix both). A user
+  `extra_body["thinking"]` wins; a 400 naming `thinking` or its `display`
+  drops it with a warning. Verified against the 1.96.0 image: effort alone
+  sends bare `{type: adaptive}`, and the provider's dict arrives upstream
+  with `display: summarized`.
 
 For every model, chat completions stream by default (`-M stream=false` opts
-out); the Responses path does not, because of LiteLLM #43010.
+out); the Responses path does not, because of LiteLLM #43010, except to
+OpenAI (see §9).
 
 What `base_model` adds: for a codename, LiteLLM rejects `thinking`, maps
 `reasoning_effort` to a small fixed thinking budget (4096 at `high`) when
 forced with `allowed_openai_params`, and for Bedrock rejects `tool_choice`,
-so every request with tools fails. With `base_model: anthropic/claude-opus-5-5`
-the deployment gets that model's capabilities, including adaptive thinking
-and `xhigh`/`max` effort. So the provider does not try
-`allowed_openai_params` (plan item 6, dropped); the gate points the operator
-at `base_model` instead.
+so every request with tools fails. `base_model` makes LiteLLM accept those
+parameters (it is passed to `get_supported_openai_params`), so the provider
+does not try `allowed_openai_params` (plan item 6, dropped).
+
+`base_model` does not give adaptive thinking. LiteLLM's Anthropic mapping
+(`map_openai_params`) checks the upstream model name alone: against its
+model map, and in 1.104 also against a `claude-adaptive-thinking` name rule
+(`claude-<family>-4.6+` or `claude-<family>-5+`). 1.96 has no such rule, so
+it rejects `reasoning_effort` for `anthropic/claude-metis-5`, which 1.104
+maps to adaptive thinking. A codename such as `anthropic/metis-v2` with
+`base_model: anthropic/claude-opus-5-5` gets `thinking: {type: enabled,
+budget_tokens: 4096}` for `reasoning_effort=high`, and Claude 4.7+ reject
+that (`"thinking.type.enabled" is not supported for this model`, verified
+against Opus 4.7, Sonnet 5 and Opus 5.5). Deployment `model_info` flags
+`supports_reasoning: true` and `supports_adaptive_thinking: true` fix it
+on 1.96 and 1.104 alike (Anthropic and Bedrock routes; Bedrock also needs
+`base_model`, and still rejects `max` for the codename, which the effort
+lowering handles). LiteLLM
+registers them under the upstream model name, so they apply to every
+deployment of that model. `/model/info` reports
+`supports_adaptive_thinking` from `base_model`, so it can't show the
+problem. The gate suggests the flags with `base_model` for Claude, and
+`handle_bad_request` turns the upstream rejection into a
+`PrerequisiteError` naming them. Without `base_model` (e.g. only
+`max_input_tokens`), LiteLLM refuses `reasoning_effort`; the provider drops
+it as for any model, and for Claude 4.6+ its warning names the flags (with
+`base_model` on Bedrock, which needs both).
 
 Verified in 1.104: with a Postgres-backed proxy, `/model/info` called with a
 virtual key returns `litellm_params.model` and `base_model` for the models
 the key may use, and omits the others. OpenAI's `prompt_cache_key` passes
 through `extra_body`, and the native provider sets it only from a model arg,
 so the provider does nothing for it.
+
+### 9. Responses API default and key/team aliases
+
+Follow-ups to #5559, verified against LiteLLM 1.104.
+
+**Responses API default.** On Chat Completions, OpenAI returns none of a
+reasoning model's reasoning, so tool loops lose it between turns. When
+`responses_api` is not passed, the provider uses the Responses API if:
+
+- every deployment of the alias has the `openai` route
+  (`_litellm_proxy_vendor.deployment_route`: `custom_llm_provider`, else the
+  first segment of `litellm_params.model`, else OpenAI name inference for
+  bare names; never `base_model`), and an `api_base` that is unset or an
+  `api.openai.com` host (`/model/info` returns `api_base`, also to virtual
+  keys);
+- the model family is GPT-5 or later, o-series or Codex (the native
+  provider's rule, via `is_gpt_5_model`/`is_o_series_model`);
+- model info was fetched, `num_choices` is unset and `emulate_tools` is off.
+
+Unrecognized names are not treated as frontier codenames (unlike the native
+provider): a proxy can send every `openai/` deployment to another server with
+`OPENAI_API_BASE`, which `/model/info` does not show. A codename qualifies
+through `model_info.base_model`, which the model info gate asks for. Azure is
+excluded until verified. Responses to the OpenAI route streams by default
+(#43010 affects Anthropic only).
+
+Verified live (gpt-5-mini, gpt-5.5, gpt-6-astra): encrypted reasoning
+replays across a tool loop, streamed and not; `store` is false; built-in web
+search works; `none` is dropped, `xhigh`/`max` are lowered to `high` for
+gpt-5-mini; cost includes cache reads at the cache rate; the request body
+matches `openai/gpt-5.5` except `stream`. Encrypted reasoning from one OpenAI
+account is accepted by another (turn 1 on one account, turn 2 on another,
+through the proxy and directly), so a proxy pooling keys from several
+accounts under one alias is fine.
+
+Of OpenAI's hosted tools, only web search is used through the proxy
+(`LiteLLMProxyAPI._as_function_tool`): code interpreter, computer use,
+remote MCP and tool search were not verified through LiteLLM, so they are
+sent as function tools, as on Chat Completions. `computer()` is always sent
+verbatim, because the Responses code otherwise requires `store=True` for any
+`computer()` tool; a verbatim tool no longer triggers that
+(`openai_responses.py`).
+
+**Key and team aliases.** Probed with a Postgres-backed proxy:
+
+- `/key/info` (the calling key) returns `info.aliases` and `info.team_id`;
+  `/team/info?team_id=…` returns
+  `team_info.litellm_model_table.model_aliases`. Both are served only at the
+  proxy root (`/v1/key/info` is 404).
+- LiteLLM applies aliases before routing: a key alias with the name of a
+  listed model routes to the alias target, a team alias wins over a key alias
+  of the same name, and aliases chain.
+- The master key has no key record (404); a proxy without a database answers
+  500 "Database not connected" (master key) or 400 `no_db_connection`.
+
+So the provider fetches the aliases whenever it fetches `/model/info`
+(cached per base URL and key), merges `{**key, **team}`, follows chains with
+a cycle guard, and then selects deployments for the resulting name. 404 and
+no-database responses mean no aliases; other failures don't stop
+construction and are reported in the gate error when the alias is
+unresolved. `model_alias_map` aliases appear in no listing, even for the
+master key; `set_model_info` or `require_model_info=false` remain the fixes
+for those.
 
 ## Phases
 
@@ -817,13 +922,12 @@ Each phase ends with review and approval before the next starts.
 
 ## Open questions
 
-- Server-side tools (built-in web search) through the proxy: deferred; see
+- Server-side tools (built-in web search) through the proxy: not pursued; see
   [litellm-proxy-server-tools.md](litellm-proxy-server-tools.md).
-- Does `/v2/model/info?model=` behave as the source suggests? If it does, it
-  would avoid fetching every deployment on large proxies, but it skips the key
-  allowlist, so v1 stays the default.
-- Should key, team and `model_alias_map` aliases be resolved through
-  `/key/info`? Unverified; the gate plus `set_model_info` covers them for now.
-- Default for `responses_api`. It is off today. Given the translation layer
-  for non-OpenAI upstreams, it could be chosen per resolved vendor. Deferred
-  along with other provider-specific behavior.
+- ~~Does `/v2/model/info?model=` behave as the source suggests?~~ Answered
+  (1.104, Postgres-backed proxy): `?model=` filters by exact `model_name` and
+  returns 403 for a model the key may not use, but unfiltered it ignores the
+  key's allowlist, it returns wildcard routes unexpanded (`anthropic/*`), and
+  it omits `model_group_alias` rows. v1 stays.
+- ~~Key and team aliases~~: implemented; see §9.
+- ~~Default for `responses_api`~~: on for OpenAI reasoning models; see §9.

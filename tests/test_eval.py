@@ -1282,9 +1282,11 @@ def test_retry_sample_source_seed_set_only_when_eligible(tmp_path: Path) -> None
     """The seed a retry attempt's log is filled from follows the reuse eligibility checks.
 
     A prior log file that passes them seeds by location; an in-memory prior
-    log seeds from its samples; a prior that fails a check (dataset size
-    changed, shuffled without ids) yields no seed at all — the attempt then
-    runs everything fresh, as it reuses nothing.
+    log seeds from its samples; a dataset that GREW (a strict superset with
+    stable ids) also seeds — the prior samples are reused and only the newly
+    added ones run (top-up); a prior that fails a check (dataset shrank,
+    shuffled without ids) yields no seed at all — the attempt then runs
+    everything fresh, as it reuses nothing.
     """
     from inspect_ai._eval.task.run import eval_log_sample_source
     from inspect_ai.dataset import MemoryDataset
@@ -1302,10 +1304,19 @@ def test_retry_sample_source_seed_set_only_when_eligible(tmp_path: Path) -> None
     assert isinstance(memory_source.seed.source, list)
     assert [s.id for s in memory_source.seed.source] == [1]
 
+    # a grown dataset (strict superset with stable ids) seeds: prior samples
+    # are reused and only the newly added samples run (the top-up path)
     bigger = MemoryDataset(
         [Sample(id=1, input="x", target="y"), Sample(id=2, input="x", target="y")]
     )
-    assert eval_log_sample_source(prior_log, log_info, bigger).seed is None
+    bigger_source = eval_log_sample_source(prior_log, log_info, bigger)
+    assert bigger_source.seed is not None
+    assert bigger_source.seed.source == prior_log.location
+
+    # a shrunk dataset is not a superset (a successor would drop scored
+    # samples), so it yields no seed and re-runs everything
+    smaller = MemoryDataset([])
+    assert eval_log_sample_source(prior_log, log_info, smaller).seed is None
 
     shuffled = MemoryDataset([Sample(input="x", target="y")], shuffled=True)
     assert eval_log_sample_source(prior_log, log_info, shuffled).seed is None
