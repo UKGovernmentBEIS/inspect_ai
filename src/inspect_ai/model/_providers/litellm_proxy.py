@@ -75,10 +75,15 @@ from ._litellm_proxy_reasoning import (
     with_streamed_thinking_blocks,
     without_thinking_block_deltas,
 )
-from ._litellm_proxy_reasoning_effort import next_effort, rejected_effort
+from ._litellm_proxy_reasoning_effort import (
+    next_effort,
+    rejected_effort,
+    rejected_thinking,
+)
 from ._litellm_proxy_vendor import (
     VENDOR_NAMES,
     Vendor,
+    claude_thinks_adaptively,
     deployment_route,
     frontier_base_model,
     is_openai_api_base,
@@ -114,6 +119,22 @@ _EXTERNAL_SEARCH_PROVIDERS = ("tavily", "exa", "google")
 
 _PREFILL_REJECTED = re.compile(
     r"assistant (message )?prefill|prefill(ing)? (the )?assistant", re.IGNORECASE
+)
+
+# Anthropic's rejection of extended thinking (Claude 4.7+ take only adaptive);
+# the quotes around the field may arrive JSON-escaped
+_ADAPTIVE_THINKING_REQUIRED = re.compile(
+    r"thinking\.type\.enabled[\\\"]* is not supported"
+)
+
+_ADAPTIVE_THINKING_MODEL_INFO = (
+    "        supports_reasoning: true\n        supports_adaptive_thinking: true\n"
+)
+"""`model_info` lines that give a Claude codename adaptive thinking in LiteLLM."""
+
+_ADAPTIVE_THINKING_NAMES = (
+    "LiteLLM uses adaptive thinking only for Claude models it recognizes by "
+    "their upstream name, not a codename; base_model does not change this"
 )
 
 
@@ -161,6 +182,9 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     When `responses_api` is not passed, GPT-5, o-series and Codex models
     served directly by OpenAI use the Responses API, as with the native
     `openai` provider; everything else uses Chat Completions.
+
+    Chat Completions requests to Claude 4.6+ that carry a `reasoning_effort`
+    ask for summarized thinking (`-M thinking_display=omitted` to not).
     """
 
     def __init__(
@@ -185,6 +209,12 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         require_model_info = model_args.pop("require_model_info", True)
         if not isinstance(require_model_info, bool):
             raise ValueError("require_model_info must be a bool")
+        thinking_display = model_args.pop("thinking_display", "summarized")
+        if thinking_display not in ("summarized", "omitted"):
+            raise ValueError("thinking_display must be 'summarized' or 'omitted'")
+        self._thinking_display: str = thinking_display
+        # set when the proxy rejects the `thinking` parameter (see generate)
+        self._thinking_unsupported = False
         super().__init__(
             model_name=model_name,
             base_url=base_url,
@@ -361,6 +391,19 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     def _model_info_fix(self) -> str:
         """The error's first fix: `model_info` to add to the proxy config."""
         alias = self._routed_name()
+        if self._vendor == "anthropic":
+            return (
+                f"- add model_info to the '{alias}' deployment in the proxy "
+                "config, naming the model it is closest to as base_model. For "
+                "the current frontier Anthropic model:\n\n"
+                "      model_info:\n"
+                f"        base_model: {frontier_base_model(self._vendor)}\n"
+                f"{_ADAPTIVE_THINKING_MODEL_INFO}\n"
+                "  base_model also lets LiteLLM accept parameters such as "
+                "reasoning_effort for a model it doesn't know. The supports_ "
+                "lines are for Claude 4.6 and later: "
+                f"{_ADAPTIVE_THINKING_NAMES};"
+            )
         if self._vendor is not None:
             return (
                 f"- add model_info to the '{alias}' deployment in the proxy "
@@ -369,8 +412,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                 "      model_info:\n"
                 f"        base_model: {frontier_base_model(self._vendor)}\n\n"
                 "  base_model also gives LiteLLM the model's capabilities "
-                "(e.g. reasoning effort, adaptive thinking, prompt caching), "
-                "which it otherwise lacks for a model it doesn't know;"
+                "(e.g. reasoning effort, prompt caching), which it otherwise "
+                "lacks for a model it doesn't know;"
             )
         return (
             f"- add model_info to the '{alias}' deployment in the proxy "
@@ -632,7 +675,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
 
         A rejection (see `_litellm_proxy_reasoning_effort`) is remembered for
         this model, a warning names the value used instead, and the request is
-        retried. Later requests use the lowered value directly.
+        retried. Later requests use the lowered value directly. A rejected
+        `thinking` parameter (see `_thinking_for`) is dropped the same way.
         """
         if config.reasoning_tokens is not None:
             warn_once(
@@ -644,18 +688,41 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         _cache_write_ttl.set(None)
         requested = config.reasoning_effort
         # ends: each rejection is recorded, so the next attempt sends a value
-        # not yet rejected, or no effort at all
+        # not yet rejected, no effort, or no thinking
         while True:
             effort = self._effort_for(requested)
-            if effort != config.reasoning_effort:
-                config = config.model_copy(update={"reasoning_effort": effort})
-            result = await super().generate(input, tools, tool_choice, config)
+            thinking = self._thinking_for(effort, config)
+            update: dict[str, Any] = {"reasoning_effort": effort}
+            if thinking is not None:
+                update["extra_body"] = (config.extra_body or {}) | {
+                    "thinking": thinking
+                }
+            result = await super().generate(
+                input, tools, tool_choice, config.model_copy(update=update)
+            )
             output = result[0] if isinstance(result, tuple) else result
+            message = (
+                _error_message(output) if isinstance(output, BadRequestError) else None
+            )
             rejection = (
-                rejected_effort(_error_message(output), effort)
-                if effort is not None and isinstance(output, BadRequestError)
+                rejected_effort(message, effort)
+                if effort is not None and message is not None
                 else None
             )
+            if (
+                rejection is None
+                and thinking is not None
+                and message is not None
+                and rejected_thinking(message)
+            ):
+                self._thinking_unsupported = True
+                warn_once(
+                    logger,
+                    f"LiteLLM proxy model '{self.service_model_name()}' does not "
+                    f"accept thinking={thinking}; sending no thinking parameter, "
+                    "so its thinking may not be summarized.",
+                )
+                continue
             if rejection is None:
                 if requested is not None and effort != requested:
                     instead = (
@@ -664,7 +731,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                     warn_once(
                         logger,
                         f"LiteLLM proxy model '{self.service_model_name()}' does "
-                        f"not accept reasoning_effort='{requested}'; {instead}.",
+                        f"not accept reasoning_effort='{requested}'; {instead}."
+                        + self._effort_unsupported_fix(),
                     )
                 return result
             if rejection.kind == "parameter":
@@ -673,6 +741,36 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                 assert effort is not None
                 self._rejected_efforts.add(effort)
 
+    def _effort_unsupported_fix(self) -> str:
+        """The proxy config fix for a Claude 4.6+ model that takes no effort.
+
+        LiteLLM refuses `reasoning_effort` for a Claude model it doesn't know
+        by name (e.g. a codename configured with only `max_input_tokens`), so
+        the model runs at its default effort. Empty for other models.
+        """
+        if not (
+            self._effort_unsupported
+            and self._is_claude()
+            and claude_thinks_adaptively(self.model_family())
+        ):
+            return ""
+        # on Bedrock, LiteLLM accepts the effort only with base_model as well
+        bedrock = any(
+            deployment_route(d.model, d.custom_llm_provider) == "bedrock"
+            for d in self._deployments or []
+        )
+        base_model = (
+            f"        base_model: {frontier_base_model('anthropic')}\n"
+            if bedrock
+            else ""
+        )
+        return (
+            f" {_ADAPTIVE_THINKING_NAMES}. To send it, add to the "
+            f"'{self._routed_name()}' deployment in the proxy config:\n\n"
+            "      model_info:\n"
+            f"{base_model}{_ADAPTIVE_THINKING_MODEL_INFO}"
+        )
+
     def _effort_for(self, requested: str | None) -> str | None:
         """The effort to send for `requested`, given the rejections so far."""
         if requested is None or self._effort_unsupported:
@@ -680,6 +778,36 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         if requested in self._rejected_efforts:
             return next_effort(requested, self._rejected_efforts)
         return requested
+
+    def _thinking_for(
+        self, effort: str | None, config: GenerateConfig
+    ) -> dict[str, str] | None:
+        """The `thinking` parameter to send with `effort`, if any.
+
+        Claude 4.7+ omits thinking text unless asked for a summary, and then
+        streams nothing until its reply. LiteLLM sends `display: summarized`
+        itself for the models its map marks as adaptive thinking models, but
+        older versions (e.g. 1.96) do not. With summaries, the stream has
+        data during thinking, so request and stream idle timeouts detect a
+        stalled upstream rather than a long think.
+
+        Sent only on Chat Completions with an effort (which LiteLLM maps to
+        `output_config.effort`), and only for Claude 4.6+: LiteLLM turns an
+        adaptive `thinking` for an earlier model into a fixed thinking budget,
+        replacing the one it derives from the effort. A `thinking` in
+        `extra_body` is sent instead.
+        """
+        if (
+            effort is None
+            or effort == "none"
+            or self.responses_api
+            or self._thinking_unsupported
+            or not self._is_claude()
+            or not claude_thinks_adaptively(self.model_family())
+            or "thinking" in (config.extra_body or {})
+        ):
+            return None
+        return {"type": "adaptive", "display": self._thinking_display}
 
     @override
     def supports_max_reasoning_effort(self) -> bool:
@@ -705,6 +833,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     @override
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
         message = _error_message(ex)
+        if _ADAPTIVE_THINKING_REQUIRED.search(message):
+            return self._adaptive_thinking_error(message)
         if _PREFILL_REJECTED.search(message):
             return PrefillNotSupportedError(self.service_model_name(), message)
         output = litellm_error_model_output(self.service_model_name(), message)
@@ -719,6 +849,30 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                 upstream_message(message),
             )
         return output if output is not None else super().handle_bad_request(ex)
+
+    def _adaptive_thinking_error(self, message: str) -> PrerequisiteError:
+        """The upstream Claude model rejected the extended thinking LiteLLM sent.
+
+        LiteLLM maps `reasoning_effort` to adaptive thinking only for model
+        names matching its Claude version patterns, so a codename (even with
+        `base_model`) gets extended thinking, which Claude 4.7+ rejects. Every
+        request with an effort would fail, so the error names the proxy
+        config fix rather than being retried or lowered.
+        """
+        return PrerequisiteError(
+            f"LiteLLM proxy model '{self.service_model_name()}' takes only "
+            "adaptive thinking, but the proxy sent it extended thinking "
+            f"(thinking.type.enabled) for its reasoning_effort. "
+            f"{_ADAPTIVE_THINKING_NAMES}.\n\n"
+            f"To fix, add to the '{self._routed_name()}' deployment in the "
+            "proxy config:\n\n"
+            "      model_info:\n"
+            f"{_ADAPTIVE_THINKING_MODEL_INFO}\n"
+            "or send no reasoning_effort. (A thinking parameter of type "
+            "'enabled' in extra_body is rejected the same way; use 'adaptive'.)"
+            "\n\n"
+            f"Proxy error: {upstream_message(message)}"
+        )
 
     @override
     def handle_stream_error(
