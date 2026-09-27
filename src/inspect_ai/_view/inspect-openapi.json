@@ -550,6 +550,12 @@
             "title": "Budget",
             "type": "string"
           },
+          "kind": {
+            "const": "budget",
+            "default": "budget",
+            "title": "Kind",
+            "type": "string"
+          },
           "percent": {
             "title": "Percent",
             "type": "number"
@@ -557,7 +563,8 @@
         },
         "required": [
           "budget",
-          "percent"
+          "percent",
+          "kind"
         ],
         "title": "BudgetPercent",
         "type": "object"
@@ -1334,22 +1341,37 @@
           "trigger": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Manual"
-              },
-              {
-                "$ref": "#/components/schemas/TurnInterval"
-              },
-              {
-                "$ref": "#/components/schemas/TimeInterval"
-              },
-              {
-                "$ref": "#/components/schemas/TokenInterval"
-              },
-              {
-                "$ref": "#/components/schemas/CostInterval"
-              },
-              {
-                "$ref": "#/components/schemas/BudgetPercent"
+                "discriminator": {
+                  "mapping": {
+                    "budget": "#/components/schemas/BudgetPercent",
+                    "cost": "#/components/schemas/CostInterval",
+                    "manual": "#/components/schemas/Manual",
+                    "time": "#/components/schemas/TimeInterval",
+                    "token": "#/components/schemas/TokenInterval",
+                    "turn": "#/components/schemas/TurnInterval"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Manual"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TurnInterval"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TimeInterval"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TokenInterval"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CostInterval"
+                  },
+                  {
+                    "$ref": "#/components/schemas/BudgetPercent"
+                  }
+                ]
               },
               {
                 "type": "null"
@@ -2135,10 +2157,17 @@
           "every": {
             "title": "Every",
             "type": "number"
+          },
+          "kind": {
+            "const": "cost",
+            "default": "cost",
+            "title": "Kind",
+            "type": "string"
           }
         },
         "required": [
-          "every"
+          "every",
+          "kind"
         ],
         "title": "CostInterval",
         "type": "object"
@@ -7224,7 +7253,17 @@
       },
       "Manual": {
         "description": "No-op trigger spec.\n\nThe engine's ``tick()`` always returns ``None`` for this spec \u2014\nfires happen only through explicit ``cp.checkpoint()`` calls.",
-        "properties": {},
+        "properties": {
+          "kind": {
+            "const": "manual",
+            "default": "manual",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
         "title": "Manual",
         "type": "object"
       },
@@ -8003,7 +8042,7 @@
         "type": "object"
       },
       "Reference": {
-        "description": "Reference to scanned content.",
+        "description": "Reference from a score to content in the scored transcript.\n\nReferences are stored as a list of dicts under a score's\n`metadata[\"scanner_references\"]` key. Inspect View identifies scanner\nscores by the presence of that key and renders cites in the score's\nexplanation (e.g. `[M22]`) as links to the referenced content.",
         "properties": {
           "cite": {
             "anyOf": [
@@ -10768,10 +10807,17 @@
             "format": "duration",
             "title": "Every",
             "type": "string"
+          },
+          "kind": {
+            "const": "time",
+            "default": "time",
+            "title": "Kind",
+            "type": "string"
           }
         },
         "required": [
-          "every"
+          "every",
+          "kind"
         ],
         "title": "TimeInterval",
         "type": "object"
@@ -10941,10 +10987,17 @@
           "every": {
             "title": "Every",
             "type": "integer"
+          },
+          "kind": {
+            "const": "token",
+            "default": "token",
+            "title": "Kind",
+            "type": "string"
           }
         },
         "required": [
-          "every"
+          "every",
+          "kind"
         ],
         "title": "TokenInterval",
         "type": "object"
@@ -11513,10 +11566,17 @@
           "every": {
             "title": "Every",
             "type": "integer"
+          },
+          "kind": {
+            "const": "turn",
+            "default": "turn",
+            "title": "Kind",
+            "type": "string"
           }
         },
         "required": [
-          "every"
+          "every",
+          "kind"
         ],
         "title": "TurnInterval",
         "type": "object"

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from decimal import Decimal
 from typing import Literal
 
 import pytest
+from pydantic import ValidationError
 
 from inspect_ai.dataset import Sample
 from inspect_ai.util._checkpoint import (
@@ -18,6 +20,11 @@ from inspect_ai.util._checkpoint import (
     TimeInterval,
     TokenInterval,
     TurnInterval,
+)
+from inspect_ai.util._checkpoint._triggers.types import (
+    BudgetPercent,
+    CheckpointTrigger,
+    CostInterval,
 )
 from inspect_ai.util._checkpoint.config import (
     DEFAULT_CHECKPOINT_TRIGGER,
@@ -582,3 +589,107 @@ def test_strategy_selection_survives_json_round_trip() -> None:
         value = back.checkpoint.sandbox_paths["default"]
         assert isinstance(value, SandboxSnapshotConfig)
         assert type(value.strategy) is strategy_type
+
+
+@pytest.mark.parametrize(
+    "trigger",
+    (
+        Manual(),
+        TurnInterval(every=3),
+        TimeInterval(every=timedelta(seconds=30)),
+        TokenInterval(every=1000),
+        CostInterval(every=2.5),
+        BudgetPercent(budget="token", percent=25),
+    ),
+    ids=lambda trigger: type(trigger).__name__,
+)
+def test_trigger_survives_json_round_trip(trigger: CheckpointTrigger) -> None:
+    """The trigger union must not collapse when serialized and re-read.
+
+    `TurnInterval`, `TokenInterval` and `CostInterval` are each a lone
+    `every`, so without the `kind` discriminator a JSON round-trip
+    validates every one of them back to the first union member that
+    fits. `TokenInterval` — also the type of
+    `DEFAULT_CHECKPOINT_TRIGGER` — came back as `TurnInterval`, which
+    is a materially different cadence: every 500,000 *turns* rather
+    than every 500,000 tokens, so checkpointing was off for any run
+    shorter than that.
+    """
+    sample = Sample(input="x", checkpoint=CheckpointSampleConfig(trigger=trigger))
+    back = Sample.model_validate_json(sample.model_dump_json())
+    assert back.checkpoint is not None
+    assert back.checkpoint.trigger == trigger
+
+
+@pytest.mark.parametrize(
+    "trigger_json,expected",
+    (
+        ("{}", Manual()),
+        ('{"every": 3}', TurnInterval(every=3)),
+        ('{"every": "30"}', TurnInterval(every=30)),
+        ('{"every": true}', TurnInterval(every=1)),
+        ('{"every": "PT30S"}', TimeInterval(every=timedelta(seconds=30))),
+        ('{"every": "1:00:00"}', TimeInterval(every=timedelta(hours=1))),
+        ('{"every": 2.5}', CostInterval(every=2.5)),
+        ('{"every": "2.5"}', CostInterval(every=2.5)),
+        ('{"every": 30.0}', CostInterval(every=30.0)),
+        (
+            '{"budget": "token", "percent": 25}',
+            BudgetPercent(budget="token", percent=25),
+        ),
+    ),
+    ids=lambda value: value if isinstance(value, str) else type(value).__name__,
+)
+def test_untagged_trigger_loads_as_it_did_before(
+    trigger_json: str, expected: CheckpointTrigger
+) -> None:
+    """A trigger persisted before `kind` existed still loads the same way.
+
+    The discriminator falls back to the field shape when no `kind` is
+    present, reproducing what the undiscriminated union resolved each
+    of these to, so samples already on disk are read as they were
+    written. A quoted `every` is covered because a serialized number
+    may arrive as a string, and the whole-number-vs-fractional split
+    is what used to separate turns from dollars.
+
+    `token` is absent from these cases because it is the one kind the
+    shape cannot recover: `{"every": <int>}` loaded as `turn` then and
+    still does.
+    """
+    sample = Sample.model_validate_json(
+        '{"input": "x", "checkpoint": {"trigger": ' + trigger_json + "}}"
+    )
+    assert sample.checkpoint is not None
+    assert sample.checkpoint.trigger == expected
+
+
+def test_untagged_decimal_every_loads_as_a_cost_trigger() -> None:
+    """A non-float real `every` is dollars, as it was before `kind`.
+
+    Reachable from a loader configured to parse JSON floats as
+    `Decimal`, which the undiscriminated union coerced to
+    `CostInterval.every`.
+    """
+    sample = Sample.model_validate(
+        {"input": "x", "checkpoint": {"trigger": {"every": Decimal("2.5")}}}
+    )
+    assert sample.checkpoint is not None
+    assert sample.checkpoint.trigger == CostInterval(every=2.5)
+
+
+@pytest.mark.parametrize(
+    "trigger_json",
+    ('{"every": "30s"}', '{"every": [1]}', '{"percent": 25}', '{"budget": "token"}'),
+)
+def test_untagged_trigger_matching_no_kind_is_refused(trigger_json: str) -> None:
+    """A shape that names no trigger is rejected rather than guessed at.
+
+    Undiscriminated, each of these validated as `Manual` — the first
+    arm, and pydantic dataclasses ignore fields they don't declare —
+    so a malformed trigger quietly meant "never checkpoint". Refusing
+    it says so instead.
+    """
+    with pytest.raises(ValidationError):
+        Sample.model_validate_json(
+            '{"input": "x", "checkpoint": {"trigger": ' + trigger_json + "}}"
+        )

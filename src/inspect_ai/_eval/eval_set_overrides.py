@@ -324,7 +324,7 @@ class EvalSetOverrides(BaseModel):
     checkpoint: CheckpointConfig | StrictBool | None = None
     """Sample checkpointing, overriding the definition's.
 
-    A trigger travels with its kind named (`{"kind": "token", "every": 500000}`), which the union it belongs to cannot express on its own: `TurnInterval`, `TokenInterval` and `CostInterval` are all `{"every": N}`, so a document written from a `--checkpoint token:500k` came back as *every five hundred thousand turns* — checkpointing switched off, silently, for any run that does not take half a million turns.
+    A trigger travels with its kind named (`{"kind": "token", "every": 500000}`). `CheckpointTrigger` now names its own kind, so the tag below is what the union itself carries; this layer predates that and keeps writing it, and keeps *requiring* it, because a document written by hand is the one place a missing kind should be refused rather than guessed from the shape of `{"every": N}`.
     """
 
     @field_serializer("checkpoint")
@@ -351,7 +351,7 @@ class EvalSetOverrides(BaseModel):
     def _read_tagged_trigger(cls, value: object) -> object:
         """Build the trigger the document names, and refuse one it does not.
 
-        An untagged trigger is not read as a default — it is refused. Two of the three shapes it could be mean different things by the same JSON, so guessing would be choosing one at random and doing it quietly, which is the failure this tag exists to end.
+        An untagged trigger is not read as a default — it is refused. `{"every": N}` is what a `turn` and a `token` trigger both write, and they mean different cadences, so guessing would be choosing one quietly. `CheckpointTrigger` does infer a kind from the shape for a payload serialized before the discriminator existed, which it has to; an overrides document is written by hand for this run, so it is held to the stricter rule.
         """
         if not isinstance(value, dict):
             return value
@@ -471,7 +471,7 @@ TRIGGER_KINDS: dict[str, type[CheckpointTrigger]] = {
 }
 """Every checkpoint trigger, by the word `--checkpoint` names it with.
 
-The union these belong to is undiscriminated and three of its arms serialize identically — `TurnInterval`, `TokenInterval` and `CostInterval` are each `{"every": N}` — so a document has to carry the kind or pydantic picks the first arm that validates. It picked `turn`, which turned `--checkpoint token:500k` into a checkpoint every five hundred thousand turns.
+Two arms of the union serialize identically — `TurnInterval` and `TokenInterval` are each `{"every": N}` — so a document has to carry the kind or the kind is a guess. Before the union carried a discriminator of its own, pydantic picked the first arm that validated: `turn`, which turned `--checkpoint token:500k` into a checkpoint every five hundred thousand turns.
 
 Spelled with the CLI's words rather than the class names, so that a hand-written document and a `--checkpoint` argument say the same thing.
 """
