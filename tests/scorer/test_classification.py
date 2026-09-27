@@ -149,3 +149,23 @@ def test_max_exact_score_word_order_and_duplicates():
     # max_exact_score must preserve word order and count (not compare word sets)
     assert max_exact_score("world hello", ["hello world"]) == 0.0
     assert max_exact_score("hello hello", ["hello"]) == 0.0
+
+
+def test_exact_and_f1_distinguish_sign():
+    # _tokenize() splits on "-" as well as " ", so the sign was stripped off a negative
+    # number before any numeric handling ran and "-5" normalized to "5.0", the same as
+    # "5". A sign-flipped answer therefore scored CORRECT.
+    assert max_exact_score("-5", ["5"]) == 0.0
+    assert max_f1_score("-5", ["5"]) == 0.0
+    assert max_exact_score("5", ["-5"]) == 0.0
+    assert max_exact_score("-0.5", ["0.5"]) == 0.0
+    assert max_exact_score("-273.15", ["273.15"]) == 0.0
+
+    # a number still matches itself, sign included
+    assert max_exact_score("-5", ["-5"]) == 1.0
+    assert max_f1_score("-5", ["-5"]) == 1.0
+
+    # and the hyphen split this guard sits in front of is untouched, so a compound
+    # word still matches its spaced form
+    assert max_exact_score("well-known", ["well known"]) == 1.0
+    assert max_exact_score("state-of-the-art", ["state of the art"]) == 1.0

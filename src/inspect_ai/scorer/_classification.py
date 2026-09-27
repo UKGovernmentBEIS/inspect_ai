@@ -159,6 +159,15 @@ def _tokenize(text: str) -> List[str]:
 
 def _normalize(text: str, stop_words: list[str] | None = None) -> str:
     """Normalize text to remove extraneous characters and words."""
+    # A NUMBER IS A SINGLE TOKEN. _tokenize() splits on "-" as well as " ", which is
+    # deliberate so that "well-known" matches "well known", but it also split the sign off
+    # a negative number before any numeric handling ran: "-5" tokenized to ["", "5"] and
+    # normalized to "5.0", so exact() and f1() scored a sign-flipped answer CORRECT.
+    # is_finite_number() already accepts a leading sign, so settle a bare number here.
+    stripped = text.strip()
+    if is_finite_number(stripped):
+        return _normalize_number(stripped)
+
     tokens = []
     tokenized_answer = _tokenize(text)
 
