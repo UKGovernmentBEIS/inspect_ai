@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Shard logs under `<name>.shards/` are hidden once their merged log covers them (`--show-shards` to list them).
+
 ## 0.3.271 (26 September 2026)
 
 - CLI: New `--extra-headers` and `--extra-body` options for `inspect eval` and `inspect eval-set`, taking an inline JSON or YAML mapping.

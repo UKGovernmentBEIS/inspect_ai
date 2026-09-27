@@ -152,6 +152,7 @@ def view_server_app(
     recursive: bool = True,
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
+    show_shards: bool = False,
 ) -> "FastAPI":
     app = FastAPI()
 
@@ -377,6 +378,7 @@ def view_server_app(
             fs_options=fs_options,
             mtime=mtime,
             file_count=file_count,
+            show_shards=show_shards,
         )
         for entry in result.files:
             entry.name = await _unmap_file(request, entry.name)
@@ -396,6 +398,7 @@ def view_server_app(
             await _map_file(request, log_dir),
             recursive=recursive,
             fs_options=fs_options,
+            show_shards=show_shards,
         )
         if listing is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
@@ -750,6 +753,7 @@ def standalone_view_app(
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
     dist_dir: Path | None = None,
+    show_shards: bool = False,
 ) -> ASGIApp:
     api = view_server_app(
         mapping_policy=None,
@@ -762,6 +766,7 @@ def standalone_view_app(
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
+        show_shards=show_shards,
     )
 
     resolved_dist_dir = dist_dir or resolve_dist_directory()
@@ -797,6 +802,7 @@ def view_server(
     trusted_hosts: tuple[str, ...] = (),
     unsafe_allow_unauthenticated: bool = False,
     network_policy: ViewerNetworkPolicy | None = None,
+    show_shards: bool = False,
 ) -> None:
     network_policy = network_policy or resolve_viewer_network_policy(
         bind_host=host,
@@ -819,6 +825,7 @@ def view_server(
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
+        show_shards=show_shards,
     )
 
     # one server-lifetime async filesystem (shared client + connection pool)

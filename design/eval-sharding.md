@@ -14,7 +14,9 @@ Merges are serialised by their callers, one merger at a time per merged
 log, with compare-and-swap publication as the guard (2026-09-22). The
 "Scale" section covers roughly 300 shards on S3 (2026-09-23). No API
 signatures or implementation plan yet; those are the next document. The one
-open decision is listed under "Open questions".
+open decision is listed under "Open questions". The viewer hides shards
+that their merged log already covers (JJ Allaire, 2026-09-27; see
+"Listing").
 Issue: https://github.com/meridianlabs-ai/inspect_ai/issues/509.
 Author: agent (Claude), reviewed by Codex; see the PR.
 
@@ -215,8 +217,8 @@ its own.
   opt-in.
   While shards run, what is missing is the whole-task rollup, not
   per-sample liveness: each shard is a normal in-progress log with its own
-  sample buffer, listed and shown live by the viewer as today (Step 1 adds
-  no listing exclusion; see "Listing").
+  sample buffer, listed and shown live by the viewer as today. Once a
+  merge covers a shard, the viewer hides it (see "Listing").
 - **Step 2.** Live whole-task metrics during the run: a periodic rollup of
   shard headers and summaries into a stored rollup (Ransom,
   2026-09-18), or, now that the merge is incremental, the merge itself run on
@@ -312,36 +314,47 @@ its directory makes it an ordinary partial log.
   override is added later; see "Alternatives not taken" for what it would
   cost.
 
-### Listing: no exclusion in Step 1
+### Listing: the viewer hides merged shards
 
-Decision (Ransom, 2026-09-21): Step 1 adds no listing exclusion. Shards
-under `<name>.shards/<k>/` are listed as ordinary partial logs beside the
-merged log by every enumerator, exactly as unrecognised shards are listed
-today. The merged log is plainly a rollup that may lag the shards, and the
-parent view is never blank: a sharded run shows its running shards from the
-first byte, and one more row once the first merge lands.
+Decision (Ransom, 2026-09-21, revised by JJ Allaire, 2026-09-27): the
+shared filter (`_filter_log_files`) excludes nothing, so `list_eval_logs`,
+`evals_df` and every other enumerator list shards as ordinary partial logs
+beside the merged log. The view server (`/logs` and `/log-files`) hides a
+shard once its merged log covers it.
 
-Why not hide them: any exclusion rule, unconditional or conditional on the
-merged log existing, creates a state where the merged log is stale (new
-samples in a shard, or a shard added later, not yet merged) and the ongoing
-work is invisible from the parent view. That confusion is worse than the
-clutter it removes. The layout makes deferral safe: shards sit under
-`*.shards/` from their first write, so an exclusion added later is one
-change in the shared filter (`_filter_log_files`, which every enumerator
-passes through; see "Current behaviour"), with no files to move and no
-compatibility break. The candidate rule, if it is ever wanted, is "a file is
-excluded when its path relative to the listed root contains a component
-ending in `.shards`", keyed on the suffix so a user directory named `shards`
-is unaffected; the deferral is recorded under "Alternatives not taken".
+The rule is `filter_merged_shards` in `_view/common.py`: a log at
+`<dir>/<name>.shards/<k>/<file>` is hidden when `<dir>/<name>.eval` (or
+`<name>-recovered.eval`) is in the same listing and the shard's mtime is no
+later than the merged log's. The comparison uses only the listing, so it
+needs no header reads and works for any merger that writes the merged log
+after reading its shards, including external combiners that do not write
+`EvalSpec.shards`.
 
-What listing shards beside the merged log costs, stated so the affected
-tools are pointed at merged logs:
+The 2026-09-21 decision deferred hiding because a rule keyed on the merged
+log *existing* hides ongoing work when the merged log is stale. The mtime
+condition addresses that: a shard written after the merge (still running,
+retried, or added later) is newer than the merged log and stays visible, and
+a shard with no merged log is never hidden. Listing the `.shards` directory
+itself shows every shard, since the merged log is outside it, and `inspect
+view --show-shards` turns the rule off.
 
-- **Viewer.** N shard rows plus one merged row per task, the clutter the
-  issue started from, but with the whole-task row present the shard rows
-  are extra, not wrong. Pointing the viewer at the merged log, or deleting
-  shards after a verified merge (the explicit option under "Shard
-  disposition"), clears it.
+- **Limitation.** A shard written while a merge is running (after the merge
+  read it, before it published) is older than the merged log but not fully
+  in it, so it is hidden until its next write. Once the Inspect merge writes
+  the `EvalSpec.shards` ledger, merged logs that carry it can use an exact
+  check (the shard's current size, ETag and mtime against its ledger entry)
+  at the cost of one header read per merged log; logs without a ledger keep
+  the mtime rule.
+- **Incremental listings.** `/log-files` answers with only the changed files
+  when the client's file count is unchanged, and the client removes rows
+  only on a full response. A merge that replaces as many shards as it adds
+  merged logs (one shard, one merged log) leaves the count unchanged, so the
+  server sends a full response whenever a merged log that hides shards is
+  newer than the client's token.
+
+What listing shards beside the merged log costs the enumerators that
+still do, stated so the affected tools are pointed at merged logs:
+
 - **`evals_df`.** Dedupes by `eval_id` (`analysis/_dataframe/evals/table.py:160`)
   and the merged log has its own, so a directory of sharded runs gives N+1
   rows per task. Filter on the provenance field, which only merged logs
@@ -362,7 +375,7 @@ tools are pointed at merged logs:
   `uuid` see each merged sample twice unless pointed at merged logs, and
   every reader, `samples_df` included, sees superseded attempts in a
   directory read. These are the correctness costs of listing shards and the
-  first reason to revisit the exclusion.
+  first reason to extend the exclusion beyond the viewer.
 - **`eval_set()`** is unaffected because it skips shards itself (see
   "Eval-set integration"); that skip is required for correctness regardless
   of the general listing decision.
@@ -613,9 +626,10 @@ have grown, and additional shards added later.
   contract and the guard.
 
 **Shard disposition.** Merged shards stay in `<name>.shards/`, listed
-beside the merged log (see "Listing"), until the merged log is verified;
-delete is an explicit option, never the default, and also the way to clear
-the extra rows once a run is done, because it is the one choice that cannot
+beside the merged log by enumerators other than the viewer (see "Listing"),
+until the merged log is verified; delete is an explicit option, never the
+default, and also the way to clear the extra rows once a run is done,
+because it is the one choice that cannot
 be undone after a bad merge (Ransom, 2026-09-18, restated under the companion
 layout). This is the second difference from checkpoints, whose retention
 default is to delete the companion on success (`retention:
@@ -770,10 +784,9 @@ What readers that list shards pay:
   file it lists, in batches through `/log-headers`
   (`_view/fastapi_server.py:476-491`), and caches them per file, so the
   cost lands on a cold listing (300 extra header reads per sharded task) and
-  on every running shard whose file changes, on top of the clutter. This is a performance argument, in addition to the
-  correctness costs under "Listing", for revisiting the deferred listing
-  exclusion once sharded runs of this size are common; Step 1 keeps the
-  decision to list shards.
+  on every running shard whose file changes. Hiding merged shards (see
+  "Listing") removes the header reads for shards the merge covers; running
+  and unmerged shards still cost one each.
 
 ### Notes for harnesses
 
@@ -829,10 +842,11 @@ taken".
 - Old Inspect versions read a merged log as an ordinary log: `EvalSpec` sets
   no extra-field policy (`_log.py:1120`), so pydantic's default drops the
   unknown field on read. They list shards as N ordinary partial logs beside
-  the merged log, exactly as current versions do in Step 1.
-- If a listing exclusion is added later, it is one change in
-  `_filter_log_files` that every enumerator inherits (callers would pass the
-  listed root); no files move. `<name>.checkpoints/` directories need no
+  the merged log, and their viewer shows them.
+- The viewer's exclusion changes no file and no public API; it adds an
+  opt-out, `inspect view --show-shards` (`view(show_shards=True)`). If the
+  exclusion is extended to other enumerators, it is one change in
+  `_filter_log_files` (callers would pass the listed root); no files move. `<name>.checkpoints/` directories need no
   rule either way, since they hold no `.eval` files.
 - `log_basename` moves from `util/_checkpoint/_layout/` to a neutral module
   so `log/` can use it without depending on the checkpoint package; the
@@ -906,7 +920,11 @@ Pydantic models. New boundaries:
   re-run then merges cleanly; a lock file left by a crashed local merge is
   reported, not silently overridden.
 - Listing tests: shards under `<name>.shards/<k>/` listed by
-  `list_eval_logs`, `evals_df` and the viewer listing beside the merged log;
+  `list_eval_logs` and `evals_df` beside the merged log; the viewer listing
+  hiding shards older than their merged log, showing shards with no merged
+  log or written after it, showing all shards when the `.shards` directory
+  is listed or `--show-shards` is set, and sending a full `/log-files`
+  response when a merge leaves the file count unchanged;
   `samples_df` over a directory whose shards hold no superseded attempts
   yields each sample once (uuid dedupe across shard and merged log), and over
   a directory where `<k>/` retains an old attempt beside its retry yields
@@ -1042,11 +1060,11 @@ Kept for the record and as the rationale for the design above.
 - **Shard count as the completeness input.** Proves N `success` shards exist
   and relies on disjointness for coverage; kept only as the CLI's cheaper
   option beside an id list, since it cannot name missing samples.
-- **A listing exclusion in Step 1** (a `.shards` path-component rule at any
-  depth or direct child, or one conditional on the merged log existing).
-  Deferred (Ransom, 2026-09-21): every variant creates a state where a stale
-  merged log hides ongoing work in the shards; see "Listing". Revisit if the
-  extra rows or downstream double counting prove a problem.
+- **An unconditional listing exclusion** (a `.shards` path-component rule
+  at any depth or direct child, or one conditional only on the merged log
+  existing). Rejected (Ransom, 2026-09-21): each creates a state where a
+  stale merged log hides ongoing work in the shards. The viewer's rule adds
+  the mtime condition that avoids this; see "Listing".
 - **A periodic full merge as originally rejected (2026-09-18).** The
   objections were a full rewrite per tick, reading running shards through
   their journals, and needing a `started` status. The incremental-merge

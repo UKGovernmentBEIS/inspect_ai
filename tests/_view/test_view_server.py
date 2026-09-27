@@ -5,6 +5,7 @@ import contextlib
 import json
 import logging
 import math
+import os
 import time
 import urllib.parse
 import zipfile
@@ -888,6 +889,120 @@ def test_api_log_files_count_change_gives_full(view_client: ViewTestClient) -> N
     )
     resp.raise_for_status()
     assert resp.json()["response_type"] == "full"
+
+
+_MERGED_NAME = "2025-01-01T00-00-00+00-00_task_merged"
+
+
+def _write_sharded_run(
+    log_dir: Path,
+    shard_mtimes: list[float],
+    merged_mtime: float | None,
+    merged_suffix: str = "",
+) -> None:
+    """Write shards under ``<name>.shards/<k>/`` and optionally the merged log."""
+    for k, mtime in enumerate(shard_mtimes):
+        shard_dir = log_dir / f"{_MERGED_NAME}.shards" / str(k)
+        shard_dir.mkdir(parents=True)
+        path = write_eval_log_named(
+            shard_dir, f"2025-01-01T00-00-0{k}+00-00_task_s{k}.eval", "task", f"s{k}"
+        )
+        os.utime(path, (mtime, mtime))
+    if merged_mtime is not None:
+        path = write_eval_log_named(
+            log_dir, f"{_MERGED_NAME}{merged_suffix}.eval", "task", "merged"
+        )
+        os.utime(path, (merged_mtime, merged_mtime))
+
+
+def _listed_task_ids(client: ViewTestClient, log_dir: Path | None = None) -> set[str]:
+    resp = client.request(
+        "GET",
+        f"/logs?log_dir={urllib.parse.quote_plus(str(log_dir or client.log_dir))}",
+    )
+    resp.raise_for_status()
+    return {f["task_id"] for f in resp.json()["files"]}
+
+
+def test_api_logs_shows_shards_before_merge(view_client: ViewTestClient) -> None:
+    _write_sharded_run(view_client.log_dir, [1000, 1001], merged_mtime=None)
+    assert _listed_task_ids(view_client) == {"s0", "s1"}
+
+
+def test_api_logs_hides_merged_shards(view_client: ViewTestClient) -> None:
+    _write_sharded_run(view_client.log_dir, [1000, 1001], merged_mtime=2000)
+    assert _listed_task_ids(view_client) == {"merged"}
+
+
+def test_api_logs_hides_shards_for_recovered_merged_log(
+    view_client: ViewTestClient,
+) -> None:
+    _write_sharded_run(
+        view_client.log_dir, [1000], merged_mtime=2000, merged_suffix="-recovered"
+    )
+    assert _listed_task_ids(view_client) == {"merged"}
+
+
+def test_api_logs_shows_shard_written_after_merge(
+    view_client: ViewTestClient,
+) -> None:
+    _write_sharded_run(view_client.log_dir, [1000, 3000], merged_mtime=2000)
+    assert _listed_task_ids(view_client) == {"merged", "s1"}
+
+
+def test_api_logs_shards_dir_lists_all_shards(view_client: ViewTestClient) -> None:
+    _write_sharded_run(view_client.log_dir, [1000, 1001], merged_mtime=2000)
+    shards_dir = view_client.log_dir / f"{_MERGED_NAME}.shards"
+    assert _listed_task_ids(view_client, shards_dir) == {"s0", "s1"}
+
+
+def test_api_logs_show_shards_lists_merged_shards(tmp_path: Path) -> None:
+    _write_sharded_run(tmp_path, [1000, 1001], merged_mtime=2000)
+    app = fastapi_server.view_server_app(default_dir=str(tmp_path), show_shards=True)
+    with fastapi.testclient.TestClient(app) as client:
+        for endpoint in ["logs", "log-files"]:
+            resp = client.get(
+                f"/{endpoint}?log_dir={urllib.parse.quote_plus(str(tmp_path))}"
+            )
+            resp.raise_for_status()
+            task_ids = {f["task_id"] for f in resp.json()["files"]}
+            assert task_ids == {"merged", "s0", "s1"}
+
+
+def test_api_log_files_hides_merged_shards(view_client: ViewTestClient) -> None:
+    _write_sharded_run(view_client.log_dir, [1000, 1001], merged_mtime=2000)
+    resp = view_client.request(
+        "GET", f"/log-files?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+    )
+    resp.raise_for_status()
+    assert {f["task_id"] for f in resp.json()["files"]} == {"merged"}
+
+
+def test_api_log_files_merge_with_same_count_gives_full(
+    view_client: ViewTestClient,
+) -> None:
+    # the client listed the single shard (listing mtimes are in ms); the merge
+    # replaces it with the merged log, so the count is unchanged but the shard
+    # must be removed
+    _write_sharded_run(view_client.log_dir, [1000], merged_mtime=2000)
+    resp = view_client.request(
+        "GET",
+        f"/log-files?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}",
+        headers={"If-None-Match": "1000000.0-1"},
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert body["response_type"] == "full"
+    assert {f["task_id"] for f in body["files"]} == {"merged"}
+
+    # once the client has the merged log, listings are incremental again
+    resp = view_client.request(
+        "GET",
+        f"/log-files?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}",
+        headers={"If-None-Match": "2000000.0-1"},
+    )
+    resp.raise_for_status()
+    assert resp.json()["response_type"] == "incremental"
 
 
 def test_api_flow_returns_yaml(view_client: ViewTestClient) -> None:

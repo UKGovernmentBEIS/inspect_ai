@@ -23,6 +23,7 @@ from inspect_ai._util.asyncfiles import _READ_FULLY_CHUNK_SIZE, AsyncFilesystem
 from inspect_ai._util.azure import is_azure_auth_error
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
+from inspect_ai._util.log_layout import merged_log_candidates_for_shard
 from inspect_ai._view.azure import normalize_azure_listing_name
 from inspect_ai.log._edit import LogUpdate, edit_eval_log
 from inspect_ai.log._file import (
@@ -147,19 +148,82 @@ async def read_eval_set_info_async(
         raise
 
 
+class MergedShardsFilter(NamedTuple):
+    """A log listing with merged shard logs removed."""
+
+    logs: list[EvalLogInfo]
+    """The logs to show."""
+
+    hiding_mtime: float | None
+    """Newest mtime of a merged log that hid a shard (None if nothing was hidden)."""
+
+
+def filter_merged_shards(logs: list[EvalLogInfo]) -> MergedShardsFilter:
+    """Remove shard logs already covered by their merged log.
+
+    A shard at ``<dir>/<name>.shards/<k>/`` is hidden when its merged log
+    (``<dir>/<name>.eval``) is in the same listing and the shard was last
+    written no later than the merged log. A shard with no merged log in the
+    listing, or written after the merge (still running, retried, or added
+    later), stays visible so ongoing work is never hidden. Listing the
+    ``.shards`` directory itself shows every shard, since the merged log is
+    outside it.
+
+    Comparing mtimes needs no reads beyond the listing, so it works for any
+    merger that writes the merged log after reading its shards. A shard
+    written while a merge is running can be hidden until its next write.
+    """
+    mtimes = {log.name: log.mtime for log in logs}
+    visible: list[EvalLogInfo] = []
+    hiding_mtime: float | None = None
+    for log in logs:
+        merged_mtime = _merged_log_mtime(log, mtimes)
+        if (
+            merged_mtime is not None
+            and log.mtime is not None
+            and log.mtime <= merged_mtime
+        ):
+            hiding_mtime = max(hiding_mtime or 0.0, merged_mtime)
+        else:
+            visible.append(log)
+    return MergedShardsFilter(logs=visible, hiding_mtime=hiding_mtime)
+
+
+def _merged_log_mtime(
+    log: EvalLogInfo, mtimes: dict[str, float | None]
+) -> float | None:
+    candidates = merged_log_candidates_for_shard(log.name)
+    if candidates is None:
+        return None
+    merged = [m for c in candidates if (m := mtimes.get(c)) is not None]
+    return max(merged) if merged else None
+
+
 async def get_log_files(
     request_log_dir: str,
     recursive: bool,
     fs_options: dict[str, Any],
     mtime: float,
     file_count: int,
+    show_shards: bool = False,
 ) -> LogFilesResponse:
     # list logs
     logs = await list_eval_logs_async(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
     )
 
-    if len(logs) != file_count:
+    # a merge that lands without changing the file count (e.g. one shard
+    # replaced by its merged log) still needs a full response, since only
+    # full responses remove rows from the client's listing
+    merge_landed = False
+    if not show_shards:
+        filtered = filter_merged_shards(logs)
+        logs = filtered.logs
+        merge_landed = (
+            filtered.hiding_mtime is not None and filtered.hiding_mtime > mtime
+        )
+
+    if len(logs) != file_count or merge_landed:
         # Has the number of files changed? could be a delete
         # so send a complete list
         return log_files_response(
@@ -541,7 +605,10 @@ async def stream_log_bytes(
 
 
 async def get_logs(
-    request_log_dir: str, recursive: bool, fs_options: dict[str, Any]
+    request_log_dir: str,
+    recursive: bool,
+    fs_options: dict[str, Any],
+    show_shards: bool = False,
 ) -> LogListingResponse | None:
     # if the log_dir contains the path to a specific file
     # then just return that file
@@ -556,6 +623,8 @@ async def get_logs(
     logs = await list_eval_logs_async(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
     )
+    if not show_shards:
+        logs = filter_merged_shards(logs).logs
     return get_log_listing(logs, request_log_dir)
 
 
