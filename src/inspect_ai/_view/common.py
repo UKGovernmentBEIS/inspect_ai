@@ -154,8 +154,8 @@ class MergedShardsFilter(NamedTuple):
     logs: list[EvalLogInfo]
     """The logs to show."""
 
-    hiding_mtime: float | None
-    """Newest mtime of a merged log that hid a shard (None if nothing was hidden)."""
+    has_shards: bool
+    """Whether the listing contained any shard log, hidden or not."""
 
 
 def filter_merged_shards(logs: list[EvalLogInfo]) -> MergedShardsFilter:
@@ -163,11 +163,12 @@ def filter_merged_shards(logs: list[EvalLogInfo]) -> MergedShardsFilter:
 
     A shard at ``<dir>/<name>.shards/<k>/`` is hidden when its merged log
     (``<dir>/<name>.eval``) is in the same listing and the shard was last
-    written no later than the merged log. A shard with no merged log in the
-    listing, or written after the merge (still running, retried, or added
-    later), stays visible so ongoing work is never hidden. Listing the
-    ``.shards`` directory itself shows every shard, since the merged log is
-    outside it.
+    written before the merged log. A tie keeps the shard visible, since
+    coarse mtimes (one second on S3) cannot order a shard write and a merge
+    in the same tick. A shard with no merged log in the listing, or written
+    after the merge (still running, retried, or added later), stays visible
+    so ongoing work is never hidden. Listing the ``.shards`` directory itself
+    shows every shard, since the merged log is outside it.
 
     Comparing mtimes needs no reads beyond the listing, so it works for any
     merger that writes the merged log after reading its shards. A shard
@@ -175,28 +176,29 @@ def filter_merged_shards(logs: list[EvalLogInfo]) -> MergedShardsFilter:
     """
     mtimes = {log.name: log.mtime for log in logs}
     visible: list[EvalLogInfo] = []
-    hiding_mtime: float | None = None
+    has_shards = False
     for log in logs:
-        merged_mtime = _merged_log_mtime(log, mtimes)
-        if (
-            merged_mtime is not None
-            and log.mtime is not None
-            and log.mtime <= merged_mtime
-        ):
-            hiding_mtime = max(hiding_mtime or 0.0, merged_mtime)
-        else:
+        candidates = merged_log_candidates_for_shard(log.name)
+        if candidates is None:
             visible.append(log)
-    return MergedShardsFilter(logs=visible, hiding_mtime=hiding_mtime)
+            continue
+        has_shards = True
+        merged_mtime = _merged_log_mtime(candidates, mtimes)
+        if merged_mtime is None or log.mtime is None or log.mtime >= merged_mtime:
+            visible.append(log)
+    return MergedShardsFilter(logs=visible, has_shards=has_shards)
 
 
 def _merged_log_mtime(
-    log: EvalLogInfo, mtimes: dict[str, float | None]
+    candidates: list[str], mtimes: dict[str, float | None]
 ) -> float | None:
-    candidates = merged_log_candidates_for_shard(log.name)
-    if candidates is None:
-        return None
+    """Return the oldest mtime among the merged logs present in the listing.
+
+    When both ``<name>.eval`` and ``<name>-recovered.eval`` exist, either may
+    be stale, so the older one decides and fewer shards are hidden.
+    """
     merged = [m for c in candidates if (m := mtimes.get(c)) is not None]
-    return max(merged) if merged else None
+    return min(merged) if merged else None
 
 
 async def get_log_files(
@@ -212,18 +214,17 @@ async def get_log_files(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
     )
 
-    # a merge that lands without changing the file count (e.g. one shard
-    # replaced by its merged log) still needs a full response, since only
-    # full responses remove rows from the client's listing
-    merge_landed = False
+    # hiding or un-hiding a shard can leave the file count unchanged and
+    # involve files older than the client's token (a merge landing, a merged
+    # log deleted or copied in with its mtime preserved), and only full
+    # responses remove rows from the client's listing
+    has_shards = False
     if not show_shards:
         filtered = filter_merged_shards(logs)
         logs = filtered.logs
-        merge_landed = (
-            filtered.hiding_mtime is not None and filtered.hiding_mtime > mtime
-        )
+        has_shards = filtered.has_shards
 
-    if len(logs) != file_count or merge_landed:
+    if len(logs) != file_count or has_shards:
         # Has the number of files changed? could be a delete
         # so send a complete list
         return log_files_response(

@@ -324,8 +324,10 @@ shard once its merged log covers it.
 
 The rule is `filter_merged_shards` in `_view/common.py`: a log at
 `<dir>/<name>.shards/<k>/<file>` is hidden when `<dir>/<name>.eval` (or
-`<name>-recovered.eval`) is in the same listing and the shard's mtime is no
-later than the merged log's. The comparison uses only the listing, so it
+`<name>-recovered.eval`) is in the same listing and the shard's mtime is
+earlier than the merged log's (the older of the two when both exist). A tie
+keeps the shard visible, since S3's one-second mtimes cannot order a shard
+write and a merge in the same second. The comparison uses only the listing, so it
 needs no header reads and works for any merger that writes the merged log
 after reading its shards, including external combiners that do not write
 `EvalSpec.shards`.
@@ -345,12 +347,13 @@ view --show-shards` turns the rule off.
   check (the shard's current size, ETag and mtime against its ledger entry)
   at the cost of one header read per merged log; logs without a ledger keep
   the mtime rule.
-- **Incremental listings.** `/log-files` answers with only the changed files
-  when the client's file count is unchanged, and the client removes rows
-  only on a full response. A merge that replaces as many shards as it adds
-  merged logs (one shard, one merged log) leaves the count unchanged, so the
-  server sends a full response whenever a merged log that hides shards is
-  newer than the client's token.
+- **Incremental listings.** `/log-files` answers with only the files newer
+  than the client's token when the client's file count is unchanged, and the
+  client removes rows only on a full response. Hiding or un-hiding a shard
+  can leave the count unchanged and involve files older than the token (a
+  merge replacing one shard, a merged log deleted, or one copied in with its
+  mtime preserved), so the server sends a full response whenever the listing
+  contains a shard. Listings without shards stay incremental.
 
 What listing shards beside the merged log costs the enumerators that
 still do, stated so the affected tools are pointed at merged logs:

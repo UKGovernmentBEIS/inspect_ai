@@ -995,14 +995,64 @@ def test_api_log_files_merge_with_same_count_gives_full(
     assert body["response_type"] == "full"
     assert {f["task_id"] for f in body["files"]} == {"merged"}
 
-    # once the client has the merged log, listings are incremental again
+
+def test_api_log_files_merged_log_deleted_gives_full(
+    view_client: ViewTestClient,
+) -> None:
+    # deleting the merged log un-hides its older shard with the count unchanged
+    _write_sharded_run(view_client.log_dir, [1000], merged_mtime=None)
     resp = view_client.request(
         "GET",
         f"/log-files?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}",
         headers={"If-None-Match": "2000000.0-1"},
     )
     resp.raise_for_status()
+    body = resp.json()
+    assert body["response_type"] == "full"
+    assert {f["task_id"] for f in body["files"]} == {"s0"}
+
+
+def test_api_log_files_without_shards_stays_incremental(
+    view_client: ViewTestClient,
+) -> None:
+    write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1"
+    )
+    resp = view_client.request(
+        "GET",
+        f"/log-files?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}",
+        headers={"If-None-Match": "0.0-1"},
+    )
+    resp.raise_for_status()
     assert resp.json()["response_type"] == "incremental"
+
+
+def test_api_logs_shows_shard_with_same_mtime_as_merge(
+    view_client: ViewTestClient,
+) -> None:
+    _write_sharded_run(view_client.log_dir, [1000, 2000], merged_mtime=2000)
+    assert _listed_task_ids(view_client) == {"merged", "s1"}
+
+
+def test_api_logs_older_of_merged_and_recovered_decides(
+    view_client: ViewTestClient,
+) -> None:
+    # s1 is newer than <name>.eval but older than <name>-recovered.eval
+    _write_sharded_run(view_client.log_dir, [1000, 3000], merged_mtime=2000)
+    recovered = write_eval_log_named(
+        view_client.log_dir, f"{_MERGED_NAME}-recovered.eval", "task", "recovered"
+    )
+    os.utime(recovered, (4000, 4000))
+    resp = view_client.request(
+        "GET", f"/logs?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+    )
+    resp.raise_for_status()
+    names = {f["name"].rsplit("/", 1)[-1] for f in resp.json()["files"]}
+    assert names == {
+        f"{_MERGED_NAME}.eval",
+        f"{_MERGED_NAME}-recovered.eval",
+        "2025-01-01T00-00-01+00-00_task_s1.eval",
+    }
 
 
 def test_api_flow_returns_yaml(view_client: ViewTestClient) -> None:
