@@ -26,6 +26,7 @@ import inspect_ai._util.file
 import inspect_ai._view.common
 import inspect_ai.dataset
 import inspect_ai.log
+import inspect_ai.log._bundle
 import inspect_ai.log._file
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
@@ -1133,6 +1134,124 @@ def test_write_log_listing_hides_merged_shards(
     listing = json.loads((tmp_path / "listing.json").read_text())
     task_ids = {name.rsplit("_", 1)[-1].removesuffix(".eval") for name in listing}
     assert task_ids == {"merged"} | shards
+
+
+def test_api_logs_shows_shards_of_failed_merged_log(
+    view_client: ViewTestClient,
+) -> None:
+    _write_sharded_run(
+        view_client.log_dir, [1000, 1001], merged_mtime=2000, merged_status="error"
+    )
+    assert _listed_task_ids(view_client) == {"merged", "s0", "s1"}
+
+
+def test_api_logs_rereads_merged_status_when_size_changes(
+    view_client: ViewTestClient,
+) -> None:
+    # a same-second rewrite (one-second mtimes on S3) is told apart by size
+    _write_sharded_run(
+        view_client.log_dir, [1000], merged_mtime=2000, merged_status="started"
+    )
+    merged = view_client.log_dir / f"{_MERGED_NAME}.eval"
+    started_size = merged.stat().st_size
+    assert _listed_task_ids(view_client) == {"merged", "s0"}
+
+    eval_log = inspect_ai.log.read_eval_log(str(merged))
+    eval_log.status = "success"
+    eval_log.results = inspect_ai.log.EvalResults(total_samples=1, completed_samples=1)
+    inspect_ai.log.write_eval_log(eval_log, str(merged), "eval")
+    os.utime(merged, (2000, 2000))
+    assert merged.stat().st_size != started_size
+    assert _listed_task_ids(view_client) == {"merged"}
+
+
+def test_api_logs_retries_failed_merged_status_read(
+    view_client: ViewTestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_sharded_run(view_client.log_dir, [1000], merged_mtime=2000)
+    read = inspect_ai.log.read_eval_log_async
+    failures = [OSError("throttled")]
+
+    async def flaky_read(*args: Any, **kwargs: Any) -> inspect_ai.log.EvalLog:
+        if failures:
+            raise failures.pop()
+        return await read(*args, **kwargs)
+
+    monkeypatch.setattr("inspect_ai._view.common.read_eval_log_async", flaky_read)
+    monkeypatch.setattr(
+        inspect_ai._view.common.logger, "warning", lambda *args, **kwargs: None
+    )
+    assert _listed_task_ids(view_client) == {"merged", "s0"}
+    assert _listed_task_ids(view_client) == {"merged"}
+
+
+def test_api_logs_shows_shards_of_unreadable_by_policy_merged_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_sharded_run(tmp_path, [1000], merged_mtime=2000)
+    merged_name = f"{_MERGED_NAME}.eval"
+
+    class NoMergedReadPolicy(AccessPolicy):
+        async def can_read(self, request: Request, file: str) -> bool:
+            return not file.endswith(merged_name)
+
+        async def can_delete(self, request: Request, file: str) -> bool:
+            return False
+
+        async def can_list(self, request: Request, dir: str) -> bool:
+            return True
+
+        async def can_write(self, request: Request, file: str) -> bool:
+            return False
+
+    reads: list[str] = []
+    read = inspect_ai.log.read_eval_log_async
+
+    async def tracking_read(
+        log_file: Any, *args: Any, **kwargs: Any
+    ) -> inspect_ai.log.EvalLog:
+        reads.append(str(log_file))
+        return await read(log_file, *args, **kwargs)
+
+    monkeypatch.setattr("inspect_ai._view.common.read_eval_log_async", tracking_read)
+    app = fastapi_server.view_server_app(
+        default_dir=str(tmp_path), access_policy=NoMergedReadPolicy()
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        resp = client.get(f"/logs?log_dir={urllib.parse.quote_plus(str(tmp_path))}")
+        resp.raise_for_status()
+        task_ids = {f["task_id"] for f in resp.json()["files"]}
+    assert task_ids == {"merged", "s0"}
+    assert not any(r.endswith(merged_name) for r in reads)
+
+
+def test_api_log_files_hidden_shards_stay_incremental(
+    view_client: ViewTestClient,
+) -> None:
+    # a finished run whose shards are all hidden does not force full listings
+    _write_sharded_run(view_client.log_dir, [1000, 1001], merged_mtime=2000)
+    resp = view_client.request(
+        "GET",
+        f"/log-files?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}",
+        headers={"If-None-Match": "2000000.0-1"},
+    )
+    resp.raise_for_status()
+    assert resp.json()["response_type"] == "incremental"
+
+
+def test_bundle_copies_only_visible_shards(tmp_path: Path) -> None:
+    log_dir = tmp_path / "logs"
+    _write_sharded_run(log_dir, [1000, 2000, 3000], merged_mtime=2000)
+    target = tmp_path / "bundle"
+    target.mkdir()
+    inspect_ai.log._bundle.copy_log_files(str(log_dir), str(target), lambda _: None)
+    copied = {p.name for p in target.rglob("*.eval")}
+    # s0 is covered; s1 ties the merge and s2 is newer, so both are kept
+    assert copied == {
+        f"{_MERGED_NAME}.eval",
+        "2025-01-01T00-00-01+00-00_task_s1.eval",
+        "2025-01-01T00-00-02+00-00_task_s2.eval",
+    }
 
 
 def test_api_flow_returns_yaml(view_client: ViewTestClient) -> None:

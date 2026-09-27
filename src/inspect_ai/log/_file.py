@@ -44,7 +44,7 @@ from ._recorders import (
     recorder_type_for_format,
     recorder_type_for_location,
 )
-from ._shard_listing import filter_merged_shards
+from ._shard_listing import filter_merged_shards, merged_logs_to_check
 
 logger = getLogger(__name__)
 
@@ -1276,6 +1276,21 @@ def eval_log_json_str(log: EvalLog) -> str:
     return eval_log_json(log).decode()
 
 
+def without_merged_shards(logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
+    """Leave out shard logs that a finished merged log already covers.
+
+    Reads the header of each merged log that could hide a shard; see
+    :func:`~inspect_ai.log._shard_listing.filter_merged_shards` for the rule.
+    """
+    merged = merged_logs_to_check(logs)
+    finished = {
+        log.name
+        for log, header in zip(merged, read_eval_log_headers(merged))
+        if header.status == "success"
+    }
+    return filter_merged_shards(logs, finished).logs
+
+
 def write_log_listing(
     log_dir: str,
     *,
@@ -1283,10 +1298,11 @@ def write_log_listing(
     filename: str = "listing.json",
     output_dir: str | None = None,
     fs_options: dict[str, Any] = {},
+    hide_merged_shards: bool = True,
 ) -> None:
     """Write a listing file for a log directory.
 
-    A listing file is a thinned manifest summarizing the logs in the directory (but with much less information than a full manifest of headers). Shard logs that their merged log already covers are left out, as in the view server's listing.
+    A listing file is a thinned manifest summarizing the logs in the directory (but with much less information than a full manifest of headers).
 
     Args:
       log_dir (str): Log directory to write overview for.
@@ -1295,6 +1311,8 @@ def write_log_listing(
       output_dir (str | None): Output directory for manifest (defaults to log_dir)
       fs_options (dict[str,Any]): Optional. Additional arguments to pass through
         to the filesystem provider (e.g. `S3FileSystem`).
+      hide_merged_shards (bool): Leave out shard logs that a finished merged
+        log already covers, as the view server's listing does.
     """
     # resolve log dir to full path
     fs = filesystem(log_dir)
@@ -1304,12 +1322,9 @@ def write_log_listing(
     if logs is None:
         logs = list_eval_logs(log_dir)
 
-    # read headers, then hide shards that their merged log already covers
-    headers = {
-        log.name: header for log, header in zip(logs, read_eval_log_headers(logs))
-    }
-    running = {name for name, header in headers.items() if header.status == "started"}
-    logs = filter_merged_shards(logs, running).logs
+    if hide_merged_shards:
+        logs = without_merged_shards(logs)
+    headers = dict(zip([log.name for log in logs], read_eval_log_headers(logs)))
 
     # resolve to overview (make filenames relative to the log dir)
     file_overviews = {

@@ -319,20 +319,21 @@ its directory makes it an ordinary partial log.
 Decision (Ransom, 2026-09-21, revised by JJ Allaire, 2026-09-27): the
 shared filter (`_filter_log_files`) excludes nothing, so `list_eval_logs`,
 `evals_df` and every other enumerator list shards as ordinary partial logs
-beside the merged log. The viewer's listings hide a shard once its merged
-log covers it: the view server's `/logs` and `/log-files`, and the
-`listing.json` that `write_log_listing` writes for `inspect view bundle`,
-`embed_log_dir` and `eval_set()`.
+beside the merged log. The viewer's listings hide a shard once a finished
+merged log covers it: the view server's `/logs` and `/log-files`, the
+`listing.json` that `write_log_listing` writes (`embed_log_dir`,
+`eval_set()`), and `inspect view bundle`, which also leaves covered shards
+out of the bundle.
 
 The rule is `filter_merged_shards` in `log/_shard_listing.py`: a log at
 `<dir>/<name>.shards/<k>/<file>` is hidden when `<dir>/<name>.eval` (or
-`<name>-recovered.eval`) is in the same listing, its status is not
-`started`, and the shard's mtime is earlier than the merged log's (the older
-of the two when both exist). A tie keeps the shard visible, since S3's
-one-second mtimes cannot order a shard write and a merge in the same second.
-The rule works for any merger that writes the merged log after reading its
-shards and marks it `started` until the run is done, including external
-combiners that do not write `EvalSpec.shards`.
+`<name>-recovered.eval`) is in the same listing, its status is `success`,
+and the shard's mtime is earlier than the merged log's (the older of the two
+when both exist, and both must be `success`). A tie keeps the shard visible,
+since S3's one-second mtimes cannot order a shard write and a merge in the
+same second. The rule works for any merger that writes the merged log after
+reading its shards and publishes `success` only once every shard has
+finished, including external combiners that do not write `EvalSpec.shards`.
 
 The 2026-09-21 decision deferred hiding because a rule keyed on the merged
 log *existing* hides ongoing work when the merged log is stale. The two
@@ -341,31 +342,43 @@ later) is newer than the merged log and stays visible. A merge run while
 shards are still running leaves the merged log `started`, and its shards
 stay visible: a running shard's `.eval` file is rewritten only at log
 flushes, so its mtime can be older than the merge while it is still
-producing samples. A shard with no merged log is never hidden. Listing the
+producing samples. Shards of an `error` or `cancelled` merged log stay
+visible too, for diagnosis and because a failing merger may publish before
+every shard stops. A shard with no merged log is never hidden. Listing the
 `.shards` directory itself shows every shard, since the merged log is
-outside it, and `inspect view --show-shards` turns the rule off in the view
-server.
+outside it. `inspect view --show-shards` turns the rule off in the view
+server, and `write_log_listing(hide_merged_shards=False)` in the listing.
 
-- **Cost.** The status check reads the header of each merged log that has
-  shards in the listing. The view server caches the status by the merged
-  log's mtime, so it reads a header once per merge, not once per poll;
-  `write_log_listing` already reads every header. A merged log whose header
-  cannot be read counts as `started` (its shards stay visible), with a
-  warning.
+- **Cost.** Only merged logs newer than at least one of their shards can
+  hide anything, so only their headers are read. The view server caches
+  each status by the merged log's mtime and size (size tells apart two
+  writes in the same second), so it reads a header once per merge, not once
+  per poll. A merged log whose header cannot be read hides nothing and is
+  retried on the next listing, with one warning per version.
+- **Authorization.** The view server checks the access policy's `can_read`
+  for a merged log on every listing, before the cache, and reads its header
+  only if allowed. A merged log the requester may not read hides nothing, so
+  the listing reveals nothing about its status.
+- **Bundles.** A bundle's copies get new mtimes, so `inspect view bundle`
+  applies the rule to the source listing, copies only the visible logs, and
+  writes the bundle's `listing.json` without filtering again.
 - **Limitation.** A shard written while the final merge is running (after
-  the merge read it, before it published a non-`started` merged log) is
-  older than the merged log but not fully in it, so it is hidden until its
-  next write. Once the Inspect merge writes the `EvalSpec.shards` ledger,
-  merged logs that carry it can use an exact check (the shard's current
-  size, ETag and mtime against its ledger entry) from the same header read;
-  logs without a ledger keep the mtime rule.
+  the merge read it, before it published a `success` merged log) is older
+  than the merged log but not fully in it, so it is hidden until its next
+  write. Once the Inspect merge writes the `EvalSpec.shards` ledger, merged
+  logs that carry it can use an exact check (the shard's current size, ETag
+  and mtime against its ledger entry) from the same header read; logs
+  without a ledger keep the mtime rule.
 - **Incremental listings.** `/log-files` answers with only the files newer
   than the client's token when the client's file count is unchanged, and the
   client removes rows only on a full response. Hiding or un-hiding a shard
-  can leave the count unchanged and involve files older than the token (a
-  merge replacing one shard, a merged log deleted, or one copied in with its
-  mtime preserved), so the server sends a full response whenever the listing
-  contains a shard. Listings without shards stay incremental.
+  can leave the count unchanged and involve files older than the token, so
+  the server sends a full response while any shard is visible (covering a
+  deleted merged log) or when a merged log that hides shards is newer than
+  the token (a merge landing). A finished run whose shards are all hidden
+  returns to incremental responses. Not covered: a single-shard run whose
+  merged log is copied in with an mtime older than the client's token; the
+  shard row stays until the next full response.
 
 What listing shards beside the merged log costs the enumerators that
 still do, stated so the affected tools are pointed at merged logs:
@@ -861,8 +874,9 @@ taken".
   the merged log, and their viewer shows them.
 - The viewer's exclusion changes no log file and no public API; it adds an
   opt-out, `inspect view --show-shards` (`view(show_shards=True)`).
-  `listing.json` (bundles, embedded viewers, eval sets) omits covered
-  shards, with no opt-out. If the
+  `listing.json` (embedded viewers, eval sets) and bundles omit covered
+  shards; `write_log_listing` gains a `hide_merged_shards` parameter
+  (default `True`). If the
   exclusion is extended to other enumerators, it is one change in
   `_filter_log_files` (callers would pass the listed root); no files move. `<name>.checkpoints/` directories need no
   rule either way, since they hold no `.eval` files.
@@ -939,11 +953,14 @@ Pydantic models. New boundaries:
   reported, not silently overridden.
 - Listing tests: shards under `<name>.shards/<k>/` listed by
   `list_eval_logs` and `evals_df` beside the merged log; the viewer listing
-  hiding shards older than a finished merged log, showing shards with no
-  merged log, written after it, or whose merged log is `started` or
-  unreadable, showing all shards when the `.shards` directory is listed or
-  `--show-shards` is set, sending a full `/log-files` response whenever the
-  listing contains shards, and `listing.json` applying the same rule;
+  hiding shards older than a `success` merged log; showing shards with no
+  merged log, written after it, or whose merged log is `started`, `error`,
+  unreadable, or not readable under the access policy; showing all shards
+  when the `.shards` directory is listed or `--show-shards` is set;
+  re-reading a status after a same-mtime rewrite and after a failed read;
+  `/log-files` full responses when a merge lands or a merged log is deleted,
+  and incremental once all shards are hidden; `listing.json` and bundle
+  copies applying the same rule;
   `samples_df` over a directory whose shards hold no superseded attempts
   yields each sample once (uuid dedupe across shard and merged log), and over
   a directory where `<k>/` retains an old attempt beside its retry yields

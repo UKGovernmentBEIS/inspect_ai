@@ -3,7 +3,7 @@ import logging
 import os
 import secrets
 import urllib.parse
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from functools import partial
 from io import BytesIO
 from logging import getLogger
@@ -184,6 +184,16 @@ def view_server_app(
         if access_policy is not None:
             if not await access_policy.can_write(request, file):
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
+    def _read_checker(request: Request) -> Callable[[str], Awaitable[bool]] | None:
+        if access_policy is None:
+            return None
+        policy = access_policy
+
+        async def can_read(name: str) -> bool:
+            return await policy.can_read(request, await _unmap_file(request, name))
+
+        return can_read
 
     async def _validate_list(request: Request, file: str) -> None:
         if access_policy is not None:
@@ -379,6 +389,7 @@ def view_server_app(
             mtime=mtime,
             file_count=file_count,
             show_shards=show_shards,
+            can_read=_read_checker(request),
         )
         for entry in result.files:
             entry.name = await _unmap_file(request, entry.name)
@@ -399,6 +410,7 @@ def view_server_app(
             recursive=recursive,
             fs_options=fs_options,
             show_shards=show_shards,
+            can_read=_read_checker(request),
         )
         if listing is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
