@@ -8,6 +8,7 @@ from io import BytesIO
 from logging import getLogger
 from typing import Any, Literal, NamedTuple, Tuple, cast
 
+import anyio
 import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
 from anyio import EndOfStream
@@ -23,7 +24,6 @@ from inspect_ai._util.asyncfiles import _READ_FULLY_CHUNK_SIZE, AsyncFilesystem
 from inspect_ai._util.azure import is_azure_auth_error
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
-from inspect_ai._util.log_layout import merged_log_candidates_for_shard
 from inspect_ai._view.azure import normalize_azure_listing_name
 from inspect_ai.log._edit import LogUpdate, edit_eval_log
 from inspect_ai.log._file import (
@@ -39,6 +39,11 @@ from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import PendingSampleUrls, SegmentRef
+from inspect_ai.log._shard_listing import (
+    MergedShardsFilter,
+    filter_merged_shards,
+    merged_logs_with_shards,
+)
 
 logger = getLogger(__name__)
 
@@ -148,57 +153,43 @@ async def read_eval_set_info_async(
         raise
 
 
-class MergedShardsFilter(NamedTuple):
-    """A log listing with merged shard logs removed."""
-
-    logs: list[EvalLogInfo]
-    """The logs to show."""
-
-    has_shards: bool
-    """Whether the listing contained any shard log, hidden or not."""
+# merged log name -> (mtime, running) for the mtime the status was read at;
+# one entry per merged log seen, so it stays small
+_merged_log_running: dict[str, tuple[float | None, bool]] = {}
 
 
-def filter_merged_shards(logs: list[EvalLogInfo]) -> MergedShardsFilter:
-    """Remove shard logs already covered by their merged log.
+async def _running_merged_logs(logs: list[EvalLogInfo]) -> set[str]:
+    """Return the merged logs (of those with shards listed) that are running.
 
-    A shard at ``<dir>/<name>.shards/<k>/`` is hidden when its merged log
-    (``<dir>/<name>.eval``) is in the same listing and the shard was last
-    written before the merged log. A tie keeps the shard visible, since
-    coarse mtimes (one second on S3) cannot order a shard write and a merge
-    in the same tick. A shard with no merged log in the listing, or written
-    after the merge (still running, retried, or added later), stays visible
-    so ongoing work is never hidden. Listing the ``.shards`` directory itself
-    shows every shard, since the merged log is outside it.
-
-    Comparing mtimes needs no reads beyond the listing, so it works for any
-    merger that writes the merged log after reading its shards. A shard
-    written while a merge is running can be hidden until its next write.
+    A merged log's header is read once per mtime. A log whose header cannot
+    be read counts as running, so its shards stay visible.
     """
-    mtimes = {log.name: log.mtime for log in logs}
-    visible: list[EvalLogInfo] = []
-    has_shards = False
-    for log in logs:
-        candidates = merged_log_candidates_for_shard(log.name)
-        if candidates is None:
-            visible.append(log)
-            continue
-        has_shards = True
-        merged_mtime = _merged_log_mtime(candidates, mtimes)
-        if merged_mtime is None or log.mtime is None or log.mtime >= merged_mtime:
-            visible.append(log)
-    return MergedShardsFilter(logs=visible, has_shards=has_shards)
+    semaphore = anyio.Semaphore(8)
+
+    async def running(log: EvalLogInfo) -> bool:
+        cached = _merged_log_running.get(log.name)
+        if cached is not None and cached[0] == log.mtime:
+            return cached[1]
+        async with semaphore:
+            try:
+                header = await read_eval_log_async(log.name, header_only=True)
+                is_running = header.status == "started"
+            except Exception as ex:
+                logger.warning(
+                    f"Showing shards of {log.name}: unable to read its status ({ex})"
+                )
+                is_running = True
+        _merged_log_running[log.name] = (log.mtime, is_running)
+        return is_running
+
+    merged = merged_logs_with_shards(logs)
+    results = await tg_collect([partial(running, log) for log in merged])
+    return {log.name for log, is_running in zip(merged, results) if is_running}
 
 
-def _merged_log_mtime(
-    candidates: list[str], mtimes: dict[str, float | None]
-) -> float | None:
-    """Return the oldest mtime among the merged logs present in the listing.
-
-    When both ``<name>.eval`` and ``<name>-recovered.eval`` exist, either may
-    be stale, so the older one decides and fewer shards are hidden.
-    """
-    merged = [m for c in candidates if (m := mtimes.get(c)) is not None]
-    return min(merged) if merged else None
+async def hide_merged_shards(logs: list[EvalLogInfo]) -> MergedShardsFilter:
+    """Remove shard logs that their merged log already covers from a listing."""
+    return filter_merged_shards(logs, await _running_merged_logs(logs))
 
 
 async def get_log_files(
@@ -220,7 +211,7 @@ async def get_log_files(
     # responses remove rows from the client's listing
     has_shards = False
     if not show_shards:
-        filtered = filter_merged_shards(logs)
+        filtered = await hide_merged_shards(logs)
         logs = filtered.logs
         has_shards = filtered.has_shards
 
@@ -625,7 +616,7 @@ async def get_logs(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
     )
     if not show_shards:
-        logs = filter_merged_shards(logs).logs
+        logs = (await hide_merged_shards(logs)).logs
     return get_log_listing(logs, request_log_dir)
 
 

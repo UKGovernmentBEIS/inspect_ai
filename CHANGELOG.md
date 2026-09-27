@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Inspect View: Shard logs under `<name>.shards/` are hidden once their merged log covers them (`--show-shards` to list them).
+- Inspect View: Shard logs under `<name>.shards/` are hidden, including in bundles, once a finished merged log covers them (`--show-shards` to list them).
 
 ## 0.3.271 (26 September 2026)
 

@@ -23,8 +23,10 @@ from starlette.testclient import TestClient
 import inspect_ai._eval.evalset
 import inspect_ai._eval.task.resolved
 import inspect_ai._util.file
+import inspect_ai._view.common
 import inspect_ai.dataset
 import inspect_ai.log
+import inspect_ai.log._file
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -318,10 +320,17 @@ def _create_multi_segment_sample_buffer(log_path: str, num_segments: int) -> Non
     )
 
 
-def write_eval_log_named(base_dir: Path, filename: str, task: str, task_id: str) -> str:
+def write_eval_log_named(
+    base_dir: Path,
+    filename: str,
+    task: str,
+    task_id: str,
+    status: inspect_ai.log.EvalStatus = "started",
+) -> str:
     """Write eval log with specific task/task_id. Return full path."""
     full_path = str(base_dir / filename)
     eval_log = inspect_ai.log.EvalLog(
+        status=status,
         eval=inspect_ai.log.EvalSpec(
             created="2025-01-01T00:00:00Z",
             task=task,
@@ -329,7 +338,7 @@ def write_eval_log_named(base_dir: Path, filename: str, task: str, task_id: str)
             dataset=inspect_ai.log.EvalDataset(),
             model="model",
             config=inspect_ai.log.EvalConfig(),
-        )
+        ),
     )
     inspect_ai.log.write_eval_log(eval_log, full_path, "eval")
     return full_path
@@ -899,6 +908,7 @@ def _write_sharded_run(
     shard_mtimes: list[float],
     merged_mtime: float | None,
     merged_suffix: str = "",
+    merged_status: inspect_ai.log.EvalStatus = "success",
 ) -> None:
     """Write shards under ``<name>.shards/<k>/`` and optionally the merged log."""
     for k, mtime in enumerate(shard_mtimes):
@@ -910,7 +920,11 @@ def _write_sharded_run(
         os.utime(path, (mtime, mtime))
     if merged_mtime is not None:
         path = write_eval_log_named(
-            log_dir, f"{_MERGED_NAME}{merged_suffix}.eval", "task", "merged"
+            log_dir,
+            f"{_MERGED_NAME}{merged_suffix}.eval",
+            "task",
+            "merged",
+            status=merged_status,
         )
         os.utime(path, (merged_mtime, merged_mtime))
 
@@ -1040,7 +1054,11 @@ def test_api_logs_older_of_merged_and_recovered_decides(
     # s1 is newer than <name>.eval but older than <name>-recovered.eval
     _write_sharded_run(view_client.log_dir, [1000, 3000], merged_mtime=2000)
     recovered = write_eval_log_named(
-        view_client.log_dir, f"{_MERGED_NAME}-recovered.eval", "task", "recovered"
+        view_client.log_dir,
+        f"{_MERGED_NAME}-recovered.eval",
+        "task",
+        "recovered",
+        status="success",
     )
     os.utime(recovered, (4000, 4000))
     resp = view_client.request(
@@ -1053,6 +1071,68 @@ def test_api_logs_older_of_merged_and_recovered_decides(
         f"{_MERGED_NAME}-recovered.eval",
         "2025-01-01T00-00-01+00-00_task_s1.eval",
     }
+
+
+def test_api_logs_shows_shards_of_running_merged_log(
+    view_client: ViewTestClient,
+) -> None:
+    _write_sharded_run(
+        view_client.log_dir, [1000, 1001], merged_mtime=2000, merged_status="started"
+    )
+    assert _listed_task_ids(view_client) == {"merged", "s0", "s1"}
+
+
+def test_api_logs_rereads_merged_status_when_mtime_changes(
+    view_client: ViewTestClient,
+) -> None:
+    _write_sharded_run(
+        view_client.log_dir, [1000], merged_mtime=2000, merged_status="started"
+    )
+    assert _listed_task_ids(view_client) == {"merged", "s0"}
+
+    # the final merge publishes the merged log as success
+    merged = write_eval_log_named(
+        view_client.log_dir, f"{_MERGED_NAME}.eval", "task", "merged", "success"
+    )
+    os.utime(merged, (3000, 3000))
+    assert _listed_task_ids(view_client) == {"merged"}
+
+
+def test_api_logs_shows_shards_of_unreadable_merged_log(
+    view_client: ViewTestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_sharded_run(view_client.log_dir, [1000], merged_mtime=None)
+    merged = view_client.log_dir / f"{_MERGED_NAME}.eval"
+    merged.write_bytes(b"not a zip")
+    os.utime(merged, (2000, 2000))
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        inspect_ai._view.common.logger,
+        "warning",
+        lambda msg, *args, **kwargs: warnings.append(msg),
+    )
+    resp = view_client.request(
+        "GET", f"/logs?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+    )
+    resp.raise_for_status()
+    names = {f["name"].rsplit("/", 1)[-1] for f in resp.json()["files"]}
+    assert "2025-01-01T00-00-00+00-00_task_s0.eval" in names
+    assert any("unable to read its status" in w for w in warnings)
+
+
+@pytest.mark.parametrize(
+    "merged_status,shards", [("success", set()), ("started", {"s0", "s1"})]
+)
+def test_write_log_listing_hides_merged_shards(
+    tmp_path: Path, merged_status: inspect_ai.log.EvalStatus, shards: set[str]
+) -> None:
+    _write_sharded_run(
+        tmp_path, [1000, 1001], merged_mtime=2000, merged_status=merged_status
+    )
+    inspect_ai.log._file.write_log_listing(str(tmp_path))
+    listing = json.loads((tmp_path / "listing.json").read_text())
+    task_ids = {name.rsplit("_", 1)[-1].removesuffix(".eval") for name in listing}
+    assert task_ids == {"merged"} | shards
 
 
 def test_api_flow_returns_yaml(view_client: ViewTestClient) -> None:

@@ -218,7 +218,7 @@ its own.
   While shards run, what is missing is the whole-task rollup, not
   per-sample liveness: each shard is a normal in-progress log with its own
   sample buffer, listed and shown live by the viewer as today. Once a
-  merge covers a shard, the viewer hides it (see "Listing").
+  finished merge covers a shard, the viewer hides it (see "Listing").
 - **Step 2.** Live whole-task metrics during the run: a periodic rollup of
   shard headers and summaries into a stored rollup (Ransom,
   2026-09-18), or, now that the merge is incremental, the merge itself run on
@@ -319,34 +319,46 @@ its directory makes it an ordinary partial log.
 Decision (Ransom, 2026-09-21, revised by JJ Allaire, 2026-09-27): the
 shared filter (`_filter_log_files`) excludes nothing, so `list_eval_logs`,
 `evals_df` and every other enumerator list shards as ordinary partial logs
-beside the merged log. The view server (`/logs` and `/log-files`) hides a
-shard once its merged log covers it.
+beside the merged log. The viewer's listings hide a shard once its merged
+log covers it: the view server's `/logs` and `/log-files`, and the
+`listing.json` that `write_log_listing` writes for `inspect view bundle`,
+`embed_log_dir` and `eval_set()`.
 
-The rule is `filter_merged_shards` in `_view/common.py`: a log at
+The rule is `filter_merged_shards` in `log/_shard_listing.py`: a log at
 `<dir>/<name>.shards/<k>/<file>` is hidden when `<dir>/<name>.eval` (or
-`<name>-recovered.eval`) is in the same listing and the shard's mtime is
-earlier than the merged log's (the older of the two when both exist). A tie
-keeps the shard visible, since S3's one-second mtimes cannot order a shard
-write and a merge in the same second. The comparison uses only the listing, so it
-needs no header reads and works for any merger that writes the merged log
-after reading its shards, including external combiners that do not write
-`EvalSpec.shards`.
+`<name>-recovered.eval`) is in the same listing, its status is not
+`started`, and the shard's mtime is earlier than the merged log's (the older
+of the two when both exist). A tie keeps the shard visible, since S3's
+one-second mtimes cannot order a shard write and a merge in the same second.
+The rule works for any merger that writes the merged log after reading its
+shards and marks it `started` until the run is done, including external
+combiners that do not write `EvalSpec.shards`.
 
 The 2026-09-21 decision deferred hiding because a rule keyed on the merged
-log *existing* hides ongoing work when the merged log is stale. The mtime
-condition addresses that: a shard written after the merge (still running,
-retried, or added later) is newer than the merged log and stays visible, and
-a shard with no merged log is never hidden. Listing the `.shards` directory
-itself shows every shard, since the merged log is outside it, and `inspect
-view --show-shards` turns the rule off.
+log *existing* hides ongoing work when the merged log is stale. The two
+conditions address that. A shard written after the merge (retried, or added
+later) is newer than the merged log and stays visible. A merge run while
+shards are still running leaves the merged log `started`, and its shards
+stay visible: a running shard's `.eval` file is rewritten only at log
+flushes, so its mtime can be older than the merge while it is still
+producing samples. A shard with no merged log is never hidden. Listing the
+`.shards` directory itself shows every shard, since the merged log is
+outside it, and `inspect view --show-shards` turns the rule off in the view
+server.
 
-- **Limitation.** A shard written while a merge is running (after the merge
-  read it, before it published) is older than the merged log but not fully
-  in it, so it is hidden until its next write. Once the Inspect merge writes
-  the `EvalSpec.shards` ledger, merged logs that carry it can use an exact
-  check (the shard's current size, ETag and mtime against its ledger entry)
-  at the cost of one header read per merged log; logs without a ledger keep
-  the mtime rule.
+- **Cost.** The status check reads the header of each merged log that has
+  shards in the listing. The view server caches the status by the merged
+  log's mtime, so it reads a header once per merge, not once per poll;
+  `write_log_listing` already reads every header. A merged log whose header
+  cannot be read counts as `started` (its shards stay visible), with a
+  warning.
+- **Limitation.** A shard written while the final merge is running (after
+  the merge read it, before it published a non-`started` merged log) is
+  older than the merged log but not fully in it, so it is hidden until its
+  next write. Once the Inspect merge writes the `EvalSpec.shards` ledger,
+  merged logs that carry it can use an exact check (the shard's current
+  size, ETag and mtime against its ledger entry) from the same header read;
+  logs without a ledger keep the mtime rule.
 - **Incremental listings.** `/log-files` answers with only the files newer
   than the client's token when the client's file count is unchanged, and the
   client removes rows only on a full response. Hiding or un-hiding a shard
@@ -788,8 +800,9 @@ What readers that list shards pay:
   (`_view/fastapi_server.py:476-491`), and caches them per file, so the
   cost lands on a cold listing (300 extra header reads per sharded task) and
   on every running shard whose file changes. Hiding merged shards (see
-  "Listing") removes the header reads for shards the merge covers; running
-  and unmerged shards still cost one each.
+  "Listing") removes the header reads for shards a finished merge covers,
+  for one header read per merged log; running and unmerged shards still
+  cost one each.
 
 ### Notes for harnesses
 
@@ -846,8 +859,10 @@ taken".
   no extra-field policy (`_log.py:1120`), so pydantic's default drops the
   unknown field on read. They list shards as N ordinary partial logs beside
   the merged log, and their viewer shows them.
-- The viewer's exclusion changes no file and no public API; it adds an
-  opt-out, `inspect view --show-shards` (`view(show_shards=True)`). If the
+- The viewer's exclusion changes no log file and no public API; it adds an
+  opt-out, `inspect view --show-shards` (`view(show_shards=True)`).
+  `listing.json` (bundles, embedded viewers, eval sets) omits covered
+  shards, with no opt-out. If the
   exclusion is extended to other enumerators, it is one change in
   `_filter_log_files` (callers would pass the listed root); no files move. `<name>.checkpoints/` directories need no
   rule either way, since they hold no `.eval` files.
@@ -924,10 +939,11 @@ Pydantic models. New boundaries:
   reported, not silently overridden.
 - Listing tests: shards under `<name>.shards/<k>/` listed by
   `list_eval_logs` and `evals_df` beside the merged log; the viewer listing
-  hiding shards older than their merged log, showing shards with no merged
-  log or written after it, showing all shards when the `.shards` directory
-  is listed or `--show-shards` is set, and sending a full `/log-files`
-  response when a merge leaves the file count unchanged;
+  hiding shards older than a finished merged log, showing shards with no
+  merged log, written after it, or whose merged log is `started` or
+  unreadable, showing all shards when the `.shards` directory is listed or
+  `--show-shards` is set, sending a full `/log-files` response whenever the
+  listing contains shards, and `listing.json` applying the same rule;
   `samples_df` over a directory whose shards hold no superseded attempts
   yields each sample once (uuid dedupe across shard and merged log), and over
   a directory where `<k>/` retains an old attempt beside its retry yields

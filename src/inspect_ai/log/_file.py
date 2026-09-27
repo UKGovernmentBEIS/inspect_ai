@@ -44,6 +44,7 @@ from ._recorders import (
     recorder_type_for_format,
     recorder_type_for_location,
 )
+from ._shard_listing import filter_merged_shards
 
 logger = getLogger(__name__)
 
@@ -1285,7 +1286,7 @@ def write_log_listing(
 ) -> None:
     """Write a listing file for a log directory.
 
-    A listing file is a thinned manifest summarizing the logs in the directory (but with much less information than a full manifest of headers).
+    A listing file is a thinned manifest summarizing the logs in the directory (but with much less information than a full manifest of headers). Shard logs that their merged log already covers are left out, as in the view server's listing.
 
     Args:
       log_dir (str): Log directory to write overview for.
@@ -1303,12 +1304,18 @@ def write_log_listing(
     if logs is None:
         logs = list_eval_logs(log_dir)
 
-    # resolve to overview (make filenames relative to the log dir)
-    names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
-    headers = read_eval_log_headers(logs)
-    overviews = [to_overview(header) for header in headers]
+    # read headers, then hide shards that their merged log already covers
+    headers = {
+        log.name: header for log, header in zip(logs, read_eval_log_headers(logs))
+    }
+    running = {name for name, header in headers.items() if header.status == "started"}
+    logs = filter_merged_shards(logs, running).logs
 
-    file_overviews = dict(zip(names, overviews))
+    # resolve to overview (make filenames relative to the log dir)
+    file_overviews = {
+        manifest_eval_log_name(log, log_dir, fs.sep): to_overview(headers[log.name])
+        for log in logs
+    }
 
     # form target path and write
     output_dir = output_dir or log_dir
