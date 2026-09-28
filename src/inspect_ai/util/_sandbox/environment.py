@@ -36,11 +36,12 @@ logger = logging.getLogger(__name__)
 
 
 class SandboxUserUnsupportedError(RuntimeError):
-    """Raised when a sandbox cannot execute as the requested user.
+    """The sandbox configuration does not support the requested user.
 
-    Providers should raise this without logging a warning, and only when they
-    know the requested identity is unsupported and the command has not run.
-    Command failures, timeouts, and infrastructure errors must remain distinct.
+    Raise this **only** when the sandbox configuration makes execution as that
+    user impossible. Potentially transient failures, such as timeouts or
+    connection errors, and failures of the command itself must **not** raise
+    this exception.
     """
 
 
@@ -151,17 +152,18 @@ RootAccessState = Literal["usable", "unusable", "ambiguous", "failed"]
 class RootAccess:
     """Whether the injected sandbox tools may run as root in a sandbox.
 
-    Decided once per sandbox, before Inspect begins solver/agent execution, from a
-    probe of the identity and capabilities a ``user="root"`` exec actually gets:
+    Decided once per sandbox at sample init, or on first use outside that
+    lifecycle, from a probe of the identity and capabilities a ``user="root"``
+    exec actually gets:
 
     - ``usable``: uid 0 with CAP_SETUID and CAP_SETGID and ``setgroups`` allowed.
     - ``unusable``: the provider raised ``SandboxUserUnsupportedError``, or the
       probe reported insufficient privileges (``cap_drop: [ALL]``, a provider
       that runs ``user="root"`` as another uid).
-    - ``ambiguous``: no verdict. The provider raised, or the output lacked valid
-      probe fields. Some providers report "cannot exec as root" only this way, so
-      the tools still fall back to the sandbox's default user (see
-      ``SandboxDefaultUser``), but warn.
+    - ``ambiguous``: no verdict. The provider raised an unexpected exception, or
+      the output lacked valid probe fields. Some providers report "cannot exec as
+      root" only this way, so the tools still fall back to the sandbox's default
+      user (see ``SandboxDefaultUser``), but warn.
     - ``failed``: the probe could not run (``SandboxUnavailableError``) or timed
       out. That says nothing about root, so the tools surface the error instead.
     """
@@ -258,9 +260,8 @@ class SandboxEnvironment(abc.ABC):
           Execution result (status code, stderr/stdout, etc.)
 
         Raises:
-          SandboxUserUnsupportedError: If the provider cannot execute as the
-            requested user. The command has not run; this is distinct from a
-            command failing or the sandbox being unavailable.
+          SandboxUserUnsupportedError: If the sandbox configuration does not
+            support execution as the requested user.
           SandboxUnavailableError: If the provider cannot initiate the exec
             request because the sandbox is not running or provider-injected
             execution machinery is unavailable. A missing caller-specified

@@ -142,8 +142,8 @@ async def _sandbox_tools_installed(sandbox: SandboxEnvironment) -> bool:
 
     The check records no transcript events: it repeats on every tool call and its
     argv carries the whole verification script, so logging it would add kilobytes
-    of identical shell to the transcript per call. The injection, and the root
-    probe at sample init (see ``resolve_root_access``), are still recorded.
+    of identical shell to the transcript per call. Injection events are still
+    recorded; root-probe recording is described in ``resolve_root_access``.
 
     Raises:
         SandboxDefaultUserError: A trustworthy root installation was found but the
@@ -214,15 +214,15 @@ def _without_sandbox_events(
 # The tool list must stay in step with the callers of sandbox_with_injected_tools().
 _AMBIGUOUS_ROOT_ACCESS_WARNING = (
     "Sandbox tools: a sandbox's root check produced no verdict (the sandbox provider "
-    "raised an error or returned nothing the check could read), so Inspect could not "
-    "tell whether it can run commands as root. Everything that runs through the "
+    "raised an unexpected error or returned nothing the check could read), so Inspect "
+    "could not tell whether it can run commands as root. Everything that runs through the "
     "tooling Inspect installs into the sandbox (bash_session, text_editor, sandbox "
     "MCP servers, exec_remote and the sandbox agent bridge) therefore runs as the "
-    "sandbox's default user, the same user the agent's own commands run as. That is "
-    "expected for sandboxes that cannot run as root; if root is in fact available, "
-    "that tooling is not isolated from the agent's code. The check is recorded under "
+    "sandbox's default user, the same user the agent's own commands run as. The "
+    "tooling is therefore not isolated from the agent's code. This is expected when "
+    "root is unavailable, but the check could not establish that. The check is recorded under "
     "'Sandbox Tools' in the trace log and, when the provider returned output, as a "
-    "sandbox exec event at the start of the sample."
+    "sandbox exec event."
 )
 
 
@@ -374,7 +374,7 @@ async def resolve_root_access(sandbox: SandboxEnvironment) -> RootAccess:
 
 
 async def _probe_root_access(sandbox: SandboxEnvironment) -> RootAccess:
-    """Probe ``sandbox`` for usable root. Never raises: every outcome is a result."""
+    """Probe ``sandbox`` for usable root."""
     try:
         probe = await privileged_shell(
             sandbox,

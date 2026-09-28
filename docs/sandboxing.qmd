@@ -106,7 +106,7 @@ There are two sandbox environments built in to Inspect and six available as exte
 | `vagrant` | [inspect_vagrant_sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) | No | [Vagrant](https://github.com/jasongwartz/inspect_vagrant_sandbox) virtual machines on any Vagrant-supported hypervisor. |
 | `local` | Built-in | No | Local file system (no sandbox). |
 
-The `local` environment always executes as the current effective user. On POSIX systems, `exec(user=...)` accepts that user's name or UID; other identities raise `SandboxUserUnsupportedError` before execution. On other platforms, omit `user`. Previously, Local ignored `user` with a warning.
+The `local` environment always executes as the current effective user. On POSIX systems, `exec(user=...)` accepts that user's name or UID; other identities raise `SandboxUserUnsupportedError` before execution. On other platforms, omit `user`.
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
 

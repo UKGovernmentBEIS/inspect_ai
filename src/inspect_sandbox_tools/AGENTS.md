@@ -41,11 +41,11 @@ When a tool needs to run in a container, the system automatically injects the ap
 2. System checks for a trustworthy existing installation: `/var/tmp/.da7be258e003d428`
    must be a real directory owned by the tools user with mode 0700, in a parent that
    other users cannot use to replace it, and must hold `inspect-sandbox-tools` as a
-   regular file. The check runs as the tools user: root when the sandbox's
-   root-access decision (made once per sandbox at sample init, before Inspect begins
-   solver/agent execution; `resolve_root_access` in
-   `inspect_ai/tool/_sandbox_tools_utils/sandbox.py`)
-   says root is usable, otherwise the default user. Whichever user the tools are
+   regular file. The check runs as root when the root-access verdict is usable,
+   or as the default user when unusable or ambiguous; a failed probe is an error.
+   `resolve_root_access` in `inspect_ai/tool/_sandbox_tools_utils/sandbox.py`
+   decides once per sandbox at sample init, before solver/agent execution, or on
+   first use outside that lifecycle. Whichever user the tools are
    found (or installed) under becomes the tools user. A merely readable launcher is
    not enough.
 3. If missing, the injection process:

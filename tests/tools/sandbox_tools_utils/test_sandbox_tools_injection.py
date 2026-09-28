@@ -1309,7 +1309,7 @@ async def test_local_root_probe_is_quiet_through_wrappers(
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             access = await sandbox_tools.resolve_root_access(sandbox)
-            if os.geteuid() != 0:
+            if os.name != "posix" or os.geteuid() != 0:
                 assert await sandbox_tools._tools_user_for(sandbox) is None
     finally:
         local.directory.cleanup()
@@ -1317,7 +1317,7 @@ async def test_local_root_probe_is_quiet_through_wrappers(
     assert sandbox._root_access is access
     assert not [w for w in caught if issubclass(w.category, UserWarning)], caught
     assert _warn_once_messages == []
-    if os.geteuid() != 0:
+    if os.name != "posix" or os.geteuid() != 0:
         assert access.state == "unusable"
         assert isinstance(access.error, SandboxUserUnsupportedError)
     elif sys.platform == "linux":
