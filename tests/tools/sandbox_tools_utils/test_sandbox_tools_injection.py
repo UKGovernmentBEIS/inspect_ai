@@ -5,6 +5,7 @@ import sys
 import warnings
 from contextlib import asynccontextmanager
 from io import BytesIO
+from pathlib import Path
 from typing import AsyncIterator, BinaryIO, Iterator
 
 import anyio
@@ -21,9 +22,13 @@ from test_helpers.sandbox import (
     root_probe_result,
 )
 
+from inspect_ai import Task, eval
 from inspect_ai._util import logger as inspect_logger
+from inspect_ai.dataset import Sample
+from inspect_ai.event import LoggerEvent
 from inspect_ai.event._sandbox import SandboxEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
+from inspect_ai.solver import generate
 from inspect_ai.tool._sandbox_tools_utils import sandbox as sandbox_tools
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox._framework_directory import (
@@ -1294,6 +1299,38 @@ async def test_local_sandbox_is_probed_as_the_current_user_without_warning() -> 
     else:
         # no /proc, so the probe reports no identity
         assert access.state == "ambiguous"
+
+
+def test_local_sandbox_samples_start_without_warnings(
+    tmp_path: Path, _warn_once_messages: list[str]
+) -> None:
+    """An eval on the built-in local sandbox that never uses the tools stays silent.
+
+    The root check runs at every sample's init, so a warning it set off would repeat
+    for every sample. Python warnings are captured directly and logged warnings are
+    read back from each sample's transcript, not only Inspect's ``warn_once`` list.
+    """
+    task = Task(
+        dataset=[Sample(input="first"), Sample(input="second")],
+        solver=generate(),
+        sandbox="local",
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        log = eval(task, model="mockllm/model", log_dir=str(tmp_path))[0]
+
+    assert log.status == "success", log.error
+    assert log.samples is not None and len(log.samples) == 2
+    assert not [w for w in caught if issubclass(w.category, UserWarning)], caught
+    logged = [
+        event
+        for sample in log.samples
+        for event in sample.events
+        if isinstance(event, LoggerEvent)
+        and event.message.level in ("warning", "error", "critical")
+    ]
+    assert not logged, logged
+    assert _warn_once_messages == []
 
 
 async def test_resolve_records_once_and_never_probes_again() -> None:
