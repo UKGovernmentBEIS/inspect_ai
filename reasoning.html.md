@@ -38,13 +38,13 @@ Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a flo
 
 #### Anthropic Claude 4.6+ and Claude 5
 
-Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Opus 5, and Fable/Mythos 5.x default to `high` server-side and Opus 5.5 defaults to `medium`.
+Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Sonnet 5.5, Opus 5, and Fable/Mythos 5.x default to `high` server-side and Opus 5.5 defaults to `medium`.
 
-For Fable/Mythos 5.x and Opus 5.5 thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the `thinking` field and the model reasons at the configured `effort` (or the server-side default if none is set). Sonnet 5 and Opus 5 do accept `none` and disable thinking (Opus 5 only at effort `high` or below).
+For Fable/Mythos 5.x and Opus 5.5 thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the `thinking` field and the model reasons at the configured `effort` (or the server-side default if none is set). Sonnet 5 and Opus 5 do accept `none` and disable thinking (Opus 5 only at effort `high` or below). Sonnet 5.5 rejects disabled thinking, so for `none` Inspect sends `between_tools`, its lowest thinking setting: no up-front thinking, with short progress notes between tool calls returned as reasoning. It is accepted only at effort `high` or below, so a higher `effort` is lowered to `high` with a warning.
 
 | Inspect input | API value |
 |----|----|
-| `none` | omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5 |
+| `none` | omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5; `between_tools` on Sonnet 5.5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5 |
 | `minimal` / `low` | `low` |
 | `medium` | `medium` |
 | `high` | `high` |
@@ -212,6 +212,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | anthropic/claude-opus-5-5            | medium          |
 | anthropic/claude-sonnet-4-6          | adaptive        |
 | anthropic/claude-sonnet-5            | high            |
+| anthropic/claude-sonnet-5-5          | high            |
 | deepseek/deepseek-flash              | high            |
 | deepseek/deepseek-reasoner           | no effort scale |
 | deepseek/deepseek-v4-flash           | high            |

@@ -20,7 +20,7 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 - [Text Editor](./tools-standard.html.md#sec-text-editor) which enables viewing, creating and editing text files (requires a [sandbox](./sandboxing.html.md)).
 - [Computer](./tools-standard.html.md#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction (requires a [sandbox](./sandboxing.html.md)).
 - [Code Execution](./tools-standard.html.md#sec-code-execution), which gives models a Python code execution environment hosted within the model provider’s infrastructure rather than an Inspect sandbox.
-- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](./sandboxing.html.md)).
+- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](./sandboxing.html.md)). Deprecated: use Web Search, Computer, or a [browser MCP server](./tools-mcp.html.md#sandboxes) in the sandbox instead.
 
 Agentic tools include:
 

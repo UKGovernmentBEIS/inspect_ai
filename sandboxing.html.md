@@ -10,7 +10,7 @@ Model tool calls are executed within the main process running the evaluation tas
 
 - You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
 
-To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers in which tools, agents and scorers can execute commands and code. Several of Inspect’s [standard tools](./tools-standard.html.md) require a sandbox, including [bash()](./reference/inspect_ai.tool.html.md#bash), [python()](./reference/inspect_ai.tool.html.md#python), [text_editor()](./reference/inspect_ai.tool.html.md#text_editor), and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser). Support for Docker sandboxes is built in, and the [Extension API](./extensions-sandboxes.html.md#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
+To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers in which tools, agents and scorers can execute commands and code. Several of Inspect’s [standard tools](./tools-standard.html.md) require a sandbox, including [bash()](./reference/inspect_ai.tool.html.md#bash), [python()](./reference/inspect_ai.tool.html.md#python), and [text_editor()](./reference/inspect_ai.tool.html.md#text_editor). Support for Docker sandboxes is built in, and the [Extension API](./extensions-sandboxes.html.md#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
 
 ## Example: File Listing
 

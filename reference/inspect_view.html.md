@@ -33,6 +33,7 @@ inspect view start [OPTIONS]
 | Name | Type | Description | Default |
 |----|----|----|----|
 | `--recursive` | boolean | Include all logs in log_dir recursively. | `True` |
+| `--show-shards` | boolean | List shard logs that their merged log already covers (hidden by default). | `False` |
 | `--host` | text | TCP/IP bind host. Non-loopback binds require authorization or an explicit unsafe acknowledgement. | `127.0.0.1` |
 | `--port` | integer | TCP/IP port | `7575` |
 | `--trusted-origin` | text | Exact browser origin allowed to use the viewer. Repeat for multiple origins. | `Sentinel.UNSET` |

@@ -810,8 +810,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="anthropic-claude-4.6-and-claude-5" class="level4">
 <h4 class="anchored" data-anchor-id="anthropic-claude-4.6-and-claude-5">Anthropic Claude 4.6+ and Claude 5</h4>
-<p>Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use <a href="https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking">adaptive thinking</a> with the <code>effort</code> parameter. When <code>reasoning_effort</code> is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Opus 5, and Fable/Mythos 5.x default to <code>high</code> server-side and Opus 5.5 defaults to <code>medium</code>.</p>
-<p>For Fable/Mythos 5.x and Opus 5.5 thinking is <strong>always on</strong> and cannot be disabled: passing <code>none</code> does not turn reasoning off — Inspect omits the <code>thinking</code> field and the model reasons at the configured <code>effort</code> (or the server-side default if none is set). Sonnet 5 and Opus 5 do accept <code>none</code> and disable thinking (Opus 5 only at effort <code>high</code> or below).</p>
+<p>Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use <a href="https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking">adaptive thinking</a> with the <code>effort</code> parameter. When <code>reasoning_effort</code> is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Sonnet 5.5, Opus 5, and Fable/Mythos 5.x default to <code>high</code> server-side and Opus 5.5 defaults to <code>medium</code>.</p>
+<p>For Fable/Mythos 5.x and Opus 5.5 thinking is <strong>always on</strong> and cannot be disabled: passing <code>none</code> does not turn reasoning off — Inspect omits the <code>thinking</code> field and the model reasons at the configured <code>effort</code> (or the server-side default if none is set). Sonnet 5 and Opus 5 do accept <code>none</code> and disable thinking (Opus 5 only at effort <code>high</code> or below). Sonnet 5.5 rejects disabled thinking, so for <code>none</code> Inspect sends <code>between_tools</code>, its lowest thinking setting: no up-front thinking, with short progress notes between tool calls returned as reasoning. It is accepted only at effort <code>high</code> or below, so a higher <code>effort</code> is lowered to <code>high</code> with a warning.</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">
@@ -826,7 +826,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>none</code></td>
-<td>omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5</td>
+<td>omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5; <code>between_tools</code> on Sonnet 5.5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5</td>
 </tr>
 <tr class="even">
 <td><code>minimal</code> / <code>low</code></td>
@@ -1309,218 +1309,222 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>high</td>
 </tr>
 <tr class="even">
+<td>anthropic/claude-sonnet-5-5</td>
+<td>high</td>
+</tr>
+<tr class="odd">
 <td>deepseek/deepseek-flash</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>deepseek/deepseek-reasoner</td>
 <td>no effort scale</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>deepseek/deepseek-v4-flash</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>deepseek/deepseek-v4-pro</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>fireworks/glm-5p3</td>
 <td>max</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>fireworks/glm-5p3-flash</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3-flash-preview</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>google/gemini-3-pro</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3.1-flash-lite-preview</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>google/gemini-3.1-pro</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3.5-flash</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>google/gemini-3.5-flash-lite</td>
 <td>minimal</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3.6-flash</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>google/gemini-3.7-flash</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>google/gemini-3.8-flash</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>grok/grok-3-mini</td>
 <td>low</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>grok/grok-4</td>
 <td>no effort scale</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>grok/grok-4.3</td>
 <td>low</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>grok/grok-4.5</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>grok/grok-4.6</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>grok/grok-4.7</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>mistral/magistral-medium-2506</td>
 <td>no effort scale</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>mistral/magistral-small-2506</td>
 <td>no effort scale</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>mistral/mistral-medium-2604</td>
 <td>none</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>mistral/mistral-small-2603</td>
 <td>none</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>moonshotai/kimi-k3</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5-mini</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5-nano</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.1</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.1-codex</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.2</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.2-codex</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.2-pro</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.3-codex</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.4</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.4-mini</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.4-nano</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.4-pro</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.5</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.5-pro</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.6</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.6-luna</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.6-sol</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.6-terra</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-6-astra</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-6-luna</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-6-sol</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>z-ai/glm-5.3</td>
 <td>max</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>z-ai/glm-5.3-flash</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>zai-org/GLM-5.3-FP8</td>
 <td>max</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>zai-org/GLM-5.3-FP8-Lora</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>zai-org/glm-5.3</td>
 <td>max</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>zai-org/glm-5.3-flash</td>
 <td>max</td>
 </tr>

@@ -3828,11 +3828,11 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
 
 ### Computer Use
 
-When the [computer()](./tools-standard.html.md#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic’s native computer use support. On the Claude API and Vertex, Claude Opus 5.5 (which rejects the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic’s [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5 and Fable/Mythos included) uses the legacy tool.
+When the [computer()](./tools-standard.html.md#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic’s native computer use support. On the Claude API and Vertex, Claude Opus 5.5 and Sonnet 5.5 (which reject the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic’s [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, and Fable/Mythos included) uses the legacy tool.
 
 With the toolset, each computer action arrives as its own tool call. Inspect executes the actions in one assistant turn in order and stops at the first failure, reporting the remaining actions to the model as not executed. Logs record each action as a `computer` tool call with an `action` argument, exactly as with the legacy tool.
 
-Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
+Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5 and Sonnet 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
 
 ``` bash
 inspect eval computer.py --model anthropic/claude-opus-5 -M computer_toolset=true
@@ -6423,13 +6423,13 @@ Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a flo
 
 #### Anthropic Claude 4.6+ and Claude 5
 
-Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Opus 5, and Fable/Mythos 5.x default to `high` server-side and Opus 5.5 defaults to `medium`.
+Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Sonnet 5.5, Opus 5, and Fable/Mythos 5.x default to `high` server-side and Opus 5.5 defaults to `medium`.
 
-For Fable/Mythos 5.x and Opus 5.5 thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the `thinking` field and the model reasons at the configured `effort` (or the server-side default if none is set). Sonnet 5 and Opus 5 do accept `none` and disable thinking (Opus 5 only at effort `high` or below).
+For Fable/Mythos 5.x and Opus 5.5 thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the `thinking` field and the model reasons at the configured `effort` (or the server-side default if none is set). Sonnet 5 and Opus 5 do accept `none` and disable thinking (Opus 5 only at effort `high` or below). Sonnet 5.5 rejects disabled thinking, so for `none` Inspect sends `between_tools`, its lowest thinking setting: no up-front thinking, with short progress notes between tool calls returned as reasoning. It is accepted only at effort `high` or below, so a higher `effort` is lowered to `high` with a warning.
 
 | Inspect input | API value |
 |----|----|
-| `none` | omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5 |
+| `none` | omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5; `between_tools` on Sonnet 5.5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5 |
 | `minimal` / `low` | `low` |
 | `medium` | `medium` |
 | `high` | `high` |
@@ -6597,6 +6597,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | anthropic/claude-opus-5-5            | medium          |
 | anthropic/claude-sonnet-4-6          | adaptive        |
 | anthropic/claude-sonnet-5            | high            |
+| anthropic/claude-sonnet-5-5          | high            |
 | deepseek/deepseek-flash              | high            |
 | deepseek/deepseek-reasoner           | no effort scale |
 | deepseek/deepseek-v4-flash           | high            |
@@ -11505,7 +11506,7 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 - [Text Editor](./tools-standard.html.md#sec-text-editor) which enables viewing, creating and editing text files (requires a [sandbox](./sandboxing.html.md)).
 - [Computer](./tools-standard.html.md#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction (requires a [sandbox](./sandboxing.html.md)).
 - [Code Execution](./tools-standard.html.md#sec-code-execution), which gives models a Python code execution environment hosted within the model provider’s infrastructure rather than an Inspect sandbox.
-- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](./sandboxing.html.md)).
+- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](./sandboxing.html.md)). Deprecated: use Web Search, Computer, or a [browser MCP server](./tools-mcp.html.md#sandboxes) in the sandbox instead.
 
 Agentic tools include:
 
@@ -11619,7 +11620,7 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 - [Text Editor](./tools-standard.html.md#sec-text-editor) which enables viewing, creating and editing text files (requires a [sandbox](./sandboxing.html.md)).
 - [Computer](./tools-standard.html.md#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction (requires a [sandbox](./sandboxing.html.md)).
 - [Code Execution](./tools-standard.html.md#sec-code-execution), which gives models a Python code execution environment hosted within the model provider’s infrastructure rather than an Inspect sandbox.
-- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](./sandboxing.html.md)).
+- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](./sandboxing.html.md)). Deprecated: use Web Search, Computer, or a [browser MCP server](./tools-mcp.html.md#sandboxes) in the sandbox instead.
 
 Agentic tools include:
 
@@ -12070,7 +12071,7 @@ inspect eval computer.py --approval approval.yaml
 
 The computer tool’s schema is a superset of the standard [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use), and [Google](https://ai.google.dev/gemini-api/docs/computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions.
 
-For Claude models, the binding depends on the model and platform: on the Claude API and Vertex, Claude Opus 5.5, Fable 5/5.1 and Mythos 5/5.1 use Anthropic’s computer toolset (`computer_toolset_20260801`), where each action is its own tool call and a failed action halts the remaining computer actions in that turn; other Claude models, and every model on Bedrock and Foundry (which offer only the earlier tool), keep the legacy `computer_20251124` tool. See [Computer Use](./providers.html.md#anthropic-computer-use) in the Anthropic provider documentation for details, including the `computer_toolset` model arg that forces either mode.
+For Claude models, the binding depends on the model and platform: on the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, Fable 5/5.1 and Mythos 5/5.1 use Anthropic’s computer toolset (`computer_toolset_20260801`), where each action is its own tool call and a failed action halts the remaining computer actions in that turn; other Claude models, and every model on Bedrock and Foundry (which offer only the earlier tool), keep the legacy `computer_20251124` tool. See [Computer Use](./providers.html.md#anthropic-computer-use) in the Anthropic provider documentation for details, including the `computer_toolset` model arg that forces either mode.
 
 ## Code Execution
 
@@ -12139,9 +12140,7 @@ The web browser tools provides models with the ability to browse the web using a
 
 > **WARNING: Warning**
 >
-> The [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool uses a headless browser for interacting with the web. However, as of 2026, many websites have incorporated defenses against headless browsers. Therefore if you want to do generalized web information retrieval you should strongly prefer the [web_search()](#sec-web-search) tool.
->
-> If however you are using the web browser to interact with a local web application or specific sites you know don’t block it then this warning isn’t applicable.
+> The [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool is deprecated and its implementation will be removed around November 2026. Calling [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) now logs a deprecation warning; after removal it will raise an error. Most websites now block headless browsers, so for web information retrieval use the [web_search()](#sec-web-search) tool. For interacting with web applications (local web apps, forms, multi-step flows) use the [computer()](#sec-computer) tool, or run a browser MCP server such as [Playwright MCP](https://github.com/microsoft/playwright-mcp) inside your sandbox with [mcp_server_sandbox()](./tools-mcp.html.md#sandboxes). See [issue \#5497](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5497) for details, and comment there if you rely on [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) in a way these paths do not cover.
 
 ### Configuration
 
@@ -12854,6 +12853,8 @@ def web_surfer() -> Agent:
 ```
 ````
 
+The [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool used above is [deprecated](./tools-standard.html.md#sec-web-browser); it appears here only to illustrate [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection).
+
 Note that the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) function can take an arbitrary list of `tools` and will discover and connect to any MCP-based [ToolSource](./reference/inspect_ai.tool.html.md#toolsource) in the list. So if your agent takes a `tools` parameter you can just forward it on. For example:
 
 ``` python
@@ -13247,6 +13248,8 @@ Some tools need to retain state across invocations (for example, the [bash_sessi
 
 For example, imagine we were creating a `web_surfer()` tool that builds on the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool to complete sequences of browser actions in service of researching a topic. We might want to ask multiple questions of the web surfer and have it retain its message history and browser state.
 
+Note that [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) is [deprecated](./tools-standard.html.md#sec-web-browser); it is used here only to illustrate how a stateful tool is composed.
+
 Here’s the complete source code for this tool.
 
 ``` python
@@ -13459,7 +13462,7 @@ Model tool calls are executed within the main process running the evaluation tas
 
 - You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
 
-To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers in which tools, agents and scorers can execute commands and code. Several of Inspect’s [standard tools](./tools-standard.html.md) require a sandbox, including [bash()](./reference/inspect_ai.tool.html.md#bash), [python()](./reference/inspect_ai.tool.html.md#python), [text_editor()](./reference/inspect_ai.tool.html.md#text_editor), and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser). Support for Docker sandboxes is built in, and the [Extension API](./extensions-sandboxes.html.md#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
+To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers in which tools, agents and scorers can execute commands and code. Several of Inspect’s [standard tools](./tools-standard.html.md) require a sandbox, including [bash()](./reference/inspect_ai.tool.html.md#bash), [python()](./reference/inspect_ai.tool.html.md#python), and [text_editor()](./reference/inspect_ai.tool.html.md#text_editor). Support for Docker sandboxes is built in, and the [Extension API](./extensions-sandboxes.html.md#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
 
 ## Example: File Listing
 

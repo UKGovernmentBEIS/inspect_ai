@@ -230,6 +230,8 @@ def web_surfer() -> Agent:
 ```
 ````
 
+The [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool used above is [deprecated](./tools-standard.html.md#sec-web-browser); it appears here only to illustrate [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection).
+
 Note that the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) function can take an arbitrary list of `tools` and will discover and connect to any MCP-based [ToolSource](./reference/inspect_ai.tool.html.md#toolsource) in the list. So if your agent takes a `tools` parameter you can just forward it on. For example:
 
 ``` python
