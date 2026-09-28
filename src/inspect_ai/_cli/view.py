@@ -22,6 +22,13 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Include all logs in log_dir recursively.",
     )
     @click.option(
+        "--show-shards",
+        type=bool,
+        is_flag=True,
+        default=False,
+        help="List shard logs that their merged log already covers (hidden by default).",
+    )
+    @click.option(
         "--host",
         default=DEFAULT_SERVER_HOST,
         help="TCP/IP bind host. Non-loopback binds require authorization or an explicit unsafe acknowledgement.",
@@ -70,6 +77,7 @@ def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
 @common_options
 def start(
     recursive: bool,
+    show_shards: bool,
     host: str,
     port: int,
     trusted_origin: tuple[str, ...],
@@ -104,6 +112,7 @@ def start(
             authorization=authorization,
             unsafe_allow_unauthenticated=unsafe_allow_unauthenticated,
             log_level=common["log_level"],
+            show_shards=show_shards,
         )
     except ViewerNetworkPolicyError as ex:
         raise click.UsageError(str(ex)) from ex

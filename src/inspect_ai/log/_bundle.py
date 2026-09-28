@@ -9,7 +9,7 @@ from typing import Any, Callable, Iterator
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.file import absolute_file_path, filesystem
 
-from ._file import log_files_from_ls, write_log_listing
+from ._file import log_files_from_ls, without_merged_shards, write_log_listing
 
 # INSPECT_VIEW_BUNDLE_OUT_DIR
 
@@ -151,7 +151,9 @@ def bundle_log_dir(
             copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
             p.update(25)
 
-            write_log_listing(view_logs_dir)
+            # the copies' mtimes no longer order shards against their merged
+            # log, so covered shards were left out when copying instead
+            write_log_listing(view_logs_dir, hide_merged_shards=False)
             p.update(25)
 
             if is_hf_target(output_dir):
@@ -260,6 +262,8 @@ def copy_log_files(
             raise PrerequisiteError(
                 f"The log directory {log_dir} doesn't contain any log files."
             )
+
+        eval_logs = without_merged_shards(eval_logs, fs_options)
 
         # find any eval-set files and move those as well
         eval_set_files = set()
