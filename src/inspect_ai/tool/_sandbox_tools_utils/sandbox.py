@@ -321,8 +321,9 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
 _ROOT_ACCESS_PROBE_TIMEOUT = 60
 """Seconds the root probe may run before the provider times it out.
 
-Applied through the provider's own ``timeout`` (with no retry), so time spent queued
-behind other sandbox commands on a busy host does not count against it.
+Applied through the provider's own ``timeout``, so time spent queued behind other
+sandbox commands on a busy host does not count against it. The provider's retries
+stay on: a timed-out probe fails the sandbox tools for the rest of the sample.
 """
 
 # Prints Uid and CapEff from /proc/self/status, then the setgroups mode. Shell
@@ -380,7 +381,6 @@ async def _probe_root_access(sandbox: SandboxEnvironment) -> RootAccess:
             _ROOT_PROBE_CMD,
             user=_root_probe_user(sandbox),
             timeout=_ROOT_ACCESS_PROBE_TIMEOUT,
-            timeout_retry=False,
         )
     except (SandboxUnavailableError, TimeoutError) as ex:
         return RootAccess("failed", f"root probe did not complete: {ex}", ex)

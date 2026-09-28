@@ -1108,15 +1108,16 @@ async def test_probe_runs_the_fixed_script_as_root_with_pinned_path() -> None:
     assert sandbox.envs == [{"PATH": SYSTEM_PATH}]
 
 
-async def test_probe_is_bounded_by_the_provider_timeout_without_retry() -> None:
-    """The probe hands the provider its timeout and asks for no retry.
+async def test_probe_uses_the_provider_timeout_and_its_retries() -> None:
+    """The probe hands the provider its timeout and keeps the provider's retries.
 
     A provider timeout excludes time spent queued behind other sandbox commands on
-    a busy host, which a deadline around the whole exec would count.
+    a busy host, which a deadline around the whole exec would count. A retry rides
+    out a transient hang, which would otherwise fail the tools for the sample.
     """
     sandbox = CannedSandbox.returning(root_probe_result())
     await sandbox_tools._probe_root_access(sandbox)
-    assert sandbox.timeouts == [(sandbox_tools._ROOT_ACCESS_PROBE_TIMEOUT, False)]
+    assert sandbox.timeouts == [(sandbox_tools._ROOT_ACCESS_PROBE_TIMEOUT, True)]
 
 
 @pytest.mark.parametrize(
