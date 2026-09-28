@@ -142,6 +142,12 @@
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect-vscode)"
   categories: ["Tooling"]
 
+- name: "[Inspect Evals Lint](https://inspect-evals-lint.generality.org/)"
+  description: |
+    Static checks for Inspect evaluations: file structure, test coverage, best practices and sandbox image pinning.
+  author: "[Generality Labs](https://github.com/Generality-Labs/inspect-evals-lint)"
+  categories: ["Tooling"]
+
 - name: "[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/)"
   description: |
     Python package that provides a Kubernetes sandbox environment for Inspect.
