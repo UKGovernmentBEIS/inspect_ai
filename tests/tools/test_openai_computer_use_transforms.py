@@ -354,27 +354,12 @@ def test_multi_action_reverse_transform():
 def _computer_tool_info():
     """Helper to create a ToolInfo matching the computer tool signature."""
     from inspect_ai.tool._tool_info import ToolInfo, ToolParams
+    from inspect_ai.tool._tools._computer._computer import _COMPUTER_TOOL_PARAMETERS
 
     return ToolInfo(
         name="computer",
         description="computer tool",
-        parameters=ToolParams(
-            properties={
-                k: {}
-                for k in [
-                    "action",
-                    "coordinate",
-                    "duration",
-                    "region",
-                    "scroll_amount",
-                    "scroll_direction",
-                    "start_coordinate",
-                    "text",
-                    "press_enter",
-                    "actions",
-                ]
-            }
-        ),
+        parameters=ToolParams(properties={k: {} for k in _COMPUTER_TOOL_PARAMETERS}),
     )
 
 

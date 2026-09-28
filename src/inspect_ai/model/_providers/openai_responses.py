@@ -57,6 +57,7 @@ from .._openai import (
     openai_media_filter,
 )
 from .._openai_responses import (
+    RESPONSES_VERBATIM,
     ResponsesModelInfo,
     model_usage_from_response_usage,
     openai_responses_chat_choices,
@@ -116,6 +117,8 @@ async def generate_responses(
     model_info: ResponsesModelInfo,
     batcher: OpenAIBatcher[Response] | None,
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
+    | None = None,
+    handle_stream_error: Callable[[APIError | OpenAIResponseError], ModelOutput | None]
     | None = None,
     model_family: str | None = None,
     streaming: bool = False,
@@ -178,7 +181,12 @@ async def generate_responses(
             responses_store=responses_store,
             tools=len(tools) > 0,
             tool_params=[] if isinstance(tool_params, NotGiven) else tool_params,
-            has_computer_tool=any(is_computer_tool_info(t) for t in tools),
+            # a verbatim tool is sent as given (a function or custom tool),
+            # not as OpenAI's computer tool, which is what requires store
+            has_computer_tool=any(
+                is_computer_tool_info(t) and RESPONSES_VERBATIM not in (t.options or {})
+                for t in tools
+            ),
         ),
     )
     if isinstance(background, bool):
@@ -257,7 +265,11 @@ async def generate_responses(
         # above, so recognized block codes convert on every path (streaming,
         # non-streaming, background, batch); unrecognized codes return None
         # and re-raise with their retry classification intact
-        output = openai_handle_stream_error(model_name, e)
+        output = (
+            handle_stream_error(e)
+            if handle_stream_error
+            else openai_handle_stream_error(model_name, e)
+        )
         if output is None:
             raise
         error_body = (
@@ -450,19 +462,13 @@ def completion_params_responses(
     if config.seed is not None:
         unsupported_warning("seed")
 
-    # models with reasoning enabled don't do sampling params (gpt-6+ always
-    # reasons: `none` effort is rejected, so sampling params never apply)
-    reasoning_enabled = (
-        model_info.is_o_series()
-        or model_info.is_gpt_6()
-        or (model_info.is_gpt_5() and not model_info.is_gpt_5_plus())
-        or (
-            model_info.is_gpt_5_plus()
-            and (
-                config.reasoning_effort not in [None, "none"]
-                or (config.reasoning_effort is None and model_info.reasons_by_default())
-                or config.reasoning_mode == "pro"
-            )
+    # models with reasoning enabled don't do sampling params
+    reasoning_enabled = model_info.always_reasons() or (
+        model_info.is_gpt_5_plus()
+        and (
+            config.reasoning_effort not in [None, "none"]
+            or (config.reasoning_effort is None and model_info.reasons_by_default())
+            or config.reasoning_mode == "pro"
         )
     )
 
@@ -522,8 +528,8 @@ def completion_params_responses(
         )
     if config.reasoning_mode is not None:
         # passed through for all models: the API accepts "pro" wherever it can
-        # be honored (gpt-5.6 and legacy -pro models; gpt-6 rejects it) and
-        # rejects it with a clear param-naming error otherwise.
+        # be honored (gpt-5.6+ and legacy -pro models) and rejects it with a
+        # clear param-naming error otherwise.
         reasoning["mode"] = config.reasoning_mode
     if config.reasoning_summary != "none":
         reasoning["summary"] = config.reasoning_summary or "auto"
