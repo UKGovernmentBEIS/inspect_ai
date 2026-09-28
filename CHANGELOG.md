@@ -1,5 +1,24 @@
-## Unreleased
+## 0.3.272 (28 September 2026)
 
+- Anthropic: Support for Claude Sonnet 5.5 (`claude-sonnet-5-5`): `reasoning_effort="none"` turns off up-front thinking, forced tool choice degrades to auto, and computer use uses the computer toolset on the Claude API and Vertex.
+- Tools: `web_browser()` is deprecated, logs a warning when called, and will be removed in a future release.
+- Inspect View: Shard logs under `<name>.shards/` are hidden once a successful merged log covers them (`inspect view --show-shards` to list them); bundles leave them out.
+- Computer tool: click actions called without a `coordinate` now click at the current cursor position instead of failing, and the tool description states which actions require one.
+- Computer tool: `back_click` and `forward_click` now work (with a rebuilt `aisiuk/inspect-computer-tool` image); previously they failed inside the container regardless of arguments.
+
+## 0.3.271 (26 September 2026)
+
+- CLI: New `--extra-headers` and `--extra-body` options for `inspect eval` and `inspect eval-set`, taking an inline JSON or YAML mapping.
+- Google: Token counting falls back to a local estimate, with a warning, when the countTokens endpoint is unavailable or rejects the request.
+
+## 0.3.270 (25 September 2026)
+
+- `eval_set`: a task whose dataset GREW since its last run (a strict superset, with stable sample ids) is now topped up in place — the prior samples are reused and only the newly added samples run — instead of re-running the whole dataset. A shrunk dataset, or growth without stable ids, still triggers a full re-run.
+- LiteLLM Proxy: GPT-5 and later, o-series and Codex models served by OpenAI use the Responses API by default, streamed, carrying reasoning between turns (`-M responses_api=false` to opt out).
+- LiteLLM Proxy: Key and team aliases resolve to the model they route to, instead of failing for lack of model info.
+- LiteLLM Proxy: Claude 4.7 and later models with a reasoning effort record summarized thinking in the log, including through older LiteLLM versions, which returned none (`-M thinking_display=omitted` to opt out).
+- LiteLLM Proxy: Claude codename deployments that LiteLLM sends extended thinking fail with an error naming the proxy `model_info` flags that enable adaptive thinking.
+- LiteLLM Proxy: `web_search()` without a search provider usable through the proxy fails when the model is first called, with an error naming the fix.
 - Checkpointing: after a resume, restored events reach hooks, the live viewer, ACP clients and transcript readers with long text and images inline instead of as `attachment://` references; raw model API calls stay condensed until the sample completes.
 - Preserve each text block’s internal provider state when converting multi-block assistant messages.
 - Bugfix: `f1()` now counts repeated tokens (multiset overlap, matching SQuAD F1); scores can rise or fall for answers or targets containing repeated words.
