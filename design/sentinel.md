@@ -861,7 +861,7 @@ Every form carries the per-child obligations:
 
 - **filter by point** — a child not annotated for this step is skipped, and the skip is indistinguishable from abstention
 - **name the child** — from the mapping key if the protocol was given a `Mapping`, else the registry name without its package prefix; the runner treats a duplicate name within one layer as an error rather than inventing a `#2` suffix, and a composition that runs children one at a time validates its names the same way first
-- **derive the child's `Context`** — the dispatcher hands the top layer a `RunnerContext`, a `Context` that also carries the recorder and a `child(name)` method; the runner requires it (a bare `Context` is a `TypeError`) and builds each child's context under this layer's path. Naming and duplicate detection live in a private `named()` helper in the runner, which `chain()` will reuse
+- **derive the child's `Context`** — the dispatcher hands the top layer a `RunnerContext`, a `Context` that also carries the recorder, the registry name of the instance's factory as `factory`, and a `child(name, factory)` method; the runner requires it (a bare `Context` is a `TypeError`) and builds each child's context under this layer's path. Every `Recorder` call receives the `RunnerContext` of the instance it concerns, so the recorder reads which code ran from `factory` and which instance from `path`; the dispatcher's top-layer context has an empty `factory`, and `run_root` sets the root's. Naming and duplicate detection live in a private `named()` helper in the runner, which `chain()` will reuse
 - **run each of the instance's functions** — every function of the instance annotated for the step runs, in the order its factory returned them and one after another, since they share one store, until one returns `terminate` or calls `final()`, which ends the instance's run: the functions after it do not run and are not recorded; a lone function is the one-member case
 - **record the report** — one `SentinelEvent` per report, including the ones the protocol goes on to ignore, which is load-bearing because the ignored ones are the benign distribution calibration needs
 - **apply the [failure policy](#failure-semantics)** uniformly (deferred: the first runner propagates every exception; see `pr-series.md`)
@@ -1242,7 +1242,6 @@ The flat case in YAML is a list, like approval; registry lookup searches both ty
 sentinel:
   - name: no_curl
   - name: no_rm_rf
-    tools: ["bash", "python"]
 ```
 
 Named chains are a mapping, and a protocol with children nests them under the key that names its parameter:
@@ -1271,7 +1270,9 @@ sentinel:
 
 The nested key is the factory's parameter name — `monitors:` for the protocols that read scores, `children:` for the two compositions — and it is legal exactly when the factory has that parameter. The top-level key is `sentinel:`, so it cannot be confused with the nested `monitors:` (an earlier draft used `monitors:` for both). `monitors:` under a rule, or under a monitor, is a configuration error, and the schema must not let it parse silently. Nesting is the shape rather than a cost: `Task(solver=chain(...))` already has it in Python, approval's config already nests policies, and a tree is what permits [nested pipeline stages](#the-extension-surface), which a flat schema could not express at all.
 
-`tools` is a wart. It scopes the tool stages the way `ApprovalPolicy` does, but a `BeforeGenerate` monitor is not tool-scoped and would fire regardless — so the key means "which tools this applies to, if it watches a tool point at all", not "when this monitor runs". Alternatives: a separate `stages:` key, or no globs at all (the monitor filters internally on `step.call.function`, which it can already do and which is more honest about the fact that a monitor is not a per-tool policy).
+There is no `tools` key. An earlier draft borrowed it from `ApprovalPolicy` to scope the tool stages, but it was a wart: a `BeforeGenerate` monitor is not tool-scoped and would fire regardless, so the key could only mean "which tools this applies to, if it watches a tool point at all". A monitor that cares about some tools filters on `step.call.function` itself, which it can already do and which is more honest about a monitor not being a per-tool policy. An entry takes `name`, `params` and nested keys only, so a `tools:` carried over from an approval policy is an error, not a param.
+
+`sentinel_from_config` builds a configuration through `create_registry_object`, nested entries first, and returns the list or mapping unresolved, for `resolve_sentinel`. It takes a YAML or JSON file whose only key is `sentinel:`, a bare registered name, or the parsed shape. A name is looked up as both a monitor and a protocol, which is unambiguous because `@monitor` and `@protocol` refuse a name already registered as the other kind. A bare name that matches nothing exactly is then tried in `inspect_sentinel`, so `name: threshold` finds the shipped protocol, and a local `observe` shadows the shipped one, which stays reachable as `inspect_sentinel/observe`. A repeated key in a file is an error rather than the last one winning. Every error names the entry, as in `sentinel.attempt.children[1]`. `config_from_sentinel` is the inverse, from each instance's registry name and params, with a param holding monitors or protocols written as nested entries; it is what the log records and `eval_retry` rebuilds from. The shape is `SentinelConfig`, a pydantic model over the list or mapping of `SentinelEntry`.
 
 ## Failure semantics {#failure-semantics}
 
@@ -1327,7 +1328,8 @@ This is a real knob and it belongs on the protocol, not the monitor: whether lat
 class SentinelEvent(BaseEvent):
     event: Literal["sentinel"] = "sentinel"
     name: str
-    """Registry name of the factory: a monitor or a protocol."""
+    """Registry name of the factory: a monitor or a protocol. The runner hands it to the
+    recorder as `RunnerContext.factory`; the instance name is the last segment of `path`."""
     path: str
     """Instance path, e.g. "attempt/internet_attempt"."""
     function: str | None

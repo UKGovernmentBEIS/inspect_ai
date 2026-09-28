@@ -253,16 +253,19 @@ The dispatcher hands the top layer a `RunnerContext`, which the runner requires 
 @dataclass(frozen=True)
 class RunnerContext(Context):
     recorder: Recorder
-    def child(self, name: str) -> RunnerContext: ...   # context for a child under this path
+    factory: str = ""   # registry name of the instance's factory; run_root sets the root's
+    def child(self, name: str, factory: str) -> RunnerContext: ...   # context for a child under this path
 
 
 class Recorder(Protocol):
     """Where the runner records; the dispatcher implements it, authors never call it."""
-    def record(self, context: Context, step: Step, reported: Reported[Report]) -> None: ...
-    def cancelled(self, context: Context, step: Step, name: str) -> None: ...
-    def bypassed(self, context: Context, step: Step, name: str) -> None: ...
-    def superseded(self, context: Context, step: Step, reported: Reported[Decision]) -> None: ...
+    def record(self, context: RunnerContext, step: Step, reported: Reported[Report]) -> None: ...
+    def cancelled(self, context: RunnerContext, step: Step, name: str) -> None: ...
+    def bypassed(self, context: RunnerContext, step: Step, name: str) -> None: ...
+    def superseded(self, context: RunnerContext, step: Step, reported: Reported[Decision]) -> None: ...
 ```
+
+Every `Recorder` call gets the `RunnerContext` of the instance it concerns, so the dispatcher reads `SentinelEvent.name` from `context.factory` and `path` from `context.path`. `factory` is the full registry name, package prefix included (`inspect_sentinel/concurrent`), where the instance name is a mapping key or the unqualified registry name.
 
 Rules:
 
@@ -880,7 +883,6 @@ Flat list in YAML, like approval:
 sentinel:
   - name: no_curl
   - name: no_rm_rf
-    tools: ["bash", "python"]
 ```
 
 Named, as a mapping:
@@ -915,7 +917,11 @@ Rules:
 
 - **A nested key is the factory's parameter name.** `monitors:` under `threshold`, `children:` under `chain` or `concurrent`. The top-level key is `sentinel:`, so it cannot be confused with the nested `monitors:`. A nested key under a factory with no such parameter, including every rule and every monitor, is a configuration error. The schema must not parse it silently.
 - **Instance names are unique within a layer.** A duplicate is a configuration error. Registry names are the default when no mapping key is given.
-- **`tools` scopes only the tool stages.** A `BeforeGenerate` monitor fires regardless of it. Read it as "which tools this applies to, if it watches a tool stage at all". A separate `stages:` key, or dropping globs and filtering inside the monitor on `step.call.function`, are the alternatives.
+- **An entry takes `name`, `params` and nested keys, nothing else.** There is no `tools` key; a monitor that watches some tools filters on `step.call.function`. Any other key is a configuration error.
+- **Names are found in both registry types.** A monitor and a protocol cannot share a name. A bare name that matches nothing exactly is tried in `inspect_sentinel`.
+- **A key may not repeat.** A repeated key in a file is an error, not the last one winning.
+- **Errors name the entry.** For example `sentinel.attempt.children[1]`.
+- **The log records the inverse.** `config_from_sentinel` writes each instance's registry name and params, with nested monitors and protocols as nested entries; `sentinel_from_config` rebuilds them for retry.
 
 ## Failures
 
@@ -938,7 +944,7 @@ Whether a monitor that fails on 3 samples in 500 should fail the eval is open; s
 ```python
 class SentinelEvent(BaseEvent):
     event: Literal["sentinel"] = "sentinel"
-    name: str             # registry name of the factory, monitor or protocol
+    name: str             # registry name of the factory, monitor or protocol: RunnerContext.factory
     path: str             # instance path, e.g. "attempt/internet_attempt"
     function: str | None  # __name__ of the reporting function; None for cancelled and bypassed, which are per instance
     step_id: str          # triggering message id, assistant message id, or tool call id
