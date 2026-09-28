@@ -35,6 +35,15 @@ from .exec_remote import (
 logger = logging.getLogger(__name__)
 
 
+class SandboxUserUnsupportedError(RuntimeError):
+    """Raised when a sandbox cannot execute as the requested user.
+
+    Providers should raise this without logging a warning, and only when they
+    know the requested identity is unsupported and the command has not run.
+    Command failures, timeouts, and infrastructure errors must remain distinct.
+    """
+
+
 class SandboxUnavailableError(RuntimeError):
     """Raised when a provider cannot initiate a sandbox exec request.
 
@@ -146,8 +155,9 @@ class RootAccess:
     probe of the identity and capabilities a ``user="root"`` exec actually gets:
 
     - ``usable``: uid 0 with CAP_SETUID and CAP_SETGID and ``setgroups`` allowed.
-    - ``unusable``: the probe ran and reported anything else (``cap_drop: [ALL]``, a
-      provider that runs ``user="root"`` as another uid).
+    - ``unusable``: the provider raised ``SandboxUserUnsupportedError``, or the
+      probe reported insufficient privileges (``cap_drop: [ALL]``, a provider
+      that runs ``user="root"`` as another uid).
     - ``ambiguous``: no verdict. The provider raised, or the output lacked valid
       probe fields. Some providers report "cannot exec as root" only this way, so
       the tools still fall back to the sandbox's default user (see
@@ -248,6 +258,9 @@ class SandboxEnvironment(abc.ABC):
           Execution result (status code, stderr/stdout, etc.)
 
         Raises:
+          SandboxUserUnsupportedError: If the provider cannot execute as the
+            requested user. The command has not run; this is distinct from a
+            command failing or the sandbox being unavailable.
           SandboxUnavailableError: If the provider cannot initiate the exec
             request because the sandbox is not running or provider-injected
             execution machinery is unavailable. A missing caller-specified

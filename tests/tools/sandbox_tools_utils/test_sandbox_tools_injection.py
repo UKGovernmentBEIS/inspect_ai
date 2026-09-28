@@ -48,6 +48,7 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
     SandboxUnavailableError,
+    SandboxUserUnsupportedError,
 )
 from inspect_ai.util._sandbox.events import (
     SandboxEnvironmentProxy,
@@ -295,6 +296,11 @@ async def test_root_access_is_probed_once_on_first_use_without_sample_init() -> 
 @pytest.mark.parametrize(
     "root_failure, expected",
     [
+        pytest.param(
+            SandboxUserUnsupportedError("cannot execute as root"),
+            "cannot execute as root",
+            id="unsupported-user",
+        ),
         pytest.param(
             RuntimeError("docker exec: transient failure"),
             "transient failure",
@@ -1011,17 +1017,25 @@ async def test_detector_fails_loud_when_identity_probe_fails(
         pytest.param(root_probe_result("0000000000000040"), id="setgid-without-setuid"),
         pytest.param(root_probe_result(setgroups="deny"), id="setgroups-denied"),
         pytest.param(root_probe_result(uid="1000"), id="not-root"),
+        pytest.param(
+            SandboxUserUnsupportedError("cannot execute as root"),
+            id="unsupported-user",
+        ),
     ],
 )
 async def test_inject_falls_back_quietly_when_root_cannot_switch_users(
     stub_artifact: dict[str, object],
     _warn_once_messages: list[str],
-    probe: ExecResult[str],
+    probe: ExecResult[str] | SandboxUserUnsupportedError,
 ) -> None:
     """Root that cannot switch identity is a definitive verdict: rootless, no warning."""
 
     def policy(cmd: list[str], user: str | None) -> ExecResult[str]:
-        return probe if is_root_probe(cmd) else helper_ok(cmd, user)
+        if is_root_probe(cmd):
+            if isinstance(probe, SandboxUserUnsupportedError):
+                raise probe
+            return probe
+        return helper_ok(cmd, user)
 
     sandbox = CannedSandbox(policy)
     await sandbox_tools._inject_container_tools_code(sandbox)
@@ -1221,6 +1235,11 @@ async def test_probe_verdict(probe: ExecResult[str], state: str, reason: str) ->
     "error, state",
     [
         pytest.param(
+            SandboxUserUnsupportedError("cannot execute as root"),
+            "unusable",
+            id="unsupported-user",
+        ),
+        pytest.param(
             RuntimeError("runuser: may not be used by non-root users"),
             "ambiguous",
             id="provider-raises",
@@ -1274,25 +1293,33 @@ async def test_probe_cancellation_propagates_and_records_nothing() -> None:
     assert sandbox._root_access is None
 
 
-async def test_local_sandbox_is_probed_as_the_current_user_without_warning() -> None:
-    """`local` ignores `user` (and warns when given one): its own identity decides.
-
-    The raw provider object is used, as a script outside an eval would: it must
-    carry the decision itself, and its proxy is unwrapped for the same treatment.
-    """
+@pytest.mark.parametrize("wrapped", [False, True])
+async def test_local_root_probe_is_quiet_through_wrappers(
+    monkeypatch: pytest.MonkeyPatch,
+    wrapped: bool,
+    _warn_once_messages: list[str],
+) -> None:
     local = LocalSandboxEnvironment()
+    sandbox: SandboxEnvironment = local
+    if wrapped:
+        wrapper = CannedSandbox.returning(OK)
+        monkeypatch.setattr(wrapper, "exec", local.exec)
+        sandbox = SandboxEnvironmentProxy(wrapper)
     try:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            access = await sandbox_tools.resolve_root_access(local)
+            access = await sandbox_tools.resolve_root_access(sandbox)
+            if os.geteuid() != 0:
+                assert await sandbox_tools._tools_user_for(sandbox) is None
     finally:
         local.directory.cleanup()
 
-    assert local._root_access is access
-    assert sandbox_tools._root_probe_user(SandboxEnvironmentProxy(local)) is None
+    assert sandbox._root_access is access
     assert not [w for w in caught if issubclass(w.category, UserWarning)], caught
-    if sys.platform == "linux" and os.geteuid() != 0:
+    assert _warn_once_messages == []
+    if os.geteuid() != 0:
         assert access.state == "unusable"
+        assert isinstance(access.error, SandboxUserUnsupportedError)
     elif sys.platform == "linux":
         # root, but possibly with capabilities dropped: definitive either way
         assert access.state in ("usable", "unusable")

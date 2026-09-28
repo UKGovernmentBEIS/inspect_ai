@@ -575,8 +575,7 @@ async def try_ensure_framework_directory_as_root(
     Runs :func:`ensure_framework_directory` as ``root`` with ``expected_uid=0`` and
     returns ``True`` once the directory is verified root-owned. Returns ``False``
     when the sandbox cannot exec as root, which includes a provider that accepts
-    ``user="root"`` but runs the command as someone else
-    (``LocalSandboxEnvironment`` ignores ``user``): the helper reports the uid
+    ``user="root"`` but runs the command as someone else: the helper reports the uid
     mismatch before creating anything. Providers that refuse root signal it with
     provider-specific exceptions or a failing exit status, so any other exception
     from the exec is also read as "no root" (the trade-off is that an unrelated

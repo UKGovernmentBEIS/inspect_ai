@@ -48,9 +48,9 @@ from inspect_ai.util._sandbox.environment import (
     SandboxDefaultUser,
     SandboxEnvironment,
     SandboxUnavailableError,
+    SandboxUserUnsupportedError,
 )
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
-from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 from inspect_ai.util._subprocess import ExecResult
 
@@ -379,30 +379,20 @@ async def _probe_root_access(sandbox: SandboxEnvironment) -> RootAccess:
         probe = await privileged_shell(
             sandbox,
             _ROOT_PROBE_CMD,
-            user=_root_probe_user(sandbox),
+            user="root",
             timeout=_ROOT_ACCESS_PROBE_TIMEOUT,
         )
+    except SandboxUserUnsupportedError as ex:
+        return RootAccess("unusable", str(ex), ex)
     except (SandboxUnavailableError, TimeoutError) as ex:
         return RootAccess("failed", f"root probe did not complete: {ex}", ex)
     except Exception as ex:
-        # Broad catch is deliberate: providers signal "cannot exec as root" with
-        # provider-specific exception types, so no narrower type is available.
+        # Providers that have not adopted SandboxUserUnsupportedError may still
+        # signal "cannot exec as root" with provider-specific exceptions.
         return RootAccess(
             "ambiguous", f"root probe raised {type(ex).__name__}: {ex}", ex
         )
     return _root_access_verdict(probe)
-
-
-def _root_probe_user(sandbox: SandboxEnvironment) -> str | None:
-    """``root``, except for the built-in local provider.
-
-    ``LocalSandboxEnvironment`` ignores ``user`` (and warns whenever one is given)
-    and runs everything as the current user, so its own identity is the verdict.
-    """
-    inner = (
-        sandbox._sandbox if isinstance(sandbox, SandboxEnvironmentProxy) else sandbox
-    )
-    return None if isinstance(inner, LocalSandboxEnvironment) else "root"
 
 
 def _root_access_verdict(probe: ExecResult[str]) -> RootAccess:
