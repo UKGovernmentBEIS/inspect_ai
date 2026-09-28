@@ -98,7 +98,6 @@ class Host(Protocol):
     ) -> HostResponse: ...
     def get(self, key: str) -> dict | None: ...
     def put(self, key: str, value: dict) -> None: ...
-    def record(self, event: dict) -> None: ...
     async def terminate(self, reason: str) -> bool: ...
     """End this session or agent out-of-band. False if unsupported."""
 
@@ -114,6 +113,8 @@ class HostResponse(Protocol):
 `generate` returns a `ModelOutput` rather than a string because the protocols that substitute an action (`defer_to_trusted`, `resample`) regenerate with the agent's tools and need the whole response; a text-prompt monitor reads `.completion`. Generating as the agent's own model is, in a proxy, a re-issued upstream request.
 
 The same surface whether the host is Envoy via proxy-wasm, a Go runtime, or ordinary Python in-process where these are normal implementations.
+
+Recording is not on the ABI. The runner records every report, cancellation, bypass and supersession through a separate `Recorder` that the host implements and authors never see (`sentinel-reference.md`, "Context"), so a protocol cannot skip recording by not calling it.
 
 A monitor reaches it as `context.host` (`sentinel.md`, "The context"), never by import. That is what keeps a monitor a pure function of its two arguments, and it is why the ABI is small enough to be worth specifying: everything a monitor can do to the outside world is enumerable from one Protocol.
 

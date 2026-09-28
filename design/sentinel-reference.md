@@ -82,10 +82,11 @@ The pieces:
 | `Observation` | A monitor's report: a suspicion score and an explanation. Recorded; acted on only by a protocol. |
 | `Decision` | A protocol's report: an action (`continue`, `modify`, `reject`, `terminate`, `escalate`). Applied at the top level; advisory to a parent protocol. |
 | Rule | A protocol with no children. `no_curl`, `strip_force`, and `human` are rules. |
-| `run_monitors`, `run_protocols`, `run_children` | The runner. The only way a protocol invokes a child. Names, records, and applies the failure policy. |
+| `run_monitors`, `run_protocols`, `run_children` | The runner. The only way a protocol invokes a child. Names, records, and (once implemented) applies the failure policy. |
 | `concurrent`, `chain` | The two shipped compositions: concurrent (every child runs, strongest decision wins) and ordered (first non-`escalate` decides). |
 | `threshold`, `observe`, `defer_to_trusted`, `resample` | The shipped protocols that turn monitors' scores into decisions. |
-| `human` | A rule that asks a person through the human approval surfaces. Its decisions are authoritative. |
+| `human` | A rule that asks a person through the human approval surfaces. Its decisions are final by default. |
+| `final` | Ends the step with a decision. Nothing above the calling protocol runs. |
 | `SentinelEvent` | Transcript record of every report, keyed by instance path. |
 
 ## Writing a monitor
@@ -109,7 +110,7 @@ Rules:
   > `suspicion_monitor`: could not resolve the annotation `BeforeToolCall` on parameter `step`. Import it at runtime rather than under `TYPE_CHECKING`.
 
 - **Annotate the return as `Observation | None`.** A monitor observes. If you find yourself wanting to return an action, you are writing a protocol; see [Monitor or protocol?](#monitor-or-protocol).
-- **One function, one stage.** If a concern spans two stages, write two monitors and list both.
+- **One function, one stage.** If a concern spans two stages, write two functions. Independent ones are two monitors, listed both. When they share state, return both from one factory, `return [before, after]`: the functions form one instance, with one name, one path and one `store_as` namespace, and each runs, in the order returned, at the stage it watches, until one returns `terminate` or calls `final()`; the functions after it do not run and are not recorded. Give them distinct `__name__`s; that is how their reports are told apart.
 - **Never take a threshold as a factory parameter.** If your monitor compares a score to a constant, return the score as an `Observation` and let a protocol hold the constant. See [Monitor or protocol?](#monitor-or-protocol).
 - **Do not keep per-sample state in the closure.** The factory runs once per configuration and the returned function is shared by every sample. Use `context.store_as()`. See [State](#state).
 
@@ -128,7 +129,7 @@ The stage is checked by mypy and pyright against this alias, and read from the a
 
 ### Instance names
 
-Every configured monitor or protocol has an instance name: the key when it was configured in a mapping, the registry name otherwise. Two children of one layer with the same name is a configuration error. Nesting joins names into a path, `attempt/internet_attempt`. The path is what `SentinelEvent` records and what `context.store_as()` namespaces by.
+Every configured monitor or protocol has an instance name: the key when it was configured in a mapping, the registry name without its package prefix otherwise. Two children of one layer with the same name is a configuration error. Nesting joins names into a path, `attempt/internet_attempt`. The path is what `SentinelEvent` records and what `context.store_as()` namespaces by. A factory returning several functions configures one instance; its functions are told apart by `function`, their `__name__`, so path plus function identifies a report within a step.
 
 ### Stages
 
@@ -228,6 +229,9 @@ class Context:
     metadata: dict[str, Any]
     """Author-supplied structured context (task metadata merged with sample)."""
 
+    path: str
+    """Instance path, e.g. "attempt/internet_attempt". Empty at the top layer."""
+
     # -- the monitor's own memory
     store: Store
     """This monitor's per-sample state, namespaced. Raw form."""
@@ -237,10 +241,27 @@ class Context:
 
     # -- effects
     host: Host
-    """Inference, keyed storage, outbound JSON, and recording. The only route out of a monitor."""
+    """Inference, keyed storage and outbound JSON. The only route out of a monitor."""
 
     target: Target | None = None
     """The expected answer. None unless explicitly opted into."""
+```
+
+The dispatcher hands the top layer a `RunnerContext`, which the runner requires and preserves down the layers. Authors never see its extra fields.
+
+```python
+@dataclass(frozen=True)
+class RunnerContext(Context):
+    recorder: Recorder
+    def child(self, name: str) -> RunnerContext: ...   # context for a child under this path
+
+
+class Recorder(Protocol):
+    """Where the runner records; the dispatcher implements it, authors never call it."""
+    def record(self, context: Context, step: Step, reported: Reported[Report]) -> None: ...
+    def cancelled(self, context: Context, step: Step, name: str) -> None: ...
+    def bypassed(self, context: Context, step: Step, name: str) -> None: ...
+    def superseded(self, context: Context, step: Step, reported: Reported[Decision]) -> None: ...
 ```
 
 Rules:
@@ -273,7 +294,7 @@ class Observation(BaseModel):
     """What a monitor returns: evidence, for a protocol to calibrate and threshold."""
 
     suspicion: Suspicion
-    """Required. float or dict[str, float]."""
+    """Required. float or dict[str, float]; scores are finite and a dict is non-empty."""
 
     explanation: str | None = Field(default=None)
     metadata: dict[str, Any] | None = Field(default=None)
@@ -288,9 +309,6 @@ class Decision(BaseModel):
     audit: bool = Field(default=False)
     """Request that human review be spent on this."""
 
-    authoritative: bool = Field(default=False)
-    """A decision no parent protocol may weaken. Set by human()."""
-
     modified: ToolCall | ChatMessageAssistant | BeforeGenerate | None = Field(default=None)
     """Replacement for the step's subject. Set if and only if action == "modify"."""
 
@@ -301,7 +319,7 @@ class Decision(BaseModel):
 
 
 Report: TypeAlias = Observation | Decision
-Suspicion: TypeAlias = float | dict[str, float]
+Suspicion: TypeAlias = float | dict[str, float]  # finite; a dict has at least one key
 ```
 
 Return states:
@@ -322,7 +340,7 @@ Rules:
 - **A detector reports `1.0`.** `Observation.flag(explanation)` is a monitor's way of saying "this is definitely it" without holding a threshold; `threshold(detector(), reject_at=1.0)` acts on it.
 - **Set `audit=True` to request human review.** It is independent of the action: you can continue-and-audit or reject-and-audit. A parent protocol owning a budget may decline.
 - **Write `explanation` for the operator.** The model does not see it. If the agent learns why it was flagged, it can learn to avoid being flagged. A separate field, not yet named, carries text the model is meant to read. That field also lets a protocol continue while giving the model information.
-- **Set `authoritative=True` only for a decision a person made.** A parent protocol may not return anything weaker than an authoritative child decision; the dispatcher raises if it does. `human()` sets it. The framework cannot verify a human was involved, so the claim is visible in the log and in code review, as `portable=False` is.
+- **Call `final(decision)` only for a decision no layer above may weaken**, in practice one a person made. It ends the step: siblings still in flight are cancelled, every layer above is recorded as bypassed, and the decision is the outcome. `human()` calls it by default. The framework cannot verify a human was involved, so the claim is visible in the log and in code review, as `portable=False` is.
 
 Named constructors for the common cases:
 
@@ -351,7 +369,7 @@ A common mistake is to compute a score and compare it to a constant inside the s
 | `no_curl` | protocol (a rule) | `Decision.reject(...)` |
 | `rm -rf /` guard | protocol (a rule) | `Decision.reject(...)` |
 | Strip `--force` from a call | protocol (a rule) | `action="modify", modified=...` |
-| `human()` | protocol (a rule) | whatever the person said, `authoritative=True` |
+| `human()` | protocol (a rule) | whatever the person said, through `final()` |
 
 For a first guard, write a rule. It acts with no further configuration. Write a monitor and wrap it in `threshold()` when the function produces a score, or when you want a deterministic detector to be dry-runnable and backtestable before it acts.
 
@@ -431,7 +449,7 @@ There is no `monitor_store_as()` or `monitor_host()` global. Helpers take what t
 
 ### Effects
 
-`context.host` is the only route out of a monitor: inference, keyed storage, outbound JSON, and recording. `sentinel-deployment.md` defines it. In-process these are ordinary implementations; under a proxy they cross the host boundary.
+`context.host` is the only route out of a monitor: inference, keyed storage and outbound JSON; the runner records through a separate `Recorder`. `sentinel-deployment.md` defines it. In-process these are ordinary implementations; under a proxy they cross the host boundary.
 
 Rules:
 
@@ -534,6 +552,17 @@ def threshold(
     reject_at: float,
     terminate_at: float | None = None,
 ) -> ControlProtocol:
+    named = named_children(monitors, "monitor")
+    if not math.isfinite(reject_at) or (
+        terminate_at is not None and not math.isfinite(terminate_at)
+    ):
+        raise ValueError("threshold's constants must be finite")
+    if terminate_at is not None and terminate_at <= reject_at:
+        raise ValueError("terminate_at must be above reject_at, or reject would never fire")
+    for name, child in named:
+        if BeforeToolCall not in step_types(child):
+            raise TypeError(f"threshold acts before tool calls; {name!r} never watches that stage")
+
     async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
         observations = await run_monitors(monitors, context, step)
         score = observations.max_suspicion()
@@ -548,7 +577,7 @@ def threshold(
     return decide
 ```
 
-It holds the constants a monitor must not, reads its children's scores through the runner, and returns a decision.
+It holds the constants a monitor must not, validates them and its children when it is configured, reads its children's scores through the runner, and returns a decision.
 
 ```python
 ControlProtocol: TypeAlias = (
@@ -573,9 +602,9 @@ Rules:
 - **Annotate the return as `ControlProtocol`.** The name avoids `typing.Protocol`; see [Open questions](#open-questions) item 19.
 - **Annotate `step` as `Step`** to run at all four stages. Annotate a single payload to run at one. `threshold` above runs at `BeforeToolCall` so that `reject` is always legal.
 - **Return `Decision | None`.** A protocol's job is to produce a decision.
-- **Invoke children only through the runner.** `run_monitors()` and `run_protocols()` for concurrent fan-out over one family, `run_children()` for a mixed group, `run_monitor()` and `run_protocol()` for one child at a time. See [The runner](#the-runner). A child called any other way produces no event, and a protocol that decided with no child reports in the transcript is visible in the log.
+- **Invoke children only through the runner.** `run_monitors()` and `run_protocols()` for one family, `run_children()` for a mixed group. Each takes one child, a sequence or a mapping, and returns a sequence of reports. See [The runner](#the-runner). A child called any other way produces no event, and a protocol that decided with no child reports in the transcript is visible in the log.
 - **Transform `step` before the call, not after.** Paraphrasing, minification, and honeypot injection are transforms on the input to the runner.
-- **Never return something weaker than an authoritative child decision.** The dispatcher raises if you do. See [The boundary check](#the-boundary-check).
+- **Do not expect to see a final child decision.** A child that calls `final()` ends the step inside your `await run_protocols(...)`, so the rest of your code does not run and you are recorded as bypassed. Do not catch it. See [The boundary check](#the-boundary-check).
 - **Protocols can nest.** A budget-owning protocol can wrap a paraphrasing protocol that wraps monitors. The rule for two nested budget owners is open; outermost wins is the likely answer.
 - **Everything else is ordinary Python** over the runner's results plus `context.store_as`. Thresholds, budget arithmetic, deferral to a trusted model via `context.host.generate()`, and aggregation need no framework support.
 
@@ -584,32 +613,23 @@ Rules:
 ### The runner
 
 ```python
-async def run_monitor(
-    monitor: Monitor, context: Context, step: Step, *, name: str | None = None
-) -> Reported[Observation] | None:
-    """Invoke one monitor if it is annotated for this stage.
+async def run_monitors(monitors: Monitor | Monitors, context: Context, step: Step) -> Observations:
+    """Invoke each monitor annotated for this stage, concurrently.
 
-    Derives the child's Context under this layer's path, records a
-    SentinelEvent, applies the failure policy. Returns None if the child
-    abstained or does not watch this stage.
+    Derives each child's Context under this layer's path, records a
+    SentinelEvent per report, applies the failure policy (deferred). Results
+    in configuration order; empty if every child abstained or does not watch
+    this stage.
     """
 
 
-async def run_protocol(
-    protocol: ControlProtocol, context: Context, step: Step, *, name: str | None = None
-) -> Reported[Decision] | None:
-    """The same, for a child protocol."""
+async def run_protocols(protocols: ControlProtocol | Protocols, context: Context, step: Step) -> Decisions:
+    """The same, for protocols. Cancels siblings when one returns terminate or calls final()."""
 
 
-async def run_monitors(monitors: Monitors, context: Context, step: Step) -> Observations:
-    """tg_collect over run_monitor."""
-
-
-async def run_protocols(protocols: Protocols, context: Context, step: Step) -> Decisions:
-    """tg_collect over run_protocol. Cancels siblings when one returns terminate."""
-
-
-async def run_children(children: Children, context: Context, step: Step) -> Reports:
+async def run_children(
+    children: Monitor | ControlProtocol | Children, context: Context, step: Step
+) -> Reports:
     """Both families in one task group. What concurrent() and chain() use."""
 
 
@@ -618,6 +638,7 @@ class Reported(Generic[R]):
     name: str      # instance name: mapping key, or registry name
     path: str      # "attempt/internet_attempt"
     report: R
+    function: str  # __name__ of the function that produced the report
 
 
 class Observations(Sequence[Reported[Observation]]):
@@ -637,24 +658,28 @@ class Reports:
 What the runner does for every child:
 
 - Skips children not annotated for this stage. The skip looks like abstention.
-- Names the child from the mapping key, or the registry name. Raises on a duplicate name within a layer.
+- Names the child from the mapping key, or the registry name without its package prefix. A single instance is named as a sequence entry is. The runner raises on a duplicate name within a layer; a composition that runs children one at a time validates names itself first.
 - Derives the child's `Context` under this layer's path.
-- Records one `SentinelEvent` per participating child, including reports the parent ignores. Ignored observations are the benign distribution a protocol later calibrates against.
-- Applies the failure policy.
+- Runs every function of the instance annotated for this stage, in the order its factory returned them and one after another, since they share one store. A `terminate` or a `final()` from one ends the instance's run; the functions after it do not run and are not recorded.
+- Records one `SentinelEvent` per report, including reports the parent ignores. Ignored observations are the benign distribution a protocol later calibrates against.
+- Applies the failure policy (deferred; the runner currently propagates every exception).
 
-What the plural forms add: fan-out with `tg_collect()`, so children cannot see each other's conclusions, and cancellation of the remaining children when one returns `terminate`.
+Across the children of one call: fan-out on an anyio task group, with the same ordering and first-exception semantics as inspect_ai's `tg_collect()`, so children cannot see each other's conclusions; `run_children` holds the group so a `terminate` decision or a `final()` can cancel the still-running siblings, and records any child it cancels. A `final()` propagates out of the call; as with `terminate`, the functions of its instance after it do not run and are not recorded; of two that race, the first to reach the group wins and the other is recorded as superseded, and an exception in the same group outranks them.
 
 Results are split by family because the two aggregate differently. `Decisions.strongest()` applies the precedence in [Combining reports](#combining-reports); `Observations.max_suspicion()` takes the per-dimension max. Identity is attached so a protocol can weight or require agreement across specific children.
 
 ### The boundary check
 
-When any protocol returns, the dispatcher validates the decision and raises on a violation. Each is a bug in a protocol, not agent input.
+When any protocol returns a decision, or passes one to `final()`, the runner checks it before anything acts on it.
+
+Shape checks raise. Each is a deterministic bug in a protocol, not agent input, and the error names the protocol.
 
 - The action is legal for the stage.
-- `modified` is set if and only if `action == "modify"`, with the right type for the stage.
-- The decision is not weaker than any authoritative decision from a child of this layer.
+- `modified` is set if and only if `action == "modify"`. Its type is enforced by `Decision`'s validation, not by the runner.
 
-The check runs at every layer of a nested configuration.
+`final()` is the mechanism for a decision no layer above may weaken. It replaces an earlier design in which a `binding` flag set a floor that the runner clamped each layer's return up to, recording the override. A value-level rule requires every layer to carry or compare the property, and each patch to it leaked where a middle layer built a new decision; control flow cannot be dropped by a middle layer, because that layer's code does not run. It reuses `terminate`'s cancellation, and the first `final()` wins, as with two `terminate`s. Ordering several authorities is a `chain`, or a panel that collects advisory votes and calls `final()` itself; see [Humans](#humans).
+
+The dispatcher invokes the resolved root through `run_root`, which treats it as a layer at the empty path: the root's decision is shape-checked and recorded under its registry name with `path=""`, so its children's paths stay bare; a `final()` from below records the root as `bypassed`, and `run_root` returns the final decision as the step's outcome, so the dispatcher never catches `Final`.
 
 ### Two compositions
 
@@ -668,7 +693,7 @@ The check runs at every layer of a nested configuration.
 | `terminate` | cancels the other children | ends the loop |
 | Use for | independent guards that must all be satisfied | a cheap rule ahead of an expensive judge; a human at the end |
 
-`concurrent` is the default. A list or mapping containing a protocol in `Task(sentinel=)` compiles to it. `chain` is one explicit word.
+`concurrent` is the default. A list or mapping containing a protocol in `Task(sentinel=)` resolves to it. `chain` is one explicit word.
 
 Rules:
 
@@ -688,17 +713,15 @@ def chain(children: Children) -> ControlProtocol:
         for name, child in named(children):
             current = replace(step, escalations=tuple(escalations))
             if is_monitor(child):
-                if await run_monitor(child, context, current, name=name) is not None:
+                if await run_monitors({name: child}, context, current):
                     participated = True      # recorded; falls through
                 continue
-            reported = await run_protocol(child, context, current, name=name)
-            if reported is None:
-                continue
-            participated = True
-            if reported.report.action == "escalate":
-                escalations.append(reported)
-            else:
-                return reported.report
+            for reported in await run_protocols({name: child}, context, current):
+                participated = True
+                if reported.report.action == "escalate":
+                    escalations.append(reported)
+                else:
+                    return reported.report
         return Decision.clear() if participated else None
 
     return run
@@ -706,7 +729,20 @@ def chain(children: Children) -> ControlProtocol:
 
 ### Humans
 
-`human()` is a rule (a protocol with no children) for `BeforeToolCall`. It prompts through the existing human approval surfaces, renders `step.escalations` above the call, and returns with `authoritative=True`. Human surfaces queue requests, so two chains that both end in a person prompt one after the other, and the stricter answer wins.
+`human()` is a rule (a protocol with no children) for `BeforeToolCall`. It prompts through the existing human approval surfaces, renders `step.escalations` above the call, and by default passes the person's answer to `final()`. Human surfaces queue requests, so two chains that both end in a person prompt one after the other; the first answer ends the step and the other prompt is cancelled.
+
+`human(final=False)` returns an advisory decision instead, making a person one vote in a panel:
+
+```python
+@protocol
+def panel(children: Protocols) -> ControlProtocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+        votes = await run_protocols(children, context, step)
+        rejects = sum(v.report.action == "reject" for v in votes)
+        final(Decision.reject() if rejects * 2 > len(votes) else Decision.clear())
+
+    return decide
+```
 
 ### Static checking
 
@@ -720,7 +756,7 @@ mypy and pyright check the structural claims before the runtime pass does. `@sco
 | `threshold` takes monitors; `chain` takes children | the parameter types; `threshold(human())` is a type error because a rule has no score |
 | The declared kind matches the body | `return Decision(...)` in a function annotated `-> Observation \| None` is a type error at that line |
 
-Runtime only: per-stage action legality, the authority rule, whether a body went through the runner, and YAML configuration.
+Runtime only: per-stage action legality, whether a body went through the runner, YAML configuration, and that a monitor annotates exactly one payload type (a `Step`-accepting function is a valid `Monitor` by contravariance; `@monitor` rejects it when the factory is called).
 
 ### Combining reports
 
@@ -731,17 +767,17 @@ These rules describe the concurrent composition, which `concurrent()` implements
 - **Every child configured for a stage runs.** No child is skipped because another already formed a view. `chain()` is the explicit exception.
 - **Every report is recorded,** including the ones that lost.
 - **Aggregate suspicion by max.** Per-dimension max when scores are structured. Weighted combinations and requiring agreement are protocol policy.
-- **Aggregate decisions by strength:** `terminate` > `reject` > `modify` > `continue`. `escalate` does not count. If every child escalates, the result is `continue`. One ordering covers all four stages; it is `Decisions.strongest()`.
-- **`terminate` cancels siblings.** Nothing outranks it and the sample is ending. `run_protocols` and `run_children` do this.
+- **Aggregate decisions by strength:** `terminate` > `reject` > `modify` > `continue`. `escalate` does not count, so `Decisions.strongest()` returns `None` both when no protocol decided and when every one escalated; the protocol tells them apart by whether `decisions` is empty, and maps all-escalate to `continue`. One ordering covers all four stages.
+- **`terminate` and `final()` cancel siblings.** Nothing outranks `terminate` and the sample is ending; `final()` has ended the step. `run_protocols` and `run_children` do this, and a cancelled child is recorded as cancelled rather than left indistinguishable from one that abstained.
 - **Child decisions are advisory to the parent.** A parent protocol may honour or override them, and the log records both; see [Transcript](#transcript).
-- **Authoritative decisions are a floor.** A protocol's return may not be weaker than an authoritative child decision. The dispatcher enforces this at every layer.
-- **Run children concurrently.** Sequential dispatch triples latency with three LLM monitors, and it lets a colluding monitor see the others' conclusions. TraceGuard's result (95% safety versus 0%) depends on independence. Use `tg_collect()`, not `asyncio.gather`. The runner does this for you.
+- **A final decision is not a vote.** A child that calls `final()` ends the step before any protocol above it combines anything, and each layer above is recorded as bypassed.
+- **Run children concurrently.** Sequential dispatch triples latency with three LLM monitors, and it lets a colluding monitor see the others' conclusions. TraceGuard's result (95% safety versus 0%) depends on independence. The runner fans out on an anyio task group with `tg_collect()`'s semantics; never `asyncio.gather`.
 - **A `modify` with more than one participant is a rejection.** Concurrent children cannot see each other's rewrites, and the others approved the original arguments. `concurrent()` returns `reject` with an explanation naming the modifier. A `modify` that was the only decision is honoured.
 - **Decide on the protocol whether monitors block the agent or run alongside it.** Blocking costs latency. Running alongside means the agent may spend tokens or take a step before a violation is caught. This is a deployment judgement, so the knob belongs on the protocol, not the monitor.
 
 ### The top level
 
-Every `Task(sentinel=)` configuration compiles to a protocol, so one layer always owns the outcome and records it.
+Every `Task(sentinel=)` configuration resolves to a protocol, so one layer always owns the outcome and records it.
 
 | Configured | Compiles to |
 |---|---|
@@ -771,9 +807,9 @@ Use one of these rather than writing threshold logic by hand. The control papers
 
 | Protocol | Where | What it does |
 |---|---|---|
-| `concurrent` | core | runs every child; strongest decision wins; what a list containing a protocol compiles to |
+| `concurrent` | core | runs every child; strongest decision wins; what a list containing a protocol resolves to |
 | `chain` | core | runs children in order; first non-`escalate` decides; hands escalations forward |
-| `observe` | core | records every observation, acts on none; what a bare monitor compiles to |
+| `observe` | core | records every observation, acts on none; what a bare monitor resolves to |
 | `threshold` | core | `reject` above one constant, `terminate` above another; what calibration feeds |
 | `defer_to_trusted` | core | above a threshold, substitutes the trusted model's action; returns `modify`. `AfterGenerate` only |
 | `resample` | core | above a threshold, draws `n` further completions, executes the least suspicious; `escalate` if none clears. `AfterGenerate` only |
@@ -825,7 +861,7 @@ eval(sentinel=...)
 inspect eval task.py --sentinel sentinel.yaml
 ```
 
-`Task(sentinel=)` takes one monitor or protocol, a list, or a mapping of instance names to either. Monitors alone compile to `observe(...)`; anything containing a protocol compiles to `concurrent(...)`.
+`Task(sentinel=)` takes one monitor or protocol, a list, or a mapping of instance names to either. Monitors alone resolve to `observe(...)`; anything containing a protocol resolves to `concurrent(...)`.
 
 ```python
 Task(sentinel=no_curl())
@@ -904,14 +940,14 @@ class SentinelEvent(BaseEvent):
     event: Literal["sentinel"] = "sentinel"
     name: str             # registry name of the factory, monitor or protocol
     path: str             # instance path, e.g. "attempt/internet_attempt"
+    function: str | None  # __name__ of the reporting function; None for cancelled and bypassed, which are per instance
     step_id: str          # triggering message id, assistant message id, or tool call id
     conversation: str     # the agent conversation; shared with its ModelEvents and CompactionEvents
     stage: Literal["model_input", "model_output", "tool_call", "tool_result"]
-    kind: Literal["observation", "decision"]
+    kind: Literal["observation", "decision", "cancelled", "bypassed", "superseded"]
     suspicion: Suspicion | None
     decision: Action | None
     audit: bool
-    authoritative: bool
     outcome: Action | None
     explanation: str | None
     metadata: dict[str, Any] | None
@@ -924,15 +960,15 @@ Rules:
 
   ```
   name="internet_attempt",  path="attempt/internet_attempt",  kind="decision",  decision="escalate"
-  name="human",             path="attempt/human",             kind="decision",  decision="reject",  authoritative=True
-  name="chain",             path="attempt",                   kind="decision",  decision="reject"
+  name="chain",             path="attempt",                   kind="bypassed"
   name="sandbox_escape",    path="escape",                    kind="decision",  decision="continue"
-  name="concurrent",        path="",                          kind="decision",  decision="reject"
+  name="concurrent",        path="",                          kind="bypassed"
+  name="human",             path="attempt/human",             kind="decision",  decision="reject"
   ```
 
-  The last line is the summary event. The top-level protocol emits it only when more than one child participated, and its explanation lists each child's decision.
+  The person's `reject` went through `final()`: its event is the ordinary decision event of `human`, recorded at the root when it takes effect, after one `bypassed` event per layer above, each written as the `final()` passed it. If two `final()` calls race in one layer, or an exception in the layer outranks one, the losing decision's event is `superseded` and it did not take effect; so is a recorded `terminate` that a sibling's `final()` outran. Without a final decision the last line is the summary event, the root's own decision at `path=""`. Every layer's decision is recorded, the root's included; when more than one child decided, a layer's explanation lists each child's decision after the winner's own.
 
-- **`name` is which code ran. `path` is which configured instance it was.** Two chains built from the same factory differ only in `path`. `kind` says which family it belongs to, and agrees with the registry type by construction.
+- **`name` is which code ran. `path` is which configured instance it was. `function` is which of its functions reported.** Two chains built from the same factory differ only in `path`; two functions of one instance differ only in `function`. `kind` says which family it belongs to, and agrees with the registry type by construction.
 - **`step_id` is what a label matches.** For `BeforeGenerate` it is the id of the message that triggered the generate, with an ordinal suffix on a regenerate; for `AfterGenerate` the assistant message id; for the tool stages the tool call id. All three exist before the monitor runs, so recorded events and replayed steps share ids. See `sentinel-development.md`.
 - **`decision` is what the child decided. `outcome` is what the parent protocol did.** Both are needed to tell an overridden decision from one never made.
 - **There is no `strategy` field.** The protocol's name says what it did. "How often did this protocol defer" is `monitor == "defer_to_trusted" and decision == "modify"`. A protocol that takes several different actions should be composed from nested protocols, or record the detail in `metadata`.
@@ -992,7 +1028,7 @@ Action           = Literal["continue", "modify", "reject", "terminate", "escalat
   Task(approval=threshold(..., reject_at=0.8))               # protocol-mediated
   ```
 
-  The list form keeps its current code path. The `ApprovalPolicy` list is shorthand for an honour-everything protocol. Human approvers stay authoritative under any protocol. `Approval` does not gain a score field; an approver that wants to score should be a monitor under `threshold()`. This is probably a separate PR.
+  The list form keeps its current code path. The `ApprovalPolicy` list is shorthand for an honour-everything protocol. Human approvers stay final under any protocol. `Approval` does not gain a score field; an approver that wants to score should be a monitor under `threshold()`. This is probably a separate PR.
 
 ### The reviewer group's requirements (#5423)
 
@@ -1113,13 +1149,13 @@ Many people will want a chain, and a chain is what approval users know. But orde
 
 A chain hands earlier escalations to the next link so a human sees who is asking and why. #5423 did this by appending to `view.context`, but `view` exists only on the tool stages and is absent under a proxy. A field on all four payloads works everywhere. It is on `step` rather than `Context` because it changes per step, and `Context` is constant for the sample. It is the one field on `step` that monitors wrote rather than the agent, so the injection rule names it as the exception.
 
-### Why `authoritative` is a field
+### Why `final()` is control flow
 
-"A protocol may never override a human" was a prose rule. As a field on the report, the dispatcher can enforce it at every layer boundary by reading the child reports the runner recorded, with no cooperation from the protocol. It is on the report rather than the monitor because the combiner reads reports, and because the log should show which decisions were a person's.
+"A protocol may never override a human" was a prose rule, then a `binding` field the runner clamped each layer to. A property of a value has to be carried or compared by every layer, and a layer that builds a new decision drops it. `final()` ends the step instead, so no layer above runs to drop anything, and the log shows which decisions were final and which layers they bypassed.
 
-### Why the top level always compiles to a protocol
+### Why the top level always resolves to a protocol
 
-Without it, a bare list combined decisions by severity but no layer owned the outcome, so nothing recorded it. Compiling to `concurrent()` gives the summary event #5423 asked for and gives the `modify` rule and the authority check one place to live. Compiling bare monitors to `observe()` makes recording-only an explicit configuration rather than a silent one.
+Without it, a bare list combined decisions by severity but no layer owned the outcome, so nothing recorded it. Compiling to `concurrent()` gives the summary event #5423 asked for and gives the `modify` rule one place to live. Compiling bare monitors to `observe()` makes recording-only an explicit configuration rather than a silent one.
 
 ### Why the protocol calls the monitors
 

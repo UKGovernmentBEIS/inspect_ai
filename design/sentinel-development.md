@@ -117,7 +117,7 @@ Events also restore `input` exactly, from `ModelEvent.input`, and let `history` 
 Replay reproduces the monitor's *reports*, not its *effects*. A `reject` in replay does not change the transcript; the agent already did what it did. This is the right limitation for measuring a classifier — precision and recall are about reports — but it means two things cannot be back-tested offline:
 
 - **Interventions.** Whether rejecting call 7 would have led the agent somewhere better is a question for a live eval, not a replay.
-- **Humans.** `human()`, a protocol with no children, cannot be replayed. The useful substitute is to *replay the recorded human decision* when the transcript carries a `SentinelEvent` for that step with `authoritative=True`, so a chain can be back-tested against the answers a person actually gave; otherwise `human()` abstains in replay.
+- **Humans.** `human()`, a protocol with no children, cannot be replayed. The useful substitute is to *replay the recorded human decision* when the transcript carries a `SentinelEvent` from that `human()` instance for that step, passing it to `final()` when the recorded run did (the `bypassed` events above it say so), so a chain can be back-tested against the answers a person actually gave; otherwise `human()` abstains in replay.
 
 ## Step ids
 
@@ -187,7 +187,7 @@ What `input` holds on an expanded row is a recorder decision rather than a desig
 | Report | `value` | `answer` | `metadata` | `label` | `subject` |
 |------------------------|------------------------|------------------------|------------------------|------------------------|------------------------|
 | `Observation` | `suspicion` — float or dict | — | monitor metadata | instance path | step id |
-| `Decision` | flagged: `action` in `reject`, `modify`, `terminate` | `action` | `audit`, `authoritative`, `modified`, child reports | instance path | step id |
+| `Decision` | flagged: `action` in `reject`, `modify`, `terminate` | `action` | `audit`, `modified`, child reports | instance path | step id |
 | abstained | `None` | `None` | — | instance path | step id |
 
 Three things the table encodes:
