@@ -106,6 +106,14 @@ jobs:
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: uv sync
 
+      # TEMPORARY until inspect_sentinel is on PyPI: its git-ref dependency on
+      # inspect-ai conflicts with the editable install, so it cannot go in
+      # requirements-dev.txt. --no-deps so the drift test in
+      # tests/log/test_event_discriminator.py runs instead of skipping.
+      - name: Install inspect_sentinel (TEMPORARY)
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel"
+
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: uv run --no-sync mypy --exclude tests/test_package src tests
@@ -328,6 +336,14 @@ jobs:
         run: |-
           uv sync
           uv pip install --no-deps ./tests/test_package
+
+      # TEMPORARY until inspect_sentinel is on PyPI: its git-ref dependency on
+      # inspect-ai conflicts with the editable install, so it cannot go in
+      # requirements-dev.txt. --no-deps so the drift test in
+      # tests/log/test_event_discriminator.py runs instead of skipping.
+      - name: Install inspect_sentinel (TEMPORARY)
+        if: env.RUN_TESTS == 'true'
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
