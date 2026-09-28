@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Support for Claude Sonnet 5.5 (`claude-sonnet-5-5`): `reasoning_effort="none"` turns off up-front thinking, forced tool choice degrades to auto, and computer use uses the computer toolset on the Claude API and Vertex.
 - Tools: `web_browser()` is deprecated, logs a warning when called, and will be removed in a future release.
 - Inspect View: Shard logs under `<name>.shards/` are hidden once a successful merged log covers them (`inspect view --show-shards` to list them); bundles leave them out.
 - Computer tool: click actions called without a `coordinate` now click at the current cursor position instead of failing, and the tool description states which actions require one.
