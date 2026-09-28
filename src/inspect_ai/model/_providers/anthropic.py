@@ -1502,12 +1502,12 @@ class AnthropicAPI(ModelAPI):
         request for these models — not only those replaying thinking blocks —
         so the beta header stays uniform across a task's requests (the batcher
         submits a single header set per batch). Mythos 5.1 does not run the
-        binding check, so it is excluded. First-party API only for now, plus
-        Sonnet 5.5 on Bedrock (verified live): the binding-controls beta
-        arrives per model on bedrock/vertex (the header is rejected until
-        then) and is not offered on foundry — until those platforms enable
-        it, a history edit there will still 400. The API
-        accepts `block_binding` only with adaptive thinking, so Sonnet 5.5's
+        binding check, so it is excluded. Applied on the first-party API and,
+        for Sonnet 5.5 (verified live), on Bedrock: the binding-controls beta
+        arrives per model on bedrock/vertex and is not offered on foundry, so
+        other model/platform pairs stay opted out until verified, and a
+        history edit there can still 400. The API accepts `block_binding`
+        only with adaptive thinking, so Sonnet 5.5's
         `between_tools` (`reasoning_effort="none"`) requests carry the beta
         header but no binding config, and a history edit before a replayed
         thinking block can still 400 there. A caller-supplied
@@ -4010,9 +4010,9 @@ async def model_output_from_message(
         {"extra_body": dict(extra_body)} if extra_body else None
     )
 
-    # thinking block binding (Fable 5.1): with the thinking-binding
-    # beta, replayed thinking blocks the server dropped (e.g. after a history
-    # edit) are reported via input_transformations. Warn so callers know
+    # thinking block binding (Fable 5.1, Opus 5.5, Sonnet 5.5): with the
+    # thinking-binding beta, replayed thinking blocks the server dropped (e.g.
+    # after a history edit) are reported via input_transformations. Warn so callers know
     # reasoning context was lost; the raw entries (including the message path
     # of each dropped block) are captured under metadata["extra_body"] above.
     for transformation in extra_body.get("input_transformations") or []:

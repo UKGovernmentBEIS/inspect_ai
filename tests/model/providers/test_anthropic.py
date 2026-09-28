@@ -1907,7 +1907,7 @@ def test_anthropic_fable_5_no_binding_on_base_model(model_name: str) -> None:
     ],
 )
 def test_anthropic_fable_5_1_no_binding_off_first_party(model_name: str) -> None:
-    """The thinking-binding beta is first-party only (not bedrock/vertex/azure)."""
+    """The thinking-binding beta is first-party only, except Sonnet 5.5 on Bedrock."""
     setenv_if_unset("AWS_REGION", "us-east-1")
     setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
     setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
