@@ -1,6 +1,7 @@
 from typing import Annotated, Literal, TypeAlias
 
-from pydantic import Field, FiniteFloat
+from pydantic import Field, FiniteFloat, model_validator
+from typing_extensions import Self
 
 from inspect_ai.event._base import BaseEvent
 
@@ -13,6 +14,12 @@ SentinelStage: TypeAlias = Literal[
     "model_input", "model_output", "tool_call", "tool_result"
 ]
 """Point in the agent loop a sentinel step belongs to."""
+
+
+SentinelSuspicion: TypeAlias = (
+    FiniteFloat | Annotated[dict[str, FiniteFloat], Field(min_length=1)]
+)
+"""How suspicious a step is: one finite score, or a non-empty dict of scores for several dimensions."""
 
 
 class SentinelEvent(BaseEvent):
@@ -42,9 +49,7 @@ class SentinelEvent(BaseEvent):
     kind: Literal["observation", "decision", "cancelled", "bypassed", "superseded"]
     """`observation` from a monitor, `decision` from a protocol; `cancelled` and `bypassed` record no report; `superseded` carries a decision that did not take effect."""
 
-    suspicion: (
-        FiniteFloat | Annotated[dict[str, FiniteFloat], Field(min_length=1)] | None
-    ) = Field(default=None)
+    suspicion: SentinelSuspicion | None = Field(default=None)
     """How suspicious the step is: one score, or scores for several dimensions."""
 
     decision: SentinelAction | None = Field(default=None)
@@ -58,3 +63,29 @@ class SentinelEvent(BaseEvent):
 
     explanation: str | None = Field(default=None)
     """Explanation for the report."""
+
+    @model_validator(mode="after")
+    def _check_kind_fields(self) -> Self:
+        if self.kind in ("cancelled", "bypassed"):
+            unexpected = [
+                field
+                for field in ("function", "suspicion", "decision", "outcome")
+                if getattr(self, field) is not None
+            ]
+            if unexpected:
+                raise ValueError(
+                    f"A '{self.kind}' SentinelEvent records no report, so "
+                    f"{', '.join(unexpected)} must be None."
+                )
+        elif self.kind == "observation":
+            if self.suspicion is None or self.decision is not None:
+                raise ValueError(
+                    "An 'observation' SentinelEvent requires suspicion and no decision."
+                )
+        elif self.decision is None or self.suspicion is not None:
+            raise ValueError(
+                f"A '{self.kind}' SentinelEvent requires decision and no suspicion."
+            )
+        if self.kind not in ("cancelled", "bypassed") and self.function is None:
+            raise ValueError(f"A '{self.kind}' SentinelEvent requires function.")
+        return self

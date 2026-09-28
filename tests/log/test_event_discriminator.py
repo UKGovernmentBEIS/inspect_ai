@@ -1,3 +1,4 @@
+import io
 import re
 from pathlib import Path
 from typing import Any, get_args
@@ -9,7 +10,11 @@ import inspect_ai
 from inspect_ai.event._event import DiscriminatedEvent, Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.event._sentinel import SentinelAction, SentinelEvent
+from inspect_ai.event._sentinel import (
+    SentinelAction,
+    SentinelEvent,
+    SentinelSuspicion,
+)
 
 
 def test_event_public_alias_stays_introspectable() -> None:
@@ -89,11 +94,25 @@ def _sentinel_event(**kwargs: Any) -> SentinelEvent:
     return SentinelEvent.model_validate(fields)
 
 
+def _observation(**kwargs: Any) -> SentinelEvent:
+    fields: dict[str, Any] = dict(
+        kind="observation", decision=None, outcome=None, suspicion=0.5
+    )
+    fields.update(kwargs)
+    return _sentinel_event(**fields)
+
+
 @pytest.mark.parametrize(
-    "suspicion", [None, 0.25, {"exfiltration": 0.9, "sabotage": 0.1}]
+    "event",
+    [
+        _sentinel_event(),
+        _sentinel_event(kind="superseded", audit=True, metadata={"k": 1}),
+        _observation(),
+        _observation(suspicion={"exfiltration": 0.9, "sabotage": 0.1}),
+        _sentinel_event(kind="bypassed", function=None, decision=None, outcome=None),
+    ],
 )
-def test_sentinel_event_round_trips(suspicion: float | dict[str, float] | None) -> None:
-    event = _sentinel_event(suspicion=suspicion, audit=True, metadata={"k": 1})
+def test_sentinel_event_round_trips(event: SentinelEvent) -> None:
     adapter: TypeAdapter[Event] = TypeAdapter(DiscriminatedEvent)
     restored = adapter.validate_json(adapter.dump_json(event))
     assert isinstance(restored, SentinelEvent)
@@ -103,19 +122,81 @@ def test_sentinel_event_round_trips(suspicion: float | dict[str, float] | None) 
 def test_sentinel_event_rejects_invalid_suspicion() -> None:
     for suspicion in [float("nan"), float("inf"), {}]:
         with pytest.raises(ValidationError):
-            _sentinel_event(suspicion=suspicion)
+            _observation(suspicion=suspicion)
+
+
+@pytest.mark.parametrize("kind", ["cancelled", "bypassed"])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("function", "f"),
+        ("suspicion", 0.5),
+        ("decision", "continue"),
+        ("outcome", "continue"),
+    ],
+)
+def test_sentinel_event_without_report_rejects_report_fields(
+    kind: str, field: str, value: Any
+) -> None:
+    fields: dict[str, Any] = dict(kind=kind, function=None, decision=None, outcome=None)
+    _sentinel_event(**fields)
+    fields[field] = value
+    with pytest.raises(ValidationError, match=field):
+        _sentinel_event(**fields)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [dict(suspicion=None), dict(decision="continue"), dict(function=None)],
+)
+def test_sentinel_observation_requires_suspicion_only(
+    overrides: dict[str, Any],
+) -> None:
+    with pytest.raises(ValidationError):
+        _observation(**overrides)
+
+
+@pytest.mark.parametrize("kind", ["decision", "superseded"])
+@pytest.mark.parametrize(
+    "overrides",
+    [dict(decision=None), dict(suspicion=0.5), dict(function=None)],
+)
+def test_sentinel_decision_requires_decision_only(
+    kind: str, overrides: dict[str, Any]
+) -> None:
+    with pytest.raises(ValidationError):
+        _sentinel_event(kind=kind, **overrides)
+
+
+def test_sentinel_event_outcome_is_unconstrained_for_reports() -> None:
+    assert _observation(outcome="terminate").outcome == "terminate"
+    assert _sentinel_event(outcome=None).outcome is None
 
 
 def test_sentinel_event_renders_in_tui() -> None:
+    from rich.console import Console
+
     from inspect_ai._display.textual.widgets.transcript import render_event
 
-    displays = render_event(_sentinel_event(suspicion=0.5))
+    event = _sentinel_event(
+        path="[bold]attempt [/red]", explanation="matched [/red] in output"
+    )
+    displays = render_event(event)
     assert displays is not None and len(displays) == 1
     assert displays[0].title == "sentinel: tool_call"
+    buffer = io.StringIO()
+    Console(file=buffer, width=200).print(displays[0].content)
+    output = buffer.getvalue()
+    assert "[bold]attempt [/red]" in output
+    assert "matched [/red] in output" in output
 
 
-def test_sentinel_action_matches_inspect_sentinel() -> None:
+def test_sentinel_types_match_inspect_sentinel() -> None:
     # SentinelEvent is always in the Event union, so it declares its own
-    # Action rather than importing inspect_sentinel.
+    # literals rather than importing inspect_sentinel.
     report = pytest.importorskip("inspect_sentinel._report")
     assert get_args(SentinelAction) == get_args(report.Action)
+    assert (
+        TypeAdapter(SentinelSuspicion).json_schema()
+        == TypeAdapter(report.Suspicion).json_schema()
+    )

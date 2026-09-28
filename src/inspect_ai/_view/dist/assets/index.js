@@ -103991,7 +103991,8 @@ var kDefaultExcludeEvents = [
 	"store",
 	"branch",
 	"anchor",
-	"checkpoint"
+	"checkpoint",
+	"sentinel"
 ];
 var EventNode = class {
 	id;

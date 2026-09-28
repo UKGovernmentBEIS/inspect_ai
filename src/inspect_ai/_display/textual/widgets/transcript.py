@@ -3,6 +3,7 @@ from typing import Any, Callable, NamedTuple, Sequence, Type
 from pydantic import JsonValue
 from pydantic_core import to_json
 from rich.console import Group, RenderableType
+from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 from textual.containers import ScrollableContainer
@@ -396,7 +397,7 @@ def render_sentinel_event(event: SentinelEvent) -> EventDisplay:
     if event.explanation:
         summary = f"{summary} ({event.explanation})"
     content: list[RenderableType] = [
-        f"[bold]{event.path or event.name}[/bold]: {summary}"
+        f"[bold]{escape(event.path or event.name)}[/bold]: {escape(summary)}"
     ]
 
     return EventDisplay(f"sentinel: {event.stage}", Group(*content))
