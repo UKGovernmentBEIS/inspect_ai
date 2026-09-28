@@ -298,6 +298,14 @@ async def init_sandbox_environments_sample(
         await sample_cleanup(task_name, config, environments, True)
         raise ex
 
+    except anyio.get_cancelled_exc_class() as ex:
+        # cancellation is not an Exception, and the caller only cleans up
+        # environments it was handed, which init never returns when cancelled
+        environments = unproxy_environments(environments)
+        with anyio.CancelScope(shield=True):
+            await sample_cleanup(task_name, config, environments, True)
+        raise ex
+
 
 async def cleanup_sandbox_environments_sample(
     type: str,

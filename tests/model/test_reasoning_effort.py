@@ -14,6 +14,8 @@ Covers:
   MiniMax M2 (which reject them), while other models (deepseek/glm/kimi and MiniMax
   M3) accept and pass through `none`/`xhigh`/`max`.
 - OpenRouter: `max` is remapped to `xhigh` (OpenRouter does not accept `max`).
+- OpenAI-compatible providers: `supports_max_reasoning_effort()` recognizes OpenAI
+  families by default and a subclass's override reaches the Responses request.
 """
 
 import logging
@@ -513,7 +515,7 @@ def _openai_responses_params(effort, supports_max):
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = True
     model_info.is_gpt_5_plus.return_value = True
-    model_info.is_gpt_6.return_value = False
+    model_info.always_reasons.return_value = False
     model_info.is_gpt_5_pro.return_value = False
     model_info.is_gpt_5_chat.return_value = False
     model_info.is_o_series.return_value = False
@@ -591,6 +593,9 @@ def _responses_params_for(model_name, config):
         ("gpt-5.6", "max"),
         ("gpt-5.6-sol", "max"),
         ("gpt-5.5", "xhigh"),
+        ("gpt-6-astra", "max"),
+        ("gpt-6-sol", "max"),
+        ("gpt-6-luna", "max"),
     ],
 )
 def test_openai_responses_max_effort_by_model(model_name, expected):
@@ -670,6 +675,9 @@ def test_openai_responses_explicit_none_effort_keeps_sampling_params():
         ("gpt-5.5", True, True),
         ("gpt-5.5-pro", True, True),
         ("gpt-5.6-sol", True, True),
+        ("gpt-6-astra", True, True),
+        ("gpt-6-sol", True, True),
+        ("gpt-6-luna", True, True),
         ("gpt-5.6-chat", False, False),  # -chat variants don't reason
         ("gpt-4o", False, False),
         ("o3", False, False),
@@ -710,6 +718,93 @@ def test_openai_supports_max_reasoning_effort(model_name, expected):
     assert api.supports_max_reasoning_effort() is expected
 
 
+# -- OpenAI-compatible providers: `max` support hook reaches the Responses request --
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("gpt-5.6", True),
+        ("gpt-5.5", False),
+        ("foo-bar-22", False),  # no codename/latest detection for compatible services
+        ("muse-spark-1.3", False),
+    ],
+)
+def test_openai_compatible_supports_max_reasoning_effort(model_name, expected):
+    from inspect_ai.model._providers.openai_compatible import (
+        ModelInfo,
+        OpenAICompatibleAPI,
+    )
+
+    api = OpenAICompatibleAPI(
+        model_name=f"svc/{model_name}",
+        base_url="https://example.invalid/v1",
+        api_key="test-key",
+    )
+    assert api.supports_max_reasoning_effort() is expected
+    assert ModelInfo(model_name).supports_max_reasoning_effort() is expected
+
+
+@pytest.mark.parametrize("supports_max", [True, False])
+def test_openai_compatible_model_info_max_override(supports_max):
+    from inspect_ai.model._providers.openai_compatible import ModelInfo
+
+    info = ModelInfo("gpt-5.5", supports_max_reasoning_effort=supports_max)
+    assert info.supports_max_reasoning_effort() is supports_max
+    info = ModelInfo("gpt-5.6", supports_max_reasoning_effort=supports_max)
+    assert info.supports_max_reasoning_effort() is supports_max
+
+
+@pytest.mark.parametrize(
+    "override,expected",
+    [(True, "max"), (False, "xhigh")],
+)
+async def test_openai_compatible_max_support_reaches_responses_request(
+    monkeypatch, override, expected
+):
+    """A subclass's `supports_max_reasoning_effort()` decides what is sent."""
+    from unittest.mock import AsyncMock
+
+    from openai.types.responses import Response
+
+    from inspect_ai.model import ChatMessageUser
+    from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+
+    class SupportsMaxAPI(OpenAICompatibleAPI):
+        def supports_max_reasoning_effort(self) -> bool:
+            return override
+
+    api = SupportsMaxAPI(
+        model_name="svc/some-model",
+        base_url="https://example.invalid/v1",
+        api_key="test-key",
+        responses_api=True,
+        stream=False,
+    )
+    create = AsyncMock(
+        return_value=Response.model_construct(
+            id="resp_test",
+            model="some-model",
+            created_at=0.0,
+            object="response",
+            status="completed",
+            output=[],
+            tools=[],
+        )
+    )
+    monkeypatch.setattr(api.client.responses, "create", create)
+    try:
+        await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(reasoning_effort="max"),
+        )
+    finally:
+        await api.aclose()
+    assert create.call_args.kwargs["reasoning"]["effort"] == expected
+
+
 # -- OpenRouter max -> xhigh clamp --
 
 
@@ -740,7 +835,7 @@ def test_openrouter_max_clamped_to_xhigh(effort, expected):
 # by test_grok_xhigh_clamped_on_older_sdk below).
 
 
-@pytest.mark.parametrize("model_name", ["grok-4.3", "grok-4.5", "grok-4.6"])
+@pytest.mark.parametrize("model_name", ["grok-4.3", "grok-4.5", "grok-4.6", "grok-4.7"])
 @pytest.mark.parametrize(
     "effort,expected",
     [
@@ -797,31 +892,48 @@ def test_grok_4_original_excluded_from_reasoning_effort():
     for name in ("grok-4", "grok-4-latest", "grok-4-0709"):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert api.is_grok_4_original(), f"{name} should be detected as original"
-    # grok-4.3 / 4-fast / 4.20 / 4.5 / 4.6 are NOT the original
+    # grok-4.3 / 4-fast / 4.20 / 4.5 / 4.6 / 4.7 are NOT the original
     for name in (
         "grok-4.3",
         "grok-4-fast-reasoning",
         "grok-4.20",
         "grok-4.5",
         "grok-4.6",
+        "grok-4.7",
     ):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert not api.is_grok_4_original(), f"{name} must not be original"
 
 
-# -- GPT-6 always reasons: sampling params rejected regardless of effort --
+# -- GPT-6: every member reasons by default (sampling params dropped when no
+# effort is set); only Astra can't turn reasoning off with `none` --
+
+_SAMPLING_CONFIG = GenerateConfig(
+    temperature=0.7, top_p=0.9, logprobs=True, top_logprobs=3
+)
 
 
-@pytest.mark.parametrize("model_name", ["gpt-6-astra", "gpt-6"])
-def test_openai_responses_gpt_6_drops_sampling_params_without_effort(model_name):
-    params = _responses_params_for(
-        model_name,
-        GenerateConfig(temperature=0.7, top_p=0.9, logprobs=True, top_logprobs=3),
-    )
+def _assert_sampling_params_dropped(params):
     assert "temperature" not in params
     assert "top_p" not in params
     assert "top_logprobs" not in params
     assert "message.output_text.logprobs" not in params["include"]
+
+
+def _assert_sampling_params_sent(params):
+    assert params["temperature"] == 0.7
+    assert params["top_p"] == 0.9
+    assert params["top_logprobs"] == 3
+    assert "message.output_text.logprobs" in params["include"]
+
+
+@pytest.mark.parametrize(
+    "model_name", ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6"]
+)
+def test_openai_responses_gpt_6_drops_sampling_params_without_effort(model_name):
+    params = _responses_params_for(model_name, _SAMPLING_CONFIG)
+    _assert_sampling_params_dropped(params)
+    assert "reasoning" not in params or "effort" not in params["reasoning"]
 
 
 @pytest.mark.parametrize("model_name", ["gpt-5.4", "computer-use-preview"])
@@ -831,13 +943,98 @@ def test_openai_responses_non_gpt_6_keeps_sampling_params_without_effort(model_n
 
 
 @pytest.mark.parametrize(
-    "model_name,expected",
-    [("gpt-6-astra", True), ("gpt-6", True), ("gpt-5.6-sol", False), ("gpt-5", False)],
+    "model_name",
+    ["gpt-6-sol", "gpt-6-luna", "openai.gpt-6-sol", "my-gpt-6-luna-deployment"],
 )
-def test_openai_compatible_model_info_is_gpt_6(model_name, expected):
+def test_openai_responses_gpt_6_sol_luna_none_effort_sends_sampling_params(
+    model_name,
+):
+    # `none` is sent through as-is (not clamped or dropped) and, as for
+    # gpt-5.5+ with `none`, sampling params are sent
+    params = _responses_params_for(
+        model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort="none"))
+    )
+    assert params["reasoning"]["effort"] == "none"
+    _assert_sampling_params_sent(params)
+
+
+@pytest.mark.parametrize("model_name", ["gpt-6-sol", "gpt-6-luna"])
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
+def test_openai_responses_gpt_6_sol_luna_effort_drops_sampling_params(
+    model_name, effort
+):
+    params = _responses_params_for(
+        model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
+    )
+    assert params["reasoning"]["effort"] == effort
+    _assert_sampling_params_dropped(params)
+
+
+@pytest.mark.parametrize("model_name", ["o3", "gpt-5"])
+@pytest.mark.parametrize("effort", [None, "none"])
+def test_openai_responses_always_reasoning_models_drop_sampling_params(
+    model_name, effort
+):
+    # o-series and gpt-5.0 can't turn reasoning off either; they share the
+    # always_reasons() gate with Astra
+    params = _responses_params_for(
+        model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
+    )
+    _assert_sampling_params_dropped(params)
+
+
+@pytest.mark.parametrize(
+    "model_name", ["gpt-6-astra", "openai.gpt-6-astra", "my-gpt-6-astra-deployment"]
+)
+@pytest.mark.parametrize("effort", [None, "none", "low", "max"])
+def test_openai_responses_gpt_6_astra_drops_sampling_params_regardless_of_effort(
+    model_name, effort
+):
+    # regression: splitting "GPT-6 always reasons" into an Astra-only predicate
+    # must not change Astra, which rejects sampling params even with `none`
+    params = _responses_params_for(
+        model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
+    )
+    _assert_sampling_params_dropped(params)
+    if effort is not None:
+        assert params["reasoning"]["effort"] == effort
+
+
+@pytest.mark.parametrize("model_name", ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"])
+def test_openai_compatible_model_info_gpt_6_is_gpt_5_plus(model_name):
     from inspect_ai.model._providers.openai_compatible import ModelInfo
 
     info = ModelInfo(model_family=model_name)
-    assert info.is_gpt_6() is expected
     assert info.is_gpt_5() is True
-    assert info.is_gpt_5_plus() is (model_name != "gpt-5")
+    assert info.is_gpt_5_plus() is True
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("gpt-6-astra", True),
+        ("GPT-6-Astra", True),
+        ("openai.gpt-6-astra", True),  # bedrock api_model_name prefix
+        ("my-gpt-6-astra-deployment", True),  # azure deployment name
+        ("gpt-6-sol", False),
+        ("gpt-6-luna", False),
+        ("openai.gpt-6-sol", False),
+        ("my-gpt-6-luna-deployment", False),
+        ("gpt-6", False),
+        ("gpt-5.6-sol", False),
+        ("gpt-5.5", False),
+        ("gpt-5.1", False),
+        ("gpt-5", True),  # gpt-5.0 has no `none` effort
+        ("o3", True),
+        ("gpt-4o", False),
+        ("computer-use-preview", False),
+        ("foo-bar-22", False),  # codename: strict name check only
+    ],
+)
+def test_openai_always_reasons(model_name, expected):
+    from inspect_ai.model._providers.openai import OpenAIAPI
+    from inspect_ai.model._providers.openai_compatible import ModelInfo
+
+    api = OpenAIAPI(model_name=model_name, api_key="test-key")
+    assert api.always_reasons() is expected
+    assert ModelInfo(model_family=model_name).always_reasons() is expected
