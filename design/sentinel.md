@@ -191,8 +191,8 @@ class AfterToolCall:
 
 
 Step: TypeAlias = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall
-Stage: TypeAlias = Literal["model_input", "model_output", "tool_call", "tool_result"]  # one per payload class
 """The union, for code that handles any point — a protocol, or a dispatcher."""
+Stage: TypeAlias = Literal["model_input", "model_output", "tool_call", "tool_result"]  # one per payload class
 ```
 
 `AfterGenerate` carries the request that produced `output` — `input`, `tools`, `tool_choice`, `config` — as well as the output, because a protocol that substitutes an action (`resample`, `defer_to_trusted`) has to regenerate with exactly what the agent was given.
