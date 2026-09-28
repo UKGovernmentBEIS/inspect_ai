@@ -192,7 +192,6 @@ class AfterToolCall:
 
 Step: TypeAlias = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall
 """The union. Protocols annotate this to run at every stage."""
-Stage: TypeAlias = Literal["model_input", "model_output", "tool_call", "tool_result"]  # one per payload class
 ```
 
 Everything in `step` except `conversation` and `escalations` was written or shaped by the agent under observation and can carry prompt injection. Nothing in `context` came from the agent. Treat `step` as evidence and `context` as instructions.
