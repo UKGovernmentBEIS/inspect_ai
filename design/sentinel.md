@@ -191,6 +191,7 @@ class AfterToolCall:
 
 
 Step: TypeAlias = BeforeGenerate | AfterGenerate | BeforeToolCall | AfterToolCall
+Stage: TypeAlias = Literal["model_input", "model_output", "tool_call", "tool_result"]  # one per payload class
 """The union, for code that handles any point — a protocol, or a dispatcher."""
 ```
 
