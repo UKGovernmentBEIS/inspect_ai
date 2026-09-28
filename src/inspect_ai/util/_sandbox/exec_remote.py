@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import logging
 import shlex
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar, Literal, TypeVar, Union, cast
 
 import anyio
@@ -29,6 +30,8 @@ from ._json_rpc_transport import SandboxJSONRPCTransport
 if TYPE_CHECKING:
     from .._subprocess import ExecResult
     from .environment import SandboxEnvironment
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -108,16 +111,36 @@ class ExecRemoteCommonOptions:
     """Interval between poll requests in seconds"""
 
     poll_timeout: float | None = None
-    """Timeout for individual RPC poll requests in seconds. Defaults to 120 seconds."""
+    """Timeout for individual RPC poll requests in seconds. Defaults to 120 seconds.
+
+    A poll that times out is re-issued for up to 15 minutes before its timeout is
+    raised. While the command is running, the sandbox replays any output the lost
+    response carried; if the command ended during the stall, its final output and
+    exit status are lost and `RuntimeError` is raised. Each attempt may itself be
+    retried by the sandbox before it times out (see `poll_timeout_retry`). Set
+    `timeout` (awaitable mode) or cancel the caller to bound the total wait.
+    """
 
     poll_timeout_retry: bool | None = None
-    """Retry individual RPC poll requests when they time out.
+    """Retry individual RPC requests (start, poll, stdin, kill) when they time out.
     Requests will be retried up to twice, with a timeout of no greater
     than 60 seconds for the first retry and 30 for the second."""
 
     concurrency: bool = True
     """For sandboxes that run locally, request that the `concurrency()`
     function be used to throttle concurrent subprocesses."""
+
+    start_timeout: float | None = field(default=None, kw_only=True)
+    """Timeout for the initial start request in seconds.
+
+    Defaults to `poll_timeout` (120 seconds if that is unset). Set this above
+    `poll_timeout` when a stalled poll should be noticed and re-issued quickly but
+    launching the command should tolerate a slow sandbox. exec_remote re-issues a
+    poll that times out but never a start, since a second start would launch a
+    second process. Unless `poll_timeout_retry` is False, a sandbox that retries
+    timed-out commands (Docker does by default) can still re-run a start that
+    times out.
+    """
 
 
 @dataclass
@@ -192,6 +215,23 @@ MIN_POLL_INTERVAL = 5
 
 RPC_TIMEOUT = 120
 """Timeout for individual JSON-RPC calls in seconds."""
+
+POLL_TIMEOUT_RIDE_THROUGH_SECONDS: float = 900.0
+"""Seconds to keep re-polling after a poll RPC first times out.
+
+While the command is running, a poll that times out has lost a response, not
+the process: the sandbox server holds every output chunk until the host
+acknowledges it (``ack_seq``), so re-issuing the same poll replays whatever the
+lost response carried. (A command that ended during the stall has been retired
+with its final output; see ``_poll``.) The budget is counted from the first
+timeout, so a long first attempt cannot use it up, and a re-poll already in
+flight when it runs out is allowed to finish; then the last timeout is raised
+unchanged. Only polls ride through -- ``exec_remote_start`` and ``write_stdin``
+are not safe to repeat.
+"""
+
+POLL_TIMEOUT_RIDE_THROUGH_WAIT_SECONDS: float = 5.0
+"""Pause between re-polls while riding through a timeout."""
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -273,14 +313,25 @@ class ExecRemoteProcess:
     # RPC helpers
     # -------------------------------------------------------------------------
 
+    def _timeout_for(self, override: float | None) -> float:
+        if override is not None:
+            return override
+        return (
+            RPC_TIMEOUT
+            if self._options.poll_timeout is None
+            else self._options.poll_timeout
+        )
+
     async def _rpc(
-        self, method: str, params: dict[str, object], result_type: type[T]
+        self,
+        method: str,
+        params: dict[str, object],
+        result_type: type[T],
+        timeout: float | None = None,
     ) -> T:
         """Make an RPC call to the sandbox."""
         extra_args: dict[str, object] = dict(
-            timeout=RPC_TIMEOUT
-            if self._options.poll_timeout is None
-            else self._options.poll_timeout,
+            timeout=self._timeout_for(timeout),
             # Run the CLI wrapper as the same user that started the server.
             # When root is available, this is "root" (needed to access the
             # server's private state directory inside the 0700 tools tree).
@@ -320,7 +371,12 @@ class ExecRemoteProcess:
         if (user := tools_user_param(self._sandbox, self._options.user)) is not None:
             params["user"] = user
 
-        result = await self._rpc("exec_remote_start", params, _StartResult)
+        result = await self._rpc(
+            "exec_remote_start",
+            params,
+            _StartResult,
+            timeout=self._options.start_timeout,
+        )
         self._pid = result.pid
 
     # -------------------------------------------------------------------------
@@ -430,7 +486,41 @@ class ExecRemoteProcess:
             self._last_seq = result.seq
             return result
 
-        return await poll()
+        # Each poll() call above is a fresh RuntimeError retry sequence; this loop
+        # governs only the sandbox's own exec timeout (see the module constants).
+        ride_through_deadline: float | None = None
+        while True:
+            try:
+                return await poll()
+            except TimeoutError as ex:
+                now = time.monotonic()
+                if ride_through_deadline is None:
+                    ride_through_deadline = now + POLL_TIMEOUT_RIDE_THROUGH_SECONDS
+                if now >= ride_through_deadline:
+                    raise
+                logger.warning(
+                    "exec_remote poll for pid %s timed out (%s); re-polling with "
+                    "ack_seq=%s for up to %.0fs more",
+                    self._pid,
+                    ex,
+                    self._last_seq,
+                    ride_through_deadline - now,
+                )
+                await anyio.sleep(POLL_TIMEOUT_RIDE_THROUGH_WAIT_SECONDS)
+            except RuntimeError as ex:
+                if (
+                    ride_through_deadline is not None
+                    and not self._killed
+                    and f"No job found with pid {self._pid}" in str(ex)
+                ):
+                    raise RuntimeError(
+                        f"exec_remote process {self._pid} is no longer tracked by the "
+                        "sandbox after a poll timed out: it most likely ended during "
+                        "the stall, and its final output and exit status were lost "
+                        "with the timed-out response (a restart of the sandbox's tool "
+                        "server looks the same)."
+                    ) from ex
+                raise
 
     def _enqueue_output(self, stdout: str, stderr: str) -> None:
         """Enqueue any non-empty output as pending events for the iterator."""
