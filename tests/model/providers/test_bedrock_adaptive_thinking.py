@@ -342,6 +342,26 @@ def test_opus_5_5_degrades_forced_tool_choice():
     assert api.resolved_tool_choice("none") == "none"
 
 
+def test_sonnet_5_5_degrades_forced_tool_choice():
+    """Sonnet 5.5 rejects forced tool choice with a 400; degrade to auto."""
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    for model_name in (
+        "anthropic.claude-sonnet-5-5",
+        "us.anthropic.claude-sonnet-5-5-20260928-v1:0",
+    ):
+        api = _make_api(model_name)
+        assert api.is_claude_4_7_or_later() is True
+        assert api.resolved_tool_choice("any") == "auto"
+        assert api.resolved_tool_choice(ToolFunction(name="get_weather")) == "auto"
+        assert api.resolved_tool_choice("auto") == "auto"
+        assert api.resolved_tool_choice("none") == "none"
+
+    # the base Sonnet 5 keeps forced tool choice as requested
+    base = _make_api("anthropic.claude-sonnet-5")
+    assert base.resolved_tool_choice("any") == "any"
+
+
 def test_opus_5_base_keeps_forced_tool_choice():
     """The base Opus 5 model keeps forced tool choice as requested."""
     from inspect_ai.tool._tool_choice import ToolFunction
@@ -362,6 +382,7 @@ def test_opus_5_base_keeps_forced_tool_choice():
         ("anthropic.claude-fable-5", {"tool": {"name": "addition"}}, False),
         ("anthropic.claude-opus-5-5", {"auto": {}}, True),
         ("anthropic.claude-opus-5", {"tool": {"name": "addition"}}, False),
+        ("anthropic.claude-sonnet-5-5", {"auto": {}}, True),
     ],
 )
 async def test_bedrock_fable_5_1_forced_tool_choice_wiring(
