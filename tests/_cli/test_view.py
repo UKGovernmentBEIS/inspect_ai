@@ -1,6 +1,7 @@
 from typing import Any
 
 import click
+import pytest
 from click.testing import CliRunner
 
 import inspect_ai._cli.view as view_cli
@@ -75,3 +76,98 @@ def test_view_policy_errors_are_usage_errors(monkeypatch: Any) -> None:
 
     assert isinstance(result.exception, click.UsageError)
     assert "unsafe viewer configuration" in str(result.exception)
+
+
+@pytest.fixture
+def captured_trust(monkeypatch: Any) -> dict[str, dict[str, Any]]:
+    """Capture what `inspect view` hands to the viewer, bundler and embedder."""
+    calls: dict[str, dict[str, Any]] = {}
+    for name in ["view", "bundle_log_dir", "embed_log_dir"]:
+        monkeypatch.setattr(
+            view_cli,
+            name,
+            lambda _name=name, **kwargs: calls.__setitem__(_name, kwargs),
+        )
+    monkeypatch.setattr(view_cli, "process_common_options", lambda _options: None)
+    monkeypatch.delenv("INSPECT_VIEW_TRUST_CONTENT", raising=False)
+    return calls
+
+
+@pytest.mark.parametrize(
+    "args, env, expected",
+    [
+        ([], None, None),
+        (["--no-trust-content"], None, False),
+        (["--trust-content"], None, True),
+        ([], "false", False),
+        ([], "true", True),
+        (["--trust-content"], "false", True),
+    ],
+)
+@pytest.mark.parametrize("command", [[], ["start"]])
+def test_view_trust_content(
+    captured_trust: dict[str, dict[str, Any]],
+    command: list[str],
+    args: list[str],
+    env: str | None,
+    expected: bool | None,
+) -> None:
+    result = CliRunner().invoke(
+        view_cli.view_command,
+        command + args,
+        env={"INSPECT_VIEW_TRUST_CONTENT": env} if env is not None else {},
+    )
+    assert result.exit_code == 0, result.output
+    assert captured_trust["view"]["trust_content"] is expected
+
+
+@pytest.mark.parametrize(
+    "args, called, expected",
+    [
+        (["--no-trust-content", "start"], "view", False),
+        (
+            ["--no-trust-content", "bundle", "--output-dir", "out"],
+            "bundle_log_dir",
+            False,
+        ),
+        (["--no-trust-content", "embed"], "embed_log_dir", False),
+        # The subcommand's own value wins over one given before it.
+        (["--no-trust-content", "embed", "--trust-content"], "embed_log_dir", True),
+    ],
+)
+def test_view_trust_content_before_subcommand(
+    captured_trust: dict[str, dict[str, Any]],
+    args: list[str],
+    called: str,
+    expected: bool,
+) -> None:
+    result = CliRunner().invoke(view_cli.view_command, args)
+    assert result.exit_code == 0, result.output
+    assert captured_trust[called]["trust_content"] is expected
+
+
+@pytest.mark.parametrize(
+    "args, called",
+    [
+        (["bundle", "--output-dir", "out", "--no-trust-content"], "bundle_log_dir"),
+        (["embed", "--no-trust-content"], "embed_log_dir"),
+    ],
+)
+def test_view_trust_content_bundle_and_embed(
+    captured_trust: dict[str, dict[str, Any]], args: list[str], called: str
+) -> None:
+    result = CliRunner().invoke(
+        view_cli.view_command, args, env={"INSPECT_VIEW_TRUST_CONTENT": "true"}
+    )
+    assert result.exit_code == 0, result.output
+    assert captured_trust[called]["trust_content"] is False
+
+
+def test_view_trust_content_rejects_invalid_environment(
+    captured_trust: dict[str, dict[str, Any]],
+) -> None:
+    result = CliRunner().invoke(
+        view_cli.view_command, [], env={"INSPECT_VIEW_TRUST_CONTENT": "maybe"}
+    )
+    assert result.exit_code == 2
+    assert "view" not in captured_trust

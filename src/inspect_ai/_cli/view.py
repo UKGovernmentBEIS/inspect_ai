@@ -3,6 +3,7 @@ import os
 from typing import Any, Callable, cast
 
 import click
+from click.core import ParameterSource
 from typing_extensions import Unpack
 
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
@@ -11,6 +12,51 @@ from inspect_ai._view.view import view
 from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 
 from .common import CommonOptions, common_options, process_common_options
+
+TRUST_CONTENT_HELP = (
+    "Whether log content may be rendered richly (markdown, math, highlighting, "
+    "media, links). --no-trust-content shows the content of every log as plain "
+    "text, whatever the log's own ViewerConfig(trust_content=...). "
+    "--trust-content, like leaving the option unset, defers to each log; it "
+    "never shows an untrusted log richly."
+)
+
+
+def trust_content_option(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    @click.option(
+        "--trust-content/--no-trust-content",
+        type=bool,
+        default=None,
+        is_flag=True,
+        help=TRUST_CONTENT_HELP,
+        envvar="INSPECT_VIEW_TRUST_CONTENT",
+    )
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
+
+
+def resolve_trust_content(trust_content: bool | None) -> bool | None:
+    """A subcommand's --trust-content, else one given before the subcommand.
+
+    `inspect view` itself accepts the start options, so without this
+    `inspect view --no-trust-content bundle` would silently drop the setting.
+    The subcommand's own command-line value wins; otherwise the environment
+    (or default) value it already has applies.
+    """
+    ctx = click.get_current_context()
+    if ctx.get_parameter_source("trust_content") == ParameterSource.COMMANDLINE:
+        return trust_content
+    parent = ctx.parent
+    if (
+        parent is not None
+        and parent.get_parameter_source("trust_content") == ParameterSource.COMMANDLINE
+    ):
+        parent_value: bool | None = parent.params["trust_content"]
+        return parent_value
+    return trust_content
 
 
 def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
@@ -49,6 +95,7 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help="Acknowledge unauthenticated access when binding beyond loopback.",
     )
+    @trust_content_option
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
         return cast(click.Context, func(*args, **kwargs))
@@ -83,6 +130,7 @@ def start(
     trusted_origin: tuple[str, ...],
     trusted_host: tuple[str, ...],
     unsafe_allow_unauthenticated: bool,
+    trust_content: bool | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """View evaluation logs."""
@@ -113,6 +161,7 @@ def start(
             unsafe_allow_unauthenticated=unsafe_allow_unauthenticated,
             log_level=common["log_level"],
             show_shards=show_shards,
+            trust_content=resolve_trust_content(trust_content),
         )
     except ViewerNetworkPolicyError as ex:
         raise click.UsageError(str(ex)) from ex
@@ -132,9 +181,11 @@ def start(
     default=False,
     help="Overwrite files in the output directory.",
 )
+@trust_content_option
 def bundle_command(
     output_dir: str,
     overwrite: bool,
+    trust_content: bool | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Bundle evaluation logs"""
@@ -142,16 +193,23 @@ def bundle_command(
     process_common_options(common)
 
     bundle_log_dir(
-        output_dir=output_dir, log_dir=common["log_dir"], overwrite=overwrite
+        output_dir=output_dir,
+        log_dir=common["log_dir"],
+        overwrite=overwrite,
+        trust_content=resolve_trust_content(trust_content),
     )
 
 
 @view_command.command("embed")
 @common_options
+@trust_content_option
 def embed_command(
+    trust_content: bool | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Embed a lightweight viewer into a log directory."""
     process_common_options(common)
 
-    embed_log_dir(log_dir=common["log_dir"])
+    embed_log_dir(
+        log_dir=common["log_dir"], trust_content=resolve_trust_content(trust_content)
+    )

@@ -81,6 +81,7 @@ def bundle_log_dir(
     output_dir: str | None = None,
     overwrite: bool = False,
     fs_options: dict[str, Any] = {},
+    trust_content: bool | None = None,
 ) -> None:
     r"""Bundle a log_dir into a statically deployable viewer
 
@@ -93,6 +94,10 @@ def bundle_log_dir(
             Defaults to False.
         fs_options (dict[str, Any]): Optional. Additional arguments to pass through
             to the filesystem provider (e.g. `S3FileSystem`).
+        trust_content (bool | None): Optional. `False` makes the bundled viewer show
+            the content of every log as plain text, whatever the log's own
+            `ViewerConfig(trust_content=...)`. `None` (the default) or `True`
+            defers to each log.
     """
     # resolve the log directory
     if not log_dir:
@@ -142,6 +147,7 @@ def bundle_log_dir(
                 working_dir,
                 log_dir=log_dir_name,
                 abs_log_dir=absolute_file_path(log_dir),
+                trust_content=trust_content,
             )
             p.update(25)
 
@@ -182,7 +188,10 @@ def copy_dir_contents(source_dir: str, dest_dir: str) -> None:
 
 
 def inject_configuration(
-    html_file: str, log_dir: str, abs_log_dir: str | None = None
+    html_file: str,
+    log_dir: str,
+    abs_log_dir: str | None = None,
+    trust_content: bool | None = None,
 ) -> None:
     # update the index html to embed the log_dir
     with open(html_file, "r") as file:
@@ -190,9 +199,11 @@ def inject_configuration(
 
     # inject the log dir information into the viewer html
     # so it will load directly
-    context: dict[str, str] = {"log_dir": log_dir}
+    context: dict[str, str | bool] = {"log_dir": log_dir}
     if abs_log_dir is not None:
         context["abs_log_dir"] = abs_log_dir
+    if trust_content is not None:
+        context["trust_content"] = trust_content
     import json
 
     context_json = json.dumps(context)
@@ -221,7 +232,10 @@ Disallow: /
 
 
 def _prepare_viewer(
-    working_dir: str, log_dir: str, abs_log_dir: str | None = None
+    working_dir: str,
+    log_dir: str,
+    abs_log_dir: str | None = None,
+    trust_content: bool | None = None,
 ) -> None:
     """Prepare viewer assets in a working directory."""
     copy_dir_contents(_dist_dir(), working_dir)
@@ -229,6 +243,7 @@ def _prepare_viewer(
         os.path.join(working_dir, "index.html"),
         log_dir=log_dir,
         abs_log_dir=abs_log_dir,
+        trust_content=trust_content,
     )
     write_robots_txt(working_dir)
 
@@ -384,6 +399,7 @@ def _copy_viewer_to_log_dir(from_dir: str, to_dir: str, output_fs: Any) -> None:
 def embed_log_dir(
     log_dir: str | None = None,
     fs_options: dict[str, Any] = {},
+    trust_content: bool | None = None,
 ) -> None:
     r"""Embed a log viewer into a log_dir.
 
@@ -396,6 +412,10 @@ def embed_log_dir(
         log_dir: (str | None): The log_dir to embed the viewer in.
         fs_options (dict[str, Any]): Optional. Additional arguments to pass through
             to the filesystem provider (e.g. `S3FileSystem`).
+        trust_content (bool | None): Optional. `False` makes the embedded viewer show
+            the content of every log as plain text, whatever the log's own
+            `ViewerConfig(trust_content=...)`. `None` (the default) or `True`
+            defers to each log.
     """
     from inspect_ai._display import display
 
@@ -414,7 +434,9 @@ def embed_log_dir(
     display().print(f"Embedding viewer in '{log_dir}'")
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
-        _prepare_viewer(working_dir, log_dir=".", abs_log_dir=log_dir)
+        _prepare_viewer(
+            working_dir, log_dir=".", abs_log_dir=log_dir, trust_content=trust_content
+        )
         write_log_listing(log_dir, output_dir=working_dir)
         _copy_viewer_to_log_dir(working_dir, log_dir, log_fs)
 

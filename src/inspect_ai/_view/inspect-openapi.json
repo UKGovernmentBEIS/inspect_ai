@@ -150,6 +150,17 @@
               }
             ],
             "title": "Scout Version"
+          },
+          "trust_content": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Content"
           }
         },
         "required": [
