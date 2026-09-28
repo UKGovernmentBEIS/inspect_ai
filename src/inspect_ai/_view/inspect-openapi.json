@@ -3323,6 +3323,7 @@
                       "sandbox": "#/components/schemas/SandboxEvent",
                       "score": "#/components/schemas/ScoreEvent",
                       "score_edit": "#/components/schemas/ScoreEditEvent",
+                      "sentinel": "#/components/schemas/SentinelEvent",
                       "span_begin": "#/components/schemas/SpanBeginEvent",
                       "span_end": "#/components/schemas/SpanEndEvent",
                       "state": "#/components/schemas/StateEvent",
@@ -3363,6 +3364,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/ReviewEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SentinelEvent"
                     },
                     {
                       "$ref": "#/components/schemas/BranchEvent"
@@ -3557,6 +3561,7 @@
                   "sandbox": "#/components/schemas/SandboxEvent",
                   "score": "#/components/schemas/ScoreEvent",
                   "score_edit": "#/components/schemas/ScoreEditEvent",
+                  "sentinel": "#/components/schemas/SentinelEvent",
                   "span_begin": "#/components/schemas/SpanBeginEvent",
                   "span_end": "#/components/schemas/SpanEndEvent",
                   "state": "#/components/schemas/StateEvent",
@@ -3597,6 +3602,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/ReviewEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SentinelEvent"
                 },
                 {
                   "$ref": "#/components/schemas/BranchEvent"
@@ -5172,6 +5180,9 @@
           },
           {
             "$ref": "#/components/schemas/ReviewEvent"
+          },
+          {
+            "$ref": "#/components/schemas/SentinelEvent"
           },
           {
             "$ref": "#/components/schemas/BranchEvent"
@@ -9757,6 +9768,202 @@
           "member_name"
         ],
         "title": "SegmentRef",
+        "type": "object"
+      },
+      "SentinelEvent": {
+        "description": "Report from a sentinel monitor or protocol about one step.",
+        "properties": {
+          "audit": {
+            "default": false,
+            "title": "Audit",
+            "type": "boolean"
+          },
+          "conversation": {
+            "title": "Conversation",
+            "type": "string"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "enum": [
+                  "continue",
+                  "modify",
+                  "reject",
+                  "terminate",
+                  "escalate"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "event": {
+            "const": "sentinel",
+            "default": "sentinel",
+            "title": "Event",
+            "type": "string"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "function": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Function"
+          },
+          "kind": {
+            "enum": [
+              "observation",
+              "decision",
+              "cancelled",
+              "bypassed",
+              "superseded"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "continue",
+                  "modify",
+                  "reject",
+                  "terminate",
+                  "escalate"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "stage": {
+            "enum": [
+              "model_input",
+              "model_output",
+              "tool_call",
+              "tool_result"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
+          "step_id": {
+            "title": "Step Id",
+            "type": "string"
+          },
+          "suspicion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "minProperties": 1,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suspicion"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "name",
+          "path",
+          "step_id",
+          "conversation",
+          "stage",
+          "kind",
+          "audit"
+        ],
+        "title": "SentinelEvent",
         "type": "object"
       },
       "SnapshotDetails": {

@@ -35,6 +35,7 @@ from inspect_ai.event._review import ReviewEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._score import ScoreEvent
+from inspect_ai.event._sentinel import SentinelEvent
 from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.event._subtask import SubtaskEvent
 from inspect_ai.event._tool import ToolEvent
@@ -388,6 +389,19 @@ def render_review_event(event: ReviewEvent) -> EventDisplay:
     return EventDisplay("review", Group(*content))
 
 
+def render_sentinel_event(event: SentinelEvent) -> EventDisplay:
+    summary: str = event.decision or event.kind
+    if event.suspicion is not None:
+        summary = f"{summary}, suspicion {event.suspicion}"
+    if event.explanation:
+        summary = f"{summary} ({event.explanation})"
+    content: list[RenderableType] = [
+        f"[bold]{event.path or event.name}[/bold]: {summary}"
+    ]
+
+    return EventDisplay(f"sentinel: {event.stage}", Group(*content))
+
+
 def render_info_event(event: InfoEvent) -> EventDisplay:
     if isinstance(event.data, str):
         content: RenderableType = transcript_markdown(event.data)
@@ -501,6 +515,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (InputEvent, render_input_event),
     (ApprovalEvent, render_approval_event),
     (ReviewEvent, render_review_event),
+    (SentinelEvent, render_sentinel_event),
     (InfoEvent, render_info_event),
     (BranchEvent, render_branch_event),
     (CompactionEvent, render_compaction_event),
