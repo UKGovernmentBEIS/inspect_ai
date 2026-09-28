@@ -1379,7 +1379,7 @@ async def test_resolve_shares_the_decision_between_proxy_and_provider_object() -
 
 
 async def test_resolve_tolerates_a_provider_that_skips_the_base_init() -> None:
-    """Several providers (k8s among them) never call `SandboxEnvironment.__init__`."""
+    """Several providers never call `SandboxEnvironment.__init__`."""
 
     class BareSandbox(CannedSandbox):
         def __init__(self) -> None:

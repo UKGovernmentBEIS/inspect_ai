@@ -173,8 +173,8 @@ class SandboxEnvironment(abc.ABC):
     # Whether the injected sandbox tools may run as root here; recorded once at
     # sample init (or on first use outside an eval) by `resolve_root_access` in
     # `inspect_ai.tool._sandbox_tools_utils.sandbox`. A class-level default rather
-    # than an `__init__` assignment because several providers (k8s among them) do
-    # not call `SandboxEnvironment.__init__`.
+    # than an `__init__` assignment because several providers do not call
+    # `SandboxEnvironment.__init__`.
     _root_access: RootAccess | None = None
 
     def __init__(self) -> None:
