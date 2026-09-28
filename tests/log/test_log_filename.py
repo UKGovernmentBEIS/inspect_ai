@@ -12,6 +12,7 @@ from inspect_ai._util.log_layout import (
     eval_log_name,
     eval_shards_dir,
     log_basename,
+    merged_log_candidates_for_shard,
 )
 from inspect_ai.log import EvalConfig, EvalDataset, EvalSpec
 from inspect_ai.log._recorders.eval import EvalRecorder
@@ -153,6 +154,36 @@ def test_eval_shards_dir_recovered_log(recovered: str, shards: str, log: str) ->
 def test_eval_log_for_shards_dir_rejects_other_dirs(path: str) -> None:
     with pytest.raises(ValueError, match="Not a shards directory"):
         eval_log_for_shards_dir(path)
+
+
+@pytest.mark.parametrize(
+    "shard,merged",
+    [
+        ("/logs/run.shards/0/a.eval", "/logs/run"),
+        ("file:///tmp/logs/run.shards/12/a.eval", "file:///tmp/logs/run"),
+        ("s3://bucket/logs/run.shards/3/a-recovered.eval", "s3://bucket/logs/run"),
+        ("C:\\logs\\run.shards\\0\\a.eval", "C:\\logs\\run"),
+    ],
+)
+def test_merged_log_candidates_for_shard(shard: str, merged: str) -> None:
+    assert merged_log_candidates_for_shard(shard) == [
+        f"{merged}.eval",
+        f"{merged}-recovered.eval",
+    ]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/logs/a.eval",
+        "/logs/run.shards/a.eval",
+        "/logs/run.shards/0/1/a.eval",
+        "/logs/.shards/0/a.eval",
+        "/logs/shards/0/a.eval",
+    ],
+)
+def test_merged_log_candidates_for_non_shard(path: str) -> None:
+    assert merged_log_candidates_for_shard(path) is None
 
 
 @pytest.mark.parametrize(

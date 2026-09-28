@@ -109,6 +109,23 @@ def eval_log_for_shards_dir(shards_dir: str) -> str:
     return _with_basename(shards_dir, f"{base[: -len(_SHARDS_SUFFIX)]}{_LOG_SUFFIX}")
 
 
+def merged_log_candidates_for_shard(shard_location: str) -> list[str] | None:
+    """Return the merged log locations a shard log belongs to.
+
+    A shard is a log file at ``<dir>/<name>.shards/<k>/<file>``. Its merged
+    log is ``<dir>/<name>.eval``, or ``<dir>/<name>-recovered.eval`` after a
+    manual recovery, so both candidates are returned. Returns ``None`` when
+    the location does not follow the shard layout.
+    """
+    shards_dir = dirname(dirname(shard_location))
+    base = basename(shards_dir)
+    if not base.endswith(_SHARDS_SUFFIX) or base == _SHARDS_SUFFIX:
+        return None
+    merged = eval_log_for_shards_dir(shards_dir)
+    recovered = f"{merged[: -len(_LOG_SUFFIX)]}{_RECOVERED_SUFFIX}{_LOG_SUFFIX}"
+    return [merged, recovered]
+
+
 def _with_basename(location: str, name: str) -> str:
     """Replace the last path component of ``location`` with ``name``.
 
