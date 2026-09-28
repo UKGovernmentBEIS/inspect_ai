@@ -57,6 +57,7 @@ from .._openai import (
     openai_media_filter,
 )
 from .._openai_responses import (
+    RESPONSES_VERBATIM,
     ResponsesModelInfo,
     model_usage_from_response_usage,
     openai_responses_chat_choices,
@@ -180,7 +181,12 @@ async def generate_responses(
             responses_store=responses_store,
             tools=len(tools) > 0,
             tool_params=[] if isinstance(tool_params, NotGiven) else tool_params,
-            has_computer_tool=any(is_computer_tool_info(t) for t in tools),
+            # a verbatim tool is sent as given (a function or custom tool),
+            # not as OpenAI's computer tool, which is what requires store
+            has_computer_tool=any(
+                is_computer_tool_info(t) and RESPONSES_VERBATIM not in (t.options or {})
+                for t in tools
+            ),
         ),
     )
     if isinstance(background, bool):

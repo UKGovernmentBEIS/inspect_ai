@@ -225,6 +225,7 @@ from .util import (
     forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
     is_claude_opus_5_5_model,
+    is_claude_sonnet_5_5_model,
     is_forced_tool_choice,
     model_base_url,
     normalize_stream_arg,
@@ -253,7 +254,7 @@ _REASONING_TOKENS_UNSUPPORTED_ERROR = (
     "'reasoning_effort' to control reasoning depth instead."
 )
 _DISABLED_THINKING_EFFORT_WARNING = (
-    "anthropic model '{model}' rejects disabled thinking (reasoning_effort="
+    "anthropic model '{model}' rejects turning thinking off (reasoning_effort="
     "'none') combined with effort above 'high'; clamping effort to 'high'."
 )
 _FORCED_TOOL_CHOICE_WARNING = (
@@ -1331,13 +1332,19 @@ class AnthropicAPI(ModelAPI):
             # Claude 4.7+ (incl. Sonnet 5 and Opus 5) run adaptive thinking by
             # default, so `reasoning_effort="none"` must explicitly disable it.
             # Pre-4.7 models default to no thinking, so omitting the field
-            # already suffices.
-            params["thinking"] = {"type": "disabled"}
-            # Opus 5 returns a 400 for disabled thinking combined with effort
-            # above `high` (Opus 4.8 and Sonnet 5 accept the combination).
+            # already suffices. Sonnet 5.5 rejects `disabled` and names
+            # `between_tools` (no up-front thinking) as its lowest setting.
+            params["thinking"] = {
+                "type": "between_tools"
+                if self.is_claude_sonnet_5_5_or_later()
+                else "disabled"
+            }
+            # Opus 5 and Sonnet 5.5 return a 400 for turned-off thinking
+            # combined with effort above `high` (Opus 4.8 and Sonnet 5 accept
+            # the combination).
             output_config = params.get("output_config")
             if (
-                self.is_claude_opus_5()
+                (self.is_claude_opus_5() or self.is_claude_sonnet_5_5_or_later())
                 and isinstance(output_config, dict)
                 and output_config.get("effort") in ("xhigh", "max")
             ):
@@ -1459,13 +1466,14 @@ class AnthropicAPI(ModelAPI):
         )
 
     def _supports_disabling_thinking(self) -> bool:
-        """Whether `reasoning_effort="none"` should send `thinking:{type:"disabled"}`.
+        """Whether `reasoning_effort="none"` should send a thinking-off config.
 
         Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5) run adaptive thinking by
         default and accept `disabled` to turn it off (on Opus 5 only at effort
-        `high` or below — see completion_config). Fable/Mythos 5 and Opus 5.5
-        always think and reject `disabled` (400), so `"none"` leaves thinking
-        on for them (the field is omitted).
+        `high` or below — see completion_config). Sonnet 5.5 rejects `disabled`
+        but accepts `between_tools`, which turns off up-front thinking.
+        Fable/Mythos 5 and Opus 5.5 always think and reject `disabled` (400),
+        so `"none"` leaves thinking on for them (the field is omitted).
         """
         if not self.is_claude_4_7_or_later():
             # pre-4.7 models default to no thinking, so `"none"` is honored by
@@ -1486,39 +1494,51 @@ class AnthropicAPI(ModelAPI):
     def apply_thinking_block_binding(
         self, request: dict[str, Any], betas: list[str]
     ) -> None:
-        """Opt into dropping prefix-mismatched thinking blocks on Fable 5.1 / Opus 5.5.
+        """Opt into dropping prefix-mismatched thinking blocks on bound-thinking models.
 
-        Fable 5.1 and Opus 5.5 bind thinking blocks to the request prefix that
-        produced them; solvers legitimately edit history, and without
+        Fable 5.1, Opus 5.5, and Sonnet 5.5 bind thinking blocks to the request
+        prefix that produced them; solvers legitimately edit history, and without
         drop_block such an edit fails the replay with a 400. Applied to every
         request for these models — not only those replaying thinking blocks —
         so the beta header stays uniform across a task's requests (the batcher
         submits a single header set per batch). Mythos 5.1 does not run the
-        binding check, so it is excluded. First-party API only for now: the
-        binding-controls beta arrives per model on bedrock/vertex (the header
-        is rejected until then) and is not offered on foundry — until those
-        platforms enable it, a history edit there will still 400. A
-        caller-supplied `extra_body.thinking` shallow-merges over the request
-        body and replaces this binding config.
+        binding check, so it is excluded. Applied on the first-party API and,
+        for Sonnet 5.5 (verified live), on Bedrock: the binding-controls beta
+        arrives per model on bedrock/vertex and is not offered on foundry, so
+        other model/platform pairs stay opted out until verified, and a
+        history edit there can still 400. The API accepts `block_binding`
+        only with adaptive thinking, so Sonnet 5.5's
+        `between_tools` (`reasoning_effort="none"`) requests carry the beta
+        header but no binding config, and a history edit before a replayed
+        thinking block can still 400 there. A caller-supplied
+        `extra_body.thinking` shallow-merges over the request body and
+        replaces this binding config.
         """
         binds_thinking = (
-            self.is_claude_fable_5_1_or_later() and "mythos" not in self.model_family()
-        ) or self.is_claude_opus_5_5_or_later()
-        if binds_thinking and not (
+            (
+                self.is_claude_fable_5_1_or_later()
+                and "mythos" not in self.model_family()
+            )
+            or self.is_claude_opus_5_5_or_later()
+            or self.is_claude_sonnet_5_5_or_later()
+        )
+        binding_offered = not (
             self.is_bedrock() or self.is_vertex() or self.is_azure()
-        ):
+        ) or (self.is_bedrock() and self.is_claude_sonnet_5_5_or_later())
+        if binds_thinking and binding_offered:
             betas.append(_THINKING_BINDING_BETA)
-            # thinking is always on for these models, so explicit adaptive
-            # (the server default) is accepted when the field was omitted
-            request.setdefault("thinking", {"type": "adaptive"})["block_binding"] = {
-                "prefix_mismatch_behavior": "drop_block"
-            }
+            # adaptive thinking is the server default for these models, so
+            # sending it explicitly is accepted when the field was omitted
+            thinking = request.setdefault("thinking", {"type": "adaptive"})
+            if thinking.get("type") == "adaptive":
+                thinking["block_binding"] = {"prefix_mismatch_behavior": "drop_block"}
 
     def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
         """Degrade forced tool choice to auto on models that reject it (400).
 
         "auto" and "none" pass through unchanged; strict tool use with auto
-        remains the schema-enforcement path on Fable/Mythos 5.1 and Opus 5.5.
+        remains the schema-enforcement path on Fable/Mythos 5.1, Opus 5.5, and
+        Sonnet 5.5.
         """
         if is_forced_tool_choice(tool_choice) and rejects_forced_tool_choice(
             self.model_family()
@@ -1611,12 +1631,16 @@ class AnthropicAPI(ModelAPI):
         """Opus 5.5 or a later point release (a subset of is_claude_opus_5)."""
         return is_claude_opus_5_5_model(self.model_family())
 
+    def is_claude_sonnet_5_5_or_later(self) -> bool:
+        """Sonnet 5.5 or a later point release (a subset of is_claude_sonnet_5)."""
+        return is_claude_sonnet_5_5_model(self.model_family())
+
     def computer_use_toolset(self) -> bool:
         """Whether the computer tool is declared as Anthropic's computer toolset.
 
         Auto mode (no `computer_toolset` model arg) uses the toolset where the
-        legacy `computer_20251124` tool is rejected (Opus 5.5 on the Claude API
-        and Vertex) and, where the platform offers it, for Fable/Mythos 5.x and
+        legacy `computer_20251124` tool is rejected (Opus 5.5 and Sonnet 5.5 on
+        the Claude API and Vertex) and, where the platform offers it, for Fable/Mythos 5.x and
         any other non-Sonnet/Opus Claude 5 model. Every other model keeps the
         legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock and
         Foundry, which offer only the legacy tool.
@@ -1652,11 +1676,14 @@ class AnthropicAPI(ModelAPI):
     def computer_toolset_required(self) -> bool:
         """Whether the legacy computer tool is rejected for this model/platform.
 
-        Only Opus 5.5 on the Claude API and Vertex rejects `computer_20251124`;
-        Bedrock and Foundry keep accepting it there, and every other model
-        listed for the legacy tool (Fable/Mythos 5.x included) still accepts it.
+        Only Opus 5.5 and Sonnet 5.5 on the Claude API and Vertex reject
+        `computer_20251124`; Bedrock and Foundry keep accepting it there, and
+        every other model listed for the legacy tool (Fable/Mythos 5.x
+        included) still accepts it.
         """
-        return self.is_claude_opus_5_5_or_later() and self.computer_toolset_available()
+        return (
+            self.is_claude_opus_5_5_or_later() or self.is_claude_sonnet_5_5_or_later()
+        ) and self.computer_toolset_available()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -2128,7 +2155,7 @@ class AnthropicAPI(ModelAPI):
                         f"'{self.service_model_name()}' on this platform. Remove "
                         "computer_toolset=true to use the legacy computer tool."
                     )
-                # the toolset is documented for Opus 4.8, Sonnet 5, Opus 5/5.5
+                # the toolset is documented for Opus 4.8, Sonnet 5/5.5, Opus 5/5.5
                 # and Fable/Mythos 5.x (so a forced opt-in on older models errors)
                 if not self.is_claude_4_8_or_later():
                     raise PrerequisiteError(
@@ -2143,7 +2170,7 @@ class AnthropicAPI(ModelAPI):
                 # inspect computer tool always supports it, so no configs.
                 return BetaComputerToolset20260801Param(type=COMPUTER_TOOLSET_TYPE)
             # legacy path forced (computer_toolset=false) where the legacy tool
-            # is rejected (Opus 5.5 on the Claude API / Vertex)
+            # is rejected (Opus 5.5 / Sonnet 5.5 on the Claude API / Vertex)
             if self.computer_toolset_required():
                 raise PrerequisiteError(
                     f"The legacy computer tool (computer_20251124) is not supported "
@@ -2162,8 +2189,8 @@ class AnthropicAPI(ModelAPI):
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
             # computer_20251124 is supported by Claude Opus 5, Sonnet 5,
-            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5 (and by Opus 5.5 on
-            # Bedrock and Foundry, where the toolset is not offered)
+            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5 (and by Opus 5.5 and
+            # Sonnet 5.5 on Bedrock and Foundry, where the toolset is not offered)
             if self.is_claude_frontier() or (
                 self.is_claude_4_5() and self.is_claude_4_opus()
             ):
@@ -3983,9 +4010,9 @@ async def model_output_from_message(
         {"extra_body": dict(extra_body)} if extra_body else None
     )
 
-    # thinking block binding (Fable 5.1): with the thinking-binding
-    # beta, replayed thinking blocks the server dropped (e.g. after a history
-    # edit) are reported via input_transformations. Warn so callers know
+    # thinking block binding (Fable 5.1, Opus 5.5, Sonnet 5.5): with the
+    # thinking-binding beta, replayed thinking blocks the server dropped (e.g.
+    # after a history edit) are reported via input_transformations. Warn so callers know
     # reasoning context was lost; the raw entries (including the message path
     # of each dropped block) are captured under metadata["extra_body"] above.
     for transformation in extra_body.get("input_transformations") or []:
