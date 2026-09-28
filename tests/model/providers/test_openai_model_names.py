@@ -9,6 +9,7 @@ gets full frontier behavior (responses API, reasoning options, etc.).
 import pytest
 
 from inspect_ai.model._openai import (
+    always_reasons_model,
     is_gpt_5_model,
     is_gpt_5_plus_model,
     is_gpt_6_model,
@@ -74,9 +75,6 @@ def test_codename_models_are_latest(model_name: str) -> None:
     # folded into the GPT-5 predicates ("gpt-5 or greater")
     assert api.is_gpt_5() is True
     assert api.is_gpt_5_plus() is True
-    # whether a codename rejects sampling params is unknown, so is_gpt_6 stays
-    # a strict version check and codenames keep the gpt-5.x sampling behavior
-    assert api.is_gpt_6() is False
     # frontier behavior follows automatically
     assert api.has_reasoning_options() is True
     assert api.responses_api is True
@@ -113,13 +111,20 @@ def test_is_latest_model_helper_handles_bedrock_prefix() -> None:
     assert is_latest_model("openai.gpt-5.5") is False
 
 
-# -- GPT-6 (gpt-6-astra) --
+# -- GPT-6 (gpt-6-astra, gpt-6-sol, gpt-6-luna) --
 #
 # Family detection is version-based ("gpt-5 or greater"), so a new major version
 # inherits frontier behavior without a code change per release.
 
 # gpt-7 does not exist; it guards that the next major version needs no code change
-GPT_6_MODELS = ["gpt-6-astra", "gpt-6", "GPT-6-Astra", "gpt-7"]
+GPT_6_MODELS = [
+    "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
+    "gpt-6",
+    "GPT-6-Astra",
+    "gpt-7",
+]
 
 
 @pytest.mark.parametrize("model_name", GPT_6_MODELS)
@@ -128,7 +133,7 @@ def test_gpt_6_models_are_frontier(model_name: str) -> None:
     assert api.is_latest() is False
     assert api.is_gpt_5() is True
     assert api.is_gpt_5_plus() is True
-    assert api.is_gpt_6() is True
+    assert is_gpt_6_model(model_name) is True
     assert api.has_reasoning_options() is True
     assert api.responses_api is True
     assert api.supports_max_reasoning_effort() is True
@@ -149,7 +154,7 @@ def test_gpt_6_models_are_frontier(model_name: str) -> None:
     ],
 )
 def test_pre_gpt_6_models_are_not_gpt_6(model_name: str) -> None:
-    assert _api(model_name).is_gpt_6() is False
+    assert is_gpt_6_model(model_name) is False
 
 
 def test_gpt_5_helpers_are_version_based() -> None:
@@ -170,6 +175,49 @@ def test_gpt_5_helpers_are_version_based() -> None:
     assert is_gpt_5_plus_model("gpt-6") is True
     assert is_gpt_6_model("gpt-5.6-sol") is False
     assert is_gpt_6_model("gpt-6-astra") is True
+    assert is_gpt_6_model("gpt-6-sol") is True
+    assert is_gpt_6_model("gpt-6-luna") is True
+
+
+# -- always_reasons_model: o-series, gpt-5.0, and GPT-6 Astra can't turn
+# reasoning off with `none`; Sol and Luna can. OpenAIAPI / ModelInfo
+# .always_reasons() delegate to it (covered in tests/model/test_reasoning_effort.py) --
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("o3", True),
+        ("o4-mini", True),
+        ("gpt-5", True),
+        ("gpt-5-mini", True),
+        ("gpt-5.1", False),
+        ("gpt-4o", False),
+        ("computer-use-preview", False),
+        ("gpt-6-astra", True),
+        ("GPT-6-Astra", True),
+        ("openai.gpt-6-astra", True),  # bedrock api_model_name prefix
+        ("my-gpt-6-astra-deployment", True),  # azure deployment name
+        ("gpt-6-sol", False),
+        ("gpt-6-luna", False),
+        ("GPT-6-Sol", False),
+        ("openai.gpt-6-luna", False),
+        ("my-gpt-6-sol-deployment", False),
+        ("gpt-6", False),
+        ("gpt-7", False),
+        ("gpt-5.6-sol", False),
+        ("gpt-5.6-luna", False),
+    ],
+)
+def test_always_reasons_model_helper(model_name: str, expected: bool) -> None:
+    assert always_reasons_model(model_name) is expected
+
+
+@pytest.mark.parametrize("model_name", CODENAME_MODELS)
+def test_codename_models_do_not_always_reason(model_name: str) -> None:
+    # whether a codename rejects sampling params is unknown, so codenames keep
+    # the gpt-5.x behavior (`none` effort re-enables sampling params)
+    assert _api(model_name).always_reasons() is False
 
 
 def test_gpt_6_input_tokens_name_unchanged() -> None:

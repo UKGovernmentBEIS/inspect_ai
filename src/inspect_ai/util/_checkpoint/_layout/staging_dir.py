@@ -24,9 +24,9 @@ import anyio.to_thread
 
 from inspect_ai._util.appdirs import inspect_cache_dir
 from inspect_ai._util.asyncfiles import is_s3_filename
+from inspect_ai._util.log_layout import log_basename
 
 from ._paths import sample_dir_segment
-from .eval_checkpoints_dir import log_basename
 
 RESTIC_CONFIG_SUBPATH = "restic/restic-config.json"
 """Sample-root-relative path of the per-sample restic config (password store).

@@ -5,7 +5,7 @@ llms-description: Agents combine planning, memory, and tool usage to pursue comp
 
 ## Overview
 
-Agents combine planning, memory, and tool usage to pursue more complex, tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
+Agents combine planning, memory, and tool usage to pursue more complex tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
 
 1.  Using Inspect's built-in [ReAct Agent](react-agent.qmd).
 
@@ -176,4 +176,3 @@ See these additional articles to learn more about creating agent evaluations wit
 -   [Human Agent](human-agent.qmd) is a solver that enables human baselining on computing tasks.
 
 -   [Agent Limits](agent-custom.qmd#agent-limits) details how to set token, message, and time limits for agent execution.
-

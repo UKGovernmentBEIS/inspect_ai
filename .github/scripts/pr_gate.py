@@ -8,6 +8,10 @@ Runs from pr-gate.yml on pull_request_target. Passes a PR if ANY of:
      total diff is < 25 lines                                     (trivial)
   5. a linked closing issue is labeled `accepted` (or
      `good first issue`, which implies accepted)                  (issue-approved)
+Only issues that live in the PR's base repository (GH_REPO) count for checks
+5 and the deferred veto: a closing reference can point at an issue in any
+repository, and labels there are applied by that repository's maintainers,
+not ours, so foreign labels neither grant acceptance nor force deferral.
 There is deliberately no pass for merged-PR history: contributors not on the
 qualified roster route every non-trivial change through an accepted issue,
 however many PRs they have landed. Who filed the issue doesn't matter —
@@ -18,6 +22,10 @@ Veto (checks 1-3 still pass — a human vouching for the PR outranks):
     checks 4-5 — the project has declined to prioritize that work, and the
     issue (not a new PR) is where re-prioritization happens.
 Otherwise: comment + close (DRY_RUN: apply the `gate-dry-run` label only).
+The explanatory comment is posted once per PR — a reopen that fails again
+is closed again without repeating it — and only a comment posted by the
+gate's own identity (the Actions token) with the marker counts as already
+posted; anyone else's comment carrying the marker does not.
 PRs created before POLICY_START are never gated — the policy applies going
 forward; the pre-existing queue is dispositioned by hand.
 
@@ -50,6 +58,10 @@ TRIVIAL_MAX_LINES = 25
 # are judged by them (i.e. not at all — enforcement was off until then).
 POLICY_START = "2026-09-01T00:00:00Z"
 COMMENT_MARKER = "<!-- inspect-pr-gate -->"
+# The identity the gate posts as: the workflow's GITHUB_TOKEN. A comment only
+# counts as the gate's own if this account posted it, so a marker pasted into
+# someone else's comment cannot stand in for the gate's explanation.
+COMMENT_AUTHOR = "github-actions[bot]"
 EXTENSIONS_URL = "https://inspect.aisi.org.uk/extensions.html"
 
 
@@ -104,6 +116,18 @@ def is_trivial(files: list[dict]) -> bool:
     return total < TRIVIAL_MAX_LINES
 
 
+def is_local_issue(issue: dict, repo: str) -> bool:
+    """True if a linked issue lives in the PR's base repository.
+
+    `repo` is GH_REPO ("owner/name"); `issue["repo"]` is the issue's
+    `nameWithOwner`. GitHub owner and repository names are case-insensitive.
+    An issue with no recorded repository is not local: labels without known
+    provenance grant nothing and veto nothing.
+    """
+    issue_repo = issue.get("repo")
+    return isinstance(issue_repo, str) and issue_repo.lower() == repo.lower()
+
+
 def decide(ctx: dict) -> Verdict:
     """The gate. ctx keys documented in tests/test_pr_gate.py::make_ctx."""
     if ctx["author_association"] in TEAM_ASSOCIATIONS:
@@ -114,7 +138,7 @@ def decide(ctx: dict) -> Verdict:
         )
     if "qualified" in ctx["pr_labels"]:
         return Verdict("pass", "qualified", "maintainer applied `qualified`")
-    issues = ctx["linked_issues"]
+    issues = [i for i in ctx["linked_issues"] if is_local_issue(i, ctx["repo"])]
     labels = {label.lower() for i in issues for label in i["labels"]}
     if "deferred" in labels:
         return Verdict("close", "deferred", "linked issue is deferred")
@@ -238,6 +262,7 @@ def fetch_ctx(
           closingIssuesReferences(first: 10) {
             nodes {
               author { login }
+              repository { nameWithOwner }
               labels(first: 20) { nodes { name } }
             }
           }
@@ -259,6 +284,7 @@ def fetch_ctx(
         {
             # a deleted account's author is null — treat as not the PR author
             "author": (issue["author"] or {}).get("login"),
+            "repo": issue["repository"]["nameWithOwner"],
             "labels": [label["name"] for label in issue["labels"]["nodes"]],
         }
         for issue in data["data"]["repository"]["pullRequest"][
@@ -267,6 +293,7 @@ def fetch_ctx(
     ]
 
     return {
+        "repo": repo,
         "author": author,
         "author_id": author_id,
         "author_association": assoc,
@@ -277,9 +304,17 @@ def fetch_ctx(
     }
 
 
+def is_gate_comment(comment: dict) -> bool:
+    """True if a PR comment is one the gate itself posted (author and marker)."""
+    user = comment.get("user") or {}
+    return user.get("login") == COMMENT_AUTHOR and COMMENT_MARKER in (
+        comment.get("body") or ""
+    )
+
+
 def already_commented(repo: str, pr_number: int) -> bool:
     comments = gh_json(f"repos/{repo}/issues/{pr_number}/comments", "--paginate")
-    return any(COMMENT_MARKER in (c.get("body") or "") for c in comments)
+    return any(is_gate_comment(c) for c in comments)
 
 
 def main() -> int:
@@ -323,11 +358,10 @@ def main() -> int:
         return 0
 
     if already_commented(repo, pr_number):
-        print("gate comment already present — not repeating")
-        return 0
-
-    body = deferred_close_comment() if v.tier == "deferred" else close_comment()
-    gh("api", f"repos/{repo}/issues/{pr_number}/comments", "-f", f"body={body}")
+        print("gate comment already present — closing without repeating it")
+    else:
+        body = deferred_close_comment() if v.tier == "deferred" else close_comment()
+        gh("api", f"repos/{repo}/issues/{pr_number}/comments", "-f", f"body={body}")
     gh(
         "api",
         "-X",
