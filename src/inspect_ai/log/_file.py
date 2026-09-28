@@ -1276,19 +1276,34 @@ def eval_log_json_str(log: EvalLog) -> str:
     return eval_log_json(log).decode()
 
 
-def without_merged_shards(logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
+def without_merged_shards(
+    logs: list[EvalLogInfo], fs_options: dict[str, Any] = {}
+) -> list[EvalLogInfo]:
     """Leave out shard logs that a finished merged log already covers.
 
     Reads the header of each merged log that could hide a shard; see
     :func:`~inspect_ai.log._shard_listing.filter_merged_shards` for the rule.
+
+    Args:
+        logs: The listing.
+        fs_options: Options for the filesystem the logs were listed from
+            (e.g. credentials, anonymous access, or an endpoint), used to
+            read the merged logs' headers.
     """
     merged = merged_logs_to_check(logs)
+    if fs_options:
+        headers = [_read_header(log.name, fs_options) for log in merged]
+    else:
+        headers = read_eval_log_headers(merged)
     finished = {
-        log.name
-        for log, header in zip(merged, read_eval_log_headers(merged))
-        if header.status == "success"
+        log.name for log, header in zip(merged, headers) if header.status == "success"
     }
     return filter_merged_shards(logs, finished).logs
+
+
+def _read_header(location: str, fs_options: dict[str, Any]) -> EvalLog:
+    with file(location, "rb", fs_options=fs_options) as f:
+        return read_eval_log(f, header_only=True)
 
 
 def write_log_listing(

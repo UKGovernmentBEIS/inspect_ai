@@ -263,7 +263,7 @@ def copy_log_files(
                 f"The log directory {log_dir} doesn't contain any log files."
             )
 
-        eval_logs = without_merged_shards(eval_logs)
+        eval_logs = without_merged_shards(eval_logs, fs_options)
 
         # find any eval-set files and move those as well
         eval_set_files = set()

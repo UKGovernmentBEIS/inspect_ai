@@ -1254,6 +1254,42 @@ def test_bundle_copies_only_visible_shards(tmp_path: Path) -> None:
     }
 
 
+class _TokenLocalFileSystem(fsspec.implementations.local.LocalFileSystem):
+    """Local filesystem under ``tokenfs://`` that requires ``token="secret"``."""
+
+    protocol = "tokenfs"
+
+    def __init__(self, *args: Any, token: str | None = None, **kwargs: Any) -> None:
+        if token != "secret":
+            raise PermissionError("tokenfs requires token='secret'")
+        super().__init__(*args, **kwargs)
+
+    @classmethod
+    def _strip_protocol(cls, path: Any) -> Any:
+        if isinstance(path, str) and path.startswith("tokenfs://"):
+            path = path[len("tokenfs://") :]
+        return super()._strip_protocol(path)
+
+    def unstrip_protocol(self, name: str) -> str:
+        return f"tokenfs://{self._strip_protocol(name)}"
+
+
+def test_bundle_reads_merged_status_with_fs_options(tmp_path: Path) -> None:
+    fsspec.register_implementation("tokenfs", _TokenLocalFileSystem, clobber=True)
+    log_dir = tmp_path / "logs"
+    _write_sharded_run(log_dir, [1000, 3000], merged_mtime=2000)
+    target = tmp_path / "bundle"
+    target.mkdir()
+    inspect_ai.log._bundle.copy_log_files(
+        f"tokenfs://{log_dir}", str(target), lambda _: None, {"token": "secret"}
+    )
+    copied = {p.name for p in target.rglob("*.eval")}
+    assert copied == {
+        f"{_MERGED_NAME}.eval",
+        "2025-01-01T00-00-01+00-00_task_s1.eval",
+    }
+
+
 def test_api_flow_returns_yaml(view_client: ViewTestClient) -> None:
     flow_dir = view_client.log_dir / "flow_sub"
     flow_dir.mkdir()
