@@ -3,7 +3,11 @@ from typing import Any, Literal, cast
 from unittest.mock import AsyncMock, create_autospec, patch
 
 import pytest
-from test_helpers.utils import setenv_if_unset, skip_if_no_anthropic
+from test_helpers.utils import (
+    setenv_if_unset,
+    skip_if_no_anthropic,
+    skip_if_no_bedrock,
+)
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import (
@@ -1664,7 +1668,7 @@ def test_anthropic_computer_use_tool_version(
     "model_name",
     ["bedrock/anthropic.claude-opus-5-5", "bedrock/anthropic.claude-sonnet-5-5"],
 )
-def test_anthropic_opus_5_5_computer_use_on_bedrock(model_name: str) -> None:
+def test_anthropic_5_5_computer_use_on_bedrock(model_name: str) -> None:
     """Bedrock still accepts `computer_20251124` on Opus 5.5 and Sonnet 5.5."""
     setenv_if_unset("AWS_REGION", "us-east-1")
     setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
@@ -1898,7 +1902,6 @@ def test_anthropic_fable_5_no_binding_on_base_model(model_name: str) -> None:
         "bedrock/anthropic.claude-opus-5-5",
         "vertex/claude-opus-5-5",
         "azure/claude-opus-5-5",
-        "bedrock/anthropic.claude-sonnet-5-5",
         "vertex/claude-sonnet-5-5",
         "azure/claude-sonnet-5-5",
     ],
@@ -1934,6 +1937,29 @@ def test_anthropic_sonnet_5_5_between_tools_has_no_binding_config() -> None:
     api.apply_thinking_block_binding(request, betas)
     assert betas == ["thinking-binding-controls-2026-08-01"]
     assert request["thinking"] == {"type": "between_tools"}
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "bedrock/anthropic.claude-sonnet-5-5",
+        "bedrock/global.anthropic.claude-sonnet-5-5",
+    ],
+)
+def test_anthropic_sonnet_5_5_binding_on_bedrock(model_name: str) -> None:
+    """Bedrock offers the thinking-binding beta for Sonnet 5.5."""
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
 
 
 def test_anthropic_mythos_5_1_no_binding() -> None:
@@ -2166,10 +2192,25 @@ async def test_anthropic_bound_thinking_drop_reported_live(
     binding enforcement); with it, the request succeeds, the API reports the
     drop via input_transformations, and inspect surfaces a warning.
     """
+    await _check_bound_thinking_drop(f"anthropic/{model_name}", _warn_once_messages)
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_anthropic_bound_thinking_drop_reported_bedrock_live(
+    _warn_once_messages: list[str],
+) -> None:
+    """Sonnet 5.5 on Bedrock drops a prefix-mismatched thinking block (not 400s)."""
+    await _check_bound_thinking_drop(
+        "anthropic/bedrock/global.anthropic.claude-sonnet-5-5", _warn_once_messages
+    )
+
+
+async def _check_bound_thinking_drop(model_str: str, warn_messages: list[str]) -> None:
     from inspect_ai.model import ChatMessageSystem as SystemMsg
 
     model = get_model(
-        f"anthropic/{model_name}",
+        model_str,
         config=GenerateConfig(reasoning_effort="high", max_tokens=8192),
     )
     prompt = "Find all real solutions of 3*x^3 - 5*x = 1 to 3 decimal places."
@@ -2195,7 +2236,7 @@ async def test_anthropic_bound_thinking_drop_reported_live(
     assert second.metadata is not None
     transformations = second.metadata["extra_body"]["input_transformations"]
     assert any(t.get("type") == "thinking_dropped" for t in transformations)
-    assert any("dropped replayed thinking block" in m for m in _warn_once_messages)
+    assert any("dropped replayed thinking block" in m for m in warn_messages)
 
 
 @pytest.mark.anyio
@@ -2301,21 +2342,48 @@ async def test_anthropic_sonnet_5_5_reasoning_effort_none_live(
 
 
 @pytest.mark.anyio
+@skip_if_no_bedrock
+@pytest.mark.parametrize("effort", [None, "max"])
+async def test_anthropic_sonnet_5_5_reasoning_effort_none_bedrock_live(
+    effort: Literal["max"] | None,
+) -> None:
+    """reasoning_effort='none' (between_tools) must not 400 on Bedrock either."""
+    model = get_model(
+        "anthropic/bedrock/global.anthropic.claude-sonnet-5-5",
+        config=GenerateConfig(reasoning_effort="none", effort=effort, max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_sonnet_5_5_forced_tool_choice_live() -> None:
     """Forced tool choice must not 400 on Sonnet 5.5 (degraded to auto)."""
+    await _check_forced_tool_choice_degrades("anthropic/claude-sonnet-5-5")
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_anthropic_sonnet_5_5_forced_tool_choice_bedrock_live() -> None:
+    """Forced tool choice must not 400 on Sonnet 5.5 via Bedrock (degraded to auto)."""
+    await _check_forced_tool_choice_degrades(
+        "anthropic/bedrock/global.anthropic.claude-sonnet-5-5"
+    )
+
+
+async def _check_forced_tool_choice_degrades(model_str: str) -> None:
     from test_helpers.tools import addition
 
-    model = get_model(
-        "anthropic/claude-sonnet-5-5",
-        config=GenerateConfig(max_tokens=1024),
-    )
+    model = get_model(model_str, config=GenerateConfig(max_tokens=1024))
     response = await model.generate(
         input="What is 1 + 1? Use the addition tool to compute it.",
         tools=[addition()],
         tool_choice=ToolFunction(name="addition"),
     )
     assert len(response.completion) >= 1 or response.message.tool_calls
+    assert response.metadata is not None
+    assert response.metadata["tool_choice_degraded"]["used"] == {"type": "auto"}
 
 
 # ---------------------------------------------------------------------------

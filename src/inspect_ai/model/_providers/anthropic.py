@@ -254,7 +254,7 @@ _REASONING_TOKENS_UNSUPPORTED_ERROR = (
     "'reasoning_effort' to control reasoning depth instead."
 )
 _DISABLED_THINKING_EFFORT_WARNING = (
-    "anthropic model '{model}' rejects disabled thinking (reasoning_effort="
+    "anthropic model '{model}' rejects turning thinking off (reasoning_effort="
     "'none') combined with effort above 'high'; clamping effort to 'high'."
 )
 _FORCED_TOOL_CHOICE_WARNING = (
@@ -1502,10 +1502,11 @@ class AnthropicAPI(ModelAPI):
         request for these models — not only those replaying thinking blocks —
         so the beta header stays uniform across a task's requests (the batcher
         submits a single header set per batch). Mythos 5.1 does not run the
-        binding check, so it is excluded. First-party API only for now: the
-        binding-controls beta arrives per model on bedrock/vertex (the header
-        is rejected until then) and is not offered on foundry — until those
-        platforms enable it, a history edit there will still 400. The API
+        binding check, so it is excluded. First-party API only for now, plus
+        Sonnet 5.5 on Bedrock (verified live): the binding-controls beta
+        arrives per model on bedrock/vertex (the header is rejected until
+        then) and is not offered on foundry — until those platforms enable
+        it, a history edit there will still 400. The API
         accepts `block_binding` only with adaptive thinking, so Sonnet 5.5's
         `between_tools` (`reasoning_effort="none"`) requests carry the beta
         header but no binding config, and a history edit before a replayed
@@ -1521,9 +1522,10 @@ class AnthropicAPI(ModelAPI):
             or self.is_claude_opus_5_5_or_later()
             or self.is_claude_sonnet_5_5_or_later()
         )
-        if binds_thinking and not (
+        binding_offered = not (
             self.is_bedrock() or self.is_vertex() or self.is_azure()
-        ):
+        ) or (self.is_bedrock() and self.is_claude_sonnet_5_5_or_later())
+        if binds_thinking and binding_offered:
             betas.append(_THINKING_BINDING_BETA)
             # adaptive thinking is the server default for these models, so
             # sending it explicitly is accepted when the field was omitted
