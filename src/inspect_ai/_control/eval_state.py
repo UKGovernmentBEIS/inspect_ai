@@ -304,13 +304,16 @@ class EvalState:
     done when the source can still add samples."""
 
     dynamic: bool = False
-    """Whether this eval's planned sample set can grow while it runs (a
-    ``SampleSource``-driven task). While set, ``terminal >= total`` is not
-    proof of completion — the task may be idle awaiting its source (or have
-    an empty seed, ``total == 0``, at registration) — so the provisional
-    ``completed_at`` stamp is suppressed and consumers (task cancel, status
-    listings) correctly see the eval as running. Cleared by
-    :func:`finalize_eval`, the task's single true finish point."""
+    """Whether this eval is source-driven (a ``SampleSource`` or
+    ``TaskSource``), so ``terminal >= total`` is not proof of completion. A
+    ``SampleSource`` can still add samples — the task may be idle awaiting
+    its source, or have an empty seed (``total == 0``) at registration — and
+    either source's ``sample_abandoned`` callback runs after the run's
+    terminal count, so the last sample's count can land while the source is
+    still being told about it. While set, the provisional ``completed_at``
+    stamp is suppressed and consumers (task cancel, status listings)
+    correctly see the eval as running. Cleared by :func:`finalize_eval`, the
+    task's single true finish point."""
 
     started_at: float | None = None
     """Earliest observed sample-start time, tracked as a running minimum.
@@ -1047,8 +1050,8 @@ def _maybe_mark_finished(state: EvalState) -> None:
     counter update from a teardown race doesn't overwrite the original
     finish time. Suppressed for a :attr:`EvalState.dynamic` eval — its
     counters reaching ``total`` doesn't mean done (the source may add more
-    samples); ``finalize_eval`` clears the flag at the task's true finish
-    point. Also drops
+    samples, or still be hearing about the last one); ``finalize_eval``
+    clears the flag at the task's true finish point. Also drops
     ``sample_ids`` — a finished eval has no pending samples, so the
     planned-id list is dead weight (it's retained on the state until the
     run boundary clears it). Caller must hold the registry lock.

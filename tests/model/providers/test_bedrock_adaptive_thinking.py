@@ -324,6 +324,35 @@ def test_fable_5_base_keeps_forced_tool_choice():
     assert api.resolved_tool_choice(tool_function) is tool_function
 
 
+def test_opus_5_5_degrades_forced_tool_choice():
+    """Opus 5.5 rejects forced tool choice with a 400; degrade to auto."""
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    api = _make_api("anthropic.claude-opus-5-5")
+    assert api.is_claude_opus_5_5_or_later() is True
+    # 4.7+ capability set: adaptive thinking only, sampling params stripped
+    assert api.is_claude_4_7_or_later() is True
+    # cross-region inference profile id form
+    regional = _make_api("us.anthropic.claude-opus-5-5-20260922-v1:0")
+    assert regional.is_claude_opus_5_5_or_later() is True
+    assert regional.is_claude_4_7_or_later() is True
+    assert api.resolved_tool_choice("any") == "auto"
+    assert api.resolved_tool_choice(ToolFunction(name="get_weather")) == "auto"
+    assert api.resolved_tool_choice("auto") == "auto"
+    assert api.resolved_tool_choice("none") == "none"
+
+
+def test_opus_5_base_keeps_forced_tool_choice():
+    """The base Opus 5 model keeps forced tool choice as requested."""
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    api = _make_api("anthropic.claude-opus-5")
+    assert api.is_claude_opus_5_5_or_later() is False
+    assert api.resolved_tool_choice("any") == "any"
+    tool_function = ToolFunction(name="get_weather")
+    assert api.resolved_tool_choice(tool_function) is tool_function
+
+
 @pytest.mark.anyio
 @skip_if_trio
 @pytest.mark.parametrize(
@@ -331,6 +360,8 @@ def test_fable_5_base_keeps_forced_tool_choice():
     [
         ("anthropic.claude-fable-5-1", {"auto": {}}, True),
         ("anthropic.claude-fable-5", {"tool": {"name": "addition"}}, False),
+        ("anthropic.claude-opus-5-5", {"auto": {}}, True),
+        ("anthropic.claude-opus-5", {"tool": {"name": "addition"}}, False),
     ],
 )
 async def test_bedrock_fable_5_1_forced_tool_choice_wiring(

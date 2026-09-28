@@ -552,10 +552,12 @@ def test_claude_4_6_opus(model_name: str) -> None:
     [
         # GA + limited-release names
         "claude-opus-5",
+        "claude-opus-5-5",
         "claude-fable-5",
         "claude-mythos-5",
         # Bedrock
         "anthropic.claude-opus-5",
+        "anthropic.claude-opus-5-5",
         "anthropic.claude-fable-5",
         "anthropic.claude-fable-5-1",
         # Point releases (hyphen + dot forms)
