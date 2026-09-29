@@ -888,9 +888,15 @@ the source for sample state:
   row is the same; per-sample content is not, which is why the shortcut
   stops at the aggregate row. The `shards` block and per-shard fields come
   from the ledger entries (status, `started_at`, `completed_at`) and from
-  the fresh listing the shortcut already requires: `attempts` counts the
-  `.eval` files in each `<k>/`, and `updated_at` is the latest of their
-  mtimes.
+  the fresh listing the shortcut already requires: `attempts` counts every
+  `.eval` file in each `<k>/` (`len(shard.attempts)`), and `updated_at` is
+  the latest mtime of each shard's *current* attempt only, as the full path
+  takes it from each current member's `plan.file.mtime`
+  (`src/inspect_ai/_control/log_dir/snapshot.py:486`); a superseded
+  attempt's mtime is never used, even when it is newer (after a copy or an
+  edit). No manifest is read here, since a complete snapshot has no
+  running member; outside the shortcut the existing manifest rule applies
+  unchanged.
 
   Otherwise (an incomplete, running or drained snapshot, a changed, new or
   missing shard, a stray file) the view reads the shards and manifests as
@@ -1240,8 +1246,10 @@ real moto server on an ephemeral port). New tests go in a new
   buffer, a changed attempt with a different selection, a new shard whose
   selection overlaps an existing shard's records, a shard of a
   `SampleSource` task, a missing ledger shard and a stray file, including
-  the conflicted and pending counts. `--shards` on a cold cache reads every
-  shard. After an `edit_score` on a complete merged log with unchanged
+  the conflicted and pending counts, and a complete snapshot in which a
+  superseded attempt in some `<k>/` has a newer mtime than the current one
+  (the cold row's `updated_at` and `attempts` equal the full row's).
+  `--shards` on a cold cache reads every shard. After an `edit_score` on a complete merged log with unchanged
   shards, the cold `task list` row equals the full row, and cold and warm
   `sample list`, `sample show` and `sample events` return the same source
   (the shard), score and events.
