@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Anthropic: Prompts can mark a stable prefix for caching while allowing the remaining text to change.
+- OpenAI: GPT-5.6 and later support explicit prompt-cache boundaries; other models retain automatic caching.
 - OpenAI: Support for GPT-6.1 Sol (`gpt-6.1-sol`), including its context window and output limits.
 - Mistral: Support for mistralai 3.0, which is now the minimum required version.
 - Logs: Reading samples with `resolve_attachments` is much faster for long conversations; in full mode, deeply nested model API call content may keep two more nesting levels.
