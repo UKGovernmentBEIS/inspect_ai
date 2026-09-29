@@ -55,6 +55,7 @@ from .._openai_responses import (
     pad_tool_messages_for_token_counting,
 )
 from .._stream import model_stream_requested
+from ._first_party import FRONTIER_MODELS
 from ._openai_batch import OpenAIBatcher
 from .util import (
     check_azure_deployment_mismatch,
@@ -454,6 +455,12 @@ class OpenAIAPI(ModelAPI):
     def reasoning_only_fallback(self) -> bool:
         return False
 
+    def replays_reasoning_text(self) -> bool:
+        return False
+
+    def omits_empty_tool_call_text(self) -> bool:
+        return False
+
     def is_o_series(self) -> bool:
         return is_o_series_model(self.model_family())
 
@@ -561,6 +568,17 @@ class OpenAIAPI(ModelAPI):
 
         streaming = self._resolve_streaming(use_responses)
 
+        # explicit prompt caching is only verified against the unconfigured,
+        # direct OpenAI endpoint; Azure, Bedrock, and any custom base URL
+        # (explicit base_url, OPENAI_BASE_URL, or INSPECT_EVAL_MODEL_BASE_URL)
+        # are unverified — a resolved base_url means the request is going
+        # somewhere other than api.openai.com
+        supports_explicit_prompt_cache = (
+            not self.is_azure()
+            and not self.is_bedrock()
+            and model_base_url(self.base_url, "OPENAI_BASE_URL") is None
+        )
+
         async def generate_once(
             streaming: bool,
         ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
@@ -584,6 +602,7 @@ class OpenAIAPI(ModelAPI):
                     model_info=self,
                     batcher=self._responses_batcher,
                     streaming=streaming,
+                    supports_explicit_prompt_cache=supports_explicit_prompt_cache,
                 )
                 if use_responses
                 else generate_completions(
@@ -600,6 +619,7 @@ class OpenAIAPI(ModelAPI):
                     openai_api=self,
                     batcher=self._completions_batcher,
                     streaming=streaming,
+                    supports_explicit_prompt_cache=supports_explicit_prompt_cache,
                 )
             )
 
@@ -673,7 +693,7 @@ class OpenAIAPI(ModelAPI):
         # context window / token accounting match (bump when a newer frontier
         # ships). Mirrors Anthropic's is_claude_latest() aliasing.
         if self.is_latest():
-            return "openai/gpt-6-astra"
+            return FRONTIER_MODELS["openai"]
         return super().input_tokens_name()
 
     @override

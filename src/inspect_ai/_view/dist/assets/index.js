@@ -27955,14 +27955,44 @@ function debounce$2(func, wait, options) {
 	return debouncedFn;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+/**
+* The context that `useQueryClient` reads from. `QueryClientProvider` is the normal way to set it.
+*/
 var QueryClientContext = import_react.createContext(void 0);
+/**
+* The `useQueryClient` hook returns the current `QueryClient` instance.
+*
+* @param queryClient - Use this to use a custom `QueryClient`. Otherwise, the one from the nearest context will
+* be used.
+* @returns The current `QueryClient` instance.
+* @throws If no `queryClient` argument is passed and no `QueryClientProvider` is found in the component tree.
+*/
 var useQueryClient = (queryClient) => {
 	const client = import_react.useContext(QueryClientContext);
 	if (queryClient) return queryClient;
 	if (!client) throw new Error("No QueryClient set, use QueryClientProvider to set one");
 	return client;
 };
+/**
+* Use the `QueryClientProvider` component to connect and provide a `QueryClient` to your application. Also
+* calls `client.mount()`/`client.unmount()` as this component mounts/unmounts, which subscribes the client to
+* focus/online events (resuming any paused mutations and refetching as needed when the app regains focus or
+* comes back online).
+*
+* @returns The provided `children`, wrapped so they can read the `QueryClient` via `useQueryClient`.
+*
+* @example
+* ```tsx
+* import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+*
+* const queryClient = new QueryClient()
+*
+* function App() {
+*   return <QueryClientProvider client={queryClient}>...</QueryClientProvider>
+* }
+* ```
+*/
 var QueryClientProvider = ({ client, children }) => {
 	import_react.useEffect(() => {
 		client.mount();
@@ -27976,7 +28006,7 @@ var QueryClientProvider = ({ client, children }) => {
 	});
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
 var defaultTimeoutProvider = {
 	setTimeout: (callback, delay) => setTimeout(callback, delay),
 	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
@@ -27997,22 +28027,121 @@ var defaultTimeoutProvider = {
 var TimeoutManager = class {
 	#provider = defaultTimeoutProvider;
 	#providerCalled = false;
+	/**
+	* `setTimeoutProvider` can be used to set a custom implementation of the
+	* `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval` functions,
+	* called a `TimeoutProvider`.
+	*
+	* This may be useful if you notice event loop performance issues with
+	* thousands of queries. A custom TimeoutProvider could also support timer
+	* delays longer than the global `setTimeout` maximum delay value of about
+	* 24 days.
+	*
+	* It is important to call `setTimeoutProvider` before creating a
+	* QueryClient or queries, so that the same provider is used consistently
+	* for all timers in the application, since different TimeoutProviders
+	* cannot cancel each others' timers.
+	*
+	* @example
+	* ```ts
+	* import { timeoutManager, QueryClient } from '@tanstack/query-core'
+	* import { CustomTimeoutProvider } from './CustomTimeoutProvider'
+	*
+	* timeoutManager.setTimeoutProvider(new CustomTimeoutProvider())
+	*
+	* export const queryClient = new QueryClient()
+	* ```
+	*/
 	setTimeoutProvider(provider) {
 		this.#provider = provider;
 	}
+	/**
+	* `setTimeout` schedules a callback to run after approximately `delay`
+	* milliseconds, like the global `setTimeout` function. The callback can be
+	* canceled with `clearTimeout`.
+	*
+	* It returns a timer ID, which may be a number or an object that can be
+	* coerced to a number via `Symbol.toPrimitive`.
+	*
+	* @example
+	* ```ts
+	* import { timeoutManager } from '@tanstack/query-core'
+	*
+	* const timeoutId = timeoutManager.setTimeout(
+	*   () => console.log('ran at:', new Date()),
+	*   1000,
+	* )
+	*
+	* const timeoutIdNumber: number = Number(timeoutId)
+	* ```
+	*/
 	setTimeout(callback, delay) {
 		return this.#provider.setTimeout(callback, delay);
 	}
+	/**
+	* `clearTimeout` cancels a timeout callback scheduled with `setTimeout`,
+	* like the global `clearTimeout` function. It should be called with a
+	* timer ID returned by `setTimeout`.
+	*
+	* @example
+	* ```ts
+	* import { timeoutManager } from '@tanstack/query-core'
+	*
+	* const timeoutId = timeoutManager.setTimeout(
+	*   () => console.log('ran at:', new Date()),
+	*   1000,
+	* )
+	*
+	* timeoutManager.clearTimeout(timeoutId)
+	* ```
+	*/
 	clearTimeout(timeoutId) {
 		this.#provider.clearTimeout(timeoutId);
 	}
+	/**
+	* `setInterval` schedules a callback to be called approximately every
+	* `delay` milliseconds, like the global `setInterval` function.
+	*
+	* Like `setTimeout`, it returns a timer ID, which may be a number or an
+	* object that can be coerced to a number via `Symbol.toPrimitive`.
+	*
+	* @example
+	* ```ts
+	* import { timeoutManager } from '@tanstack/query-core'
+	*
+	* const intervalId = timeoutManager.setInterval(
+	*   () => console.log('ran at:', new Date()),
+	*   1000,
+	* )
+	* ```
+	*/
 	setInterval(callback, delay) {
 		return this.#provider.setInterval(callback, delay);
 	}
+	/**
+	* `clearInterval` can be used to cancel an interval, like the global
+	* `clearInterval` function. It should be called with an interval ID
+	* returned by `setInterval`.
+	*
+	* @example
+	* ```ts
+	* import { timeoutManager } from '@tanstack/query-core'
+	*
+	* const intervalId = timeoutManager.setInterval(
+	*   () => console.log('ran at:', new Date()),
+	*   1000,
+	* )
+	*
+	* timeoutManager.clearInterval(intervalId)
+	* ```
+	*/
 	clearInterval(intervalId) {
 		this.#provider.clearInterval(intervalId);
 	}
 };
+/**
+* Singleton instance of {@link TimeoutManager}, used throughout TanStack Query to schedule and cancel timers.
+*/
 var timeoutManager = new TimeoutManager();
 /**
 * In many cases code wants to delay to the next event loop tick; this is not
@@ -28025,7 +28154,7 @@ function systemSetTimeoutZero(callback) {
 	setTimeout(callback, 0);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/utils.js
 /** @deprecated
 * use `environmentManager.isServer()` instead.
 */
@@ -28043,6 +28172,19 @@ function timeUntilStale(updatedAt, staleTime) {
 function resolveQueryValue(value, query) {
 	return typeof value === "function" ? value(query) : value;
 }
+/**
+* Checks whether a query matches the given {@link QueryFilters}.
+* Every filter that is specified must match; filters that are left unspecified are ignored.
+*
+* @example
+* ```ts
+* const queryCache = queryClient.getQueryCache()
+*
+* const matchingQueries = queryCache
+*   .getAll()
+*   .filter((query) => matchQuery({ queryKey: ['posts'] }, query))
+* ```
+*/
 function matchQuery(filters, query) {
 	const { type = "all", exact, fetchStatus, predicate, queryKey, stale } = filters;
 	if (queryKey) {
@@ -28060,6 +28202,20 @@ function matchQuery(filters, query) {
 	if (predicate && !predicate(query)) return false;
 	return true;
 }
+/**
+* Checks whether a mutation matches the given {@link MutationFilters}.
+* Every filter that is specified must match; filters that are left unspecified are ignored.
+* If a `mutationKey` filter is provided but the mutation has no `mutationKey` of its own, it does not match.
+*
+* @example
+* ```ts
+* const mutationCache = queryClient.getMutationCache()
+*
+* const matchingMutations = mutationCache
+*   .getAll()
+*   .filter((mutation) => matchMutation({ mutationKey: ['addPost'] }, mutation))
+* ```
+*/
 function matchMutation(filters, mutation) {
 	const { exact, status, predicate, mutationKey } = filters;
 	if (mutationKey) {
@@ -28078,6 +28234,12 @@ function hashQueryKeyByOptions(queryKey, options) {
 /**
 * Default query & mutation keys hash function.
 * Hashes the value into a stable hash.
+*
+* @example
+* ```ts
+* // Object keys are sorted, so key order doesn't affect the hash:
+* hashKey(['todos', { page: 1, filter: 'done' }]) // === '["todos",{"filter":"done","page":1}]'
+* ```
 */
 function hashKey(queryKey) {
 	return JSON.stringify(queryKey, (_, val) => isPlainObject$1(val) ? Object.keys(val).sort().reduce((result, key) => {
@@ -28090,6 +28252,7 @@ function partialMatchKey(a, b) {
 	if (typeof a !== typeof b) return false;
 	if (a && b && typeof a === "object" && typeof b === "object") {
 		if (Array.isArray(a) && Array.isArray(b)) {
+			if (b.length > a.length) return false;
 			for (let i = 0; i < b.length; i++) if (!partialMatchKey(a[i], b[i])) return false;
 			return true;
 		}
@@ -28142,12 +28305,14 @@ function isPlainArray(value) {
 }
 function isPlainObject$1(o) {
 	if (!hasObjectPrototype(o)) return false;
-	const ctor = o.constructor;
+	const objectPrototype = Object.getPrototypeOf(o);
+	const ctor = objectPrototype?.constructor;
 	if (ctor === void 0) return true;
+	if (typeof ctor !== "function") return false;
 	const prot = ctor.prototype;
 	if (!hasObjectPrototype(prot)) return false;
 	if (!prot.hasOwnProperty("isPrototypeOf")) return false;
-	if (Object.getPrototypeOf(o) !== Object.prototype) return false;
+	if (objectPrototype !== Object.prototype) return false;
 	return true;
 }
 function hasObjectPrototype(o) {
@@ -28163,6 +28328,20 @@ function replaceData(prevData, data, options) {
 	else if (options.structuralSharing !== false) return replaceEqualDeep(prevData, data);
 	return data;
 }
+/**
+* Intended to be passed as a query's `placeholderData` option, for example
+* `placeholderData: keepPreviousData`. Instead of resetting the query's data to `undefined` while a new
+* query key is fetching, it keeps displaying the previously fetched data until the new data arrives.
+*
+* @example
+* ```ts
+* new QueryObserver(queryClient, {
+*   queryKey: ['posts', page],
+*   queryFn: () => fetchPosts(page),
+*   placeholderData: keepPreviousData,
+* })
+* ```
+*/
 function keepPreviousData(previousData) {
 	return previousData;
 }
@@ -28174,12 +28353,40 @@ function addToStart(items, item, max = 0) {
 	const newItems = [item, ...items];
 	return max && newItems.length > max ? newItems.slice(0, -1) : newItems;
 }
+/**
+* Sentinel value that can be passed as a query's `queryFn` to conditionally disable the query (equivalent
+* to `enabled: false`) while preserving full type inference for the query's data. Unlike `enabled: false`,
+* a query disabled via `skipToken` cannot be triggered with `refetch`.
+*
+* @example
+* ```ts
+* new QueryObserver(queryClient, {
+*   queryKey: ['post', postId],
+*   queryFn: postId != null ? () => fetchPost(postId) : skipToken,
+* })
+* ```
+*/
 var skipToken = Symbol();
 function ensureQueryFn(options, fetchOptions) {
 	if (!options.queryFn && fetchOptions?.initialPromise) return () => fetchOptions.initialPromise;
 	if (!options.queryFn || options.queryFn === skipToken) return () => Promise.reject(/* @__PURE__ */ new Error(`Missing queryFn: '${options.queryHash}'`));
 	return options.queryFn;
 }
+/**
+* Resolves a `throwOnError` option to a boolean.
+* If `throwOnError` is a function, it is called with `params` (e.g. the error and, depending on the caller,
+* additional context such as the query or mutation) and its result is returned, allowing the throwing
+* behavior to be decided per error. Otherwise, `throwOnError` itself is coerced to a boolean (`undefined`
+* resolves to `false`).
+*
+* @example
+* ```ts
+* const throwOnError =
+*   query.state.error && typeof options.throwOnError === 'function'
+*     ? shouldThrowError(options.throwOnError, [query.state.error, query])
+*     : options.throwOnError
+* ```
+*/
 function shouldThrowError(throwOnError, params) {
 	if (typeof throwOnError === "function") return throwOnError(...params);
 	return !!throwOnError;
@@ -28201,14 +28408,14 @@ function addConsumeAwareSignal(object, getSignal, onCancelled) {
 	return object;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/environmentManager.js
 var isServerFn = () => isServer$1;
 /**
 * Returns whether the current runtime should be treated as a server environment.
 */
 var isServer = () => isServerFn();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/subscribable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/subscribable.js
 var Subscribable = class {
 	constructor() {
 		this.listeners = /* @__PURE__ */ new Set();
@@ -28229,7 +28436,12 @@ var Subscribable = class {
 	onUnsubscribe() {}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/focusManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/focusManager.js
+/**
+* The `FocusManager` manages the focus state within TanStack Query.
+*
+* It can be used to change the default event listeners or to manually change the focus state.
+*/
 var FocusManager = class extends Subscribable {
 	#focused;
 	#cleanup;
@@ -28255,6 +28467,31 @@ var FocusManager = class extends Subscribable {
 			this.#cleanup = void 0;
 		}
 	}
+	/**
+	* `setEventListener` can be used to set a custom event listener that will
+	* be used to determine the focus state. The provided `setup` function
+	* receives a `setFocused` callback: call it with a `boolean` to manually
+	* set the focus state, or with no arguments to re-evaluate the current
+	* focus state and notify subscribers.
+	*
+	* @example
+	* ```ts
+	* import { focusManager } from '@tanstack/query-core'
+	*
+	* focusManager.setEventListener((handleFocus) => {
+	*   const listener = () => handleFocus()
+	*   // Listen to visibilitychange
+	*   if (typeof window !== 'undefined' && window.addEventListener) {
+	*     window.addEventListener('visibilitychange', listener, false)
+	*   }
+	*
+	*   return () => {
+	*     // Be sure to unsubscribe if a new handler is set
+	*     window.removeEventListener('visibilitychange', listener)
+	*   }
+	* })
+	* ```
+	*/
 	setEventListener(setup) {
 		this.#setup = setup;
 		this.#cleanup?.();
@@ -28263,26 +28500,57 @@ var FocusManager = class extends Subscribable {
 			else this.onFocus();
 		});
 	}
+	/**
+	* `setFocused` can be used to manually set the focus state. Set `undefined`
+	* to fall back to the default focus check.
+	*
+	* @example
+	* ```ts
+	* import { focusManager } from '@tanstack/query-core'
+	*
+	* // Set focused
+	* focusManager.setFocused(true)
+	*
+	* // Set unfocused
+	* focusManager.setFocused(false)
+	*
+	* // Fallback to the default focus check
+	* focusManager.setFocused(undefined)
+	* ```
+	*/
 	setFocused(focused) {
 		if (this.#focused !== focused) {
 			this.#focused = focused;
 			this.onFocus();
 		}
 	}
+	/**
+	* `onFocus` notifies all subscribed listeners with the current focus state.
+	*/
 	onFocus() {
 		const isFocused = this.isFocused();
 		this.listeners.forEach((listener) => {
 			listener(isFocused);
 		});
 	}
+	/**
+	* `isFocused` can be used to get the current focus state.
+	*/
 	isFocused() {
 		if (typeof this.#focused === "boolean") return this.#focused;
 		return globalThis.document?.visibilityState !== "hidden";
 	}
 };
+/**
+* Singleton instance of {@link FocusManager}, used to manage and observe the focus state within TanStack Query.
+*/
 var focusManager = new FocusManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+/**
+* Default scheduling function used by the notify manager.
+* Schedules the callback with the system's `setTimeout(callback, 0)`.
+*/
 var defaultScheduler = systemSetTimeoutZero;
 function createNotifyManager() {
 	let queue = [];
@@ -28312,6 +28580,12 @@ function createNotifyManager() {
 		});
 	};
 	return {
+		/**
+		* Batches all updates scheduled inside the passed callback.
+		* This is mainly used internally to optimize query client updating.
+		* Batches can be nested; the queue is only flushed once the outermost `batch` call finishes.
+		* The return value of `callback` is passed through.
+		*/
 		batch: (callback) => {
 			let result;
 			transactions++;
@@ -28333,6 +28607,10 @@ function createNotifyManager() {
 				});
 			};
 		},
+		/**
+		* Schedules a function to be run on the next batch.
+		* By default, the batch is run with a `setTimeout`, but this can be configured via `setScheduler`.
+		*/
 		schedule,
 		/**
 		* Use this method to set a custom notify function.
@@ -28343,19 +28621,58 @@ function createNotifyManager() {
 		},
 		/**
 		* Use this method to set a custom function to batch notifications together into a single tick.
-		* By default React Query will use the batch function provided by ReactDOM or React Native.
+		* Framework adapters use this to plug in their own batching primitive, so that a single query
+		* update only triggers one re-render instead of one per subscriber.
+		*
+		* @example
+		* ```ts
+		* import { notifyManager } from '@tanstack/query-core'
+		* import { batch } from 'solid-js'
+		*
+		* notifyManager.setBatchNotifyFunction(batch)
+		* ```
 		*/
 		setBatchNotifyFunction: (fn) => {
 			batchNotifyFn = fn;
 		},
+		/**
+		* Configures a custom callback that schedules when the next batch runs.
+		* The default behavior is `setTimeout(callback, 0)`.
+		*
+		* @example
+		* ```ts
+		* import { notifyManager } from '@tanstack/query-core'
+		*
+		* // Schedule batches in the next microtask
+		* notifyManager.setScheduler(queueMicrotask)
+		*
+		* // Schedule batches before the next frame is rendered
+		* notifyManager.setScheduler(requestAnimationFrame)
+		*
+		* // Schedule batches some time in the future
+		* notifyManager.setScheduler((cb) => setTimeout(cb, 10))
+		* ```
+		*/
 		setScheduler: (fn) => {
 			scheduleFn = fn;
 		}
 	};
 }
+/**
+* Handles scheduling and batching callbacks in TanStack Query.
+*/
 var notifyManager = createNotifyManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+/**
+* The `OnlineManager` manages the online state within TanStack Query. It can
+* be used to change the default event listeners or to manually change the
+* online state.
+*
+* By default, the `onlineManager` assumes an active network connection, and
+* listens to the `online` and `offline` events on the `window` object to
+* detect changes.
+*/
 var OnlineManager = class extends Subscribable {
 	#online = true;
 	#cleanup;
@@ -28384,11 +28701,43 @@ var OnlineManager = class extends Subscribable {
 			this.#cleanup = void 0;
 		}
 	}
+	/**
+	* `setEventListener` can be used to set a custom event listener that will
+	* be used to determine the online state. The provided `setup` function
+	* receives a `setOnline` callback that should be called with a `boolean`
+	* whenever the online state changes.
+	*
+	* @example
+	* ```ts
+	* import NetInfo from '@react-native-community/netinfo'
+	* import { onlineManager } from '@tanstack/query-core'
+	*
+	* onlineManager.setEventListener((setOnline) => {
+	*   return NetInfo.addEventListener((state) => {
+	*     setOnline(!!state.isConnected)
+	*   })
+	* })
+	* ```
+	*/
 	setEventListener(setup) {
 		this.#setup = setup;
 		this.#cleanup?.();
 		this.#cleanup = setup(this.setOnline.bind(this));
 	}
+	/**
+	* `setOnline` can be used to manually set the online state.
+	*
+	* @example
+	* ```ts
+	* import { onlineManager } from '@tanstack/query-core'
+	*
+	* // Set to online
+	* onlineManager.setOnline(true)
+	*
+	* // Set to offline
+	* onlineManager.setOnline(false)
+	* ```
+	*/
 	setOnline(online) {
 		if (this.#online !== online) {
 			this.#online = online;
@@ -28397,19 +28746,43 @@ var OnlineManager = class extends Subscribable {
 			});
 		}
 	}
+	/**
+	* `isOnline` can be used to get the current online state.
+	*/
 	isOnline() {
 		return this.#online;
 	}
 };
+/**
+* Singleton instance of {@link OnlineManager}, used to manage and observe the online state within TanStack Query.
+*/
 var onlineManager = new OnlineManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/retryer.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/retryer.js
 function defaultRetryDelay(failureCount) {
 	return Math.min(1e3 * 2 ** failureCount, 3e4);
 }
 function canFetch(networkMode) {
 	return (networkMode ?? "online") === "online" ? onlineManager.isOnline() : true;
 }
+/**
+* The error thrown by a `Retryer` (and surfaced to `query.promise`/`mutation`) when a fetch is cancelled, e.g. via
+* `query.cancel()`. `revert`, if `true`, tells the caller to restore the state the query was in before the fetch
+* started instead of surfacing the error. `silent`, if `true`, tells the caller to suppress this error and instead
+* resolve with the promise of the fetch that triggered the cancellation.
+* @example
+* ```ts
+* query.cancel()
+*
+* try {
+*   await query.promise
+* } catch (error) {
+*   if (error instanceof CancelledError) {
+*     // the fetch was cancelled, e.g. via `query.cancel()`
+*   }
+* }
+* ```
+*/
 var CancelledError = class extends Error {
 	constructor(options) {
 		super("CancelledError");
@@ -28518,7 +28891,7 @@ function createRetryer(config) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/removable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/removable.js
 var Removable = class {
 	#gcTimeout;
 	destroy() {
@@ -28541,7 +28914,7 @@ var Removable = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
 function infiniteQueryBehavior(pages) {
 	return { onFetch: (context, query) => {
 		const options = context.options;
@@ -28634,7 +29007,26 @@ function hasPreviousPage(options, data) {
 	return getPreviousPageParam(options, data) != null;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/query.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/query.js
+/**
+* Represents a single cached query. A `Query` holds the query's key, options,
+* state (data/error/status), and the observers currently subscribed to it.
+*
+* Instances are created and managed internally by `QueryCache`; application
+* code typically interacts with queries indirectly through `QueryClient` or
+* a framework hook like `useQuery`. Direct access to a `Query` instance is
+* possible via `queryCache.find()`/`findAll()` for inspecting cache state.
+*
+* @example
+* ```ts
+* const queryCache = queryClient.getQueryCache()
+* const query = queryCache.find({ queryKey: ['posts'] })
+*
+* if (query) {
+*   console.log(query.state.dataUpdatedAt)
+* }
+* ```
+*/
 var Query = class extends Removable {
 	#queryType;
 	#initialState;
@@ -28658,15 +29050,24 @@ var Query = class extends Removable {
 		this.state = config.state ?? this.#initialState;
 		this.scheduleGc();
 	}
+	/**
+	* The `meta` object passed in the query's options, if any.
+	*/
 	get meta() {
 		return this.options.meta;
 	}
+	/** @internal */
 	get queryType() {
 		return this.#queryType;
 	}
+	/**
+	* The promise for the currently in-flight fetch, if the query is fetching.
+	* `undefined` when the query is not fetching.
+	*/
 	get promise() {
 		return this.#retryer?.promise;
 	}
+	/** @internal */
 	setOptions(options) {
 		this.options = {
 			...this.#defaultOptions,
@@ -28685,6 +29086,7 @@ var Query = class extends Removable {
 	optionalRemove() {
 		if (!this.observers.length && this.state.fetchStatus === "idle") this.#cache.remove(this);
 	}
+	/** @internal */
 	setData(newData, options) {
 		const data = replaceData(this.state.data, newData, this.options);
 		this.#dispatch({
@@ -28695,60 +29097,141 @@ var Query = class extends Removable {
 		});
 		return data;
 	}
+	/**
+	* Merges the given partial state directly into this query's state, notifying observers. Used
+	* by persistence and broadcast plugins to restore a state snapshot, and by devtools to let a
+	* user manually trigger a loading/error state or edit the cached data.
+	*/
 	setState(state) {
 		this.#dispatch({
 			type: "setState",
 			state
 		});
 	}
+	/**
+	* Cancels the query's currently in-flight fetch, if any.
+	* - Returns a promise that resolves once the cancellation has settled.
+	* - If no fetch is in progress, resolves immediately.
+	*
+	* @example
+	* ```ts
+	* await query.cancel()
+	* ```
+	*/
 	cancel(options) {
 		const promise = this.#retryer?.promise;
 		this.#retryer?.cancel(options);
 		return promise ? promise.then(noop).catch(noop) : Promise.resolve();
 	}
+	/**
+	* Clears the query's garbage collection timeout and silently cancels any
+	* in-flight fetch. Called by `QueryCache` when the query is removed from
+	* the cache.
+	*
+	* @see {@link Query#cancel}
+	*/
 	destroy() {
 		super.destroy();
 		this.cancel({ silent: true });
 	}
+	/** @internal */
 	get resetState() {
 		return this.#initialState;
 	}
+	/**
+	* Resets the query back to its initial state (the state it had when it was
+	* first created, e.g. any `initialData`), destroying it first to cancel any
+	* in-flight fetch.
+	*/
 	reset() {
 		this.destroy();
 		this.setState(this.resetState);
 	}
+	/**
+	* Returns `true` if the query has at least one observer for which `enabled`
+	* does not resolve to `false`.
+	*/
 	isActive() {
 		return this.observers.some((observer) => resolveQueryValue(observer.options.enabled, this) !== false);
 	}
+	/**
+	* Returns `true` if the query is disabled, meaning it will not fetch
+	* automatically.
+	* - If the query has observers, it is disabled when none of them are active
+	*   (see `isActive`).
+	* - If the query has no observers, it is disabled when its `queryFn` is
+	*   `skipToken` or it has never been fetched.
+	*/
 	isDisabled() {
 		if (this.getObserversCount() > 0) return !this.isActive();
 		return this.options.queryFn === skipToken || !this.isFetched();
 	}
+	/**
+	* Returns `true` if the query has been fetched, i.e. it has resolved with
+	* either data or an error at least once.
+	*/
 	isFetched() {
 		return this.state.dataUpdateCount + this.state.errorUpdateCount > 0;
 	}
+	/**
+	* Returns `true` if the query has at least one observer configured with
+	* `staleTime: 'static'`, meaning it is treated as never stale.
+	*/
 	isStatic() {
 		if (this.getObserversCount() > 0) return this.observers.some((observer) => resolveQueryValue(observer.options.staleTime, this) === "static");
 		return false;
 	}
+	/**
+	* Returns `true` if the query is stale.
+	* - If the query has observers, defers to whether any observer's current
+	*   result reports `isStale` (which accounts for each observer's own
+	*   `staleTime` and `enabled` state).
+	* - If the query has no observers, it is considered stale when it has no
+	*   data or has been invalidated.
+	*
+	* @see {@link Query#isStaleByTime}
+	* @example
+	* ```ts
+	* if (query.isStale()) {
+	*   // refetch or otherwise treat the cached data as outdated
+	* }
+	* ```
+	*/
 	isStale() {
 		if (this.getObserversCount() > 0) return this.observers.some((observer) => observer.getCurrentResult().isStale);
 		return this.state.data === void 0 || this.state.isInvalidated;
 	}
+	/**
+	* Returns `true` if the query's data is stale relative to the given
+	* `staleTime` (defaults to `0`).
+	* - A query with no data is always stale.
+	* - `staleTime: 'static'` is never stale.
+	* - An invalidated query is always stale.
+	* - Otherwise, staleness is based on elapsed time since `dataUpdatedAt`.
+	*
+	* @see {@link Query#isStale}
+	* @example
+	* ```ts
+	* const isStale = query.isStaleByTime(1000 * 60)
+	* ```
+	*/
 	isStaleByTime(staleTime = 0) {
 		if (this.state.data === void 0) return true;
 		if (staleTime === "static") return false;
 		if (this.state.isInvalidated) return true;
 		return !timeUntilStale(this.state.dataUpdatedAt, staleTime);
 	}
+	/** @internal */
 	onFocus() {
 		this.observers.find((x) => x.shouldFetchOnWindowFocus())?.refetch({ cancelRefetch: false });
 		this.#retryer?.continue();
 	}
+	/** @internal */
 	onOnline() {
 		this.observers.find((x) => x.shouldFetchOnReconnect())?.refetch({ cancelRefetch: false });
 		this.#retryer?.continue();
 	}
+	/** @internal */
 	addObserver(observer) {
 		if (!this.observers.includes(observer)) {
 			this.observers.push(observer);
@@ -28760,6 +29243,7 @@ var Query = class extends Removable {
 			});
 		}
 	}
+	/** @internal */
 	removeObserver(observer) {
 		const index = this.observers.indexOf(observer);
 		if (index !== -1) {
@@ -28778,12 +29262,42 @@ var Query = class extends Removable {
 			});
 		}
 	}
+	/**
+	* Returns the number of observers currently subscribed to this query.
+	*
+	* @example
+	* ```ts
+	* if (query.getObserversCount() === 0) {
+	*   // no component is currently watching this query
+	* }
+	* ```
+	*/
 	getObserversCount() {
 		return this.observers.length;
 	}
+	/**
+	* Marks the query as invalidated, unless it is already invalidated. This
+	* updates `state.isInvalidated` and notifies observers, but does not by
+	* itself trigger a refetch.
+	*
+	* @example
+	* ```ts
+	* query.invalidate()
+	* ```
+	*/
 	invalidate() {
 		if (!this.state.isInvalidated) this.#dispatch({ type: "invalidate" });
 	}
+	/**
+	* Fetches the query, i.e. runs its `queryFn` (through any configured
+	* retryer/behavior) and updates the query's state with the result.
+	* - If a fetch is already in flight, returns its promise instead of
+	*   starting a new one, unless `fetchOptions.cancelRefetch` is set and the
+	*   query already has data, in which case the current fetch is silently
+	*   cancelled first.
+	* - If `options` is passed, it replaces the query's current options
+	*   before fetching.
+	*/
 	async fetch(options, fetchOptions) {
 		if (this.state.fetchStatus !== "idle" && this.#retryer?.status() !== "rejected") {
 			if (this.state.data !== void 0 && fetchOptions?.cancelRefetch) this.cancel({ silent: true });
@@ -29007,7 +29521,27 @@ function getDefaultState$1(options) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+/**
+* A `QueryObserver` watches a single query in the `QueryCache` and computes a
+* `QueryObserverResult` from its state, recomputing and notifying subscribers
+* whenever the underlying query (or the observer's options) changes. It is
+* the primitive that framework adapters (e.g. `useQuery`) build their hooks
+* on top of, but it can also be used directly to observe and switch between
+* queries outside of any framework.
+*
+* @example
+* ```ts
+* const observer = new QueryObserver(queryClient, {
+*   queryKey: ['posts'],
+*   queryFn: fetchPosts,
+* })
+*
+* const unsubscribe = observer.subscribe((result) => {
+*   console.log(result.data)
+* })
+* ```
+*/
 var QueryObserver = class extends Subscribable {
 	#client;
 	#currentQuery = void 0;
@@ -29045,18 +29579,47 @@ var QueryObserver = class extends Subscribable {
 	onUnsubscribe() {
 		if (!this.hasListeners()) this.destroy();
 	}
+	/**
+	* Returns whether the observed query is currently stale and configured
+	* (via the `refetchOnReconnect` option) to refetch when the network
+	* reconnects.
+	*/
 	shouldFetchOnReconnect() {
 		return shouldFetchOn(this.#currentQuery, this.options, this.options.refetchOnReconnect);
 	}
+	/**
+	* Returns whether the observed query is currently stale and configured
+	* (via the `refetchOnWindowFocus` option) to refetch when the window
+	* regains focus.
+	*/
 	shouldFetchOnWindowFocus() {
 		return shouldFetchOn(this.#currentQuery, this.options, this.options.refetchOnWindowFocus);
 	}
+	/**
+	* Stops observing the current query: clears all listeners, cancels the
+	* stale and refetch-interval timers, and removes this observer from the
+	* query it was observing.
+	*/
 	destroy() {
 		this.listeners = /* @__PURE__ */ new Set();
 		this.#clearStaleTimeout();
 		this.#clearRefetchInterval();
 		this.#currentQuery.removeObserver(this);
 	}
+	/**
+	* Updates the observer's options. This will re-resolve the query being
+	* observed (switching to a different query if the `queryKey` changed),
+	* trigger a fetch if the new options require one and the observer has
+	* subscribers, recompute the current result, and reschedule the stale and
+	* refetch-interval timers as needed.
+	*
+	* @example
+	* ```ts
+	* observer.setOptions({ queryKey: ['posts', 1], queryFn: () => fetchPost(1) })
+	* // later: switch to a different query, reusing the same observer
+	* observer.setOptions({ queryKey: ['posts', 2], queryFn: () => fetchPost(2) })
+	* ```
+	*/
 	setOptions(options) {
 		const prevOptions = this.options;
 		const prevQuery = this.#currentQuery;
@@ -29076,6 +29639,12 @@ var QueryObserver = class extends Subscribable {
 		const nextRefetchInterval = this.#computeRefetchInterval();
 		if (mounted && (this.#currentQuery !== prevQuery || resolveQueryValue(this.options.enabled, this.#currentQuery) !== resolveQueryValue(prevOptions.enabled, this.#currentQuery) || nextRefetchInterval !== this.#currentRefetchInterval)) this.#updateRefetchInterval(nextRefetchInterval);
 	}
+	/**
+	* Computes the result the observer would produce for the given (already-defaulted) options
+	* right now, building the underlying `Query` if it doesn't exist yet, without waiting for a
+	* subscription callback. Called by framework adapters on every render (e.g. `useQuery`) so the
+	* returned value is available synchronously, ahead of `setOptions` triggering an actual fetch.
+	*/
 	getOptimisticResult(options) {
 		const query = this.#client.getQueryCache().build(this.#client, options);
 		const result = this.createResult(query, options);
@@ -29086,9 +29655,27 @@ var QueryObserver = class extends Subscribable {
 		}
 		return result;
 	}
+	/**
+	* Returns the most recently computed `QueryObserverResult` for the
+	* observed query. This is a point-in-time read; to be notified of updates
+	* as they happen, subscribe to the observer instead (its inherited
+	* `subscribe` method).
+	*
+	* @example
+	* ```ts
+	* const result = observer.getCurrentResult()
+	* console.log(result.status, result.data)
+	* ```
+	*/
 	getCurrentResult() {
 		return this.#currentResult;
 	}
+	/**
+	* Wraps a `QueryObserverResult` in a `Proxy` that records which properties are read, via
+	* {@link QueryObserver#trackProp} (and an optional `onPropTracked` callback). Used by framework
+	* adapters when `notifyOnChangeProps` is not set, to implement its default "only re-render on
+	* properties you actually read" behavior.
+	*/
 	trackResult(result, onPropTracked) {
 		return new Proxy(result, { get: (target, key) => {
 			this.trackProp(key);
@@ -29096,15 +29683,50 @@ var QueryObserver = class extends Subscribable {
 			return Reflect.get(target, key);
 		} });
 	}
+	/**
+	* Records that the given `QueryObserverResult` property was read, so a subsequent update only
+	* notifies this observer if a tracked property actually changed. Normally called indirectly via
+	* {@link QueryObserver#trackResult}'s proxy; exposed directly for adapters that track property
+	* access themselves (e.g. through their own reactivity system) instead of via the proxy.
+	*/
 	trackProp(key) {
 		this.#trackedProps.add(key);
 	}
+	/**
+	* Returns the `Query` instance this observer is currently observing.
+	*/
 	getCurrentQuery() {
 		return this.#currentQuery;
 	}
+	/**
+	* Refetches the observed query and returns a promise that resolves with
+	* the resulting `QueryObserverResult`.
+	*
+	* @example
+	* ```ts
+	* const result = await observer.refetch({ cancelRefetch: false })
+	* console.log(result.data)
+	* ```
+	*/
 	refetch({ ...options } = {}) {
 		return this.fetch({ ...options });
 	}
+	/**
+	* Fetches a query defined by the given options without affecting this
+	* observer's own tracked query or result, and returns a promise that
+	* resolves with the `QueryObserverResult` for that fetch. This is useful
+	* for prefetching data that another observer (e.g. a query about to be
+	* navigated to) will need, ahead of time.
+	*
+	* @example
+	* ```ts
+	* const result = await observer.fetchOptimistic({
+	*   queryKey: ['posts', 2],
+	*   queryFn: () => fetchPost(2),
+	* })
+	* console.log(result.data)
+	* ```
+	*/
 	fetchOptimistic(options) {
 		const defaultedOptions = this.#client.defaultQueryOptions(options);
 		const query = this.#client.getQueryCache().build(this.#client, defaultedOptions);
@@ -29155,7 +29777,7 @@ var QueryObserver = class extends Subscribable {
 		}, timeout);
 	}
 	#computeRefetchInterval() {
-		return (typeof this.options.refetchInterval === "function" ? this.options.refetchInterval(this.#currentQuery) : this.options.refetchInterval) ?? false;
+		return resolveQueryValue(this.options.refetchInterval, this.#currentQuery) ?? false;
 	}
 	#updateRefetchInterval(nextInterval) {
 		this.#clearRefetchInterval();
@@ -29269,6 +29891,11 @@ var QueryObserver = class extends Subscribable {
 			isEnabled: resolveQueryValue(options.enabled, query) !== false
 		};
 	}
+	/**
+	* Recomputes and stores the current result from the current query/options, notifying listeners
+	* if it changed. Framework adapters call this right after subscribing to make sure no query
+	* update was missed in the gap between creating the observer and subscribing to it.
+	*/
 	updateResult() {
 		const prevResult = this.#currentResult;
 		const nextResult = this.createResult(this.#currentQuery, this.options);
@@ -29311,6 +29938,7 @@ var QueryObserver = class extends Subscribable {
 			query.addObserver(this);
 		}
 	}
+	/** @internal */
 	onQueryUpdate() {
 		this.updateResult();
 		if (this.hasListeners()) this.#updateTimers();
@@ -29324,7 +29952,7 @@ function shouldFetchOnMount(query, options) {
 }
 function shouldFetchOn(query, options, field) {
 	if (resolveQueryValue(options.enabled, query) !== false && resolveQueryValue(options.staleTime, query) !== "static") {
-		const value = typeof field === "function" ? field(query) : field;
+		const value = resolveQueryValue(field, query);
 		return value === "always" || value !== false && isStale(query, options);
 	}
 	return false;
@@ -29336,7 +29964,26 @@ function isStale(query, options) {
 	return resolveQueryValue(options.enabled, query) !== false && query.isStaleByTime(resolveQueryValue(options.staleTime, query));
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+/**
+* An `InfiniteQueryObserver` extends `QueryObserver` to observe and switch
+* between infinite queries. It augments the base `QueryObserverResult` with
+* infinite-query-specific fields and methods, such as `hasNextPage` and
+* `fetchNextPage`, and is the primitive that framework adapters (e.g.
+* `useInfiniteQuery`) build their hooks on top of.
+*
+* @example
+* ```ts
+* const observer = new InfiniteQueryObserver(queryClient, {
+*   queryKey: ['projects'],
+*   queryFn: ({ pageParam }) => fetchProjects(pageParam),
+*   initialPageParam: 0,
+*   getNextPageParam: (lastPage) => lastPage.nextCursor,
+* })
+*
+* const unsubscribe = observer.subscribe((result) => console.log(result))
+* ```
+*/
 var InfiniteQueryObserver = class extends QueryObserver {
 	constructor(client, options) {
 		super(client, options);
@@ -29346,20 +29993,68 @@ var InfiniteQueryObserver = class extends QueryObserver {
 		this.fetchNextPage = this.fetchNextPage.bind(this);
 		this.fetchPreviousPage = this.fetchPreviousPage.bind(this);
 	}
+	/**
+	* Updates the observer's options. Behaves the same as
+	* `QueryObserver.setOptions`, additionally marking the options as
+	* belonging to an infinite query before delegating to the base
+	* implementation.
+	*/
 	setOptions(options) {
 		options._type = "infinite";
 		super.setOptions(options);
 	}
+	/**
+	* The infinite-query counterpart of {@link QueryObserver#getOptimisticResult}, marking the
+	* options as an infinite query before delegating to it. Called by framework adapters (e.g.
+	* `useInfiniteQuery`) ahead of subscribing, to compute the current `InfiniteQueryObserverResult`
+	* synchronously.
+	*/
 	getOptimisticResult(options) {
 		options._type = "infinite";
 		return super.getOptimisticResult(options);
 	}
+	/**
+	* Fetches the next page of the infinite query and returns a promise that
+	* resolves with the resulting `InfiniteQueryObserverResult`. The page
+	* param used for the fetch is determined by `getNextPageParam`, which
+	* receives the current pages/page params and whose result also determines
+	* `hasNextPage`.
+	*
+	* @example
+	* ```ts
+	* const { hasNextPage } = observer.getCurrentResult()
+	*
+	* if (hasNextPage) {
+	*   await observer.fetchNextPage()
+	* }
+	* ```
+	*
+	* @see {@link InfiniteQueryObserver#fetchPreviousPage}
+	*/
 	fetchNextPage(options) {
 		return this.fetch({
 			...options,
 			meta: { fetchMore: { direction: "forward" } }
 		});
 	}
+	/**
+	* Fetches the previous page of the infinite query and returns a promise
+	* that resolves with the resulting `InfiniteQueryObserverResult`. The page
+	* param used for the fetch is determined by `getPreviousPageParam`, which
+	* receives the current pages/page params and whose result also determines
+	* `hasPreviousPage`.
+	*
+	* @example
+	* ```ts
+	* const { hasPreviousPage } = observer.getCurrentResult()
+	*
+	* if (hasPreviousPage) {
+	*   await observer.fetchPreviousPage()
+	* }
+	* ```
+	*
+	* @see {@link InfiniteQueryObserver#fetchNextPage}
+	*/
 	fetchPreviousPage(options) {
 		return this.fetch({
 			...options,
@@ -29391,7 +30086,24 @@ var InfiniteQueryObserver = class extends QueryObserver {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/mutation.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/mutation.js
+/**
+* Represents a single mutation attempt. A `Mutation` holds the mutation's
+* options, state (data/error/status), and the `MutationObserver`s currently
+* subscribed to it.
+*
+* Instances are created and managed internally by `MutationCache`; application
+* code typically interacts with mutations indirectly through `QueryClient` or
+* a framework hook like `useMutation`. Direct access to a `Mutation` instance
+* is possible via `mutationCache.find()`/`getAll()` for inspecting cache state.
+*
+* @example
+* ```ts
+* const mutationCache = queryClient.getMutationCache()
+*
+* const mutation = mutationCache.find({ mutationKey: ['addPost'] })
+* ```
+*/
 var Mutation = class extends Removable {
 	#client;
 	#observers;
@@ -29407,13 +30119,18 @@ var Mutation = class extends Removable {
 		this.setOptions(config.options);
 		this.scheduleGc();
 	}
+	/** @internal */
 	setOptions(options) {
 		this.options = options;
 		this.updateGcTime(this.options.gcTime);
 	}
+	/**
+	* The `meta` object passed in the mutation's options, if any.
+	*/
 	get meta() {
 		return this.options.meta;
 	}
+	/** @internal */
 	addObserver(observer) {
 		if (!this.#observers.includes(observer)) {
 			this.#observers.push(observer);
@@ -29425,6 +30142,7 @@ var Mutation = class extends Removable {
 			});
 		}
 	}
+	/** @internal */
 	removeObserver(observer) {
 		this.#observers = this.#observers.filter((x) => x !== observer);
 		this.scheduleGc();
@@ -29440,9 +30158,60 @@ var Mutation = class extends Removable {
 			else this.#mutationCache.remove(this);
 		}
 	}
+	/**
+	* Resumes a mutation that is currently paused or was restored from a
+	* dehydrated, still-`pending` state.
+	*
+	* - If this mutation has an active retryer (it paused mid-attempt, e.g. due
+	*   to the network mode or scope-based queuing), its retryer is resumed.
+	* - Otherwise, if the mutation's status is still `pending` (e.g. it was
+	*   dehydrated while an attempt was in flight and never got a retryer in
+	*   this instance), `execute` is called again with the last known variables.
+	* - Otherwise the mutation has already settled and this resolves immediately
+	*   without running anything again.
+	*
+	* @example
+	* ```ts
+	* // typically driven by reconnect handling, e.g. queryClient.resumePausedMutations()
+	* const mutation = mutationCache.find({ mutationKey: ['addPost'] })
+	* await mutation?.continue()
+	* ```
+	*
+	* @see {@link Mutation#execute}
+	*/
 	continue() {
 		return this.#retryer?.continue() ?? (this.state.status === "pending" ? this.execute(this.state.variables) : Promise.resolve());
 	}
+	/**
+	* Runs the mutation function for the given variables through a retryer, and
+	* drives the mutation's state and lifecycle callbacks through to settlement.
+	*
+	* If this mutation's state is already `pending` when `execute` is called
+	* (i.e. it was restored, still in-flight, from a dehydrated state), the
+	* `onMutate` step is skipped and a `continue` action is dispatched to
+	* unpause it; otherwise a `pending` action is dispatched first, then the
+	* mutation cache's `onMutate` and the mutation's own `onMutate` option are
+	* awaited in that order, and the resulting context is stored.
+	*
+	* The mutation function is then run (subject to `retry`/`retryDelay`/
+	* `networkMode`, and to the mutation cache's scope-based serialization).
+	* On success, the cache's `onSuccess`/`onSettled` callbacks run before the
+	* mutation's own `onSuccess`/`onSettled` options, a `success` action is
+	* dispatched, and the resolved data is returned. On failure, the same
+	* cache-then-option ordering is used for `onError`/`onSettled`, but each of
+	* those four callbacks is individually caught so that a throwing callback
+	* cannot mask the original error; an `error` action is then dispatched and
+	* the original error is re-thrown.
+	*
+	* @example
+	* ```ts
+	* // Called internally by `MutationObserver.mutate` and `Mutation.continue` —
+	* // applications normally trigger mutations through those, not this method.
+	* const data = await mutation.execute(variables)
+	* ```
+	*
+	* @see {@link Mutation#continue}
+	*/
 	async execute(variables) {
 		const onContinue = () => {
 			this.#dispatch({ type: "continue" });
@@ -29608,7 +30377,21 @@ function getDefaultState() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+/**
+* The `MutationCache` is the storage for mutations.
+*
+* Normally, you will not interact with the `MutationCache` directly and instead use a
+* `QueryClient`. You can subscribe to it (inherited from `Subscribable`) to be informed of
+* safe/known updates to the cache, such as mutations being added, removed, or updated.
+*
+* @example
+* ```ts
+* const unsubscribe = mutationCache.subscribe((event) => {
+*   console.log(event.type, event.mutation)
+* })
+* ```
+*/
 var MutationCache = class extends Subscribable {
 	#mutations;
 	#scopes;
@@ -29620,6 +30403,7 @@ var MutationCache = class extends Subscribable {
 		this.#scopes = /* @__PURE__ */ new Map();
 		this.#mutationId = 0;
 	}
+	/** @internal */
 	build(client, options, state) {
 		const mutation = new Mutation({
 			client,
@@ -29631,6 +30415,7 @@ var MutationCache = class extends Subscribable {
 		this.add(mutation);
 		return mutation;
 	}
+	/** @internal */
 	add(mutation) {
 		this.#mutations.add(mutation);
 		const scope = scopeFor(mutation);
@@ -29644,6 +30429,7 @@ var MutationCache = class extends Subscribable {
 			mutation
 		});
 	}
+	/** @internal */
 	remove(mutation) {
 		if (this.#mutations.delete(mutation)) {
 			const scope = scopeFor(mutation);
@@ -29662,6 +30448,7 @@ var MutationCache = class extends Subscribable {
 			mutation
 		});
 	}
+	/** @internal */
 	canRun(mutation) {
 		const scope = scopeFor(mutation);
 		if (typeof scope === "string") {
@@ -29669,11 +30456,22 @@ var MutationCache = class extends Subscribable {
 			return !firstPendingMutation || firstPendingMutation === mutation;
 		} else return true;
 	}
+	/** @internal */
 	runNext(mutation) {
 		const scope = scopeFor(mutation);
 		if (typeof scope === "string") return (this.#scopes.get(scope)?.find((m) => m !== mutation && m.state.isPaused))?.continue() ?? Promise.resolve();
 		else return Promise.resolve();
 	}
+	/**
+	* Removes all mutations from the cache.
+	*
+	* @example
+	* ```ts
+	* const mutationCache = queryClient.getMutationCache()
+	*
+	* mutationCache.clear()
+	* ```
+	*/
 	clear() {
 		notifyManager.batch(() => {
 			this.#mutations.forEach((mutation) => {
@@ -29686,9 +30484,37 @@ var MutationCache = class extends Subscribable {
 			this.#scopes.clear();
 		});
 	}
+	/**
+	* Returns all mutations within the cache.
+	*
+	* This is not typically needed for most applications, but can come in handy when needing more
+	* information about a mutation in rare scenarios.
+	*
+	* @example
+	* ```ts
+	* const mutationCache = queryClient.getMutationCache()
+	*
+	* const mutations = mutationCache.getAll()
+	* ```
+	*/
 	getAll() {
 		return Array.from(this.#mutations);
 	}
+	/**
+	* A slightly more advanced method that can be used to get an existing mutation instance from
+	* the cache. If the mutation does not exist, `undefined` is returned.
+	*
+	* This is not typically needed for most applications, but can come in handy when needing more
+	* information about a mutation in rare scenarios.
+	*
+	* @see {@link MutationCache#findAll}
+	* @example
+	* ```ts
+	* const mutationCache = queryClient.getMutationCache()
+	*
+	* const mutation = mutationCache.find({ mutationKey: ['addPost'] })
+	* ```
+	*/
 	find(filters) {
 		const defaultedFilters = {
 			exact: true,
@@ -29696,9 +30522,25 @@ var MutationCache = class extends Subscribable {
 		};
 		return this.getAll().find((mutation) => matchMutation(defaultedFilters, mutation));
 	}
+	/**
+	* An even more advanced method that can be used to get existing mutation instances from the
+	* cache that match the given filters. If no mutations match, an empty array is returned.
+	*
+	* This is not typically needed for most applications, but can come in handy when needing more
+	* information about mutations in rare scenarios.
+	*
+	* @see {@link MutationCache#find}
+	* @example
+	* ```ts
+	* const mutationCache = queryClient.getMutationCache()
+	*
+	* const mutations = mutationCache.findAll({ mutationKey: ['addPost'] })
+	* ```
+	*/
 	findAll(filters = {}) {
 		return this.getAll().filter((mutation) => matchMutation(filters, mutation));
 	}
+	/** @internal */
 	notify(event) {
 		notifyManager.batch(() => {
 			this.listeners.forEach((listener) => {
@@ -29706,6 +30548,7 @@ var MutationCache = class extends Subscribable {
 			});
 		});
 	}
+	/** @internal */
 	resumePausedMutations() {
 		const pausedMutations = this.getAll().filter((x) => x.state.isPaused);
 		return notifyManager.batch(() => Promise.all(pausedMutations.map((mutation) => mutation.continue().catch(noop))));
@@ -29715,7 +30558,22 @@ function scopeFor(mutation) {
 	return mutation.options.scope?.id;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+/**
+* Observes a single mutation and derives a `MutationObserverResult` from it.
+* A framework hook like `useMutation` creates one `MutationObserver` per hook
+* call, keeps it stable across re-renders, calls `setOptions` when the options
+* passed to the hook change, subscribes to it to re-render on updates, and
+* reads `getCurrentResult()` for the value to return. Calling `mutate()`
+* builds a new underlying `Mutation` in the `MutationCache` and executes it.
+*
+* @example
+* ```ts
+* const observer = new MutationObserver(queryClient, {
+*   mutationFn: (variables: { title: string }) => addPost(variables),
+* })
+* ```
+*/
 var MutationObserver$1 = class extends Subscribable {
 	#client;
 	#currentResult = void 0;
@@ -29732,6 +30590,22 @@ var MutationObserver$1 = class extends Subscribable {
 		this.mutate = this.mutate.bind(this);
 		this.reset = this.reset.bind(this);
 	}
+	/**
+	* Updates the observer's options.
+	*
+	* If the new `mutationKey` differs from the previous one (and both were
+	* defined), the observer is reset, detaching it from the mutation it was
+	* observing. Otherwise, if the currently observed mutation is still
+	* `pending`, its options are updated in place as well.
+	*
+	* @example
+	* ```ts
+	* observer.setOptions({
+	*   mutationFn: (variables: { title: string }) => addPost(variables),
+	*   onSuccess: (data) => console.log(data),
+	* })
+	* ```
+	*/
 	setOptions(options) {
 		const prevOptions = this.options;
 		this.options = this.#client.defaultMutationOptions(options);
@@ -29752,19 +30626,59 @@ var MutationObserver$1 = class extends Subscribable {
 	onUnsubscribe() {
 		if (!this.hasListeners()) this.#currentMutation?.removeObserver(this);
 	}
+	/** @internal */
 	onMutationUpdate(action) {
 		this.#updateResult();
 		this.#notify(action);
 	}
+	/**
+	* Returns the observer's current result, derived from the observed
+	* mutation's state (or the default, `idle` state if no mutation has been
+	* built yet, e.g. before the first `mutate()` call or after `reset()`).
+	*/
 	getCurrentResult() {
 		return this.#currentResult;
 	}
+	/**
+	* Detaches the observer from the mutation it is currently observing (if
+	* any) and resets the observed result back to its default, `idle` state.
+	*
+	* This does not cancel an in-flight mutation; the mutation itself keeps
+	* running to completion and its own callbacks still fire, but this
+	* observer stops reflecting its state and a subsequent `mutate()` call
+	* will build a brand new mutation.
+	*
+	* @example
+	* ```ts
+	* observer.reset()
+	* ```
+	*
+	* @see {@link MutationObserver#mutate}
+	*/
 	reset() {
 		this.#currentMutation?.removeObserver(this);
 		this.#currentMutation = void 0;
 		this.#updateResult();
 		this.#notify();
 	}
+	/**
+	* Builds a new `Mutation` in the `MutationCache` using the observer's
+	* current options, detaches this observer from any previously observed
+	* mutation, attaches it to the new one, and executes it with the given
+	* variables.
+	*
+	* The optional per-call `options` (`onSuccess`/`onError`/`onSettled`) are
+	* invoked once the mutation settles, in addition to any callbacks defined
+	* on the observer's own options.
+	*
+	* @example
+	* ```ts
+	* await observer.mutate(
+	*   { title: 'New post' },
+	*   { onSuccess: (data) => console.log(data) },
+	* )
+	* ```
+	*/
 	mutate(variables, options) {
 		this.#mutateOptions = options;
 		this.#currentMutation?.removeObserver(this);
@@ -29825,7 +30739,24 @@ var MutationObserver$1 = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/queryCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/queryCache.js
+/**
+* The `QueryCache` is the storage mechanism for TanStack Query. It stores all the data, meta
+* information, and state of the queries it contains.
+*
+* Normally, you will not interact with the `QueryCache` directly and instead use a `QueryClient`
+* for a specific cache. You can subscribe to it (inherited from `Subscribable`) to be informed of
+* safe/known updates to the cache, such as queries being added, removed, or updated — updates made
+* outside of the cache's own tracked mechanisms (e.g. mutating a query's state object directly) do
+* not notify subscribers.
+*
+* @example
+* ```ts
+* const unsubscribe = queryCache.subscribe((event) => {
+*   console.log(event.type, event.query)
+* })
+* ```
+*/
 var QueryCache = class extends Subscribable {
 	#queries;
 	constructor(config = {}) {
@@ -29833,6 +30764,22 @@ var QueryCache = class extends Subscribable {
 		this.config = config;
 		this.#queries = /* @__PURE__ */ new Map();
 	}
+	/**
+	* Returns the existing `Query` instance for the given options' `queryKey`/`queryHash`, or
+	* builds and adds a new one to the cache if none exists yet. Used by framework adapters and
+	* plugins (e.g. broadcast/persistence) that need to get-or-create a `Query` directly, bypassing
+	* the reactive `QueryObserver` machinery.
+	*
+	* @example
+	* ```ts
+	* const queryCache = queryClient.getQueryCache()
+	*
+	* const query = queryCache.build(queryClient, {
+	*   queryKey: ['posts'],
+	*   queryFn: fetchPosts,
+	* })
+	* ```
+	*/
 	build(client, options, state) {
 		const queryKey = options.queryKey;
 		const queryHash = options.queryHash ?? hashQueryKeyByOptions(queryKey, options);
@@ -29850,6 +30797,7 @@ var QueryCache = class extends Subscribable {
 		}
 		return query;
 	}
+	/** @internal */
 	add(query) {
 		if (!this.#queries.has(query.queryHash)) {
 			this.#queries.set(query.queryHash, query);
@@ -29859,17 +30807,42 @@ var QueryCache = class extends Subscribable {
 			});
 		}
 	}
+	/**
+	* Destroys the given `Query` and removes it from the cache, notifying subscribers with a
+	* `'removed'` event. A no-op if the query is no longer the one currently stored under its hash
+	* (e.g. it was already replaced). Used by plugins (e.g. the broadcast client) that mirror
+	* removals across `QueryCache` instances.
+	*
+	* @example
+	* ```ts
+	* const queryCache = queryClient.getQueryCache()
+	* const query = queryCache.find({ queryKey: ['posts'] })
+	*
+	* if (query) {
+	*   queryCache.remove(query)
+	* }
+	* ```
+	*/
 	remove(query) {
-		const queryInMap = this.#queries.get(query.queryHash);
-		if (queryInMap) {
+		if (this.#queries.get(query.queryHash) === query) {
 			query.destroy();
-			if (queryInMap === query) this.#queries.delete(query.queryHash);
+			this.#queries.delete(query.queryHash);
 			this.notify({
 				type: "removed",
 				query
 			});
 		}
 	}
+	/**
+	* Removes all queries from the cache.
+	*
+	* @example
+	* ```ts
+	* const queryCache = queryClient.getQueryCache()
+	*
+	* queryCache.clear()
+	* ```
+	*/
 	clear() {
 		notifyManager.batch(() => {
 			this.getAll().forEach((query) => {
@@ -29877,12 +30850,54 @@ var QueryCache = class extends Subscribable {
 			});
 		});
 	}
+	/**
+	* Returns the `Query` instance stored under the given `queryHash`, or `undefined` if none
+	* exists. Unlike {@link QueryCache#find}, this looks up by the already-computed hash rather
+	* than by `QueryFilters`. Used by plugins (e.g. broadcast/hydration) that already have a hash
+	* to look up directly.
+	*
+	* @example
+	* ```ts
+	* const queryCache = queryClient.getQueryCache()
+	* const queryHash = hashKey(['posts'])
+	*
+	* const query = queryCache.get(queryHash)
+	* ```
+	*/
 	get(queryHash) {
 		return this.#queries.get(queryHash);
 	}
+	/**
+	* Returns all queries within the cache.
+	*
+	* @example
+	* ```ts
+	* const queryCache = queryClient.getQueryCache()
+	*
+	* const queries = queryCache.getAll()
+	* ```
+	*/
 	getAll() {
 		return [...this.#queries.values()];
 	}
+	/**
+	* A slightly more advanced method that can be used to get an existing query instance from the
+	* cache. This instance not only contains all the state for the query, but all of the instances,
+	* and underlying guts of the query as well. If the query does not exist, `undefined` is
+	* returned.
+	*
+	* This is not typically needed for most applications, but can come in handy when needing more
+	* information about a query in rare scenarios (e.g. looking at `query.state.dataUpdatedAt` to
+	* decide whether a query is fresh enough to be used as an initial value).
+	*
+	* @see {@link QueryCache#findAll}
+	* @example
+	* ```ts
+	* const queryCache = queryClient.getQueryCache()
+	*
+	* const query = queryCache.find({ queryKey: ['posts'] })
+	* ```
+	*/
 	find(filters) {
 		const defaultedFilters = {
 			exact: true,
@@ -29890,10 +30905,26 @@ var QueryCache = class extends Subscribable {
 		};
 		return this.getAll().find((query) => matchQuery(defaultedFilters, query));
 	}
+	/**
+	* An even more advanced method that can be used to get existing query instances from the cache
+	* that partially match a query key. If no queries match, an empty array is returned.
+	*
+	* This is not typically needed for most applications, but can come in handy when needing more
+	* information about queries in rare scenarios.
+	*
+	* @see {@link QueryCache#find}
+	* @example
+	* ```ts
+	* const queryCache = queryClient.getQueryCache()
+	*
+	* const queries = queryCache.findAll({ queryKey: ['posts'] })
+	* ```
+	*/
 	findAll(filters = {}) {
 		const queries = this.getAll();
 		return Object.keys(filters).length > 0 ? queries.filter((query) => matchQuery(filters, query)) : queries;
 	}
+	/** @internal */
 	notify(event) {
 		notifyManager.batch(() => {
 			this.listeners.forEach((listener) => {
@@ -29901,6 +30932,7 @@ var QueryCache = class extends Subscribable {
 			});
 		});
 	}
+	/** @internal */
 	onFocus() {
 		notifyManager.batch(() => {
 			this.getAll().forEach((query) => {
@@ -29908,6 +30940,7 @@ var QueryCache = class extends Subscribable {
 			});
 		});
 	}
+	/** @internal */
 	onOnline() {
 		notifyManager.batch(() => {
 			this.getAll().forEach((query) => {
@@ -29917,7 +30950,25 @@ var QueryCache = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.102.8/node_modules/@tanstack/query-core/build/modern/queryClient.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.103.2/node_modules/@tanstack/query-core/build/modern/queryClient.js
+/**
+* `QueryClient` is used to interact with a cache of queries and mutations. It owns a
+* `QueryCache` and a `MutationCache` (creating default ones if none are passed in) and holds
+* the default options that are applied to queries and mutations created through it.
+*
+* @example
+* ```ts
+* const queryClient = new QueryClient({
+*   defaultOptions: {
+*     queries: {
+*       staleTime: Infinity,
+*     },
+*   },
+* })
+*
+* await queryClient.query({ queryKey: ['posts'], queryFn: fetchPosts })
+* ```
+*/
 var QueryClient = class {
 	#queryCache;
 	#mutationCache;
@@ -29935,6 +30986,12 @@ var QueryClient = class {
 		this.#mutationDefaults = /* @__PURE__ */ new Map();
 		this.#mountCount = 0;
 	}
+	/**
+	* Called by a framework adapter's `QueryClientProvider`-equivalent when it mounts, to start
+	* listening for focus/online events and resume paused mutations. Ref-counted via an internal
+	* mount count, so nested or multiple providers sharing the same `QueryClient` don't tear down
+	* the shared listeners until the last one unmounts.
+	*/
 	mount() {
 		this.#mountCount++;
 		if (this.#mountCount !== 1) return;
@@ -29951,6 +31008,11 @@ var QueryClient = class {
 			}
 		});
 	}
+	/**
+	* The inverse of {@link QueryClient#mount} — called by a framework adapter's
+	* `QueryClientProvider`-equivalent when it unmounts. Only tears down the focus/online
+	* listeners once the mount count returns to `0`.
+	*/
 	unmount() {
 		this.#mountCount--;
 		if (this.#mountCount !== 0) return;
@@ -29959,12 +31021,35 @@ var QueryClient = class {
 		this.#unsubscribeOnline?.();
 		this.#unsubscribeOnline = void 0;
 	}
+	/**
+	* Returns the number of queries in the cache that are currently fetching, optionally
+	* matching a set of filters. This includes background-fetching, loading new pages, and
+	* loading more infinite query results.
+	*
+	* @example
+	* ```ts
+	* if (queryClient.isFetching()) {
+	*   console.log('At least one query is fetching!')
+	* }
+	* ```
+	*/
 	isFetching(filters) {
 		return this.#queryCache.findAll({
 			...filters,
 			fetchStatus: "fetching"
 		}).length;
 	}
+	/**
+	* Returns the number of mutations in the cache that are currently pending, optionally
+	* matching a set of filters.
+	*
+	* @example
+	* ```ts
+	* if (queryClient.isMutating()) {
+	*   console.log('At least one mutation is pending!')
+	* }
+	* ```
+	*/
 	isMutating(filters) {
 		return this.#mutationCache.findAll({
 			...filters,
@@ -29977,6 +31062,8 @@ var QueryClient = class {
 	*
 	* Hint: Do not use this function inside a component, because it won't receive updates.
 	* Use `useQuery` to create a `QueryObserver` that subscribes to changes.
+	*
+	* @see {@link QueryClient#getQueriesData}
 	*/
 	getQueryData(queryKey) {
 		const options = this.defaultQueryOptions({ queryKey });
@@ -29993,11 +31080,49 @@ var QueryClient = class {
 		if (options.revalidateIfStale && query.isStaleByTime(resolveQueryValue(defaultedOptions.staleTime, query))) this.prefetchQuery(defaultedOptions);
 		return Promise.resolve(cachedData);
 	}
+	/**
+	* Imperative (non-reactive) way to retrieve the cached data of multiple queries at once.
+	* Only queries matching the given filters are returned; if none match, an empty array is
+	* returned.
+	*
+	* Because the matched queries can hold data of different shapes (e.g. a broad filter can match
+	* queries with unrelated data types), the `TQueryFnData` generic defaults to `unknown` rather
+	* than being inferred. Passing a more specific type is a convenience for call sites that know
+	* every matched query holds the same shape — it is not checked against the actual cache
+	* contents.
+	*
+	* @see {@link QueryClient#getQueryData}
+	* @example
+	* ```ts
+	* const data = queryClient.getQueriesData({ queryKey: ['posts'] })
+	* ```
+	*/
 	getQueriesData(filters) {
 		return this.#queryCache.findAll(filters).map(({ queryKey, state }) => {
 			return [queryKey, state.data];
 		});
 	}
+	/**
+	* Synchronous way to immediately update a query's cached data. If the updater (or the value
+	* passed) resolves to `undefined`, the cache is left untouched and no query is created;
+	* otherwise, if the query does not exist yet, it will be created. To update multiple queries
+	* at once by partially matching query keys, use {@link QueryClient#setQueriesData} instead.
+	*
+	* Updates must be performed immutably: do not mutate `oldData`, or data previously retrieved
+	* via {@link QueryClient#getQueryData}, in place.
+	*
+	* @param queryKey - The query key to set data for.
+	* @param updater - Either the new data, or a function that receives the current data (which
+	* may be `undefined`) and returns the new data.
+	*
+	* @example
+	* ```ts
+	* queryClient.setQueryData(['posts'], newPosts)
+	*
+	* // Or, using an updater function that receives the current data:
+	* queryClient.setQueryData(['posts'], (oldPosts) => [...oldPosts, newPost])
+	* ```
+	*/
 	setQueryData(queryKey, updater, options) {
 		const defaultedOptions = this.defaultQueryOptions({ queryKey });
 		const prevData = this.#queryCache.get(defaultedOptions.queryHash)?.state.data;
@@ -30008,13 +31133,47 @@ var QueryClient = class {
 			manual: true
 		});
 	}
+	/**
+	* Synchronous way to immediately update the cached data of multiple queries at once, using
+	* filters or partial query key matching. Only queries that already exist and match the given
+	* filters are updated; no new cache entries are created. Internally this calls
+	* {@link QueryClient#setQueryData} for each matching query.
+	*
+	* @example
+	* ```ts
+	* queryClient.setQueriesData({ queryKey: ['posts'] }, (oldPosts) =>
+	*   oldPosts ? oldPosts.filter((post) => post.id !== deletedId) : oldPosts,
+	* )
+	* ```
+	*/
 	setQueriesData(filters, updater, options) {
 		return notifyManager.batch(() => this.#queryCache.findAll(filters).map(({ queryKey }) => [queryKey, this.setQueryData(queryKey, updater, options)]));
 	}
+	/**
+	* Imperative (non-reactive) way to retrieve an existing query's state. If the query does not
+	* exist, `undefined` is returned.
+	*
+	* @example
+	* ```ts
+	* const state = queryClient.getQueryState(['posts'])
+	* console.log(state?.dataUpdatedAt)
+	* ```
+	*/
 	getQueryState(queryKey) {
 		const options = this.defaultQueryOptions({ queryKey });
 		return this.#queryCache.get(options.queryHash)?.state;
 	}
+	/**
+	* Removes queries from the cache that match the given filters. Unlike
+	* {@link QueryClient#invalidateQueries} or {@link QueryClient#refetchQueries}, this removes
+	* matching queries from the cache instead of refetching them. Without filters, every query in
+	* the cache is removed.
+	*
+	* @example
+	* ```ts
+	* queryClient.removeQueries({ queryKey: ['posts'], exact: true })
+	* ```
+	*/
 	removeQueries(filters) {
 		const queryCache = this.#queryCache;
 		notifyManager.batch(() => {
@@ -30023,6 +31182,16 @@ var QueryClient = class {
 			});
 		});
 	}
+	/**
+	* Resets queries matching the given filters back to their initial state (e.g. any
+	* `initialData`), notifying subscribers rather than removing them. Active queries among the
+	* matched set are then refetched, and the returned promise resolves once that refetch settles.
+	*
+	* @example
+	* ```ts
+	* await queryClient.resetQueries({ queryKey: ['posts'], exact: true })
+	* ```
+	*/
 	resetQueries(filters, options) {
 		const queryCache = this.#queryCache;
 		return notifyManager.batch(() => {
@@ -30037,6 +31206,19 @@ var QueryClient = class {
 			}, options);
 		});
 	}
+	/**
+	* Cancels outgoing fetches for queries matching the given filters. Most useful when performing
+	* optimistic updates, since any outgoing refetch that resolves afterwards would otherwise
+	* overwrite the optimistic update. By default (`revert: true`), a cancelled query's data is
+	* reverted to its state before the outgoing fetch started.
+	*
+	* The returned promise never rejects, even if individual cancellations fail.
+	*
+	* @example
+	* ```ts
+	* await queryClient.cancelQueries({ queryKey: ['posts'], exact: true })
+	* ```
+	*/
 	cancelQueries(filters, cancelOptions = {}) {
 		const defaultedCancelOptions = {
 			revert: true,
@@ -30045,6 +31227,19 @@ var QueryClient = class {
 		const promises = notifyManager.batch(() => this.#queryCache.findAll(filters).map((query) => query.cancel(defaultedCancelOptions)));
 		return Promise.all(promises).then(noop).catch(noop);
 	}
+	/**
+	* Marks queries matching the given filters as invalidated. Unlike
+	* {@link QueryClient#removeQueries}, invalidated queries stay in the cache.
+	*
+	* Unless `filters.refetchType` is `'none'`, matching queries are then refetched via
+	* {@link QueryClient#refetchQueries}, using `filters.refetchType` if set, otherwise
+	* `filters.type`, otherwise `'active'`.
+	*
+	* @example
+	* ```ts
+	* await queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'active' })
+	* ```
+	*/
 	invalidateQueries(filters, options = {}) {
 		return notifyManager.batch(() => {
 			this.#queryCache.findAll(filters).forEach((query) => {
@@ -30057,6 +31252,21 @@ var QueryClient = class {
 			}, options);
 		});
 	}
+	/**
+	* Refetches queries matching the given filters, regardless of whether they are stale. Without
+	* filters, every query in the cache is refetched. Queries that are disabled, or static (only
+	* have observers with a static `staleTime`), are never refetched.
+	*
+	* By default (`cancelRefetch: true`), a currently running fetch is cancelled before the new
+	* one starts. The returned promise resolves once all matching queries have settled; it does
+	* not reject on individual query failures unless `throwOnError` is set.
+	*
+	* @example
+	* ```ts
+	* // refetch all active queries partially matching a query key:
+	* await queryClient.refetchQueries({ queryKey: ['posts'], type: 'active' })
+	* ```
+	*/
 	refetchQueries(filters, options = {}) {
 		const fetchOptions = {
 			...options,
@@ -30069,6 +31279,37 @@ var QueryClient = class {
 		}));
 		return Promise.all(promises).then(noop);
 	}
+	/**
+	* Asynchronous method to fetch and cache a query, resolving with the data or throwing with
+	* the error.
+	*
+	* If the query already exists in the cache and its data is not stale (per the given
+	* `staleTime`), the cached data is returned without fetching. Otherwise, the query is fetched
+	* and the promise resolves once the fetch settles. If a `select` function is provided, it is
+	* applied to the data in both cases (cached or freshly fetched) before it is returned.
+	*
+	* Unlike a reactive observer, retries are disabled by default here (`retry: false`) unless
+	* explicitly configured, since there is no component to catch a thrown error and retry through
+	* re-render.
+	*
+	* The accepted options are `QueryObserverOptions` minus the fields that only make sense for a
+	* reactive observer — `enabled`, `refetchInterval`, `refetchIntervalInBackground`,
+	* `refetchOnWindowFocus`, `refetchOnReconnect`, `refetchOnMount`, `retryOnMount`,
+	* `notifyOnChangeProps`, `throwOnError`, `suspense`, and `placeholderData` are not part of this
+	* method's options.
+	*
+	* This method replaces the deprecated `fetchQuery`, and — combined with
+	* `{ staleTime: 'static' }` — the deprecated `ensureQueryData`.
+	*
+	* @example
+	* ```ts
+	* try {
+	*   const data = await queryClient.query({ queryKey, queryFn, staleTime: 10000 })
+	* } catch (error) {
+	*   console.log(error)
+	* }
+	* ```
+	*/
 	async query(options) {
 		const defaultedOptions = this.defaultQueryOptions(options);
 		if (defaultedOptions.retry === void 0) defaultedOptions.retry = false;
@@ -30093,6 +31334,27 @@ var QueryClient = class {
 	prefetchQuery(options) {
 		return this.fetchQuery(options).then(noop).catch(noop);
 	}
+	/**
+	* Asynchronous method to fetch and cache an infinite query, resolving with an
+	* {@link InfiniteData} object or throwing with the error.
+	*
+	* Behaves like {@link QueryClient#query}, accepting the same options (minus
+	* `initialPageParam`), plus the required `initialPageParam`, and an optional `pages` /
+	* `getNextPageParam` pair used to refetch a fixed number of pages from the start.
+	*
+	* This method replaces the deprecated `fetchInfiniteQuery`, and — combined with
+	* `{ staleTime: 'static' }` — the deprecated `ensureInfiniteQueryData`.
+	*
+	* @example
+	* ```ts
+	* try {
+	*   const data = await queryClient.infiniteQuery({ queryKey, queryFn, initialPageParam: 0 })
+	*   console.log(data.pages)
+	* } catch (error) {
+	*   console.log(error)
+	* }
+	* ```
+	*/
 	infiniteQuery(options) {
 		options._type = "infinite";
 		return this.query(options);
@@ -30117,28 +31379,118 @@ var QueryClient = class {
 		options._type = "infinite";
 		return this.ensureQueryData(options);
 	}
+	/**
+	* Resumes mutations that were paused because there was no network connection. Does nothing
+	* (resolving immediately) if the client is currently offline.
+	*
+	* @example
+	* ```ts
+	* import { QueryClient } from '@tanstack/query-core'
+	*
+	* const queryClient = new QueryClient()
+	* await queryClient.resumePausedMutations()
+	* ```
+	*/
 	resumePausedMutations() {
 		if (onlineManager.isOnline()) return this.#mutationCache.resumePausedMutations();
 		return Promise.resolve();
 	}
+	/**
+	* Returns the query cache this client is connected to.
+	*
+	* @example
+	* ```ts
+	* import { QueryClient } from '@tanstack/query-core'
+	*
+	* const queryClient = new QueryClient()
+	* const queryCache = queryClient.getQueryCache()
+	* const queries = queryCache.findAll({ queryKey: ['posts'] })
+	* ```
+	*/
 	getQueryCache() {
 		return this.#queryCache;
 	}
+	/**
+	* Returns the mutation cache this client is connected to.
+	*
+	* @example
+	* ```ts
+	* import { QueryClient } from '@tanstack/query-core'
+	*
+	* const queryClient = new QueryClient()
+	* const mutationCache = queryClient.getMutationCache()
+	* const mutations = mutationCache.findAll({ status: 'pending' })
+	* ```
+	*/
 	getMutationCache() {
 		return this.#mutationCache;
 	}
+	/**
+	* Returns the default options that were set when creating the client, or via
+	* {@link QueryClient#setDefaultOptions}.
+	*
+	* @example
+	* ```ts
+	* import { QueryClient } from '@tanstack/query-core'
+	*
+	* const queryClient = new QueryClient()
+	* const defaultOptions = queryClient.getDefaultOptions()
+	* ```
+	*/
 	getDefaultOptions() {
 		return this.#defaultOptions;
 	}
+	/**
+	* Dynamically sets the default options for this client, overwriting any previously defined
+	* default options.
+	*
+	* @see {@link QueryClient#getDefaultOptions}
+	* @example
+	* ```ts
+	* import { QueryClient } from '@tanstack/query-core'
+	*
+	* const queryClient = new QueryClient()
+	* queryClient.setDefaultOptions({
+	*   queries: {
+	*     staleTime: Infinity,
+	*   },
+	* })
+	* ```
+	*/
 	setDefaultOptions(options) {
 		this.#defaultOptions = options;
 	}
+	/**
+	* Sets default options for queries whose query key partially matches the given `queryKey`.
+	*
+	* If several registered query defaults match a given query key, they are merged together in
+	* registration order by {@link QueryClient#getQueryDefaults}, so register defaults from the
+	* most generic key to the least generic one — more specific defaults should be registered
+	* after more generic ones so they take precedence.
+	*
+	* @example
+	* ```ts
+	* queryClient.setQueryDefaults(['posts'], { queryFn: fetchPosts })
+	*
+	* await queryClient.query({ queryKey: ['posts'] })
+	* ```
+	*/
 	setQueryDefaults(queryKey, options) {
 		this.#queryDefaults.set(hashKey(queryKey), {
 			queryKey,
 			defaultOptions: options
 		});
 	}
+	/**
+	* Returns the default options registered for queries whose query key partially matches the
+	* given `queryKey`, via {@link QueryClient#setQueryDefaults}. If multiple registered defaults
+	* match, they are merged together in registration order.
+	*
+	* @example
+	* ```ts
+	* const defaultOptions = queryClient.getQueryDefaults(['posts'])
+	* ```
+	*/
 	getQueryDefaults(queryKey) {
 		const defaults = [...this.#queryDefaults.values()];
 		const result = {};
@@ -30147,12 +31499,33 @@ var QueryClient = class {
 		});
 		return result;
 	}
+	/**
+	* Sets default options for mutations whose mutation key partially matches the given
+	* `mutationKey`. As with {@link QueryClient#setQueryDefaults}, the order of registration
+	* matters when several registered defaults match the same mutation key.
+	*
+	* @see {@link QueryClient#getMutationDefaults}
+	* @example
+	* ```ts
+	* queryClient.setMutationDefaults(['addPost'], { mutationFn: addPost })
+	* ```
+	*/
 	setMutationDefaults(mutationKey, options) {
 		this.#mutationDefaults.set(hashKey(mutationKey), {
 			mutationKey,
 			defaultOptions: options
 		});
 	}
+	/**
+	* Returns the default options registered for mutations whose mutation key partially matches
+	* the given `mutationKey`, via {@link QueryClient#setMutationDefaults}. If multiple registered
+	* defaults match, they are merged together in registration order.
+	*
+	* @example
+	* ```ts
+	* const defaultOptions = queryClient.getMutationDefaults(['addPost'])
+	* ```
+	*/
 	getMutationDefaults(mutationKey) {
 		const defaults = [...this.#mutationDefaults.values()];
 		const result = {};
@@ -30161,6 +31534,12 @@ var QueryClient = class {
 		});
 		return result;
 	}
+	/**
+	* Called by framework adapters (e.g. inside `useQuery`) to resolve the options passed by the
+	* caller into their final, defaulted form: merging `queryClient.setQueryDefaults` for the
+	* given `queryKey`, then the client's own `defaultOptions.queries`, then the caller's options
+	* on top. A no-op if the options are already defaulted (`_defaulted: true`).
+	*/
 	defaultQueryOptions(options) {
 		if (options._defaulted) return options;
 		const defaultedOptions = {
@@ -30176,6 +31555,12 @@ var QueryClient = class {
 		if (defaultedOptions.queryFn === skipToken) defaultedOptions.enabled = false;
 		return defaultedOptions;
 	}
+	/**
+	* The mutation counterpart of {@link QueryClient#defaultQueryOptions}. Called by framework
+	* adapters (e.g. inside `useMutation`) to merge `queryClient.setMutationDefaults` for the
+	* given `mutationKey`, then the client's `defaultOptions.mutations`, then the caller's options
+	* on top. A no-op if the options are already defaulted (`_defaulted: true`).
+	*/
 	defaultMutationOptions(options) {
 		if (options?._defaulted) return options;
 		return {
@@ -30185,36 +31570,96 @@ var QueryClient = class {
 			_defaulted: true
 		};
 	}
+	/**
+	* Clears both the query cache and the mutation cache this client is connected to.
+	*
+	* @example
+	* ```ts
+	* import { QueryClient } from '@tanstack/query-core'
+	*
+	* const queryClient = new QueryClient()
+	* queryClient.clear()
+	* ```
+	*/
 	clear() {
 		this.#queryCache.clear();
 		this.#mutationCache.clear();
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.3.0/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
 var IsRestoringContext = import_react.createContext(false);
+/**
+* If you are using `PersistQueryClientProvider`, you can also use the `useIsRestoring` hook alongside it to
+* check if a restore is currently in progress. `useQuery` and friends also check this internally to avoid
+* race conditions between the restore and mounting queries.
+*
+* @returns `true` while a persisted client is being restored, `false` otherwise.
+*/
 var useIsRestoring = () => import_react.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+/**
+* Resets any query errors within the boundary, so queries know they can try again.
+*/
 function createValue() {
 	let isReset = false;
 	return {
+		/**
+		* Clears the reset state, so queries know not to try again until the boundary is reset again.
+		*/
 		clearReset: () => {
 			isReset = false;
 		},
+		/**
+		* Resets any query errors within the boundary, so queries know they can try again.
+		*/
 		reset: () => {
 			isReset = true;
 		},
+		/**
+		* Returns whether the boundary has been reset and not yet cleared.
+		*/
 		isReset: () => {
 			return isReset;
 		}
 	};
 }
 var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
+/**
+* This hook will reset any query errors within the closest `QueryErrorResetBoundary`. If there is no boundary
+* defined it will reset them globally.
+*
+* @returns The boundary's {@link QueryErrorResetBoundaryValue}.
+*
+* @example
+* ```tsx
+* import { ErrorBoundary } from 'react-error-boundary'
+* import { useQueryErrorResetBoundary } from '@tanstack/react-query'
+*
+* function App({ children }: { children: React.ReactNode }) {
+*   const { reset } = useQueryErrorResetBoundary()
+*
+*   return (
+*     <ErrorBoundary
+*       onReset={reset}
+*       fallbackRender={({ resetErrorBoundary }) => (
+*         <div>
+*           There was an error!
+*           <button onClick={() => resetErrorBoundary()}>Try again</button>
+*         </div>
+*       )}
+*     >
+*       {children}
+*     </ErrorBoundary>
+*   )
+* }
+* ```
+*/
 var useQueryErrorResetBoundary = () => import_react.useContext(QueryErrorResetBoundaryContext);
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.3.0/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
 var ensurePreventErrorBoundaryRetry = (options, errorResetBoundary, query) => {
 	const throwOnError = query?.state.error && typeof options.throwOnError === "function" ? shouldThrowError(options.throwOnError, [query.state.error, query]) : options.throwOnError;
 	if (options.suspense || throwOnError) {
@@ -30230,7 +31675,7 @@ var getHasError = ({ result, errorResetBoundary, throwOnError, query, suspense }
 	return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.3.0/node_modules/@tanstack/react-query/build/modern/suspense.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/suspense.js
 var ensureSuspenseTimers = (defaultedOptions) => {
 	if (defaultedOptions.suspense) {
 		const MIN_SUSPENSE_TIME_MS = 1e3;
@@ -30245,7 +31690,7 @@ var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observ
 	errorResetBoundary.clearReset();
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
 function useBaseQuery(options, Observer, queryClient) {
 	const isRestoring = useIsRestoring();
 	const errorResetBoundary = useQueryErrorResetBoundary();
@@ -30279,12 +31724,184 @@ function useBaseQuery(options, Observer, queryClient) {
 	return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useQuery.js
 function useQuery(options, queryClient) {
 	return useBaseQuery(options, QueryObserver, queryClient);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useMutation.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useMutation.js
+/**
+* Unlike queries, mutations are typically used to create/update/delete data or perform server side-effects.
+* `useMutation` is the hook for that.
+*
+* @see {@link mutationOptions} to share these options across multiple `useMutation` call sites, or to look
+* the mutation up elsewhere via its `mutationKey` (e.g. with `useMutationState`).
+* @param options - The {@link UseMutationOptions} to use — everything you can pass to `useMutation`.
+* @param queryClient - Use this to use a custom `QueryClient`. Otherwise, the one from the nearest context will
+* be used.
+* @returns `mutate`/`mutateAsync` also accept per-call `onSuccess`/`onError`/`onSettled` callbacks as a second
+* argument, useful for triggering call-site side effects (e.g. navigation) without coupling them to the shared
+* mutation definition. Hook-level callbacks (passed to `options`) fire for every mutation; per-call callbacks
+* fire only for the latest call you've made, and only while the component is still mounted — unmounting before
+* the mutation settles removes the subscription and prevents them from firing.
+*
+* @example
+* ```tsx
+* import { useMutation, useQueryClient } from '@tanstack/react-query'
+*
+* function AddTodo() {
+*   const queryClient = useQueryClient()
+*
+*   const addMutation = useMutation({
+*     mutationFn: addTodo,
+*     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['todos'] }),
+*   })
+*
+*   return (
+*     <button
+*       onClick={() =>
+*         addMutation.mutate('Item', {
+*           onError: (error) => console.error('Failed to add item:', error),
+*         })
+*       }
+*     >
+*       Add
+*     </button>
+*   )
+* }
+* ```
+*
+* @example
+* Rendering the mutation's own state, rather than just firing it off:
+* ```tsx
+* import { useMutation, useQueryClient } from '@tanstack/react-query'
+*
+* function AddTodo() {
+*   const queryClient = useQueryClient()
+*
+*   const addMutation = useMutation({
+*     mutationFn: addTodo,
+*     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['todos'] }),
+*   })
+*
+*   return (
+*     <div>
+*       {addMutation.isPending ? (
+*         'Adding todo...'
+*       ) : (
+*         <>
+*           {addMutation.isError ? (
+*             <div>An error occurred: {addMutation.error.message}</div>
+*           ) : null}
+*           <button onClick={() => addMutation.mutate('Item')}>Add</button>
+*         </>
+*       )}
+*     </div>
+*   )
+* }
+* ```
+*
+* @example
+* Optimistic update via `onMutate`, rolling back on `onError`:
+* ```tsx
+* import { useMutation, useQueryClient } from '@tanstack/react-query'
+*
+* function AddTodo() {
+*   const queryClient = useQueryClient()
+*
+*   const addMutation = useMutation({
+*     mutationFn: addTodo,
+*     onMutate: async (newTodo) => {
+*       await queryClient.cancelQueries({ queryKey: ['todos'] })
+*       const previousTodos = queryClient.getQueryData<Array<string>>(['todos'])
+*
+*       queryClient.setQueryData<Array<string>>(['todos'], (old) => [
+*         ...(old ?? []),
+*         newTodo,
+*       ])
+*
+*       // Passed to `onError` as `onMutateResult` if the mutation fails.
+*       return { previousTodos }
+*     },
+*     onError: (_err, _newTodo, onMutateResult) => {
+*       queryClient.setQueryData(['todos'], onMutateResult?.previousTodos)
+*     },
+*     onSettled: () => {
+*       queryClient.invalidateQueries({ queryKey: ['todos'] })
+*     },
+*   })
+*
+*   return (
+*     <button onClick={() => addMutation.mutate('Item')}>Add</button>
+*   )
+* }
+* ```
+*
+* @example
+* Callbacks passed per call to `mutate` only fire for the last call — `mutateAsync` gives you a
+* promise per call instead, so you can wait for all of them when they succeed:
+* ```tsx
+* import { useMutation, useQueryClient } from '@tanstack/react-query'
+*
+* function AddTodos() {
+*   const queryClient = useQueryClient()
+*
+*   const addMutation = useMutation({
+*     mutationFn: addTodo,
+*     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['todos'] }),
+*   })
+*
+*   async function handleAddAll(todos: Array<string>) {
+*     try {
+*       await Promise.all(todos.map((todo) => addMutation.mutateAsync(todo)))
+*     } catch (error) {
+*       console.error('Failed to add todos:', error)
+*     }
+*   }
+*
+*   return (
+*     <button onClick={() => handleAddAll(['Todo 1', 'Todo 2', 'Todo 3'])}>
+*       Add all
+*     </button>
+*   )
+* }
+* ```
+*
+* @example
+* If some of the mutations above can fail independently of the others, and you want to know which ones
+* did — rather than losing that information the moment the first one rejects — swap `Promise.all` for
+* `Promise.allSettled`:
+* ```tsx
+* import { useMutation, useQueryClient } from '@tanstack/react-query'
+*
+* function AddTodos() {
+*   const queryClient = useQueryClient()
+*
+*   const addMutation = useMutation({
+*     mutationFn: addTodo,
+*     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['todos'] }),
+*   })
+*
+*   async function handleAddAll(todos: Array<string>) {
+*     const addResults = await Promise.allSettled(
+*       todos.map((todo) => addMutation.mutateAsync(todo)),
+*     )
+*
+*     addResults.forEach((addResult, index) => {
+*       if (addResult.status === 'rejected') {
+*         console.error(`Failed to add "${todos[index]}":`, addResult.reason)
+*       }
+*     })
+*   }
+*
+*   return (
+*     <button onClick={() => handleAddAll(['Todo 1', 'Todo 2', 'Todo 3'])}>
+*       Add all
+*     </button>
+*   )
+* }
+* ```
+*/
 function useMutation(options, queryClient) {
 	const client = useQueryClient(queryClient);
 	const [observer] = import_react.useState(() => new MutationObserver$1(client, options));
@@ -30303,7 +31920,7 @@ function useMutation(options, queryClient) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.102.8_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.103.2_react@19.3.0/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
 function useInfiniteQuery(options, queryClient) {
 	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
@@ -30355,7 +31972,7 @@ function useInfiniteQuery(options, queryClient) {
 }
 //#endregion
 //#region ../../packages/react/src/hooks/useScrollDirection.ts
-var asArray$2 = (v) => isReadonlyArray(v) ? v : [v];
+var asArray$1 = (v) => isReadonlyArray(v) ? v : [v];
 var sameItems = (a, b) => a.length === b.length && a.every((item, i) => item === b[i]);
 /**
 * Tracks scroll direction on one or more container elements with hysteresis
@@ -30404,7 +32021,7 @@ var sameItems = (a, b) => a.length === b.length && a.every((item, i) => item ===
 			onExpire?.();
 		}, transitionLockMs);
 	}, [transitionLockMs]);
-	const incomingRefs = asArray$2(scrollRef);
+	const incomingRefs = asArray$1(scrollRef);
 	const [refArray, setRefArray] = (0, import_react.useState)(incomingRefs);
 	const primaryRefChanged = refArray[0] !== incomingRefs[0];
 	if (!sameItems(refArray, incomingRefs)) setRefArray(incomingRefs);
@@ -30508,9 +32125,9 @@ var sameItems = (a, b) => a.length === b.length && a.every((item, i) => item ===
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/url.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/url.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -30525,9 +32142,9 @@ function normalizeProtocolRelativeUrl(url, protocol) {
 	return protocol + url.replace(/\\/g, "/");
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/history.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/history.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -30550,7 +32167,7 @@ function isLocation(obj) {
 */
 function createHashHistory(options = {}) {
 	function createHashLocation(window, globalHistory) {
-		let { pathname = "/", search = "", hash = "" } = parsePath$1(window.location.hash.substring(1));
+		let { pathname = "/", search = "", hash = "" } = parsePath(window.location.hash.substring(1));
 		if (!pathname.startsWith("/") && !pathname.startsWith(".")) pathname = "/" + pathname;
 		return createLocation("", {
 			pathname,
@@ -30610,7 +32227,7 @@ function createLocation(current, to, state = null, key, mask) {
 		pathname: typeof current === "string" ? current : current.pathname,
 		search: "",
 		hash: "",
-		...typeof to === "string" ? parsePath$1(to) : to,
+		...typeof to === "string" ? parsePath(to) : to,
 		state,
 		key: to && to.key || key || createKey(),
 		mask
@@ -30637,7 +32254,7 @@ function createPath({ pathname = "/", search = "", hash = "" }) {
 * @param path The URL path to parse.
 * @returns The parsed pathname, search, and hash components.
 */
-function parsePath$1(path) {
+function parsePath(path) {
 	let parsedPath = {};
 	if (path) {
 		let hashIndex = path.indexOf("#");
@@ -30763,7 +32380,7 @@ function createBrowserURLImpl(windowImpl, to, isAbsolute = false) {
 	return new URL(href, base);
 }
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -30834,7 +32451,8 @@ var unsupportedLazyRouteObjectKeys = /* @__PURE__ */ new Set([
 	"path",
 	"id",
 	"index",
-	"children"
+	"children",
+	"unstable_validateParams"
 ]);
 function isUnsupportedLazyRouteObjectKey(key) {
 	return unsupportedLazyRouteObjectKeys.has(key);
@@ -30846,7 +32464,8 @@ var unsupportedLazyRouteFunctionKeys = /* @__PURE__ */ new Set([
 	"id",
 	"index",
 	"middleware",
-	"children"
+	"children",
+	"unstable_validateParams"
 ]);
 function isUnsupportedLazyRouteFunctionKey(key) {
 	return unsupportedLazyRouteFunctionKeys.has(key);
@@ -30934,7 +32553,7 @@ function matchRoutes(routes, locationArg, basename = "/") {
 	return matchRoutesImpl(routes, locationArg, basename, false);
 }
 function matchRoutesImpl(routes, locationArg, basename, allowPartial, precomputedBranches) {
-	let pathname = stripBasename((typeof locationArg === "string" ? parsePath$1(locationArg) : locationArg).pathname || "/", basename);
+	let pathname = stripBasename((typeof locationArg === "string" ? parsePath(locationArg) : locationArg).pathname || "/", basename);
 	if (pathname == null) return null;
 	let branches = precomputedBranches ?? flattenAndRankRoutes(routes);
 	let matches = null;
@@ -31162,7 +32781,7 @@ var isAbsoluteUrl = (url) => ABSOLUTE_URL_REGEX.test(url);
 * @returns A {@link Path} object with the resolved pathname, search, and hash.
 */
 function resolvePath(to, fromPathname = "/") {
-	let { pathname: toPathname, search = "", hash = "" } = typeof to === "string" ? parsePath$1(to) : to;
+	let { pathname: toPathname, search = "", hash = "" } = typeof to === "string" ? parsePath(to) : to;
 	let pathname;
 	if (toPathname) {
 		toPathname = removeDoubleSlashes(toPathname);
@@ -31196,7 +32815,7 @@ function getResolveToMatches(matches) {
 }
 function resolveTo(toArg, routePathnames, locationPathname, isPathRelative = false) {
 	let to;
-	if (typeof toArg === "string") to = parsePath$1(toArg);
+	if (typeof toArg === "string") to = parsePath(toArg);
 	else {
 		to = { ...toArg };
 		invariant$1(!to.pathname || !to.pathname.includes("?"), getInvalidPathError("?", "pathname", "search", to));
@@ -31298,7 +32917,7 @@ function getRoutePattern(matches) {
 }
 function createDataFunctionUrl(request, path) {
 	let url = new URL(typeof request === "string" || request instanceof URL ? request : request.url);
-	let parsed = typeof path === "string" ? parsePath$1(path) : path;
+	let parsed = typeof path === "string" ? parsePath(path) : path;
 	url.pathname = parsed.pathname || "/";
 	if (parsed.search) {
 		let searchParams = new URLSearchParams(parsed.search);
@@ -31337,9 +32956,9 @@ function parseToInfo(_to, basename) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/instrumentation.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/instrumentation.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -31596,9 +33215,46 @@ function getReadonlyContext(context) {
 	return { get: (ctx) => context.get(ctx) };
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/navigation.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/matcher.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+var V6RegExMatcher = class {
+	#routes = [];
+	#branches = [];
+	#basename;
+	constructor(basename) {
+		this.#basename = basename;
+	}
+	update(routes) {
+		this.#routes = routes;
+		this.#branches = flattenAndRankRoutes(routes);
+	}
+	match(locationArg, allowPartial = false) {
+		return matchRoutesImpl(this.#routes, locationArg, this.#basename, allowPartial, this.#branches);
+	}
+};
+/**
+* react-router v8.4.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/navigation.js
+/**
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -31640,9 +33296,9 @@ function validateNavigationTarget(original, resolved, currentUrl, externalPolicy
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/router.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/router.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -31698,18 +33354,26 @@ var IDLE_BLOCKER = {
 };
 var TRANSITIONS_STORAGE_KEY = "remix-router-transitions";
 var ResetLoaderDataSymbol = Symbol("ResetLoaderData");
+function createDataRouteMatcher(future, basename) {
+	if (future.unstable_routePatternMatching) {
+		let RoutePatternMatcher = void 0;
+		invariant$1(RoutePatternMatcher, "You must call unstable_preloadRoutePattern() from \"react-router/route-pattern\" before enabling future.unstable_routePatternMatching.");
+		return new RoutePatternMatcher(basename);
+	}
+	return new V6RegExMatcher(basename);
+}
 /**
 * Encapsulates the stable and in-flight route trees together with their
 * pre-computed branch caches so the structures always stay in sync.
 */
 var DataRoutes$1 = class {
 	#routes;
-	#branches;
 	#hmrRoutes;
-	#hmrBranches;
-	constructor(routes) {
+	#matcher;
+	constructor(routes, matcher) {
 		this.#routes = routes;
-		this.#branches = flattenAndRankRoutes(routes);
+		this.#matcher = matcher;
+		this.#matcher.update(routes);
 	}
 	/** The stable route tree */
 	get stableRoutes() {
@@ -31719,30 +33383,25 @@ var DataRoutes$1 = class {
 	get activeRoutes() {
 		return this.#hmrRoutes ?? this.#routes;
 	}
-	/** Pre-computed branches */
-	get branches() {
-		return this.#hmrBranches ?? this.#branches;
-	}
 	get hasHMRRoutes() {
 		return this.#hmrRoutes != null;
 	}
 	/** Replace the stable route tree and recompute its branches */
 	setRoutes(routes) {
 		this.#routes = routes;
-		this.#branches = flattenAndRankRoutes(routes);
+		if (!this.#hmrRoutes) this.#matcher.update(routes);
 	}
 	/** Set a new in-flight route tree and recompute its branches */
 	setHmrRoutes(routes) {
 		this.#hmrRoutes = routes;
-		this.#hmrBranches = flattenAndRankRoutes(routes);
+		this.#matcher.update(routes);
 	}
 	/** Commit in-flight routes/branches to the stable slot and clear in-flight */
 	commitHmrRoutes() {
 		if (this.#hmrRoutes) {
 			this.#routes = this.#hmrRoutes;
-			this.#branches = this.#hmrBranches;
 			this.#hmrRoutes = void 0;
-			this.#hmrBranches = void 0;
+			this.#matcher.update(this.#routes);
 		}
 	}
 };
@@ -31765,12 +33424,13 @@ function createRouter(init) {
 			};
 		};
 	}
-	let manifest = {};
-	let dataRoutes = new DataRoutes$1(convertRoutesToDataRoutes(init.routes, mapRouteProperties, void 0, manifest));
+	let future = { ...init.future };
 	let basename = init.basename || "/";
 	if (!basename.startsWith("/")) basename = `/${basename}`;
+	let dataRouteMatcher = createDataRouteMatcher(future, basename);
+	let manifest = {};
+	let dataRoutes = new DataRoutes$1(convertRoutesToDataRoutes(init.routes, mapRouteProperties, void 0, manifest), dataRouteMatcher);
 	let dataStrategyImpl = init.dataStrategy || defaultDataStrategyWithMiddleware;
-	let future = { ...init.future };
 	let unlistenHistory = null;
 	let subscribers = /* @__PURE__ */ new Set();
 	let bufferedInitialStateUpdate = null;
@@ -31778,7 +33438,7 @@ function createRouter(init) {
 	let getScrollRestorationKey = null;
 	let getScrollPosition = null;
 	let initialScrollRestored = init.hydrationData != null;
-	let initialMatches = matchRoutesImpl(dataRoutes.activeRoutes, init.history.location, basename, false, dataRoutes.branches);
+	let initialMatches = dataRouteMatcher.match(init.history.location);
 	let initialMatchesIsFOW = false;
 	let initialErrors = null;
 	let initialized;
@@ -31792,13 +33452,13 @@ function createRouter(init) {
 		initialErrors = { [route.id]: error };
 	} else {
 		if (initialMatches && !init.hydrationData) {
-			if (checkFogOfWar(initialMatches, dataRoutes.activeRoutes, init.history.location.pathname).active) initialMatches = null;
+			if (checkFogOfWar(initialMatches, init.history.location.pathname).active) initialMatches = null;
 		}
 		if (!initialMatches) {
 			initialized = false;
 			renderFallback = !initialized;
 			initialMatches = [];
-			let fogOfWar = checkFogOfWar(null, dataRoutes.activeRoutes, init.history.location.pathname);
+			let fogOfWar = checkFogOfWar(null, init.history.location.pathname);
 			if (fogOfWar.active && fogOfWar.matches) {
 				initialMatchesIsFOW = true;
 				initialMatches = fogOfWar.matches;
@@ -31989,7 +33649,7 @@ function createRouter(init) {
 		if (isUninterruptedRevalidation) {} else if (pendingAction === "POP") {} else if (pendingAction === "PUSH") init.history.push(location, location.state);
 		else if (pendingAction === "REPLACE") init.history.replace(location, location.state);
 		let viewTransitionOpts;
-		if (pendingAction === "POP") {
+		if (pendingAction === "POP" && !isUninterruptedRevalidation && location !== state.location) {
 			let priorPaths = appliedViewTransitions.get(state.location.pathname);
 			if (priorPaths && priorPaths.has(location.pathname)) viewTransitionOpts = {
 				currentLocation: state.location,
@@ -32051,7 +33711,7 @@ function createRouter(init) {
 		let { path, submission, error } = normalizeNavigateOptions(false, normalizeTo(state.location, state.matches, basename, to, opts?.fromRouteId, opts?.relative), opts);
 		let maskPath;
 		if (opts?.mask) {
-			let partialPath = typeof opts.mask === "string" ? parsePath$1(opts.mask) : {
+			let partialPath = typeof opts.mask === "string" ? parsePath(opts.mask) : {
 				...state.location.mask,
 				...opts.mask
 			};
@@ -32138,14 +33798,13 @@ function createRouter(init) {
 		saveScrollPosition(state.location, state.matches);
 		pendingPreventScrollReset = (opts && opts.preventScrollReset) === true;
 		pendingViewTransitionEnabled = (opts && opts.enableViewTransition) === true;
-		let routesToUse = dataRoutes.activeRoutes;
-		let matches = opts?.initialHydration && state.matches && state.matches.length > 0 && !initialMatchesIsFOW ? state.matches : matchRoutesImpl(routesToUse, location, basename, false, dataRoutes.branches);
+		let matches = opts?.initialHydration && state.matches && state.matches.length > 0 && !initialMatchesIsFOW ? state.matches : dataRouteMatcher.match(location);
 		let flushSync = (opts && opts.flushSync) === true;
 		if (matches && state.initialized && !isRevalidationRequired && isHashChangeOnly(state.location, location) && !(opts && opts.submission && isMutationMethod(opts.submission.formMethod))) {
 			completeNavigation(location, { matches }, { flushSync });
 			return;
 		}
-		let fogOfWar = checkFogOfWar(matches, routesToUse, location.pathname);
+		let fogOfWar = checkFogOfWar(matches, location.pathname);
 		if (fogOfWar.active && fogOfWar.matches) matches = fogOfWar.matches;
 		if (opts?.instrumentationNavigateMetaReceiver) {
 			let meta = getInstrumentationNavigateMeta(init.history, location, matches);
@@ -32331,8 +33990,7 @@ function createRouter(init) {
 				};
 			} else matches = discoverResult.matches;
 		}
-		let routesToUse = dataRoutes.activeRoutes;
-		let { dsMatches, revalidatingFetchers } = getMatchesToLoad(request, scopedContext, mapRouteProperties, manifest, init.history, state, matches, activeSubmission, location, initialHydration ? [] : hydrationRouteProperties, initialHydration === true, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, init.patchRoutesOnNavigation != null, dataRoutes.branches, pendingActionResult, callSiteDefaultShouldRevalidate);
+		let { dsMatches, revalidatingFetchers } = getMatchesToLoad(request, scopedContext, mapRouteProperties, manifest, init.history, state, matches, activeSubmission, location, initialHydration ? [] : hydrationRouteProperties, initialHydration === true, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, dataRouteMatcher, pendingActionResult, callSiteDefaultShouldRevalidate);
 		pendingNavigationLoadId = ++incrementingLoadId;
 		if (!init.dataStrategy && !dsMatches.some((m) => m.shouldLoad) && !dsMatches.some((m) => m.route.middleware && m.route.middleware.length > 0) && revalidatingFetchers.length === 0) {
 			let workingFetchers = new Map(state.fetchers);
@@ -32411,10 +34069,9 @@ function createRouter(init) {
 		abortFetcher(key);
 		let flushSync = (opts && opts.flushSync) === true;
 		let instrumentationResultMetaReceiver = consumeInstrumentationClientResultMetaReceiver(router);
-		let routesToUse = dataRoutes.activeRoutes;
 		let normalizedPath = normalizeTo(state.location, state.matches, basename, href, routeId, opts?.relative);
-		let matches = matchRoutesImpl(routesToUse, normalizedPath, basename, false, dataRoutes.branches);
-		let fogOfWar = checkFogOfWar(matches, routesToUse, normalizedPath);
+		let matches = dataRouteMatcher.match(normalizedPath);
+		let fogOfWar = checkFogOfWar(matches, normalizedPath);
 		if (fogOfWar.active && fogOfWar.matches) matches = fogOfWar.matches;
 		if (instrumentationResultMetaReceiver) instrumentationResultMetaReceiver(getInstrumentationNavigateMeta(init.history, normalizedPath, matches));
 		if (!matches) {
@@ -32432,11 +34089,13 @@ function createRouter(init) {
 			await handleFetcherAction(key, routeId, path, matches, scopedContext, fogOfWar.active, flushSync, preventScrollReset, submission, opts && opts.defaultShouldRevalidate);
 			return;
 		}
-		fetchLoadMatches.set(key, {
+		let loadMatch = {
 			routeId,
-			path
-		});
-		await handleFetcherLoader(key, routeId, path, matches, scopedContext, fogOfWar.active, flushSync, preventScrollReset, submission);
+			path,
+			isDiscovering: fogOfWar.active
+		};
+		fetchLoadMatches.set(key, loadMatch);
+		await handleFetcherLoader(key, loadMatch, matches, scopedContext, flushSync, preventScrollReset, submission);
 	}
 	async function handleFetcherAction(key, routeId, path, requestMatches, scopedContext, isFogOfWar, flushSync, preventScrollReset, submission, callSiteDefaultShouldRevalidate) {
 		interruptActiveLoads();
@@ -32506,12 +34165,11 @@ function createRouter(init) {
 		}
 		let nextLocation = state.navigation.location || state.location;
 		let revalidationRequest = createClientSideRequest(init.history, nextLocation, abortController.signal);
-		let routesToUse = dataRoutes.activeRoutes;
-		let matches = state.navigation.state !== "idle" ? matchRoutesImpl(routesToUse, state.navigation.location, basename, false, dataRoutes.branches) : state.matches;
+		let matches = state.navigation.state !== "idle" ? dataRouteMatcher.match(state.navigation.location) : state.matches;
 		invariant$1(matches, "Didn't find any matches after fetcher action");
 		let loadId = ++incrementingLoadId;
 		fetchReloadIds.set(key, loadId);
-		let { dsMatches, revalidatingFetchers } = getMatchesToLoad(revalidationRequest, scopedContext, mapRouteProperties, manifest, init.history, state, matches, submission, nextLocation, hydrationRouteProperties, false, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, init.patchRoutesOnNavigation != null, dataRoutes.branches, [match.route.id, actionResult], callSiteDefaultShouldRevalidate);
+		let { dsMatches, revalidatingFetchers } = getMatchesToLoad(revalidationRequest, scopedContext, mapRouteProperties, manifest, init.history, state, matches, submission, nextLocation, hydrationRouteProperties, false, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, dataRouteMatcher, [match.route.id, actionResult], callSiteDefaultShouldRevalidate);
 		let loadFetcher = getLoadingFetcher(submission, actionResult.data);
 		let workingFetchers = new Map(state.fetchers);
 		workingFetchers.set(key, loadFetcher);
@@ -32578,12 +34236,13 @@ function createRouter(init) {
 			isRevalidationRequired = false;
 		}
 	}
-	async function handleFetcherLoader(key, routeId, path, matches, scopedContext, isFogOfWar, flushSync, preventScrollReset, submission) {
+	async function handleFetcherLoader(key, loadMatch, matches, scopedContext, flushSync, preventScrollReset, submission) {
+		let { routeId, path } = loadMatch;
 		let existingFetcher = state.fetchers.get(key);
 		updateFetcherState(key, getLoadingFetcher(submission, existingFetcher ? existingFetcher.data : void 0), { flushSync });
 		let abortController = new AbortController();
 		let fetchRequest = createClientSideRequest(init.history, path, abortController.signal);
-		if (isFogOfWar) {
+		if (loadMatch.isDiscovering) {
 			let discoverResult = await discoverRoutes(matches, new URL(fetchRequest.url).pathname, fetchRequest.signal, key);
 			if (discoverResult.type === "aborted") return;
 			else if (discoverResult.type === "error") {
@@ -32592,7 +34251,10 @@ function createRouter(init) {
 			} else if (!discoverResult.matches) {
 				setFetcherError(key, routeId, getInternalRouterError(404, { pathname: path }), { flushSync });
 				return;
-			} else matches = discoverResult.matches;
+			} else {
+				matches = discoverResult.matches;
+				loadMatch.isDiscovering = false;
+			}
 		}
 		let match = getTargetMatch(matches, path);
 		fetchControllers.set(key, abortController);
@@ -32901,16 +34563,15 @@ function createRouter(init) {
 		}
 		return null;
 	}
-	function checkFogOfWar(matches, routesToUse, pathname) {
+	function checkFogOfWar(matches, pathname) {
 		if (init.patchRoutesOnNavigation) {
-			let activeBranches = dataRoutes.branches;
 			if (!matches) return {
 				active: true,
-				matches: matchRoutesImpl(routesToUse, pathname, basename, true, activeBranches) || []
+				matches: dataRouteMatcher.match(pathname, true) || []
 			};
 			else if (Object.keys(matches[0].params).length > 0) return {
 				active: true,
-				matches: matchRoutesImpl(routesToUse, pathname, basename, true, activeBranches)
+				matches: dataRouteMatcher.match(pathname, true)
 			};
 		}
 		return {
@@ -32945,21 +34606,20 @@ function createRouter(init) {
 				};
 			}
 			if (signal.aborted) return { type: "aborted" };
-			let activeBranches = dataRoutes.branches;
-			let newMatches = matchRoutesImpl(dataRoutes.activeRoutes, pathname, basename, false, activeBranches);
+			let newMatches = dataRouteMatcher.match(pathname);
 			let newPartialMatches = null;
 			if (newMatches) if (Object.keys(newMatches[0].params).length === 0) return {
 				type: "success",
 				matches: newMatches
 			};
 			else {
-				newPartialMatches = matchRoutesImpl(dataRoutes.activeRoutes, pathname, basename, true, activeBranches);
+				newPartialMatches = dataRouteMatcher.match(pathname, true);
 				if (!(newPartialMatches && partialMatches.length < newPartialMatches.length && compareMatches(partialMatches, newPartialMatches.slice(0, partialMatches.length)))) return {
 					type: "success",
 					matches: newMatches
 				};
 			}
-			if (!newPartialMatches) newPartialMatches = matchRoutesImpl(dataRoutes.activeRoutes, pathname, basename, true, activeBranches);
+			if (!newPartialMatches) newPartialMatches = dataRouteMatcher.match(pathname, true);
 			if (!newPartialMatches || compareMatches(partialMatches, newPartialMatches)) return {
 				type: "success",
 				matches: null
@@ -32991,8 +34651,8 @@ function createRouter(init) {
 		get routes() {
 			return dataRoutes.stableRoutes;
 		},
-		get branches() {
-			return dataRoutes.branches;
+		match(locationArg) {
+			return dataRouteMatcher.match(locationArg);
 		},
 		get manifest() {
 			return manifest;
@@ -33147,7 +34807,7 @@ function normalizeNavigateOptions(isFetcher, path, opts) {
 		path,
 		submission
 	};
-	let parsedPath = parsePath$1(path);
+	let parsedPath = parsePath(path);
 	if (isFetcher && parsedPath.search && hasNakedIndexQuery(parsedPath.search)) searchParams.append("index", "");
 	parsedPath.search = `?${searchParams}`;
 	return {
@@ -33155,7 +34815,7 @@ function normalizeNavigateOptions(isFetcher, path, opts) {
 		submission
 	};
 }
-function getMatchesToLoad(request, scopedContext, mapRouteProperties, manifest, history, state, matches, submission, location, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, hasPatchRoutesOnNavigation, branches, pendingActionResult, callSiteDefaultShouldRevalidate) {
+function getMatchesToLoad(request, scopedContext, mapRouteProperties, manifest, history, state, matches, submission, location, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, dataRouteMatcher, pendingActionResult, callSiteDefaultShouldRevalidate) {
 	let actionResult = pendingActionResult ? isErrorResult(pendingActionResult[1]) ? pendingActionResult[1].error : pendingActionResult[1].data : void 0;
 	let currentUrl = history.createURL(state.location);
 	let nextUrl = history.createURL(location);
@@ -33205,12 +34865,11 @@ function getMatchesToLoad(request, scopedContext, mapRouteProperties, manifest, 
 	});
 	let revalidatingFetchers = [];
 	fetchLoadMatches.forEach((f, key) => {
-		if (initialHydration || !matches.some((m) => m.route.id === f.routeId) || fetchersQueuedForDeletion.has(key)) return;
+		if (initialHydration || !matches.some((m) => m.route.id === f.routeId) || fetchersQueuedForDeletion.has(key) || f.isDiscovering) return;
 		let fetcher = state.fetchers.get(key);
 		let isMidInitialLoad = fetcher && fetcher.state !== "idle" && fetcher.data === void 0;
-		let fetcherMatches = matchRoutesImpl(routesToUse, f.path, basename ?? "/", false, branches);
+		let fetcherMatches = dataRouteMatcher.match(f.path);
 		if (!fetcherMatches) {
-			if (hasPatchRoutesOnNavigation && isMidInitialLoad) return;
 			revalidatingFetchers.push({
 				key,
 				routeId: f.routeId,
@@ -33915,12 +35574,16 @@ function mergeLoaderData(loaderData, newLoaderData, matches, errors) {
 		merged[k] = v;
 		return merged;
 	}, {});
+	let preservedCount = 0;
 	for (let match of matches) {
 		let id = match.route.id;
-		if (!newLoaderData.hasOwnProperty(id) && loaderData.hasOwnProperty(id) && match.route.loader) mergedLoaderData[id] = loaderData[id];
+		if (!newLoaderData.hasOwnProperty(id) && loaderData.hasOwnProperty(id) && match.route.loader) {
+			mergedLoaderData[id] = loaderData[id];
+			preservedCount++;
+		}
 		if (errors && errors.hasOwnProperty(id)) break;
 	}
-	return mergedLoaderData;
+	return Object.keys(newLoaderData).length === 0 && preservedCount === Object.keys(loaderData).length ? loaderData : mergedLoaderData;
 }
 function getActionDataForCommit(pendingActionResult) {
 	if (!pendingActionResult) return {};
@@ -33973,7 +35636,7 @@ function findRedirect(results) {
 }
 function stripHashFromPath(path) {
 	return createPath({
-		...typeof path === "string" ? parsePath$1(path) : path,
+		...typeof path === "string" ? parsePath(path) : path,
 		hash: ""
 	});
 }
@@ -34024,7 +35687,7 @@ function hasNakedIndexQuery(search) {
 	return new URLSearchParams(search).getAll("index").some((v) => v === "");
 }
 function getTargetMatch(matches, location) {
-	let search = typeof location === "string" ? parsePath$1(location).search : location.search;
+	let search = typeof location === "string" ? parsePath(location).search : location.search;
 	if (matches[matches.length - 1].route.index && hasNakedIndexQuery(search || "")) return matches[matches.length - 1];
 	let pathMatches = getPathContributingMatches(matches);
 	return pathMatches[pathMatches.length - 1];
@@ -34194,9 +35857,9 @@ function createDeferred() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/context.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/context.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34209,13 +35872,17 @@ var DataRouterContext = import_react.createContext(null);
 DataRouterContext.displayName = "DataRouter";
 var DataRouterStateContext = import_react.createContext(null);
 DataRouterStateContext.displayName = "DataRouterState";
+var DataRouterDataContext = import_react.createContext(null);
+DataRouterDataContext.displayName = "DataRouterData";
+var DataRouterNavigationContext = import_react.createContext(null);
+DataRouterNavigationContext.displayName = "DataRouterNavigation";
 var RSCRouterContext = import_react.createContext(false);
 function useIsRSCRouterContext() {
 	return import_react.useContext(RSCRouterContext);
 }
 var ViewTransitionContext = import_react.createContext({ isTransitioning: false });
 ViewTransitionContext.displayName = "ViewTransition";
-var FetchersContext = import_react.createContext(/* @__PURE__ */ new Map());
+var FetchersContext = import_react.createContext(null);
 FetchersContext.displayName = "Fetchers";
 var AwaitContext = import_react.createContext(null);
 AwaitContext.displayName = "Await";
@@ -34229,12 +35896,16 @@ var RouteContext = import_react.createContext({
 	isDataRoute: false
 });
 RouteContext.displayName = "Route";
+var IsDataRouteContext = import_react.createContext(false);
+IsDataRouteContext.displayName = "IsDataRoute";
+var RouteIdContext = import_react.createContext(void 0);
+RouteIdContext.displayName = "RouteId";
 var RouteErrorContext = import_react.createContext(null);
 RouteErrorContext.displayName = "RouteError";
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/errors.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/errors.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34259,9 +35930,9 @@ function decodeRouteErrorResponseDigest(digest) {
 	} catch {}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/hooks.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/hooks.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -34496,8 +36167,7 @@ var navigateEffectWarning = "You should call navigate() in a React.useEffect(), 
 * @returns A navigate function for programmatic navigation
 */
 function useNavigate() {
-	let { isDataRoute } = import_react.useContext(RouteContext);
-	return isDataRoute ? useNavigateStable() : useNavigateUnstable();
+	return import_react.useContext(IsDataRouteContext) ? useNavigateStable() : useNavigateUnstable();
 }
 function useNavigateUnstable() {
 	invariant$1(useInRouterContext(), `useNavigate() may be used only in the context of a <Router> component.`);
@@ -34699,7 +36369,7 @@ function useRoutesImpl(routes, locationArg, dataRouterOpts) {
 	let locationFromContext = useLocation();
 	let location;
 	if (locationArg) {
-		let parsedLocationArg = typeof locationArg === "string" ? parsePath$1(locationArg) : locationArg;
+		let parsedLocationArg = typeof locationArg === "string" ? parsePath(locationArg) : locationArg;
 		invariant$1(parentPathnameBase === "/" || parsedLocationArg.pathname?.startsWith(parentPathnameBase), `When overriding the location using \`<Routes location>\` or \`useRoutes(routes, location)\`, the location pathname must begin with the portion of the URL pathname that was matched by all parent routes. The current pathname base is "${parentPathnameBase}" but pathname "${parsedLocationArg.pathname}" was given in the \`location\` prop.`);
 		location = parsedLocationArg;
 	} else location = locationFromContext;
@@ -34709,7 +36379,10 @@ function useRoutesImpl(routes, locationArg, dataRouterOpts) {
 		let parentSegments = parentPathnameBase.replace(/^\//, "").split("/");
 		remainingPathname = "/" + pathname.replace(/^\//, "").split("/").slice(parentSegments.length).join("/");
 	}
-	let matches = dataRouterOpts && dataRouterOpts.state.matches.length ? dataRouterOpts.state.matches.map((m) => Object.assign(m, { route: dataRouterOpts.manifest[m.route.id] || m.route })) : matchRoutes(routes, { pathname: remainingPathname });
+	let matches;
+	if (dataRouterOpts) if (dataRouterOpts.state.matches.length) matches = dataRouterOpts.state.matches.map((m) => Object.assign(m, { route: dataRouterOpts.manifest[m.route.id] || m.route }));
+	else matches = dataRouterOpts.router.match(dataRouterOpts.state.location);
+	else matches = matchRoutes(routes, { pathname: remainingPathname });
 	let renderedMatches = _renderMatches(matches && matches.map((match) => Object.assign({}, match, {
 		params: Object.assign({}, parentParams, match.params),
 		pathname: joinPaths([parentPathnameBase, navigator.encodeLocation ? navigator.encodeLocation(match.pathname.replace(/%/g, "%25").replace(/\?/g, "%3F").replace(/#/g, "%23")).pathname : match.pathname]),
@@ -34774,10 +36447,10 @@ var RenderErrorBoundary = class extends import_react.Component {
 			const decoded = decodeRouteErrorResponseDigest(error.digest);
 			if (decoded) error = decoded;
 		}
-		let result = error !== void 0 ? /* @__PURE__ */ import_react.createElement(RouteContext.Provider, { value: this.props.routeContext }, /* @__PURE__ */ import_react.createElement(RouteErrorContext.Provider, {
+		let result = error !== void 0 ? /* @__PURE__ */ import_react.createElement(RouteContext.Provider, { value: this.props.routeContext }, /* @__PURE__ */ import_react.createElement(IsDataRouteContext.Provider, { value: this.props.routeContext.isDataRoute }, /* @__PURE__ */ import_react.createElement(RouteIdContext.Provider, { value: this.props.routeContext.matches[this.props.routeContext.matches.length - 1]?.route.id }, /* @__PURE__ */ import_react.createElement(RouteErrorContext.Provider, {
 			value: error,
 			children: this.props.component
-		})) : this.props.children;
+		})))) : this.props.children;
 		if (this.context) return /* @__PURE__ */ import_react.createElement(RSCErrorHandler, { error }, result);
 		return result;
 	}
@@ -34811,7 +36484,7 @@ function RSCErrorHandler({ children, error }) {
 function RenderedRoute({ routeContext, match, children }) {
 	let dataRouterContext = import_react.useContext(DataRouterContext);
 	if (dataRouterContext && dataRouterContext.static && dataRouterContext.staticContext && (match.route.errorElement || match.route.ErrorBoundary)) dataRouterContext.staticContext._deepestRenderedBoundaryId = match.route.id;
-	return /* @__PURE__ */ import_react.createElement(RouteContext.Provider, { value: routeContext }, children);
+	return /* @__PURE__ */ import_react.createElement(RouteContext.Provider, { value: routeContext }, /* @__PURE__ */ import_react.createElement(IsDataRouteContext.Provider, { value: routeContext.isDataRoute }, /* @__PURE__ */ import_react.createElement(RouteIdContext.Provider, { value: match.route.id }, children)));
 }
 function _renderMatches(matches, parentMatches = [], dataRouterOpts) {
 	let dataRouterState = dataRouterOpts?.state;
@@ -34908,38 +36581,33 @@ function _renderMatches(matches, parentMatches = [], dataRouterOpts) {
 		}) : getChildren();
 	}, null);
 }
-function getDataRouterConsoleError$1(hookName) {
+function getDataRouterConsoleError(hookName) {
 	return `${hookName} must be used within a data router.  See https://reactrouter.com/en/main/routers/picking-a-router.`;
 }
-function useDataRouterContext$2(hookName) {
+function useDataRouterContext(hookName) {
 	let ctx = import_react.useContext(DataRouterContext);
-	invariant$1(ctx, getDataRouterConsoleError$1(hookName));
+	invariant$1(ctx, getDataRouterConsoleError(hookName));
 	return ctx;
 }
-function useDataRouterState$1(hookName) {
+function useDataRouterState(hookName) {
 	let state = import_react.useContext(DataRouterStateContext);
-	invariant$1(state, getDataRouterConsoleError$1(hookName));
+	invariant$1(state, getDataRouterConsoleError(hookName));
 	return state;
 }
-function useRouteContext(hookName) {
-	let route = import_react.useContext(RouteContext);
-	invariant$1(route, getDataRouterConsoleError$1(hookName));
-	return route;
+function useDataRouterData(hookName) {
+	let data = import_react.useContext(DataRouterDataContext);
+	invariant$1(data, getDataRouterConsoleError(hookName));
+	return data;
+}
+function useDataRouterNavigation(hookName) {
+	let navigation = import_react.useContext(DataRouterNavigationContext);
+	invariant$1(navigation, getDataRouterConsoleError(hookName));
+	return navigation;
 }
 function useCurrentRouteId(hookName) {
-	let route = useRouteContext(hookName);
-	let thisRoute = route.matches[route.matches.length - 1];
-	invariant$1(thisRoute.route.id, `${hookName} can only be used on routes that contain a unique "id"`);
-	return thisRoute.route.id;
-}
-/**
-* Returns the ID for the nearest contextual route
-*
-* @category Hooks
-* @returns The ID of the nearest contextual route
-*/
-function useRouteId() {
-	return useCurrentRouteId("useRouteId");
+	let routeId = import_react.useContext(RouteIdContext);
+	invariant$1(routeId, `${hookName} can only be used on routes that contain a unique "id"`);
+	return routeId;
 }
 /**
 * Returns the current {@link Navigation}, defaulting to an "idle" navigation
@@ -34964,11 +36632,11 @@ function useRouteId() {
 * @returns The current {@link Navigation} object
 */
 function useNavigation() {
-	let state = useDataRouterState$1("useNavigation");
+	let { navigation } = useDataRouterNavigation("useNavigation");
 	return import_react.useMemo(() => {
-		let { matches, historyAction, ...rest } = state.navigation;
+		let { matches, historyAction, ...rest } = navigation;
 		return rest;
-	}, [state.navigation]);
+	}, [navigation]);
 }
 /**
 * Returns the active route matches, useful for accessing `loaderData` for
@@ -35005,7 +36673,8 @@ function useNavigation() {
 * @returns An array of {@link UIMatch | UI matches} for the current route hierarchy
 */
 function useMatches() {
-	let { matches, loaderData } = useDataRouterState$1("useMatches");
+	let { matches } = useDataRouterState("useMatches");
+	let { loaderData } = useDataRouterData("useMatches");
 	return import_react.useMemo(() => matches.map((m) => convertRouteMatchToUiMatch(m, loaderData)), [matches, loaderData]);
 }
 /**
@@ -35030,13 +36699,13 @@ function useMatches() {
 */
 function useRouteError() {
 	let error = import_react.useContext(RouteErrorContext);
-	let state = useDataRouterState$1("useRouteError");
+	let data = useDataRouterData("useRouteError");
 	let routeId = useCurrentRouteId("useRouteError");
 	if (error !== void 0) return error;
-	return state.errors?.[routeId];
+	return data.errors?.[routeId];
 }
 function useNavigateStable() {
-	let { router } = useDataRouterContext$2("useNavigate");
+	let { router } = useDataRouterContext("useNavigate");
 	let id = useCurrentRouteId("useNavigate");
 	let activeRef = import_react.useRef(false);
 	import_react.useLayoutEffect(() => {
@@ -35060,9 +36729,9 @@ function warningOnce(key, cond, message) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35079,9 +36748,9 @@ function warnOnce(condition, message) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/components.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/components.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35313,7 +36982,43 @@ function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, use
 		basename,
 		onError
 	]);
-	return /* @__PURE__ */ import_react.createElement(import_react.Fragment, null, /* @__PURE__ */ import_react.createElement(DataRouterContext.Provider, { value: dataRouterContext }, /* @__PURE__ */ import_react.createElement(DataRouterStateContext.Provider, { value: state }, /* @__PURE__ */ import_react.createElement(FetchersContext.Provider, { value: fetcherData.current }, /* @__PURE__ */ import_react.createElement(ViewTransitionContext.Provider, { value: vtContext }, /* @__PURE__ */ import_react.createElement(Router, {
+	let dataRouterState = import_react.useMemo(() => ({
+		historyAction: state.historyAction,
+		location: state.location,
+		matches: state.matches,
+		initialized: state.initialized,
+		renderFallback: state.renderFallback,
+		restoreScrollPosition: state.restoreScrollPosition,
+		preventScrollReset: state.preventScrollReset,
+		blockers: state.blockers
+	}), [
+		state.historyAction,
+		state.location,
+		state.matches,
+		state.initialized,
+		state.renderFallback,
+		state.restoreScrollPosition,
+		state.preventScrollReset,
+		state.blockers
+	]);
+	let dataRouterNavigation = import_react.useMemo(() => ({
+		navigation: state.navigation,
+		revalidation: state.revalidation
+	}), [state.navigation, state.revalidation]);
+	let dataRouterData = import_react.useMemo(() => ({
+		loaderData: state.loaderData,
+		actionData: state.actionData,
+		errors: state.errors
+	}), [
+		state.loaderData,
+		state.actionData,
+		state.errors
+	]);
+	let fetchersContext = import_react.useMemo(() => ({
+		fetchers: state.fetchers,
+		fetcherData: fetcherData.current
+	}), [state.fetchers]);
+	return /* @__PURE__ */ import_react.createElement(import_react.Fragment, null, /* @__PURE__ */ import_react.createElement(DataRouterContext.Provider, { value: dataRouterContext }, /* @__PURE__ */ import_react.createElement(DataRouterStateContext.Provider, { value: dataRouterState }, /* @__PURE__ */ import_react.createElement(DataRouterNavigationContext.Provider, { value: dataRouterNavigation }, /* @__PURE__ */ import_react.createElement(DataRouterDataContext.Provider, { value: dataRouterData }, /* @__PURE__ */ import_react.createElement(FetchersContext.Provider, { value: fetchersContext }, /* @__PURE__ */ import_react.createElement(ViewTransitionContext.Provider, { value: vtContext }, /* @__PURE__ */ import_react.createElement(Router, {
 		basename,
 		location: state.location,
 		navigationType: state.historyAction,
@@ -35322,11 +37027,10 @@ function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, use
 	}, /* @__PURE__ */ import_react.createElement(MemoizedDataRoutes, {
 		routes: router.routes,
 		manifest: router.manifest,
-		future: router.future,
 		state,
 		isStatic: false,
 		onError
-	})))))), null);
+	})))))))), null);
 }
 function getOptimisticRouterState(currentState, newState) {
 	return {
@@ -35338,13 +37042,15 @@ function getOptimisticRouterState(currentState, newState) {
 	};
 }
 var MemoizedDataRoutes = import_react.memo(DataRoutes);
-function DataRoutes({ routes, manifest, future, state, isStatic, onError }) {
+function DataRoutes({ routes, manifest, state, isStatic, onError }) {
+	let dataRouterContext = import_react.useContext(DataRouterContext);
+	invariant$1(dataRouterContext, "You must render this element inside a <DataRouterContext.Provider> element");
 	return useRoutesImpl(routes, void 0, {
+		router: dataRouterContext.router,
 		manifest,
 		state,
 		isStatic,
-		onError,
-		future
+		onError
 	});
 }
 /**
@@ -35453,7 +37159,7 @@ function Router({ basename: basenameProp = "/", children = null, location: locat
 		staticProp,
 		useTransitions
 	]);
-	if (typeof locationProp === "string") locationProp = parsePath$1(locationProp);
+	if (typeof locationProp === "string") locationProp = parsePath(locationProp);
 	let { pathname = "/", search = "", hash = "", state = null, key = "default", mask } = locationProp;
 	let locationContext = import_react.useMemo(() => {
 		let trailingPathname = stripBasename(pathname, basename);
@@ -35488,9 +37194,9 @@ function Router({ basename: basenameProp = "/", children = null, location: locat
 }
 import_react.Component;
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/dom.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/dom.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35629,9 +37335,9 @@ function getFormSubmissionInfo(target, basename) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35644,9 +37350,9 @@ function invariant(value, message) {
 	if (value === false || value === null || typeof value === "undefined") throw new Error(message);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35667,9 +37373,9 @@ function escapeHtml$1(html) {
 	return html.replace(ESCAPE_REGEX, (match) => ESCAPE_LOOKUP[match]);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35685,9 +37391,9 @@ function singleFetchUrl(reqUrl, extension) {
 	return url;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35715,9 +37421,9 @@ async function loadRouteModule(route, routeModulesCache) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/links.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/links.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35816,9 +37522,9 @@ function dedupeLinkDescriptors(descriptors, preloads) {
 	}, []);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/components.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/components.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35827,16 +37533,6 @@ function dedupeLinkDescriptors(descriptors, preloads) {
 *
 * @license MIT
 */
-function useDataRouterContext$1() {
-	let context = import_react.useContext(DataRouterContext);
-	invariant(context, "You must render this element inside a <DataRouterContext.Provider> element");
-	return context;
-}
-function useDataRouterStateContext() {
-	let context = import_react.useContext(DataRouterStateContext);
-	invariant(context, "You must render this element inside a <DataRouterStateContext.Provider> element");
-	return context;
-}
 var FrameworkContext = import_react.createContext(void 0);
 FrameworkContext.displayName = "FrameworkContext";
 function useFrameworkContext() {
@@ -35940,11 +37636,11 @@ function composeEventHandlers(theirHandler, ourHandler) {
 function PrefetchPageLinks({ page, ...linkProps }) {
 	let rsc = useIsRSCRouterContext();
 	let { nonce: contextNonce } = useFrameworkContext();
-	let { router } = useDataRouterContext$1();
-	let matches = import_react.useMemo(() => matchRoutes(router.routes, page, router.basename), [
+	let { router } = useDataRouterContext("PrefetchPageLinks");
+	let matches = import_react.useMemo(() => router.match(page), [
+		router,
 		router.routes,
-		page,
-		router.basename
+		page
 	]);
 	if (!matches) return null;
 	if (linkProps.nonce == null && contextNonce) linkProps = {
@@ -36007,7 +37703,8 @@ function RSCPrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) 
 function PrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) {
 	let location = useLocation();
 	let { manifest, routeModules } = useFrameworkContext();
-	let { loaderData, matches } = useDataRouterStateContext();
+	let { matches } = useDataRouterState("PrefetchPageLinks");
+	let { loaderData } = useDataRouterData("PrefetchPageLinks");
 	let newMatchesForData = import_react.useMemo(() => getNewMatchesForLinks(page, nextMatches, matches, manifest, location, "data"), [
 		page,
 		nextMatches,
@@ -36075,9 +37772,9 @@ function mergeRefs(...refs) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/lib.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/lib.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -36317,12 +38014,12 @@ Link.displayName = "Link";
 var NavLink = import_react.forwardRef(function NavLinkWithRef({ "aria-current": ariaCurrentProp = "page", caseSensitive = false, className: classNameProp = "", end = false, style: styleProp, to, viewTransition, children, ...rest }, ref) {
 	let path = useResolvedPath(to, { relative: rest.relative });
 	let location = useLocation();
-	let routerState = import_react.useContext(DataRouterStateContext);
+	let routerNavigation = import_react.useContext(DataRouterNavigationContext);
 	let { navigator, basename } = import_react.useContext(NavigationContext);
-	let isTransitioning = routerState != null && useViewTransitionState(path) && viewTransition === true;
+	let isTransitioning = routerNavigation != null && useViewTransitionState(path) && viewTransition === true;
 	let toPathname = navigator.encodeLocation ? navigator.encodeLocation(path).pathname : path.pathname;
 	let locationPathname = location.pathname;
-	let nextLocationPathname = routerState && routerState.navigation && routerState.navigation.location ? routerState.navigation.location.pathname : null;
+	let nextLocationPathname = routerNavigation?.navigation.location ? routerNavigation.navigation.location.pathname : null;
 	if (!caseSensitive) {
 		locationPathname = locationPathname.toLowerCase();
 		nextLocationPathname = nextLocationPathname ? nextLocationPathname.toLowerCase() : null;
@@ -36518,19 +38215,6 @@ function ScrollRestoration({ getKey, storageKey, ...props }) {
 	});
 }
 ScrollRestoration.displayName = "ScrollRestoration";
-function getDataRouterConsoleError(hookName) {
-	return `${hookName} must be used within a data router.  See https://reactrouter.com/en/main/routers/picking-a-router.`;
-}
-function useDataRouterContext(hookName) {
-	let ctx = import_react.useContext(DataRouterContext);
-	invariant$1(ctx, getDataRouterConsoleError(hookName));
-	return ctx;
-}
-function useDataRouterState(hookName) {
-	let state = import_react.useContext(DataRouterStateContext);
-	invariant$1(state, getDataRouterConsoleError(hookName));
-	return state;
-}
 /**
 * Handles the click behavior for router {@link Link | `<Link>`} components.This
 * is useful if you need to create custom {@link Link | `<Link>`} components with
@@ -36733,7 +38417,7 @@ var getUniqueFetcherId = () => `__${String(++fetcherId)}__`;
 function useSubmit() {
 	let { router } = useDataRouterContext("useSubmit");
 	let { basename } = import_react.useContext(NavigationContext);
-	let currentRouteId = useRouteId();
+	let currentRouteId = useCurrentRouteId("useSubmit");
 	let routerFetch = router.fetch;
 	let routerNavigate = router.navigate;
 	return import_react.useCallback(async (target, options = {}) => {
@@ -38506,7 +40190,7 @@ var usePrismHighlight = (containerRef, contentLength) => {
 				highlightCodeBlocks(container);
 			});
 			const observer = new MutationObserver((mutations) => {
-				if (mutations.some(_temp2$62)) highlightCodeBlocks(container);
+				if (mutations.some(_temp2$63)) highlightCodeBlocks(container);
 			});
 			observer.observe(container, {
 				childList: true,
@@ -38531,7 +40215,7 @@ function _temp$108(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
-function _temp2$62(mutation) {
+function _temp2$63(mutation) {
 	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$108);
 	return false;
 }
@@ -39226,7 +40910,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 					replaceMeasurementItems(testElement, [
 						firstSegment.text,
 						"...",
-						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$61),
+						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$62),
 						lastSegment.text
 					]);
 					if (testElement.scrollWidth <= containerWidth) {
@@ -39267,7 +40951,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 function _temp$106(segment) {
 	return segment.text;
 }
-function _temp2$61(segment_0) {
+function _temp2$62(segment_0) {
 	return segment_0.text;
 }
 //#endregion
@@ -39894,7 +41578,7 @@ var useComponentIcons = () => {
 //#endregion
 //#region ../../packages/react/src/components/AutocompleteInput.tsx
 var AutocompleteInput = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(79);
+	const $ = (0, import_compiler_runtime.c)(78);
 	const { id, value, onChange, onCommit, onCancel, disabled, suggestions, placeholder: t1, ariaLabel, maxSuggestions: t2, charactersBeforeSuggesting: t3, maxSuggestionWidth: t4, autoFocus, className, allowBrowse: t5, required: t6 } = t0;
 	const placeholder = t1 === void 0 ? "Filter" : t1;
 	const maxSuggestions = t2 === void 0 ? 10 : t2;
@@ -40014,39 +41698,29 @@ var AutocompleteInput = (t0) => {
 	} else t14 = $[17];
 	const handleFocus = t14;
 	let t15;
-	let t16;
 	if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
-		t15 = () => {
-			const handleClickOutside = (e) => {
-				const target = e.target instanceof Node ? e.target : null;
-				if (containerRef.current && !containerRef.current.contains(target)) setIsOpen(false);
-			};
-			document.addEventListener("mousedown", handleClickOutside);
-			return () => document.removeEventListener("mousedown", handleClickOutside);
+		t15 = (e) => {
+			const target = e.target instanceof Node ? e.target : null;
+			if (containerRef.current && !containerRef.current.contains(target)) setIsOpen(false);
 		};
-		t16 = [];
 		$[18] = t15;
-		$[19] = t16;
-	} else {
-		t15 = $[18];
-		t16 = $[19];
-	}
-	(0, import_react.useEffect)(t15, t16);
-	let t17;
-	if ($[20] !== onChange) {
-		t17 = (e_0) => {
+	} else t15 = $[18];
+	useEventListener(typeof document === "undefined" ? null : document, "mousedown", t15);
+	let t16;
+	if ($[19] !== onChange) {
+		t16 = (e_0) => {
 			hasTypedRef.current = true;
 			setIsBrowseMode(false);
 			onChange(e_0.target.value);
 			setIsOpen(true);
 		};
-		$[20] = onChange;
-		$[21] = t17;
-	} else t17 = $[21];
-	const handleInputChange = t17;
-	let t18;
-	if ($[22] !== isBrowseMode || $[23] !== isOpen) {
-		t18 = () => {
+		$[19] = onChange;
+		$[20] = t16;
+	} else t16 = $[20];
+	const handleInputChange = t16;
+	let t17;
+	if ($[21] !== isBrowseMode || $[22] !== isOpen) {
+		t17 = () => {
 			if (isOpen && isBrowseMode) {
 				setIsOpen(false);
 				setIsBrowseMode(false);
@@ -40056,26 +41730,26 @@ var AutocompleteInput = (t0) => {
 			}
 			inputRef.current?.focus();
 		};
-		$[22] = isBrowseMode;
-		$[23] = isOpen;
-		$[24] = t18;
-	} else t18 = $[24];
-	const handleToggleBrowse = t18;
-	let t19;
-	if ($[25] !== onChange) {
-		t19 = (suggestion) => {
+		$[21] = isBrowseMode;
+		$[22] = isOpen;
+		$[23] = t17;
+	} else t17 = $[23];
+	const handleToggleBrowse = t17;
+	let t18;
+	if ($[24] !== onChange) {
+		t18 = (suggestion) => {
 			onChange(String(suggestion ?? ""));
 			setIsOpen(false);
 			setIsBrowseMode(false);
 			inputRef.current?.focus();
 		};
-		$[25] = onChange;
-		$[26] = t19;
-	} else t19 = $[26];
-	const selectSuggestion = t19;
-	let t20;
-	if ($[27] !== filteredSuggestions || $[28] !== highlightedIndex || $[29] !== onCancel || $[30] !== onCommit || $[31] !== selectSuggestion || $[32] !== showDropdown || $[33] !== suggestions) {
-		t20 = (e_1) => {
+		$[24] = onChange;
+		$[25] = t18;
+	} else t18 = $[25];
+	const selectSuggestion = t18;
+	let t19;
+	if ($[26] !== filteredSuggestions || $[27] !== highlightedIndex || $[28] !== onCancel || $[29] !== onCommit || $[30] !== selectSuggestion || $[31] !== showDropdown || $[32] !== suggestions) {
+		t19 = (e_1) => {
 			if (!showDropdown) {
 				if (e_1.key === "Escape") {
 					e_1.preventDefault();
@@ -40086,7 +41760,7 @@ var AutocompleteInput = (t0) => {
 					e_1.stopPropagation();
 					onCommit?.();
 				} else if (e_1.key === "ArrowDown" || e_1.key === "ArrowUp") {
-					const hasOptions = suggestions.some(_temp2$60);
+					const hasOptions = suggestions.some(_temp2$61);
 					if (filteredSuggestions.length > 0 || hasOptions) {
 						e_1.preventDefault();
 						e_1.stopPropagation();
@@ -40125,49 +41799,49 @@ var AutocompleteInput = (t0) => {
 					setIsOpen(false);
 			}
 		};
-		$[27] = filteredSuggestions;
-		$[28] = highlightedIndex;
-		$[29] = onCancel;
-		$[30] = onCommit;
-		$[31] = selectSuggestion;
-		$[32] = showDropdown;
-		$[33] = suggestions;
-		$[34] = t20;
-	} else t20 = $[34];
-	const handleKeyDown = t20;
+		$[26] = filteredSuggestions;
+		$[27] = highlightedIndex;
+		$[28] = onCancel;
+		$[29] = onCommit;
+		$[30] = selectSuggestion;
+		$[31] = showDropdown;
+		$[32] = suggestions;
+		$[33] = t19;
+	} else t19 = $[33];
+	const handleKeyDown = t19;
+	let t20;
 	let t21;
-	let t22;
-	if ($[35] !== highlightedIndex || $[36] !== showDropdown) {
-		t21 = () => {
+	if ($[34] !== highlightedIndex || $[35] !== showDropdown) {
+		t20 = () => {
 			if (listRef.current && showDropdown && highlightedIndex >= 0) listRef.current.children.item(highlightedIndex)?.scrollIntoView({ block: "nearest" });
 		};
-		t22 = [highlightedIndex, showDropdown];
-		$[35] = highlightedIndex;
-		$[36] = showDropdown;
+		t21 = [highlightedIndex, showDropdown];
+		$[34] = highlightedIndex;
+		$[35] = showDropdown;
+		$[36] = t20;
 		$[37] = t21;
-		$[38] = t22;
 	} else {
+		t20 = $[36];
 		t21 = $[37];
-		t22 = $[38];
 	}
-	(0, import_react.useEffect)(t21, t22);
-	const t23 = allowBrowse && AutocompleteInput_module_default.inputWithToggle;
-	let t24;
-	if ($[39] !== className || $[40] !== t23) {
-		t24 = clsx(AutocompleteInput_module_default.input, t23, className);
-		$[39] = className;
+	(0, import_react.useEffect)(t20, t21);
+	const t22 = allowBrowse && AutocompleteInput_module_default.inputWithToggle;
+	let t23;
+	if ($[38] !== className || $[39] !== t22) {
+		t23 = clsx(AutocompleteInput_module_default.input, t22, className);
+		$[38] = className;
+		$[39] = t22;
 		$[40] = t23;
-		$[41] = t24;
-	} else t24 = $[41];
-	const t25 = showDropdown ? `${id}-listbox` : void 0;
-	const t26 = showDropdown && highlightedIndex >= 0 ? `${id}-option-${highlightedIndex}` : void 0;
-	let t27;
-	if ($[42] !== ariaLabel || $[43] !== autoFocus || $[44] !== disabled || $[45] !== handleFocus || $[46] !== handleInputChange || $[47] !== handleKeyDown || $[48] !== id || $[49] !== placeholder || $[50] !== required || $[51] !== showDropdown || $[52] !== t24 || $[53] !== t25 || $[54] !== t26 || $[55] !== value) {
-		t27 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
+	} else t23 = $[40];
+	const t24 = showDropdown ? `${id}-listbox` : void 0;
+	const t25 = showDropdown && highlightedIndex >= 0 ? `${id}-option-${highlightedIndex}` : void 0;
+	let t26;
+	if ($[41] !== ariaLabel || $[42] !== autoFocus || $[43] !== disabled || $[44] !== handleFocus || $[45] !== handleInputChange || $[46] !== handleKeyDown || $[47] !== id || $[48] !== placeholder || $[49] !== required || $[50] !== showDropdown || $[51] !== t23 || $[52] !== t24 || $[53] !== t25 || $[54] !== value) {
+		t26 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 			id,
 			ref: inputRef,
 			type: "text",
-			className: t24,
+			className: t23,
 			value,
 			required,
 			onChange: handleInputChange,
@@ -40181,29 +41855,29 @@ var AutocompleteInput = (t0) => {
 			role: "combobox",
 			"aria-expanded": showDropdown,
 			"aria-autocomplete": "list",
-			"aria-controls": t25,
-			"aria-activedescendant": t26,
+			"aria-controls": t24,
+			"aria-activedescendant": t25,
 			autoFocus
 		});
-		$[42] = ariaLabel;
-		$[43] = autoFocus;
-		$[44] = disabled;
-		$[45] = handleFocus;
-		$[46] = handleInputChange;
-		$[47] = handleKeyDown;
-		$[48] = id;
-		$[49] = placeholder;
-		$[50] = required;
-		$[51] = showDropdown;
+		$[41] = ariaLabel;
+		$[42] = autoFocus;
+		$[43] = disabled;
+		$[44] = handleFocus;
+		$[45] = handleInputChange;
+		$[46] = handleKeyDown;
+		$[47] = id;
+		$[48] = placeholder;
+		$[49] = required;
+		$[50] = showDropdown;
+		$[51] = t23;
 		$[52] = t24;
 		$[53] = t25;
-		$[54] = t26;
-		$[55] = value;
-		$[56] = t27;
-	} else t27 = $[56];
-	let t28;
-	if ($[57] !== allowBrowse || $[58] !== disabled || $[59] !== handleToggleBrowse || $[60] !== icons || $[61] !== id || $[62] !== isBrowseMode || $[63] !== isOpen || $[64] !== showDropdown || $[65] !== suggestions) {
-		t28 = allowBrowse && suggestions.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[54] = value;
+		$[55] = t26;
+	} else t26 = $[55];
+	let t27;
+	if ($[56] !== allowBrowse || $[57] !== disabled || $[58] !== handleToggleBrowse || $[59] !== icons || $[60] !== id || $[61] !== isBrowseMode || $[62] !== isOpen || $[63] !== showDropdown || $[64] !== suggestions) {
+		t27 = allowBrowse && suggestions.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: AutocompleteInput_module_default.toggleButton,
 			onClick: handleToggleBrowse,
@@ -40214,20 +41888,20 @@ var AutocompleteInput = (t0) => {
 			"aria-controls": showDropdown ? `${id}-listbox` : void 0,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: isOpen && isBrowseMode ? icons.chevronUp : icons.chevronDown })
 		});
-		$[57] = allowBrowse;
-		$[58] = disabled;
-		$[59] = handleToggleBrowse;
-		$[60] = icons;
-		$[61] = id;
-		$[62] = isBrowseMode;
-		$[63] = isOpen;
-		$[64] = showDropdown;
-		$[65] = suggestions;
-		$[66] = t28;
-	} else t28 = $[66];
-	let t29;
-	if ($[67] !== dropdownPosition || $[68] !== filteredSuggestions || $[69] !== highlightedIndex || $[70] !== id || $[71] !== maxSuggestionWidth || $[72] !== selectSuggestion || $[73] !== showDropdown) {
-		t29 = showDropdown && dropdownPosition && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("ul", {
+		$[56] = allowBrowse;
+		$[57] = disabled;
+		$[58] = handleToggleBrowse;
+		$[59] = icons;
+		$[60] = id;
+		$[61] = isBrowseMode;
+		$[62] = isOpen;
+		$[63] = showDropdown;
+		$[64] = suggestions;
+		$[65] = t27;
+	} else t27 = $[65];
+	let t28;
+	if ($[66] !== dropdownPosition || $[67] !== filteredSuggestions || $[68] !== highlightedIndex || $[69] !== id || $[70] !== maxSuggestionWidth || $[71] !== selectSuggestion || $[72] !== showDropdown) {
+		t28 = showDropdown && dropdownPosition && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("ul", {
 			id: `${id}-listbox`,
 			ref: listRef,
 			className: AutocompleteInput_module_default.suggestionsList,
@@ -40253,37 +41927,37 @@ var AutocompleteInput = (t0) => {
 				children: String(suggestion_0 ?? "(null)")
 			}, String(suggestion_0)))
 		}), document.body);
-		$[67] = dropdownPosition;
-		$[68] = filteredSuggestions;
-		$[69] = highlightedIndex;
-		$[70] = id;
-		$[71] = maxSuggestionWidth;
-		$[72] = selectSuggestion;
-		$[73] = showDropdown;
-		$[74] = t29;
-	} else t29 = $[74];
-	let t30;
-	if ($[75] !== t27 || $[76] !== t28 || $[77] !== t29) {
-		t30 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[66] = dropdownPosition;
+		$[67] = filteredSuggestions;
+		$[68] = highlightedIndex;
+		$[69] = id;
+		$[70] = maxSuggestionWidth;
+		$[71] = selectSuggestion;
+		$[72] = showDropdown;
+		$[73] = t28;
+	} else t28 = $[73];
+	let t29;
+	if ($[74] !== t26 || $[75] !== t27 || $[76] !== t28) {
+		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			ref: containerRef,
 			className: AutocompleteInput_module_default.container,
 			children: [
+				t26,
 				t27,
-				t28,
-				t29
+				t28
 			]
 		});
+		$[74] = t26;
 		$[75] = t27;
 		$[76] = t28;
 		$[77] = t29;
-		$[78] = t30;
-	} else t30 = $[78];
-	return t30;
+	} else t29 = $[77];
+	return t29;
 };
 function _temp$104(s) {
 	return s !== null;
 }
-function _temp2$60(s_1) {
+function _temp2$61(s_1) {
 	return s_1 !== null;
 }
 function _temp3$46(prev) {
@@ -42415,7 +44089,7 @@ var b = x$1(1);
 var w = x$1(2);
 var E = Symbol.for("lit-noChange");
 var A = Symbol.for("lit-nothing");
-var C$1 = /* @__PURE__ */ new WeakMap();
+var C$2 = /* @__PURE__ */ new WeakMap();
 var P$1 = l$1.createTreeWalker(l$1, 129);
 function V(t, i) {
 	if (!u$2(t) || !t.hasOwnProperty("raw")) throw Error("invalid template strings array");
@@ -42561,8 +44235,8 @@ var k = class k {
 		}
 	}
 	_$AC(t) {
-		let i = C$1.get(t.strings);
-		return void 0 === i && C$1.set(t.strings, i = new S$1(t)), i;
+		let i = C$2.get(t.strings);
+		return void 0 === i && C$2.set(t.strings, i = new S$1(t)), i;
 	}
 	k(t) {
 		u$2(this._$AH) || (this._$AH = [], this._$AR());
@@ -53546,7 +55220,7 @@ var OVERFLOW_CLASS = {
 	visible: Modal_module_default.overflowVisible
 };
 var Modal = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(45);
+	const $ = (0, import_compiler_runtime.c)(44);
 	const { show, onHide, onSubmit, title, children, footer, className, id, width, overflow: t1, padded: t2, bodyClassName } = t0;
 	const overflow = t1 === void 0 ? "auto" : t1;
 	const padded = t2 === void 0 ? true : t2;
@@ -53554,53 +55228,39 @@ var Modal = (t0) => {
 	const modalRef = (0, import_react.useRef)(null);
 	const fallbackTitleId = (0, import_react.useId)();
 	let t3;
-	let t4;
 	if ($[0] !== onHide || $[1] !== onSubmit || $[2] !== show) {
-		t3 = () => {
-			const handleKeyDown = (e) => {
-				if (!show) return;
-				if (e.key === "Escape") onHide();
-				else if (e.key === "Enter" && onSubmit) {
-					if (!shouldSubmitOnEnter(e, modalRef.current)) return;
+		t3 = (e) => {
+			if (!show) return;
+			if (e.key === "Escape") onHide();
+			else if (e.key === "Enter" && onSubmit) {
+				if (!shouldSubmitOnEnter(e, modalRef.current)) return;
+				e.preventDefault();
+				onSubmit();
+			} else if (e.key === "Tab" && modalRef.current) {
+				const tabbables = tabbableElements(modalRef.current);
+				const first = tabbables[0];
+				const last = tabbables[tabbables.length - 1];
+				if (!first || !last) return;
+				const active = document.activeElement;
+				if (e.shiftKey && active === first) {
 					e.preventDefault();
-					onSubmit();
-				} else if (e.key === "Tab" && modalRef.current) {
-					const tabbables = tabbableElements(modalRef.current);
-					const first = tabbables[0];
-					const last = tabbables[tabbables.length - 1];
-					if (!first || !last) return;
-					const active = document.activeElement;
-					if (e.shiftKey && active === first) {
-						e.preventDefault();
-						last.focus();
-					} else if (!e.shiftKey && active === last) {
-						e.preventDefault();
-						first.focus();
-					}
+					last.focus();
+				} else if (!e.shiftKey && active === last) {
+					e.preventDefault();
+					first.focus();
 				}
-			};
-			document.addEventListener("keydown", handleKeyDown);
-			return () => document.removeEventListener("keydown", handleKeyDown);
+			}
 		};
-		t4 = [
-			show,
-			onHide,
-			onSubmit
-		];
 		$[0] = onHide;
 		$[1] = onSubmit;
 		$[2] = show;
 		$[3] = t3;
-		$[4] = t4;
-	} else {
-		t3 = $[3];
-		t4 = $[4];
-	}
-	(0, import_react.useEffect)(t3, t4);
+	} else t3 = $[3];
+	useEventListener(typeof document === "undefined" ? null : document, "keydown", t3);
+	let t4;
 	let t5;
-	let t6;
-	if ($[5] !== show) {
-		t5 = () => {
+	if ($[4] !== show) {
+		t4 = () => {
 			if (!show || !modalRef.current) return;
 			const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 			const modal = modalRef.current;
@@ -53614,148 +55274,148 @@ var Modal = (t0) => {
 				previouslyFocused?.focus?.();
 			};
 		};
-		t6 = [show];
-		$[5] = show;
+		t5 = [show];
+		$[4] = show;
+		$[5] = t4;
 		$[6] = t5;
-		$[7] = t6;
 	} else {
+		t4 = $[5];
 		t5 = $[6];
-		t6 = $[7];
 	}
-	(0, import_react.useEffect)(t5, t6);
+	(0, import_react.useEffect)(t4, t5);
 	if (!show) return null;
 	const titleId = id ? `${id}-title` : fallbackTitleId;
-	let t7;
-	if ($[8] !== onHide) {
-		t7 = (e_0) => {
+	let t6;
+	if ($[7] !== onHide) {
+		t6 = (e_0) => {
 			if (e_0.target === e_0.currentTarget) onHide();
 		};
-		$[8] = onHide;
-		$[9] = t7;
-	} else t7 = $[9];
+		$[7] = onHide;
+		$[8] = t6;
+	} else t6 = $[8];
+	let t7;
+	if ($[9] !== className) {
+		t7 = clsx(Modal_module_default.modal, className);
+		$[9] = className;
+		$[10] = t7;
+	} else t7 = $[10];
 	let t8;
-	if ($[10] !== className) {
-		t8 = clsx(Modal_module_default.modal, className);
-		$[10] = className;
-		$[11] = t8;
-	} else t8 = $[11];
+	if ($[11] !== width) {
+		t8 = width ? { maxWidth: width } : void 0;
+		$[11] = width;
+		$[12] = t8;
+	} else t8 = $[12];
 	let t9;
-	if ($[12] !== width) {
-		t9 = width ? { maxWidth: width } : void 0;
-		$[12] = width;
-		$[13] = t9;
-	} else t9 = $[13];
-	let t10;
-	if ($[14] !== title || $[15] !== titleId) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("h3", {
+	if ($[13] !== title || $[14] !== titleId) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("h3", {
 			id: titleId,
 			className: Modal_module_default.title,
 			children: title
 		});
-		$[14] = title;
-		$[15] = titleId;
-		$[16] = t10;
-	} else t10 = $[16];
-	let t11;
-	if ($[17] !== icons.close) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+		$[13] = title;
+		$[14] = titleId;
+		$[15] = t9;
+	} else t9 = $[15];
+	let t10;
+	if ($[16] !== icons.close) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
 			className: icons.close,
 			"aria-hidden": "true"
 		});
-		$[17] = icons.close;
-		$[18] = t11;
-	} else t11 = $[18];
-	let t12;
-	if ($[19] !== onHide || $[20] !== t11) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[16] = icons.close;
+		$[17] = t10;
+	} else t10 = $[17];
+	let t11;
+	if ($[18] !== onHide || $[19] !== t10) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: Modal_module_default.closeButton,
 			onClick: onHide,
 			"aria-label": "Close",
-			children: t11
+			children: t10
 		});
-		$[19] = onHide;
+		$[18] = onHide;
+		$[19] = t10;
 		$[20] = t11;
-		$[21] = t12;
-	} else t12 = $[21];
-	let t13;
-	if ($[22] !== t10 || $[23] !== t12) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	} else t11 = $[20];
+	let t12;
+	if ($[21] !== t11 || $[22] !== t9) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: Modal_module_default.header,
-			children: [t10, t12]
+			children: [t9, t11]
 		});
-		$[22] = t10;
+		$[21] = t11;
+		$[22] = t9;
 		$[23] = t12;
-		$[24] = t13;
-	} else t13 = $[24];
-	const t14 = OVERFLOW_CLASS[overflow];
-	const t15 = !padded && Modal_module_default.noPadding;
-	let t16;
-	if ($[25] !== bodyClassName || $[26] !== t14 || $[27] !== t15) {
-		t16 = clsx(Modal_module_default.body, t14, t15, bodyClassName);
-		$[25] = bodyClassName;
+	} else t12 = $[23];
+	const t13 = OVERFLOW_CLASS[overflow];
+	const t14 = !padded && Modal_module_default.noPadding;
+	let t15;
+	if ($[24] !== bodyClassName || $[25] !== t13 || $[26] !== t14) {
+		t15 = clsx(Modal_module_default.body, t13, t14, bodyClassName);
+		$[24] = bodyClassName;
+		$[25] = t13;
 		$[26] = t14;
 		$[27] = t15;
-		$[28] = t16;
-	} else t16 = $[28];
-	let t17;
-	if ($[29] !== children || $[30] !== t16) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t16,
+	} else t15 = $[27];
+	let t16;
+	if ($[28] !== children || $[29] !== t15) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t15,
 			children
 		});
-		$[29] = children;
+		$[28] = children;
+		$[29] = t15;
 		$[30] = t16;
-		$[31] = t17;
-	} else t17 = $[31];
-	let t18;
-	if ($[32] !== footer) {
-		t18 = footer && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	} else t16 = $[30];
+	let t17;
+	if ($[31] !== footer) {
+		t17 = footer && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: Modal_module_default.footer,
 			children: footer
 		});
-		$[32] = footer;
-		$[33] = t18;
-	} else t18 = $[33];
-	let t19;
-	if ($[34] !== id || $[35] !== t13 || $[36] !== t17 || $[37] !== t18 || $[38] !== t8 || $[39] !== t9 || $[40] !== titleId) {
-		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[31] = footer;
+		$[32] = t17;
+	} else t17 = $[32];
+	let t18;
+	if ($[33] !== id || $[34] !== t12 || $[35] !== t16 || $[36] !== t17 || $[37] !== t7 || $[38] !== t8 || $[39] !== titleId) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			ref: modalRef,
 			id,
 			role: "dialog",
 			"aria-modal": "true",
 			"aria-labelledby": titleId,
 			tabIndex: -1,
-			className: t8,
-			style: t9,
+			className: t7,
+			style: t8,
 			children: [
-				t13,
-				t17,
-				t18
+				t12,
+				t16,
+				t17
 			]
 		});
-		$[34] = id;
-		$[35] = t13;
+		$[33] = id;
+		$[34] = t12;
+		$[35] = t16;
 		$[36] = t17;
-		$[37] = t18;
+		$[37] = t7;
 		$[38] = t8;
-		$[39] = t9;
-		$[40] = titleId;
-		$[41] = t19;
-	} else t19 = $[41];
-	let t20;
-	if ($[42] !== t19 || $[43] !== t7) {
-		t20 = /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[39] = titleId;
+		$[40] = t18;
+	} else t18 = $[40];
+	let t19;
+	if ($[41] !== t18 || $[42] !== t6) {
+		t19 = /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: Modal_module_default.backdrop,
 			role: "presentation",
-			onClick: t7,
-			children: t19
+			onClick: t6,
+			children: t18
 		}), document.body);
-		$[42] = t19;
-		$[43] = t7;
-		$[44] = t20;
-	} else t20 = $[44];
-	return t20;
+		$[41] = t18;
+		$[42] = t6;
+		$[43] = t19;
+	} else t19 = $[43];
+	return t19;
 };
 //#endregion
 //#region ../../packages/react/src/components/EmptyPanel.tsx
@@ -54231,7 +55891,7 @@ encode$1.defaultChars = ";/?:@&=+$,-_.!~*'()#";
 encode$1.componentChars = "-_.!~*'()";
 //#endregion
 //#region ../../node_modules/.pnpm/mdurl@2.1.0/node_modules/mdurl/lib/format.mjs
-function format$1(url) {
+function format(url) {
 	let result = "";
 	result += url.protocol || "";
 	result += url.slashes ? "//" : "";
@@ -54421,7 +56081,7 @@ Url.prototype.parseHost = function(host) {
 var mdurl_exports = /* @__PURE__ */ __exportAll$1({
 	decode: () => decode$1,
 	encode: () => encode$1,
-	format: () => format$1,
+	format: () => format,
 	parse: () => urlParse
 });
 //#endregion
@@ -59313,7 +60973,7 @@ var MarkdownIt = class {
 		if (parsed.pathname) parsed.pathname = encode$1(parsed.pathname);
 		if (parsed.search) parsed.search = encode$1(parsed.search);
 		if (parsed.hash) parsed.hash = encode$1(parsed.hash);
-		return format$1(parsed);
+		return format(parsed);
 	}
 	/**
 	* Function used to decode link url to a human-readable format`
@@ -59325,7 +60985,7 @@ var MarkdownIt = class {
 				parsed.hostname = punycode.toUnicode(parsed.hostname);
 			} catch (er) {}
 		}
-		return decode$1(format$1(parsed), decode$1.defaultChars + "%");
+		return decode$1(format(parsed), decode$1.defaultChars + "%");
 	}
 	constructor(...args) {
 		_defineProperty(
@@ -59988,7 +61648,7 @@ function cleanArray(array) {
 * @param object - The object to be cloned.
 * @returns A new object that copies the original.
 */
-function clone$1(object) {
+function clone(object) {
 	const newObject = create$1(null);
 	for (const _ref2 of entries(object)) {
 		var _ref3 = _slicedToArray(_ref2, 2);
@@ -59996,7 +61656,7 @@ function clone$1(object) {
 		const value = _ref3[1];
 		if (objectHasOwnProperty(object, property)) {
 			if (arrayIsArray(value)) newObject[property] = cleanArray(value);
-			else if (value && typeof value === "object" && value.constructor === Object) newObject[property] = clone$1(value);
+			else if (value && typeof value === "object" && value.constructor === Object) newObject[property] = clone(value);
 			else newObject[property] = value;
 		}
 	}
@@ -60810,7 +62470,7 @@ var _createHooksMap = function _createHooksMap() {
 * @returns the resolved set
 */
 var _resolveSetOption = function _resolveSetOption(cfg, key, fallback, options) {
-	return objectHasOwnProperty(cfg, key) && arrayIsArray(cfg[key]) ? addToSet(options.base ? clone$1(options.base) : {}, cfg[key], options.transform) : fallback;
+	return objectHasOwnProperty(cfg, key) && arrayIsArray(cfg[key]) ? addToSet(options.base ? clone(options.base) : {}, cfg[key], options.transform) : fallback;
 };
 /**
 * Resolve an object-valued configuration option: a prototype-free clone
@@ -60825,7 +62485,7 @@ var _resolveSetOption = function _resolveSetOption(cfg, key, fallback, options) 
 */
 var _resolveObjectOption = function _resolveObjectOption(cfg, key, makeFallback) {
 	const value = objectHasOwnProperty(cfg, key) ? cfg[key] : void 0;
-	return value && typeof value === "object" ? clone$1(value) : makeFallback();
+	return value && typeof value === "object" ? clone(value) : makeFallback();
 };
 function createDOMPurify() {
 	let window = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
@@ -61084,7 +62744,7 @@ function createDOMPurify() {
 		let cfg = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
 		if (CONFIG && CONFIG === cfg) return;
 		if (!cfg || typeof cfg !== "object") cfg = {};
-		cfg = clone$1(cfg);
+		cfg = clone(cfg);
 		PARSER_MEDIA_TYPE = SUPPORTED_PARSER_MEDIA_TYPES.indexOf(cfg.PARSER_MEDIA_TYPE) === -1 ? DEFAULT_PARSER_MEDIA_TYPE : cfg.PARSER_MEDIA_TYPE;
 		transformCaseFunc = PARSER_MEDIA_TYPE === "application/xhtml+xml" ? stringToString : stringToLowerCase;
 		ALLOWED_TAGS = _resolveSetOption(cfg, "ALLOWED_TAGS", DEFAULT_ALLOWED_TAGS, { transform: transformCaseFunc });
@@ -61099,9 +62759,9 @@ function createDOMPurify() {
 			base: DEFAULT_DATA_URI_TAGS
 		});
 		FORBID_CONTENTS = _resolveSetOption(cfg, "FORBID_CONTENTS", DEFAULT_FORBID_CONTENTS, { transform: transformCaseFunc });
-		FORBID_TAGS = _resolveSetOption(cfg, "FORBID_TAGS", clone$1({}), { transform: transformCaseFunc });
-		FORBID_ATTR = _resolveSetOption(cfg, "FORBID_ATTR", clone$1({}), { transform: transformCaseFunc });
-		USE_PROFILES = objectHasOwnProperty(cfg, "USE_PROFILES") ? cfg.USE_PROFILES && typeof cfg.USE_PROFILES === "object" ? clone$1(cfg.USE_PROFILES) : cfg.USE_PROFILES : false;
+		FORBID_TAGS = _resolveSetOption(cfg, "FORBID_TAGS", clone({}), { transform: transformCaseFunc });
+		FORBID_ATTR = _resolveSetOption(cfg, "FORBID_ATTR", clone({}), { transform: transformCaseFunc });
+		USE_PROFILES = objectHasOwnProperty(cfg, "USE_PROFILES") ? cfg.USE_PROFILES && typeof cfg.USE_PROFILES === "object" ? clone(cfg.USE_PROFILES) : cfg.USE_PROFILES : false;
 		ALLOW_ARIA_ATTR = cfg.ALLOW_ARIA_ATTR !== false;
 		ALLOW_DATA_ATTR = cfg.ALLOW_DATA_ATTR !== false;
 		ALLOW_UNKNOWN_PROTOCOLS = cfg.ALLOW_UNKNOWN_PROTOCOLS || false;
@@ -61157,19 +62817,19 @@ function createDOMPurify() {
 		if (objectHasOwnProperty(cfg, "ADD_TAGS")) {
 			if (typeof cfg.ADD_TAGS === "function") EXTRA_ELEMENT_HANDLING.tagCheck = cfg.ADD_TAGS;
 			else if (arrayIsArray(cfg.ADD_TAGS)) {
-				if (ALLOWED_TAGS === DEFAULT_ALLOWED_TAGS) ALLOWED_TAGS = clone$1(ALLOWED_TAGS);
+				if (ALLOWED_TAGS === DEFAULT_ALLOWED_TAGS) ALLOWED_TAGS = clone(ALLOWED_TAGS);
 				addToSet(ALLOWED_TAGS, cfg.ADD_TAGS, transformCaseFunc);
 			}
 		}
 		if (objectHasOwnProperty(cfg, "ADD_ATTR")) {
 			if (typeof cfg.ADD_ATTR === "function") EXTRA_ELEMENT_HANDLING.attributeCheck = cfg.ADD_ATTR;
 			else if (arrayIsArray(cfg.ADD_ATTR)) {
-				if (ALLOWED_ATTR === DEFAULT_ALLOWED_ATTR) ALLOWED_ATTR = clone$1(ALLOWED_ATTR);
+				if (ALLOWED_ATTR === DEFAULT_ALLOWED_ATTR) ALLOWED_ATTR = clone(ALLOWED_ATTR);
 				addToSet(ALLOWED_ATTR, cfg.ADD_ATTR, transformCaseFunc);
 			}
 		}
 		if (objectHasOwnProperty(cfg, "ADD_FORBID_CONTENTS") && arrayIsArray(cfg.ADD_FORBID_CONTENTS)) {
-			if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) FORBID_CONTENTS = clone$1(FORBID_CONTENTS);
+			if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) FORBID_CONTENTS = clone(FORBID_CONTENTS);
 			addToSet(FORBID_CONTENTS, cfg.ADD_FORBID_CONTENTS, transformCaseFunc);
 		}
 		if (KEEP_CONTENT) ALLOWED_TAGS["#text"] = true;
@@ -61753,7 +63413,7 @@ function createDOMPurify() {
 	*/
 	const _forkSharedAllowlist = function _forkSharedAllowlist(hookList, set, defaultSet, setConfigSet) {
 		if (hookList.length === 0) return set;
-		return set === defaultSet || set === setConfigSet ? clone$1(set) : set;
+		return set === defaultSet || set === setConfigSet ? clone(set) : set;
 	};
 	/**
 	* Shared guard for a node that a hook has detached from the walk tree,
@@ -62111,8 +63771,8 @@ function createDOMPurify() {
 			ALLOWED_TAGS = SET_CONFIG_ALLOWED_TAGS;
 			ALLOWED_ATTR = SET_CONFIG_ALLOWED_ATTR;
 		} else _parseConfig(cfg);
-		if (hooks.uponSanitizeElement.length > 0 || hooks.uponSanitizeAttribute.length > 0) ALLOWED_TAGS = clone$1(ALLOWED_TAGS);
-		if (hooks.uponSanitizeAttribute.length > 0) ALLOWED_ATTR = clone$1(ALLOWED_ATTR);
+		if (hooks.uponSanitizeElement.length > 0 || hooks.uponSanitizeAttribute.length > 0) ALLOWED_TAGS = clone(ALLOWED_TAGS);
+		if (hooks.uponSanitizeAttribute.length > 0) ALLOWED_ATTR = clone(ALLOWED_ATTR);
 		DOMPurify.removed = [];
 		const inPlace = IN_PLACE && typeof dirty !== "string" && _isNode(dirty);
 		if (inPlace) {
@@ -65109,12 +66769,87 @@ var ActivityRail_module_default = {
 	} else t3 = $[11];
 	return t3;
 };
+//#endregion
+//#region ../../packages/react/src/components/inAppLink.tsx
+/**
+* True for a click the browser turns into "open link in a new tab/window"
+* (cmd/ctrl/shift-click, middle-click). An in-app link leaves these to the
+* browser and handles the rest itself.
+*/ var isNewTabClick = (e) => e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1;
+/**
+* The href for a control that navigates in-app, or undefined where it should
+* stay a button: the VS Code webview has no browser tabs, so a link there only
+* reaches the host's own link handling.
+*/ var inAppHref = (href) => href === void 0 || isVscode() ? void 0 : href;
+/**
+* `onClick` for an `<a href>` that also navigates in-app: a plain click
+* prevents the default and runs `navigate`; new-tab gestures are left to the
+* browser.
+*/ var inAppLinkClick = (navigate) => (e) => {
+	if (isNewTabClick(e)) return;
+	e.preventDefault();
+	navigate(e);
+};
+/**
+* A control that navigates in-app: a link, so the browser's new-tab gestures
+* work, where browser tabs exist; a button otherwise. Controls with their own
+* semantics (tabs, segments, prev/next) build on the helpers above instead.
+*/ var InAppLink = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(13);
+	const { href, onNavigate, className, title, "aria-label": ariaLabel, stopPropagation, children } = t0;
+	let t1;
+	if ($[0] !== href) {
+		t1 = inAppHref(href);
+		$[0] = href;
+		$[1] = t1;
+	} else t1 = $[1];
+	const linkHref = t1;
+	let t2;
+	if ($[2] !== linkHref || $[3] !== onNavigate || $[4] !== stopPropagation) {
+		t2 = (e) => {
+			if (stopPropagation) e.stopPropagation();
+			if (linkHref) inAppLinkClick(onNavigate)(e);
+			else onNavigate();
+		};
+		$[2] = linkHref;
+		$[3] = onNavigate;
+		$[4] = stopPropagation;
+		$[5] = t2;
+	} else t2 = $[5];
+	const onClick = t2;
+	let t3;
+	if ($[6] !== ariaLabel || $[7] !== children || $[8] !== className || $[9] !== linkHref || $[10] !== onClick || $[11] !== title) {
+		t3 = linkHref ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+			href: linkHref,
+			className,
+			title,
+			"aria-label": ariaLabel,
+			onClick,
+			children
+		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className,
+			title,
+			"aria-label": ariaLabel,
+			onClick,
+			children
+		});
+		$[6] = ariaLabel;
+		$[7] = children;
+		$[8] = className;
+		$[9] = linkHref;
+		$[10] = onClick;
+		$[11] = title;
+		$[12] = t3;
+	} else t3 = $[12];
+	return t3;
+};
 var SegmentedControl_module_default = {
-	rootControl: "_rootControl_1d1i3_1",
-	segment: "_segment_1d1i3_10",
-	selected: "_selected_1d1i3_10",
-	compact: "_compact_1d1i3_32",
-	disabled: "_disabled_1d1i3_41"
+	rootControl: "_rootControl_116ql_1",
+	segment: "_segment_116ql_10",
+	selected: "_selected_116ql_10",
+	compact: "_compact_116ql_42",
+	disabled: "_disabled_116ql_51"
 };
 //#endregion
 //#region ../../packages/react/src/components/SegmentedControl.tsx
@@ -65141,16 +66876,30 @@ var SegmentedControl = (t0) => {
 	if ($[3] !== compact || $[4] !== handleSegmentClick || $[5] !== segments || $[6] !== selectedId) {
 		let t5;
 		if ($[8] !== compact || $[9] !== handleSegmentClick || $[10] !== selectedId) {
-			t5 = (segment, index_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-				type: "button",
-				className: clsx(SegmentedControl_module_default.segment, selectedId === segment.id && SegmentedControl_module_default.selected, compact && SegmentedControl_module_default.compact, segment.disabled && SegmentedControl_module_default.disabled, "text-size-smallest", selectedId === segment.id ? void 0 : "text-style-secondary"),
-				onClick: () => handleSegmentClick(segment.id, index_0),
-				disabled: segment.disabled,
-				"aria-pressed": selectedId === segment.id,
-				"aria-label": compact ? segment.label : void 0,
-				title: compact ? segment.label : void 0,
-				children: [segment.icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: segment.icon }), !compact && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: segment.label })]
-			}, segment.id);
+			t5 = (segment, index_0) => {
+				const selected = selectedId === segment.id;
+				const className = clsx(SegmentedControl_module_default.segment, selected && SegmentedControl_module_default.selected, compact && SegmentedControl_module_default.compact, segment.disabled && SegmentedControl_module_default.disabled, "text-size-smallest", selected ? void 0 : "text-style-secondary");
+				const content = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [segment.icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: segment.icon }), !compact && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: segment.label })] });
+				const href = segment.disabled ? void 0 : inAppHref(segment.href);
+				return href ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+					href,
+					className,
+					onClick: inAppLinkClick(() => handleSegmentClick(segment.id, index_0)),
+					"aria-current": selected ? "page" : void 0,
+					"aria-label": compact ? segment.label : void 0,
+					title: compact ? segment.label : void 0,
+					children: content
+				}, segment.id) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					className,
+					onClick: () => handleSegmentClick(segment.id, index_0),
+					disabled: segment.disabled,
+					"aria-pressed": selected,
+					"aria-label": compact ? segment.label : void 0,
+					title: compact ? segment.label : void 0,
+					children: content
+				}, segment.id);
+			};
 			$[8] = compact;
 			$[9] = handleSegmentClick;
 			$[10] = selectedId;
@@ -65999,17 +67748,18 @@ var NavPill = (t0) => {
 	return t5;
 };
 var TabSet_module_default = {
-	tabs: "_tabs_1792l_1",
-	tabContents: "_tabContents_1792l_5",
-	scrollable: "_scrollable_1792l_13",
-	tab: "_tab_1792l_1",
-	tabItem: "_tabItem_1792l_33",
-	pillSmallContainer: "_pillSmallContainer_1792l_37",
-	pillSmall: "_pillSmall_1792l_37",
-	tabIcon: "_tabIcon_1792l_45",
-	tabSpacer: "_tabSpacer_1792l_49",
-	tabTools: "_tabTools_1792l_55",
-	tabStyle: "_tabStyle_1792l_69"
+	tabs: "_tabs_1ugqd_1",
+	tabContents: "_tabContents_1ugqd_5",
+	scrollable: "_scrollable_1ugqd_13",
+	tab: "_tab_1ugqd_1",
+	linkTab: "_linkTab_1ugqd_35",
+	tabItem: "_tabItem_1ugqd_39",
+	pillSmallContainer: "_pillSmallContainer_1ugqd_43",
+	pillSmall: "_pillSmall_1ugqd_43",
+	tabIcon: "_tabIcon_1ugqd_51",
+	tabSpacer: "_tabSpacer_1ugqd_55",
+	tabTools: "_tabTools_1ugqd_61",
+	tabStyle: "_tabStyle_1ugqd_75"
 };
 //#endregion
 //#region ../../packages/react/src/components/TabSet.tsx
@@ -66142,7 +67892,7 @@ var TabSet = (t0) => {
 	return t12;
 };
 var Tab = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(21);
+	const $ = (0, import_compiler_runtime.c)(23);
 	const { type: t1, tab, index, className } = t0;
 	const type = t1 === void 0 ? "tabs" : t1;
 	let t2;
@@ -66162,54 +67912,70 @@ var Tab = (t0) => {
 	const tabContentsId = t3;
 	const isActive = tab.props.selected;
 	let t4;
-	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = clsx("nav-item", TabSet_module_default.tabItem);
-		$[5] = t4;
-	} else t4 = $[5];
-	const t5 = isActive && "active";
-	const t6 = type === "pills-small" ? TabSet_module_default.pillSmall : type === "pills" ? void 0 : TabSet_module_default.tab;
-	const t7 = type === "pills-small" ? "text-size-smallest" : "text-size-small";
-	let t8;
-	if ($[6] !== className || $[7] !== t5 || $[8] !== t6 || $[9] !== t7) {
-		t8 = clsx("nav-link", className, t5, t6, t7, "text-style-label");
-		$[6] = className;
-		$[7] = t5;
-		$[8] = t6;
-		$[9] = t7;
-		$[10] = t8;
-	} else t8 = $[10];
-	let t9;
-	if ($[11] !== tab.props.icon) {
-		t9 = tab.props.icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: clsx(tab.props.icon, TabSet_module_default.tabIcon) });
-		$[11] = tab.props.icon;
-		$[12] = t9;
-	} else t9 = $[12];
-	let t10;
-	if ($[13] !== isActive || $[14] !== t8 || $[15] !== t9 || $[16] !== tab.props.onSelected || $[17] !== tab.props.title || $[18] !== tabContentsId || $[19] !== tabId) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
+	if ($[5] !== tab.props.href) {
+		t4 = inAppHref(tab.props.href);
+		$[5] = tab.props.href;
+		$[6] = t4;
+	} else t4 = $[6];
+	const href = t4;
+	let t5;
+	if ($[7] !== className || $[8] !== href || $[9] !== isActive || $[10] !== tab.props.icon || $[11] !== tab.props.onSelected || $[12] !== tab.props.title || $[13] !== tabContentsId || $[14] !== tabId || $[15] !== type) {
+		const tabClassName = clsx("nav-link", className, isActive && "active", type === "pills-small" ? TabSet_module_default.pillSmall : type === "pills" ? void 0 : TabSet_module_default.tab, type === "pills-small" ? "text-size-smallest" : "text-size-small", "text-style-label");
+		let t6;
+		if ($[17] !== tab.props.icon) {
+			t6 = tab.props.icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: clsx(tab.props.icon, TabSet_module_default.tabIcon) });
+			$[17] = tab.props.icon;
+			$[18] = t6;
+		} else t6 = $[18];
+		let t7;
+		if ($[19] !== t6 || $[20] !== tab.props.title) {
+			t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t6, tab.props.title] });
+			$[19] = t6;
+			$[20] = tab.props.title;
+			$[21] = t7;
+		} else t7 = $[21];
+		const content = t7;
+		let t8;
+		if ($[22] === Symbol.for("react.memo_cache_sentinel")) {
+			t8 = clsx("nav-item", TabSet_module_default.tabItem);
+			$[22] = t8;
+		} else t8 = $[22];
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 			role: "presentation",
-			className: t4,
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			className: t8,
+			children: href ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
 				id: tabId,
-				className: t8,
+				href,
+				className: clsx(tabClassName, TabSet_module_default.linkTab),
+				role: "tab",
+				"aria-controls": tabContentsId,
+				"aria-selected": isActive,
+				onClick: inAppLinkClick(tab.props.onSelected),
+				onKeyDown: _temp$102,
+				children: content
+			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+				id: tabId,
+				className: tabClassName,
 				type: "button",
 				role: "tab",
 				"aria-controls": tabContentsId,
 				"aria-selected": isActive,
 				onClick: tab.props.onSelected,
-				children: [t9, tab.props.title]
+				children: content
 			})
 		});
-		$[13] = isActive;
-		$[14] = t8;
-		$[15] = t9;
-		$[16] = tab.props.onSelected;
-		$[17] = tab.props.title;
-		$[18] = tabContentsId;
-		$[19] = tabId;
-		$[20] = t10;
-	} else t10 = $[20];
-	return t10;
+		$[7] = className;
+		$[8] = href;
+		$[9] = isActive;
+		$[10] = tab.props.icon;
+		$[11] = tab.props.onSelected;
+		$[12] = tab.props.title;
+		$[13] = tabContentsId;
+		$[14] = tabId;
+		$[15] = type;
+		$[16] = t5;
+	} else t5 = $[16];
+	return t5;
 };
 var TabPanels = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(8);
@@ -66223,7 +67989,7 @@ var TabPanels = (t0) => {
 	const t2 = `${id}-content`;
 	let t3;
 	if ($[2] !== tabs) {
-		t3 = tabs.map(_temp$102);
+		t3 = tabs.map(_temp2$60);
 		$[2] = tabs;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -66315,7 +68081,13 @@ var flattenChildren$1 = (children) => {
 		return [];
 	});
 };
-function _temp$102(tab, index) {
+function _temp$102(e) {
+	if (e.key === " ") {
+		e.preventDefault();
+		e.currentTarget.click();
+	}
+}
+function _temp2$60(tab, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 		...tab.props,
 		index
@@ -67727,7 +69499,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((t0, 
 			const anchor = e.target instanceof Element ? e.target.closest("a") : null;
 			if (anchor) {
 				const href = anchor.getAttribute("href");
-				if (href?.startsWith("#/")) {
+				if (href?.startsWith("#/") && (isVscode() || !isNewTabClick(e))) {
 					e.preventDefault();
 					navigate(href.slice(1), { replace: true });
 				}
@@ -67911,9 +69683,9 @@ var popoverKey = (ref) => `markdown-ref-popover-${ref.id}`;
 	const linkOrdinals = (bracket) => bracket.replace(/\b[ME]\d+\b/g, (ordinal) => {
 		const ref = refByOrdinal.get(ordinal);
 		if (!ref) return ordinal;
-		const href = ref.citeUrl ? ` href="${escapeHtmlCharacters(ref.citeUrl)}"` : "";
 		const id = escapeHtmlCharacters(ref.id);
-		return `<a${href} class="${escapeHtmlCharacters(citeClass)}" data-ref-id="${id}">${ordinal}</a>`;
+		const cls = escapeHtmlCharacters(citeClass);
+		return ref.citeUrl ? `<a href="${escapeHtmlCharacters(ref.citeUrl)}" class="${cls}" data-ref-id="${id}">${ordinal}</a>` : `<span class="${cls}" data-ref-id="${id}">${ordinal}</span>`;
 	});
 	let out = "";
 	let emitted = 0;
@@ -68079,10 +69851,10 @@ function _temp$100(r) {
 	usage: "bi bi-stopwatch"
 };
 var NextPreviousNav_module_default = {
-	container: "_container_1i4o7_1",
-	nav: "_nav_1i4o7_9",
-	disabled: "_disabled_1i4o7_9",
-	center: "_center_1i4o7_18"
+	container: "_container_f9jlf_1",
+	nav: "_nav_f9jlf_9",
+	disabled: "_disabled_f9jlf_17",
+	center: "_center_f9jlf_28"
 };
 //#endregion
 //#region ../../packages/react/src/components/NextPreviousNav.tsx
@@ -68092,8 +69864,8 @@ var NextPreviousNav_module_default = {
 * transcript/scanner-result navs and inspect's sample navbar so the
 * keyboard binding, tooltips, and accessibility contract cannot drift.
 */ var NextPreviousNav = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(39);
-	const { onPrevious, onNext, hasPrevious, hasNext, children, previousTitle, nextTitle, previousLabel, nextLabel } = t0;
+	const $ = (0, import_compiler_runtime.c)(27);
+	const { onPrevious, onNext, hasPrevious, hasNext, children, previousTitle, nextTitle, previousLabel, nextLabel, previousHref, nextHref } = t0;
 	let t1;
 	if ($[0] !== hasNext || $[1] !== hasPrevious || $[2] !== onNext || $[3] !== onPrevious) {
 		t1 = {
@@ -68109,131 +69881,213 @@ var NextPreviousNav_module_default = {
 		$[4] = t1;
 	} else t1 = $[4];
 	useArrowStepper(t1);
-	const handleKeyDown = _temp$99;
-	const t2 = hasPrevious ? onPrevious : void 0;
+	const t2 = previousHref ?? nextHref;
 	let t3;
-	if ($[5] !== hasPrevious || $[6] !== onPrevious) {
-		t3 = (e_0) => handleKeyDown(e_0, onPrevious, hasPrevious);
-		$[5] = hasPrevious;
-		$[6] = onPrevious;
-		$[7] = t3;
-	} else t3 = $[7];
-	const t4 = hasPrevious ? 0 : -1;
-	const t5 = previousLabel ?? previousTitle ?? "Previous";
-	const t6 = !hasPrevious;
-	const t7 = !hasPrevious && NextPreviousNav_module_default.disabled;
-	let t8;
-	if ($[8] !== t7) {
-		t8 = clsx(NextPreviousNav_module_default.nav, t7);
-		$[8] = t7;
-		$[9] = t8;
-	} else t8 = $[9];
-	const t9 = previousTitle && `${previousTitle} (←)`;
-	let t10;
-	if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: baseApplicationIcons.previous });
-		$[10] = t10;
-	} else t10 = $[10];
-	let t11;
-	if ($[11] !== t2 || $[12] !== t3 || $[13] !== t4 || $[14] !== t5 || $[15] !== t6 || $[16] !== t8 || $[17] !== t9) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			onClick: t2,
-			onKeyDown: t3,
-			tabIndex: t4,
-			role: "button",
-			"aria-label": t5,
-			"aria-disabled": t6,
-			className: t8,
-			title: t9,
-			children: t10
+	if ($[5] !== t2) {
+		t3 = inAppHref(t2);
+		$[5] = t2;
+		$[6] = t3;
+	} else t3 = $[6];
+	const linkMode = t3 !== void 0;
+	const t4 = previousLabel ?? previousTitle ?? "Previous";
+	const t5 = previousTitle && `${previousTitle} (←)`;
+	let t6;
+	if ($[7] !== hasPrevious || $[8] !== linkMode || $[9] !== onPrevious || $[10] !== previousHref || $[11] !== t4 || $[12] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Chevron, {
+			icon: baseApplicationIcons.previous,
+			action: onPrevious,
+			enabled: hasPrevious,
+			href: previousHref,
+			linkMode,
+			label: t4,
+			title: t5
 		});
-		$[11] = t2;
-		$[12] = t3;
-		$[13] = t4;
-		$[14] = t5;
-		$[15] = t6;
-		$[16] = t8;
-		$[17] = t9;
-		$[18] = t11;
-	} else t11 = $[18];
-	let t12;
-	if ($[19] !== children) {
-		t12 = children && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[7] = hasPrevious;
+		$[8] = linkMode;
+		$[9] = onPrevious;
+		$[10] = previousHref;
+		$[11] = t4;
+		$[12] = t5;
+		$[13] = t6;
+	} else t6 = $[13];
+	let t7;
+	if ($[14] !== children) {
+		t7 = children && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: NextPreviousNav_module_default.center,
 			children
 		});
-		$[19] = children;
-		$[20] = t12;
-	} else t12 = $[20];
-	const t13 = hasNext ? onNext : void 0;
-	let t14;
-	if ($[21] !== hasNext || $[22] !== onNext) {
-		t14 = (e_1) => handleKeyDown(e_1, onNext, hasNext);
-		$[21] = hasNext;
-		$[22] = onNext;
-		$[23] = t14;
-	} else t14 = $[23];
-	const t15 = hasNext ? 0 : -1;
-	const t16 = nextLabel ?? nextTitle ?? "Next";
-	const t17 = !hasNext;
-	const t18 = !hasNext && NextPreviousNav_module_default.disabled;
-	let t19;
-	if ($[24] !== t18) {
-		t19 = clsx(NextPreviousNav_module_default.nav, t18);
-		$[24] = t18;
-		$[25] = t19;
-	} else t19 = $[25];
-	const t20 = nextTitle && `${nextTitle} (→)`;
-	let t21;
-	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: baseApplicationIcons.next });
-		$[26] = t21;
-	} else t21 = $[26];
-	let t22;
-	if ($[27] !== t13 || $[28] !== t14 || $[29] !== t15 || $[30] !== t16 || $[31] !== t17 || $[32] !== t19 || $[33] !== t20) {
-		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			onClick: t13,
-			onKeyDown: t14,
-			tabIndex: t15,
-			role: "button",
-			"aria-label": t16,
-			"aria-disabled": t17,
-			className: t19,
-			title: t20,
-			children: t21
+		$[14] = children;
+		$[15] = t7;
+	} else t7 = $[15];
+	const t8 = nextLabel ?? nextTitle ?? "Next";
+	const t9 = nextTitle && `${nextTitle} (→)`;
+	let t10;
+	if ($[16] !== hasNext || $[17] !== linkMode || $[18] !== nextHref || $[19] !== onNext || $[20] !== t8 || $[21] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Chevron, {
+			icon: baseApplicationIcons.next,
+			action: onNext,
+			enabled: hasNext,
+			href: nextHref,
+			linkMode,
+			label: t8,
+			title: t9
 		});
-		$[27] = t13;
-		$[28] = t14;
-		$[29] = t15;
-		$[30] = t16;
-		$[31] = t17;
-		$[32] = t19;
-		$[33] = t20;
-		$[34] = t22;
-	} else t22 = $[34];
-	let t23;
-	if ($[35] !== t11 || $[36] !== t12 || $[37] !== t22) {
-		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[16] = hasNext;
+		$[17] = linkMode;
+		$[18] = nextHref;
+		$[19] = onNext;
+		$[20] = t8;
+		$[21] = t9;
+		$[22] = t10;
+	} else t10 = $[22];
+	let t11;
+	if ($[23] !== t10 || $[24] !== t6 || $[25] !== t7) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: NextPreviousNav_module_default.container,
 			children: [
-				t11,
-				t12,
-				t22
+				t6,
+				t7,
+				t10
 			]
 		});
-		$[35] = t11;
-		$[36] = t12;
-		$[37] = t22;
-		$[38] = t23;
-	} else t23 = $[38];
-	return t23;
+		$[23] = t10;
+		$[24] = t6;
+		$[25] = t7;
+		$[26] = t11;
+	} else t11 = $[26];
+	return t11;
 };
-function _temp$99(e, action, enabled) {
-	if ((e.key === "Enter" || e.key === " ") && enabled && action) {
-		e.preventDefault();
-		action();
+/** One prev/next control: a link (a disabled link when there's nowhere to
+*  go) in link mode, otherwise a focusable div. */ var Chevron = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(40);
+	const { icon, action, enabled, href, linkMode, label, title } = t0;
+	if (linkMode) {
+		let t1;
+		if ($[0] !== enabled || $[1] !== href) {
+			t1 = enabled ? inAppHref(href) : void 0;
+			$[0] = enabled;
+			$[1] = href;
+			$[2] = t1;
+		} else t1 = $[2];
+		const linkHref = t1;
+		const live = linkHref !== void 0 && action !== void 0;
+		const t2 = live ? linkHref : void 0;
+		const t3 = live ? void 0 : "link";
+		const t4 = live ? void 0 : true;
+		const t5 = live ? void 0 : -1;
+		let t6;
+		if ($[3] !== action || $[4] !== live) {
+			t6 = live ? inAppLinkClick(action) : void 0;
+			$[3] = action;
+			$[4] = live;
+			$[5] = t6;
+		} else t6 = $[5];
+		let t7;
+		if ($[6] !== action || $[7] !== live) {
+			t7 = (e) => {
+				if (live && e.key === " ") {
+					e.preventDefault();
+					action();
+				}
+			};
+			$[6] = action;
+			$[7] = live;
+			$[8] = t7;
+		} else t7 = $[8];
+		const t8 = !live && NextPreviousNav_module_default.disabled;
+		let t9;
+		if ($[9] !== t8) {
+			t9 = clsx(NextPreviousNav_module_default.nav, t8);
+			$[9] = t8;
+			$[10] = t9;
+		} else t9 = $[10];
+		let t10;
+		if ($[11] !== icon) {
+			t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icon });
+			$[11] = icon;
+			$[12] = t10;
+		} else t10 = $[12];
+		let t11;
+		if ($[13] !== label || $[14] !== t10 || $[15] !== t2 || $[16] !== t3 || $[17] !== t4 || $[18] !== t5 || $[19] !== t6 || $[20] !== t7 || $[21] !== t9 || $[22] !== title) {
+			t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("a", {
+				href: t2,
+				role: t3,
+				"aria-disabled": t4,
+				tabIndex: t5,
+				onClick: t6,
+				onKeyDown: t7,
+				"aria-label": label,
+				className: t9,
+				title,
+				children: t10
+			});
+			$[13] = label;
+			$[14] = t10;
+			$[15] = t2;
+			$[16] = t3;
+			$[17] = t4;
+			$[18] = t5;
+			$[19] = t6;
+			$[20] = t7;
+			$[21] = t9;
+			$[22] = title;
+			$[23] = t11;
+		} else t11 = $[23];
+		return t11;
 	}
-}
+	const t1 = enabled ? action : void 0;
+	let t2;
+	if ($[24] !== action || $[25] !== enabled) {
+		t2 = (e_0) => {
+			if ((e_0.key === "Enter" || e_0.key === " ") && enabled && action) {
+				e_0.preventDefault();
+				action();
+			}
+		};
+		$[24] = action;
+		$[25] = enabled;
+		$[26] = t2;
+	} else t2 = $[26];
+	const t3 = enabled ? 0 : -1;
+	const t4 = !enabled;
+	const t5 = !enabled && NextPreviousNav_module_default.disabled;
+	let t6;
+	if ($[27] !== t5) {
+		t6 = clsx(NextPreviousNav_module_default.nav, t5);
+		$[27] = t5;
+		$[28] = t6;
+	} else t6 = $[28];
+	let t7;
+	if ($[29] !== icon) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: icon });
+		$[29] = icon;
+		$[30] = t7;
+	} else t7 = $[30];
+	let t8;
+	if ($[31] !== label || $[32] !== t1 || $[33] !== t2 || $[34] !== t3 || $[35] !== t4 || $[36] !== t6 || $[37] !== t7 || $[38] !== title) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			onClick: t1,
+			onKeyDown: t2,
+			tabIndex: t3,
+			role: "button",
+			"aria-label": label,
+			"aria-disabled": t4,
+			className: t6,
+			title,
+			children: t7
+		});
+		$[31] = label;
+		$[32] = t1;
+		$[33] = t2;
+		$[34] = t3;
+		$[35] = t4;
+		$[36] = t6;
+		$[37] = t7;
+		$[38] = title;
+		$[39] = t8;
+	} else t8 = $[39];
+	return t8;
+};
 //#endregion
 //#region ../../packages/react/src/react-query.ts
 var defaultRetry = (failureCount, error) => !globalThis.__TEST_DISABLE_RETRY && failureCount < 3 && !(error instanceof ApiError && !isRetryableHttpStatus(error.status));
@@ -69309,7 +71163,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== demand || $[4] !== logDir || $[5] !== logFile) {
 		t1 = () => {
-			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$98);
+			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$99);
 		};
 		t2 = [
 			logDir,
@@ -69398,7 +71252,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	} else t0 = $[1];
 	return t0;
 };
-function _temp$98() {}
+function _temp$99() {}
 //#endregion
 //#region src/log_data/pendingSamples.ts
 var kDefaultRefreshSeconds = 2;
@@ -69503,7 +71357,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 		t4 = {
 			queryKey: t2,
 			queryFn: t3,
-			refetchInterval: _temp$97,
+			refetchInterval: _temp$98,
 			refetchIntervalInBackground: true,
 			staleTime: 0,
 			refetchOnWindowFocus: false,
@@ -69543,7 +71397,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 * finalize decision). Returns
 * `undefined` when there's no resolved dir.
 */ var getPendingSamples = (logDir, logFile) => logDir === void 0 ? void 0 : queryClient.getQueryData(pendingSamplesKey(logDir, logFile)) ?? void 0;
-function _temp$97(query) {
+function _temp$98(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
 function _temp2$59(data) {
@@ -71892,11 +73746,11 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 * Non-React snapshot of {@link useSampleSummaries} (for the running-sample
 * query's tick decisions). Empty when there's no resolved dir.
 */ var getSampleSummaries = async (logDir, logFile) => logDir === void 0 ? [] : mergeSampleSummaries(await readSettledSummaries(logDir, resolveLogKey(logDir, logFile)), getPendingSamples(logDir, logFile)?.samples ?? []);
-function _temp$96(row) {
+function _temp$97(row) {
 	return row.summary;
 }
 function _temp2$58(settled) {
-	return mergeSampleSummaries(settled.rows.map(_temp$96), settled.pending?.samples ?? []);
+	return mergeSampleSummaries(settled.rows.map(_temp$97), settled.pending?.samples ?? []);
 }
 //#endregion
 //#region src/log_data/runningSampleQuery.ts
@@ -72035,7 +73889,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 			queryKey: t2,
 			queryFn: t3,
 			structuralSharing: false,
-			refetchInterval: _temp$95,
+			refetchInterval: _temp$96,
 			refetchIntervalInBackground: true,
 			gcTime: kSampleGcTimeMs,
 			refetchOnWindowFocus: false,
@@ -72047,7 +73901,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 	} else t4 = $[13];
 	return useAsyncDataFromQuery(t4);
 };
-function _temp$95(query) {
+function _temp$96(query) {
 	return query.state.status === "error" || query.state.data?.finalized === true ? false : query.state.data?.catchup === true ? kCatchupIntervalMs : kRunningSampleIntervalMs;
 }
 //#endregion
@@ -75474,7 +77328,7 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 	const depth = t1 === void 0 ? 0 : t1;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter(_temp$94);
+	const scalars = allEntries.filter(_temp$95);
 	const groups = allEntries.filter(_temp2$57);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
@@ -75602,7 +77456,7 @@ var entryRecords = (entries) => {
 	});
 	else return entries;
 };
-function _temp$94(e) {
+function _temp$95(e) {
 	return !isNonEmptyObject(e.value) || isHtmlEscape(e.value);
 }
 function _temp2$57(e_0) {
@@ -75653,7 +77507,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 		$[1] = entry;
 		$[2] = t2;
 	} else t2 = $[2];
-	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$93).find(t2);
+	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$94).find(t2);
 	if (renderer_0) {
 		const { rendered } = renderer_0.render(id, entry, renderOptions, references);
 		if (rendered !== void 0 && /*#__PURE__*/ (0, import_react.isValidElement)(rendered)) return rendered;
@@ -75867,7 +77721,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 	};
 	return contentRenderers;
 };
-function _temp$93(a, b) {
+function _temp$94(a, b) {
 	if (!a || !b) return 0;
 	return a.bucket - b.bucket;
 }
@@ -76355,7 +78209,7 @@ var WebSearchResults$1 = (t0) => {
 	}
 	let t3;
 	if ($[2] !== results) {
-		t3 = results.map(_temp$92);
+		t3 = results.map(_temp$93);
 		$[2] = results;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -76370,7 +78224,7 @@ var WebSearchResults$1 = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$92(result, index) {
+function _temp$93(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
@@ -76688,7 +78542,7 @@ var MessageCitations = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== citations) {
-		t2 = citations.map(_temp$91);
+		t2 = citations.map(_temp$92);
 		$[1] = citations;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -76762,7 +78616,7 @@ var OtherCitation = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-function _temp$91(citation, index) {
+function _temp$92(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
@@ -77354,7 +79208,7 @@ var WebSearchResults = (t0) => {
 	const t1 = `${id}-output`;
 	let t2;
 	if ($[0] !== results) {
-		t2 = results.map(_temp$90);
+		t2 = results.map(_temp$91);
 		$[0] = results;
 		$[1] = t2;
 	} else t2 = $[1];
@@ -77535,7 +79389,7 @@ var maybeListTools = (content) => {
 };
 /** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 /** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
-function _temp$90(result, index) {
+function _temp$91(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 		href: result.url,
 		title: result.url,
@@ -78045,7 +79899,7 @@ function asCoordinate(value) {
 	const { contents, annotation } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.findLastIndex(_temp$89);
+		t1 = contents.findLastIndex(_temp$90);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -78216,7 +80070,7 @@ function renderHtmlAnnotation(annotation) {
 	}
 	return null;
 }
-function _temp$89(c) {
+function _temp$90(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
 var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
@@ -78256,7 +80110,7 @@ var ToolSearchView_module_default = {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$88(tool, toolIdx) {
+function _temp$89(tool, toolIdx) {
 	return tool.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("details", {
 		className: ToolSearchView_module_default.tool,
 		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("summary", {
@@ -78280,7 +80134,7 @@ function _temp2$56(namespace, nsIdx) {
 		}), namespace.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolSearchView_module_default.namespaceDescription,
 			children: [" — ", namespace.description]
-		}) : null] }) : null, namespace.tools.map(_temp$88)]
+		}) : null] }) : null, namespace.tools.map(_temp$89)]
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
@@ -78460,7 +80314,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const normalizedContent = t6;
 	let t7;
 	if ($[8] !== normalizedContent) {
-		t7 = normalizedContent.find(_temp$87);
+		t7 = normalizedContent.find(_temp$88);
 		$[8] = normalizedContent;
 		$[9] = t7;
 	} else t7 = $[9];
@@ -78661,7 +80515,7 @@ var normalizeContent = (output) => {
 		}]
 	}];
 };
-function _temp$87(c) {
+function _temp$88(c) {
 	if (c.type === "tool") {
 		for (const t of c.content) if (t.type === "text") {
 			if (t.text) return true;
@@ -79131,7 +80985,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : 15;
 	let t17;
 	if ($[58] !== id || $[59] !== isNonSubagentTool || $[60] !== message || $[61] !== references || $[62] !== subagentNotifications || $[63] !== toolMarkdown || $[64] !== toolSearchNamespaces) {
-		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$86) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
+		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$87) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
@@ -79207,7 +81061,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	}
 	return segments;
 };
-function _temp$86(c) {
+function _temp$87(c) {
 	return c.type === "text" || c.type === "image";
 }
 var ChatMessageRow_module_default = {
@@ -79443,7 +81297,7 @@ var MessageLabel_module_default = {
 		viewKinds = $[14];
 		views = $[15];
 	}
-	const hasTools = viewKinds.some(_temp$85);
+	const hasTools = viewKinds.some(_temp$86);
 	if (useLabels || hasTools) {
 		let t1;
 		if ($[37] !== hasTools || $[38] !== highlightLabeled || $[39] !== highlightUserMessage || $[40] !== index || $[41] !== messageChip || $[42] !== resolvedMessage || $[43] !== viewChips || $[44] !== viewKinds || $[45] !== views) {
@@ -79593,7 +81447,7 @@ var ToolCallViewCompact = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$85(k) {
+function _temp$86(k) {
 	return k !== "message";
 }
 //#endregion
@@ -80043,7 +81897,7 @@ var kLoadMoreMarginRows = 20;
 		$[30] = t10;
 	} else t10 = $[30];
 	const renderRow = t10;
-	const rowSearchText = _temp$84;
+	const rowSearchText = _temp$85;
 	if (rows.length === 0) {
 		if (backfilling) {
 			let t11;
@@ -80108,7 +81962,7 @@ var kLoadMoreMarginRows = 20;
 	} else t13 = $[48];
 	return t13;
 });
-function _temp$84(item_0) {
+function _temp$85(item_0) {
 	return messageSearchText(item_0.resolved);
 }
 //#endregion
@@ -80471,7 +82325,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 			queryKey: t4,
 			queryFn: t5,
 			initialPageParam: 0,
-			getNextPageParam: _temp$83,
+			getNextPageParam: _temp$84,
 			gcTime: kSampleGcTimeMs,
 			staleTime: Infinity,
 			retry: false,
@@ -80595,7 +82449,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	}
 	return t12;
 };
-function _temp$83(last) {
+function _temp$84(last) {
 	return last.nextCursor?.offset;
 }
 function _temp2$54(page) {
@@ -80897,7 +82751,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	if ($[0] !== config) {
 		t0 = () => {
 			activateFetchEngine(config);
-			return _temp$82;
+			return _temp$83;
 		};
 		t1 = [config];
 		$[0] = config;
@@ -80910,7 +82764,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	(0, import_react.useEffect)(t0, t1);
 	return null;
 };
-function _temp$82() {
+function _temp$83() {
 	return deactivateFetchEngine();
 }
 //#endregion
@@ -80961,7 +82815,7 @@ function getArchtype(thing) {
 	return state ? state.type_ : isArray(thing) ? 1 : isMap(thing) ? 2 : isSet(thing) ? 3 : 0;
 }
 var has = (thing, prop, type = getArchtype(thing)) => type === 2 ? thing.has(prop) : O[PROTOTYPE].hasOwnProperty.call(thing, prop);
-var get$1 = (thing, prop, type = getArchtype(thing)) => type === 2 ? thing.get(prop) : thing[prop];
+var get = (thing, prop, type = getArchtype(thing)) => type === 2 ? thing.get(prop) : thing[prop];
 var set = (thing, propOrOldValue, value, type = getArchtype(thing)) => {
 	if (type === 2) thing.set(propOrOldValue, value);
 	else if (type === 3) thing.add(value);
@@ -81135,7 +82989,7 @@ function updateDraftInParent(parent, draftValue, finalizedValue, originalKey) {
 	const parentCopy = latest(parent);
 	const parentType = parent.type_;
 	if (originalKey !== void 0) {
-		if (get$1(parentCopy, originalKey, parentType) === draftValue) {
+		if (get(parentCopy, originalKey, parentType) === draftValue) {
 			set(parentCopy, originalKey, finalizedValue, parentType);
 			return;
 		}
@@ -81185,8 +83039,8 @@ function handleCrossReference(target, key, value) {
 		const targetCopy = latest(target);
 		if (target.type_ === 3) {
 			if (targetCopy.has(value)) handleValue(value, scope_.handledSet_, scope_);
-		} else if (get$1(targetCopy, key, target.type_) === value) {
-			if (scope_.drafts_.length > 1 && (target.assigned_.get(key) ?? false) === true && target.copy_) handleValue(get$1(target.copy_, key, target.type_), scope_.handledSet_, scope_);
+		} else if (get(targetCopy, key, target.type_) === value) {
+			if (scope_.drafts_.length > 1 && (target.assigned_.get(key) ?? false) === true && target.copy_) handleValue(get(target.copy_, key, target.type_), scope_.handledSet_, scope_);
 		}
 	});
 }
@@ -88282,9 +90136,9 @@ Prism.languages.py = Prism.languages.python;
 	Prism.languages.yml = Prism.languages.yaml;
 })(Prism);
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.3.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
 /**
-* react-router v8.3.1
+* react-router v8.4.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -88431,7 +90285,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 		t3 = () => {
 			if (previousValue.current !== value) {
 				previousValue.current = value;
-				setFlashKey(_temp$81);
+				setFlashKey(_temp$82);
 			}
 		};
 		t4 = [value];
@@ -88560,7 +90414,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 				entries.length > limit && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 					type: "button",
 					className: TreeNode_module_default.showMore,
-					onClick: () => setLimit(_temp4$33),
+					onClick: () => setLimit(_temp4$32),
 					children: [
 						"Show",
 						" ",
@@ -88587,7 +90441,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	return t7;
 });
 TreeNode$1.displayName = "TreeNode";
-function _temp$81(k) {
+function _temp$82(k) {
 	return k + 1;
 }
 function _temp2$53(e) {
@@ -88599,7 +90453,7 @@ function _temp3$41(entry) {
 		value: entry.value
 	}, entry.id);
 }
-function _temp4$33(l) {
+function _temp4$32(l) {
 	return l + CHUNK_SIZE;
 }
 //#endregion
@@ -89587,7 +91441,7 @@ var arithmetic = (op, a, b) => {
 		}
 	}
 };
-var compare$2 = (op, a, b) => {
+var compare$1 = (op, a, b) => {
 	switch (op) {
 		case "==": return a === b;
 		case "!=": return a !== b;
@@ -89663,7 +91517,7 @@ var evaluate = (node, scope) => {
 			let result = true;
 			for (const { op, operand } of node.rest) {
 				const next = evaluate(operand, scope);
-				result = compare$2(op, previous, next);
+				result = compare$1(op, previous, next);
 				if (!result) return result;
 				previous = next;
 			}
@@ -90090,7 +91944,7 @@ var kDefaultScorePanelSort = {
 * own default (typically `chips` for ≤ 6 scores, `grid` for 7+).
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp$80);
+	const stored = useStore(_temp$81);
 	const setPropertyValue = useStore(_temp2$52);
 	let t0;
 	if ($[0] !== setPropertyValue) {
@@ -90122,7 +91976,7 @@ var kDefaultScorePanelSort = {
 */ var useScorePanelSort = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const stored = useStore(_temp3$40);
-	const setPropertyValue = useStore(_temp4$32);
+	const setPropertyValue = useStore(_temp4$31);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (sort) => {
@@ -90598,7 +92452,7 @@ var useLogsListing = () => {
 	} else t0 = $[3];
 	return t0;
 };
-function _temp$80(state) {
+function _temp$81(state) {
 	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
 	return isScoreView(value) ? value : void 0;
 }
@@ -90609,7 +92463,7 @@ function _temp3$40(state) {
 	const value = state.app.propertyBags[kScorePanelSortBag]?.[kScorePanelSortKey];
 	return isScorePanelSortState(value) ? value : void 0;
 }
-function _temp4$32(state_0) {
+function _temp4$31(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
 function _temp5$19(state) {
@@ -90943,7 +92797,7 @@ var sampleEventUrl = (builder, eventId, logPath, sampleId, sampleEpoch) => {
 	const $ = (0, import_compiler_runtime.c)(9);
 	const { logPath: urlLogPath, id: urlSampleId, epoch: urlEpoch } = useLogOrSampleRouteParams();
 	const location = useLocation();
-	const logFile = useStore(_temp$79);
+	const logFile = useStore(_temp$80);
 	const logDir = useLogDir();
 	const selectedSampleHandle = useStore(_temp2$51);
 	const surface = location.pathname.startsWith("/samples/") ? "/samples" : location.pathname.startsWith("/tasks") ? "/tasks" : "/logs";
@@ -91077,7 +92931,7 @@ var routeFromFullUrl = (url) => {
 	const hashIndex = url.indexOf("#");
 	return hashIndex >= 0 ? url.slice(hashIndex + 1) : url;
 };
-function _temp$79(state) {
+function _temp$80(state) {
 	return state.logs.selectedLogFile;
 }
 function _temp2$51(state_0) {
@@ -91087,66 +92941,56 @@ function _temp5$18(state) {
 	return state.logs.selectedLogFile;
 }
 var FlowButton_module_default = {
-	button: "_button_1bbut_1",
-	viewerOptions: "_viewerOptions_1bbut_7"
+	button: "_button_mrm1o_1",
+	viewerOptions: "_viewerOptions_mrm1o_12"
 };
 //#endregion
 //#region src/app/flow/FlowButton.tsx
-var FlowButton = /*#__PURE__*/ (0, import_react.forwardRef)((_, ref) => {
-	const $ = (0, import_compiler_runtime.c)(12);
+var FlowButton = () => {
+	const $ = (0, import_compiler_runtime.c)(10);
 	const navigateRouter = useNavigate();
 	const location = useLocation();
 	const { logPath } = useLogOrSampleRouteParams();
+	const routePrefix = location.pathname.startsWith("/samples/") ? "/samples" : "/logs";
+	const flowPath = logPath ? `${routePrefix}/${logPath}/flow.yaml` : `${routePrefix}/flow.yaml`;
 	let t0;
-	if ($[0] !== location.pathname || $[1] !== logPath || $[2] !== navigateRouter) {
-		t0 = () => {
-			const routePrefix = location.pathname.startsWith("/samples/") ? "/samples" : "/logs";
-			const flowPath = logPath ? `${routePrefix}/${logPath}/flow.yaml` : `${routePrefix}/flow.yaml`;
-			navigateRouter(flowPath);
-		};
-		$[0] = location.pathname;
-		$[1] = logPath;
-		$[2] = navigateRouter;
-		$[3] = t0;
-	} else t0 = $[3];
-	const navigate = t0;
+	if ($[0] !== flowPath) {
+		t0 = toFullUrl(flowPath);
+		$[0] = flowPath;
+		$[1] = t0;
+	} else t0 = $[1];
 	let t1;
-	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = clsx(FlowButton_module_default.button);
+	if ($[2] !== flowPath || $[3] !== navigateRouter) {
+		t1 = () => navigateAndForget(navigateRouter, flowPath);
+		$[2] = flowPath;
+		$[3] = navigateRouter;
 		$[4] = t1;
 	} else t1 = $[4];
 	let t2;
 	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = clsx(ApplicationIcons.flow, FlowButton_module_default.viewerOptions);
+		t2 = clsx(FlowButton_module_default.button);
 		$[5] = t2;
 	} else t2 = $[5];
 	let t3;
-	if ($[6] !== ref) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
-			ref,
-			className: t2
-		});
-		$[6] = ref;
-		$[7] = t3;
-	} else t3 = $[7];
+	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: clsx(ApplicationIcons.flow, FlowButton_module_default.viewerOptions) });
+		$[6] = t3;
+	} else t3 = $[6];
 	let t4;
-	if ($[8] !== navigate || $[9] !== ref || $[10] !== t3) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-			ref,
-			type: "button",
-			className: t1,
-			onClick: navigate,
+	if ($[7] !== t0 || $[8] !== t1) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InAppLink, {
+			href: t0,
+			onNavigate: t1,
+			className: t2,
 			title: "View Flow configuration for this directory",
 			children: t3
 		}) });
-		$[8] = navigate;
-		$[9] = ref;
-		$[10] = t3;
-		$[11] = t4;
-	} else t4 = $[11];
+		$[7] = t0;
+		$[8] = t1;
+		$[9] = t4;
+	} else t4 = $[9];
 	return t4;
-});
-FlowButton.displayName = "FlowButton";
+};
 //#endregion
 //#region src/app/flow/hooks.ts
 /**
@@ -91182,7 +93026,7 @@ FlowButton.displayName = "FlowButton";
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$78,
+			select: _temp$79,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -91191,7 +93035,7 @@ FlowButton.displayName = "FlowButton";
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$78(flow) {
+function _temp$79(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
@@ -91211,7 +93055,7 @@ var ThemeToggle_module_default = {
 * Header control: clicking opens the full theme menu. Purely presentational —
 * the host owns persistence.
 */ var ThemeToggle = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(56);
+	const $ = (0, import_compiler_runtime.c)(54);
 	const { value, isDark, onChange, className, hideModeSwitch } = t0;
 	const id = (0, import_react.useId)();
 	const [buttonEl, setButtonEl] = (0, import_react.useState)(null);
@@ -91242,119 +93086,107 @@ var ThemeToggle_module_default = {
 	} else t3 = $[6];
 	const setPreference = t3;
 	let t4;
-	let t5;
-	if ($[7] !== buttonEl || $[8] !== open) {
-		t4 = () => {
-			if (!open) return;
-			const onKeyDown = (e) => {
-				if (e.key === "Escape") {
-					setOpen(false);
-					buttonEl?.focus();
-				}
-			};
-			document.addEventListener("keydown", onKeyDown);
-			return () => document.removeEventListener("keydown", onKeyDown);
+	if ($[7] !== buttonEl) {
+		t4 = (e) => {
+			if (e.key === "Escape") {
+				setOpen(false);
+				buttonEl?.focus();
+			}
 		};
-		t5 = [buttonEl, open];
 		$[7] = buttonEl;
-		$[8] = open;
-		$[9] = t4;
+		$[8] = t4;
+	} else t4 = $[8];
+	useEventListener(open && typeof document !== "undefined" ? document : null, "keydown", t4);
+	let t5;
+	if ($[9] !== className) {
+		t5 = clsx(ThemeToggle_module_default.root, className);
+		$[9] = className;
 		$[10] = t5;
-	} else {
-		t4 = $[9];
-		t5 = $[10];
-	}
-	(0, import_react.useEffect)(t4, t5);
+	} else t5 = $[10];
 	let t6;
-	if ($[11] !== className) {
-		t6 = clsx(ThemeToggle_module_default.root, className);
-		$[11] = className;
+	if ($[11] !== open) {
+		t6 = () => setOpen(!open);
+		$[11] = open;
 		$[12] = t6;
 	} else t6 = $[12];
-	let t7;
-	if ($[13] !== open) {
-		t7 = () => setOpen(!open);
-		$[13] = open;
-		$[14] = t7;
-	} else t7 = $[14];
-	const t8 = isDark ? "bi-moon-stars-fill" : "bi-sun-fill";
+	const t7 = isDark ? "bi-moon-stars-fill" : "bi-sun-fill";
+	let t8;
+	if ($[13] !== t7) {
+		t8 = clsx("bi", t7, ThemeToggle_module_default.icon);
+		$[13] = t7;
+		$[14] = t8;
+	} else t8 = $[14];
 	let t9;
 	if ($[15] !== t8) {
-		t9 = clsx("bi", t8, ThemeToggle_module_default.icon);
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t8,
+			"aria-hidden": "true"
+		});
 		$[15] = t8;
 		$[16] = t9;
 	} else t9 = $[16];
 	let t10;
-	if ($[17] !== t9) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
-			className: t9,
-			"aria-hidden": "true"
-		});
-		$[17] = t9;
-		$[18] = t10;
-	} else t10 = $[18];
-	let t11;
-	if ($[19] !== open || $[20] !== t10 || $[21] !== t7) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+	if ($[17] !== open || $[18] !== t6 || $[19] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			ref: setButtonEl,
 			type: "button",
 			className: ThemeToggle_module_default.button,
 			"aria-label": "Choose theme",
 			"aria-haspopup": "dialog",
 			"aria-expanded": open,
-			onClick: t7,
-			children: t10
+			onClick: t6,
+			children: t9
 		});
-		$[19] = open;
+		$[17] = open;
+		$[18] = t6;
+		$[19] = t9;
 		$[20] = t10;
-		$[21] = t7;
-		$[22] = t11;
-	} else t11 = $[22];
+	} else t10 = $[20];
+	let t11;
+	if ($[21] === Symbol.for("react.memo_cache_sentinel")) {
+		t11 = [0, 1];
+		$[21] = t11;
+	} else t11 = $[21];
 	let t12;
-	if ($[23] === Symbol.for("react.memo_cache_sentinel")) {
-		t12 = [0, 1];
-		$[23] = t12;
-	} else t12 = $[23];
+	if ($[22] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: "Theme" });
+		$[22] = t12;
+	} else t12 = $[22];
 	let t13;
-	if ($[24] === Symbol.for("react.memo_cache_sentinel")) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: "Theme" });
-		$[24] = t13;
-	} else t13 = $[24];
-	let t14;
-	if ($[25] !== onChange) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	if ($[23] !== onChange) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ThemeToggle_module_default.headerRow,
-			children: [t13, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			children: [t12, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				type: "button",
 				className: ThemeToggle_module_default.resetButton,
 				onClick: () => onChange("readable-system"),
 				children: "Reset"
 			})]
 		});
-		$[25] = onChange;
-		$[26] = t14;
-	} else t14 = $[26];
+		$[23] = onChange;
+		$[24] = t13;
+	} else t13 = $[24];
+	let t14;
 	let t15;
-	let t16;
-	if ($[27] === Symbol.for("react.memo_cache_sentinel")) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("legend", {
+	if ($[25] === Symbol.for("react.memo_cache_sentinel")) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("legend", {
 			className: ThemeToggle_module_default.srOnly,
 			children: "Theme mode"
 		});
-		t16 = [
+		t15 = [
 			"system",
 			"light",
 			"dark"
 		];
-		$[27] = t15;
-		$[28] = t16;
+		$[25] = t14;
+		$[26] = t15;
 	} else {
-		t15 = $[27];
-		t16 = $[28];
+		t14 = $[25];
+		t15 = $[26];
 	}
-	let t17;
-	if ($[29] !== base || $[30] !== id || $[31] !== setPreference) {
-		t17 = t16.map((themeMode) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
+	let t16;
+	if ($[27] !== base || $[28] !== id || $[29] !== setPreference) {
+		t16 = t15.map((themeMode) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
 			className: ThemeToggle_module_default.option,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 				type: "radio",
@@ -91364,58 +93196,58 @@ var ThemeToggle_module_default = {
 				onChange: () => setPreference(themeMode)
 			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: themeMode.charAt(0).toUpperCase() + themeMode.slice(1) })]
 		}, themeMode));
-		$[29] = base;
-		$[30] = id;
-		$[31] = setPreference;
-		$[32] = t17;
-	} else t17 = $[32];
-	let t18;
-	if ($[33] !== hideModeSwitch || $[34] !== t17) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("fieldset", {
+		$[27] = base;
+		$[28] = id;
+		$[29] = setPreference;
+		$[30] = t16;
+	} else t16 = $[30];
+	let t17;
+	if ($[31] !== hideModeSwitch || $[32] !== t16) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("fieldset", {
 			className: ThemeToggle_module_default.group,
 			hidden: hideModeSwitch,
-			children: [t15, t17]
+			children: [t14, t16]
 		});
-		$[33] = hideModeSwitch;
-		$[34] = t17;
-		$[35] = t18;
-	} else t18 = $[35];
+		$[31] = hideModeSwitch;
+		$[32] = t16;
+		$[33] = t17;
+	} else t17 = $[33];
+	let t18;
+	if ($[34] !== base || $[35] !== eventColors || $[36] !== setPreference) {
+		t18 = () => setPreference(base, !eventColors);
+		$[34] = base;
+		$[35] = eventColors;
+		$[36] = setPreference;
+		$[37] = t18;
+	} else t18 = $[37];
 	let t19;
-	if ($[36] !== base || $[37] !== eventColors || $[38] !== setPreference) {
-		t19 = () => setPreference(base, !eventColors);
-		$[36] = base;
-		$[37] = eventColors;
-		$[38] = setPreference;
-		$[39] = t19;
-	} else t19 = $[39];
-	let t20;
-	if ($[40] !== eventColors || $[41] !== t19) {
-		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
+	if ($[38] !== eventColors || $[39] !== t18) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 			type: "checkbox",
 			checked: eventColors,
-			onChange: t19
+			onChange: t18
 		});
-		$[40] = eventColors;
-		$[41] = t19;
-		$[42] = t20;
-	} else t20 = $[42];
+		$[38] = eventColors;
+		$[39] = t18;
+		$[40] = t19;
+	} else t19 = $[40];
+	let t20;
+	if ($[41] === Symbol.for("react.memo_cache_sentinel")) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Event Colors" });
+		$[41] = t20;
+	} else t20 = $[41];
 	let t21;
-	if ($[43] === Symbol.for("react.memo_cache_sentinel")) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Event Colors" });
+	if ($[42] !== t19) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
+			className: ThemeToggle_module_default.option,
+			children: [t19, t20]
+		});
+		$[42] = t19;
 		$[43] = t21;
 	} else t21 = $[43];
 	let t22;
-	if ($[44] !== t20) {
-		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
-			className: ThemeToggle_module_default.option,
-			children: [t20, t21]
-		});
-		$[44] = t20;
-		$[45] = t22;
-	} else t22 = $[45];
-	let t23;
-	if ($[46] !== buttonEl || $[47] !== open || $[48] !== t14 || $[49] !== t18 || $[50] !== t22) {
-		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(PopOver, {
+	if ($[44] !== buttonEl || $[45] !== open || $[46] !== t13 || $[47] !== t17 || $[48] !== t21) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(PopOver, {
 			id: "theme-toggle-popover",
 			isOpen: open,
 			setIsOpen: setOpen,
@@ -91424,34 +93256,34 @@ var ThemeToggle_module_default = {
 			showArrow: false,
 			hoverDelay: -1,
 			closeOnMouseLeave: false,
-			offset: t12,
+			offset: t11,
 			className: ThemeToggle_module_default.menu,
 			children: [
-				t14,
-				t18,
-				t22
+				t13,
+				t17,
+				t21
 			]
 		});
-		$[46] = buttonEl;
-		$[47] = open;
-		$[48] = t14;
-		$[49] = t18;
-		$[50] = t22;
-		$[51] = t23;
-	} else t23 = $[51];
-	let t24;
-	if ($[52] !== t11 || $[53] !== t23 || $[54] !== t6) {
-		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t6,
+		$[44] = buttonEl;
+		$[45] = open;
+		$[46] = t13;
+		$[47] = t17;
+		$[48] = t21;
+		$[49] = t22;
+	} else t22 = $[49];
+	let t23;
+	if ($[50] !== t10 || $[51] !== t22 || $[52] !== t5) {
+		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t5,
 			"data-testid": "theme-toggle",
-			children: [t11, t23]
+			children: [t10, t22]
 		});
-		$[52] = t11;
+		$[50] = t10;
+		$[51] = t22;
+		$[52] = t5;
 		$[53] = t23;
-		$[54] = t6;
-		$[55] = t24;
-	} else t24 = $[55];
-	return t24;
+	} else t23 = $[53];
+	return t23;
 };
 //#endregion
 //#region ../../packages/theme/src/bootstrap.ts
@@ -91499,9 +93331,9 @@ var subscribe = (onChange) => {
 		$[0] = preference;
 		$[1] = t0;
 	} else t0 = $[1];
-	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$77);
+	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$78);
 };
-function _temp$77() {
+function _temp$78() {
 	return false;
 }
 //#endregion
@@ -91516,13 +93348,13 @@ function _temp$77() {
 		t0 = { demand: "active" };
 		$[0] = t0;
 	} else t0 = $[0];
-	return useLogHeader(useLogDir(), useStore(_temp$76), t0);
+	return useLogHeader(useLogDir(), useStore(_temp$77), t0);
 };
 /** Whether the selected log's details are loading. Already false when no
 *  file is selected (`useLogHeader` idles as settled-undefined). */ var useSelectedLogLoading = () => {
 	return useSelectedLogDetail().loading;
 };
-function _temp$76(state) {
+function _temp$77(state) {
 	return state.logs.selectedLogFile;
 }
 var ViewerOptionsButton_module_default = {
@@ -92141,12 +93973,12 @@ var ApplicationNavbar = (t0) => {
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered, children, breadcrumbsEnabled, loading: t1 } = t0;
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
-	const themePreference = useUserSettings(_temp$75);
+	const themePreference = useUserSettings(_temp$76);
 	const setThemePreference = useUserSettings(_temp2$50);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
 	const isShowing = useStore(_temp3$39);
-	const setShowing = useStore(_temp4$31);
+	const setShowing = useStore(_temp4$30);
 	let t2;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = isVscode();
@@ -92231,7 +94063,7 @@ var ApplicationNavbar = (t0) => {
 	} else t8 = $[27];
 	return t8;
 };
-function _temp$75(s) {
+function _temp$76(s) {
 	return s.themePreference;
 }
 function _temp2$50(s_0) {
@@ -92240,7 +94072,7 @@ function _temp2$50(s_0) {
 function _temp3$39(state) {
 	return state.app.dialogs.options;
 }
-function _temp4$31(state_0) {
+function _temp4$30(state_0) {
 	return state_0.appActions.setShowingOptionsDialog;
 }
 var NavbarButton_module_default = {
@@ -92334,38 +94166,60 @@ var segments = [
 	}
 ];
 var ViewSegmentedControl = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(8);
+	const $ = (0, import_compiler_runtime.c)(12);
 	const { selectedSegment } = t0;
 	const navigate = useNavigate();
 	const { logPath } = useLogRouteParams();
 	const { samplesPath } = useSamplesRouteParams();
 	const { tasksPath } = useTasksRouteParams();
+	const path = logPath || samplesPath || tasksPath || "";
+	let T0;
+	let routes;
 	let t1;
-	if ($[0] !== logPath || $[1] !== navigate || $[2] !== samplesPath || $[3] !== tasksPath) {
-		t1 = (segment) => {
-			const path = logPath || samplesPath || tasksPath || "";
-			if (segment === "logs") navigate(logsUrl(path));
-			else if (segment === "tasks") navigate(tasksUrl(path));
-			else navigate(samplesUrl(path));
+	if ($[0] !== path) {
+		routes = {
+			tasks: tasksUrl(path),
+			logs: logsUrl(path),
+			samples: samplesUrl(path)
 		};
-		$[0] = logPath;
-		$[1] = navigate;
-		$[2] = samplesPath;
-		$[3] = tasksPath;
-		$[4] = t1;
-	} else t1 = $[4];
+		T0 = SegmentedControl;
+		t1 = segments.map((segment) => ({
+			...segment,
+			href: toFullUrlMaybe(routes[segment.id])
+		}));
+		$[0] = path;
+		$[1] = T0;
+		$[2] = routes;
+		$[3] = t1;
+	} else {
+		T0 = $[1];
+		routes = $[2];
+		t1 = $[3];
+	}
 	let t2;
-	if ($[5] !== selectedSegment || $[6] !== t1) {
-		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SegmentedControl, {
-			segments,
+	if ($[4] !== navigate || $[5] !== routes) {
+		t2 = (segment_0) => {
+			const route = routes[segment_0];
+			if (route) navigateAndForget(navigate, route);
+		};
+		$[4] = navigate;
+		$[5] = routes;
+		$[6] = t2;
+	} else t2 = $[6];
+	let t3;
+	if ($[7] !== T0 || $[8] !== selectedSegment || $[9] !== t1 || $[10] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(T0, {
+			segments: t1,
 			selectedId: selectedSegment,
-			onSegmentChange: t1
+			onSegmentChange: t2
 		});
-		$[5] = selectedSegment;
-		$[6] = t1;
-		$[7] = t2;
-	} else t2 = $[7];
-	return t2;
+		$[7] = T0;
+		$[8] = selectedSegment;
+		$[9] = t1;
+		$[10] = t2;
+		$[11] = t3;
+	} else t3 = $[11];
+	return t3;
 };
 //#endregion
 //#region src/app/server/useEvalSet.ts
@@ -92404,7 +94258,7 @@ var ViewSegmentedControl = (t0) => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$74,
+			select: _temp$75,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -92413,7 +94267,7 @@ var ViewSegmentedControl = (t0) => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$74(evalSet) {
+function _temp$75(evalSet) {
 	return evalSet ?? void 0;
 }
 //#endregion
@@ -92522,7 +94376,7 @@ var ColumnSelectorPopover = (t0) => {
 		}
 		let t10;
 		if ($[13] !== columns) {
-			t10 = columns.filter(_temp$73);
+			t10 = columns.filter(_temp$74);
 			$[13] = columns;
 			$[14] = t10;
 		} else t10 = $[14];
@@ -92564,7 +94418,7 @@ var ColumnSelectorPopover = (t0) => {
 		t11 = () => {
 			onVisibilityChange({
 				...currentVisibility,
-				...Object.fromEntries(columnGroups.base.map(_temp4$30))
+				...Object.fromEntries(columnGroups.base.map(_temp4$29))
 			});
 		};
 		$[24] = columnGroups.base;
@@ -92843,7 +94697,7 @@ var ColumnSelectorPopover = (t0) => {
 	} else t32 = $[88];
 	return t32;
 };
-function _temp$73(col_0) {
+function _temp$74(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
 function _temp2$49(col_1) {
@@ -92852,7 +94706,7 @@ function _temp2$49(col_1) {
 function _temp3$38(col_2) {
 	return [getFieldKey(col_2), true];
 }
-function _temp4$30(col_3) {
+function _temp4$29(col_3) {
 	return [getFieldKey(col_3), false];
 }
 function _temp5$17(col_4) {
@@ -99543,7 +101397,7 @@ var isConditionShaped = (value) => {
 	const t3 = `${columnId}-op${idSuffix}`;
 	let t4;
 	if ($[2] !== operatorOptions) {
-		t4 = operatorOptions.map(_temp$72);
+		t4 = operatorOptions.map(_temp$73);
 		$[2] = operatorOptions;
 		$[3] = t4;
 	} else t4 = $[3];
@@ -99801,7 +101655,7 @@ var ColumnFilterEditor = (t0) => {
 	} else t10 = $[32];
 	return t10;
 };
-function _temp$72(option) {
+function _temp$73(option) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 		value: option,
 		children: OPERATOR_LABELS[option]
@@ -100678,9 +102532,6 @@ var kRotatedHeaderHeight = 115;
 var kRotatedTrailingPad = 95;
 var kAfterRotatedGap = 24;
 var kFitSlack = 4;
-/** A click the browser turns into "open link in a new tab/window". */ function isNewTabClick(e) {
-	return e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1;
-}
 /**
 * Inspect-local DataGrid: a minimal TanStack Table wrapper with row
 * virtualization, controlled column visibility, fit-to-width column sizing
@@ -101391,7 +103242,7 @@ function GridRowInner(t0) {
 		t19 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
 			role: "presentation",
-			onClick: _temp$71,
+			onClick: _temp$72,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 				columnId: header.column.id,
 				filterType,
@@ -101492,7 +103343,7 @@ function GridRowInner(t0) {
 	} else t23 = $[63];
 	return t23;
 }
-function _temp$71(e_2) {
+function _temp$72(e_2) {
 	return e_2.stopPropagation();
 }
 //#endregion
@@ -102075,7 +103926,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$70);
+		t11 = searchColumns.map(_temp$71);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -102121,7 +103972,7 @@ var LogListGrid = (t0) => {
 	const { reset: resetMatches } = fileMatches;
 	let t14;
 	if ($[42] !== rows || $[43] !== searchColumns || $[44] !== showFind) {
-		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$37), searchColumns, _temp4$29) : void 0;
+		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$37), searchColumns, _temp4$28) : void 0;
 		$[42] = rows;
 		$[43] = searchColumns;
 		$[44] = showFind;
@@ -102366,7 +104217,7 @@ var LogListGrid = (t0) => {
 	} else t32 = $[108];
 	return t32;
 };
-function _temp$70(col_0) {
+function _temp$71(col_0) {
 	return col_0.id ?? "";
 }
 function _temp2$48(row_2) {
@@ -102375,7 +104226,7 @@ function _temp2$48(row_2) {
 function _temp3$37(row_3) {
 	return row_3.type !== "file";
 }
-function _temp4$29(row_4) {
+function _temp4$28(row_4) {
 	return row_4.id;
 }
 function _temp5$16(row_6) {
@@ -102495,7 +104346,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$69, _temp2$47, _temp3$36);
+	const overlayData = useKeyedMemo(overlayItems, _temp$70, _temp2$47, _temp3$36);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -102634,7 +104485,7 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$69(item) {
+function _temp$70(item) {
 	return item.id;
 }
 function _temp2$47(item_0) {
@@ -102811,7 +104662,7 @@ var LogsPanel = (t0) => {
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$68);
+	const showRetriedLogs = useUserSettings(_temp$69);
 	const setShowRetriedLogs = useUserSettings(_temp2$46);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
@@ -103047,7 +104898,7 @@ var LogsPanel = (t0) => {
 	const handleColumnVisibilityChange = t21;
 	let t22;
 	if ($[63] !== logItems) {
-		t22 = logItems.filter(_temp4$28);
+		t22 = logItems.filter(_temp4$27);
 		$[63] = logItems;
 		$[64] = t22;
 	} else t22 = $[64];
@@ -103279,7 +105130,7 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$68(state) {
+function _temp$69(state) {
 	return state.showRetriedLogs;
 }
 function _temp2$46(state_0) {
@@ -103288,7 +105139,7 @@ function _temp2$46(state_0) {
 function _temp3$35(state_1) {
 	return state_1.logs.listing.columnVisibility;
 }
-function _temp4$28(item_0) {
+function _temp4$27(item_0) {
 	return item_0.type === "pending-task";
 }
 function _temp5$15(prev) {
@@ -103570,7 +105421,7 @@ var useSampleDetailNavigation = () => {
 * Used to obtain action functions (plus their enablement flags) —
 * no mount side effects.
 */ var useLogSampleNavigationActions = () => {
-	const $ = (0, import_compiler_runtime.c)(34);
+	const $ = (0, import_compiler_runtime.c)(43);
 	const navigate = useNavigate();
 	const prefix = useRoutePrefix();
 	const location = useLocation();
@@ -103583,7 +105434,7 @@ var useSampleDetailNavigation = () => {
 	const isSamplesSurface = t0;
 	const logDirectory = useLogDir();
 	const { logPath: routeLogPath, sampleTabId } = useLogOrSampleRouteParams();
-	const selectedLogFile = useStore(_temp4$27);
+	const selectedLogFile = useStore(_temp4$26);
 	let t1;
 	if ($[2] !== isSamplesSurface || $[3] !== logDirectory || $[4] !== selectedLogFile) {
 		t1 = selectedLogFile && isSamplesSurface ? directoryRelativeUrl(selectedLogFile, logDirectory) : selectedLogFile;
@@ -103620,64 +105471,95 @@ var useSampleDetailNavigation = () => {
 	const hasPrevious = currentIndex > 0;
 	const hasNext = currentIndex >= 0 && currentIndex < sampleSummaries.length - 1;
 	let t3;
-	if ($[11] !== currentIndex || $[12] !== hasPrevious || $[13] !== isSamplesSurface || $[14] !== logPath || $[15] !== navigate || $[16] !== prefix || $[17] !== sampleSummaries || $[18] !== sampleTabId) {
-		t3 = () => {
-			if (hasPrevious && logPath && currentIndex > 0) {
-				const prevSample = sampleSummaries[currentIndex - 1];
-				if (!prevSample) return;
-				selectSample(prevSample.id, prevSample.epoch, logPath);
-				const url = isSamplesSurface ? samplesSampleUrl(logPath, prevSample.id, prevSample.epoch, sampleTabId) : logSamplesUrl(logPath, prevSample.id, prevSample.epoch, sampleTabId, prefix);
-				navigateAndForget(navigate, url);
-			}
+	if ($[11] !== isSamplesSurface || $[12] !== logPath || $[13] !== prefix || $[14] !== sampleTabId) {
+		t3 = (sample) => {
+			if (!sample || !logPath) return;
+			return isSamplesSurface ? samplesSampleUrl(logPath, sample.id, sample.epoch, sampleTabId) : logSamplesUrl(logPath, sample.id, sample.epoch, sampleTabId, prefix);
 		};
-		$[11] = currentIndex;
-		$[12] = hasPrevious;
-		$[13] = isSamplesSurface;
-		$[14] = logPath;
-		$[15] = navigate;
-		$[16] = prefix;
-		$[17] = sampleSummaries;
-		$[18] = sampleTabId;
-		$[19] = t3;
-	} else t3 = $[19];
-	const onPrevious = t3;
+		$[11] = isSamplesSurface;
+		$[12] = logPath;
+		$[13] = prefix;
+		$[14] = sampleTabId;
+		$[15] = t3;
+	} else t3 = $[15];
+	const siblingRoute = t3;
+	const prevSample = hasPrevious ? sampleSummaries[currentIndex - 1] : void 0;
+	const nextSample = hasNext ? sampleSummaries[currentIndex + 1] : void 0;
 	let t4;
-	if ($[20] !== currentIndex || $[21] !== hasNext || $[22] !== isSamplesSurface || $[23] !== logPath || $[24] !== navigate || $[25] !== prefix || $[26] !== sampleSummaries || $[27] !== sampleTabId) {
-		t4 = () => {
-			if (hasNext && logPath && currentIndex < sampleSummaries.length - 1) {
-				const nextSample = sampleSummaries[currentIndex + 1];
-				if (!nextSample) return;
-				selectSample(nextSample.id, nextSample.epoch, logPath);
-				const url_0 = isSamplesSurface ? samplesSampleUrl(logPath, nextSample.id, nextSample.epoch, sampleTabId) : logSamplesUrl(logPath, nextSample.id, nextSample.epoch, sampleTabId, prefix);
-				navigateAndForget(navigate, url_0);
-			}
-		};
-		$[20] = currentIndex;
-		$[21] = hasNext;
-		$[22] = isSamplesSurface;
-		$[23] = logPath;
-		$[24] = navigate;
-		$[25] = prefix;
-		$[26] = sampleSummaries;
-		$[27] = sampleTabId;
-		$[28] = t4;
-	} else t4 = $[28];
-	const onNext = t4;
+	if ($[16] !== prevSample || $[17] !== siblingRoute) {
+		t4 = siblingRoute(prevSample);
+		$[16] = prevSample;
+		$[17] = siblingRoute;
+		$[18] = t4;
+	} else t4 = $[18];
+	const previousRoute = t4;
 	let t5;
-	if ($[29] !== hasNext || $[30] !== hasPrevious || $[31] !== onNext || $[32] !== onPrevious) {
-		t5 = {
+	if ($[19] !== nextSample || $[20] !== siblingRoute) {
+		t5 = siblingRoute(nextSample);
+		$[19] = nextSample;
+		$[20] = siblingRoute;
+		$[21] = t5;
+	} else t5 = $[21];
+	const nextRoute = t5;
+	let t6;
+	if ($[22] !== logPath || $[23] !== navigate || $[24] !== prevSample || $[25] !== previousRoute) {
+		t6 = () => {
+			if (!prevSample || !previousRoute || !logPath) return;
+			selectSample(prevSample.id, prevSample.epoch, logPath);
+			navigateAndForget(navigate, previousRoute);
+		};
+		$[22] = logPath;
+		$[23] = navigate;
+		$[24] = prevSample;
+		$[25] = previousRoute;
+		$[26] = t6;
+	} else t6 = $[26];
+	const onPrevious = t6;
+	let t7;
+	if ($[27] !== logPath || $[28] !== navigate || $[29] !== nextRoute || $[30] !== nextSample) {
+		t7 = () => {
+			if (!nextSample || !nextRoute || !logPath) return;
+			selectSample(nextSample.id, nextSample.epoch, logPath);
+			navigateAndForget(navigate, nextRoute);
+		};
+		$[27] = logPath;
+		$[28] = navigate;
+		$[29] = nextRoute;
+		$[30] = nextSample;
+		$[31] = t7;
+	} else t7 = $[31];
+	const onNext = t7;
+	let t8;
+	if ($[32] !== previousRoute) {
+		t8 = toFullUrlMaybe(previousRoute);
+		$[32] = previousRoute;
+		$[33] = t8;
+	} else t8 = $[33];
+	let t9;
+	if ($[34] !== nextRoute) {
+		t9 = toFullUrlMaybe(nextRoute);
+		$[34] = nextRoute;
+		$[35] = t9;
+	} else t9 = $[35];
+	let t10;
+	if ($[36] !== hasNext || $[37] !== hasPrevious || $[38] !== onNext || $[39] !== onPrevious || $[40] !== t8 || $[41] !== t9) {
+		t10 = {
 			onPrevious,
 			onNext,
 			hasPrevious,
-			hasNext
+			hasNext,
+			previousHref: t8,
+			nextHref: t9
 		};
-		$[29] = hasNext;
-		$[30] = hasPrevious;
-		$[31] = onNext;
-		$[32] = onPrevious;
-		$[33] = t5;
-	} else t5 = $[33];
-	return t5;
+		$[36] = hasNext;
+		$[37] = hasPrevious;
+		$[38] = onNext;
+		$[39] = onPrevious;
+		$[40] = t8;
+		$[41] = t9;
+		$[42] = t10;
+	} else t10 = $[42];
+	return t10;
 };
 function _temp2$45(state) {
 	return state.logs.selectedLogFile;
@@ -103685,7 +105567,7 @@ function _temp2$45(state) {
 function _temp3$34(state_0) {
 	return state_0.log.selectedSampleHandle;
 }
-function _temp4$27(state) {
+function _temp4$26(state) {
 	return state.logs.selectedLogFile;
 }
 function _temp5$14(state_0) {
@@ -103788,6 +105670,217 @@ var isEventNodeOf = (node, type) => node.event.event === type;
 * Shallow guard for messages read out of unvalidated state blobs. ChatView
 * dispatches on `role` and tolerates the rest, so that is what it checks.
 */ var isChatMessage = (value) => isRecord(value) && typeof value["role"] === "string";
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/state/changeDiff.ts
+var newNode = () => ({ children: /* @__PURE__ */ new Map() });
+/** RFC 6901 segments; empty segments are dropped as before. */ var parsePointer = (path) => path.split("/").filter(Boolean).map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"));
+var nodeAt = (root, path) => {
+	let node = root;
+	for (const segment of parsePointer(path)) {
+		let child = node.children.get(segment);
+		if (!child) {
+			child = newNode();
+			node.children.set(segment, child);
+		}
+		node = child;
+	}
+	return node;
+};
+/**
+* Indexes the changes by path: one before/after slot per path, last write
+* wins. Work and size are linear in the change list; numeric segments are
+* just keys, so no index is ever padded. `copy` and `test` carry no
+* displayable change and are skipped.
+*/ var buildChangeTree = (changes) => {
+	const root = newNode();
+	const write = (path, value, seq) => {
+		const node = nodeAt(root, path);
+		node.after = {
+			value,
+			seq
+		};
+		node.reset = seq;
+	};
+	const erase = (path, value, seq) => {
+		const node = nodeAt(root, path);
+		node.before = { value };
+		node.after = void 0;
+		node.reset = seq;
+	};
+	changes.forEach((change, seq) => {
+		switch (change.op) {
+			case "add":
+				write(change.path, change.value, seq);
+				break;
+			case "replace":
+				nodeAt(root, change.path).before = { value: change.replaced };
+				write(change.path, change.value, seq);
+				break;
+			case "remove":
+				erase(change.path, change.value, seq);
+				break;
+			case "move":
+				erase(change.from ?? "", change.value, seq);
+				write(change.path, change.value, seq);
+		}
+	});
+	return root;
+};
+/** The node's own post-change write, unless an ancestor op superseded it. */ var liveAfter = (node, floor) => node.after && node.after.seq > floor ? node.after : void 0;
+var childFloor = (node, floor) => Math.max(floor, node.reset ?? -1);
+var isArrayIndex = (key) => /^(0|[1-9]\d*)$/.test(key);
+var orderChildren = (children) => {
+	const indexed = children.filter((c) => isArrayIndex(c.key));
+	const named = children.filter((c) => !isArrayIndex(c.key));
+	indexed.sort((a, b) => a.key.length !== b.key.length ? a.key.length - b.key.length : a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+	return [...indexed, ...named];
+};
+var nodeEntry = (children) => {
+	if (children.length === 0) return void 0;
+	const ordered = orderChildren(children);
+	return {
+		kind: "node",
+		isArray: ordered.every((c) => isArrayIndex(c.key)),
+		children: ordered
+	};
+};
+/**
+* Structural diff of a replaced value against its replacement. Arrays compare
+* by position, not LCS, so the work is linear in the values' size.
+*/ var diffValues = (left, right) => {
+	if (Array.isArray(left) && Array.isArray(right)) {
+		const leftItems = left;
+		const rightItems = right;
+		const children = [];
+		const length = Math.max(leftItems.length, rightItems.length);
+		for (let i = 0; i < length; i++) {
+			const key = String(i);
+			const entry = i >= leftItems.length ? {
+				kind: "added",
+				value: rightItems[i]
+			} : i >= rightItems.length ? {
+				kind: "deleted",
+				value: leftItems[i]
+			} : diffValues(leftItems[i], rightItems[i]);
+			if (entry) children.push({
+				id: key,
+				key,
+				entry
+			});
+		}
+		return nodeEntry(children);
+	}
+	if (isRecord(left) && isRecord(right)) {
+		const children = [];
+		for (const key of /* @__PURE__ */ new Set([...Object.keys(left), ...Object.keys(right)])) {
+			const inLeft = Object.hasOwn(left, key);
+			const inRight = Object.hasOwn(right, key);
+			const entry = inLeft && inRight ? diffValues(left[key], right[key]) : inRight ? {
+				kind: "added",
+				value: right[key]
+			} : {
+				kind: "deleted",
+				value: left[key]
+			};
+			if (entry) children.push({
+				id: key,
+				key,
+				entry
+			});
+		}
+		return nodeEntry(children);
+	}
+	return Object.is(left, right) ? void 0 : {
+		kind: "modified",
+		left,
+		right
+	};
+};
+var ownEntry = (node, floor) => {
+	const after = liveAfter(node, floor);
+	if (node.before && after) return diffValues(node.before.value, after.value);
+	if (after) return {
+		kind: "added",
+		value: after.value
+	};
+	if (node.before) return {
+		kind: "deleted",
+		value: node.before.value
+	};
+};
+var childEntries = (node, floor) => {
+	const children = [];
+	for (const [key, child] of node.children) {
+		const own = ownEntry(child, floor);
+		if (own) children.push({
+			id: `=${key}`,
+			key,
+			entry: own
+		});
+		const nested = nodeEntry(childEntries(child, childFloor(child, floor)));
+		if (nested) children.push({
+			id: `/${key}`,
+			key,
+			entry: nested
+		});
+	}
+	return children;
+};
+/**
+* Builds the rendered diff straight from the change list: each op already
+* names what changed, so there's no before/after pair to reconstruct and
+* re-diff. The root is always an object, as the old synthesized sides were.
+*/ var diffFromChanges = (changes) => {
+	const children = childEntries(buildChangeTree(changes), -1);
+	if (children.length === 0) return void 0;
+	return {
+		kind: "node",
+		isArray: false,
+		children: orderChildren(children)
+	};
+};
+var materializeAfter = (node, floor) => {
+	const after = liveAfter(node, floor);
+	const nested = childFloor(node, floor);
+	const overlay = [];
+	const dropped = /* @__PURE__ */ new Set();
+	for (const [key, child] of node.children) {
+		const resolved = materializeAfter(child, nested);
+		if (resolved === "removed") dropped.add(key);
+		else if (resolved) overlay.push([key, resolved.value]);
+	}
+	if (!after && overlay.length === 0) return (node.reset ?? -1) > floor ? "removed" : void 0;
+	if (overlay.length === 0 && dropped.size === 0) return after;
+	const own = after?.value;
+	const base = isRecord(own) || Array.isArray(own) ? Object.entries(own) : [];
+	return { value: Object.fromEntries([...base, ...overlay].filter(([key]) => !dropped.has(key))) };
+};
+var ownChild = (value, key) => {
+	if (Array.isArray(value)) {
+		const items = value;
+		return Object.hasOwn(items, key) ? items[Number(key)] : void 0;
+	}
+	return isRecord(value) && Object.hasOwn(value, key) ? value[key] : void 0;
+};
+/**
+* The post-change value at `path` as far as the changes reveal it: writes at,
+* above or beneath the path replayed in order, with sub-path writes overlaid
+* as object keys (array indexes included). Undefined if no change reveals it.
+* Work is linear in the change list.
+*/ var resolveAfter = (changes, path) => {
+	const resolved = materializeAfter(buildChangeTree(changes), -1);
+	let value = resolved === "removed" ? void 0 : resolved?.value;
+	for (const segment of parsePointer(path)) value = ownChild(value, segment);
+	return value;
+};
+/**
+* A list-valued state entry as [index, item] pairs, whether the changes wrote
+* it whole (an array) or item by item (index-keyed object).
+*/ var indexedItems = (value) => {
+	if (Array.isArray(value)) return value.map((item, index) => [String(index), item]);
+	if (isRecord(value)) return Object.entries(value).filter(([key]) => isArrayIndex(key));
+	return [];
+};
 var StateEventRenderers_module_default = {
 	toolsGrid: "_toolsGrid_1qqm2_1",
 	tools: "_tools_1qqm2_1",
@@ -103802,9 +105895,8 @@ var system_msg_added_sig = {
 		replace: ["/messages/0/role", "/messages/0/content"],
 		add: ["/messages/1"]
 	},
-	render: (_changes, resolvedState) => {
-		const messages = resolvedState["messages"];
-		const message = Array.isArray(messages) ? messages[0] : void 0;
+	render: (changes) => {
+		const message = resolveAfter(changes, "/messages/0");
 		if (!isChatMessage(message)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, {});
 		return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
 			id: "system_msg_event_preview",
@@ -103823,8 +105915,8 @@ var use_tools = {
 		replace: ["/tool_choice"],
 		remove: []
 	},
-	render: (changes, resolvedState) => {
-		return renderTools(changes, resolvedState);
+	render: (changes) => {
+		return renderTools(changes);
 	}
 };
 var add_tools = {
@@ -103834,8 +105926,8 @@ var add_tools = {
 		replace: [],
 		remove: []
 	},
-	render: (changes, resolvedState) => {
-		return renderTools(changes, resolvedState);
+	render: (changes) => {
+		return renderTools(changes);
 	}
 };
 var messages = {
@@ -103870,13 +105962,14 @@ var human_baseline_session = {
 		replace: [],
 		remove: []
 	},
-	render: (_changes, state, eventNodeId) => {
-		const started = readNumber(state[humanAgentKey("started_running")]);
-		const runtime = readNumber(state[humanAgentKey("accumulated_time")]);
-		const answer = readString(state[humanAgentKey("answer")]);
+	render: (changes, eventNodeId) => {
+		const read = (key) => resolveAfter(changes, `/${humanAgentKey(key)}`);
+		const started = readNumber(read("started_running"));
+		const runtime = readNumber(read("accumulated_time"));
+		const answer = readString(read("answer"));
 		const completed = !!answer;
-		const running = state[humanAgentKey("running_state")] === true;
-		const rawSessions = state[humanAgentKey("logs")];
+		const running = read("running_state") === true;
+		const rawSessions = read("logs");
 		const startedDate = started ? /* @__PURE__ */ new Date(started * 1e3) : void 0;
 		const partial = /* @__PURE__ */ new Map();
 		if (isRecord(rawSessions)) for (const [key, raw] of Object.entries(rawSessions)) {
@@ -103903,7 +105996,7 @@ var human_baseline_session = {
 		}, "human_baseline_view");
 	}
 };
-var renderTools = (changes, resolvedState) => {
+var renderTools = (changes) => {
 	const toolIndexes = [];
 	for (const change of changes) {
 		const match = change.path.match(kToolPattern);
@@ -103917,17 +106010,15 @@ var renderTools = (changes, resolvedState) => {
 	const hasToolChoice = changes.find((change) => {
 		return change.path.startsWith("/tool_choice");
 	});
-	if (resolvedState.tool_choice && hasToolChoice) toolsInfo["Tool Choice"] = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	const toolChoice = resolveAfter(changes, "/tool_choice");
+	if (toolChoice && hasToolChoice) toolsInfo["Tool Choice"] = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: clsx("text-size-smaller"),
-		children: toolName(resolvedState.tool_choice)
+		children: toolName(toolChoice)
 	});
-	const tools = Array.isArray(resolvedState.tools) ? resolvedState.tools : [];
+	const tools = indexedItems(resolveAfter(changes, "/tools"));
 	if (tools.length > 0) {
-		if (toolIndexes.length === 0) toolsInfo["Tools"] = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tools, { toolDefinitions: tools.filter(isToolDefinition) });
-		else {
-			const filtered = tools.filter((_, index) => toolIndexes.includes(index.toString())).filter(isToolDefinition);
-			toolsInfo["Tools"] = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tools, { toolDefinitions: filtered });
-		}
+		const shown = toolIndexes.length === 0 ? tools : tools.filter(([index]) => toolIndexes.includes(index));
+		toolsInfo["Tools"] = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tools, { toolDefinitions: shown.map(([, tool]) => tool).filter(isToolDefinition) });
 	}
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: clsx(StateEventRenderers_module_default.tools),
@@ -103986,7 +106077,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$67);
+		t1 = toolDefinitions.map(_temp$68);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -104030,7 +106121,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$67(toolDefinition, idx) {
+function _temp$68(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -104308,7 +106399,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$66);
+			setFocusEpoch(_temp$67);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -104512,7 +106603,7 @@ var GoToTurnBar_module_default = {
 	} else t15 = $[32];
 	return t15;
 });
-function _temp$66(epoch) {
+function _temp$67(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
@@ -104654,7 +106745,7 @@ var EventSelectCheckbox_module_default = {
 			"aria-label": t1,
 			title: t2,
 			className: t4,
-			onMouseDown: _temp$65,
+			onMouseDown: _temp$66,
 			onClick: t5,
 			children: t6
 		});
@@ -104668,7 +106759,7 @@ var EventSelectCheckbox_module_default = {
 	} else t7 = $[13];
 	return t7;
 };
-function _temp$65(e) {
+function _temp$66(e) {
 	if (e.shiftKey) e.preventDefault();
 }
 var EventRow_module_default = {
@@ -105072,7 +107163,7 @@ var EventNavsPicker_module_default = {
 * to display all pills inline. Renders the active tab title as a single
 * button that opens a portal-anchored menu of all navs.
 */ var EventNavsPicker = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(31);
+	const $ = (0, import_compiler_runtime.c)(29);
 	const { navs, selectedNav, setSelectedNav, labelWidth } = t0;
 	const [open, setOpen] = (0, import_react.useState)(false);
 	const buttonRef = (0, import_react.useRef)(null);
@@ -105106,100 +107197,86 @@ var EventNavsPicker_module_default = {
 		t3 = $[3];
 	}
 	(0, import_react.useLayoutEffect)(t2, t3);
+	const windowTarget = open && typeof window !== "undefined" ? window : null;
+	useEventListener(windowTarget, "resize", computePosition);
 	let t4;
+	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+		t4 = { capture: true };
+		$[4] = t4;
+	} else t4 = $[4];
+	useEventListener(windowTarget, "scroll", computePosition, t4);
 	let t5;
-	if ($[4] !== open) {
-		t4 = () => {
-			if (!open) return;
-			const handler = () => computePosition();
-			window.addEventListener("resize", handler);
-			window.addEventListener("scroll", handler, true);
-			return () => {
-				window.removeEventListener("resize", handler);
-				window.removeEventListener("scroll", handler, true);
-			};
-		};
-		t5 = [open, computePosition];
-		$[4] = open;
-		$[5] = t4;
-		$[6] = t5;
-	} else {
-		t4 = $[5];
-		t5 = $[6];
-	}
-	(0, import_react.useEffect)(t4, t5);
-	let t6;
-	if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = (e) => {
+	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = (e) => {
 			if (e.key === "Escape") {
 				setOpen(false);
 				buttonRef.current?.focus();
 			}
 		};
-		$[7] = t6;
-	} else t6 = $[7];
-	const handleKeyDown = t6;
+		$[5] = t5;
+	} else t5 = $[5];
+	const handleKeyDown = t5;
+	let t6;
+	if ($[6] !== navs || $[7] !== selectedNav) {
+		t6 = navs.find((nav) => nav.target === selectedNav) ?? navs[0];
+		$[6] = navs;
+		$[7] = selectedNav;
+		$[8] = t6;
+	} else t6 = $[8];
+	const selected = t6;
 	let t7;
-	if ($[8] !== navs || $[9] !== selectedNav) {
-		t7 = navs.find((nav) => nav.target === selectedNav) ?? navs[0];
-		$[8] = navs;
-		$[9] = selectedNav;
-		$[10] = t7;
-	} else t7 = $[10];
-	const selected = t7;
 	let t8;
-	let t9;
-	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
-		t9 = () => setOpen(_temp$64);
-		$[11] = t8;
-		$[12] = t9;
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t7 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
+		t8 = () => setOpen(_temp$65);
+		$[9] = t7;
+		$[10] = t8;
 	} else {
-		t8 = $[11];
-		t9 = $[12];
+		t7 = $[9];
+		t8 = $[10];
 	}
-	let t10;
-	if ($[13] !== labelWidth) {
-		t10 = labelWidth ? { width: labelWidth } : void 0;
-		$[13] = labelWidth;
-		$[14] = t10;
-	} else t10 = $[14];
-	const t11 = selected?.title ?? "";
-	let t12;
-	if ($[15] !== t10 || $[16] !== t11) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	let t9;
+	if ($[11] !== labelWidth) {
+		t9 = labelWidth ? { width: labelWidth } : void 0;
+		$[11] = labelWidth;
+		$[12] = t9;
+	} else t9 = $[12];
+	const t10 = selected?.title ?? "";
+	let t11;
+	if ($[13] !== t10 || $[14] !== t9) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: EventNavsPicker_module_default.label,
-			style: t10,
-			children: t11
+			style: t9,
+			children: t10
 		});
-		$[15] = t10;
-		$[16] = t11;
-		$[17] = t12;
-	} else t12 = $[17];
+		$[13] = t10;
+		$[14] = t9;
+		$[15] = t11;
+	} else t11 = $[15];
+	let t12;
+	if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: clsx("bi", "bi-chevron-down", EventNavsPicker_module_default.chevron) });
+		$[16] = t12;
+	} else t12 = $[16];
 	let t13;
-	if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: clsx("bi", "bi-chevron-down", EventNavsPicker_module_default.chevron) });
-		$[18] = t13;
-	} else t13 = $[18];
-	let t14;
-	if ($[19] !== open || $[20] !== t12) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+	if ($[17] !== open || $[18] !== t11) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			ref: buttonRef,
 			type: "button",
 			"aria-haspopup": "listbox",
 			"aria-expanded": open,
-			className: t8,
-			onClick: t9,
+			className: t7,
+			onClick: t8,
 			onKeyDown: handleKeyDown,
-			children: [t12, t13]
+			children: [t11, t12]
 		});
-		$[19] = open;
-		$[20] = t12;
-		$[21] = t14;
-	} else t14 = $[21];
-	let t15;
-	if ($[22] !== navs || $[23] !== open || $[24] !== position || $[25] !== selectedNav || $[26] !== setSelectedNav) {
-		t15 = open && position && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[17] = open;
+		$[18] = t11;
+		$[19] = t13;
+	} else t13 = $[19];
+	let t14;
+	if ($[20] !== navs || $[21] !== open || $[22] !== position || $[23] !== selectedNav || $[24] !== setSelectedNav) {
+		t14 = open && position && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: EventNavsPicker_module_default.backdrop,
 			role: "presentation",
 			onClick: () => setOpen(false)
@@ -105228,23 +107305,23 @@ var EventNavsPicker_module_default = {
 				}, nav_0.id);
 			})
 		})] }), document.body);
-		$[22] = navs;
-		$[23] = open;
-		$[24] = position;
-		$[25] = selectedNav;
-		$[26] = setSelectedNav;
-		$[27] = t15;
-	} else t15 = $[27];
-	let t16;
-	if ($[28] !== t14 || $[29] !== t15) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t14, t15] });
-		$[28] = t14;
-		$[29] = t15;
-		$[30] = t16;
-	} else t16 = $[30];
-	return t16;
+		$[20] = navs;
+		$[21] = open;
+		$[22] = position;
+		$[23] = selectedNav;
+		$[24] = setSelectedNav;
+		$[25] = t14;
+	} else t14 = $[25];
+	let t15;
+	if ($[26] !== t13 || $[27] !== t14) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t13, t14] });
+		$[26] = t13;
+		$[27] = t14;
+		$[28] = t15;
+	} else t15 = $[28];
+	return t15;
 };
-function _temp$64(v) {
+function _temp$65(v) {
 	return !v;
 }
 //#endregion
@@ -105338,7 +107415,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t5 = $[10];
 	let t6;
 	if ($[11] !== navs) {
-		t6 = navs.map(_temp$63);
+		t6 = navs.map(_temp$64);
 		$[11] = navs;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -105367,7 +107444,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t8 = $[18];
 	return t8;
 };
-function _temp$63(nav_1) {
+function _temp$64(nav_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: "nav-item",
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -105591,7 +107668,7 @@ var kFocusIcon = "bi bi-arrows-angle-expand";
 						title: "Open focused turn view (f)",
 						"aria-label": "Open focused turn view",
 						onClick: (e) => {
-							if (onOpenEventFocus && e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+							if (onOpenEventFocus && !isNewTabClick(e)) {
 								e.preventDefault();
 								onOpenEventFocus(focusUrl);
 							}
@@ -106046,7 +108123,7 @@ var Snapshot = (t0) => {
 	if ($[7] !== details.additional_files || $[8] !== details.files) {
 		t4 = details.files && details.files.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: CheckpointEventView_module_default.files,
-			children: [details.files.map(_temp$62), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			children: [details.files.map(_temp$63), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: CheckpointEventView_module_default.fileOverflow,
 				children: [
 					"+",
@@ -106201,7 +108278,7 @@ var CheckpointEventView = (t0) => {
 	} else t19 = $[32];
 	return t19;
 };
-function _temp$62(file) {
+function _temp$63(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: CheckpointEventView_module_default.file,
 		children: file
@@ -106790,10 +108867,10 @@ var ModelTokenTable = (t0) => {
 								(() => {
 									const cfg = model_configs?.[modelId];
 									const args = model_args?.[modelId];
-									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$61) : [];
+									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$62) : [];
 									const argEntries = args ? Object.entries(args).filter(_temp2$44) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
-									const renderSection = _temp4$26;
+									const renderSection = _temp4$25;
 									return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 										className: ModelTokenTable_module_default.configSection,
 										children: [cfgEntries.length > 0 && renderSection("config", cfgEntries), argEntries.length > 0 && renderSection("args", argEntries)]
@@ -106905,7 +108982,7 @@ var ModelTokenTable = (t0) => {
 	} else t11 = $[37];
 	return t11;
 };
-function _temp$61(t0) {
+function _temp$62(t0) {
 	const [, v] = t0;
 	return v != null;
 }
@@ -106923,7 +109000,7 @@ function _temp3$33(t0) {
 		children: formatConfigValue(v_1, "null")
 	})] }, k_0);
 }
-function _temp4$26(label, entries) {
+function _temp4$25(label, entries) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: ModelTokenTable_module_default.configSectionLabel,
 		children: label
@@ -107083,7 +109160,7 @@ var ModelUsagePanel = (t0) => {
 	let t7;
 	if ($[0] !== className || $[1] !== timing || $[2] !== usage) {
 		const categories = buildCategories(usage);
-		const composeTotal = categories.reduce(_temp$60, 0);
+		const composeTotal = categories.reduce(_temp$61, 0);
 		const total = usage.total_tokens || composeTotal;
 		const inputAll = (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
 		const denom = inputAll + ((usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0)) || total || 1;
@@ -107271,7 +109348,7 @@ var ModelUsagePanel = (t0) => {
 	} else t11 = $[40];
 	return t11;
 };
-function _temp$60(a, c) {
+function _temp$61(a, c) {
 	return a + c.value;
 }
 function _temp2$43(c_1) {
@@ -107443,27 +109520,27 @@ var buildConnectionLanes = (history, window, configuredMax) => {
 };
 /** Caps the guide can show in-window — the y-scale must cover them. */ var laneCapValues = (lane, retunes, windowEnd) => (retunes ?? []).filter((retune) => retune.timestamp <= windowEnd).map((retune) => capFromRetune(retune, lane.configuredMax)).filter((v) => typeof v === "number");
 var ConfigChangedChip_module_default = {
-	cell: "_cell_znco3_1",
-	effectiveValue: "_effectiveValue_znco3_8",
-	clearedValue: "_clearedValue_znco3_12",
-	noneValue: "_noneValue_znco3_16",
-	priorValue: "_priorValue_znco3_20",
-	chip: "_chip_znco3_25",
-	chipCleared: "_chipCleared_znco3_39",
-	diamond: "_diamond_znco3_45",
-	popover: "_popover_znco3_55",
-	popoverHeader: "_popoverHeader_znco3_60",
-	popoverKnob: "_popoverKnob_znco3_76",
-	popoverHeaderNote: "_popoverHeaderNote_znco3_80",
-	popoverBody: "_popoverBody_znco3_84",
-	popoverTransition: "_popoverTransition_znco3_92",
-	from: "_from_znco3_98",
-	to: "_to_znco3_102",
-	popoverGrid: "_popoverGrid_znco3_106",
-	popoverLabel: "_popoverLabel_znco3_118",
-	scopePill: "_scopePill_znco3_124",
-	timelineLink: "_timelineLink_znco3_135",
-	changeList: "_changeList_znco3_156"
+	cell: "_cell_1etak_1",
+	effectiveValue: "_effectiveValue_1etak_8",
+	clearedValue: "_clearedValue_1etak_12",
+	noneValue: "_noneValue_1etak_16",
+	priorValue: "_priorValue_1etak_20",
+	chip: "_chip_1etak_25",
+	chipCleared: "_chipCleared_1etak_39",
+	diamond: "_diamond_1etak_45",
+	popover: "_popover_1etak_55",
+	popoverHeader: "_popoverHeader_1etak_60",
+	popoverKnob: "_popoverKnob_1etak_76",
+	popoverHeaderNote: "_popoverHeaderNote_1etak_80",
+	popoverBody: "_popoverBody_1etak_84",
+	popoverTransition: "_popoverTransition_1etak_92",
+	from: "_from_1etak_98",
+	to: "_to_1etak_102",
+	popoverGrid: "_popoverGrid_1etak_106",
+	popoverLabel: "_popoverLabel_1etak_118",
+	scopePill: "_scopePill_1etak_124",
+	timelineLink: "_timelineLink_1etak_135",
+	changeList: "_changeList_1etak_158"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/config/ConfigChangedChip.tsx
@@ -107477,8 +109554,8 @@ var formatTimestamp = (timestamp) => {
 };
 var scopeLabel = (change) => change.inherited ? `${change.scope} · inherited` : change.scope;
 /** The "View on timeline" affordance shared by the config/usage surfaces. */ var TimelineLink = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(6);
-	const { onClick, className } = t0;
+	const $ = (0, import_compiler_runtime.c)(7);
+	const { onClick, href, className } = t0;
 	let t1;
 	if ($[0] !== className) {
 		t1 = clsx(ConfigChangedChip_module_default.timelineLink, className);
@@ -107494,17 +109571,18 @@ var scopeLabel = (change) => change.inherited ? `${change.scope} · inherited` :
 		$[2] = t2;
 	} else t2 = $[2];
 	let t3;
-	if ($[3] !== onClick || $[4] !== t1) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-			type: "button",
+	if ($[3] !== href || $[4] !== onClick || $[5] !== t1) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(InAppLink, {
+			href,
+			onNavigate: onClick,
 			className: t1,
-			onClick,
 			children: [t2, "View on timeline"]
 		});
-		$[3] = onClick;
-		$[4] = t1;
-		$[5] = t3;
-	} else t3 = $[5];
+		$[3] = href;
+		$[4] = onClick;
+		$[5] = t1;
+		$[6] = t3;
+	} else t3 = $[6];
 	return t3;
 };
 var ProvenanceGrid = (t0) => {
@@ -107684,8 +109762,8 @@ var ProvenanceGrid = (t0) => {
 * mid-run changes (gray for cleared overrides), with a hover popover showing
 * the transition and full provenance.
 */ var ConfigChangedChip = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(35);
-	const { change, effectiveValue, onViewTimeline } = t0;
+	const $ = (0, import_compiler_runtime.c)(36);
+	const { change, effectiveValue, onViewTimeline, timelineHref } = t0;
 	const chipLabel = change.cleared ? "override cleared → launch value" : change.limitLifted ? "changed · limit lifted" : change.scope === "process" ? "changed · process" : "changed";
 	const t1 = `config-changed-${change.config}-${change.name}`;
 	const t2 = change.cleared ? ConfigChangedChip_module_default.chipCleared : void 0;
@@ -107785,13 +109863,17 @@ var ProvenanceGrid = (t0) => {
 		$[22] = t11;
 	} else t11 = $[22];
 	let t12;
-	if ($[23] !== onViewTimeline) {
-		t12 = onViewTimeline ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineLink, { onClick: onViewTimeline }) : null;
+	if ($[23] !== onViewTimeline || $[24] !== timelineHref) {
+		t12 = onViewTimeline ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineLink, {
+			onClick: onViewTimeline,
+			href: timelineHref
+		}) : null;
 		$[23] = onViewTimeline;
-		$[24] = t12;
-	} else t12 = $[24];
+		$[24] = timelineHref;
+		$[25] = t12;
+	} else t12 = $[25];
 	let t13;
-	if ($[25] !== t10 || $[26] !== t11 || $[27] !== t12) {
+	if ($[26] !== t10 || $[27] !== t11 || $[28] !== t12) {
 		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ConfigChangedChip_module_default.popoverBody,
 			children: [
@@ -107800,26 +109882,26 @@ var ProvenanceGrid = (t0) => {
 				t12
 			]
 		});
-		$[25] = t10;
-		$[26] = t11;
-		$[27] = t12;
-		$[28] = t13;
-	} else t13 = $[28];
+		$[26] = t10;
+		$[27] = t11;
+		$[28] = t12;
+		$[29] = t13;
+	} else t13 = $[29];
 	let t14;
-	if ($[29] !== t1 || $[30] !== t13 || $[31] !== t2 || $[32] !== t4 || $[33] !== t9) {
+	if ($[30] !== t1 || $[31] !== t13 || $[32] !== t2 || $[33] !== t4 || $[34] !== t9) {
 		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(HoverChip, {
 			id: t1,
 			chipClassName: t2,
 			chipContent: t4,
 			children: [t9, t13]
 		});
-		$[29] = t1;
-		$[30] = t13;
-		$[31] = t2;
-		$[32] = t4;
-		$[33] = t9;
-		$[34] = t14;
-	} else t14 = $[34];
+		$[30] = t1;
+		$[31] = t13;
+		$[32] = t2;
+		$[33] = t4;
+		$[34] = t9;
+		$[35] = t14;
+	} else t14 = $[35];
 	return t14;
 };
 /**
@@ -107827,8 +109909,8 @@ var ProvenanceGrid = (t0) => {
 * struck-through prior beside it, then the changed chip. Cleared knobs show
 * the launch value with no strikethrough (the value isn't new).
 */ var ConfigValueCell = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(19);
-	const { value, change, onViewTimeline } = t0;
+	const $ = (0, import_compiler_runtime.c)(20);
+	const { value, change, onViewTimeline, timelineHref } = t0;
 	const showPrior = !change.cleared && change.previous !== void 0 && change.previous !== change.value;
 	const t1 = change.cleared ? ConfigChangedChip_module_default.clearedValue : ConfigChangedChip_module_default.effectiveValue;
 	const t2 = value === null || value === void 0 ? ConfigChangedChip_module_default.noneValue : void 0;
@@ -107866,19 +109948,21 @@ var ProvenanceGrid = (t0) => {
 		$[10] = t6;
 	} else t6 = $[10];
 	let t7;
-	if ($[11] !== change || $[12] !== onViewTimeline || $[13] !== value) {
+	if ($[11] !== change || $[12] !== onViewTimeline || $[13] !== timelineHref || $[14] !== value) {
 		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ConfigChangedChip, {
 			change,
 			effectiveValue: value,
-			onViewTimeline
+			onViewTimeline,
+			timelineHref
 		});
 		$[11] = change;
 		$[12] = onViewTimeline;
-		$[13] = value;
-		$[14] = t7;
-	} else t7 = $[14];
+		$[13] = timelineHref;
+		$[14] = value;
+		$[15] = t7;
+	} else t7 = $[15];
 	let t8;
-	if ($[15] !== t5 || $[16] !== t6 || $[17] !== t7) {
+	if ($[16] !== t5 || $[17] !== t6 || $[18] !== t7) {
 		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ConfigChangedChip_module_default.cell,
 			children: [
@@ -107887,18 +109971,18 @@ var ProvenanceGrid = (t0) => {
 				t7
 			]
 		});
-		$[15] = t5;
-		$[16] = t6;
-		$[17] = t7;
-		$[18] = t8;
-	} else t8 = $[18];
+		$[16] = t5;
+		$[17] = t6;
+		$[18] = t7;
+		$[19] = t8;
+	} else t8 = $[19];
 	return t8;
 };
 /**
 * Aggregate "N changed" chip (SecondaryBar): hover lists the changed knobs.
 */ var ConfigChangesCountChip = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(17);
-	const { changes, id: t1, onViewTimeline } = t0;
+	const $ = (0, import_compiler_runtime.c)(18);
+	const { changes, id: t1, onViewTimeline, timelineHref } = t0;
 	const id = t1 === void 0 ? "config-changes-count" : t1;
 	if (changes.length === 0) return null;
 	let t2;
@@ -107929,7 +110013,7 @@ var ProvenanceGrid = (t0) => {
 	} else t4 = $[3];
 	let t5;
 	if ($[4] !== changes) {
-		t5 = changes.map(_temp$59);
+		t5 = changes.map(_temp$60);
 		$[4] = changes;
 		$[5] = t5;
 	} else t5 = $[5];
@@ -107943,36 +110027,40 @@ var ProvenanceGrid = (t0) => {
 		$[7] = t6;
 	} else t6 = $[7];
 	let t7;
-	if ($[8] !== onViewTimeline) {
-		t7 = onViewTimeline ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineLink, { onClick: onViewTimeline }) : null;
+	if ($[8] !== onViewTimeline || $[9] !== timelineHref) {
+		t7 = onViewTimeline ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineLink, {
+			onClick: onViewTimeline,
+			href: timelineHref
+		}) : null;
 		$[8] = onViewTimeline;
-		$[9] = t7;
-	} else t7 = $[9];
+		$[9] = timelineHref;
+		$[10] = t7;
+	} else t7 = $[10];
 	let t8;
-	if ($[10] !== t6 || $[11] !== t7) {
+	if ($[11] !== t6 || $[12] !== t7) {
 		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ConfigChangedChip_module_default.popoverBody,
 			children: [t6, t7]
 		});
-		$[10] = t6;
-		$[11] = t7;
-		$[12] = t8;
-	} else t8 = $[12];
+		$[11] = t6;
+		$[12] = t7;
+		$[13] = t8;
+	} else t8 = $[13];
 	let t9;
-	if ($[13] !== id || $[14] !== t3 || $[15] !== t8) {
+	if ($[14] !== id || $[15] !== t3 || $[16] !== t8) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(HoverChip, {
 			id,
 			chipContent: t3,
 			children: [t4, t8]
 		});
-		$[13] = id;
-		$[14] = t3;
-		$[15] = t8;
-		$[16] = t9;
-	} else t9 = $[16];
+		$[14] = id;
+		$[15] = t3;
+		$[16] = t8;
+		$[17] = t9;
+	} else t9 = $[17];
 	return t9;
 };
-function _temp$59(change) {
+function _temp$60(change) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		change.name,
 		" ",
@@ -108172,8 +110260,8 @@ var fmtClock = (iso, showDate = false) => {
 //#endregion
 //#region ../../packages/inspect-components/src/usage/ConnectionLogModal.tsx
 var ConnectionLogModal = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(35);
-	const { model, events, show, onHide, shared_roles, retunes, onViewTimeline } = t0;
+	const $ = (0, import_compiler_runtime.c)(36);
+	const { model, events, show, onHide, shared_roles, retunes, onViewTimeline, timelineHref } = t0;
 	const [filter, setFilter] = (0, import_react.useState)("all");
 	let t1;
 	if ($[0] !== events || $[1] !== retunes) {
@@ -108183,7 +110271,7 @@ var ConnectionLogModal = (t0) => {
 			$[3] = retunes;
 			$[4] = t2;
 		} else t2 = $[4];
-		t1 = [...events.map(_temp$58), ...t2.map(_temp2$42)].sort(_temp3$32);
+		t1 = [...events.map(_temp$59), ...t2.map(_temp2$42)].sort(_temp3$32);
 		$[0] = events;
 		$[1] = retunes;
 		$[2] = t1;
@@ -108202,39 +110290,41 @@ var ConnectionLogModal = (t0) => {
 	const showFilters = retuneCount > 0;
 	const t3 = `Connection Log — ${model}`;
 	let t4;
-	if ($[8] !== onViewTimeline) {
+	if ($[8] !== onViewTimeline || $[9] !== timelineHref) {
 		t4 = onViewTimeline && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineLink, {
 			className: ConnectionLogModal_module_default.footerLink,
-			onClick: onViewTimeline
+			onClick: onViewTimeline,
+			href: timelineHref
 		});
 		$[8] = onViewTimeline;
-		$[9] = t4;
-	} else t4 = $[9];
+		$[9] = timelineHref;
+		$[10] = t4;
+	} else t4 = $[10];
 	let t5;
-	if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
 		t5 = clsx("btn", "btn-secondary", "text-size-smaller");
-		$[10] = t5;
-	} else t5 = $[10];
+		$[11] = t5;
+	} else t5 = $[11];
 	let t6;
-	if ($[11] !== onHide) {
+	if ($[12] !== onHide) {
 		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: t5,
 			onClick: onHide,
 			children: "Close"
 		});
-		$[11] = onHide;
-		$[12] = t6;
-	} else t6 = $[12];
+		$[12] = onHide;
+		$[13] = t6;
+	} else t6 = $[13];
 	let t7;
-	if ($[13] !== t4 || $[14] !== t6) {
+	if ($[14] !== t4 || $[15] !== t6) {
 		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t4, t6] });
-		$[13] = t4;
-		$[14] = t6;
-		$[15] = t7;
-	} else t7 = $[15];
+		$[14] = t4;
+		$[15] = t6;
+		$[16] = t7;
+	} else t7 = $[16];
 	let t8;
-	if ($[16] !== controllerCount || $[17] !== filter || $[18] !== retuneCount || $[19] !== rows.length || $[20] !== shared_roles || $[21] !== showFilters) {
+	if ($[17] !== controllerCount || $[18] !== filter || $[19] !== retuneCount || $[20] !== rows.length || $[21] !== shared_roles || $[22] !== showFilters) {
 		t8 = (shared_roles && shared_roles.length > 0 || showFilters) && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ConnectionLogModal_module_default.subheader,
 			children: [shared_roles && shared_roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
@@ -108244,7 +110334,7 @@ var ConnectionLogModal = (t0) => {
 					shared_roles.length > 1 ? "shared" : "used",
 					" by",
 					" ",
-					shared_roles.map(_temp4$25)
+					shared_roles.map(_temp4$24)
 				]
 			}), showFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 				className: ConnectionLogModal_module_default.filters,
@@ -108263,16 +110353,16 @@ var ConnectionLogModal = (t0) => {
 				})
 			})]
 		});
-		$[16] = controllerCount;
-		$[17] = filter;
-		$[18] = retuneCount;
-		$[19] = rows.length;
-		$[20] = shared_roles;
-		$[21] = showFilters;
-		$[22] = t8;
-	} else t8 = $[22];
+		$[17] = controllerCount;
+		$[18] = filter;
+		$[19] = retuneCount;
+		$[20] = rows.length;
+		$[21] = shared_roles;
+		$[22] = showFilters;
+		$[23] = t8;
+	} else t8 = $[23];
 	let t9;
-	if ($[23] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[24] === Symbol.for("react.memo_cache_sentinel")) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("thead", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("tr", { children: [
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("th", { children: "Time" }),
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("th", {
@@ -108281,25 +110371,25 @@ var ConnectionLogModal = (t0) => {
 			}),
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("th", { children: "What" })
 		] }) });
-		$[23] = t9;
-	} else t9 = $[23];
+		$[24] = t9;
+	} else t9 = $[24];
 	let t10;
-	if ($[24] !== visibleRows) {
+	if ($[25] !== visibleRows) {
 		t10 = visibleRows.map(_temp5$13);
-		$[24] = visibleRows;
-		$[25] = t10;
-	} else t10 = $[25];
+		$[25] = visibleRows;
+		$[26] = t10;
+	} else t10 = $[26];
 	let t11;
-	if ($[26] !== t10) {
+	if ($[27] !== t10) {
 		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("table", {
 			className: ConnectionLogModal_module_default.table,
 			children: [t9, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("tbody", { children: t10 })]
 		});
-		$[26] = t10;
-		$[27] = t11;
-	} else t11 = $[27];
+		$[27] = t10;
+		$[28] = t11;
+	} else t11 = $[28];
 	let t12;
-	if ($[28] !== onHide || $[29] !== show || $[30] !== t11 || $[31] !== t3 || $[32] !== t7 || $[33] !== t8) {
+	if ($[29] !== onHide || $[30] !== show || $[31] !== t11 || $[32] !== t3 || $[33] !== t7 || $[34] !== t8) {
 		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Modal, {
 			id: "connection-log",
 			show,
@@ -108310,17 +110400,17 @@ var ConnectionLogModal = (t0) => {
 			footer: t7,
 			children: [t8, t11]
 		});
-		$[28] = onHide;
-		$[29] = show;
-		$[30] = t11;
-		$[31] = t3;
-		$[32] = t7;
-		$[33] = t8;
-		$[34] = t12;
-	} else t12 = $[34];
+		$[29] = onHide;
+		$[30] = show;
+		$[31] = t11;
+		$[32] = t3;
+		$[33] = t7;
+		$[34] = t8;
+		$[35] = t12;
+	} else t12 = $[35];
 	return t12;
 };
-function _temp$58(event) {
+function _temp$59(event) {
 	return {
 		kind: "controller",
 		time: event.timestamp,
@@ -108337,7 +110427,7 @@ function _temp2$42(retune) {
 function _temp3$32(a, b) {
 	return a.time - b.time || (a.kind === b.kind ? 0 : a.kind === "config" ? -1 : 1);
 }
-function _temp4$25(role, i) {
+function _temp4$24(role, i) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [i > 0 ? ", " : "", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: role })] }, role);
 }
 function _temp5$13(row_0, i_0) {
@@ -108392,33 +110482,33 @@ function _temp5$13(row_0, i_0) {
 	}, `controller-${i_0}`);
 }
 var ConnectionsView_module_default = {
-	grid: "_grid_16lit_1",
-	headCell: "_headCell_16lit_9",
-	cell: "_cell_16lit_19",
-	lastRow: "_lastRow_16lit_25",
-	modelCell: "_modelCell_16lit_29",
-	modelName: "_modelName_16lit_33",
-	roles: "_roles_16lit_39",
-	roleChip: "_roleChip_16lit_49",
-	avgCell: "_avgCell_16lit_58",
-	avgValue: "_avgValue_16lit_62",
-	rateLimits: "_rateLimits_16lit_75",
-	actionsCell: "_actionsCell_16lit_83",
-	actionLink: "_actionLink_16lit_90",
-	chart: "_chart_16lit_110",
-	svg: "_svg_16lit_115",
-	series: "_series_16lit_119",
-	baseline: "_baseline_16lit_125",
-	capGuide: "_capGuide_16lit_129",
-	rateLimitLine: "_rateLimitLine_16lit_135",
-	retuneLine: "_retuneLine_16lit_142",
-	retuneMarker: "_retuneMarker_16lit_146",
-	chartLabel: "_chartLabel_16lit_152",
-	legend: "_legend_16lit_157",
-	legendItem: "_legendItem_16lit_165",
-	legendDiamond: "_legendDiamond_16lit_171",
-	legendRateLimit: "_legendRateLimit_16lit_180",
-	legendGuide: "_legendGuide_16lit_187"
+	grid: "_grid_13lh4_1",
+	headCell: "_headCell_13lh4_9",
+	cell: "_cell_13lh4_19",
+	lastRow: "_lastRow_13lh4_25",
+	modelCell: "_modelCell_13lh4_29",
+	modelName: "_modelName_13lh4_33",
+	roles: "_roles_13lh4_39",
+	roleChip: "_roleChip_13lh4_49",
+	avgCell: "_avgCell_13lh4_58",
+	avgValue: "_avgValue_13lh4_62",
+	rateLimits: "_rateLimits_13lh4_75",
+	actionsCell: "_actionsCell_13lh4_83",
+	actionLink: "_actionLink_13lh4_90",
+	chart: "_chart_13lh4_114",
+	svg: "_svg_13lh4_119",
+	series: "_series_13lh4_123",
+	baseline: "_baseline_13lh4_129",
+	capGuide: "_capGuide_13lh4_133",
+	rateLimitLine: "_rateLimitLine_13lh4_139",
+	retuneLine: "_retuneLine_13lh4_146",
+	retuneMarker: "_retuneMarker_13lh4_150",
+	chartLabel: "_chartLabel_13lh4_156",
+	legend: "_legend_13lh4_161",
+	legendItem: "_legendItem_13lh4_169",
+	legendDiamond: "_legendDiamond_13lh4_175",
+	legendRateLimit: "_legendRateLimit_13lh4_184",
+	legendGuide: "_legendGuide_13lh4_191"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/roleAliases.ts
@@ -108468,11 +110558,11 @@ var ConnectionsView_module_default = {
 * The Usage table's Connections lens: one row per connection pool (pools
 * are model-keyed — roles sharing a model render once, listed as chips).
 */ var ConnectionsView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(14);
-	const { lanes, timeWindow, role_aliases, retunes_by_model, onShowLog, onViewTimeline } = t0;
+	const $ = (0, import_compiler_runtime.c)(15);
+	const { lanes, timeWindow, role_aliases, retunes_by_model, onShowLog, onViewTimeline, timelineHref } = t0;
 	let t1;
 	let t2;
-	if ($[0] !== lanes || $[1] !== onShowLog || $[2] !== onViewTimeline || $[3] !== retunes_by_model || $[4] !== role_aliases || $[5] !== timeWindow) {
+	if ($[0] !== lanes || $[1] !== onShowLog || $[2] !== onViewTimeline || $[3] !== retunes_by_model || $[4] !== role_aliases || $[5] !== timeWindow || $[6] !== timelineHref) {
 		t2 = Symbol.for("react.early_return_sentinel");
 		bb0: {
 			const models = Object.keys(lanes).sort();
@@ -108481,17 +110571,17 @@ var ConnectionsView_module_default = {
 				break bb0;
 			}
 			let t3;
-			if ($[8] !== role_aliases) {
+			if ($[9] !== role_aliases) {
 				t3 = (model) => rolesForModel(role_aliases, model);
-				$[8] = role_aliases;
-				$[9] = t3;
-			} else t3 = $[9];
+				$[9] = role_aliases;
+				$[10] = t3;
+			} else t3 = $[10];
 			const rolesFor = t3;
 			let t4;
 			let t5;
 			let t6;
 			let t7;
-			if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
+			if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
 				t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					className: ConnectionsView_module_default.headCell,
 					children: "Model"
@@ -108505,15 +110595,15 @@ var ConnectionsView_module_default = {
 					children: "Connections over time"
 				});
 				t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: ConnectionsView_module_default.headCell });
-				$[10] = t4;
-				$[11] = t5;
-				$[12] = t6;
-				$[13] = t7;
+				$[11] = t4;
+				$[12] = t5;
+				$[13] = t6;
+				$[14] = t7;
 			} else {
-				t4 = $[10];
-				t5 = $[11];
-				t6 = $[12];
-				t7 = $[13];
+				t4 = $[11];
+				t5 = $[12];
+				t6 = $[13];
+				t7 = $[14];
 			}
 			t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: ConnectionsView_module_default.grid,
@@ -108535,7 +110625,7 @@ var ConnectionsView_module_default = {
 									children: model_0
 								}), roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 									className: ConnectionsView_module_default.roles,
-									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$57)]
+									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$58)]
 								})]
 							}),
 							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -108572,15 +110662,9 @@ var ConnectionsView_module_default = {
 										className: "bi bi-clock-history",
 										"aria-hidden": "true"
 									}), "Log"]
-								}), onViewTimeline && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-									type: "button",
-									className: ConnectionsView_module_default.actionLink,
-									title: "View on timeline",
-									onClick: (event) => onViewTimeline(model_0, event),
-									children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
-										className: "bi bi-graph-up",
-										"aria-hidden": "true"
-									}), "Timeline"]
+								}), onViewTimeline && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineAction, {
+									href: timelineHref,
+									onClick: () => onViewTimeline(model_0)
 								})]
 							})
 						] }, model_0);
@@ -108594,11 +110678,12 @@ var ConnectionsView_module_default = {
 		$[3] = retunes_by_model;
 		$[4] = role_aliases;
 		$[5] = timeWindow;
-		$[6] = t1;
-		$[7] = t2;
+		$[6] = timelineHref;
+		$[7] = t1;
+		$[8] = t2;
 	} else {
-		t1 = $[6];
-		t2 = $[7];
+		t1 = $[7];
+		t2 = $[8];
 	}
 	if (t2 !== Symbol.for("react.early_return_sentinel")) return t2;
 	return t1;
@@ -108798,7 +110883,33 @@ var kBaselineY = 60;
 	} else t9 = $[37];
 	return t9;
 };
-function _temp$57(role) {
+/** A lane's "Timeline" action: a link when the timeline has a URL. */ var TimelineAction = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(4);
+	const { href, onClick } = t0;
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: "bi bi-graph-up",
+			"aria-hidden": "true"
+		});
+		$[0] = t1;
+	} else t1 = $[0];
+	let t2;
+	if ($[1] !== href || $[2] !== onClick) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(InAppLink, {
+			href,
+			onNavigate: onClick,
+			className: ConnectionsView_module_default.actionLink,
+			title: "View on timeline",
+			children: [t1, "Timeline"]
+		});
+		$[1] = href;
+		$[2] = onClick;
+		$[3] = t2;
+	} else t2 = $[3];
+	return t2;
+};
+function _temp$58(role) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ConnectionsView_module_default.roleChip,
 		children: role
@@ -108827,7 +110938,7 @@ var kModes = [
 	"connections"
 ];
 var isMode = (value) => kModes.some((mode) => mode === value);
-var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by_role, args_by_model, args_by_role, role_aliases, samples, meta, className, connection_limit_history, started_at, completed_at, config_updates, main_model, state_key, onViewTimeline }) => {
+var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by_role, args_by_model, args_by_role, role_aliases, samples, meta, className, connection_limit_history, started_at, completed_at, config_updates, main_model, state_key, onViewTimeline, timelineHref }) => {
 	const keysOf = (...maps) => {
 		const out = /* @__PURE__ */ new Set();
 		for (const m of maps) if (m) for (const k of Object.keys(m)) out.add(k);
@@ -108926,7 +111037,8 @@ var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by
 				role_aliases,
 				retunes_by_model: retunesByModel,
 				onShowLog: setLogModel,
-				onViewTimeline
+				onViewTimeline,
+				timelineHref
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelTokenTable, {
 				model_usage: usageData,
 				model_configs: tableConfigs,
@@ -108944,10 +111056,11 @@ var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by
 				onHide: () => setLogModel(null),
 				shared_roles: logRoles,
 				retunes: retunesByModel[logLane.model],
-				onViewTimeline: onViewTimeline ? (event) => {
+				onViewTimeline: onViewTimeline ? () => {
 					setLogModel(null);
-					onViewTimeline(logLane.model, event);
-				} : void 0
+					onViewTimeline(logLane.model);
+				} : void 0,
+				timelineHref
 			})
 		]
 	});
@@ -109180,7 +111293,7 @@ var RetryChip = (t0) => {
 	let t10;
 	let t9;
 	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = () => setOpen(_temp$56);
+		t9 = () => setOpen(_temp$57);
 		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
 			className: clsx("bi", "bi-arrow-repeat", RetryChip_module_default.chipIcon),
 			"aria-hidden": "true"
@@ -109284,7 +111397,7 @@ function formatAttemptDuration(event) {
 	const sec = attemptDurationSec(event);
 	return sec != null ? formatTime$1(sec) : null;
 }
-function _temp$56(v) {
+function _temp$57(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
@@ -109559,7 +111672,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output.choices.map(_temp$55);
+		t4 = event.output.choices.map(_temp$56);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -110125,7 +112238,7 @@ var ToolChoiceView = (t0) => {
 		return t1;
 	}
 };
-function _temp$55(choice) {
+function _temp$56(choice) {
 	return choice.message;
 }
 function _temp2$40(m) {
@@ -110298,7 +112411,7 @@ var SampleInitEventView = (t0) => {
 			const t3 = `event-${eventNode.id}`;
 			let t4;
 			if ($[8] !== event.sample.files) {
-				t4 = Object.keys(event.sample.files).map(_temp$54);
+				t4 = Object.keys(event.sample.files).map(_temp$55);
 				$[8] = event.sample.files;
 				$[9] = t4;
 			} else t4 = $[9];
@@ -110437,7 +112550,7 @@ var SampleInitEventView = (t0) => {
 	} else t11 = $[42];
 	return t11;
 };
-function _temp$54(file) {
+function _temp$55(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 		className: SampleInitEventView_module_default.noMargin,
 		children: file
@@ -110461,7 +112574,7 @@ function _temp3$31(target) {
 var SampleLimitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(14);
 	const { eventNode, className } = t0;
-	const resolve_title = _temp$53;
+	const resolve_title = _temp$54;
 	const resolve_icon = _temp2$38;
 	const baseTitle = resolve_title(eventNode.event.type);
 	let t1;
@@ -110512,7 +112625,7 @@ var SampleLimitEventView = (t0) => {
 	} else t6 = $[13];
 	return t6;
 };
-function _temp$53(type) {
+function _temp$54(type) {
 	switch (type) {
 		case "custom": return "Custom Limit Exceeded";
 		case "time": return "Time Limit Exceeded";
@@ -111325,7 +113438,7 @@ var ScoreEventView = (t0) => {
 	const text = t2;
 	let t3;
 	if ($[4] !== childNodes) {
-		t3 = childNodes.map(_temp$52);
+		t3 = childNodes.map(_temp$53);
 		$[4] = childNodes;
 		$[5] = t3;
 	} else t3 = $[5];
@@ -111391,1356 +113504,209 @@ var summarize = (children) => {
 	if (children.length === 1) return "1 event";
 	else return `${children.length} events`;
 };
-function _temp$52(child) {
+function _temp$53(child) {
 	return child.id;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/clone.js
-function cloneRegExp(re) {
-	var _a;
-	const regexMatch = /^\/(.*)\/([gimyu]*)$/.exec(re.toString());
-	if (!regexMatch) throw new Error("Invalid RegExp");
-	return new RegExp((_a = regexMatch[1]) !== null && _a !== void 0 ? _a : "", regexMatch[2]);
-}
-function clone(arg) {
-	if (typeof arg !== "object") return arg;
-	if (arg === null) return null;
-	if (Array.isArray(arg)) return arg.map(clone);
-	if (arg instanceof Date) return new Date(arg.getTime());
-	if (arg instanceof RegExp) return cloneRegExp(arg);
-	const cloned = {};
-	for (const name in arg) if (Object.prototype.hasOwnProperty.call(arg, name)) cloned[name] = clone(arg[name]);
-	return cloned;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/assertions/arrays.js
-function assertNonEmptyArray(arr, message) {
-	if (arr.length === 0) throw new Error(message || "Expected a non-empty array");
-}
-function assertArrayHasAtLeast2(arr, message) {
-	if (arr.length < 2) throw new Error(message || "Expected an array with at least 2 items");
-}
-/**
-* type-safe version of `arr[arr.length - 1]`
-* @param arr a non empty array
-* @returns the last element of the array
-*/
-var lastNonEmpty = (arr) => arr[arr.length - 1];
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/contexts/context.js
-var Context = class {
-	setResult(result) {
-		this.result = result;
-		this.hasResult = true;
-		return this;
-	}
-	exit() {
-		this.exiting = true;
-		return this;
-	}
-	push(child, name) {
-		child.parent = this;
-		if (typeof name !== "undefined") child.childName = name;
-		child.root = this.root || this;
-		child.options = child.options || this.options;
-		if (!this.children) {
-			this.children = [child];
-			this.nextAfterChildren = this.next || null;
-			this.next = child;
-		} else {
-			assertNonEmptyArray(this.children);
-			lastNonEmpty(this.children).next = child;
-			this.children.push(child);
-		}
-		child.next = this;
-		return this;
-	}
-};
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/contexts/diff.js
-var DiffContext = class extends Context {
-	constructor(left, right) {
-		super();
-		this.left = left;
-		this.right = right;
-		this.pipe = "diff";
-	}
-	prepareDeltaResult(result) {
-		var _a, _b, _c, _d;
-		if (typeof result === "object") {
-			if (((_a = this.options) === null || _a === void 0 ? void 0 : _a.omitRemovedValues) && Array.isArray(result) && result.length > 1 && (result.length === 2 || result[2] === 0 || result[2] === 3)) result[0] = 0;
-			if ((_b = this.options) === null || _b === void 0 ? void 0 : _b.cloneDiffValues) {
-				const clone$2 = typeof ((_c = this.options) === null || _c === void 0 ? void 0 : _c.cloneDiffValues) === "function" ? (_d = this.options) === null || _d === void 0 ? void 0 : _d.cloneDiffValues : clone;
-				if (typeof result[0] === "object") result[0] = clone$2(result[0]);
-				if (typeof result[1] === "object") result[1] = clone$2(result[1]);
-			}
-		}
-		return result;
-	}
-	setResult(result) {
-		this.prepareDeltaResult(result);
-		return super.setResult(result);
-	}
-};
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/contexts/patch.js
-var PatchContext = class extends Context {
-	constructor(left, delta) {
-		super();
-		this.left = left;
-		this.delta = delta;
-		this.pipe = "patch";
-	}
-};
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/contexts/reverse.js
-var ReverseContext = class extends Context {
-	constructor(delta) {
-		super();
-		this.delta = delta;
-		this.pipe = "reverse";
-	}
-};
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/pipe.js
-var Pipe = class {
-	constructor(name) {
-		this.name = name;
-		this.filters = [];
-	}
-	process(input) {
-		if (!this.processor) throw new Error("add this pipe to a processor before using it");
-		const debug = this.debug;
-		const length = this.filters.length;
-		const context = input;
-		for (let index = 0; index < length; index++) {
-			const filter = this.filters[index];
-			if (!filter) continue;
-			if (debug) this.log(`filter: ${filter.filterName}`);
-			filter(context);
-			if (typeof context === "object" && context.exiting) {
-				context.exiting = false;
-				break;
-			}
-		}
-		if (!context.next && this.resultCheck) this.resultCheck(context);
-	}
-	log(msg) {
-		console.log(`[jsondiffpatch] ${this.name} pipe, ${msg}`);
-	}
-	append(...args) {
-		this.filters.push(...args);
-		return this;
-	}
-	prepend(...args) {
-		this.filters.unshift(...args);
-		return this;
-	}
-	indexOf(filterName) {
-		if (!filterName) throw new Error("a filter name is required");
-		for (let index = 0; index < this.filters.length; index++) {
-			const filter = this.filters[index];
-			if ((filter === null || filter === void 0 ? void 0 : filter.filterName) === filterName) return index;
-		}
-		throw new Error(`filter not found: ${filterName}`);
-	}
-	list() {
-		return this.filters.map((f) => f.filterName);
-	}
-	after(filterName, ...params) {
-		const index = this.indexOf(filterName);
-		this.filters.splice(index + 1, 0, ...params);
-		return this;
-	}
-	before(filterName, ...params) {
-		const index = this.indexOf(filterName);
-		this.filters.splice(index, 0, ...params);
-		return this;
-	}
-	replace(filterName, ...params) {
-		const index = this.indexOf(filterName);
-		this.filters.splice(index, 1, ...params);
-		return this;
-	}
-	remove(filterName) {
-		const index = this.indexOf(filterName);
-		this.filters.splice(index, 1);
-		return this;
-	}
-	clear() {
-		this.filters.length = 0;
-		return this;
-	}
-	shouldHaveResult(should) {
-		if (should === false) {
-			this.resultCheck = null;
-			return this;
-		}
-		if (this.resultCheck) return this;
-		this.resultCheck = (context) => {
-			if (!context.hasResult) {
-				console.log(context);
-				const error = /* @__PURE__ */ new Error(`${this.name} failed`);
-				error.noResult = true;
-				throw error;
-			}
-		};
-		return this;
-	}
-};
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/processor.js
-var Processor = class {
-	constructor(options) {
-		this.selfOptions = options || {};
-		this.pipes = {};
-	}
-	options(options) {
-		if (options) this.selfOptions = options;
-		return this.selfOptions;
-	}
-	pipe(name, pipeArg) {
-		let pipe = pipeArg;
-		if (typeof name === "string") {
-			if (typeof pipe === "undefined") return this.pipes[name];
-			this.pipes[name] = pipe;
-		}
-		if (name && name.name) {
-			pipe = name;
-			if (pipe.processor === this) return pipe;
-			this.pipes[pipe.name] = pipe;
-		}
-		if (!pipe) throw new Error(`pipe is not defined: ${name}`);
-		pipe.processor = this;
-		return pipe;
-	}
-	process(input, pipe) {
-		let context = input;
-		context.options = this.options();
-		let nextPipe = pipe || input.pipe || "default";
-		let lastPipe = void 0;
-		while (nextPipe) {
-			if (typeof context.nextAfterChildren !== "undefined") {
-				context.next = context.nextAfterChildren;
-				context.nextAfterChildren = null;
-			}
-			if (typeof nextPipe === "string") nextPipe = this.pipe(nextPipe);
-			nextPipe.process(context);
-			lastPipe = nextPipe;
-			nextPipe = null;
-			if (context) {
-				if (context.next) {
-					context = context.next;
-					nextPipe = context.pipe || lastPipe;
-				}
-			}
-		}
-		return context.hasResult ? context.result : void 0;
-	}
-};
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/filters/lcs.js
-var defaultMatch = (array1, array2, index1, index2) => array1[index1] === array2[index2];
-var lengthMatrix = (array1, array2, match, context) => {
-	var _a, _b, _c;
-	const len1 = array1.length;
-	const len2 = array2.length;
-	let x;
-	let y;
-	const matrix = new Array(len1 + 1);
-	for (x = 0; x < len1 + 1; x++) {
-		const matrixNewRow = new Array(len2 + 1);
-		for (y = 0; y < len2 + 1; y++) matrixNewRow[y] = 0;
-		matrix[x] = matrixNewRow;
-	}
-	matrix.match = match;
-	for (x = 1; x < len1 + 1; x++) {
-		const matrixRowX = matrix[x];
-		if (matrixRowX === void 0) throw new Error("LCS matrix row is undefined");
-		const matrixRowBeforeX = matrix[x - 1];
-		if (matrixRowBeforeX === void 0) throw new Error("LCS matrix row is undefined");
-		for (y = 1; y < len2 + 1; y++) if (match(array1, array2, x - 1, y - 1, context)) matrixRowX[y] = ((_a = matrixRowBeforeX[y - 1]) !== null && _a !== void 0 ? _a : 0) + 1;
-		else matrixRowX[y] = Math.max((_b = matrixRowBeforeX[y]) !== null && _b !== void 0 ? _b : 0, (_c = matrixRowX[y - 1]) !== null && _c !== void 0 ? _c : 0);
-	}
-	return matrix;
-};
-var backtrack = (matrix, array1, array2, context) => {
-	let index1 = array1.length;
-	let index2 = array2.length;
-	const subsequence = {
-		sequence: [],
-		indices1: [],
-		indices2: []
-	};
-	while (index1 !== 0 && index2 !== 0) {
-		if (matrix.match === void 0) throw new Error("LCS matrix match function is undefined");
-		if (matrix.match(array1, array2, index1 - 1, index2 - 1, context)) {
-			subsequence.sequence.unshift(array1[index1 - 1]);
-			subsequence.indices1.unshift(index1 - 1);
-			subsequence.indices2.unshift(index2 - 1);
-			--index1;
-			--index2;
-		} else {
-			const matrixRowIndex1 = matrix[index1];
-			if (matrixRowIndex1 === void 0) throw new Error("LCS matrix row is undefined");
-			const valueAtMatrixAbove = matrixRowIndex1[index2 - 1];
-			if (valueAtMatrixAbove === void 0) throw new Error("LCS matrix value is undefined");
-			const matrixRowBeforeIndex1 = matrix[index1 - 1];
-			if (matrixRowBeforeIndex1 === void 0) throw new Error("LCS matrix row is undefined");
-			const valueAtMatrixLeft = matrixRowBeforeIndex1[index2];
-			if (valueAtMatrixLeft === void 0) throw new Error("LCS matrix value is undefined");
-			if (valueAtMatrixAbove > valueAtMatrixLeft) --index2;
-			else --index1;
-		}
-	}
-	return subsequence;
-};
-var get = (array1, array2, match, context) => {
-	const innerContext = context || {};
-	return backtrack(lengthMatrix(array1, array2, match || defaultMatch, innerContext), array1, array2, innerContext);
-};
-var lcs_default = { get };
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/filters/arrays.js
-var ARRAY_MOVE = 3;
-function arraysHaveMatchByRef(array1, array2, len1, len2) {
-	for (let index1 = 0; index1 < len1; index1++) {
-		const val1 = array1[index1];
-		for (let index2 = 0; index2 < len2; index2++) {
-			const val2 = array2[index2];
-			if (index1 !== index2 && val1 === val2) return true;
-		}
-	}
-	return false;
-}
-function matchItems(array1, array2, index1, index2, context) {
-	const value1 = array1[index1];
-	const value2 = array2[index2];
-	if (value1 === value2) return true;
-	if (typeof value1 !== "object" || typeof value2 !== "object") return false;
-	const objectHash = context.objectHash;
-	if (!objectHash) return context.matchByPosition && index1 === index2;
-	context.hashCache1 = context.hashCache1 || [];
-	let hash1 = context.hashCache1[index1];
-	if (typeof hash1 === "undefined") context.hashCache1[index1] = hash1 = objectHash(value1, index1);
-	if (typeof hash1 === "undefined") return false;
-	context.hashCache2 = context.hashCache2 || [];
-	let hash2 = context.hashCache2[index2];
-	if (typeof hash2 === "undefined") context.hashCache2[index2] = hash2 = objectHash(value2, index2);
-	if (typeof hash2 === "undefined") return false;
-	return hash1 === hash2;
-}
-var diffFilter$3 = function arraysDiffFilter(context) {
-	var _a, _b, _c, _d, _e;
-	if (!context.leftIsArray) return;
-	const matchContext = {
-		objectHash: (_a = context.options) === null || _a === void 0 ? void 0 : _a.objectHash,
-		matchByPosition: (_b = context.options) === null || _b === void 0 ? void 0 : _b.matchByPosition
-	};
-	let commonHead = 0;
-	let commonTail = 0;
-	let index;
-	let index1;
-	let index2;
-	const array1 = context.left;
-	const array2 = context.right;
-	const len1 = array1.length;
-	const len2 = array2.length;
-	let child;
-	if (len1 > 0 && len2 > 0 && !matchContext.objectHash && typeof matchContext.matchByPosition !== "boolean") matchContext.matchByPosition = !arraysHaveMatchByRef(array1, array2, len1, len2);
-	while (commonHead < len1 && commonHead < len2 && matchItems(array1, array2, commonHead, commonHead, matchContext)) {
-		index = commonHead;
-		child = new DiffContext(array1[index], array2[index]);
-		context.push(child, index);
-		commonHead++;
-	}
-	while (commonTail + commonHead < len1 && commonTail + commonHead < len2 && matchItems(array1, array2, len1 - 1 - commonTail, len2 - 1 - commonTail, matchContext)) {
-		index1 = len1 - 1 - commonTail;
-		index2 = len2 - 1 - commonTail;
-		child = new DiffContext(array1[index1], array2[index2]);
-		context.push(child, index2);
-		commonTail++;
-	}
-	let result;
-	if (commonHead + commonTail === len1) {
-		if (len1 === len2) {
-			context.setResult(void 0).exit();
-			return;
-		}
-		result = result || { _t: "a" };
-		for (index = commonHead; index < len2 - commonTail; index++) {
-			result[index] = [array2[index]];
-			context.prepareDeltaResult(result[index]);
-		}
-		context.setResult(result).exit();
-		return;
-	}
-	if (commonHead + commonTail === len2) {
-		result = result || { _t: "a" };
-		for (index = commonHead; index < len1 - commonTail; index++) {
-			const key = `_${index}`;
-			result[key] = [
-				array1[index],
-				0,
-				0
-			];
-			context.prepareDeltaResult(result[key]);
-		}
-		context.setResult(result).exit();
-		return;
-	}
-	matchContext.hashCache1 = void 0;
-	matchContext.hashCache2 = void 0;
-	const trimmed1 = array1.slice(commonHead, len1 - commonTail);
-	const trimmed2 = array2.slice(commonHead, len2 - commonTail);
-	const seq = lcs_default.get(trimmed1, trimmed2, matchItems, matchContext);
-	const removedItems = [];
-	result = result || { _t: "a" };
-	for (index = commonHead; index < len1 - commonTail; index++) if (seq.indices1.indexOf(index - commonHead) < 0) {
-		const key = `_${index}`;
-		result[key] = [
-			array1[index],
-			0,
-			0
-		];
-		context.prepareDeltaResult(result[key]);
-		removedItems.push(index);
-	}
-	let detectMove = true;
-	if (((_c = context.options) === null || _c === void 0 ? void 0 : _c.arrays) && context.options.arrays.detectMove === false) detectMove = false;
-	let includeValueOnMove = false;
-	if ((_e = (_d = context.options) === null || _d === void 0 ? void 0 : _d.arrays) === null || _e === void 0 ? void 0 : _e.includeValueOnMove) includeValueOnMove = true;
-	const removedItemsLength = removedItems.length;
-	for (index = commonHead; index < len2 - commonTail; index++) {
-		const indexOnArray2 = seq.indices2.indexOf(index - commonHead);
-		if (indexOnArray2 < 0) {
-			let isMove = false;
-			if (detectMove && removedItemsLength > 0) for (let removeItemIndex1 = 0; removeItemIndex1 < removedItemsLength; removeItemIndex1++) {
-				index1 = removedItems[removeItemIndex1];
-				const resultItem = index1 === void 0 ? void 0 : result[`_${index1}`];
-				if (index1 !== void 0 && resultItem && matchItems(trimmed1, trimmed2, index1 - commonHead, index - commonHead, matchContext)) {
-					resultItem.splice(1, 2, index, ARRAY_MOVE);
-					resultItem.splice(1, 2, index, ARRAY_MOVE);
-					if (!includeValueOnMove) resultItem[0] = "";
-					index2 = index;
-					child = new DiffContext(array1[index1], array2[index2]);
-					context.push(child, index2);
-					removedItems.splice(removeItemIndex1, 1);
-					isMove = true;
-					break;
-				}
-			}
-			if (!isMove) {
-				result[index] = [array2[index]];
-				context.prepareDeltaResult(result[index]);
-			}
-		} else {
-			if (seq.indices1[indexOnArray2] === void 0) throw new Error(`Invalid indexOnArray2: ${indexOnArray2}, seq.indices1: ${seq.indices1}`);
-			index1 = seq.indices1[indexOnArray2] + commonHead;
-			if (seq.indices2[indexOnArray2] === void 0) throw new Error(`Invalid indexOnArray2: ${indexOnArray2}, seq.indices2: ${seq.indices2}`);
-			index2 = seq.indices2[indexOnArray2] + commonHead;
-			child = new DiffContext(array1[index1], array2[index2]);
-			context.push(child, index2);
-		}
-	}
-	context.setResult(result).exit();
-};
-diffFilter$3.filterName = "arrays";
-var compare$1 = {
-	numerically(a, b) {
-		return a - b;
-	},
-	numericallyBy(name) {
-		return (a, b) => a[name] - b[name];
-	}
-};
-var patchFilter$3 = function nestedPatchFilter(context) {
-	var _a;
-	if (!context.nested) return;
-	const nestedDelta = context.delta;
-	if (nestedDelta._t !== "a") return;
-	let index;
-	let index1;
-	const delta = nestedDelta;
-	const array = context.left;
-	let toRemove = [];
-	let toInsert = [];
-	const toModify = [];
-	for (index in delta) if (index !== "_t") {
-		if (index[0] === "_") {
-			const removedOrMovedIndex = index;
-			if (delta[removedOrMovedIndex] !== void 0 && (delta[removedOrMovedIndex][2] === 0 || delta[removedOrMovedIndex][2] === ARRAY_MOVE)) toRemove.push(Number.parseInt(index.slice(1), 10));
-			else throw new Error(`only removal or move can be applied at original array indices, invalid diff type: ${(_a = delta[removedOrMovedIndex]) === null || _a === void 0 ? void 0 : _a[2]}`);
-		} else {
-			const numberIndex = index;
-			if (delta[numberIndex].length === 1) toInsert.push({
-				index: Number.parseInt(numberIndex, 10),
-				value: delta[numberIndex][0]
-			});
-			else toModify.push({
-				index: Number.parseInt(numberIndex, 10),
-				delta: delta[numberIndex]
-			});
-		}
-	}
-	toRemove = toRemove.sort(compare$1.numerically);
-	for (index = toRemove.length - 1; index >= 0; index--) {
-		index1 = toRemove[index];
-		if (index1 === void 0) continue;
-		const indexDiff = delta[`_${index1}`];
-		const removedValue = array.splice(index1, 1)[0];
-		if ((indexDiff === null || indexDiff === void 0 ? void 0 : indexDiff[2]) === ARRAY_MOVE) toInsert.push({
-			index: indexDiff[1],
-			value: removedValue
-		});
-	}
-	toInsert = toInsert.sort(compare$1.numericallyBy("index"));
-	const toInsertLength = toInsert.length;
-	for (index = 0; index < toInsertLength; index++) {
-		const insertion = toInsert[index];
-		if (insertion === void 0) continue;
-		array.splice(insertion.index, 0, insertion.value);
-	}
-	const toModifyLength = toModify.length;
-	if (toModifyLength > 0) for (index = 0; index < toModifyLength; index++) {
-		const modification = toModify[index];
-		if (modification === void 0) continue;
-		const child = new PatchContext(array[modification.index], modification.delta);
-		context.push(child, modification.index);
-	}
-	if (!context.children) {
-		context.setResult(array).exit();
-		return;
-	}
-	context.exit();
-};
-patchFilter$3.filterName = "arrays";
-var collectChildrenPatchFilter$1 = function collectChildrenPatchFilter(context) {
-	if (!context || !context.children) return;
-	if (context.delta._t !== "a") return;
-	const array = context.left;
-	const length = context.children.length;
-	for (let index = 0; index < length; index++) {
-		const child = context.children[index];
-		if (child === void 0) continue;
-		const arrayIndex = child.childName;
-		array[arrayIndex] = child.result;
-	}
-	context.setResult(array).exit();
-};
-collectChildrenPatchFilter$1.filterName = "arraysCollectChildren";
-var reverseFilter$3 = function arraysReverseFilter(context) {
-	if (!context.nested) {
-		const nonNestedDelta = context.delta;
-		if (nonNestedDelta[2] === ARRAY_MOVE) {
-			const arrayMoveDelta = nonNestedDelta;
-			context.newName = `_${arrayMoveDelta[1]}`;
-			context.setResult([
-				arrayMoveDelta[0],
-				Number.parseInt(context.childName.substring(1), 10),
-				ARRAY_MOVE
-			]).exit();
-		}
-		return;
-	}
-	const nestedDelta = context.delta;
-	if (nestedDelta._t !== "a") return;
-	const arrayDelta = nestedDelta;
-	for (const name in arrayDelta) {
-		if (name === "_t") continue;
-		const child = new ReverseContext(arrayDelta[name]);
-		context.push(child, name);
-	}
-	context.exit();
-};
-reverseFilter$3.filterName = "arrays";
-var reverseArrayDeltaIndex = (delta, index, itemDelta) => {
-	if (typeof index === "string" && index[0] === "_") return Number.parseInt(index.substring(1), 10);
-	if (Array.isArray(itemDelta) && itemDelta[2] === 0) return `_${index}`;
-	let reverseIndex = +index;
-	for (const deltaIndex in delta) {
-		const deltaItem = delta[deltaIndex];
-		if (Array.isArray(deltaItem)) {
-			if (deltaItem[2] === ARRAY_MOVE) {
-				const moveFromIndex = Number.parseInt(deltaIndex.substring(1), 10);
-				const moveToIndex = deltaItem[1];
-				if (moveToIndex === +index) return moveFromIndex;
-				if (moveFromIndex <= reverseIndex && moveToIndex > reverseIndex) reverseIndex++;
-				else if (moveFromIndex >= reverseIndex && moveToIndex < reverseIndex) reverseIndex--;
-			} else if (deltaItem[2] === 0) {
-				if (Number.parseInt(deltaIndex.substring(1), 10) <= reverseIndex) reverseIndex++;
-			} else if (deltaItem.length === 1 && Number.parseInt(deltaIndex, 10) <= reverseIndex) reverseIndex--;
-		}
-	}
-	return reverseIndex;
-};
-var collectChildrenReverseFilter$1 = (context) => {
-	if (!context || !context.children) return;
-	const deltaWithChildren = context.delta;
-	if (deltaWithChildren._t !== "a") return;
-	const arrayDelta = deltaWithChildren;
-	const length = context.children.length;
-	const delta = { _t: "a" };
-	for (let index = 0; index < length; index++) {
-		const child = context.children[index];
-		if (child === void 0) continue;
-		let name = child.newName;
-		if (typeof name === "undefined") {
-			if (child.childName === void 0) throw new Error("child.childName is undefined");
-			name = reverseArrayDeltaIndex(arrayDelta, child.childName, child.result);
-		}
-		if (delta[name] !== child.result) delta[name] = child.result;
-	}
-	context.setResult(delta).exit();
-};
-collectChildrenReverseFilter$1.filterName = "arraysCollectChildren";
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/filters/dates.js
-var diffFilter$2 = function datesDiffFilter(context) {
-	if (context.left instanceof Date) {
-		if (context.right instanceof Date) {
-			if (context.left.getTime() !== context.right.getTime()) context.setResult([context.left, context.right]);
-			else context.setResult(void 0);
-		} else context.setResult([context.left, context.right]);
-		context.exit();
-	} else if (context.right instanceof Date) context.setResult([context.left, context.right]).exit();
-};
-diffFilter$2.filterName = "dates";
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/filters/nested.js
-var UNSAFE_KEYS = /* @__PURE__ */ new Set(["__proto__"]);
-var collectChildrenDiffFilter = (context) => {
-	if (!context || !context.children) return;
-	const length = context.children.length;
-	let result = context.result;
-	for (let index = 0; index < length; index++) {
-		const child = context.children[index];
-		if (child === void 0) continue;
-		if (typeof child.result === "undefined") continue;
-		result = result || {};
-		if (child.childName === void 0) throw new Error("diff child.childName is undefined");
-		result[child.childName] = child.result;
-	}
-	if (result && context.leftIsArray) result._t = "a";
-	context.setResult(result).exit();
-};
-collectChildrenDiffFilter.filterName = "collectChildren";
-var objectsDiffFilter = (context) => {
-	var _a;
-	if (context.leftIsArray || context.leftType !== "object") return;
-	const left = context.left;
-	const right = context.right;
-	const propertyFilter = (_a = context.options) === null || _a === void 0 ? void 0 : _a.propertyFilter;
-	for (const name in left) {
-		if (!Object.prototype.hasOwnProperty.call(left, name)) continue;
-		if (propertyFilter && !propertyFilter(name, context)) continue;
-		const child = new DiffContext(left[name], right[name]);
-		context.push(child, name);
-	}
-	for (const name in right) {
-		if (!Object.prototype.hasOwnProperty.call(right, name)) continue;
-		if (propertyFilter && !propertyFilter(name, context)) continue;
-		if (typeof left[name] === "undefined") {
-			const child = new DiffContext(void 0, right[name]);
-			context.push(child, name);
-		}
-	}
-	if (!context.children || context.children.length === 0) {
-		context.setResult(void 0).exit();
-		return;
-	}
-	context.exit();
-};
-objectsDiffFilter.filterName = "objects";
-var patchFilter$2 = function nestedPatchFilter(context) {
-	if (!context.nested) return;
-	const nestedDelta = context.delta;
-	if (nestedDelta._t) return;
-	const objectDelta = nestedDelta;
-	let childrenPushed = false;
-	for (const name in objectDelta) {
-		if (UNSAFE_KEYS.has(name)) continue;
-		if (!Object.prototype.hasOwnProperty.call(objectDelta, name)) continue;
-		const left = context.left;
-		const child = new PatchContext(left !== null && typeof left === "object" && Object.prototype.hasOwnProperty.call(left, name) ? left[name] : void 0, objectDelta[name]);
-		context.push(child, name);
-		childrenPushed = true;
-	}
-	if (!childrenPushed) {
-		context.setResult(context.left).exit();
-		return;
-	}
-	context.exit();
-};
-patchFilter$2.filterName = "objects";
-var collectChildrenPatchFilter = function collectChildrenPatchFilter(context) {
-	if (!context || !context.children) return;
-	if (context.delta._t) return;
-	if (context.left === null || typeof context.left !== "object") {
-		context.setResult(context.left).exit();
-		return;
-	}
-	const object = context.left;
-	const length = context.children.length;
-	for (let index = 0; index < length; index++) {
-		const child = context.children[index];
-		if (child === void 0) continue;
-		const property = child.childName;
-		if (UNSAFE_KEYS.has(property)) continue;
-		if (Object.prototype.hasOwnProperty.call(context.left, property) && child.result === void 0) delete object[property];
-		else if (object[property] !== child.result) object[property] = child.result;
-	}
-	context.setResult(object).exit();
-};
-collectChildrenPatchFilter.filterName = "collectChildren";
-var reverseFilter$2 = function nestedReverseFilter(context) {
-	if (!context.nested) return;
-	if (context.delta._t) return;
-	const objectDelta = context.delta;
-	let childrenPushed = false;
-	for (const name in objectDelta) {
-		if (UNSAFE_KEYS.has(name)) continue;
-		if (!Object.prototype.hasOwnProperty.call(objectDelta, name)) continue;
-		const child = new ReverseContext(objectDelta[name]);
-		context.push(child, name);
-		childrenPushed = true;
-	}
-	if (!childrenPushed) {
-		context.setResult({}).exit();
-		return;
-	}
-	context.exit();
-};
-reverseFilter$2.filterName = "objects";
-var collectChildrenReverseFilter = (context) => {
-	if (!context || !context.children) return;
-	if (context.delta._t) return;
-	const length = context.children.length;
-	const delta = {};
-	for (let index = 0; index < length; index++) {
-		const child = context.children[index];
-		if (child === void 0) continue;
-		const property = child.childName;
-		if (UNSAFE_KEYS.has(property)) continue;
-		if (delta[property] !== child.result) delta[property] = child.result;
-	}
-	context.setResult(delta).exit();
-};
-collectChildrenReverseFilter.filterName = "collectChildren";
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/filters/texts.js
-var TEXT_DIFF = 2;
-var DEFAULT_MIN_LENGTH = 60;
-var cachedDiffPatch = null;
-function getDiffMatchPatch(options, required) {
-	var _a;
-	if (!cachedDiffPatch) {
-		let instance;
-		if ((_a = options === null || options === void 0 ? void 0 : options.textDiff) === null || _a === void 0 ? void 0 : _a.diffMatchPatch) instance = new options.textDiff.diffMatchPatch();
-		else {
-			if (!required) return null;
-			const error = /* @__PURE__ */ new Error("The diff-match-patch library was not provided. Pass the library in through the options or use the `jsondiffpatch/with-text-diffs` entry-point.");
-			error.diff_match_patch_not_found = true;
-			throw error;
-		}
-		cachedDiffPatch = {
-			diff: (txt1, txt2) => instance.patch_toText(instance.patch_make(txt1, txt2)),
-			patch: (txt1, patch) => {
-				const results = instance.patch_apply(instance.patch_fromText(patch), txt1);
-				for (const resultOk of results[1]) if (!resultOk) {
-					const error = /* @__PURE__ */ new Error("text patch failed");
-					error.textPatchFailed = true;
-					throw error;
-				}
-				return results[0];
-			}
-		};
-	}
-	return cachedDiffPatch;
-}
-var diffFilter$1 = function textsDiffFilter(context) {
-	var _a, _b;
-	if (context.leftType !== "string") return;
-	const left = context.left;
-	const right = context.right;
-	const minLength = ((_b = (_a = context.options) === null || _a === void 0 ? void 0 : _a.textDiff) === null || _b === void 0 ? void 0 : _b.minLength) || DEFAULT_MIN_LENGTH;
-	if (left.length < minLength || right.length < minLength) {
-		context.setResult([left, right]).exit();
-		return;
-	}
-	const diffMatchPatch = getDiffMatchPatch(context.options);
-	if (!diffMatchPatch) {
-		context.setResult([left, right]).exit();
-		return;
-	}
-	const diff = diffMatchPatch.diff;
-	context.setResult([
-		diff(left, right),
-		0,
-		TEXT_DIFF
-	]).exit();
-};
-diffFilter$1.filterName = "texts";
-var patchFilter$1 = function textsPatchFilter(context) {
-	if (context.nested) return;
-	const nonNestedDelta = context.delta;
-	if (nonNestedDelta[2] !== TEXT_DIFF) return;
-	const textDiffDelta = nonNestedDelta;
-	const patch = getDiffMatchPatch(context.options, true).patch;
-	context.setResult(patch(context.left, textDiffDelta[0])).exit();
-};
-patchFilter$1.filterName = "texts";
-var textDeltaReverse = (delta) => {
-	var _a, _b, _c;
-	const headerRegex = /^@@ +-(\d+),(\d+) +\+(\d+),(\d+) +@@$/;
-	const lines = delta.split("\n");
-	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i];
-		if (line === void 0) continue;
-		const lineStart = line.slice(0, 1);
-		if (lineStart === "@") {
-			const header = headerRegex.exec(line);
-			if (header !== null) {
-				const lineHeader = i;
-				lines[lineHeader] = `@@ -${header[3]},${header[4]} +${header[1]},${header[2]} @@`;
-			}
-		} else if (lineStart === "+") {
-			lines[i] = `-${(_a = lines[i]) === null || _a === void 0 ? void 0 : _a.slice(1)}`;
-			if (((_b = lines[i - 1]) === null || _b === void 0 ? void 0 : _b.slice(0, 1)) === "+") {
-				const lineTmp = lines[i];
-				lines[i] = lines[i - 1];
-				lines[i - 1] = lineTmp;
-			}
-		} else if (lineStart === "-") lines[i] = `+${(_c = lines[i]) === null || _c === void 0 ? void 0 : _c.slice(1)}`;
-	}
-	return lines.join("\n");
-};
-var reverseFilter$1 = function textsReverseFilter(context) {
-	if (context.nested) return;
-	const nonNestedDelta = context.delta;
-	if (nonNestedDelta[2] !== TEXT_DIFF) return;
-	const textDiffDelta = nonNestedDelta;
-	context.setResult([
-		textDeltaReverse(textDiffDelta[0]),
-		0,
-		TEXT_DIFF
-	]).exit();
-};
-reverseFilter$1.filterName = "texts";
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/filters/trivial.js
-var diffFilter = function trivialMatchesDiffFilter(context) {
-	if (context.left === context.right) {
-		context.setResult(void 0).exit();
-		return;
-	}
-	if (typeof context.left === "undefined") {
-		if (typeof context.right === "function") throw new Error("functions are not supported");
-		context.setResult([context.right]).exit();
-		return;
-	}
-	if (typeof context.right === "undefined") {
-		context.setResult([
-			context.left,
-			0,
-			0
-		]).exit();
-		return;
-	}
-	if (typeof context.left === "function" || typeof context.right === "function") throw new Error("functions are not supported");
-	context.leftType = context.left === null ? "null" : typeof context.left;
-	context.rightType = context.right === null ? "null" : typeof context.right;
-	if (context.leftType !== context.rightType) {
-		context.setResult([context.left, context.right]).exit();
-		return;
-	}
-	if (context.leftType === "boolean" || context.leftType === "number") {
-		context.setResult([context.left, context.right]).exit();
-		return;
-	}
-	if (context.leftType === "object") context.leftIsArray = Array.isArray(context.left);
-	if (context.rightType === "object") context.rightIsArray = Array.isArray(context.right);
-	if (context.leftIsArray !== context.rightIsArray) {
-		context.setResult([context.left, context.right]).exit();
-		return;
-	}
-	if (context.left instanceof RegExp) {
-		if (context.right instanceof RegExp) context.setResult([context.left.toString(), context.right.toString()]).exit();
-		else context.setResult([context.left, context.right]).exit();
-	}
-};
-diffFilter.filterName = "trivial";
-var patchFilter = function trivialMatchesPatchFilter(context) {
-	if (typeof context.delta === "undefined") {
-		context.setResult(context.left).exit();
-		return;
-	}
-	context.nested = !Array.isArray(context.delta);
-	if (context.nested) return;
-	const nonNestedDelta = context.delta;
-	if (nonNestedDelta.length === 1) {
-		context.setResult(nonNestedDelta[0]).exit();
-		return;
-	}
-	if (nonNestedDelta.length === 2) {
-		if (context.left instanceof RegExp) {
-			const regexArgs = /^\/(.*)\/([gimyu]+)$/.exec(nonNestedDelta[1]);
-			if (regexArgs === null || regexArgs === void 0 ? void 0 : regexArgs[1]) {
-				context.setResult(new RegExp(regexArgs[1], regexArgs[2])).exit();
-				return;
-			}
-		}
-		context.setResult(nonNestedDelta[1]).exit();
-		return;
-	}
-	if (nonNestedDelta.length === 3 && nonNestedDelta[2] === 0) context.setResult(void 0).exit();
-};
-patchFilter.filterName = "trivial";
-var reverseFilter = function trivialReferseFilter(context) {
-	if (typeof context.delta === "undefined") {
-		context.setResult(context.delta).exit();
-		return;
-	}
-	context.nested = !Array.isArray(context.delta);
-	if (context.nested) return;
-	const nonNestedDelta = context.delta;
-	if (nonNestedDelta.length === 1) {
-		context.setResult([
-			nonNestedDelta[0],
-			0,
-			0
-		]).exit();
-		return;
-	}
-	if (nonNestedDelta.length === 2) {
-		context.setResult([nonNestedDelta[1], nonNestedDelta[0]]).exit();
-		return;
-	}
-	if (nonNestedDelta.length === 3 && nonNestedDelta[2] === 0) context.setResult([nonNestedDelta[0]]).exit();
-};
-reverseFilter.filterName = "trivial";
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/diffpatcher.js
-var DiffPatcher = class {
-	constructor(options) {
-		this.processor = new Processor(options);
-		this.processor.pipe(new Pipe("diff").append(collectChildrenDiffFilter, diffFilter, diffFilter$2, diffFilter$1, objectsDiffFilter, diffFilter$3).shouldHaveResult());
-		this.processor.pipe(new Pipe("patch").append(collectChildrenPatchFilter, collectChildrenPatchFilter$1, patchFilter, patchFilter$1, patchFilter$2, patchFilter$3).shouldHaveResult());
-		this.processor.pipe(new Pipe("reverse").append(collectChildrenReverseFilter, collectChildrenReverseFilter$1, reverseFilter, reverseFilter$1, reverseFilter$2, reverseFilter$3).shouldHaveResult());
-	}
-	options(options) {
-		return this.processor.options(options);
-	}
-	diff(left, right) {
-		return this.processor.process(new DiffContext(left, right));
-	}
-	patch(left, delta) {
-		return this.processor.process(new PatchContext(left, delta));
-	}
-	reverse(delta) {
-		return this.processor.process(new ReverseContext(delta));
-	}
-	unpatch(right, delta) {
-		return this.patch(right, this.reverse(delta));
-	}
-	clone(value) {
-		return clone(value);
-	}
-};
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/index.js
-var defaultInstance$1;
-function diff$1(left, right) {
-	if (!defaultInstance$1) defaultInstance$1 = new DiffPatcher();
-	return defaultInstance$1.diff(left, right);
-}
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/formatters/base.js
-var BaseFormatter = class {
-	format(delta, left) {
-		const context = {};
-		this.prepareContext(context);
-		const preparedContext = context;
-		this.recurse(preparedContext, delta, left);
-		return this.finalize(preparedContext);
-	}
-	prepareContext(context) {
-		context.buffer = [];
-		context.out = function(...args) {
-			if (!this.buffer) throw new Error("context buffer is not initialized");
-			this.buffer.push(...args);
-		};
-	}
-	typeFormattterNotFound(_context, deltaType) {
-		throw new Error(`cannot format delta type: ${deltaType}`);
-	}
-	typeFormattterErrorFormatter(_context, _err, _delta, _leftValue, _key, _leftKey, _movedFrom) {}
-	finalize({ buffer }) {
-		if (Array.isArray(buffer)) return buffer.join("");
-		return "";
-	}
-	recurse(context, delta, left, key, leftKey, movedFrom, isLast) {
-		const leftValue = delta && movedFrom ? movedFrom.value : left;
-		if (typeof delta === "undefined" && typeof key === "undefined") return;
-		const type = this.getDeltaType(delta, movedFrom);
-		const nodeType = type === "node" ? delta._t === "a" ? "array" : "object" : "";
-		if (typeof key !== "undefined") this.nodeBegin(context, key, leftKey, type, nodeType, isLast !== null && isLast !== void 0 ? isLast : false);
-		else this.rootBegin(context, type, nodeType);
-		let typeFormattter;
-		try {
-			typeFormattter = type !== "unknown" ? this[`format_${type}`] : this.typeFormattterNotFound(context, type);
-			typeFormattter.call(this, context, delta, leftValue, key, leftKey, movedFrom);
-		} catch (err) {
-			this.typeFormattterErrorFormatter(context, err, delta, leftValue, key, leftKey, movedFrom);
-			if (typeof console !== "undefined" && console.error) console.error(err.stack);
-		}
-		if (typeof key !== "undefined") this.nodeEnd(context, key, leftKey, type, nodeType, isLast !== null && isLast !== void 0 ? isLast : false);
-		else this.rootEnd(context, type, nodeType);
-	}
-	formatDeltaChildren(context, delta, left) {
-		this.forEachDeltaKey(delta, left, (key, leftKey, movedFrom, isLast) => {
-			this.recurse(context, delta[key], left ? left[leftKey] : void 0, key, leftKey, movedFrom, isLast);
-		});
-	}
-	forEachDeltaKey(delta, left, fn) {
-		const keys = [];
-		if (!(delta._t === "a")) {
-			const deltaKeys = Object.keys(delta);
-			if (typeof left === "object" && left !== null) keys.push(...Object.keys(left));
-			for (const key of deltaKeys) {
-				if (keys.indexOf(key) >= 0) continue;
-				keys.push(key);
-			}
-			for (let index = 0; index < keys.length; index++) {
-				const key = keys[index];
-				if (key === void 0) continue;
-				fn(key, key, void 0, index === keys.length - 1);
-			}
-			return;
-		}
-		const movedFrom = {};
-		for (const key in delta) if (Object.prototype.hasOwnProperty.call(delta, key)) {
-			const value = delta[key];
-			if (Array.isArray(value) && value[2] === 3) {
-				const movedDelta = value;
-				movedFrom[movedDelta[1]] = Number.parseInt(key.substring(1));
-			}
-		}
-		const arrayDelta = delta;
-		let leftIndex = 0;
-		let rightIndex = 0;
-		const leftArray = Array.isArray(left) ? left : void 0;
-		const leftLength = leftArray ? leftArray.length : Object.keys(arrayDelta).reduce((max, key) => {
-			if (key === "_t") return max;
-			if (key.substring(0, 1) === "_") {
-				const itemDelta = arrayDelta[key];
-				const leftIndex = Number.parseInt(key.substring(1));
-				const rightIndex = Array.isArray(itemDelta) && itemDelta.length >= 3 && itemDelta[2] === 3 ? itemDelta[1] : void 0;
-				const maxIndex = Math.max(leftIndex, rightIndex !== null && rightIndex !== void 0 ? rightIndex : 0);
-				return maxIndex > max ? maxIndex : max;
-			}
-			const rightIndex = Number.parseInt(key);
-			const leftIndex = movedFrom[rightIndex];
-			const maxIndex = Math.max(leftIndex !== null && leftIndex !== void 0 ? leftIndex : 0, rightIndex !== null && rightIndex !== void 0 ? rightIndex : 0);
-			return maxIndex > max ? maxIndex : max;
-		}, 0) + 1;
-		let rightLength = leftLength;
-		let previousFnArgs;
-		const addKey = (...args) => {
-			if (previousFnArgs) fn(...previousFnArgs);
-			previousFnArgs = args;
-		};
-		const flushLastKey = () => {
-			if (!previousFnArgs) return;
-			fn(previousFnArgs[0], previousFnArgs[1], previousFnArgs[2], true);
-		};
-		while (leftIndex < leftLength || rightIndex < rightLength || `${rightIndex}` in arrayDelta) {
-			let hasDelta = false;
-			const leftIndexKey = `_${leftIndex}`;
-			const rightIndexKey = `${rightIndex}`;
-			const movedFromIndex = rightIndex in movedFrom ? movedFrom[rightIndex] : void 0;
-			if (leftIndexKey in arrayDelta) {
-				hasDelta = true;
-				const itemDelta = arrayDelta[leftIndexKey];
-				addKey(leftIndexKey, movedFromIndex !== null && movedFromIndex !== void 0 ? movedFromIndex : leftIndex, movedFromIndex ? {
-					key: `_${movedFromIndex}`,
-					value: leftArray ? leftArray[movedFromIndex] : void 0
-				} : void 0, false);
-				if (Array.isArray(itemDelta)) {
-					if (itemDelta[2] === 0) {
-						rightLength--;
-						leftIndex++;
-					} else if (itemDelta[2] === 3) leftIndex++;
-					else leftIndex++;
-				} else leftIndex++;
-			}
-			if (rightIndexKey in arrayDelta) {
-				hasDelta = true;
-				const itemDelta = arrayDelta[rightIndexKey];
-				const isItemAdded = Array.isArray(itemDelta) && itemDelta.length === 1;
-				addKey(rightIndexKey, movedFromIndex !== null && movedFromIndex !== void 0 ? movedFromIndex : leftIndex, movedFromIndex ? {
-					key: `_${movedFromIndex}`,
-					value: leftArray ? leftArray[movedFromIndex] : void 0
-				} : void 0, false);
-				if (isItemAdded) {
-					rightLength++;
-					rightIndex++;
-				} else if (movedFromIndex === void 0) {
-					leftIndex++;
-					rightIndex++;
-				} else rightIndex++;
-			}
-			if (!hasDelta) {
-				if (leftArray && movedFromIndex === void 0 || this.includeMoveDestinations !== false) addKey(rightIndexKey, movedFromIndex !== null && movedFromIndex !== void 0 ? movedFromIndex : leftIndex, movedFromIndex ? {
-					key: `_${movedFromIndex}`,
-					value: leftArray ? leftArray[movedFromIndex] : void 0
-				} : void 0, false);
-				if (movedFromIndex !== void 0) rightIndex++;
-				else {
-					leftIndex++;
-					rightIndex++;
-				}
-			}
-		}
-		flushLastKey();
-	}
-	getDeltaType(delta, movedFrom) {
-		if (typeof delta === "undefined") {
-			if (typeof movedFrom !== "undefined") return "movedestination";
-			return "unchanged";
-		}
-		if (Array.isArray(delta)) {
-			if (delta.length === 1) return "added";
-			if (delta.length === 2) return "modified";
-			if (delta.length === 3 && delta[2] === 0) return "deleted";
-			if (delta.length === 3 && delta[2] === 2) return "textdiff";
-			if (delta.length === 3 && delta[2] === 3) return "moved";
-		} else if (typeof delta === "object") return "node";
-		return "unknown";
-	}
-	parseTextDiff(value) {
-		var _a;
-		const output = [];
-		const lines = value.split("\n@@ ");
-		for (const line of lines) {
-			const lineOutput = { pieces: [] };
-			const location = (_a = /^(?:@@ )?[-+]?(\d+),(\d+)/.exec(line)) === null || _a === void 0 ? void 0 : _a.slice(1);
-			if (!location) throw new Error("invalid text diff format");
-			assertArrayHasAtLeast2(location);
-			lineOutput.location = {
-				line: location[0],
-				chr: location[1]
-			};
-			const pieces = line.split("\n").slice(1);
-			for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
-				const piece = pieces[pieceIndex];
-				if (piece === void 0 || !piece.length) continue;
-				const pieceOutput = { type: "context" };
-				if (piece.substring(0, 1) === "+") pieceOutput.type = "added";
-				else if (piece.substring(0, 1) === "-") pieceOutput.type = "deleted";
-				pieceOutput.text = piece.slice(1);
-				lineOutput.pieces.push(pieceOutput);
-			}
-			output.push(lineOutput);
-		}
-		return output;
-	}
-};
-//#endregion
-//#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/formatters/html.js
-var HtmlFormatter = class extends BaseFormatter {
-	typeFormattterErrorFormatter(context, err) {
-		const message = typeof err === "object" && err !== null && "message" in err && typeof err.message === "string" ? err.message : String(err);
-		context.out(`<pre class="jsondiffpatch-error">${htmlEscape(message)}</pre>`);
-	}
-	formatValue(context, value) {
-		const valueAsHtml = typeof value === "undefined" ? "undefined" : htmlEscape(JSON.stringify(value, null, 2));
-		context.out(`<pre>${valueAsHtml}</pre>`);
-	}
-	formatTextDiffString(context, value) {
-		const lines = this.parseTextDiff(value);
-		context.out("<ul class=\"jsondiffpatch-textdiff\">");
-		for (let i = 0, l = lines.length; i < l; i++) {
-			const line = lines[i];
-			if (line === void 0) return;
-			context.out(`<li><div class="jsondiffpatch-textdiff-location"><span class="jsondiffpatch-textdiff-line-number">${line.location.line}</span><span class="jsondiffpatch-textdiff-char">${line.location.chr}</span></div><div class="jsondiffpatch-textdiff-line">`);
-			const pieces = line.pieces;
-			for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
-				const piece = pieces[pieceIndex];
-				if (piece === void 0) return;
-				context.out(`<span class="jsondiffpatch-textdiff-${piece.type}">${htmlEscape(decodeURI(piece.text))}</span>`);
-			}
-			context.out("</div></li>");
-		}
-		context.out("</ul>");
-	}
-	rootBegin(context, type, nodeType) {
-		const nodeClass = `jsondiffpatch-${type}${nodeType ? ` jsondiffpatch-child-node-type-${nodeType}` : ""}`;
-		context.out(`<div class="jsondiffpatch-delta ${nodeClass}">`);
-	}
-	rootEnd(context) {
-		context.out(`</div>${context.hasArrows ? `<script type="text/javascript">setTimeout(${adjustArrows.toString()},10);<\/script>` : ""}`);
-	}
-	nodeBegin(context, key, leftKey, type, nodeType) {
-		const nodeClass = `jsondiffpatch-${type}${nodeType ? ` jsondiffpatch-child-node-type-${nodeType}` : ""}`;
-		const label = typeof leftKey === "number" && key.substring(0, 1) === "_" ? key.substring(1) : key;
-		context.out(`<li class="${nodeClass}" data-key="${htmlEscape(key)}"><div class="jsondiffpatch-property-name">${htmlEscape(label)}</div>`);
-	}
-	nodeEnd(context) {
-		context.out("</li>");
-	}
-	format_unchanged(context, _delta, left) {
-		if (typeof left === "undefined") return;
-		context.out("<div class=\"jsondiffpatch-value\">");
-		this.formatValue(context, left);
-		context.out("</div>");
-	}
-	format_movedestination(context, _delta, left) {
-		if (typeof left === "undefined") return;
-		context.out("<div class=\"jsondiffpatch-value\">");
-		this.formatValue(context, left);
-		context.out("</div>");
-	}
-	format_node(context, delta, left) {
-		const nodeType = delta._t === "a" ? "array" : "object";
-		context.out(`<ul class="jsondiffpatch-node jsondiffpatch-node-type-${nodeType}">`);
-		this.formatDeltaChildren(context, delta, left);
-		context.out("</ul>");
-	}
-	format_added(context, delta) {
-		context.out("<div class=\"jsondiffpatch-value\">");
-		this.formatValue(context, delta[0]);
-		context.out("</div>");
-	}
-	format_modified(context, delta) {
-		context.out("<div class=\"jsondiffpatch-value jsondiffpatch-left-value\">");
-		this.formatValue(context, delta[0]);
-		context.out("</div><div class=\"jsondiffpatch-value jsondiffpatch-right-value\">");
-		this.formatValue(context, delta[1]);
-		context.out("</div>");
-	}
-	format_deleted(context, delta) {
-		context.out("<div class=\"jsondiffpatch-value\">");
-		this.formatValue(context, delta[0]);
-		context.out("</div>");
-	}
-	format_moved(context, delta) {
-		context.out("<div class=\"jsondiffpatch-value\">");
-		this.formatValue(context, delta[0]);
-		context.out(`</div><div class="jsondiffpatch-moved-destination">${delta[1]}</div>`);
-		context.out("<div class=\"jsondiffpatch-arrow\" style=\"position: relative; left: -34px;\">\n          <svg width=\"30\" height=\"60\" style=\"position: absolute; display: none;\">\n          <defs>\n              <marker id=\"markerArrow\" markerWidth=\"8\" markerHeight=\"8\"\n                 refx=\"2\" refy=\"4\" stroke=\"#88f\"\n                     orient=\"auto\" markerUnits=\"userSpaceOnUse\">\n                  <path d=\"M1,1 L1,7 L7,4 L1,1\" style=\"fill: #339;\" />\n              </marker>\n          </defs>\n          <path d=\"M30,0 Q-10,25 26,50\"\n            style=\"stroke: #88f; stroke-width: 2px; fill: none; stroke-opacity: 0.5; marker-end: url(#markerArrow);\"\n          ></path>\n          </svg>\n      </div>");
-		context.hasArrows = true;
-	}
-	format_textdiff(context, delta) {
-		context.out("<div class=\"jsondiffpatch-value\">");
-		this.formatTextDiffString(context, delta[0]);
-		context.out("</div>");
-	}
-};
-function htmlEscape(value) {
-	if (typeof value === "number") return value;
-	let html = String(value);
-	for (const replacement of [
-		[/&/g, "&amp;"],
-		[/</g, "&lt;"],
-		[/>/g, "&gt;"],
-		[/'/g, "&apos;"],
-		[/"/g, "&quot;"]
-	]) html = html.replace(replacement[0], replacement[1]);
-	return html;
-}
-var adjustArrows = function jsondiffpatchHtmlFormatterAdjustArrows(nodeArg) {
-	const node = nodeArg || document;
-	const getElementText = ({ textContent, innerText }) => textContent || innerText;
-	const eachByQuery = (el, query, fn) => {
-		const elems = el.querySelectorAll(query);
-		for (let i = 0, l = elems.length; i < l; i++) fn(elems[i]);
-	};
-	const eachChildren = ({ children }, fn) => {
-		for (let i = 0, l = children.length; i < l; i++) {
-			const element = children[i];
-			if (!element) continue;
-			fn(element, i);
-		}
-	};
-	eachByQuery(node, ".jsondiffpatch-arrow", ({ parentNode, children, style }) => {
-		const arrowParent = parentNode;
-		const svg = children[0];
-		const path = svg.children[1];
-		svg.style.display = "none";
-		const moveDestinationElem = arrowParent.querySelector(".jsondiffpatch-moved-destination");
-		if (!(moveDestinationElem instanceof HTMLElement)) return;
-		const destination = getElementText(moveDestinationElem);
-		const container = arrowParent.parentNode;
-		if (!container) return;
-		let destinationElem;
-		eachChildren(container, (child) => {
-			if (child.getAttribute("data-key") === destination) destinationElem = child;
-		});
-		if (!destinationElem) return;
-		try {
-			const distance = destinationElem.offsetTop - arrowParent.offsetTop;
-			svg.setAttribute("height", `${Math.abs(distance) + 6}`);
-			style.top = `${-8 + (distance > 0 ? 0 : distance)}px`;
-			const curve = distance > 0 ? `M30,0 Q-10,${Math.round(distance / 2)} 26,${distance - 4}` : `M30,${-distance} Q-10,${Math.round(-distance / 2)} 26,4`;
-			path.setAttribute("d", curve);
-			svg.style.display = "";
-		} catch (err) {
-			console.debug(`[jsondiffpatch] error adjusting arrows: ${err}`);
-		}
-	});
-};
-var defaultInstance;
-function format(delta, left) {
-	if (!defaultInstance) defaultInstance = new HtmlFormatter();
-	return defaultInstance.format(delta, left);
 }
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/state/StateDiffView.tsx
 /**
-* Renders a view displaying a list of state changes.
+* Renders a view displaying a list of state changes. The diff is built here,
+* not by the event row, so it's only computed while this tab is shown.
 */ var StateDiffView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(10);
-	const { before, after, className } = t0;
+	const $ = (0, import_compiler_runtime.c)(9);
+	const { changes, className } = t0;
 	let t1;
-	if ($[0] !== after || $[1] !== before) {
-		t1 = sanitizeRenderedHtml((format(diff$1(sanitizeKeys(before), sanitizeKeys(after))) || "Unable to render differences").replace(/\\n/g, "\n"));
-		$[0] = after;
-		$[1] = before;
-		$[2] = t1;
-	} else t1 = $[2];
+	if ($[0] !== changes) {
+		t1 = diffFromChanges(changes);
+		$[0] = changes;
+		$[1] = t1;
+	} else t1 = $[1];
+	const diff = t1;
 	let t2;
-	if ($[3] !== t1) {
-		t2 = { __html: t1 };
-		$[3] = t1;
-		$[4] = t2;
-	} else t2 = $[4];
+	if ($[2] !== className) {
+		t2 = clsx(className);
+		$[2] = className;
+		$[3] = t2;
+	} else t2 = $[3];
 	let t3;
-	if ($[5] !== className) {
-		t3 = clsx(className);
-		$[5] = className;
-		$[6] = t3;
-	} else t3 = $[6];
+	if ($[4] !== diff) {
+		t3 = diff?.kind === "node" ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: "jsondiffpatch-delta jsondiffpatch-node jsondiffpatch-child-node-type-object",
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffChildren, { entry: diff })
+		}) : "Unable to render differences";
+		$[4] = diff;
+		$[5] = t3;
+	} else t3 = $[5];
 	let t4;
-	if ($[7] !== t2 || $[8] !== t3) {
+	if ($[6] !== t2 || $[7] !== t3) {
 		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			dangerouslySetInnerHTML: t2,
-			className: t3
+			className: t2,
+			children: t3
 		});
-		$[7] = t2;
-		$[8] = t3;
-		$[9] = t4;
-	} else t4 = $[9];
+		$[6] = t2;
+		$[7] = t3;
+		$[8] = t4;
+	} else t4 = $[8];
 	return t4;
 };
-/**
-* Escapes angle brackets in object keys so jsondiffpatch's HTML formatter
-* renders them as text. Typed unknown -> unknown: it rebuilds the value rather
-* than preserving its type, which is what the old `<T>(obj: T): T` claimed.
-*/ function sanitizeKeys(value) {
-	if (Array.isArray(value)) return value.map((item) => sanitizeKeys(item));
-	if (!isRecord(value)) return value;
-	return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key.replace(/</g, "&lt;").replace(/>/g, "&gt;"), sanitizeKeys(entry)]));
+var DiffChildren = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(7);
+	const { entry } = t0;
+	const t1 = entry.isArray ? "jsondiffpatch-node-type-array" : "jsondiffpatch-node-type-object";
+	let t2;
+	if ($[0] !== t1) {
+		t2 = clsx("jsondiffpatch-node", t1);
+		$[0] = t1;
+		$[1] = t2;
+	} else t2 = $[1];
+	let t3;
+	if ($[2] !== entry.children) {
+		t3 = entry.children.map(_temp$52);
+		$[2] = entry.children;
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] !== t2 || $[5] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("ul", {
+			className: t2,
+			children: t3
+		});
+		$[4] = t2;
+		$[5] = t3;
+		$[6] = t4;
+	} else t4 = $[6];
+	return t4;
+};
+var DiffRow = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(27);
+	const { child } = t0;
+	const { entry, key } = child;
+	let t1;
+	if ($[0] !== key) {
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: "jsondiffpatch-property-name",
+			children: key
+		});
+		$[0] = key;
+		$[1] = t1;
+	} else t1 = $[1];
+	const label = t1;
+	switch (entry.kind) {
+		case "node": {
+			const t2 = entry.isArray ? "jsondiffpatch-child-node-type-array" : "jsondiffpatch-child-node-type-object";
+			let t3;
+			if ($[2] !== t2) {
+				t3 = clsx("jsondiffpatch-node", t2);
+				$[2] = t2;
+				$[3] = t3;
+			} else t3 = $[3];
+			let t4;
+			if ($[4] !== entry) {
+				t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffChildren, { entry });
+				$[4] = entry;
+				$[5] = t4;
+			} else t4 = $[5];
+			let t5;
+			if ($[6] !== key || $[7] !== label || $[8] !== t3 || $[9] !== t4) {
+				t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("li", {
+					className: t3,
+					"data-key": key,
+					children: [label, t4]
+				});
+				$[6] = key;
+				$[7] = label;
+				$[8] = t3;
+				$[9] = t4;
+				$[10] = t5;
+			} else t5 = $[10];
+			return t5;
+		}
+		case "added":
+		case "deleted": {
+			const t2 = `jsondiffpatch-${entry.kind}`;
+			let t3;
+			if ($[11] !== entry.value) {
+				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: "jsondiffpatch-value",
+					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffValue, { value: entry.value })
+				});
+				$[11] = entry.value;
+				$[12] = t3;
+			} else t3 = $[12];
+			let t4;
+			if ($[13] !== key || $[14] !== label || $[15] !== t2 || $[16] !== t3) {
+				t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("li", {
+					className: t2,
+					"data-key": key,
+					children: [label, t3]
+				});
+				$[13] = key;
+				$[14] = label;
+				$[15] = t2;
+				$[16] = t3;
+				$[17] = t4;
+			} else t4 = $[17];
+			return t4;
+		}
+		case "modified": {
+			let t2;
+			if ($[18] !== entry.left) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: "jsondiffpatch-value jsondiffpatch-left-value",
+					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffValue, { value: entry.left })
+				});
+				$[18] = entry.left;
+				$[19] = t2;
+			} else t2 = $[19];
+			let t3;
+			if ($[20] !== entry.right) {
+				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: "jsondiffpatch-value jsondiffpatch-right-value",
+					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffValue, { value: entry.right })
+				});
+				$[20] = entry.right;
+				$[21] = t3;
+			} else t3 = $[21];
+			let t4;
+			if ($[22] !== key || $[23] !== label || $[24] !== t2 || $[25] !== t3) {
+				t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("li", {
+					className: "jsondiffpatch-modified",
+					"data-key": key,
+					children: [
+						label,
+						t2,
+						t3
+					]
+				});
+				$[22] = key;
+				$[23] = label;
+				$[24] = t2;
+				$[25] = t3;
+				$[26] = t4;
+			} else t4 = $[26];
+			return t4;
+		}
+	}
+};
+var DiffValue = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(4);
+	const { value } = t0;
+	let t1;
+	if ($[0] !== value) {
+		t1 = value === void 0 ? "undefined" : JSON.stringify(value, null, 2).replace(/\\n/g, "\n");
+		$[0] = value;
+		$[1] = t1;
+	} else t1 = $[1];
+	let t2;
+	if ($[2] !== t1) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", { children: t1 });
+		$[2] = t1;
+		$[3] = t2;
+	} else t2 = $[3];
+	return t2;
+};
+function _temp$52(child) {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffRow, { child }, child.id);
 }
 var StateEventView_module_default = {
 	diff: "_diff_eobja_1",
@@ -112751,7 +113717,7 @@ var StateEventView_module_default = {
 /**
 * Renders the StateEventView component.
 */ var StateEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(32);
+	const $ = (0, import_compiler_runtime.c)(27);
 	const { eventNode, className, onAutoCollapse, eventCallbacks } = t0;
 	const event = eventNode.event;
 	let t1;
@@ -112761,131 +113727,109 @@ var StateEventView_module_default = {
 		$[1] = t1;
 	} else t1 = $[1];
 	const summary = t1;
-	let t2;
-	try {
-		let t4;
-		if ($[2] !== event.changes) {
-			t4 = synthesizeComparable(event.changes);
-			$[2] = event.changes;
-			$[3] = t4;
-		} else t4 = $[3];
-		t2 = t4;
-	} catch (t3) {
-		console.error("Unable to synthesize comparable object to display state diffs.", t3);
-		let t4;
-		if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-			t4 = [{}, {}];
-			$[4] = t4;
-		} else t4 = $[4];
-		t2 = t4;
-	}
-	const [before, after] = t2;
 	const isStore = eventNode.event.event === "store";
-	let t4;
-	if ($[5] !== after || $[6] !== event.changes || $[7] !== eventNode.id || $[8] !== isStore) {
-		const afterClone = structuredClone(after);
-		t4 = generatePreview(event.changes, afterClone, isStore, eventNode.id);
-		$[5] = after;
-		$[6] = event.changes;
-		$[7] = eventNode.id;
-		$[8] = isStore;
-		$[9] = t4;
-	} else t4 = $[9];
-	const changePreview = t4;
+	let t2;
+	if ($[2] !== event.changes || $[3] !== eventNode.id || $[4] !== isStore) {
+		t2 = generatePreview(event.changes, isStore, eventNode.id);
+		$[2] = event.changes;
+		$[3] = eventNode.id;
+		$[4] = isStore;
+		$[5] = t2;
+	} else t2 = $[5];
+	const changePreview = t2;
 	const title = event.event === "state" ? "State Updated" : "Store Updated";
-	let t5;
-	let t6;
-	if ($[10] !== changePreview || $[11] !== eventNode.id || $[12] !== onAutoCollapse) {
-		t5 = () => {
+	let t3;
+	let t4;
+	if ($[6] !== changePreview || $[7] !== eventNode.id || $[8] !== onAutoCollapse) {
+		t3 = () => {
 			if (changePreview === void 0 && onAutoCollapse) onAutoCollapse(eventNode.id);
 		};
-		t6 = [
+		t4 = [
 			changePreview,
 			onAutoCollapse,
 			eventNode.id
 		];
-		$[10] = changePreview;
-		$[11] = eventNode.id;
-		$[12] = onAutoCollapse;
-		$[13] = t5;
-		$[14] = t6;
+		$[6] = changePreview;
+		$[7] = eventNode.id;
+		$[8] = onAutoCollapse;
+		$[9] = t3;
+		$[10] = t4;
 	} else {
-		t5 = $[13];
-		t6 = $[14];
+		t3 = $[9];
+		t4 = $[10];
 	}
-	(0, import_react.useEffect)(t5, t6);
-	const t7 = eventNode.id;
+	(0, import_react.useEffect)(t3, t4);
+	const t5 = eventNode.id;
+	let t6;
+	if ($[11] !== event.timestamp) {
+		t6 = event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0;
+		$[11] = event.timestamp;
+		$[12] = t6;
+	} else t6 = $[12];
+	const t7 = !changePreview ? summary : void 0;
 	let t8;
-	if ($[15] !== event.timestamp) {
-		t8 = event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0;
-		$[15] = event.timestamp;
-		$[16] = t8;
-	} else t8 = $[16];
-	const t9 = !changePreview ? summary : void 0;
-	let t10;
-	if ($[17] !== changePreview) {
-		t10 = changePreview ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[13] !== changePreview) {
+		t8 = changePreview ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Summary",
 			className: clsx(StateEventView_module_default.summary),
 			children: changePreview
 		}) : void 0;
-		$[17] = changePreview;
-		$[18] = t10;
-	} else t10 = $[18];
+		$[13] = changePreview;
+		$[14] = t8;
+	} else t8 = $[14];
+	const t9 = event.changes;
+	let t10;
+	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
+		t10 = clsx(StateEventView_module_default.diff);
+		$[15] = t10;
+	} else t10 = $[15];
 	let t11;
-	if ($[19] === Symbol.for("react.memo_cache_sentinel")) {
-		t11 = clsx(StateEventView_module_default.diff);
-		$[19] = t11;
-	} else t11 = $[19];
-	let t12;
-	if ($[20] !== after || $[21] !== before) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StateDiffView, {
-			before,
-			after,
+	if ($[16] !== event.changes) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StateDiffView, {
+			changes: t9,
 			"data-name": "Diff",
-			className: t11
+			className: t10
 		});
-		$[20] = after;
-		$[21] = before;
-		$[22] = t12;
-	} else t12 = $[22];
-	let t13;
-	if ($[23] !== className || $[24] !== eventCallbacks || $[25] !== eventNode.id || $[26] !== t10 || $[27] !== t12 || $[28] !== t8 || $[29] !== t9 || $[30] !== title) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
-			eventNodeId: t7,
+		$[16] = event.changes;
+		$[17] = t11;
+	} else t11 = $[17];
+	let t12;
+	if ($[18] !== className || $[19] !== eventCallbacks || $[20] !== eventNode.id || $[21] !== t11 || $[22] !== t6 || $[23] !== t7 || $[24] !== t8 || $[25] !== title) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
+			eventNodeId: t5,
 			title,
 			className,
-			subTitle: t8,
-			text: t9,
+			subTitle: t6,
+			text: t7,
 			collapsibleContent: true,
 			eventCallbacks,
-			children: [t10, t12]
+			children: [t8, t11]
 		});
-		$[23] = className;
-		$[24] = eventCallbacks;
-		$[25] = eventNode.id;
-		$[26] = t10;
-		$[27] = t12;
-		$[28] = t8;
-		$[29] = t9;
-		$[30] = title;
-		$[31] = t13;
-	} else t13 = $[31];
-	return t13;
+		$[18] = className;
+		$[19] = eventCallbacks;
+		$[20] = eventNode.id;
+		$[21] = t11;
+		$[22] = t6;
+		$[23] = t7;
+		$[24] = t8;
+		$[25] = title;
+		$[26] = t12;
+	} else t12 = $[26];
+	return t12;
 };
 /**
 * Renders the value of a change based on its type.
-*/ var generatePreview = (changes, resolvedState, isStore, eventNodeId) => {
+*/ var generatePreview = (changes, isStore, eventNodeId) => {
 	const results = [];
 	for (const changeType of [...RenderableChangeTypes, ...isStore ? StoreSpecificRenderableTypes : []]) if (changeType.signature) {
 		if (matchesChangeSignature(changes, changeType.signature)) {
-			const el = changeType.render(changes, resolvedState, eventNodeId);
+			const el = changeType.render(changes, eventNodeId);
 			results.push(el);
 			break;
 		}
 	} else if (changeType.match) {
 		if (changeType.match(changes)) {
-			const el = changeType.render(changes, resolvedState, eventNodeId);
+			const el = changeType.render(changes, eventNodeId);
 			results.push(el);
 			break;
 		}
@@ -112930,149 +113874,6 @@ var StateEventView_module_default = {
 	});
 	return changeList.join(", ");
 };
-var isPathContainer = (value) => typeof value === "object" && value !== null;
-var getChild = (container, key) => {
-	if (Array.isArray(container)) {
-		const index = Number(key);
-		return Object.hasOwn(container, index) ? container[index] : void 0;
-	}
-	return Object.hasOwn(container, key) ? container[key] : void 0;
-};
-var setChild = (container, key, value) => {
-	if (Array.isArray(container)) container[Number(key)] = value;
-	else if (key === "__proto__") Object.defineProperty(container, key, {
-		value,
-		enumerable: true,
-		writable: true,
-		configurable: true
-	});
-	else container[key] = value;
-};
-var asArray$1 = (value) => Array.isArray(value) ? value : void 0;
-var arrayToObject = (arr) => {
-	const obj = {};
-	arr.forEach((item, index) => {
-		obj[index] = item;
-	});
-	return obj;
-};
-/**
-* Synthesizes before/after objects from a list of JSON-patch changes so the
-* pair can be diffed. Exported for tests.
-*/ var synthesizeComparable = (changes) => {
-	const before = {};
-	const after = {};
-	for (const change of changes) switch (change.op) {
-		case "add":
-			initializeArrays(before, change.path);
-			initializeArrays(after, change.path);
-			setPath(after, change.path, change.value);
-			break;
-		case "copy":
-			setPath(before, change.path, change.value);
-			setPath(after, change.path, change.value);
-			break;
-		case "move":
-			setPath(before, change.from || "", change.value);
-			setPath(after, change.path, change.value);
-			break;
-		case "remove":
-			setPath(before, change.path, change.value);
-			break;
-		case "replace":
-			initializeArrays(before, change.path);
-			initializeArrays(after, change.path);
-			setPath(before, change.path, change.replaced);
-			setPath(after, change.path, change.value);
-	}
-	reconcileContainerKinds(before, after);
-	return [before, after];
-};
-/**
-* Aligns container kinds between the two synthesized sides. Ops that write
-* only one side (remove, move, copy) skip initializeArrays, so a mixed-key
-* re-key can fire on one side only — and jsondiffpatch renders array-vs-object
-* at the same path as a whole-value swap instead of key-level edits.
-*/ function reconcileContainerKinds(a, b) {
-	const keys = Array.isArray(a) ? a.map((_, index) => String(index)) : Object.keys(a);
-	for (const key of keys) {
-		const leftRaw = getChild(a, key);
-		const rightRaw = getChild(b, key);
-		if (!isPathContainer(leftRaw) || !isPathContainer(rightRaw)) continue;
-		let left = leftRaw;
-		let right = rightRaw;
-		if (Array.isArray(left) && !Array.isArray(right)) {
-			left = arrayToObject(left);
-			setChild(a, key, left);
-		} else if (Array.isArray(right) && !Array.isArray(left)) {
-			right = arrayToObject(right);
-			setChild(b, key, right);
-		}
-		reconcileContainerKinds(left, right);
-	}
-}
-/**
-* Sets a value at a path in an object
-*/ function setPath(target, path, value) {
-	const keys = parsePath(path);
-	let current = target;
-	for (let i = 0; i < keys.length - 1; i++) {
-		const key = keys[i];
-		if (!key) return;
-		const nextKey = keys[i + 1];
-		const existing = getChild(current, key);
-		let next;
-		if (isPathContainer(existing)) {
-			next = Array.isArray(existing) && nextKey && !isArrayIndex(nextKey) ? arrayToObject(existing) : existing;
-			if (next !== existing) setChild(current, key, next);
-		} else {
-			next = nextKey && isArrayIndex(nextKey) ? [] : {};
-			setChild(current, key, next);
-		}
-		current = next;
-	}
-	const lastKey = keys[keys.length - 1];
-	if (lastKey) setChild(current, lastKey, value);
-}
-/**
-* Places structure in an object (without placing values)
-*/ function initializeArrays(target, path) {
-	const keys = parsePath(path);
-	let current = target;
-	for (let i = 0; i < keys.length - 1; i++) {
-		const key = keys[i];
-		const nextKey = keys[i + 1];
-		if (!key || !nextKey) continue;
-		const existing = getChild(current, key);
-		if (isArrayIndex(nextKey)) {
-			if (Array.isArray(existing) || !isPathContainer(existing)) setChild(current, key, initializeArray(asArray$1(existing), nextKey));
-		} else if (Array.isArray(existing)) setChild(current, key, arrayToObject(existing));
-		else setChild(current, key, isPathContainer(existing) ? existing : {});
-		const next = getChild(current, key);
-		if (!isPathContainer(next)) return;
-		current = next;
-	}
-	const lastKey = keys[keys.length - 1];
-	if (lastKey && isArrayIndex(lastKey)) initializeArray(asArray$1(getChild(current, lastKey)), lastKey);
-}
-/**
-* Parses a path into an array of keys
-*/ function parsePath(path) {
-	return path.split("/").filter(Boolean);
-}
-/**
-* Checks if a key represents an array index
-*/ function isArrayIndex(key) {
-	return /^\d+$/.test(key);
-}
-/**
-* Initializes an array at a given key, ensuring it is large enough
-*/ function initializeArray(current, nextKey) {
-	if (!Array.isArray(current)) current = [];
-	const nextKeyIndex = parseInt(nextKey, 10);
-	while (current.length < nextKeyIndex) current.push("");
-	return current;
-}
 var SubtaskEventView_module_default = {
 	summary: "_summary_ac4z2_1",
 	summaryRendered: "_summaryRendered_ac4z2_6",
@@ -117314,7 +118115,7 @@ var kExitFocusIcon = "bi bi-arrows-angle-contract";
 * fully expanded, with the transcript's own renderer but without the list's
 * card/gutter chrome. Shared by the inspect and scout focus pages, which
 * supply their own loading/error chrome.
-*/ var FocusTurnView = ({ nav, eventId, header, className, onExit, error }) => {
+*/ var FocusTurnView = ({ nav, eventId, header, className, onExit, exitHref, error }) => {
 	const { scrollRef, listHandle, slice, turnInfo, totalTurns, onPrev, onNext, canStepNext, canStepPrev, goToTurn, laneCrumbs, laneOptions, focusTab } = nav;
 	const [laneMenuOpen, setLaneMenuOpen] = (0, import_react.useState)(false);
 	const handleExit = (0, import_react.useMemo)(() => {
@@ -117426,12 +118227,12 @@ var kExitFocusIcon = "bi bi-arrows-angle-contract";
 							onClick: onPrev,
 							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: kChevronUp })
 						}),
-						handleExit && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: FocusTurnView_module_default.divider }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
+						handleExit && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: FocusTurnView_module_default.divider }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InAppLink, {
+							href: exitHref,
+							onNavigate: handleExit,
 							className: FocusTurnView_module_default.button,
 							title: "Exit focus mode (Esc or f)",
 							"aria-label": "Exit focus mode",
-							onClick: handleExit,
 							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: kExitFocusIcon })
 						})] })
 					]
@@ -119699,7 +120500,7 @@ function useTranscriptTimeline(options) {
 	const hasTimeline = t16;
 	let t17;
 	if ($[57] !== visibleRows) {
-		t17 = visibleRows.some(_temp4$24);
+		t17 = visibleRows.some(_temp4$23);
 		$[57] = visibleRows;
 		$[58] = t17;
 	} else t17 = $[58];
@@ -119839,7 +120640,7 @@ function useTranscriptTimeline(options) {
 	} else t25 = $[100];
 	return t25;
 }
-function _temp4$24(row_3) {
+function _temp4$23(row_3) {
 	if (row_3.depth < 1) return false;
 	const rowSpan = row_3.spans[0];
 	if (!rowSpan) return false;
@@ -123347,7 +124148,7 @@ var OutlineRow_module_default = {
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/outline/OutlineRow.tsx
 var OutlineRow = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(53);
+	const $ = (0, import_compiler_runtime.c)(54);
 	const { node, running, selected, getEventUrl, onSelect, onNavigateToEvent, getCollapsed, setCollapsed, renderLink } = t0;
 	let t1;
 	let t10;
@@ -123395,18 +124196,25 @@ var OutlineRow = (t0) => {
 		t8 = true;
 		t9 = "button";
 		t10 = 0;
-		t11 = activate;
 		if ($[29] !== activate) {
-			t12 = (e) => {
-				if (e.target !== e.currentTarget) return;
-				if (e.key === "Enter" || e.key === " ") {
-					e.preventDefault();
+			t11 = (e) => {
+				if ((e.target instanceof Element ? e.target.closest("a[href]") : null) && isNewTabClick(e) && !isVscode()) return;
+				activate();
+			};
+			t12 = (e_0) => {
+				if (e_0.target !== e_0.currentTarget) return;
+				if (e_0.key === "Enter" || e_0.key === " ") {
+					e_0.preventDefault();
 					activate();
 				}
 			};
 			$[29] = activate;
-			$[30] = t12;
-		} else t12 = $[30];
+			$[30] = t11;
+			$[31] = t12;
+		} else {
+			t11 = $[30];
+			t12 = $[31];
+		}
 		t13 = node.children.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: OutlineRow_module_default.toggle,
@@ -123420,16 +124228,16 @@ var OutlineRow = (t0) => {
 				"aria-hidden": "true"
 			}) : void 0
 		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: OutlineRow_module_default.toggle });
-		if ($[31] === Symbol.for("react.memo_cache_sentinel")) {
+		if ($[32] === Symbol.for("react.memo_cache_sentinel")) {
 			t1 = clsx(OutlineRow_module_default.label);
-			$[31] = t1;
-		} else t1 = $[31];
+			$[32] = t1;
+		} else t1 = $[32];
 		t2 = node.depth;
-		if ($[32] !== node) {
+		if ($[33] !== node) {
 			t3 = tooltipForNode(node);
-			$[32] = node;
-			$[33] = t3;
-		} else t3 = $[33];
+			$[33] = node;
+			$[34] = t3;
+		} else t3 = $[34];
 		t4 = icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: OutlineRow_module_default.iconSlot,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: clsx(icon) })
@@ -123479,17 +124287,17 @@ var OutlineRow = (t0) => {
 		t9 = $[20];
 	}
 	let t14;
-	if ($[34] !== running) {
+	if ($[35] !== running) {
 		t14 = running ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PulsingDots, {
 			size: "small",
 			className: clsx(OutlineRow_module_default.progress),
 			subtle: false
 		}) : void 0;
-		$[34] = running;
-		$[35] = t14;
-	} else t14 = $[35];
+		$[35] = running;
+		$[36] = t14;
+	} else t14 = $[36];
 	let t15;
-	if ($[36] !== t1 || $[37] !== t14 || $[38] !== t2 || $[39] !== t3 || $[40] !== t4 || $[41] !== t5) {
+	if ($[37] !== t1 || $[38] !== t14 || $[39] !== t2 || $[40] !== t3 || $[41] !== t4 || $[42] !== t5) {
 		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t1,
 			"data-depth": t2,
@@ -123500,16 +124308,16 @@ var OutlineRow = (t0) => {
 				t14
 			]
 		});
-		$[36] = t1;
-		$[37] = t14;
-		$[38] = t2;
-		$[39] = t3;
-		$[40] = t4;
-		$[41] = t5;
-		$[42] = t15;
-	} else t15 = $[42];
+		$[37] = t1;
+		$[38] = t14;
+		$[39] = t2;
+		$[40] = t3;
+		$[41] = t4;
+		$[42] = t5;
+		$[43] = t15;
+	} else t15 = $[43];
 	let t16;
-	if ($[43] !== t10 || $[44] !== t11 || $[45] !== t12 || $[46] !== t13 || $[47] !== t15 || $[48] !== t6 || $[49] !== t7 || $[50] !== t8 || $[51] !== t9) {
+	if ($[44] !== t10 || $[45] !== t11 || $[46] !== t12 || $[47] !== t13 || $[48] !== t15 || $[49] !== t6 || $[50] !== t7 || $[51] !== t8 || $[52] !== t9) {
 		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t6,
 			style: t7,
@@ -123520,17 +124328,17 @@ var OutlineRow = (t0) => {
 			onKeyDown: t12,
 			children: [t13, t15]
 		}) });
-		$[43] = t10;
-		$[44] = t11;
-		$[45] = t12;
-		$[46] = t13;
-		$[47] = t15;
-		$[48] = t6;
-		$[49] = t7;
-		$[50] = t8;
-		$[51] = t9;
-		$[52] = t16;
-	} else t16 = $[52];
+		$[44] = t10;
+		$[45] = t11;
+		$[46] = t12;
+		$[47] = t13;
+		$[48] = t15;
+		$[49] = t6;
+		$[50] = t7;
+		$[51] = t8;
+		$[52] = t9;
+		$[53] = t16;
+	} else t16 = $[53];
 	return t16;
 };
 /** A row rendered below the last outline item while events are still loading. */ var OutlineLoadingRow = () => {
@@ -125437,7 +126245,7 @@ var TranscriptLayout = (t0) => {
 			$[40] = agentLaneKeys;
 			$[41] = t21;
 		} else t21 = $[41];
-		t20 = timelineLayouts.filter(t21).map(_temp4$23);
+		t20 = timelineLayouts.filter(t21).map(_temp4$22);
 		$[37] = agentLaneKeys;
 		$[38] = timelineLayouts;
 		$[39] = t20;
@@ -125998,7 +126806,7 @@ function _temp2$33(a) {
 function _temp3$28(s) {
 	return getAgents(s).some(_temp2$33);
 }
-function _temp4$23(l_0) {
+function _temp4$22(l_0) {
 	return l_0.key;
 }
 //#endregion
@@ -127287,7 +128095,7 @@ var kNoScoreColorScales$1 = Object.freeze({});
 	if ($[7] !== allColumns || $[8] !== seedDefaultVisibility || $[9] !== setSampleListView || $[10] !== view) {
 		t2 = () => {
 			if (!allColumns || !seedDefaultVisibility) return;
-			const known = new Set(view.columns.map(_temp4$22));
+			const known = new Set(view.columns.map(_temp4$21));
 			const additions = [];
 			for (const col_0 of allColumns) {
 				const id = getFieldKey(col_0);
@@ -127460,7 +128268,7 @@ var kNoScoreColorScales$1 = Object.freeze({});
 function _temp5$12(c_1) {
 	return [c_1.id, c_1.visible];
 }
-function _temp4$22(c) {
+function _temp4$21(c) {
 	return c.id;
 }
 function _temp3$27(state_0) {
@@ -128709,7 +129517,7 @@ var FieldLabel = (t0) => {
 */ var InvalidationBanner = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { invalidation } = t0;
-	const formatTimestamp = _temp4$21;
+	const formatTimestamp = _temp4$20;
 	let t1;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
@@ -128785,7 +129593,7 @@ function _temp2$30(f) {
 function _temp3$25(acc, s) {
 	return acc + s.name.length;
 }
-function _temp4$21(timestamp) {
+function _temp4$20(timestamp) {
 	try {
 		return formatDateTime(new Date(timestamp));
 	} catch {
@@ -131500,7 +132308,7 @@ var useInspectSearchPanelState = (t0) => {
 var useInspectSearchModelHistory = () => {
 	const $ = (0, import_compiler_runtime.c)(3);
 	const history = useUserSettings(_temp3$23);
-	const record = useUserSettings(_temp4$20);
+	const record = useUserSettings(_temp4$19);
 	let t0;
 	if ($[0] !== history || $[1] !== record) {
 		t0 = {
@@ -131541,7 +132349,7 @@ function _temp2$28(s_0) {
 function _temp3$23(s) {
 	return s.searchModelHistory;
 }
-function _temp4$20(s_0) {
+function _temp4$19(s_0) {
 	return s_0.recordSearchModel;
 }
 //#endregion
@@ -132218,6 +133026,7 @@ var withStoredFallback = (ids, stored) => ids.length > 0 ? ids : [...stored];
 		return () => clearTimeout(id_0);
 	}, [focusOnLoad, scrollRef]);
 	const sampleUrlBuilder = useSampleUrlBuilder();
+	const sampleTabHref = (tabId) => urlLogPath ? toFullUrl(sampleUrlBuilder(urlLogPath, urlSampleId, urlEpoch, tabId)) : void 0;
 	const onSelectedTab = (0, import_react.useCallback)((e) => {
 		const id_1 = e.currentTarget.id;
 		setSelectedTab(id_1);
@@ -132567,6 +133376,7 @@ var withStoredFallback = (ids, stored) => ids.length > 0 ? ids : [...stored];
 							className: clsx("sample-tab", SampleDisplay_module_default.overflowVisible),
 							title: "Transcript",
 							onSelected: onSelectedTab,
+							href: sampleTabHref(kSampleTranscriptTabId),
 							selected: effectiveSelectedTab === kSampleTranscriptTabId || effectiveSelectedTab === void 0,
 							scrollable: false,
 							children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptFilterPopover, {
@@ -132611,6 +133421,7 @@ var withStoredFallback = (ids, stored) => ids.length > 0 ? ids : [...stored];
 							className: clsx("sample-tab", SampleDisplay_module_default.fullWidth, SampleDisplay_module_default.overflowVisible),
 							title: "Messages",
 							onSelected: onSelectedTab,
+							href: sampleTabHref(kSampleMessagesTabId),
 							selected: effectiveSelectedTab === kSampleMessagesTabId,
 							scrollable: false,
 							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RailSidebarHost, {
@@ -132650,6 +133461,7 @@ var withStoredFallback = (ids, stored) => ids.length > 0 ? ids : [...stored];
 							className: "sample-tab",
 							title: "Scoring",
 							onSelected: onSelectedTab,
+							href: sampleTabHref(kSampleScoringTabId),
 							selected: effectiveSelectedTab === kSampleScoringTabId,
 							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleScoresView, {
 								sample,
@@ -132662,6 +133474,7 @@ var withStoredFallback = (ids, stored) => ids.length > 0 ? ids : [...stored];
 							className: clsx("sample-tab"),
 							title: "Usage",
 							onSelected: onSelectedTab,
+							href: sampleTabHref(kSampleUsageTabId),
 							selected: effectiveSelectedTab === kSampleUsageTabId,
 							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 								className: clsx(SampleDisplay_module_default.padded, SampleDisplay_module_default.fullWidth, SampleDisplay_module_default.metadataPanel),
@@ -132673,6 +133486,7 @@ var withStoredFallback = (ids, stored) => ids.length > 0 ? ids : [...stored];
 							className: clsx("sample-tab"),
 							title: "Metadata",
 							onSelected: onSelectedTab,
+							href: sampleTabHref(kSampleMetdataTabId),
 							selected: effectiveSelectedTab === kSampleMetdataTabId,
 							children: sampleMetadatas.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 								className: clsx(SampleDisplay_module_default.padded, SampleDisplay_module_default.fullWidth, SampleDisplay_module_default.metadataPanel),
@@ -132684,6 +133498,7 @@ var withStoredFallback = (ids, stored) => ids.length > 0 ? ids : [...stored];
 							className: "sample-tab",
 							title: "Error",
 							onSelected: onSelectedTab,
+							href: sampleTabHref(kSampleErrorTabId),
 							selected: effectiveSelectedTab === kSampleErrorTabId,
 							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 								className: clsx(SampleDisplay_module_default.error),
@@ -132702,6 +133517,7 @@ var withStoredFallback = (ids, stored) => ids.length > 0 ? ids : [...stored];
 							className: "sample-tab",
 							title: "Retries",
 							onSelected: onSelectedTab,
+							href: sampleTabHref(kSampleRetriesTabId),
 							selected: effectiveSelectedTab === kSampleRetriesTabId,
 							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 								className: SampleDisplay_module_default.retriedErrors,
@@ -132719,6 +133535,7 @@ var withStoredFallback = (ids, stored) => ids.length > 0 ? ids : [...stored];
 							className: "sample-tab",
 							title: "JSON",
 							onSelected: onSelectedTab,
+							href: sampleTabHref(kSampleJsonTabId),
 							selected: effectiveSelectedTab === kSampleJsonTabId,
 							children: !sample ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "JSON not available" }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 								className: clsx(SampleDisplay_module_default.padded, SampleDisplay_module_default.fullWidth),
@@ -133129,9 +133946,9 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 * theme / options chrome (ApplicationNavbar) plus the prev/next sample
 * controls. Shared by the sample detail view and the single-event focus page.
 */ var SampleNavbar = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(19);
+	const $ = (0, import_compiler_runtime.c)(21);
 	const { sampleId, epoch, navigation, navbarConfig, loading } = t0;
-	const { onPrevious, onNext, hasPrevious, hasNext } = navigation;
+	const { onPrevious, onNext, hasPrevious, hasNext, previousHref, nextHref } = navigation;
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered: t1, breadcrumbsEnabled } = navbarConfig;
 	const bordered = t1 === void 0 ? true : t1;
 	let t2;
@@ -133156,25 +133973,29 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 		$[3] = t3;
 	} else t3 = $[3];
 	let t4;
-	if ($[4] !== hasNext || $[5] !== hasPrevious || $[6] !== onNext || $[7] !== onPrevious || $[8] !== t3) {
+	if ($[4] !== hasNext || $[5] !== hasPrevious || $[6] !== nextHref || $[7] !== onNext || $[8] !== onPrevious || $[9] !== previousHref || $[10] !== t3) {
 		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NextPreviousNav, {
 			onPrevious,
 			onNext,
 			hasPrevious,
 			hasNext,
+			previousHref,
+			nextHref,
 			previousTitle: "Previous sample",
 			nextTitle: "Next sample",
 			children: t3
 		});
 		$[4] = hasNext;
 		$[5] = hasPrevious;
-		$[6] = onNext;
-		$[7] = onPrevious;
-		$[8] = t3;
-		$[9] = t4;
-	} else t4 = $[9];
+		$[6] = nextHref;
+		$[7] = onNext;
+		$[8] = onPrevious;
+		$[9] = previousHref;
+		$[10] = t3;
+		$[11] = t4;
+	} else t4 = $[11];
 	let t5;
-	if ($[10] !== backUrl || $[11] !== bordered || $[12] !== breadcrumbsEnabled || $[13] !== currentPath || $[14] !== fnNavigationUrl || $[15] !== homeUrl || $[16] !== loading || $[17] !== t4) {
+	if ($[12] !== backUrl || $[13] !== bordered || $[14] !== breadcrumbsEnabled || $[15] !== currentPath || $[16] !== fnNavigationUrl || $[17] !== homeUrl || $[18] !== loading || $[19] !== t4) {
 		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApplicationNavbar, {
 			currentPath,
 			fnNavigationUrl,
@@ -133185,16 +134006,16 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 			loading,
 			children: t4
 		});
-		$[10] = backUrl;
-		$[11] = bordered;
-		$[12] = breadcrumbsEnabled;
-		$[13] = currentPath;
-		$[14] = fnNavigationUrl;
-		$[15] = homeUrl;
-		$[16] = loading;
-		$[17] = t4;
-		$[18] = t5;
-	} else t5 = $[18];
+		$[12] = backUrl;
+		$[13] = bordered;
+		$[14] = breadcrumbsEnabled;
+		$[15] = currentPath;
+		$[16] = fnNavigationUrl;
+		$[17] = homeUrl;
+		$[18] = loading;
+		$[19] = t4;
+		$[20] = t5;
+	} else t5 = $[20];
 	return t5;
 };
 //#endregion
@@ -133235,7 +134056,7 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 	const showFind = useStore(_temp$33);
 	const setShowFind = useStore(_temp2$26);
 	const hideFind = useStore(_temp3$21);
-	const nativeFind = useStore(_temp4$19);
+	const nativeFind = useStore(_temp4$18);
 	const setSampleTab = useStore(_temp5$11);
 	let t2;
 	let t3;
@@ -133329,7 +134150,7 @@ function _temp2$26(state_0) {
 function _temp3$21(state_1) {
 	return state_1.appActions.hideFind;
 }
-function _temp4$19(state_2) {
+function _temp4$18(state_2) {
 	return state_2.app.nativeFind;
 }
 function _temp5$11(state_3) {
@@ -133353,7 +134174,7 @@ function _temp5$11(state_3) {
 *
 * Rendering is delegated to SampleDetailComponent.
 */ var LogSampleDetailView = () => {
-	const $ = (0, import_compiler_runtime.c)(36);
+	const $ = (0, import_compiler_runtime.c)(31);
 	const { logPath: routeLogPath, sampleId: routeSampleId, epoch: routeEpoch, sampleTabId, sampleUuid } = useLogRouteParams();
 	const { singleFileMode } = useAppConfig();
 	const prefix = useRoutePrefix();
@@ -133417,7 +134238,7 @@ function _temp5$11(state_3) {
 		$[15] = t4;
 	} else t4 = $[15];
 	const sampleUuidRedirectUrl = useSampleUuidRedirectUrl(t4);
-	const { onPrevious, onNext, hasPrevious, hasNext } = useLogSampleNavigationActions();
+	const navigation = useLogSampleNavigationActions();
 	let t5;
 	if ($[16] !== logPath || $[17] !== prefix) {
 		t5 = (file, log_dir) => {
@@ -133443,52 +134264,38 @@ function _temp5$11(state_3) {
 		} else t6 = $[20];
 		return t6;
 	}
-	let t6;
-	if ($[21] !== hasNext || $[22] !== hasPrevious || $[23] !== onNext || $[24] !== onPrevious) {
-		t6 = {
-			onPrevious,
-			onNext,
-			hasPrevious,
-			hasNext
-		};
-		$[21] = hasNext;
-		$[22] = hasPrevious;
-		$[23] = onNext;
-		$[24] = onPrevious;
-		$[25] = t6;
-	} else t6 = $[25];
-	const t7 = logPath ? `${logPath}/sample` : void 0;
-	const t8 = !singleFileMode;
-	let t9;
-	if ($[26] !== fnNavigationUrl || $[27] !== t7 || $[28] !== t8) {
-		t9 = {
-			currentPath: t7,
+	const t6 = logPath ? `${logPath}/sample` : void 0;
+	const t7 = !singleFileMode;
+	let t8;
+	if ($[21] !== fnNavigationUrl || $[22] !== t6 || $[23] !== t7) {
+		t8 = {
+			currentPath: t6,
 			fnNavigationUrl,
 			bordered: true,
-			breadcrumbsEnabled: t8
+			breadcrumbsEnabled: t7
 		};
-		$[26] = fnNavigationUrl;
-		$[27] = t7;
-		$[28] = t8;
-		$[29] = t9;
-	} else t9 = $[29];
-	let t10;
-	if ($[30] !== epoch || $[31] !== sampleId || $[32] !== sampleTabId || $[33] !== t6 || $[34] !== t9) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleDetailComponent, {
+		$[21] = fnNavigationUrl;
+		$[22] = t6;
+		$[23] = t7;
+		$[24] = t8;
+	} else t8 = $[24];
+	let t9;
+	if ($[25] !== epoch || $[26] !== navigation || $[27] !== sampleId || $[28] !== sampleTabId || $[29] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleDetailComponent, {
 			sampleId,
 			epoch,
 			tabId: sampleTabId,
-			navigation: t6,
-			navbarConfig: t9
+			navigation,
+			navbarConfig: t8
 		});
-		$[30] = epoch;
-		$[31] = sampleId;
-		$[32] = sampleTabId;
-		$[33] = t6;
-		$[34] = t9;
-		$[35] = t10;
-	} else t10 = $[35];
-	return t10;
+		$[25] = epoch;
+		$[26] = navigation;
+		$[27] = sampleId;
+		$[28] = sampleTabId;
+		$[29] = t8;
+		$[30] = t9;
+	} else t9 = $[30];
+	return t9;
 };
 function _temp$32(state) {
 	return state.logs.selectedLogFile;
@@ -133498,12 +134305,16 @@ function _temp2$25(state_0) {
 }
 //#endregion
 //#region src/app/routing/logNavigation.ts
+/** Route to a workspace tab of the loaded log, or undefined before it loads. */ var logTabRoute = (tabId, loadedLog, logPath, logDir, prefix) => {
+	if (!loadedLog) return void 0;
+	return logPath ? logsUrlRaw(logPath, tabId, prefix) : logsUrl(loadedLog, logDir, tabId, prefix);
+};
 /**
 * Navigate the loaded log to a workspace tab.
 *
 * Used to obtain an action function only — no data, no mount side effects.
 */ var useLogNavigationAction = () => {
-	const $ = (0, import_compiler_runtime.c)(8);
+	const $ = (0, import_compiler_runtime.c)(14);
 	const navigate = useNavigate();
 	const { logPath } = useParams();
 	const logDir = useLogDir();
@@ -133512,13 +134323,8 @@ function _temp2$25(state_0) {
 	let t0;
 	if ($[0] !== loadedLog || $[1] !== logDir || $[2] !== logPath || $[3] !== navigate || $[4] !== prefix) {
 		t0 = (tabId) => {
-			if (loadedLog && logPath) {
-				const url = logsUrlRaw(logPath, tabId, prefix);
-				navigate(url);
-			} else if (loadedLog) {
-				const url_0 = logsUrl(loadedLog, logDir, tabId, prefix);
-				navigate(url_0);
-			}
+			const url = logTabRoute(tabId, loadedLog, logPath, logDir, prefix);
+			if (url) navigateAndForget(navigate, url);
 		};
 		$[0] = loadedLog;
 		$[1] = logDir;
@@ -133529,12 +134335,26 @@ function _temp2$25(state_0) {
 	} else t0 = $[5];
 	const selectTab = t0;
 	let t1;
-	if ($[6] !== selectTab) {
-		t1 = { selectTab };
-		$[6] = selectTab;
-		$[7] = t1;
-	} else t1 = $[7];
-	return t1;
+	if ($[6] !== loadedLog || $[7] !== logDir || $[8] !== logPath || $[9] !== prefix) {
+		t1 = (tabId_0) => logTabRoute(tabId_0, loadedLog, logPath, logDir, prefix);
+		$[6] = loadedLog;
+		$[7] = logDir;
+		$[8] = logPath;
+		$[9] = prefix;
+		$[10] = t1;
+	} else t1 = $[10];
+	const getTabUrl = t1;
+	let t2;
+	if ($[11] !== getTabUrl || $[12] !== selectTab) {
+		t2 = {
+			selectTab,
+			getTabUrl
+		};
+		$[11] = getTabUrl;
+		$[12] = selectTab;
+		$[13] = t2;
+	} else t2 = $[13];
+	return t2;
 };
 function _temp$31(state) {
 	return state.log.loadedLog;
@@ -134315,7 +135135,7 @@ var EditMetadataDialog = (t0) => {
 	const existingKeys = t7;
 	let t8;
 	if ($[14] !== entries) {
-		t8 = entries.filter(_temp4$18).map(_temp5$10);
+		t8 = entries.filter(_temp4$17).map(_temp5$10);
 		$[14] = entries;
 		$[15] = t8;
 	} else t8 = $[15];
@@ -134946,7 +135766,7 @@ function _temp2$24() {}
 function _temp3$20(e) {
 	return e.key;
 }
-function _temp4$18(e_0) {
+function _temp4$17(e_0) {
 	return e_0.isNew;
 }
 function _temp5$10(e_1) {
@@ -135756,7 +136576,7 @@ function _temp3$19(state) {
 	return state.capabilities.downloadFiles;
 }
 //#endregion
-//#region src/app/log-view/useShowTimeline.ts
+//#region src/app/log-view/useTimelineNavigation.ts
 var kTimelineBag = "timeline";
 var kTimelineBandsKey = "bands";
 var timelineBandId = (band, model) => model ? `${band}:${model}` : band;
@@ -135767,46 +136587,51 @@ var timelineBandId = (band, model) => model ? `${band}:${model}` : band;
 	return useTimelineLogKey(kTimelineBandsKey);
 };
 /**
-* Navigate to the Timeline tab — the target of every "View on timeline"
-* affordance (config chips, connection lanes, popovers). Cmd/ctrl/shift
-* click opens the tab in a new browser tab instead.
-*/ var useShowTimeline = () => {
-	const $ = (0, import_compiler_runtime.c)(6);
+* The Timeline tab as the target of every "View on timeline" affordance
+* (config chips, connection lanes, popovers): its URL for the link, and the
+* in-app navigation for plain clicks.
+*/ var useTimelineNavigation = () => {
+	const $ = (0, import_compiler_runtime.c)(8);
 	const setWorkspaceTab = useStore(_temp2$21);
 	const navigation = useLogNavigationAction();
-	const logDir = useLogDir();
-	const loadedLog = useStore(_temp3$18);
-	const prefix = useRoutePrefix();
 	let t0;
-	if ($[0] !== loadedLog || $[1] !== logDir || $[2] !== navigation || $[3] !== prefix || $[4] !== setWorkspaceTab) {
-		t0 = (event) => {
-			if (event && (event.metaKey || event.ctrlKey || event.shiftKey)) {
-				const url = loadedLog ? logsUrl(loadedLog, logDir, kLogViewTimelineTabId, prefix) : void 0;
-				if (url) {
-					openInNewTab(url);
-					return;
-				}
-			}
+	if ($[0] !== navigation || $[1] !== setWorkspaceTab) {
+		t0 = () => {
 			setWorkspaceTab(kLogViewTimelineTabId);
 			navigation.selectTab(kLogViewTimelineTabId);
 		};
-		$[0] = loadedLog;
-		$[1] = logDir;
-		$[2] = navigation;
-		$[3] = prefix;
-		$[4] = setWorkspaceTab;
-		$[5] = t0;
-	} else t0 = $[5];
-	return t0;
+		$[0] = navigation;
+		$[1] = setWorkspaceTab;
+		$[2] = t0;
+	} else t0 = $[2];
+	const show = t0;
+	let t1;
+	if ($[3] !== navigation) {
+		t1 = toFullUrlMaybe(navigation.getTabUrl(kLogViewTimelineTabId));
+		$[3] = navigation;
+		$[4] = t1;
+	} else t1 = $[4];
+	let t2;
+	if ($[5] !== show || $[6] !== t1) {
+		t2 = {
+			href: t1,
+			show
+		};
+		$[5] = show;
+		$[6] = t1;
+		$[7] = t2;
+	} else t2 = $[7];
+	return t2;
 };
 /**
-* Navigate to the Timeline tab with a model's Connections band toggled on
-* (the Models tab's deep link).
-*/ var useShowTimelineForModel = () => {
-	const $ = (0, import_compiler_runtime.c)(7);
-	const showTimeline = useShowTimeline();
+* The Timeline tab with a model's Connections band toggled on (the Models
+* tab's deep link). A new tab opened from the link lands on the timeline
+* without the band: the toggle is per-tab state, not in the URL.
+*/ var useTimelineNavigationForModel = () => {
+	const $ = (0, import_compiler_runtime.c)(10);
+	const { href, show: showTimeline } = useTimelineNavigation();
 	const bandsKey = useTimelineBandsKey();
-	const setPropertyValue = useStore(_temp4$17);
+	const setPropertyValue = useStore(_temp3$18);
 	let t0;
 	if ($[0] !== bandsKey) {
 		t0 = (state_0) => {
@@ -135819,15 +136644,13 @@ var timelineBandId = (band, model) => model ? `${band}:${model}` : band;
 	const bands = useStore(t0);
 	let t1;
 	if ($[2] !== bands || $[3] !== bandsKey || $[4] !== setPropertyValue || $[5] !== showTimeline) {
-		t1 = (model, event) => {
-			if (!(!!event && (event.metaKey || event.ctrlKey || event.shiftKey))) {
-				const bandId = timelineBandId("connections", model);
-				setPropertyValue(kTimelineBag, bandsKey, {
-					...bands,
-					[bandId]: true
-				});
-			}
-			showTimeline(event);
+		t1 = (model) => {
+			const bandId = timelineBandId("connections", model);
+			setPropertyValue(kTimelineBag, bandsKey, {
+				...bands,
+				[bandId]: true
+			});
+			showTimeline();
 		};
 		$[2] = bands;
 		$[3] = bandsKey;
@@ -135835,7 +136658,18 @@ var timelineBandId = (band, model) => model ? `${band}:${model}` : band;
 		$[5] = showTimeline;
 		$[6] = t1;
 	} else t1 = $[6];
-	return t1;
+	const show = t1;
+	let t2;
+	if ($[7] !== href || $[8] !== show) {
+		t2 = {
+			href,
+			show
+		};
+		$[7] = href;
+		$[8] = show;
+		$[9] = t2;
+	} else t2 = $[9];
+	return t2;
 };
 function _temp$26(state) {
 	return state.log.loadedLog;
@@ -135843,10 +136677,7 @@ function _temp$26(state) {
 function _temp2$21(state) {
 	return state.appActions.setWorkspaceTab;
 }
-function _temp3$18(state_0) {
-	return state_0.log.loadedLog;
-}
-function _temp4$17(state) {
+function _temp3$18(state) {
 	return state.appActions.setPropertyValue;
 }
 //#endregion
@@ -135876,9 +136707,9 @@ var useModelsTab = (evalSpec, evalStats, evalStatus, configUpdates) => {
 	return t0;
 };
 var ModelTab = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(33);
+	const $ = (0, import_compiler_runtime.c)(34);
 	const { evalSpec, evalStats, evalStatus, configUpdates } = t0;
-	const showTimelineForModel = useShowTimelineForModel();
+	const { href: timelineHref, show: showTimelineForModel } = useTimelineNavigationForModel();
 	const loadedLog = useStore(_temp$25);
 	let t1;
 	if ($[0] !== evalSpec) {
@@ -135979,7 +136810,7 @@ var ModelTab = (t0) => {
 	const t16 = evalSpec?.model;
 	const t17 = loadedLog ?? void 0;
 	let t18;
-	if ($[17] !== argsByModel || $[18] !== argsByRole || $[19] !== configUpdates || $[20] !== configsByModel || $[21] !== configsByRole || $[22] !== meta || $[23] !== roleAliases || $[24] !== showTimelineForModel || $[25] !== t11 || $[26] !== t12 || $[27] !== t13 || $[28] !== t14 || $[29] !== t15 || $[30] !== t16 || $[31] !== t17) {
+	if ($[17] !== argsByModel || $[18] !== argsByRole || $[19] !== configUpdates || $[20] !== configsByModel || $[21] !== configsByRole || $[22] !== meta || $[23] !== roleAliases || $[24] !== showTimelineForModel || $[25] !== t11 || $[26] !== t12 || $[27] !== t13 || $[28] !== t14 || $[29] !== t15 || $[30] !== t16 || $[31] !== t17 || $[32] !== timelineHref) {
 		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			style: t9,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
@@ -135999,7 +136830,8 @@ var ModelTab = (t0) => {
 					config_updates: configUpdates,
 					main_model: t16,
 					state_key: t17,
-					onViewTimeline: showTimelineForModel
+					onViewTimeline: showTimelineForModel,
+					timelineHref
 				})
 			})
 		});
@@ -136018,8 +136850,9 @@ var ModelTab = (t0) => {
 		$[29] = t15;
 		$[30] = t16;
 		$[31] = t17;
-		$[32] = t18;
-	} else t18 = $[32];
+		$[32] = timelineHref;
+		$[33] = t18;
+	} else t18 = $[33];
 	return t18;
 };
 function _temp$25(state) {
@@ -138119,7 +138952,7 @@ function codePointSize$1(code) {
 	return code < 65536 ? 1 : 2;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+state@6.7.4/node_modules/@codemirror/state/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+state@6.7.5/node_modules/@codemirror/state/dist/index.js
 /**
 The data structure for documents. @nonabstract
 */
@@ -141467,7 +142300,10 @@ function compare(a, startA, b, startB, length, comparator) {
 			if (!(a.point && b.point && cmpVal(a.point, b.point) && sameValues(a.activeForPoint(a.to), b.activeForPoint(b.to)))) comparator.comparePoint(pos, clipEnd, a.point, b.point);
 			boundChange = false;
 		} else {
-			if (boundChange) comparator.boundChange(pos);
+			if (boundChange) {
+				comparator.boundChange(pos);
+				boundChange = false;
+			}
 			if (clipEnd > pos && !sameValues(a.active, b.active)) comparator.compareRange(pos, clipEnd, a.active, b.active);
 			if (bounds && clipEnd < endB && (dEnd || a.openEnd(end) != b.openEnd(end))) boundChange = true;
 		}
@@ -141530,12 +142366,12 @@ function findColumn(string, col, tabSize, strict) {
 	return strict === true ? -1 : string.length;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/style-mod@4.1.3/node_modules/style-mod/src/style-mod.js
-var C = "ͼ";
-var COUNT = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C);
-var SET = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
-var top = typeof globalThis != "undefined" ? globalThis : typeof window != "undefined" ? window : {};
-var StyleModule = class {
+//#region ../../node_modules/.pnpm/style-mod@4.1.4/node_modules/style-mod/src/style-mod.js
+var C$1 = "ͼ";
+var COUNT$1 = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C$1);
+var SET$1 = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
+var top$1 = typeof globalThis != "undefined" ? globalThis : typeof window != "undefined" ? window : {};
+var StyleModule$1 = class {
 	constructor(spec, options) {
 		this.rules = [];
 		let { finish } = options || {};
@@ -141561,45 +142397,48 @@ var StyleModule = class {
 		return this.rules.join("\n");
 	}
 	static newName() {
-		let id = top[COUNT] || 1;
-		top[COUNT] = id + 1;
-		return C + id.toString(36);
+		let id = top$1[COUNT$1] || 1;
+		top$1[COUNT$1] = id + 1;
+		return C$1 + id.toString(36);
 	}
 	static mount(root, modules, options) {
-		let set = root[SET], nonce = options && options.nonce;
-		if (!set) set = new StyleSet(root, nonce);
+		let set = root[SET$1], nonce = options && options.nonce;
+		if (!set) set = new StyleSet$1(root, nonce);
 		else if (nonce) set.setNonce(nonce);
 		set.mount(Array.isArray(modules) ? modules : [modules], root);
 	}
 };
-var adoptedSet = /* @__PURE__ */ new Map();
-var StyleSet = class {
+var adoptedSet$1 = /* @__PURE__ */ new Map();
+var StyleSet$1 = class {
 	constructor(root, nonce) {
 		let doc = root.ownerDocument || root, win = doc.defaultView;
 		if (!root.head && root.adoptedStyleSheets && win.CSSStyleSheet) {
-			let adopted = adoptedSet.get(doc);
-			if (adopted) return root[SET] = adopted;
+			let adopted = adoptedSet$1.get(doc);
+			if (adopted) return root[SET$1] = adopted;
 			this.sheet = new win.CSSStyleSheet();
-			adoptedSet.set(doc, this);
+			adoptedSet$1.set(doc, this);
 		} else {
 			this.styleTag = doc.createElement("style");
 			if (nonce) this.styleTag.setAttribute("nonce", nonce);
 		}
 		this.modules = [];
-		root[SET] = this;
+		root[SET$1] = this;
 	}
 	mount(modules, root) {
 		let sheet = this.sheet;
 		let pos = 0, j = 0;
+		let changed = false;
 		for (let i = 0; i < modules.length; i++) {
 			let mod = modules[i], index = this.modules.indexOf(mod);
 			if (index < j && index > -1) {
 				this.modules.splice(index, 1);
+				changed = true;
 				j--;
 				index = -1;
 			}
 			if (index == -1) {
 				this.modules.splice(j++, 0, mod);
+				changed = true;
 				if (sheet) for (let k = 0; k < mod.rules.length; k++) sheet.insertRule(mod.rules[k], pos++);
 			} else {
 				while (j < index) pos += this.modules[j++].rules.length;
@@ -141610,9 +142449,11 @@ var StyleSet = class {
 		if (sheet) {
 			if (root.adoptedStyleSheets.indexOf(this.sheet) < 0) root.adoptedStyleSheets = [this.sheet, ...root.adoptedStyleSheets];
 		} else {
-			let text = "";
-			for (let i = 0; i < this.modules.length; i++) text += this.modules[i].getRules() + "\n";
-			this.styleTag.textContent = text;
+			if (changed) {
+				let text = "";
+				for (let i = 0; i < this.modules.length; i++) text += this.modules[i].getRules() + "\n";
+				this.styleTag.textContent = text;
+			}
 			let target = root.head || root;
 			if (this.styleTag.parentNode != target) target.insertBefore(this.styleTag, target.firstChild);
 		}
@@ -141746,7 +142587,7 @@ function add(elt, child) {
 	else throw new RangeError("Unsupported child node: " + child);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+view@6.43.11/node_modules/@codemirror/view/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+view@6.43.12/node_modules/@codemirror/view/dist/index.js
 var nav = typeof navigator != "undefined" ? navigator : {
 	userAgent: "",
 	vendor: "",
@@ -143643,11 +144484,11 @@ var TileBuilder = class {
 				if (last.dom != mark.dom) last.setDOM(freeNode(mark.dom));
 				head = last;
 			} else {
+				let { dom } = mark;
 				if (this.cache.reused.get(mark)) {
-					let tile = Tile.get(mark.dom);
-					if (tile) tile.setDOM(freeNode(mark.dom));
+					if (Tile.get(mark.dom)) dom = freeNode(mark.dom);
 				}
-				let nw = MarkTile.of(mark.mark, mark.dom);
+				let nw = MarkTile.of(mark.mark, dom);
 				head.append(nw);
 				head = nw;
 			}
@@ -144060,12 +144901,13 @@ var TileUpdate = class {
 			if (tile instanceof MarkTile) marks.push(tile);
 			else if (tile === null || tile === void 0 ? void 0 : tile.isLine()) line = tile;
 			else if (tile instanceof BlockWrapperTile);
-			else if (parent.nodeName == "DIV" && !line && parent != this.view.contentDOM) line = new LineTile(parent, lineBaseAttrs);
+			else if (parent.nodeName == "DIV" && !line) line = new LineTile(parent, lineBaseAttrs);
 			else if (!line) marks.push(MarkTile.of(new MarkDecoration({
 				tagName: parent.nodeName.toLowerCase(),
 				attributes: getAttrs(parent)
 			}), parent));
 		}
+		if (!line) return null;
 		return {
 			line,
 			marks
@@ -144757,18 +145599,20 @@ function blockAt(view, pos, side) {
 	return line;
 }
 function moveToLineBoundary(view, start, forward, includeWrap) {
-	let line = blockAt(view, start.head, start.assoc || -1);
-	let coords = !includeWrap || line.type != BlockType.Text || !(view.lineWrapping || line.widgetLineBreaks) ? null : view.coordsAtPos(start.assoc < 0 && start.head > line.from ? start.head - 1 : start.head);
+	let block = blockAt(view, start.head, start.assoc || -1);
+	let coords = !includeWrap || block.type != BlockType.Text || !(view.lineWrapping || block.widgetLineBreaks) ? null : view.coordsAtPos(start.assoc < 0 && start.head > block.from ? start.head - 1 : start.head);
 	if (coords) {
 		let editorRect = view.dom.getBoundingClientRect();
-		let direction = view.textDirectionAt(line.from);
+		let direction = view.textDirectionAt(block.from);
 		let pos = view.posAtCoords({
 			x: forward == (direction == Direction.LTR) ? editorRect.right - 1 : editorRect.left + 1,
 			y: (coords.top + coords.bottom) / 2
 		});
 		if (pos != null) return EditorSelection.cursor(pos, forward ? -1 : 1);
 	}
-	return EditorSelection.cursor(forward ? line.to : line.from, forward ? -1 : 1);
+	let line = view.state.doc.lineAt(start.head);
+	if (forward ? line.to == block.to : line.from == block.from) return view.visualLineSide(line, forward);
+	return EditorSelection.cursor(forward ? block.to : block.from, forward ? -1 : 1);
 }
 function moveByChar(view, start, forward, by) {
 	let line = view.state.doc.lineAt(start.head), spans = view.bidiSpans(line);
@@ -146063,7 +146907,17 @@ observers.blur = (view) => {
 observers.compositionstart = observers.compositionupdate = (view) => {
 	if (view.observer.editContext) return;
 	if (view.inputState.compositionFirstChange == null) view.inputState.compositionFirstChange = true;
-	if (view.inputState.composing < 0) view.inputState.composing = 0;
+	if (view.inputState.composing < 0) {
+		let { main } = view.state.selection;
+		if (!main.empty && view.lineBlockAt(main.from).from != view.lineBlockAt(main.to).from) view.dispatch({
+			changes: view.state.selection.ranges.filter((r) => !r.empty).map((r) => ({
+				from: r.from,
+				to: r.to
+			})),
+			userEvent: "input"
+		});
+		view.inputState.composing = 0;
+	}
 };
 observers.compositionend = (view) => {
 	if (view.observer.editContext) return;
@@ -147325,15 +148179,15 @@ function scaleBlock(block, scaler) {
 }
 var theme = /*@__PURE__*/ Facet.define({ combine: (strs) => strs.join(" ") });
 var darkTheme = /*@__PURE__*/ Facet.define({ combine: (values) => values.indexOf(true) > -1 });
-var baseThemeID = /*@__PURE__*/ StyleModule.newName();
-var baseLightID = /*@__PURE__*/ StyleModule.newName();
-var baseDarkID = /*@__PURE__*/ StyleModule.newName();
+var baseThemeID = /*@__PURE__*/ StyleModule$1.newName();
+var baseLightID = /*@__PURE__*/ StyleModule$1.newName();
+var baseDarkID = /*@__PURE__*/ StyleModule$1.newName();
 var lightDarkIDs = {
 	"&light": "." + baseLightID,
 	"&dark": "." + baseDarkID
 };
 function buildTheme(main, spec, scopes) {
-	return new StyleModule(spec, { finish(sel) {
+	return new StyleModule$1(spec, { finish(sel) {
 		return /&/.test(sel) ? sel.replace(/&\w*/, (m) => {
 			if (m == "&") return main;
 			if (!scopes || !scopes[m]) throw new RangeError(`Unsupported selector: ${m}`);
@@ -148233,6 +149087,7 @@ var EditorView = class EditorView {
 		@internal
 		*/
 		this.measureRequests = [];
+		this.clearAnnouncement = -1;
 		this.contentDOM = document.createElement("div");
 		this.scrollDOM = document.createElement("div");
 		this.scrollDOM.tabIndex = -1;
@@ -148541,8 +149396,14 @@ var EditorView = class EditorView {
 	showAnnouncements(trs) {
 		let first = true;
 		for (let tr of trs) for (let effect of tr.effects) if (effect.is(EditorView.announce)) {
-			if (first) this.announceDOM.textContent = "";
-			first = false;
+			if (first) {
+				this.announceDOM.textContent = "";
+				this.win.clearTimeout(this.clearAnnouncement);
+				this.clearAnnouncement = this.win.setTimeout(() => {
+					this.announceDOM.textContent = "\xA0";
+				}, 200);
+				first = false;
+			}
 			let div = this.announceDOM.appendChild(document.createElement("div"));
 			div.textContent = effect.value;
 		}
@@ -148550,7 +149411,7 @@ var EditorView = class EditorView {
 	mountStyles() {
 		this.styleModules = this.state.facet(styleModule);
 		let nonce = this.state.facet(EditorView.cspNonce);
-		StyleModule.mount(this.root, this.styleModules.concat(baseTheme$1$1).reverse(), nonce ? { nonce } : void 0);
+		StyleModule$1.mount(this.root, this.styleModules.concat(baseTheme$1$1).reverse(), nonce ? { nonce } : void 0);
 	}
 	readMeasured() {
 		if (this.updateState == 2) throw new Error("Reading the editor layout isn't allowed during an update");
@@ -148886,6 +149747,7 @@ var EditorView = class EditorView {
 		this.docView.destroy();
 		this.dom.remove();
 		this.observer.destroy();
+		this.win.clearTimeout(this.clearAnnouncement);
 		if (this.measureScheduled > -1) this.win.cancelAnimationFrame(this.measureScheduled);
 		this.destroyed = true;
 	}
@@ -148976,7 +149838,7 @@ var EditorView = class EditorView {
 	`&light` when a light theme is active).
 	*/
 	static theme(spec, options) {
-		let prefix = StyleModule.newName();
+		let prefix = StyleModule$1.newName();
 		let result = [theme.of(prefix), styleModule.of(buildTheme(`.${prefix}`, spec))];
 		if (options && options.dark) result.push(darkTheme.of(true));
 		return result;
@@ -151630,6 +152492,98 @@ tagHighlighter([
 		class: "tok-punctuation"
 	}
 ]);
+//#endregion
+//#region ../../node_modules/.pnpm/style-mod@4.1.3/node_modules/style-mod/src/style-mod.js
+var C = "ͼ";
+var COUNT = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C);
+var SET = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
+var top = typeof globalThis != "undefined" ? globalThis : typeof window != "undefined" ? window : {};
+var StyleModule = class {
+	constructor(spec, options) {
+		this.rules = [];
+		let { finish } = options || {};
+		function splitSelector(selector) {
+			return /^@/.test(selector) ? [selector] : selector.split(/,\s*/);
+		}
+		function render(selectors, spec, target, isKeyframes) {
+			let local = [], isAt = /^@(\w+)\b/.exec(selectors[0]), keyframes = isAt && isAt[1] == "keyframes";
+			if (isAt && spec == null) return target.push(selectors[0] + ";");
+			for (let prop in spec) {
+				let value = spec[prop];
+				if (/&/.test(prop)) render(prop.split(/,\s*/).map((part) => selectors.map((sel) => part.replace(/&/, sel))).reduce((a, b) => a.concat(b)), value, target);
+				else if (value && typeof value == "object") {
+					if (!isAt) throw new RangeError("The value of a property (" + prop + ") should be a primitive value.");
+					render(splitSelector(prop), value, local, keyframes);
+				} else if (value != null) local.push(prop.replace(/_.*/, "").replace(/[A-Z]/g, (l) => "-" + l.toLowerCase()) + ": " + value + ";");
+			}
+			if (local.length || keyframes) target.push((finish && !isAt && !isKeyframes ? selectors.map(finish) : selectors).join(", ") + " {" + local.join(" ") + "}");
+		}
+		for (let prop in spec) render(splitSelector(prop), spec[prop], this.rules);
+	}
+	getRules() {
+		return this.rules.join("\n");
+	}
+	static newName() {
+		let id = top[COUNT] || 1;
+		top[COUNT] = id + 1;
+		return C + id.toString(36);
+	}
+	static mount(root, modules, options) {
+		let set = root[SET], nonce = options && options.nonce;
+		if (!set) set = new StyleSet(root, nonce);
+		else if (nonce) set.setNonce(nonce);
+		set.mount(Array.isArray(modules) ? modules : [modules], root);
+	}
+};
+var adoptedSet = /* @__PURE__ */ new Map();
+var StyleSet = class {
+	constructor(root, nonce) {
+		let doc = root.ownerDocument || root, win = doc.defaultView;
+		if (!root.head && root.adoptedStyleSheets && win.CSSStyleSheet) {
+			let adopted = adoptedSet.get(doc);
+			if (adopted) return root[SET] = adopted;
+			this.sheet = new win.CSSStyleSheet();
+			adoptedSet.set(doc, this);
+		} else {
+			this.styleTag = doc.createElement("style");
+			if (nonce) this.styleTag.setAttribute("nonce", nonce);
+		}
+		this.modules = [];
+		root[SET] = this;
+	}
+	mount(modules, root) {
+		let sheet = this.sheet;
+		let pos = 0, j = 0;
+		for (let i = 0; i < modules.length; i++) {
+			let mod = modules[i], index = this.modules.indexOf(mod);
+			if (index < j && index > -1) {
+				this.modules.splice(index, 1);
+				j--;
+				index = -1;
+			}
+			if (index == -1) {
+				this.modules.splice(j++, 0, mod);
+				if (sheet) for (let k = 0; k < mod.rules.length; k++) sheet.insertRule(mod.rules[k], pos++);
+			} else {
+				while (j < index) pos += this.modules[j++].rules.length;
+				pos += mod.rules.length;
+				j++;
+			}
+		}
+		if (sheet) {
+			if (root.adoptedStyleSheets.indexOf(this.sheet) < 0) root.adoptedStyleSheets = [this.sheet, ...root.adoptedStyleSheets];
+		} else {
+			let text = "";
+			for (let i = 0; i < this.modules.length; i++) text += this.modules[i].getRules() + "\n";
+			this.styleTag.textContent = text;
+			let target = root.head || root;
+			if (this.styleTag.parentNode != target) target.insertBefore(this.styleTag, target.firstChild);
+		}
+	}
+	setNonce(nonce) {
+		if (this.styleTag && this.styleTag.getAttribute("nonce") != nonce) this.styleTag.setAttribute("nonce", nonce);
+	}
+};
 //#endregion
 //#region ../../node_modules/.pnpm/@codemirror+language@6.12.4/node_modules/@codemirror/language/dist/index.js
 var _a;
@@ -160927,9 +161881,9 @@ var ConfigCard_module_default = {
 * "changed" affordance on retuned knobs. With no config_updates it renders
 * exactly the plain launch-value grid.
 */ var ConfigCard = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(19);
+	const $ = (0, import_compiler_runtime.c)(21);
 	const { config, configUpdates } = t0;
-	const showTimeline = useShowTimeline();
+	const { href: timelineHref, show: showTimeline } = useTimelineNavigation();
 	let t1;
 	if ($[0] !== configUpdates) {
 		t1 = evalConfigChanges(configUpdates);
@@ -160949,7 +161903,7 @@ var ConfigCard_module_default = {
 			break bb0;
 		}
 		let result;
-		if ($[3] !== changes || $[4] !== config || $[5] !== configUpdates || $[6] !== showTimeline) {
+		if ($[3] !== changes || $[4] !== config || $[5] !== configUpdates || $[6] !== showTimeline || $[7] !== timelineHref) {
 			const effective = effectiveEvalConfig(config, configUpdates);
 			result = {};
 			for (const [key, value] of Object.entries(effective)) {
@@ -160957,27 +161911,30 @@ var ConfigCard_module_default = {
 				result[key] = change ? { _html: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ConfigValueCell, {
 					value,
 					change,
-					onViewTimeline: showTimeline
+					onViewTimeline: showTimeline,
+					timelineHref
 				}) } : value;
 			}
 			for (const [key_0, change_0] of changes) if (!(key_0 in result)) result[key_0] = { _html: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ConfigValueCell, {
 				value: void 0,
 				change: change_0,
-				onViewTimeline: showTimeline
+				onViewTimeline: showTimeline,
+				timelineHref
 			}) };
 			$[3] = changes;
 			$[4] = config;
 			$[5] = configUpdates;
 			$[6] = showTimeline;
-			$[7] = result;
-		} else result = $[7];
+			$[7] = timelineHref;
+			$[8] = result;
+		} else result = $[8];
 		t2 = result;
 	}
 	const entries = t2;
 	if (Object.keys(entries).length === 0) return null;
 	const changeCount = changes.size;
 	let t3;
-	if ($[8] !== changeCount || $[9] !== showTimeline) {
+	if ($[9] !== changeCount || $[10] !== showTimeline || $[11] !== timelineHref) {
 		t3 = changeCount > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ConfigCard_module_default.headerMeta,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -160995,30 +161952,34 @@ var ConfigCard_module_default = {
 						]
 					}),
 					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: ConfigCard_module_default.headerSep }),
-					/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineLink, { onClick: showTimeline })
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineLink, {
+						onClick: showTimeline,
+						href: timelineHref
+					})
 				]
 			})]
 		}) : null;
-		$[8] = changeCount;
-		$[9] = showTimeline;
-		$[10] = t3;
-	} else t3 = $[10];
+		$[9] = changeCount;
+		$[10] = showTimeline;
+		$[11] = timelineHref;
+		$[12] = t3;
+	} else t3 = $[12];
 	let t4;
-	if ($[11] !== t3) {
+	if ($[13] !== t3) {
 		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, {
 			label: "Config",
 			children: t3
 		});
-		$[11] = t3;
-		$[12] = t4;
-	} else t4 = $[12];
+		$[13] = t3;
+		$[14] = t4;
+	} else t4 = $[14];
 	let t5;
-	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
 		t5 = clsx("text-size-small");
-		$[13] = t5;
-	} else t5 = $[13];
+		$[15] = t5;
+	} else t5 = $[15];
 	let t6;
-	if ($[14] !== entries) {
+	if ($[16] !== entries) {
 		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
 			id: "task-card-eval-config",
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
@@ -161026,16 +161987,16 @@ var ConfigCard_module_default = {
 				entries
 			}, "task-md-eval-config")
 		});
-		$[14] = entries;
-		$[15] = t6;
-	} else t6 = $[15];
-	let t7;
-	if ($[16] !== t4 || $[17] !== t6) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card, { children: [t4, t6] });
-		$[16] = t4;
+		$[16] = entries;
 		$[17] = t6;
-		$[18] = t7;
-	} else t7 = $[18];
+	} else t6 = $[17];
+	let t7;
+	if ($[18] !== t4 || $[19] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card, { children: [t4, t6] });
+		$[18] = t4;
+		$[19] = t6;
+		$[20] = t7;
+	} else t7 = $[20];
 	return t7;
 };
 var TaskTab_module_default = {
@@ -161329,41 +162290,83 @@ var TaskTab = (t0) => {
 	return t23;
 };
 var HistoryList_module_default = {
-	container: "_container_hlknz_1",
-	filterRow: "_filterRow_hlknz_7",
-	caption: "_caption_hlknz_16",
-	filterPill: "_filterPill_hlknz_28",
-	pillCount: "_pillCount_hlknz_42",
-	pillEmpty: "_pillEmpty_hlknz_46",
-	pillAll: "_pillAll_hlknz_51",
-	pillSelected: "_pillSelected_hlknz_55",
-	pillConfig: "_pillConfig_hlknz_61",
-	pillConnections: "_pillConnections_hlknz_67",
-	pillLimits: "_pillLimits_hlknz_73",
-	pillErrors: "_pillErrors_hlknz_79",
-	pillCancels: "_pillCancels_hlknz_86",
-	pillTags: "_pillTags_hlknz_92",
-	pillRun: "_pillRun_hlknz_98",
-	search: "_search_hlknz_151",
-	list: "_list_hlknz_166",
-	empty: "_empty_hlknz_175",
-	headerRow: "_headerRow_hlknz_182",
-	row: "_row_hlknz_183",
-	timeSort: "_timeSort_hlknz_204",
-	byHeader: "_byHeader_hlknz_220",
-	rowLast: "_rowLast_hlknz_230",
-	rowClickable: "_rowClickable_hlknz_234",
-	rowSelected: "_rowSelected_hlknz_238",
-	rowWash: "_rowWash_hlknz_245",
-	time: "_time_hlknz_204",
-	kindCell: "_kindCell_hlknz_258",
-	kindPill: "_kindPill_hlknz_266",
-	event: "_event_hlknz_280",
-	muted: "_muted_hlknz_287",
-	mono: "_mono_hlknz_291",
-	by: "_by_hlknz_220",
-	ordinalBox: "_ordinalBox_hlknz_310",
-	openSample: "_openSample_hlknz_327"
+	container: "_container_1y1ui_1",
+	filterRow: "_filterRow_1y1ui_7",
+	caption: "_caption_1y1ui_16",
+	filterPill: "_filterPill_1y1ui_28",
+	pillCount: "_pillCount_1y1ui_42",
+	pillEmpty: "_pillEmpty_1y1ui_46",
+	pillAll: "_pillAll_1y1ui_51",
+	pillSelected: "_pillSelected_1y1ui_55",
+	pillConfig: "_pillConfig_1y1ui_61",
+	pillConnections: "_pillConnections_1y1ui_67",
+	pillLimits: "_pillLimits_1y1ui_73",
+	pillErrors: "_pillErrors_1y1ui_79",
+	pillCancels: "_pillCancels_1y1ui_86",
+	pillTags: "_pillTags_1y1ui_92",
+	pillRun: "_pillRun_1y1ui_98",
+	search: "_search_1y1ui_151",
+	list: "_list_1y1ui_166",
+	empty: "_empty_1y1ui_175",
+	headerRow: "_headerRow_1y1ui_182",
+	row: "_row_1y1ui_183",
+	timeSort: "_timeSort_1y1ui_204",
+	byHeader: "_byHeader_1y1ui_220",
+	rowLast: "_rowLast_1y1ui_230",
+	rowClickable: "_rowClickable_1y1ui_234",
+	rowSelected: "_rowSelected_1y1ui_238",
+	rowWash: "_rowWash_1y1ui_245",
+	time: "_time_1y1ui_204",
+	kindCell: "_kindCell_1y1ui_258",
+	kindPill: "_kindPill_1y1ui_266",
+	event: "_event_1y1ui_280",
+	muted: "_muted_1y1ui_287",
+	mono: "_mono_1y1ui_291",
+	by: "_by_1y1ui_220",
+	ordinalBox: "_ordinalBox_1y1ui_310",
+	openSample: "_openSample_1y1ui_327"
+};
+//#endregion
+//#region src/app/log-view/tabs/timeline/OpenSampleLink.tsx
+/**
+* A link to a sample: plain clicks open it in place, cmd/ctrl/middle-click
+* open it in a new tab. A button inside the VS Code webview.
+*/ var OpenSampleLink = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(14);
+	const { opener, sample, className, stopPropagation, children } = t0;
+	let t1;
+	if ($[0] !== opener || $[1] !== sample.epoch || $[2] !== sample.id) {
+		t1 = opener.href(sample.id, sample.epoch);
+		$[0] = opener;
+		$[1] = sample.epoch;
+		$[2] = sample.id;
+		$[3] = t1;
+	} else t1 = $[3];
+	let t2;
+	if ($[4] !== opener || $[5] !== sample.epoch || $[6] !== sample.id) {
+		t2 = () => opener.open(sample.id, sample.epoch);
+		$[4] = opener;
+		$[5] = sample.epoch;
+		$[6] = sample.id;
+		$[7] = t2;
+	} else t2 = $[7];
+	let t3;
+	if ($[8] !== children || $[9] !== className || $[10] !== stopPropagation || $[11] !== t1 || $[12] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InAppLink, {
+			href: t1,
+			onNavigate: t2,
+			className,
+			stopPropagation,
+			children
+		});
+		$[8] = children;
+		$[9] = className;
+		$[10] = stopPropagation;
+		$[11] = t1;
+		$[12] = t2;
+		$[13] = t3;
+	} else t3 = $[13];
+	return t3;
 };
 //#endregion
 //#region src/app/log-view/tabs/timeline/timelineData.ts
@@ -161798,7 +162801,7 @@ var byInfo = (row) => {
 		default: return { text: "system" };
 	}
 };
-var HistoryList = ({ rows, ordinals, scrollRef, selectedCategories, onToggleCategory, search, onSearchChange, timeDescending, onToggleTimeSort, selectedEventKey, onSelectEvent, washKeys, onHoverRow, onOpenSample }) => {
+var HistoryList = ({ rows, ordinals, scrollRef, selectedCategories, onToggleCategory, search, onSearchChange, timeDescending, onToggleTimeSort, selectedEventKey, onSelectEvent, washKeys, onHoverRow, sampleOpener }) => {
 	const counts = (0, import_react.useMemo)(() => {
 		const map = /* @__PURE__ */ new Map();
 		for (const row of rows) {
@@ -161858,13 +162861,11 @@ var HistoryList = ({ rows, ordinals, scrollRef, selectedCategories, onToggleCate
 		ordered,
 		virtualizer
 	]);
-	const openLink = (sample) => onOpenSample ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-		type: "button",
+	const openLink = (sample) => sampleOpener ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(OpenSampleLink, {
+		opener: sampleOpener,
+		sample,
 		className: HistoryList_module_default.openSample,
-		onClick: (event) => {
-			event.stopPropagation();
-			onOpenSample(sample.id, sample.epoch, event);
-		},
+		stopPropagation: true,
 		children: "open →"
 	}) : null;
 	const eventCell = (row) => {
@@ -162192,6 +163193,7 @@ var HistoryList = ({ rows, ordinals, scrollRef, selectedCategories, onToggleCate
 						tabIndex: key !== void 0 ? 0 : void 0,
 						onClick: key !== void 0 ? () => onSelectEvent(selected ? null : key) : void 0,
 						onKeyDown: key !== void 0 ? (event) => {
+							if (event.target !== event.currentTarget) return;
 							if (event.key === "Enter" || event.key === " ") {
 								event.preventDefault();
 								onSelectEvent(selected ? null : key);
@@ -162276,66 +163278,66 @@ var timelineAxisTicks = (window, plotWidth) => {
 	return ticks;
 };
 var TimelineChart_module_default = {
-	chart: "_chart_68e1k_1",
-	svg: "_svg_68e1k_6",
-	bandLabel: "_bandLabel_68e1k_13",
-	bandLabelModel: "_bandLabelModel_68e1k_18",
-	activeSeries: "_activeSeries_68e1k_22",
-	connectionsSeries: "_connectionsSeries_68e1k_28",
-	limitGuide: "_limitGuide_68e1k_34",
-	guideLabel: "_guideLabel_68e1k_40",
-	rateLimitLine: "_rateLimitLine_68e1k_45",
-	terminationDot: "_terminationDot_68e1k_53",
-	termHitColumn: "_termHitColumn_68e1k_57",
-	lineHit: "_lineHit_68e1k_62",
-	crosshair: "_crosshair_68e1k_66",
-	hoverDotActive: "_hoverDotActive_68e1k_73",
-	hoverDotConnections: "_hoverDotConnections_68e1k_78",
-	lineTooltip: "_lineTooltip_68e1k_83",
-	axisLine: "_axisLine_68e1k_97",
-	axisLabel: "_axisLabel_68e1k_101",
-	yTickLabel: "_yTickLabel_68e1k_106",
-	axisBreak: "_axisBreak_68e1k_111",
-	postRunLabel: "_postRunLabel_68e1k_117",
-	marker: "_marker_68e1k_123",
-	markerLine: "_markerLine_68e1k_128",
-	markerLineLog: "_markerLineLog_68e1k_132",
-	markerLineActive: "_markerLineActive_68e1k_137",
-	markerLineLogActive: "_markerLineLogActive_68e1k_142",
-	markerDiamond: "_markerDiamond_68e1k_147",
-	markerDiamondLog: "_markerDiamondLog_68e1k_153",
-	markerDiamondActive: "_markerDiamondActive_68e1k_159",
-	markerDiamondLogActive: "_markerDiamondLogActive_68e1k_164",
-	markerDiamondText: "_markerDiamondText_68e1k_169",
-	ordinalBoxRect: "_ordinalBoxRect_68e1k_177",
-	ordinalBoxText: "_ordinalBoxText_68e1k_182",
-	markerPostRun: "_markerPostRun_68e1k_189",
-	markerActive: "_markerActive_68e1k_195",
-	markerPopover: "_markerPopover_68e1k_199",
-	markerPopoverHeader: "_markerPopoverHeader_68e1k_211",
-	markerPopoverOrdinal: "_markerPopoverOrdinal_68e1k_221",
-	markerPopoverTime: "_markerPopoverTime_68e1k_237",
-	markerPopoverBody: "_markerPopoverBody_68e1k_244",
-	markerPopoverEntry: "_markerPopoverEntry_68e1k_251",
-	markerPopoverChange: "_markerPopoverChange_68e1k_257",
-	markerPopoverMuted: "_markerPopoverMuted_68e1k_266",
-	markerPopoverMeta: "_markerPopoverMeta_68e1k_270",
-	markerPopoverLabel: "_markerPopoverLabel_68e1k_283",
-	markerPopoverByline: "_markerPopoverByline_68e1k_288",
-	samplePopover: "_samplePopover_68e1k_294",
-	popoverHeader: "_popoverHeader_68e1k_305",
-	popoverStatusDot: "_popoverStatusDot_68e1k_316",
-	popoverSampleId: "_popoverSampleId_68e1k_324",
-	popoverEpoch: "_popoverEpoch_68e1k_328",
-	popoverStatusWord: "_popoverStatusWord_68e1k_332",
-	popoverBody: "_popoverBody_68e1k_337",
-	popoverInput: "_popoverInput_68e1k_344",
-	popoverGrid: "_popoverGrid_68e1k_353",
-	popoverLabel: "_popoverLabel_68e1k_366",
-	popoverMore: "_popoverMore_68e1k_372",
-	popoverError: "_popoverError_68e1k_377",
-	popoverCallout: "_popoverCallout_68e1k_385",
-	popoverOpen: "_popoverOpen_68e1k_395"
+	chart: "_chart_1we23_1",
+	svg: "_svg_1we23_6",
+	bandLabel: "_bandLabel_1we23_13",
+	bandLabelModel: "_bandLabelModel_1we23_18",
+	activeSeries: "_activeSeries_1we23_22",
+	connectionsSeries: "_connectionsSeries_1we23_28",
+	limitGuide: "_limitGuide_1we23_34",
+	guideLabel: "_guideLabel_1we23_40",
+	rateLimitLine: "_rateLimitLine_1we23_45",
+	terminationDot: "_terminationDot_1we23_53",
+	termHitColumn: "_termHitColumn_1we23_57",
+	lineHit: "_lineHit_1we23_62",
+	crosshair: "_crosshair_1we23_66",
+	hoverDotActive: "_hoverDotActive_1we23_73",
+	hoverDotConnections: "_hoverDotConnections_1we23_78",
+	lineTooltip: "_lineTooltip_1we23_83",
+	axisLine: "_axisLine_1we23_97",
+	axisLabel: "_axisLabel_1we23_101",
+	yTickLabel: "_yTickLabel_1we23_106",
+	axisBreak: "_axisBreak_1we23_111",
+	postRunLabel: "_postRunLabel_1we23_117",
+	marker: "_marker_1we23_123",
+	markerLine: "_markerLine_1we23_128",
+	markerLineLog: "_markerLineLog_1we23_132",
+	markerLineActive: "_markerLineActive_1we23_137",
+	markerLineLogActive: "_markerLineLogActive_1we23_142",
+	markerDiamond: "_markerDiamond_1we23_147",
+	markerDiamondLog: "_markerDiamondLog_1we23_153",
+	markerDiamondActive: "_markerDiamondActive_1we23_159",
+	markerDiamondLogActive: "_markerDiamondLogActive_1we23_164",
+	markerDiamondText: "_markerDiamondText_1we23_169",
+	ordinalBoxRect: "_ordinalBoxRect_1we23_177",
+	ordinalBoxText: "_ordinalBoxText_1we23_182",
+	markerPostRun: "_markerPostRun_1we23_189",
+	markerActive: "_markerActive_1we23_195",
+	markerPopover: "_markerPopover_1we23_199",
+	markerPopoverHeader: "_markerPopoverHeader_1we23_211",
+	markerPopoverOrdinal: "_markerPopoverOrdinal_1we23_221",
+	markerPopoverTime: "_markerPopoverTime_1we23_237",
+	markerPopoverBody: "_markerPopoverBody_1we23_244",
+	markerPopoverEntry: "_markerPopoverEntry_1we23_251",
+	markerPopoverChange: "_markerPopoverChange_1we23_257",
+	markerPopoverMuted: "_markerPopoverMuted_1we23_266",
+	markerPopoverMeta: "_markerPopoverMeta_1we23_270",
+	markerPopoverLabel: "_markerPopoverLabel_1we23_283",
+	markerPopoverByline: "_markerPopoverByline_1we23_288",
+	samplePopover: "_samplePopover_1we23_294",
+	popoverHeader: "_popoverHeader_1we23_305",
+	popoverStatusDot: "_popoverStatusDot_1we23_316",
+	popoverSampleId: "_popoverSampleId_1we23_324",
+	popoverEpoch: "_popoverEpoch_1we23_328",
+	popoverStatusWord: "_popoverStatusWord_1we23_332",
+	popoverBody: "_popoverBody_1we23_337",
+	popoverInput: "_popoverInput_1we23_344",
+	popoverGrid: "_popoverGrid_1we23_353",
+	popoverLabel: "_popoverLabel_1we23_366",
+	popoverMore: "_popoverMore_1we23_372",
+	popoverError: "_popoverError_1we23_377",
+	popoverCallout: "_popoverCallout_1we23_385",
+	popoverOpen: "_popoverOpen_1we23_395"
 };
 //#endregion
 //#region src/app/log-view/tabs/timeline/TimelineChart.tsx
@@ -162415,7 +163417,7 @@ var TimelineChart = (props) => {
 };
 var TimelineChartBody = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(57);
-	const { window: timeWindow, running: t1, showActiveSamples, showTerminations, connectionModels, activeSeries, samplesGuide, terminationDots, lanes, retunes, markers, selectedMarker, onSelectMarker, hoveredRowKey, onHoverMarker, evalDescriptor, limitCrossReference, onOpenSample } = t0;
+	const { window: timeWindow, running: t1, showActiveSamples, showTerminations, connectionModels, activeSeries, samplesGuide, terminationDots, lanes, retunes, markers, selectedMarker, onSelectMarker, hoveredRowKey, onHoverMarker, evalDescriptor, limitCrossReference, sampleOpener } = t0;
 	const running = t1 === void 0 ? false : t1;
 	const [width, setWidth] = (0, import_react.useState)(0);
 	let t2;
@@ -163124,7 +164126,7 @@ var TimelineChartBody = (t0) => {
 			crossReference: limitCrossReference?.(popover.sample),
 			onHold: hold,
 			onRelease: scheduleClosePopover,
-			onOpenSample
+			sampleOpener
 		});
 	};
 	const t18 = TimelineChart_module_default;
@@ -163208,8 +164210,8 @@ var scoreRowsFor = (sample, evalDescriptor) => {
 	}));
 };
 var SamplePopover = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(105);
-	const { sample, status, scores, crossReference, left, top, onHold, onRelease, onOpenSample } = t0;
+	const $ = (0, import_compiler_runtime.c)(104);
+	const { sample, status, scores, crossReference, left, top, onHold, onRelease, sampleOpener } = t0;
 	let t1;
 	if ($[0] !== sample.input) {
 		t1 = inputString(sample.input).join(" ");
@@ -163512,20 +164514,19 @@ var SamplePopover = (t0) => {
 		$[87] = t20;
 	} else t20 = $[87];
 	let t21;
-	if ($[88] !== onOpenSample || $[89] !== sample.epoch || $[90] !== sample.id) {
-		t21 = onOpenSample && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-			type: "button",
+	if ($[88] !== sample || $[89] !== sampleOpener) {
+		t21 = sampleOpener && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(OpenSampleLink, {
+			opener: sampleOpener,
+			sample,
 			className: TimelineChart_module_default.popoverOpen,
-			onClick: (event) => onOpenSample(sample.id, sample.epoch, event),
 			children: "Open sample →"
 		});
-		$[88] = onOpenSample;
-		$[89] = sample.epoch;
-		$[90] = sample.id;
-		$[91] = t21;
-	} else t21 = $[91];
+		$[88] = sample;
+		$[89] = sampleOpener;
+		$[90] = t21;
+	} else t21 = $[90];
 	let t22;
-	if ($[92] !== t11 || $[93] !== t12 || $[94] !== t19 || $[95] !== t20 || $[96] !== t21) {
+	if ($[91] !== t11 || $[92] !== t12 || $[93] !== t19 || $[94] !== t20 || $[95] !== t21) {
 		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t11,
 			children: [
@@ -163535,15 +164536,15 @@ var SamplePopover = (t0) => {
 				t21
 			]
 		});
-		$[92] = t11;
-		$[93] = t12;
-		$[94] = t19;
-		$[95] = t20;
-		$[96] = t21;
-		$[97] = t22;
-	} else t22 = $[97];
+		$[91] = t11;
+		$[92] = t12;
+		$[93] = t19;
+		$[94] = t20;
+		$[95] = t21;
+		$[96] = t22;
+	} else t22 = $[96];
 	let t23;
-	if ($[98] !== t13 || $[99] !== t14 || $[100] !== t15 || $[101] !== t16 || $[102] !== t17 || $[103] !== t22) {
+	if ($[97] !== t13 || $[98] !== t14 || $[99] !== t15 || $[100] !== t16 || $[101] !== t17 || $[102] !== t22) {
 		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t13,
 			style: t14,
@@ -163551,14 +164552,14 @@ var SamplePopover = (t0) => {
 			onMouseLeave: t16,
 			children: [t17, t22]
 		});
-		$[98] = t13;
-		$[99] = t14;
-		$[100] = t15;
-		$[101] = t16;
-		$[102] = t17;
-		$[103] = t22;
-		$[104] = t23;
-	} else t23 = $[104];
+		$[97] = t13;
+		$[98] = t14;
+		$[99] = t15;
+		$[100] = t16;
+		$[101] = t17;
+		$[102] = t22;
+		$[103] = t23;
+	} else t23 = $[103];
 	return t23;
 };
 function _temp$17(m) {
@@ -163792,7 +164793,7 @@ var TimelineTab = (props) => {
 	return t1;
 };
 var TimelineTabBody = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(152);
+	const $ = (0, import_compiler_runtime.c)(156);
 	const { evalSpec, evalStats, evalStatus, configUpdates, logUpdates, earlyStopping, scrollRef } = t0;
 	const sampleData = useSelectedSampleSummaries().data;
 	let t1;
@@ -164168,36 +165169,45 @@ var TimelineTabBody = (t0) => {
 	} else t37 = $[98];
 	const limitCrossReference = t37;
 	let t38;
-	if ($[99] !== getSampleUrl || $[100] !== showSample) {
-		t38 = (id_1, epoch, event_0) => {
-			if (event_0 && (event_0.metaKey || event_0.ctrlKey || event_0.shiftKey)) {
-				const url = getSampleUrl(id_1, epoch);
-				if (url) {
-					openInNewTab(url);
-					return;
-				}
-			}
-			showSample(id_1, epoch);
+	if ($[99] !== getSampleUrl) {
+		t38 = (id_1, epoch) => {
+			const url = getSampleUrl(id_1, epoch);
+			return url ? toFullUrl(routeFromFullUrl(url)) : void 0;
 		};
 		$[99] = getSampleUrl;
-		$[100] = showSample;
-		$[101] = t38;
-	} else t38 = $[101];
-	const openSample = t38;
+		$[100] = t38;
+	} else t38 = $[100];
 	let t39;
-	if ($[102] !== lanes) {
-		t39 = (model_2) => (lanes[model_2]?.rateLimitCount ?? 0) > 0;
-		$[102] = lanes;
-		$[103] = t39;
-	} else t39 = $[103];
-	const showRateLimitLegend = enabledModels.some(t39);
+	if ($[101] !== showSample) {
+		t39 = (id_2, epoch_0) => showSample(id_2, epoch_0);
+		$[101] = showSample;
+		$[102] = t39;
+	} else t39 = $[102];
 	let t40;
-	if ($[104] === Symbol.for("react.memo_cache_sentinel")) {
-		t40 = { width: "100%" };
-		$[104] = t40;
-	} else t40 = $[104];
-	const t41 = TimelineTab_module_default;
-	const t42 = window && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	if ($[103] !== t38 || $[104] !== t39) {
+		t40 = {
+			href: t38,
+			open: t39
+		};
+		$[103] = t38;
+		$[104] = t39;
+		$[105] = t40;
+	} else t40 = $[105];
+	const sampleOpener = t40;
+	let t41;
+	if ($[106] !== lanes) {
+		t41 = (model_2) => (lanes[model_2]?.rateLimitCount ?? 0) > 0;
+		$[106] = lanes;
+		$[107] = t41;
+	} else t41 = $[107];
+	const showRateLimitLegend = enabledModels.some(t41);
+	let t42;
+	if ($[108] === Symbol.for("react.memo_cache_sentinel")) {
+		t42 = { width: "100%" };
+		$[108] = t42;
+	} else t42 = $[108];
+	const t43 = TimelineTab_module_default;
+	const t44 = window && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: TimelineTab_module_default.pickerRow,
 		children: [
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -164255,9 +165265,9 @@ var TimelineTabBody = (t0) => {
 			})
 		]
 	});
-	let t43;
-	if ($[105] !== activeSeries || $[106] !== dots || $[107] !== enabledModels || $[108] !== evalDescriptor || $[109] !== evalStatus || $[110] !== hoverLink || $[111] !== lanes || $[112] !== limitCrossReference || $[113] !== markers || $[114] !== openSample || $[115] !== retunes || $[116] !== samplesGuide || $[117] !== selectMarker || $[118] !== selectedEventKey || $[119] !== setHoverLink || $[120] !== showActiveSamples || $[121] !== showTerminations || $[122] !== window) {
-		t43 = window && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineChart, {
+	let t45;
+	if ($[109] !== activeSeries || $[110] !== dots || $[111] !== enabledModels || $[112] !== evalDescriptor || $[113] !== evalStatus || $[114] !== hoverLink || $[115] !== lanes || $[116] !== limitCrossReference || $[117] !== markers || $[118] !== retunes || $[119] !== sampleOpener || $[120] !== samplesGuide || $[121] !== selectMarker || $[122] !== selectedEventKey || $[123] !== setHoverLink || $[124] !== showActiveSamples || $[125] !== showTerminations || $[126] !== window) {
+		t45 = window && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineChart, {
 			window,
 			running: evalStatus === "started",
 			showActiveSamples,
@@ -164278,48 +165288,48 @@ var TimelineTabBody = (t0) => {
 			} : null),
 			evalDescriptor,
 			limitCrossReference,
-			onOpenSample: openSample
+			sampleOpener
 		});
-		$[105] = activeSeries;
-		$[106] = dots;
-		$[107] = enabledModels;
-		$[108] = evalDescriptor;
-		$[109] = evalStatus;
-		$[110] = hoverLink;
-		$[111] = lanes;
-		$[112] = limitCrossReference;
-		$[113] = markers;
-		$[114] = openSample;
-		$[115] = retunes;
-		$[116] = samplesGuide;
-		$[117] = selectMarker;
-		$[118] = selectedEventKey;
-		$[119] = setHoverLink;
-		$[120] = showActiveSamples;
-		$[121] = showTerminations;
-		$[122] = window;
-		$[123] = t43;
-	} else t43 = $[123];
-	let t44;
-	if ($[124] !== setTimeSort || $[125] !== timeDescending) {
-		t44 = () => setTimeSort(timeDescending ? "asc" : "desc");
-		$[124] = setTimeSort;
-		$[125] = timeDescending;
-		$[126] = t44;
-	} else t44 = $[126];
-	const t45 = hoverLink?.source === "marker" ? hoverLink.keys : kNoKeys;
+		$[109] = activeSeries;
+		$[110] = dots;
+		$[111] = enabledModels;
+		$[112] = evalDescriptor;
+		$[113] = evalStatus;
+		$[114] = hoverLink;
+		$[115] = lanes;
+		$[116] = limitCrossReference;
+		$[117] = markers;
+		$[118] = retunes;
+		$[119] = sampleOpener;
+		$[120] = samplesGuide;
+		$[121] = selectMarker;
+		$[122] = selectedEventKey;
+		$[123] = setHoverLink;
+		$[124] = showActiveSamples;
+		$[125] = showTerminations;
+		$[126] = window;
+		$[127] = t45;
+	} else t45 = $[127];
 	let t46;
-	if ($[127] !== setHoverLink) {
-		t46 = (key_0) => setHoverLink(key_0 !== null ? {
+	if ($[128] !== setTimeSort || $[129] !== timeDescending) {
+		t46 = () => setTimeSort(timeDescending ? "asc" : "desc");
+		$[128] = setTimeSort;
+		$[129] = timeDescending;
+		$[130] = t46;
+	} else t46 = $[130];
+	const t47 = hoverLink?.source === "marker" ? hoverLink.keys : kNoKeys;
+	let t48;
+	if ($[131] !== setHoverLink) {
+		t48 = (key_0) => setHoverLink(key_0 !== null ? {
 			source: "row",
 			keys: [key_0]
 		} : null);
-		$[127] = setHoverLink;
-		$[128] = t46;
-	} else t46 = $[128];
-	let t47;
-	if ($[129] !== openSample || $[130] !== ordinals || $[131] !== rows || $[132] !== scrollRef || $[133] !== search || $[134] !== selectedCategories || $[135] !== selectedEventKey || $[136] !== setSearch || $[137] !== setSelectedEventKey || $[138] !== t44 || $[139] !== t45 || $[140] !== t46 || $[141] !== timeDescending || $[142] !== toggleCategory) {
-		t47 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(HistoryList, {
+		$[131] = setHoverLink;
+		$[132] = t48;
+	} else t48 = $[132];
+	let t49;
+	if ($[133] !== ordinals || $[134] !== rows || $[135] !== sampleOpener || $[136] !== scrollRef || $[137] !== search || $[138] !== selectedCategories || $[139] !== selectedEventKey || $[140] !== setSearch || $[141] !== setSelectedEventKey || $[142] !== t46 || $[143] !== t47 || $[144] !== t48 || $[145] !== timeDescending || $[146] !== toggleCategory) {
+		t49 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(HistoryList, {
 			rows,
 			ordinals,
 			scrollRef,
@@ -164328,56 +165338,56 @@ var TimelineTabBody = (t0) => {
 			search,
 			onSearchChange: setSearch,
 			timeDescending,
-			onToggleTimeSort: t44,
+			onToggleTimeSort: t46,
 			selectedEventKey,
 			onSelectEvent: setSelectedEventKey,
-			washKeys: t45,
-			onHoverRow: t46,
-			onOpenSample: openSample
+			washKeys: t47,
+			onHoverRow: t48,
+			sampleOpener
 		});
-		$[129] = openSample;
-		$[130] = ordinals;
-		$[131] = rows;
-		$[132] = scrollRef;
-		$[133] = search;
-		$[134] = selectedCategories;
-		$[135] = selectedEventKey;
-		$[136] = setSearch;
-		$[137] = setSelectedEventKey;
-		$[138] = t44;
-		$[139] = t45;
-		$[140] = t46;
-		$[141] = timeDescending;
-		$[142] = toggleCategory;
+		$[133] = ordinals;
+		$[134] = rows;
+		$[135] = sampleOpener;
+		$[136] = scrollRef;
+		$[137] = search;
+		$[138] = selectedCategories;
+		$[139] = selectedEventKey;
+		$[140] = setSearch;
+		$[141] = setSelectedEventKey;
+		$[142] = t46;
 		$[143] = t47;
-	} else t47 = $[143];
-	let t48;
-	if ($[144] !== t41.container || $[145] !== t42 || $[146] !== t43 || $[147] !== t47) {
-		t48 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t41.container,
+		$[144] = t48;
+		$[145] = timeDescending;
+		$[146] = toggleCategory;
+		$[147] = t49;
+	} else t49 = $[147];
+	let t50;
+	if ($[148] !== t43.container || $[149] !== t44 || $[150] !== t45 || $[151] !== t49) {
+		t50 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t43.container,
 			children: [
-				t42,
-				t43,
-				t47
+				t44,
+				t45,
+				t49
 			]
 		});
-		$[144] = t41.container;
-		$[145] = t42;
-		$[146] = t43;
-		$[147] = t47;
-		$[148] = t48;
-	} else t48 = $[148];
-	let t49;
-	if ($[149] !== t40 || $[150] !== t48) {
-		t49 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			style: t40,
-			children: t48
-		});
-		$[149] = t40;
-		$[150] = t48;
+		$[148] = t43.container;
+		$[149] = t44;
+		$[150] = t45;
 		$[151] = t49;
-	} else t49 = $[151];
-	return t49;
+		$[152] = t50;
+	} else t50 = $[152];
+	let t51;
+	if ($[153] !== t42 || $[154] !== t50) {
+		t51 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			style: t42,
+			children: t50
+		});
+		$[153] = t42;
+		$[154] = t50;
+		$[155] = t51;
+	} else t51 = $[155];
+	return t51;
 };
 var BandChip = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(13);
@@ -166505,12 +167515,12 @@ var SecondaryBar_module_default = {
 /**
 * Renders the SecondaryBar
 */ var SecondaryBar = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(68);
+	const $ = (0, import_compiler_runtime.c)(70);
 	const { evalSpec, evalPlan, evalResults, evalStats, status, sampleCount } = t0;
 	const evalDescriptor = useEvalDescriptor();
 	const sampleInvalidation = useSelectedSampleInvalidation();
 	const configUpdates = useConfigUpdates();
-	const showTimeline = useShowTimeline();
+	const { href: timelineHref, show: showTimeline } = useTimelineNavigation();
 	let t1;
 	if ($[0] !== configUpdates) {
 		t1 = [...evalConfigChanges(configUpdates).values(), ...generateConfigChanges(configUpdates).values()];
@@ -166560,15 +167570,15 @@ var SecondaryBar_module_default = {
 	} else t6 = $[15];
 	const hasConfig = t6;
 	let values;
-	if ($[16] !== configChanges || $[17] !== epochs || $[18] !== evalDescriptor || $[19] !== evalResults || $[20] !== evalSpec.dataset || $[21] !== evalStats || $[22] !== hasConfig || $[23] !== hyperparameters || $[24] !== sampleCount || $[25] !== sampleInvalidation || $[26] !== showTimeline) {
+	if ($[16] !== configChanges || $[17] !== epochs || $[18] !== evalDescriptor || $[19] !== evalResults || $[20] !== evalSpec.dataset || $[21] !== evalStats || $[22] !== hasConfig || $[23] !== hyperparameters || $[24] !== sampleCount || $[25] !== sampleInvalidation || $[26] !== showTimeline || $[27] !== timelineHref) {
 		values = [];
 		let t7;
-		if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
+		if ($[29] === Symbol.for("react.memo_cache_sentinel")) {
 			t7 = clsx(SecondaryBar_module_default.staticCol, "text-size-small");
-			$[28] = t7;
-		} else t7 = $[28];
+			$[29] = t7;
+		} else t7 = $[29];
 		let t8;
-		if ($[29] !== epochs || $[30] !== evalSpec.dataset || $[31] !== sampleCount) {
+		if ($[30] !== epochs || $[31] !== evalSpec.dataset || $[32] !== sampleCount) {
 			t8 = {
 				size: "minmax(12%, auto)",
 				value: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LabeledValue, {
@@ -166581,28 +167591,28 @@ var SecondaryBar_module_default = {
 					})
 				}, "sb-dataset")
 			};
-			$[29] = epochs;
-			$[30] = evalSpec.dataset;
-			$[31] = sampleCount;
-			$[32] = t8;
-		} else t8 = $[32];
+			$[30] = epochs;
+			$[31] = evalSpec.dataset;
+			$[32] = sampleCount;
+			$[33] = t8;
+		} else t8 = $[33];
 		values.push(t8);
 		const label = evalResults?.scores && evalResults.scores.length > 1 ? "Scorers" : "Scorer";
 		const t9 = hasConfig ? SecondaryBar_module_default.justifyLeft : SecondaryBar_module_default.justifyCenter;
 		let t10;
-		if ($[33] !== t9) {
+		if ($[34] !== t9) {
 			t10 = clsx(SecondaryBar_module_default.staticCol, t9, "text-size-small");
-			$[33] = t9;
-			$[34] = t10;
-		} else t10 = $[34];
+			$[34] = t9;
+			$[35] = t10;
+		} else t10 = $[35];
 		let t11;
-		if ($[35] !== evalDescriptor) {
+		if ($[36] !== evalDescriptor) {
 			t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScorerSummary, { evalDescriptor });
-			$[35] = evalDescriptor;
-			$[36] = t11;
-		} else t11 = $[36];
+			$[36] = evalDescriptor;
+			$[37] = t11;
+		} else t11 = $[37];
 		let t12;
-		if ($[37] !== label || $[38] !== t10 || $[39] !== t11) {
+		if ($[38] !== label || $[39] !== t10 || $[40] !== t11) {
 			t12 = {
 				size: "minmax(12%, auto)",
 				value: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LabeledValue, {
@@ -166611,37 +167621,39 @@ var SecondaryBar_module_default = {
 					children: t11
 				}, "sb-scorer")
 			};
-			$[37] = label;
-			$[38] = t10;
-			$[39] = t11;
-			$[40] = t12;
-		} else t12 = $[40];
+			$[38] = label;
+			$[39] = t10;
+			$[40] = t11;
+			$[41] = t12;
+		} else t12 = $[41];
 		values.push(t12);
 		if (hasConfig) {
 			let t13;
-			if ($[41] === Symbol.for("react.memo_cache_sentinel")) {
+			if ($[42] === Symbol.for("react.memo_cache_sentinel")) {
 				t13 = clsx(SecondaryBar_module_default.justifyRight, "text-size-small");
-				$[41] = t13;
-			} else t13 = $[41];
+				$[42] = t13;
+			} else t13 = $[42];
 			let t14;
-			if ($[42] !== hyperparameters) {
+			if ($[43] !== hyperparameters) {
 				t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ParamSummary, { params: hyperparameters });
-				$[42] = hyperparameters;
-				$[43] = t14;
-			} else t14 = $[43];
+				$[43] = hyperparameters;
+				$[44] = t14;
+			} else t14 = $[44];
 			let t15;
-			if ($[44] !== configChanges || $[45] !== showTimeline) {
+			if ($[45] !== configChanges || $[46] !== showTimeline || $[47] !== timelineHref) {
 				t15 = configChanges.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ConfigChangesCountChip, {
 					id: "secondary-bar-config-changes",
 					changes: configChanges,
-					onViewTimeline: showTimeline
+					onViewTimeline: showTimeline,
+					timelineHref
 				}) : null;
-				$[44] = configChanges;
-				$[45] = showTimeline;
-				$[46] = t15;
-			} else t15 = $[46];
+				$[45] = configChanges;
+				$[46] = showTimeline;
+				$[47] = timelineHref;
+				$[48] = t15;
+			} else t15 = $[48];
 			let t16;
-			if ($[47] !== t14 || $[48] !== t15) {
+			if ($[49] !== t14 || $[50] !== t15) {
 				t16 = {
 					size: "minmax(12%, auto)",
 					value: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LabeledValue, {
@@ -166653,28 +167665,28 @@ var SecondaryBar_module_default = {
 						})
 					}, "sb-params")
 				};
-				$[47] = t14;
-				$[48] = t15;
-				$[49] = t16;
-			} else t16 = $[49];
+				$[49] = t14;
+				$[50] = t15;
+				$[51] = t16;
+			} else t16 = $[51];
 			values.push(t16);
 		}
 		if (evalStats) {
 			let t13;
-			if ($[50] !== evalStats.completed_at || $[51] !== evalStats.started_at) {
+			if ($[52] !== evalStats.completed_at || $[53] !== evalStats.started_at) {
 				t13 = formatDuration(new Date(evalStats.started_at), new Date(evalStats.completed_at));
-				$[50] = evalStats.completed_at;
-				$[51] = evalStats.started_at;
-				$[52] = t13;
-			} else t13 = $[52];
+				$[52] = evalStats.completed_at;
+				$[53] = evalStats.started_at;
+				$[54] = t13;
+			} else t13 = $[54];
 			const totalDuration = t13;
 			let t14;
-			if ($[53] === Symbol.for("react.memo_cache_sentinel")) {
+			if ($[55] === Symbol.for("react.memo_cache_sentinel")) {
 				t14 = clsx(SecondaryBar_module_default.justifyRight, "text-size-small");
-				$[53] = t14;
-			} else t14 = $[53];
+				$[55] = t14;
+			} else t14 = $[55];
 			let t15;
-			if ($[54] !== totalDuration) {
+			if ($[56] !== totalDuration) {
 				t15 = {
 					size: "minmax(12%, auto)",
 					value: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LabeledValue, {
@@ -166683,21 +167695,21 @@ var SecondaryBar_module_default = {
 						children: totalDuration
 					}, "sb-duration")
 				};
-				$[54] = totalDuration;
-				$[55] = t15;
-			} else t15 = $[55];
+				$[56] = totalDuration;
+				$[57] = t15;
+			} else t15 = $[57];
 			values.push(t15);
 		}
 		if (sampleInvalidation) {
 			let t13;
-			if ($[56] !== sampleInvalidation) {
+			if ($[58] !== sampleInvalidation) {
 				t13 = {
 					size: "minmax(12%, auto)",
 					value: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InvalidationStatus, { invalidation: sampleInvalidation }, "sb-invalidation")
 				};
-				$[56] = sampleInvalidation;
-				$[57] = t13;
-			} else t13 = $[57];
+				$[58] = sampleInvalidation;
+				$[59] = t13;
+			} else t13 = $[59];
 			values.push(t13);
 		}
 		$[16] = configChanges;
@@ -166711,34 +167723,35 @@ var SecondaryBar_module_default = {
 		$[24] = sampleCount;
 		$[25] = sampleInvalidation;
 		$[26] = showTimeline;
-		$[27] = values;
-	} else values = $[27];
+		$[27] = timelineHref;
+		$[28] = values;
+	} else values = $[28];
 	let t7;
-	if ($[58] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[60] === Symbol.for("react.memo_cache_sentinel")) {
 		t7 = clsx(SecondaryBar_module_default.container, "text-size-small");
-		$[58] = t7;
-	} else t7 = $[58];
+		$[60] = t7;
+	} else t7 = $[60];
 	let t8;
-	if ($[59] !== values) {
+	if ($[61] !== values) {
 		t8 = values.map(_temp$11);
-		$[59] = values;
-		$[60] = t8;
-	} else t8 = $[60];
+		$[61] = values;
+		$[62] = t8;
+	} else t8 = $[62];
 	const t9 = `${t8.join(" ")}`;
 	let t10;
-	if ($[61] !== t9) {
+	if ($[63] !== t9) {
 		t10 = { gridTemplateColumns: t9 };
-		$[61] = t9;
-		$[62] = t10;
-	} else t10 = $[62];
+		$[63] = t9;
+		$[64] = t10;
+	} else t10 = $[64];
 	let t11;
-	if ($[63] !== values) {
+	if ($[65] !== values) {
 		t11 = values.map(_temp2$9);
-		$[63] = values;
-		$[64] = t11;
-	} else t11 = $[64];
+		$[65] = values;
+		$[66] = t11;
+	} else t11 = $[66];
 	let t12;
-	if ($[65] !== t10 || $[66] !== t11) {
+	if ($[67] !== t10 || $[68] !== t11) {
 		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: "secondary-nav-bar",
 			className: t7,
@@ -166750,10 +167763,10 @@ var SecondaryBar_module_default = {
 				children: t11
 			})
 		});
-		$[65] = t10;
-		$[66] = t11;
-		$[67] = t12;
-	} else t12 = $[67];
+		$[67] = t10;
+		$[68] = t11;
+		$[69] = t12;
+	} else t12 = $[69];
 	return t12;
 };
 /**
@@ -167167,6 +168180,7 @@ var LogView = () => {
 							id: tab_3.id,
 							title: tab_3.label,
 							onSelected,
+							href: toFullUrlMaybe(navigation.getTabUrl(tab_3.id)),
 							selected: selectedTab === tab_3.id,
 							scrollable: !!tab_3.scrollable,
 							scrollRef: tab_3.scrollable ? tab_3.scrollRef : void 0,
@@ -167481,7 +168495,7 @@ var SampleEventView_module_default = {
 * (also mounted under /tasks and /samples so back/home return to the surface
 * the sample was opened from).
 */ var SampleEventView = () => {
-	const $ = (0, import_compiler_runtime.c)(66);
+	const $ = (0, import_compiler_runtime.c)(69);
 	const { logPath, id: sampleId, epoch } = useLogOrSampleRouteParams();
 	const [searchParams, setSearchParams] = useSearchParams();
 	let t0;
@@ -167738,22 +168752,30 @@ var SampleEventView_module_default = {
 		$[59] = t17;
 	} else t17 = $[59];
 	let t18;
-	if ($[60] !== eventId || $[61] !== header || $[62] !== nav || $[63] !== onExit || $[64] !== t17) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FocusTurnView, {
+	if ($[60] !== exitUrl) {
+		t18 = toFullUrlMaybe(exitUrl);
+		$[60] = exitUrl;
+		$[61] = t18;
+	} else t18 = $[61];
+	let t19;
+	if ($[62] !== eventId || $[63] !== header || $[64] !== nav || $[65] !== onExit || $[66] !== t17 || $[67] !== t18) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FocusTurnView, {
 			nav,
 			eventId,
 			header,
 			error: t17,
-			onExit
+			onExit,
+			exitHref: t18
 		});
-		$[60] = eventId;
-		$[61] = header;
-		$[62] = nav;
-		$[63] = onExit;
-		$[64] = t17;
-		$[65] = t18;
-	} else t18 = $[65];
-	return t18;
+		$[62] = eventId;
+		$[63] = header;
+		$[64] = nav;
+		$[65] = onExit;
+		$[66] = t17;
+		$[67] = t18;
+		$[68] = t19;
+	} else t19 = $[68];
+	return t19;
 };
 //#endregion
 //#region src/app/routing/loaders/LogLoadController.tsx
@@ -168596,7 +169618,7 @@ function _temp$5(timestamp) {
 *
 * Rendering is delegated to SampleDetailComponent.
 */ var SampleDetailView = () => {
-	const $ = (0, import_compiler_runtime.c)(41);
+	const $ = (0, import_compiler_runtime.c)(36);
 	const { singleFileMode } = useAppConfig();
 	const { samplesPath: routeLogPath, sampleId, epoch, tabId } = useSamplesRouteParams();
 	const navigate = useNavigate();
@@ -168636,104 +169658,100 @@ function _temp$5(timestamp) {
 	const hasPrevious = currentIndex > 0;
 	const hasNext = displayedSamples && currentIndex >= 0 && currentIndex < displayedSamples.length - 1;
 	let t1;
-	if ($[9] !== currentIndex || $[10] !== displayedSamples || $[11] !== logDir || $[12] !== navigate || $[13] !== routeLogPath || $[14] !== tabId) {
-		t1 = () => {
-			if (currentIndex > 0 && displayedSamples && routeLogPath && logDir) {
-				const prev = displayedSamples[currentIndex - 1];
-				const url = samplesSampleUrl(directoryRelativeUrl(prev.logFile, logDir), prev.sampleId, prev.epoch, tabId);
-				navigate(url);
-			}
+	if ($[9] !== currentIndex || $[10] !== displayedSamples || $[11] !== logDir || $[12] !== routeLogPath || $[13] !== tabId) {
+		t1 = (offset) => {
+			if (currentIndex < 0 || !routeLogPath || !logDir) return;
+			const sibling = displayedSamples?.[currentIndex + offset];
+			if (!sibling) return;
+			return samplesSampleUrl(directoryRelativeUrl(sibling.logFile, logDir), sibling.sampleId, sibling.epoch, tabId);
 		};
 		$[9] = currentIndex;
 		$[10] = displayedSamples;
 		$[11] = logDir;
-		$[12] = navigate;
-		$[13] = routeLogPath;
-		$[14] = tabId;
-		$[15] = t1;
-	} else t1 = $[15];
-	const handlePrevious = t1;
+		$[12] = routeLogPath;
+		$[13] = tabId;
+		$[14] = t1;
+	} else t1 = $[14];
+	const siblingRoute = t1;
+	const previousRoute = siblingRoute(-1);
+	const nextRoute = siblingRoute(1);
+	const handlePrevious = () => {
+		if (previousRoute) navigateAndForget(navigate, previousRoute);
+	};
+	const handleNext = () => {
+		if (nextRoute) navigateAndForget(navigate, nextRoute);
+	};
 	let t2;
-	if ($[16] !== currentIndex || $[17] !== displayedSamples || $[18] !== logDir || $[19] !== navigate || $[20] !== routeLogPath || $[21] !== tabId) {
-		t2 = () => {
-			if (displayedSamples && currentIndex >= 0 && currentIndex < displayedSamples.length - 1 && routeLogPath && logDir) {
-				const next = displayedSamples[currentIndex + 1];
-				const url_0 = samplesSampleUrl(directoryRelativeUrl(next.logFile, logDir), next.sampleId, next.epoch, tabId);
-				navigate(url_0);
-			}
-		};
-		$[16] = currentIndex;
-		$[17] = displayedSamples;
-		$[18] = logDir;
-		$[19] = navigate;
-		$[20] = routeLogPath;
-		$[21] = tabId;
-		$[22] = t2;
-	} else t2 = $[22];
-	const handleNext = t2;
 	let t3;
-	let t4;
-	if ($[23] !== clearLog || $[24] !== clearSampleTab) {
-		t3 = () => () => {
+	if ($[15] !== clearLog || $[16] !== clearSampleTab) {
+		t2 = () => () => {
 			clearLog();
 			clearSampleTab();
 		};
-		t4 = [clearLog, clearSampleTab];
-		$[23] = clearLog;
-		$[24] = clearSampleTab;
-		$[25] = t3;
-		$[26] = t4;
+		t3 = [clearLog, clearSampleTab];
+		$[15] = clearLog;
+		$[16] = clearSampleTab;
+		$[17] = t2;
+		$[18] = t3;
 	} else {
-		t3 = $[25];
-		t4 = $[26];
+		t2 = $[17];
+		t3 = $[18];
 	}
-	(0, import_react.useEffect)(t3, t4);
-	const t5 = !!hasPrevious;
-	const t6 = !!hasNext;
-	let t7;
-	if ($[27] !== handleNext || $[28] !== handlePrevious || $[29] !== t5 || $[30] !== t6) {
-		t7 = {
+	(0, import_react.useEffect)(t2, t3);
+	const T0 = SampleDetailComponent;
+	const t4 = !!hasPrevious;
+	const t5 = !!hasNext;
+	const t6 = toFullUrlMaybe(previousRoute);
+	const t7 = toFullUrlMaybe(nextRoute);
+	let t8;
+	if ($[19] !== handleNext || $[20] !== handlePrevious || $[21] !== t4 || $[22] !== t5 || $[23] !== t6 || $[24] !== t7) {
+		t8 = {
 			onPrevious: handlePrevious,
 			onNext: handleNext,
-			hasPrevious: t5,
-			hasNext: t6
+			hasPrevious: t4,
+			hasNext: t5,
+			previousHref: t6,
+			nextHref: t7
 		};
-		$[27] = handleNext;
-		$[28] = handlePrevious;
-		$[29] = t5;
-		$[30] = t6;
-		$[31] = t7;
-	} else t7 = $[31];
-	const t8 = !singleFileMode;
-	let t9;
-	if ($[32] !== routeLogPath || $[33] !== t8) {
-		t9 = {
+		$[19] = handleNext;
+		$[20] = handlePrevious;
+		$[21] = t4;
+		$[22] = t5;
+		$[23] = t6;
+		$[24] = t7;
+		$[25] = t8;
+	} else t8 = $[25];
+	const t9 = !singleFileMode;
+	let t10;
+	if ($[26] !== routeLogPath || $[27] !== t9) {
+		t10 = {
 			currentPath: routeLogPath,
 			fnNavigationUrl: samplesUrl,
 			bordered: true,
-			breadcrumbsEnabled: t8
+			breadcrumbsEnabled: t9
 		};
-		$[32] = routeLogPath;
-		$[33] = t8;
-		$[34] = t9;
-	} else t9 = $[34];
-	let t10;
-	if ($[35] !== epoch || $[36] !== sampleId || $[37] !== t7 || $[38] !== t9 || $[39] !== tabId) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleDetailComponent, {
+		$[26] = routeLogPath;
+		$[27] = t9;
+		$[28] = t10;
+	} else t10 = $[28];
+	let t11;
+	if ($[29] !== T0 || $[30] !== epoch || $[31] !== sampleId || $[32] !== t10 || $[33] !== t8 || $[34] !== tabId) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(T0, {
 			sampleId,
 			epoch,
 			tabId,
-			navigation: t7,
-			navbarConfig: t9
+			navigation: t8,
+			navbarConfig: t10
 		});
-		$[35] = epoch;
-		$[36] = sampleId;
-		$[37] = t7;
-		$[38] = t9;
-		$[39] = tabId;
-		$[40] = t10;
-	} else t10 = $[40];
-	return t10;
+		$[29] = T0;
+		$[30] = epoch;
+		$[31] = sampleId;
+		$[32] = t10;
+		$[33] = t8;
+		$[34] = tabId;
+		$[35] = t11;
+	} else t11 = $[35];
+	return t11;
 };
 function _temp$4(state) {
 	return state.logs.selectedLogFile;
