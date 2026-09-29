@@ -78628,18 +78628,19 @@ var MessageContent_module_default = {
 	codePanelPre: "_codePanelPre_a1z7v_26"
 };
 var ToolBlock_module_default = {
-	block: "_block_iw9c5_5",
-	standalone: "_standalone_iw9c5_13",
-	header: "_header_iw9c5_21",
-	icon: "_icon_iw9c5_36",
-	title: "_title_iw9c5_42",
-	summary: "_summary_iw9c5_50",
-	pill: "_pill_iw9c5_61",
-	inputZone: "_inputZone_iw9c5_75",
-	outputWell: "_outputWell_iw9c5_88",
-	inputInsetZone: "_inputInsetZone_iw9c5_123",
-	outputInsetZone: "_outputInsetZone_iw9c5_124",
-	struck: "_struck_iw9c5_156"
+	block: "_block_1v0e4_5",
+	standalone: "_standalone_1v0e4_13",
+	header: "_header_1v0e4_21",
+	icon: "_icon_1v0e4_36",
+	title: "_title_1v0e4_42",
+	summary: "_summary_1v0e4_50",
+	pill: "_pill_1v0e4_61",
+	inputZone: "_inputZone_1v0e4_75",
+	outputWell: "_outputWell_1v0e4_88",
+	inputInsetZone: "_inputInsetZone_1v0e4_123",
+	outputInsetZone: "_outputInsetZone_1v0e4_124",
+	struckText: "_struckText_1v0e4_156",
+	struck: "_struck_1v0e4_156"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/ToolBlock.tsx
@@ -78648,8 +78649,8 @@ var ToolBlock_module_default = {
 * tool name · optional pill · args summary) with the tool's input/output
 * zones stacked beneath it.
 */ var ToolBlock = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(23);
-	const { id, icon, title, summary, pill, flush, className, children } = t0;
+	const $ = (0, import_compiler_runtime.c)(24);
+	const { id, icon, title, summary, summaryStruck, pill, flush, className, children } = t0;
 	const t1 = flush ? void 0 : ToolBlock_module_default.standalone;
 	let t2;
 	if ($[0] !== className || $[1] !== t1) {
@@ -78680,25 +78681,26 @@ var ToolBlock_module_default = {
 		$[8] = t5;
 	} else t5 = $[8];
 	let t6;
-	if ($[9] !== summary) {
+	if ($[9] !== summary || $[10] !== summaryStruck) {
 		t6 = summary ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: ToolBlock_module_default.summary,
+			className: clsx(ToolBlock_module_default.summary, summaryStruck && ToolBlock_module_default.struckText),
 			children: summary
 		}) : null;
 		$[9] = summary;
-		$[10] = t6;
-	} else t6 = $[10];
+		$[10] = summaryStruck;
+		$[11] = t6;
+	} else t6 = $[11];
 	let t7;
-	if ($[11] !== pill) {
+	if ($[12] !== pill) {
 		t7 = pill ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: ToolBlock_module_default.pill,
 			children: pill
 		}) : null;
-		$[11] = pill;
-		$[12] = t7;
-	} else t7 = $[12];
+		$[12] = pill;
+		$[13] = t7;
+	} else t7 = $[13];
 	let t8;
-	if ($[13] !== t4 || $[14] !== t5 || $[15] !== t6 || $[16] !== t7) {
+	if ($[14] !== t4 || $[15] !== t5 || $[16] !== t6 || $[17] !== t7) {
 		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ToolBlock_module_default.header,
 			children: [
@@ -78708,25 +78710,25 @@ var ToolBlock_module_default = {
 				t7
 			]
 		});
-		$[13] = t4;
-		$[14] = t5;
-		$[15] = t6;
-		$[16] = t7;
-		$[17] = t8;
-	} else t8 = $[17];
+		$[14] = t4;
+		$[15] = t5;
+		$[16] = t6;
+		$[17] = t7;
+		$[18] = t8;
+	} else t8 = $[18];
 	let t9;
-	if ($[18] !== children || $[19] !== id || $[20] !== t2 || $[21] !== t8) {
+	if ($[19] !== children || $[20] !== id || $[21] !== t2 || $[22] !== t8) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			id,
 			className: t2,
 			children: [t8, children]
 		});
-		$[18] = children;
-		$[19] = id;
-		$[20] = t2;
-		$[21] = t8;
-		$[22] = t9;
-	} else t9 = $[22];
+		$[19] = children;
+		$[20] = id;
+		$[21] = t2;
+		$[22] = t8;
+		$[23] = t9;
+	} else t9 = $[23];
 	return t9;
 };
 /** Input zone (e.g. code) — code fill, hairline top. */ var ToolBlockInput = (t0) => {
@@ -80561,12 +80563,12 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 * header (terminal icon · mono tool name · args summary), the input zone
 * (e.g. code) and the output well stacked beneath.
 */ var ClientToolCall = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(61);
+	const $ = (0, import_compiler_runtime.c)(63);
 	const { id, tool, title, functionCall, input, description, contentType, view, output, selfAnnotation, inputScreenshot, error, className, getCustomToolView, afterInput, afterOutput, inputStruck, outputReplacement } = t0;
 	const displayMode = useDisplayMode();
 	let t1;
 	let viewProps;
-	if ($[0] !== contentType || $[1] !== description || $[2] !== displayMode || $[3] !== functionCall || $[4] !== getCustomToolView || $[5] !== id || $[6] !== input || $[7] !== inputScreenshot || $[8] !== output || $[9] !== selfAnnotation || $[10] !== tool || $[11] !== view) {
+	if ($[0] !== contentType || $[1] !== description || $[2] !== displayMode || $[3] !== functionCall || $[4] !== getCustomToolView || $[5] !== id || $[6] !== input || $[7] !== inputScreenshot || $[8] !== inputStruck || $[9] !== output || $[10] !== outputReplacement || $[11] !== selfAnnotation || $[12] !== tool || $[13] !== view) {
 		viewProps = {
 			id,
 			tool,
@@ -80579,7 +80581,7 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 			selfAnnotation,
 			inputScreenshot
 		};
-		t1 = displayMode === "rendered" ? getCustomToolView?.(viewProps) ?? getDefaultCustomToolView(viewProps) : void 0;
+		t1 = displayMode === "rendered" && !inputStruck && !outputReplacement ? getCustomToolView?.(viewProps) ?? getDefaultCustomToolView(viewProps) : void 0;
 		$[0] = contentType;
 		$[1] = description;
 		$[2] = displayMode;
@@ -80588,83 +80590,83 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 		$[5] = id;
 		$[6] = input;
 		$[7] = inputScreenshot;
-		$[8] = output;
-		$[9] = selfAnnotation;
-		$[10] = tool;
-		$[11] = view;
-		$[12] = t1;
-		$[13] = viewProps;
+		$[8] = inputStruck;
+		$[9] = output;
+		$[10] = outputReplacement;
+		$[11] = selfAnnotation;
+		$[12] = tool;
+		$[13] = view;
+		$[14] = t1;
+		$[15] = viewProps;
 	} else {
-		t1 = $[12];
-		viewProps = $[13];
+		t1 = $[14];
+		viewProps = $[15];
 	}
 	const customView = t1;
 	if (customView) {
 		let t2;
-		if ($[14] !== className) {
+		if ($[16] !== className) {
 			t2 = clsx(ClientToolCall_module_default.custom, className);
-			$[14] = className;
-			$[15] = t2;
-		} else t2 = $[15];
+			$[16] = className;
+			$[17] = t2;
+		} else t2 = $[17];
 		let t3;
-		if ($[16] !== afterInput || $[17] !== afterOutput || $[18] !== customView || $[19] !== outputReplacement || $[20] !== t2) {
+		if ($[18] !== afterInput || $[19] !== afterOutput || $[20] !== customView || $[21] !== t2) {
 			t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: t2,
 				children: [
-					afterInput,
 					customView,
-					outputReplacement,
+					afterInput,
 					afterOutput
 				]
 			});
-			$[16] = afterInput;
-			$[17] = afterOutput;
-			$[18] = customView;
-			$[19] = outputReplacement;
-			$[20] = t2;
-			$[21] = t3;
-		} else t3 = $[21];
+			$[18] = afterInput;
+			$[19] = afterOutput;
+			$[20] = customView;
+			$[21] = t2;
+			$[22] = t3;
+		} else t3 = $[22];
 		return t3;
 	}
 	const hasInput = input !== void 0 && input !== null && input !== "" || !!view?.content;
 	let argsBody;
 	let t2;
-	if ($[22] !== functionCall || $[23] !== hasInput || $[24] !== title || $[25] !== tool) {
+	if ($[23] !== functionCall || $[24] !== hasInput || $[25] !== title || $[26] !== tool) {
 		argsBody = hasInput ? void 0 : fullArgs(functionCall, title || tool);
 		t2 = argsBody?.replace(/\s+/g, " ").trim();
-		$[22] = functionCall;
-		$[23] = hasInput;
-		$[24] = title;
-		$[25] = tool;
-		$[26] = argsBody;
-		$[27] = t2;
+		$[23] = functionCall;
+		$[24] = hasInput;
+		$[25] = title;
+		$[26] = tool;
+		$[27] = argsBody;
+		$[28] = t2;
 	} else {
-		argsBody = $[26];
-		t2 = $[27];
+		argsBody = $[27];
+		t2 = $[28];
 	}
 	const argsSummary = t2;
 	const argsInInputZone = !!argsSummary && argsSummary.length > kMaxSummaryArgs;
 	const showError = !!error;
 	const showAnnotation = !!selfAnnotation && !!inputScreenshot;
 	let t3;
-	if ($[28] !== output || $[29] !== showAnnotation || $[30] !== showError) {
+	if ($[29] !== output || $[30] !== showAnnotation || $[31] !== showError) {
 		t3 = !showError && (hasOutputContent(output) || showAnnotation);
-		$[28] = output;
-		$[29] = showAnnotation;
-		$[30] = showError;
-		$[31] = t3;
-	} else t3 = $[31];
+		$[29] = output;
+		$[30] = showAnnotation;
+		$[31] = showError;
+		$[32] = t3;
+	} else t3 = $[32];
 	const showOutput = t3;
 	let t4;
-	if ($[32] !== tool) {
+	if ($[33] !== tool) {
 		t4 = iconForTool(tool);
-		$[32] = tool;
-		$[33] = t4;
-	} else t4 = $[33];
+		$[33] = tool;
+		$[34] = t4;
+	} else t4 = $[34];
 	const t5 = title || tool;
 	const t6 = description ?? (argsInInputZone ? void 0 : argsSummary);
 	let t7;
-	if ($[34] !== argsBody || $[35] !== argsInInputZone || $[36] !== contentType || $[37] !== hasInput || $[38] !== id || $[39] !== input || $[40] !== inputStruck || $[41] !== view) {
+	if ($[35] !== argsBody || $[36] !== argsInInputZone || $[37] !== contentType || $[38] !== hasInput || $[39] !== id || $[40] !== input || $[41] !== inputStruck || $[42] !== view) {
 		t7 = hasInput || argsInInputZone ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockInput, {
 			struck: inputStruck,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
@@ -80680,18 +80682,18 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 				})
 			})
 		}) : null;
-		$[34] = argsBody;
-		$[35] = argsInInputZone;
-		$[36] = contentType;
-		$[37] = hasInput;
-		$[38] = id;
-		$[39] = input;
-		$[40] = inputStruck;
-		$[41] = view;
-		$[42] = t7;
-	} else t7 = $[42];
+		$[35] = argsBody;
+		$[36] = argsInInputZone;
+		$[37] = contentType;
+		$[38] = hasInput;
+		$[39] = id;
+		$[40] = input;
+		$[41] = inputStruck;
+		$[42] = view;
+		$[43] = t7;
+	} else t7 = $[43];
 	let t8;
-	if ($[43] !== error || $[44] !== inputScreenshot || $[45] !== outputReplacement || $[46] !== selfAnnotation || $[47] !== showError || $[48] !== showOutput || $[49] !== viewProps) {
+	if ($[44] !== error || $[45] !== inputScreenshot || $[46] !== outputReplacement || $[47] !== selfAnnotation || $[48] !== showError || $[49] !== showOutput || $[50] !== viewProps) {
 		t8 = outputReplacement ? outputReplacement : showError ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockOutput, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolCallErrorView, { error }), selfAnnotation && inputScreenshot ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnnotatedScreenshotOutput, {
 			contents: inputScreenshot,
 			annotation: selfAnnotation
@@ -80699,22 +80701,23 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 			...viewProps,
 			section: "output"
 		}) }) : null;
-		$[43] = error;
-		$[44] = inputScreenshot;
-		$[45] = outputReplacement;
-		$[46] = selfAnnotation;
-		$[47] = showError;
-		$[48] = showOutput;
-		$[49] = viewProps;
-		$[50] = t8;
-	} else t8 = $[50];
+		$[44] = error;
+		$[45] = inputScreenshot;
+		$[46] = outputReplacement;
+		$[47] = selfAnnotation;
+		$[48] = showError;
+		$[49] = showOutput;
+		$[50] = viewProps;
+		$[51] = t8;
+	} else t8 = $[51];
 	let t9;
-	if ($[51] !== afterInput || $[52] !== afterOutput || $[53] !== className || $[54] !== id || $[55] !== t4 || $[56] !== t5 || $[57] !== t6 || $[58] !== t7 || $[59] !== t8) {
+	if ($[52] !== afterInput || $[53] !== afterOutput || $[54] !== className || $[55] !== id || $[56] !== inputStruck || $[57] !== t4 || $[58] !== t5 || $[59] !== t6 || $[60] !== t7 || $[61] !== t8) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlock, {
 			id,
 			icon: t4,
 			title: t5,
 			summary: t6,
+			summaryStruck: inputStruck,
 			className,
 			children: [
 				t7,
@@ -80723,17 +80726,18 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 				afterOutput
 			]
 		});
-		$[51] = afterInput;
-		$[52] = afterOutput;
-		$[53] = className;
-		$[54] = id;
-		$[55] = t4;
-		$[56] = t5;
-		$[57] = t6;
-		$[58] = t7;
-		$[59] = t8;
-		$[60] = t9;
-	} else t9 = $[60];
+		$[52] = afterInput;
+		$[53] = afterOutput;
+		$[54] = className;
+		$[55] = id;
+		$[56] = inputStruck;
+		$[57] = t4;
+		$[58] = t5;
+		$[59] = t6;
+		$[60] = t7;
+		$[61] = t8;
+		$[62] = t9;
+	} else t9 = $[62];
 	return t9;
 };
 /** Args longer than this can't meaningfully summarize on the single header
@@ -106911,45 +106915,46 @@ var AnchorEventView = (t0) => {
 	return t3;
 };
 var ApprovalEventView_module_default = {
-	headline: "_headline_1nc9c_1",
-	inlineExplanation: "_inlineExplanation_1nc9c_6",
-	rejected: "_rejected_1nc9c_10",
-	chain: "_chain_1nc9c_14",
-	chainIndex: "_chainIndex_1nc9c_25",
-	chainApprover: "_chainApprover_1nc9c_32",
-	chainDecision: "_chainDecision_1nc9c_38",
-	chainExplanation: "_chainExplanation_1nc9c_45"
+	headline: "_headline_etmzh_1",
+	inlineExplanation: "_inlineExplanation_etmzh_6",
+	rejected: "_rejected_etmzh_10",
+	chain: "_chain_etmzh_14",
+	chainIndex: "_chainIndex_etmzh_25",
+	chainApprover: "_chainApprover_etmzh_32",
+	chainDecision: "_chainDecision_etmzh_38",
+	chainExplanation: "_chainExplanation_etmzh_45"
 };
 var ToolCheckInset_module_default = {
-	inset: "_inset_9ob3c_1",
-	output: "_output_9ob3c_14",
-	reject: "_reject_9ob3c_18",
-	modify: "_modify_9ob3c_23",
-	summary: "_summary_9ob3c_28",
-	icon: "_icon_9ob3c_36",
-	verdict: "_verdict_9ob3c_40",
-	who: "_who_9ob3c_44",
-	mono: "_mono_9ob3c_48",
-	reason: "_reason_9ob3c_52",
-	scores: "_scores_9ob3c_58",
-	approveIcon: "_approveIcon_9ob3c_65",
-	approveText: "_approveText_9ob3c_69",
-	rejectIcon: "_rejectIcon_9ob3c_73",
-	rejectText: "_rejectText_9ob3c_77",
-	rejectReason: "_rejectReason_9ob3c_81",
-	modifyIcon: "_modifyIcon_9ob3c_85",
-	modifyText: "_modifyText_9ob3c_89",
-	chip: "_chip_9ob3c_93",
-	pill: "_pill_9ob3c_94",
-	trailing: "_trailing_9ob3c_120",
-	pillChevron: "_pillChevron_9ob3c_145",
-	label: "_label_9ob3c_149",
-	ranInstead: "_ranInstead_9ob3c_156",
-	code: "_code_9ob3c_167",
-	notRun: "_notRun_9ob3c_188",
-	notRunBody: "_notRunBody_9ob3c_199",
-	message: "_message_9ob3c_207",
-	messageText: "_messageText_9ob3c_223"
+	inset: "_inset_1l14j_1",
+	output: "_output_1l14j_14",
+	reject: "_reject_1l14j_18",
+	modify: "_modify_1l14j_23",
+	summary: "_summary_1l14j_28",
+	icon: "_icon_1l14j_36",
+	verdict: "_verdict_1l14j_40",
+	who: "_who_1l14j_44",
+	mono: "_mono_1l14j_48",
+	reason: "_reason_1l14j_52",
+	clamped: "_clamped_1l14j_64",
+	scores: "_scores_1l14j_72",
+	approveIcon: "_approveIcon_1l14j_79",
+	approveText: "_approveText_1l14j_83",
+	rejectIcon: "_rejectIcon_1l14j_87",
+	rejectText: "_rejectText_1l14j_91",
+	rejectReason: "_rejectReason_1l14j_95",
+	modifyIcon: "_modifyIcon_1l14j_99",
+	modifyText: "_modifyText_1l14j_103",
+	chip: "_chip_1l14j_107",
+	pill: "_pill_1l14j_108",
+	trailing: "_trailing_1l14j_134",
+	pillChevron: "_pillChevron_1l14j_159",
+	label: "_label_1l14j_163",
+	ranInstead: "_ranInstead_1l14j_170",
+	code: "_code_1l14j_181",
+	notRun: "_notRun_1l14j_202",
+	notRunBody: "_notRunBody_1l14j_213",
+	message: "_message_1l14j_221",
+	messageText: "_messageText_1l14j_237"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ToolCheckInset.tsx
@@ -106980,7 +106985,7 @@ var ToolCheckInset_module_default = {
 	return t5;
 };
 /** One row naming the result that took effect for a stage. */ var CheckSummary = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(30);
+	const $ = (0, import_compiler_runtime.c)(31);
 	const { icon, iconClassName, verdict, verdictClassName, who, whoSuffix, reason, reasonClassName, scores, flagged, checks, open, onToggle } = t0;
 	let t1;
 	if ($[0] !== icon || $[1] !== iconClassName) {
@@ -107035,17 +107040,18 @@ var ToolCheckInset_module_default = {
 		$[14] = t6;
 	} else t6 = $[14];
 	let t7;
-	if ($[15] !== reason || $[16] !== reasonClassName) {
-		t7 = reason ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: clsx(ToolCheckInset_module_default.reason, reasonClassName),
-			children: reason
+	if ($[15] !== checks || $[16] !== reason || $[17] !== reasonClassName) {
+		t7 = reason ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, {
+			markdown: reason,
+			className: clsx(ToolCheckInset_module_default.reason, checks !== void 0 && checks > 1 && ToolCheckInset_module_default.clamped, reasonClassName)
 		}) : null;
-		$[15] = reason;
-		$[16] = reasonClassName;
-		$[17] = t7;
-	} else t7 = $[17];
+		$[15] = checks;
+		$[16] = reason;
+		$[17] = reasonClassName;
+		$[18] = t7;
+	} else t7 = $[18];
 	let t8;
-	if ($[18] !== checks || $[19] !== flagged || $[20] !== onToggle || $[21] !== open) {
+	if ($[19] !== checks || $[20] !== flagged || $[21] !== onToggle || $[22] !== open) {
 		t8 = flagged || checks !== void 0 && checks > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolCheckInset_module_default.trailing,
 			children: [flagged ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
@@ -107059,14 +107065,14 @@ var ToolCheckInset_module_default = {
 				children: [`${checks} checks`, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: clsx(open ? "bi bi-chevron-down" : "bi bi-chevron-right", ToolCheckInset_module_default.pillChevron) })]
 			}) : null]
 		}) : null;
-		$[18] = checks;
-		$[19] = flagged;
-		$[20] = onToggle;
-		$[21] = open;
-		$[22] = t8;
-	} else t8 = $[22];
+		$[19] = checks;
+		$[20] = flagged;
+		$[21] = onToggle;
+		$[22] = open;
+		$[23] = t8;
+	} else t8 = $[23];
 	let t9;
-	if ($[23] !== t2 || $[24] !== t4 || $[25] !== t5 || $[26] !== t6 || $[27] !== t7 || $[28] !== t8) {
+	if ($[24] !== t2 || $[25] !== t4 || $[26] !== t5 || $[27] !== t6 || $[28] !== t7 || $[29] !== t8) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ToolCheckInset_module_default.summary,
 			children: [
@@ -107078,14 +107084,14 @@ var ToolCheckInset_module_default = {
 				t8
 			]
 		});
-		$[23] = t2;
-		$[24] = t4;
-		$[25] = t5;
-		$[26] = t6;
-		$[27] = t7;
-		$[28] = t8;
-		$[29] = t9;
-	} else t9 = $[29];
+		$[24] = t2;
+		$[25] = t4;
+		$[26] = t5;
+		$[27] = t6;
+		$[28] = t7;
+		$[29] = t8;
+		$[30] = t9;
+	} else t9 = $[30];
 	return t9;
 };
 /** The call that ran in place of the original, syntax highlighted. */ var ReplacementCall = (t0) => {
@@ -107122,26 +107128,41 @@ var ToolCheckInset_module_default = {
 	return t3;
 };
 /** The replacement a modify decision ran instead of the original call. */ var RanInstead = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(3);
-	const { call } = t0;
-	let t1;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: clsx(ToolCheckInset_module_default.label, ToolCheckInset_module_default.modifyText),
-			children: "ran instead"
-		});
-		$[0] = t1;
-	} else t1 = $[0];
+	const $ = (0, import_compiler_runtime.c)(8);
+	const { call, ran: t1 } = t0;
+	const ran = t1 === void 0 ? true : t1;
 	let t2;
-	if ($[1] !== call) {
-		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: ToolCheckInset_module_default.ranInstead,
-			children: [t1, /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReplacementCall, { call })]
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t2 = clsx(ToolCheckInset_module_default.label, ToolCheckInset_module_default.modifyText);
+		$[0] = t2;
+	} else t2 = $[0];
+	const t3 = ran ? "ran instead" : "modified to";
+	let t4;
+	if ($[1] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t2,
+			children: t3
 		});
-		$[1] = call;
-		$[2] = t2;
-	} else t2 = $[2];
-	return t2;
+		$[1] = t3;
+		$[2] = t4;
+	} else t4 = $[2];
+	let t5;
+	if ($[3] !== call) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReplacementCall, { call });
+		$[3] = call;
+		$[4] = t5;
+	} else t5 = $[4];
+	let t6;
+	if ($[5] !== t4 || $[6] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: ToolCheckInset_module_default.ranInstead,
+			children: [t4, t5]
+		});
+		$[5] = t4;
+		$[6] = t5;
+		$[7] = t6;
+	} else t6 = $[7];
+	return t6;
 };
 /** Stands in for the result region of a call that never ran. */ var NotRunWell = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(3);
@@ -107332,44 +107353,45 @@ var decisionIcon$1 = (decision) => {
 * The approvals of a tool call as an inset in its input region: one summary
 * row for the decision that took effect, expanding to the escalation chain.
 */ var ApprovalInset = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(28);
-	const { chain } = t0;
+	const $ = (0, import_compiler_runtime.c)(29);
+	const { chain, ran: t1 } = t0;
+	const ran = t1 === void 0 ? true : t1;
 	const final = chain.at(-1);
 	const [collapsed, setCollapsed] = useCollapsedState(`${chain[0].id}-approval-chain`, true);
 	const event = final.event;
 	const look = decisionLook(event.decision);
 	const escalated = chain.slice(0, -1).some(_temp$67);
 	const T0 = CheckInset;
-	const t1 = "input";
-	const t2 = look.tone;
+	const t2 = "input";
+	const t3 = look.tone;
 	const T1 = CheckSummary;
-	const t3 = decisionIcon$1(event.decision);
-	const t4 = look.icon;
-	const t5 = decisionLabel$1(event.decision);
-	const t6 = escalated ? ", after escalation" : void 0;
-	const t7 = event.explanation?.trim() || void 0;
-	const t8 = !collapsed;
-	let t9;
+	const t4 = decisionIcon$1(event.decision);
+	const t5 = look.icon;
+	const t6 = decisionLabel$1(event.decision);
+	const t7 = escalated ? ", after escalation" : void 0;
+	const t8 = event.explanation?.trim() || void 0;
+	const t9 = !collapsed;
+	let t10;
 	if ($[0] !== collapsed || $[1] !== setCollapsed) {
-		t9 = () => setCollapsed(!collapsed);
+		t10 = () => setCollapsed(!collapsed);
 		$[0] = collapsed;
 		$[1] = setCollapsed;
-		$[2] = t9;
-	} else t9 = $[2];
-	let t10;
-	if ($[3] !== T1 || $[4] !== chain.length || $[5] !== event.approver || $[6] !== look.icon || $[7] !== look.reason || $[8] !== look.text || $[9] !== t3 || $[10] !== t5 || $[11] !== t6 || $[12] !== t7 || $[13] !== t8 || $[14] !== t9) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(T1, {
-			icon: t3,
-			iconClassName: t4,
-			verdict: t5,
+		$[2] = t10;
+	} else t10 = $[2];
+	let t11;
+	if ($[3] !== T1 || $[4] !== chain.length || $[5] !== event.approver || $[6] !== look.icon || $[7] !== look.reason || $[8] !== look.text || $[9] !== t10 || $[10] !== t4 || $[11] !== t6 || $[12] !== t7 || $[13] !== t8 || $[14] !== t9) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(T1, {
+			icon: t4,
+			iconClassName: t5,
+			verdict: t6,
 			verdictClassName: look.text,
 			who: event.approver,
-			whoSuffix: t6,
-			reason: t7,
+			whoSuffix: t7,
+			reason: t8,
 			reasonClassName: look.reason,
 			checks: chain.length,
-			open: t8,
-			onToggle: t9
+			open: t9,
+			onToggle: t10
 		});
 		$[3] = T1;
 		$[4] = chain.length;
@@ -107377,50 +107399,54 @@ var decisionIcon$1 = (decision) => {
 		$[6] = look.icon;
 		$[7] = look.reason;
 		$[8] = look.text;
-		$[9] = t3;
-		$[10] = t5;
+		$[9] = t10;
+		$[10] = t4;
 		$[11] = t6;
 		$[12] = t7;
 		$[13] = t8;
 		$[14] = t9;
-		$[15] = t10;
-	} else t10 = $[15];
-	let t11;
-	if ($[16] !== event.decision || $[17] !== event.modified) {
-		t11 = event.decision === "modify" && event.modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RanInstead, { call: event.modified }) : null;
+		$[15] = t11;
+	} else t11 = $[15];
+	let t12;
+	if ($[16] !== event.decision || $[17] !== event.modified || $[18] !== ran) {
+		t12 = event.decision === "modify" && event.modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RanInstead, {
+			call: event.modified,
+			ran
+		}) : null;
 		$[16] = event.decision;
 		$[17] = event.modified;
-		$[18] = t11;
-	} else t11 = $[18];
-	let t12;
-	if ($[19] !== chain || $[20] !== collapsed) {
-		t12 = chain.length > 1 && !collapsed ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[18] = ran;
+		$[19] = t12;
+	} else t12 = $[19];
+	let t13;
+	if ($[20] !== chain || $[21] !== collapsed) {
+		t13 = chain.length > 1 && !collapsed ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: ApprovalEventView_module_default.chain,
 			children: chain.map(_temp2$45)
 		}) : null;
-		$[19] = chain;
-		$[20] = collapsed;
-		$[21] = t12;
-	} else t12 = $[21];
-	let t13;
-	if ($[22] !== T0 || $[23] !== look.tone || $[24] !== t10 || $[25] !== t11 || $[26] !== t12) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(T0, {
-			region: t1,
-			tone: t2,
+		$[20] = chain;
+		$[21] = collapsed;
+		$[22] = t13;
+	} else t13 = $[22];
+	let t14;
+	if ($[23] !== T0 || $[24] !== look.tone || $[25] !== t11 || $[26] !== t12 || $[27] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(T0, {
+			region: t2,
+			tone: t3,
 			children: [
-				t10,
 				t11,
-				t12
+				t12,
+				t13
 			]
 		});
-		$[22] = T0;
-		$[23] = look.tone;
-		$[24] = t10;
+		$[23] = T0;
+		$[24] = look.tone;
 		$[25] = t11;
 		$[26] = t12;
 		$[27] = t13;
-	} else t13 = $[27];
-	return t13;
+		$[28] = t14;
+	} else t14 = $[28];
+	return t14;
 };
 var decisionLook = (decision) => {
 	switch (decision) {
@@ -107449,6 +107475,7 @@ function _temp$67(n) {
 }
 function _temp2$45(node, index) {
 	const step = decisionLook(node.event.decision);
+	const explanation = node.event.explanation?.trim();
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: ApprovalEventView_module_default.chainIndex,
@@ -107462,10 +107489,10 @@ function _temp2$45(node, index) {
 			className: clsx(ApprovalEventView_module_default.chainDecision, step.text),
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: decisionIcon$1(node.event.decision) }), node.event.decision]
 		}),
-		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: ApprovalEventView_module_default.chainExplanation,
-			children: node.event.explanation?.trim()
-		})
+		explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, {
+			markdown: explanation,
+			className: ApprovalEventView_module_default.chainExplanation
+		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {})
 	] }, node.id);
 }
 var BranchEventView_module_default = { panel: "_panel_8zdtn_1" };
@@ -108239,20 +108266,54 @@ var guidesFor = (entry) => {
 	for (let up = entry.parent; up.parent; up = up.parent) prefix = (isLast(up) ? "   " : "│  ") + prefix;
 	return prefix;
 };
+var explanationOf = (node) => node?.event.explanation?.trim() || void 0;
+/** Whether a child's decision is the one its parent passed up. */ var passesUp = (child, parent, explanation) => {
+	const event = child.event;
+	if (event.kind !== "decision" || event.decision !== parent.event.decision) return false;
+	const own = explanationOf(child);
+	if (own && explanation && own !== explanation) return false;
+	const [mine, theirs] = [event.modified, parent.event.modified];
+	return !mine || !theirs || mine.function === theirs.function && JSON.stringify(mine.arguments) === JSON.stringify(theirs.arguments);
+};
 /**
-* The decision that took effect, inferred from the recorded decisions: the
-* runner records the deciding layer's decision last, and a parent passes up
-* its children's decision, so descend from it through children that made the
-* same decision. A child whose explanation matches the parent's wins a tie.
-*/ var effectiveDecision = (tree, last) => {
-	let current = tree.find((e) => e.node === last);
+* The decision that took effect, inferred from the step's outcome: a parent
+* passes up its children's decision, so descend from the outcome through
+* children that made the same decision and, where both explain themselves,
+* gave the same explanation. A child whose explanation matches wins a tie.
+*/ var effectiveDecision = (tree, outcome) => {
+	let current = tree.find((e) => e.node === outcome);
+	let explanation = explanationOf(outcome);
 	for (;;) {
-		const matching = current.children.filter((c) => c.node.event.kind === "decision" && c.node.event.decision === current.node.event.decision);
-		const explanation = current.node.event.explanation?.trim() || null;
-		const next = matching.find((c) => (c.node.event.explanation?.trim() || null) === explanation) ?? matching[0];
+		const matching = current.children.filter((c) => passesUp(c.node, current.node, explanation));
+		const next = (explanation ? matching.find((c) => explanationOf(c.node) === explanation) : void 0) ?? matching[0];
 		if (!next) return current.node;
 		current = next;
+		explanation ??= explanationOf(next.node);
 	}
+};
+/**
+* The decision the runner returned for the step: the root's, or, when a
+* `final()` bypassed the root, the one recorded after the bypassed layers.
+*/ var outcomeOf = (nodes) => {
+	const root = nodes.find((n) => n.event.path === "" && n.event.kind === "decision");
+	if (root) return root;
+	const bypassed = nodes.findIndex((n) => n.event.path === "" && n.event.kind === "bypassed");
+	if (bypassed === -1) return void 0;
+	return nodes.slice(bypassed + 1).findLast((n) => n.event.kind === "decision");
+};
+var isInactiveKind = (kind) => kind === "bypassed" || kind === "cancelled" || kind === "superseded";
+/**
+* The verdict of a step the runner returned no decision for: observed when
+* only monitors reported, continued when a protocol reported but the root
+* returned nothing, and the recorded kind when the root or every check was
+* cancelled or bypassed.
+*/ var quietVerdict = (checks) => {
+	const rootKind = checks.find((n) => n.event.path === "")?.event.kind;
+	if (rootKind && isInactiveKind(rootKind)) return rootKind;
+	if (checks.some((n) => n.event.kind === "decision")) return "continue";
+	if (checks.some((n) => n.event.kind === "observation")) return "observe";
+	const firstKind = checks[0]?.event.kind;
+	return firstKind && isInactiveKind(firstKind) ? firstKind : "continue";
 };
 /**
 * Builds the check tree for one step's events, given in recording order. A
@@ -108270,18 +108331,15 @@ var guidesFor = (entry) => {
 		node,
 		index
 	})).sort((a, b) => compareKeys(keys.get(a.node), keys.get(b.node)) || a.index - b.index).map(({ node }) => node));
-	const decisions = checks.filter((n) => n.event.kind === "decision");
-	const last = decisions.at(-1);
-	const acted = last && last.event.decision !== "continue";
-	const effective = acted ? effectiveDecision(tree, last) : void 0;
-	const onlyRootDecides = decisions.every((n) => n.event.path === "");
-	const observed = !acted && onlyRootDecides && checks.some((n) => n.event.kind === "observation");
-	const explanationOf = (node) => node?.event.explanation?.trim() || void 0;
+	const outcome = outcomeOf(checks);
+	const acted = !!outcome && outcome.event.decision !== "continue";
+	const effective = acted ? effectiveDecision(tree, outcome) : void 0;
 	const single = checks.length === 1 ? checks[0] : void 0;
 	const observations = checks.filter((n) => n.event.kind === "observation" && n.event.suspicion != null);
-	const scores = acted ? [] : single?.event.suspicion != null ? [formatSuspicion(single.event.suspicion)] : observations.map((n) => {
+	const scores = acted ? [] : single?.event.suspicion != null ? [formatSuspicion(single.event.suspicion)].filter(Boolean) : observations.flatMap((n) => {
 		const top = topScore(n.event.suspicion);
-		return `${top.dimension ?? n.event.name.split("/").at(-1)} ${top.value}`;
+		if (!top.value) return [];
+		return [`${top.dimension ?? n.event.name.split("/").at(-1)} ${top.value}`];
 	});
 	return {
 		id: first?.id ?? "",
@@ -108293,13 +108351,36 @@ var guidesFor = (entry) => {
 			guides: guidesFor(entry),
 			tookEffect: entry.node === effective
 		})),
-		verdict: observed ? "observe" : last?.event.decision ?? "continue",
-		decider: effective ?? last,
+		verdict: outcome ? outcome.event.decision ?? "continue" : quietVerdict(checks),
+		outcome,
+		decider: effective ?? outcome,
 		effective,
-		reason: acted ? explanationOf(effective) ?? explanationOf(last) : explanationOf(single),
+		reason: acted ? explanationOf(effective) ?? explanationOf(outcome) : explanationOf(single),
 		scores,
 		audit: nodes.some((n) => n.event.audit),
 		modelCalls
+	};
+}
+/**
+* The step of one event shown without the rest of its step (e.g. in the
+* chunked transcript), whose verdict is the event's own result.
+*/ function buildLoneSentinelStep(node) {
+	const step = buildSentinelStep([node]);
+	const event = node.event;
+	if (event.kind !== "decision" || step.outcome) return step;
+	const verdict = event.decision ?? "continue";
+	const acted = verdict !== "continue";
+	return {
+		...step,
+		verdict,
+		outcome: node,
+		decider: node,
+		effective: acted ? node : void 0,
+		rows: step.rows.map((row) => ({
+			...row,
+			tookEffect: acted
+		})),
+		reason: explanationOf(node)
 	};
 }
 var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
@@ -108375,12 +108456,17 @@ var formatSuspicion = (suspicion) => {
 	return Object.entries(suspicion).map(([dimension, value]) => `${dimension} ${formatScore(value)}`).join(", ");
 };
 var formatScore = (value) => String(Math.round(value * 100) / 100);
-/** The highest score of a suspicion, which stands for it where space is short. */ var topScore = (suspicion) => {
+/** The highest score of a suspicion, which stands for it where space is short; an empty value for a suspicion with no scores. */ var topScore = (suspicion) => {
 	if (typeof suspicion === "number") return {
 		value: formatScore(suspicion),
 		more: 0
 	};
-	const [dimension, value] = sortedScores(suspicion)[0];
+	const top = sortedScores(suspicion)[0];
+	if (!top) return {
+		value: "",
+		more: 0
+	};
+	const [dimension, value] = top;
 	return {
 		dimension,
 		value: formatScore(value),
@@ -114079,35 +114165,35 @@ var ScoreEventView = (t0) => {
 	return t25;
 };
 var SentinelEventView_module_default = {
-	tree: "_tree_1q13g_1",
-	reject: "_reject_1q13g_15",
-	modify: "_modify_1q13g_19",
-	row: "_row_1q13g_23",
-	open: "_open_1q13g_42",
-	inactive: "_inactive_1q13g_46",
-	rowLabel: "_rowLabel_1q13g_50",
-	guides: "_guides_1q13g_56",
-	name: "_name_1q13g_60",
-	result: "_result_1q13g_68",
-	"continue": "_continue_1q13g_74",
-	tookEffect: "_tookEffect_1q13g_82",
-	rowChevron: "_rowChevron_1q13g_86",
-	flag: "_flag_1q13g_91",
-	moreScores: "_moreScores_1q13g_96",
-	detailWrap: "_detailWrap_1q13g_107",
-	detail: "_detail_1q13g_107",
-	afterDetail: "_afterDetail_1q13g_123",
-	rejectDetail: "_rejectDetail_1q13g_127",
-	modifyDetail: "_modifyDetail_1q13g_131",
-	meta: "_meta_1q13g_135",
-	scoreGrid: "_scoreGrid_1q13g_140",
-	scoreName: "_scoreName_1q13g_149",
-	explanation: "_explanation_1q13g_153",
-	noExplanation: "_noExplanation_1q13g_163",
-	modified: "_modified_1q13g_168",
-	foldedToggle: "_foldedToggle_1q13g_181",
-	chevron: "_chevron_1q13g_196",
-	modelCalls: "_modelCalls_1q13g_200"
+	tree: "_tree_1au8o_1",
+	reject: "_reject_1au8o_15",
+	modify: "_modify_1au8o_19",
+	row: "_row_1au8o_23",
+	open: "_open_1au8o_42",
+	inactive: "_inactive_1au8o_46",
+	rowLabel: "_rowLabel_1au8o_50",
+	guides: "_guides_1au8o_56",
+	name: "_name_1au8o_60",
+	result: "_result_1au8o_68",
+	"continue": "_continue_1au8o_74",
+	kindIcon: "_kindIcon_1au8o_82",
+	rowChevron: "_rowChevron_1au8o_92",
+	flag: "_flag_1au8o_97",
+	moreScores: "_moreScores_1au8o_102",
+	detailWrap: "_detailWrap_1au8o_113",
+	detail: "_detail_1au8o_113",
+	afterDetail: "_afterDetail_1au8o_129",
+	rejectDetail: "_rejectDetail_1au8o_133",
+	modifyDetail: "_modifyDetail_1au8o_137",
+	meta: "_meta_1au8o_141",
+	scoreGrid: "_scoreGrid_1au8o_146",
+	scoreName: "_scoreName_1au8o_155",
+	explanation: "_explanation_1au8o_159",
+	noExplanation: "_noExplanation_1au8o_169",
+	modified: "_modified_1au8o_174",
+	foldedToggle: "_foldedToggle_1au8o_187",
+	chevron: "_chevron_1au8o_202",
+	modelCalls: "_modelCalls_1au8o_206"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SentinelEventView.tsx
@@ -114115,24 +114201,25 @@ var SentinelEventView_module_default = {
 * One step's sentinel checks: a summary row naming the result that took
 * effect, expanding to the tree of every check with its detail beneath it.
 */ var SentinelInset = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(33);
-	const { step, region, context } = t0;
+	const $ = (0, import_compiler_runtime.c)(34);
+	const { step, region, context, ran: t1 } = t0;
+	const ran = t1 === void 0 ? true : t1;
 	const [collapsed, setCollapsed] = useCollapsedState(`${step.id}-sentinel-checks`, true);
 	const look = verdictLooks[step.verdict];
 	const tone = step.effective ? look.tone : "neutral";
 	const who = ((step.rows.length === 1 ? step.rows[0] : void 0)?.node ?? step.decider)?.event.path || void 0;
-	const modified = step.effective?.event.modified;
-	const t1 = !collapsed;
-	let t2;
+	const modified = step.effective ? step.outcome?.event.modified : void 0;
+	const t2 = !collapsed;
+	let t3;
 	if ($[0] !== collapsed || $[1] !== setCollapsed) {
-		t2 = () => setCollapsed(!collapsed);
+		t3 = () => setCollapsed(!collapsed);
 		$[0] = collapsed;
 		$[1] = setCollapsed;
-		$[2] = t2;
-	} else t2 = $[2];
-	let t3;
-	if ($[3] !== look.icon || $[4] !== look.iconClass || $[5] !== look.reasonClass || $[6] !== look.textClass || $[7] !== look.word || $[8] !== step.audit || $[9] !== step.reason || $[10] !== step.rows.length || $[11] !== step.scores || $[12] !== t1 || $[13] !== t2 || $[14] !== who) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckSummary, {
+		$[2] = t3;
+	} else t3 = $[2];
+	let t4;
+	if ($[3] !== look.icon || $[4] !== look.iconClass || $[5] !== look.reasonClass || $[6] !== look.textClass || $[7] !== look.word || $[8] !== step.audit || $[9] !== step.reason || $[10] !== step.rows.length || $[11] !== step.scores || $[12] !== t2 || $[13] !== t3 || $[14] !== who) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckSummary, {
 			icon: look.icon,
 			iconClassName: look.iconClass,
 			verdict: look.word,
@@ -114143,8 +114230,8 @@ var SentinelEventView_module_default = {
 			reasonClassName: look.reasonClass,
 			flagged: step.audit,
 			checks: step.rows.length,
-			open: t1,
-			onToggle: t2
+			open: t2,
+			onToggle: t3
 		});
 		$[3] = look.icon;
 		$[4] = look.iconClass;
@@ -114155,65 +114242,70 @@ var SentinelEventView_module_default = {
 		$[9] = step.reason;
 		$[10] = step.rows.length;
 		$[11] = step.scores;
-		$[12] = t1;
-		$[13] = t2;
+		$[12] = t2;
+		$[13] = t3;
 		$[14] = who;
-		$[15] = t3;
-	} else t3 = $[15];
-	let t4;
-	if ($[16] !== modified || $[17] !== step.verdict) {
-		t4 = step.verdict === "modify" && modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RanInstead, { call: modified }) : null;
-		$[16] = modified;
-		$[17] = step.verdict;
-		$[18] = t4;
-	} else t4 = $[18];
+		$[15] = t4;
+	} else t4 = $[15];
 	let t5;
-	if ($[19] !== collapsed || $[20] !== step || $[21] !== tone) {
-		t5 = !collapsed && step.rows.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckTree, {
+	if ($[16] !== modified || $[17] !== ran || $[18] !== step.verdict) {
+		t5 = step.verdict === "modify" && modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RanInstead, {
+			call: modified,
+			ran
+		}) : null;
+		$[16] = modified;
+		$[17] = ran;
+		$[18] = step.verdict;
+		$[19] = t5;
+	} else t5 = $[19];
+	let t6;
+	if ($[20] !== collapsed || $[21] !== step || $[22] !== tone) {
+		t6 = !collapsed && step.rows.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckTree, {
 			step,
 			tone
 		}) : null;
-		$[19] = collapsed;
-		$[20] = step;
-		$[21] = tone;
-		$[22] = t5;
-	} else t5 = $[22];
-	let t6;
-	if ($[23] !== context || $[24] !== step.modelCalls) {
-		t6 = step.modelCalls[0] ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelCallsNote, {
+		$[20] = collapsed;
+		$[21] = step;
+		$[22] = tone;
+		$[23] = t6;
+	} else t6 = $[23];
+	let t7;
+	if ($[24] !== context || $[25] !== step.modelCalls) {
+		t7 = step.modelCalls[0] ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelCallsNote, {
 			id: step.modelCalls[0].id,
 			modelCalls: step.modelCalls,
 			context
 		}) : null;
-		$[23] = context;
-		$[24] = step.modelCalls;
-		$[25] = t6;
-	} else t6 = $[25];
-	let t7;
-	if ($[26] !== region || $[27] !== t3 || $[28] !== t4 || $[29] !== t5 || $[30] !== t6 || $[31] !== tone) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(CheckInset, {
+		$[24] = context;
+		$[25] = step.modelCalls;
+		$[26] = t7;
+	} else t7 = $[26];
+	let t8;
+	if ($[27] !== region || $[28] !== t4 || $[29] !== t5 || $[30] !== t6 || $[31] !== t7 || $[32] !== tone) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(CheckInset, {
 			region,
 			tone,
 			children: [
-				t3,
 				t4,
 				t5,
-				t6
+				t6,
+				t7
 			]
 		});
-		$[26] = region;
-		$[27] = t3;
+		$[27] = region;
 		$[28] = t4;
 		$[29] = t5;
 		$[30] = t6;
-		$[31] = tone;
-		$[32] = t7;
-	} else t7 = $[32];
-	return t7;
+		$[31] = t7;
+		$[32] = tone;
+		$[33] = t8;
+	} else t8 = $[33];
+	return t8;
 };
 var CheckTree = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(15);
+	const $ = (0, import_compiler_runtime.c)(8);
 	const { step, tone } = t0;
+	const grouped = groupedPaths(step.rows);
 	const t1 = step.effective?.id ?? null;
 	let t2;
 	if ($[0] !== t1) {
@@ -114231,42 +114323,31 @@ var CheckTree = (t0) => {
 		$[3] = t4;
 		$[4] = t5;
 	} else t5 = $[4];
-	let t6;
-	if ($[5] !== openRow || $[6] !== setOpenRow || $[7] !== step.rows) {
-		let t7;
-		if ($[9] !== openRow || $[10] !== setOpenRow) {
-			t7 = (row) => {
-				const open = openRow === row.node.id;
-				return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckRowView, {
-					row,
-					open,
-					onToggle: () => setOpenRow(open ? null : row.node.id)
-				}), open ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckDetail, { row }) : null] }, row.node.id);
-			};
-			$[9] = openRow;
-			$[10] = setOpenRow;
-			$[11] = t7;
-		} else t7 = $[11];
-		t6 = step.rows.map(t7);
-		$[5] = openRow;
-		$[6] = setOpenRow;
-		$[7] = step.rows;
-		$[8] = t6;
-	} else t6 = $[8];
+	const t6 = step.rows.map((row) => {
+		const open = openRow === row.node.id;
+		return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckRowView, {
+			row,
+			open,
+			onToggle: () => setOpenRow(open ? null : row.node.id)
+		}), open ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckDetail, {
+			row,
+			showFunction: grouped.has(row.node.event.path)
+		}) : null] }, row.node.id);
+	});
 	let t7;
-	if ($[12] !== t5 || $[13] !== t6) {
+	if ($[5] !== t5 || $[6] !== t6) {
 		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: t5,
 			children: t6
 		});
-		$[12] = t5;
-		$[13] = t6;
-		$[14] = t7;
-	} else t7 = $[14];
+		$[5] = t5;
+		$[6] = t6;
+		$[7] = t7;
+	} else t7 = $[7];
 	return t7;
 };
 var CheckRowView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(28);
+	const $ = (0, import_compiler_runtime.c)(33);
 	const { row, open, onToggle } = t0;
 	const event = row.node.event;
 	const t1 = open && SentinelEventView_module_default.open;
@@ -114286,93 +114367,112 @@ var CheckRowView = (t0) => {
 		$[3] = row.guides;
 		$[4] = t3;
 	} else t3 = $[4];
-	const t4 = event.path || "(top)";
+	const t4 = event.kind === "observation" ? "bi bi-activity" : "bi bi-signpost-split";
 	let t5;
 	if ($[5] !== t4) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: t4 });
+		t5 = clsx(t4, SentinelEventView_module_default.kindIcon);
 		$[5] = t4;
 		$[6] = t5;
 	} else t5 = $[6];
 	let t6;
-	if ($[7] !== event.name) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	if ($[7] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t5,
+			"aria-hidden": "true"
+		});
+		$[7] = t5;
+		$[8] = t6;
+	} else t6 = $[8];
+	const t7 = event.path || "(top)";
+	let t8;
+	if ($[9] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: t7 });
+		$[9] = t7;
+		$[10] = t8;
+	} else t8 = $[10];
+	let t9;
+	if ($[11] !== event.name) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: SentinelEventView_module_default.name,
 			children: event.name
 		});
-		$[7] = event.name;
-		$[8] = t6;
-	} else t6 = $[8];
-	let t7;
-	if ($[9] !== t3 || $[10] !== t5 || $[11] !== t6) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+		$[11] = event.name;
+		$[12] = t9;
+	} else t9 = $[12];
+	let t10;
+	if ($[13] !== t3 || $[14] !== t6 || $[15] !== t8 || $[16] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: SentinelEventView_module_default.rowLabel,
 			children: [
 				t3,
-				t5,
+				t6,
+				t8,
 				" ",
-				t6
+				t9
 			]
 		});
-		$[9] = t3;
-		$[10] = t5;
-		$[11] = t6;
-		$[12] = t7;
-	} else t7 = $[12];
-	let t8;
-	if ($[13] !== row) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckResult, { row });
-		$[13] = row;
-		$[14] = t8;
-	} else t8 = $[14];
-	const t9 = open ? "bi bi-chevron-down" : "bi bi-chevron-right";
-	let t10;
-	if ($[15] !== t9) {
-		t10 = clsx(t9, SentinelEventView_module_default.rowChevron);
-		$[15] = t9;
-		$[16] = t10;
-	} else t10 = $[16];
-	let t11;
-	if ($[17] !== t10) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: t10 });
+		$[13] = t3;
+		$[14] = t6;
+		$[15] = t8;
+		$[16] = t9;
 		$[17] = t10;
-		$[18] = t11;
-	} else t11 = $[18];
-	let t12;
-	if ($[19] !== t11 || $[20] !== t8) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: SentinelEventView_module_default.result,
-			children: [t8, t11]
-		});
+	} else t10 = $[17];
+	let t11;
+	if ($[18] !== row) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckResult, { row });
+		$[18] = row;
 		$[19] = t11;
-		$[20] = t8;
-		$[21] = t12;
-	} else t12 = $[21];
+	} else t11 = $[19];
+	const t12 = open ? "bi bi-chevron-down" : "bi bi-chevron-right";
 	let t13;
-	if ($[22] !== onToggle || $[23] !== open || $[24] !== t12 || $[25] !== t2 || $[26] !== t7) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+	if ($[20] !== t12) {
+		t13 = clsx(t12, SentinelEventView_module_default.rowChevron);
+		$[20] = t12;
+		$[21] = t13;
+	} else t13 = $[21];
+	let t14;
+	if ($[22] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: t13 });
+		$[22] = t13;
+		$[23] = t14;
+	} else t14 = $[23];
+	let t15;
+	if ($[24] !== t11 || $[25] !== t14) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: SentinelEventView_module_default.result,
+			children: [t11, t14]
+		});
+		$[24] = t11;
+		$[25] = t14;
+		$[26] = t15;
+	} else t15 = $[26];
+	let t16;
+	if ($[27] !== onToggle || $[28] !== open || $[29] !== t10 || $[30] !== t15 || $[31] !== t2) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			type: "button",
 			"aria-expanded": open,
 			className: t2,
 			onClick: onToggle,
-			children: [t7, t12]
+			children: [t10, t15]
 		});
-		$[22] = onToggle;
-		$[23] = open;
-		$[24] = t12;
-		$[25] = t2;
-		$[26] = t7;
-		$[27] = t13;
-	} else t13 = $[27];
-	return t13;
+		$[27] = onToggle;
+		$[28] = open;
+		$[29] = t10;
+		$[30] = t15;
+		$[31] = t2;
+		$[32] = t16;
+	} else t16 = $[32];
+	return t16;
 };
 var CheckResult = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(26);
+	const $ = (0, import_compiler_runtime.c)(25);
 	const { row } = t0;
 	const event = row.node.event;
 	let t1;
 	if ($[0] !== event.audit) {
 		t1 = event.audit ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
 			className: clsx("bi bi-flag-fill", SentinelEventView_module_default.flag),
+			role: "img",
 			"aria-label": "flagged"
 		}) : null;
 		$[0] = event.audit;
@@ -114438,35 +114538,33 @@ var CheckResult = (t0) => {
 	}
 	if (!event.decision) return flag;
 	let t2;
-	if ($[17] !== event.decision || $[18] !== row.tookEffect) {
-		t2 = clsx(decisionClass(event.decision), row.tookEffect && SentinelEventView_module_default.tookEffect);
+	if ($[17] !== event.decision) {
+		t2 = decisionClass(event.decision);
 		$[17] = event.decision;
-		$[18] = row.tookEffect;
-		$[19] = t2;
-	} else t2 = $[19];
-	const t3 = row.tookEffect ? `${event.decision} · took effect` : event.decision;
-	let t4;
-	if ($[20] !== t2 || $[21] !== t3) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		$[18] = t2;
+	} else t2 = $[18];
+	let t3;
+	if ($[19] !== event.decision || $[20] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: t2,
-			children: t3
+			children: event.decision
 		});
+		$[19] = event.decision;
 		$[20] = t2;
 		$[21] = t3;
-		$[22] = t4;
-	} else t4 = $[22];
-	let t5;
-	if ($[23] !== flag || $[24] !== t4) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [flag, t4] });
-		$[23] = flag;
+	} else t3 = $[21];
+	let t4;
+	if ($[22] !== flag || $[23] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [flag, t3] });
+		$[22] = flag;
+		$[23] = t3;
 		$[24] = t4;
-		$[25] = t5;
-	} else t5 = $[25];
-	return t5;
+	} else t4 = $[24];
+	return t4;
 };
 var CheckDetail = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(50);
-	const { row } = t0;
+	const $ = (0, import_compiler_runtime.c)(45);
+	const { row, showFunction } = t0;
 	const event = row.node.event;
 	let t1;
 	if ($[0] !== event.explanation) {
@@ -114483,114 +114581,101 @@ var CheckDetail = (t0) => {
 		$[4] = t2;
 	} else t2 = $[4];
 	const effectTone = t2;
-	const t3 = event.kind === "superseded" ? "decision" : event.kind;
-	const t4 = event.audit ? "flagged" : null;
-	const t5 = event.kind === "superseded" ? "superseded" : null;
-	const t6 = row.tookEffect ? "took effect" : null;
-	const t7 = stageLabels[event.stage];
-	let t8;
-	if ($[5] !== t3 || $[6] !== t4 || $[7] !== t5 || $[8] !== t6 || $[9] !== t7) {
-		t8 = [
-			t3,
-			t4,
-			t5,
-			t6,
-			t7
-		].filter(Boolean);
+	const t3 = event.audit ? "flagged" : null;
+	const t4 = event.kind === "superseded" ? "superseded" : null;
+	let t5;
+	if ($[5] !== t3 || $[6] !== t4) {
+		t5 = [t3, t4].filter(Boolean);
 		$[5] = t3;
 		$[6] = t4;
 		$[7] = t5;
-		$[8] = t6;
-		$[9] = t7;
-		$[10] = t8;
-	} else t8 = $[10];
-	const meta = t8;
+	} else t5 = $[7];
+	const status = t5;
+	const reportedBy = showFunction ? event.function : null;
 	let t10;
-	let t11;
-	let t12;
-	let t13;
+	let t6;
+	let t7;
+	let t8;
 	let t9;
-	if ($[11] !== effectTone || $[12] !== event.function || $[13] !== event.stage || $[14] !== event.suspicion || $[15] !== meta || $[16] !== row) {
+	if ($[8] !== effectTone || $[9] !== event.stage || $[10] !== event.suspicion || $[11] !== reportedBy || $[12] !== row || $[13] !== status) {
 		const scores = event.suspicion !== null && typeof event.suspicion === "object" && Object.keys(event.suspicion).length > 1 ? sortedScores(event.suspicion) : void 0;
-		t12 = SentinelEventView_module_default.detailWrap;
-		let t14;
-		if ($[22] !== row) {
-			t14 = indent(row);
-			$[22] = row;
-			$[23] = t14;
-		} else t14 = $[23];
-		if ($[24] !== t14) {
-			t13 = { paddingLeft: t14 };
-			$[24] = t14;
-			$[25] = t13;
-		} else t13 = $[25];
-		const t15 = effectTone === "reject" && SentinelEventView_module_default.rejectDetail;
-		const t16 = effectTone === "modify" && SentinelEventView_module_default.modifyDetail;
-		const t17 = !effectTone && event.stage === "tool_result" && SentinelEventView_module_default.afterDetail;
-		if ($[26] !== t15 || $[27] !== t16 || $[28] !== t17) {
-			t9 = clsx(SentinelEventView_module_default.detail, t15, t16, t17);
-			$[26] = t15;
-			$[27] = t16;
-			$[28] = t17;
-			$[29] = t9;
-		} else t9 = $[29];
-		const t18 = meta.join(" · ");
-		let t19;
-		if ($[30] !== event.function) {
-			t19 = event.function ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [" · ", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-				className: checkClasses.mono,
-				children: event.function
-			})] }) : null;
-			$[30] = event.function;
-			$[31] = t19;
-		} else t19 = $[31];
-		if ($[32] !== t18 || $[33] !== t19) {
-			t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		t9 = SentinelEventView_module_default.detailWrap;
+		let t11;
+		if ($[19] !== row) {
+			t11 = indent(row);
+			$[19] = row;
+			$[20] = t11;
+		} else t11 = $[20];
+		if ($[21] !== t11) {
+			t10 = { paddingLeft: t11 };
+			$[21] = t11;
+			$[22] = t10;
+		} else t10 = $[22];
+		const t12 = effectTone === "reject" && SentinelEventView_module_default.rejectDetail;
+		const t13 = effectTone === "modify" && SentinelEventView_module_default.modifyDetail;
+		const t14 = !effectTone && event.stage === "tool_result" && SentinelEventView_module_default.afterDetail;
+		if ($[23] !== t12 || $[24] !== t13 || $[25] !== t14) {
+			t6 = clsx(SentinelEventView_module_default.detail, t12, t13, t14);
+			$[23] = t12;
+			$[24] = t13;
+			$[25] = t14;
+			$[26] = t6;
+		} else t6 = $[26];
+		if ($[27] !== reportedBy || $[28] !== status) {
+			t7 = status.length || reportedBy ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: SentinelEventView_module_default.meta,
-				children: [t18, t19]
-			});
-			$[32] = t18;
-			$[33] = t19;
-			$[34] = t10;
-		} else t10 = $[34];
-		t11 = scores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				children: [status.join(" · "), reportedBy ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+					status.length ? " · " : null,
+					"function:",
+					" ",
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+						className: checkClasses.mono,
+						children: reportedBy
+					})
+				] }) : null]
+			}) : null;
+			$[27] = reportedBy;
+			$[28] = status;
+			$[29] = t7;
+		} else t7 = $[29];
+		t8 = scores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: SentinelEventView_module_default.scoreGrid,
 			children: scores.map(_temp$54)
 		}) : null;
-		$[11] = effectTone;
-		$[12] = event.function;
-		$[13] = event.stage;
-		$[14] = event.suspicion;
-		$[15] = meta;
-		$[16] = row;
-		$[17] = t10;
-		$[18] = t11;
-		$[19] = t12;
-		$[20] = t13;
-		$[21] = t9;
+		$[8] = effectTone;
+		$[9] = event.stage;
+		$[10] = event.suspicion;
+		$[11] = reportedBy;
+		$[12] = row;
+		$[13] = status;
+		$[14] = t10;
+		$[15] = t6;
+		$[16] = t7;
+		$[17] = t8;
+		$[18] = t9;
 	} else {
-		t10 = $[17];
-		t11 = $[18];
-		t12 = $[19];
-		t13 = $[20];
-		t9 = $[21];
+		t10 = $[14];
+		t6 = $[15];
+		t7 = $[16];
+		t8 = $[17];
+		t9 = $[18];
 	}
-	let t14;
-	if ($[35] !== effectTone || $[36] !== explanation) {
-		t14 = explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, {
+	let t11;
+	if ($[30] !== effectTone || $[31] !== explanation) {
+		t11 = explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, {
 			markdown: explanation,
 			className: clsx(SentinelEventView_module_default.explanation, effectTone === "reject" && checkClasses.rejectReason)
 		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: SentinelEventView_module_default.noExplanation,
 			children: "No explanation recorded."
 		});
-		$[35] = effectTone;
-		$[36] = explanation;
-		$[37] = t14;
-	} else t14 = $[37];
-	let t15;
-	if ($[38] !== event.modified) {
-		t15 = event.modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[30] = effectTone;
+		$[31] = explanation;
+		$[32] = t11;
+	} else t11 = $[32];
+	let t12;
+	if ($[33] !== event.modified) {
+		t12 = event.modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: SentinelEventView_module_default.modified,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 				className: clsx(checkClasses.label, checkClasses.modifyText),
@@ -114600,40 +114685,50 @@ var CheckDetail = (t0) => {
 				children: replacementText(event.modified)
 			})]
 		}) : null;
-		$[38] = event.modified;
-		$[39] = t15;
-	} else t15 = $[39];
-	let t16;
-	if ($[40] !== t10 || $[41] !== t11 || $[42] !== t14 || $[43] !== t15 || $[44] !== t9) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t9,
+		$[33] = event.modified;
+		$[34] = t12;
+	} else t12 = $[34];
+	let t13;
+	if ($[35] !== t11 || $[36] !== t12 || $[37] !== t6 || $[38] !== t7 || $[39] !== t8) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t6,
 			children: [
-				t10,
+				t7,
+				t8,
 				t11,
-				t14,
-				t15
+				t12
 			]
 		});
-		$[40] = t10;
-		$[41] = t11;
-		$[42] = t14;
-		$[43] = t15;
-		$[44] = t9;
-		$[45] = t16;
-	} else t16 = $[45];
-	let t17;
-	if ($[46] !== t12 || $[47] !== t13 || $[48] !== t16) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t12,
-			style: t13,
-			children: t16
+		$[35] = t11;
+		$[36] = t12;
+		$[37] = t6;
+		$[38] = t7;
+		$[39] = t8;
+		$[40] = t13;
+	} else t13 = $[40];
+	let t14;
+	if ($[41] !== t10 || $[42] !== t13 || $[43] !== t9) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t9,
+			style: t10,
+			children: t13
 		});
-		$[46] = t12;
-		$[47] = t13;
-		$[48] = t16;
-		$[49] = t17;
-	} else t17 = $[49];
-	return t17;
+		$[41] = t10;
+		$[42] = t13;
+		$[43] = t9;
+		$[44] = t14;
+	} else t14 = $[44];
+	return t14;
+};
+/** Paths of the instances that reported from more than one function on this step. */ var groupedPaths = (rows) => {
+	const functions = /* @__PURE__ */ new Map();
+	for (const { node } of rows) {
+		if (!node.event.function) continue;
+		const seen = functions.get(node.event.path) ?? /* @__PURE__ */ new Set();
+		seen.add(node.event.function);
+		functions.set(node.event.path, seen);
+	}
+	return new Set([...functions].filter(([, seen]) => seen.size > 1).map(([path]) => path));
 };
 var indent = (row) => `calc(8px + ${row.depth * 3}ch)`;
 var replacementText = (call) => {
@@ -114766,7 +114861,7 @@ var isInactive = (event) => event.kind === "superseded" || event.kind === "bypas
 	const { eventNode, step, className } = t0;
 	let t1;
 	if ($[0] !== eventNode || $[1] !== step) {
-		t1 = step ?? buildSentinelStep([eventNode]);
+		t1 = step ?? buildLoneSentinelStep(eventNode);
 		$[0] = eventNode;
 		$[1] = step;
 		$[2] = t1;
@@ -114807,6 +114902,21 @@ var verdictLooks = {
 	observe: {
 		icon: TranscriptIcons.sentinel,
 		word: "Observed",
+		tone: "neutral"
+	},
+	bypassed: {
+		icon: TranscriptIcons.sentinel,
+		word: "Bypassed",
+		tone: "neutral"
+	},
+	cancelled: {
+		icon: TranscriptIcons.sentinel,
+		word: "Cancelled",
+		tone: "neutral"
+	},
+	superseded: {
+		icon: TranscriptIcons.sentinel,
+		word: "Superseded",
 		tone: "neutral"
 	},
 	reject: {
@@ -117368,6 +117478,18 @@ var ToolEventView_module_default = {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ToolEventView.tsx
+/** The check that stopped the call: the final approval, else the sentinel outcome. */ var blockerOf = (approval, before) => {
+	if (approval?.decision === "reject" || approval?.decision === "terminate") return {
+		decision: approval.decision,
+		explanation: approval.explanation
+	};
+	const verdict = before?.verdict;
+	if (before?.outcome && (verdict === "reject" || verdict === "terminate")) return {
+		decision: verdict,
+		explanation: before.outcome.event.explanation
+	};
+};
+var hasResult = (result) => Array.isArray(result) ? result.length > 0 : result !== "";
 var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks }) => {
 	const event = eventNode.event;
 	const { name, input, description, functionCall, contentType, title } = (0, import_react.useMemo)(() => resolveToolInput(event.function, event.arguments), [event.function, event.arguments]);
@@ -117376,20 +117498,20 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 	const sentinels = context?.toolSentinels?.get(event.id);
 	const finalApproval = approvals?.at(-1)?.event;
 	const before = sentinels?.before;
-	const blocker = finalApproval && (finalApproval.decision === "reject" || finalApproval.decision === "terminate") ? {
-		decision: finalApproval.decision,
-		explanation: finalApproval.explanation
-	} : before?.effective && (before.verdict === "reject" || before.verdict === "terminate") ? {
-		decision: before.verdict,
-		explanation: before.effective.event.explanation
-	} : void 0;
-	const modified = finalApproval?.decision === "modify" || before?.verdict === "modify" && !!before.effective;
+	const blocker = blockerOf(finalApproval, before);
+	const ran = event.error?.type !== "approval" && !(blocker && !hasResult(event.result));
+	const sentinelModified = before?.verdict === "modify" && !!before.effective;
+	const modified = finalApproval?.decision === "modify" || sentinelModified;
 	const beforeInsets = approvals || before ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockInset, {
 		region: "input",
-		children: [approvals ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalInset, { chain: approvals }) : null, before ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
+		children: [approvals ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalInset, {
+			chain: approvals,
+			ran: ran && !sentinelModified
+		}) : null, before ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
 			step: before,
 			region: "input",
-			context
+			context,
+			ran
 		}) : null]
 	}) : void 0;
 	const afterInset = sentinels?.after ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockInset, {
@@ -117400,7 +117522,7 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 			context
 		})
 	}) : void 0;
-	const notRun = blocker ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NotRunWell, { message: event.error?.type === "approval" ? event.error.message : blocker.decision === "reject" ? blocker.explanation?.trim() || "Tool call not approved." : void 0 }) : void 0;
+	const notRun = ran ? void 0 : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NotRunWell, { message: event.error?.type === "approval" ? event.error.message : blocker?.decision === "reject" ? blocker.explanation?.trim() || "Tool call not approved." : void 0 });
 	const lastModelNode = (0, import_react.useMemo)(() => {
 		const lastModel = childNodes.findLast((e) => e.event.event === "model");
 		return lastModel ? eventNodeOf(lastModel, "model") : void 0;
