@@ -1,13 +1,14 @@
 import asyncio
 import os
 import urllib.parse
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Awaitable, Callable
 from functools import partial
 from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
 from logging import getLogger
 from typing import Any, Literal, NamedTuple, Tuple, cast
 
+import anyio
 import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
 from anyio import EndOfStream
@@ -38,6 +39,7 @@ from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import PendingSampleUrls, SegmentRef
+from inspect_ai.log._shard_listing import filter_merged_shards, merged_logs_to_check
 
 logger = getLogger(__name__)
 
@@ -147,19 +149,108 @@ async def read_eval_set_info_async(
         raise
 
 
+class ShardListing(NamedTuple):
+    """A listing with merged shards hidden, and what the client must refresh."""
+
+    logs: list[EvalLogInfo]
+    """The logs to show."""
+
+    visible_shards: bool
+    """Whether any shard log was left visible."""
+
+    hiding_mtime: float | None
+    """Newest mtime of a merged log that hides shards (None if none do)."""
+
+
+# merged log name -> ((mtime, size), finished) for the file version whose
+# status was read; one entry per merged log seen, so it stays small
+_merged_log_finished: dict[str, tuple[tuple[float | None, int], bool]] = {}
+
+# (name, mtime) of merged logs whose status could not be read, so each
+# unreadable version is warned about once
+_merged_log_warned: set[tuple[str, float | None]] = set()
+
+
+async def hide_merged_shards(
+    logs: list[EvalLogInfo],
+    can_read: Callable[[str], Awaitable[bool]] | None = None,
+) -> ShardListing:
+    """Remove shard logs that their merged log already covers from a listing.
+
+    Reads the status of each merged log that could hide a shard, once per
+    file version (mtime and size). A merged log the caller may not read, or
+    whose status cannot be read, hides nothing; read failures are not cached,
+    so a transient error is retried on the next listing.
+
+    Args:
+        logs: The listing.
+        can_read: Whether the requester may read a log (by listing name).
+            Checked on every call, before the cache.
+    """
+    semaphore = anyio.Semaphore(8)
+
+    async def finished(log: EvalLogInfo) -> bool:
+        if can_read is not None and not await can_read(log.name):
+            return False
+        version = (log.mtime, log.size)
+        cached = _merged_log_finished.get(log.name)
+        if cached is not None and cached[0] == version:
+            return cached[1]
+        async with semaphore:
+            try:
+                header = await read_eval_log_async(log.name, header_only=True)
+            except Exception as ex:
+                if (log.name, log.mtime) not in _merged_log_warned:
+                    _merged_log_warned.add((log.name, log.mtime))
+                    logger.warning(
+                        f"Showing shards of {log.name}: unable to read its status ({ex})"
+                    )
+                return False
+        is_finished = header.status == "success"
+        _merged_log_finished[log.name] = (version, is_finished)
+        return is_finished
+
+    merged = merged_logs_to_check(logs)
+    results = await tg_collect([partial(finished, log) for log in merged])
+    finished_logs = [log for log, done in zip(merged, results) if done]
+    filtered = filter_merged_shards(logs, {log.name for log in finished_logs})
+    return ShardListing(
+        logs=filtered.logs,
+        visible_shards=filtered.visible_shards,
+        hiding_mtime=max(
+            (log.mtime for log in finished_logs if log.mtime is not None),
+            default=None,
+        ),
+    )
+
+
 async def get_log_files(
     request_log_dir: str,
     recursive: bool,
     fs_options: dict[str, Any],
     mtime: float,
     file_count: int,
+    show_shards: bool = False,
+    can_read: Callable[[str], Awaitable[bool]] | None = None,
 ) -> LogFilesResponse:
     # list logs
     logs = await list_eval_logs_async(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
     )
 
-    if len(logs) != file_count:
+    # hiding or un-hiding a shard can leave the file count unchanged and
+    # involve files older than the client's token (a merge landing, a merged
+    # log deleted), and only full responses remove rows from the client's
+    # listing; a finished run whose shards are all hidden stays incremental
+    refresh = False
+    if not show_shards:
+        listing = await hide_merged_shards(logs, can_read)
+        logs = listing.logs
+        refresh = listing.visible_shards or (
+            listing.hiding_mtime is not None and listing.hiding_mtime > mtime
+        )
+
+    if len(logs) != file_count or refresh:
         # Has the number of files changed? could be a delete
         # so send a complete list
         return log_files_response(
@@ -541,7 +632,11 @@ async def stream_log_bytes(
 
 
 async def get_logs(
-    request_log_dir: str, recursive: bool, fs_options: dict[str, Any]
+    request_log_dir: str,
+    recursive: bool,
+    fs_options: dict[str, Any],
+    show_shards: bool = False,
+    can_read: Callable[[str], Awaitable[bool]] | None = None,
 ) -> LogListingResponse | None:
     # if the log_dir contains the path to a specific file
     # then just return that file
@@ -556,6 +651,8 @@ async def get_logs(
     logs = await list_eval_logs_async(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
     )
+    if not show_shards:
+        logs = (await hide_merged_shards(logs, can_read)).logs
     return get_log_listing(logs, request_log_dir)
 
 

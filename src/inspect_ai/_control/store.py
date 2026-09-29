@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 # The per-key projection shares its truncation helpers with the events
 # projection so the two renderings of the same underlying values can't drift.
@@ -31,6 +31,9 @@ from inspect_ai._control.terminal_cache import (
     TerminalSourceCache,
     resolve_sample_source,
 )
+
+if TYPE_CHECKING:
+    from inspect_ai.log._log import EvalSample
 
 
 class StoreSource(NamedTuple):
@@ -102,7 +105,23 @@ async def sample_store(
     )
     if source is None:
         return None
+    return page_store(source, keys=keys, content=content, full=full, as_of=as_of)
 
+
+def page_store(
+    source: StoreSource,
+    *,
+    keys: list[str] | None = None,
+    content: bool = False,
+    full: bool = False,
+    as_of: float,
+) -> dict[str, Any]:
+    """The ``{as_of, status, count, store[, missing]}`` envelope of a resolved source.
+
+    The key-selection and projection half of :func:`sample_store` (see it for
+    the arguments), shared with the ``--log-dir`` reader. ``as_of`` is the
+    caller's pre-read timestamp.
+    """
     raw, status = source
     count = len(raw)
 
@@ -178,13 +197,21 @@ async def _resolve_logged_source(
     from inspect_ai._control.state import _full_sample
 
     sample = await _full_sample(
-        eval_id,
-        sample_id,
-        epoch,
-        exclude_fields={"messages", "events", "attachments", "output", "error_retries"},
+        eval_id, sample_id, epoch, exclude_fields=set(LOGGED_STORE_EXCLUDE_FIELDS)
     )
     if sample is None:
         return None
+    return store_source_from_sample(sample)
+
+
+# The heavy fields a logged sample's store read never consumes.
+LOGGED_STORE_EXCLUDE_FIELDS = frozenset(
+    {"messages", "events", "attachments", "output", "error_retries"}
+)
+
+
+def store_source_from_sample(sample: "EvalSample") -> StoreSource:
+    """The terminal source over a logged sample read without the excluded fields."""
     return StoreSource(
         store=dict(sample.store or {}),
         status="error" if sample.error is not None else "completed",
