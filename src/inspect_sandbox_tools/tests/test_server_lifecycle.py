@@ -381,8 +381,7 @@ def test_ensure_private_server_dir_rejects_planted_entry(
         with pytest.raises(
             RuntimeError,
             match=re.escape(
-                f"Sandbox-tools server directory {server_dir} cannot be trusted: "
-                f"{reason}"
+                f"Sandbox-tools directory {server_dir} cannot be trusted: {reason}"
             ),
         ):
             ensure_private_server_dir(server_dir)
@@ -611,7 +610,7 @@ def test_start_server_cli_refuses_planted_server_dir() -> None:
 
         assert result.returncode != 0
         assert (
-            f"Sandbox-tools server directory {server_dir} cannot be trusted: "
+            f"Sandbox-tools directory {server_dir} cannot be trusted: "
             "it is a symbolic link"
         ) in result.stderr
         assert not any(target.iterdir())
