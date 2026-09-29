@@ -1019,15 +1019,6 @@ class EvalShardEntry(BaseModel):
     log: str
     """File name of the shard's current attempt (the newest `.eval` in `<k>/`)."""
 
-    attempts: int
-    """Number of `.eval` files in `<k>/` (superseded attempts plus the current one)."""
-
-    eval_id: str
-    """`eval_id` of the current attempt."""
-
-    task_id: str
-    """`task_id` of the current attempt (each shard has its own)."""
-
     eval_set_id: str | None = Field(default=None)
     """`eval_set_id` of the current attempt."""
 
@@ -1071,23 +1062,11 @@ class EvalShardEntry(BaseModel):
 class EvalShards(BaseModel):
     """Provenance of a merged log: its shards and the ledger of the last merge."""
 
-    location: str
-    """Companion directory the last merge read (informational; readers derive it from the name)."""
-
     selection: Literal["ids", "count", "none"]
     """Form of the intended selection the last merge had; the ids are `eval.dataset.sample_ids`."""
 
     sample_count: int | None = Field(default=None)
     """Intended selection as a count, when `selection` is `"count"`."""
-
-    template: str
-    """Name of the shard whose header supplied the merged header's task fields."""
-
-    merged_at: UtcDatetimeStr
-    """Time of the last merge that wrote this log."""
-
-    metrics_source: Literal["registry", "task_file"]
-    """Whether metrics were resolved from registered code or by importing the header's `task_file`."""
 
     ledger: list[EvalShardEntry]
     """One entry per shard with a current attempt, in shard order."""

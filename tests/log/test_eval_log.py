@@ -526,19 +526,12 @@ log_formats_eval = os.path.join("tests", "log", "test_eval_log", "log_formats.ev
 
 def _eval_shards(selection: Literal["ids", "count", "none"]) -> EvalShards:
     return EvalShards(
-        location="file:///logs/task.shards",
         selection=selection,
         sample_count=3 if selection == "count" else None,
-        template="0",
-        merged_at="2026-09-24T12:00:00+00:00",
-        metrics_source="registry",
         ledger=[
             EvalShardEntry(
                 shard="0",
                 log="2026-09-24T11-00-00+00-00_task_aaa.eval",
-                attempts=1,
-                eval_id="eval-0",
-                task_id="task-0",
                 eval_set_id="set-1",
                 status="success",
                 samples=4,
@@ -563,9 +556,6 @@ def _eval_shards(selection: Literal["ids", "count", "none"]) -> EvalShards:
             EvalShardEntry(
                 shard="1",
                 log="2026-09-24T11-05-00+00-00_task_bbb.eval",
-                attempts=2,
-                eval_id="eval-1",
-                task_id="task-1",
                 status="error",
                 error=EvalError(
                     message="boom", traceback="Traceback", traceback_ansi="Traceback"
@@ -599,8 +589,25 @@ def test_eval_log_header_round_trips_shards(
     assert stored["selection"] == selection
     if selection == "count":
         assert stored["sample_count"] == 3
+        assert set(stored) == {"selection", "sample_count", "ledger"}
     else:
-        assert "sample_count" not in stored
+        assert set(stored) == {"selection", "ledger"}
+    assert set(stored["ledger"][0]) == {
+        "shard",
+        "log",
+        "eval_set_id",
+        "status",
+        "samples",
+        "selected",
+        "selection_digest",
+        "started_at",
+        "completed_at",
+        "model_usage",
+        "role_usage",
+        "size",
+        "etag",
+        "mtime",
+    }
     assert stored["ledger"][0]["samples"] == 4
     assert stored["ledger"][0]["selected"] == 2
     assert len(stored["ledger"][0]["selection_digest"]) == 64
