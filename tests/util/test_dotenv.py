@@ -56,8 +56,10 @@ def test_init_cli_env_quoted_commas_preserved(monkeypatch):
     from inspect_ai._util.config import parse_cli_args
     from inspect_ai._util.dotenv import init_cli_env
 
-    monkeypatch.delenv("NO_PROXY", raising=False)
-    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+    # setenv (not delenv) so teardown removes the values init_cli_env sets
+    monkeypatch.setenv("NO_PROXY", "")
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
+    monkeypatch.setattr(dotenv_mod, "_cli_env", {})
 
     env_args = parse_cli_args(
         [
