@@ -1,7 +1,11 @@
 # Efficient S3 log flushes: server-side composition instead of whole-file re-uploads
 
-Status: proposed, 2026-09-14. Author: agent (Claude), reviewed by Codex; see
-the PR. One design for four fork issues that share a mechanism:
+Status: accepted 2026-09-29 (design PR
+[UKGovernmentBEIS/inspect_ai#5391](https://github.com/UKGovernmentBEIS/inspect_ai/pull/5391));
+implementation pending. Amended 2026-09-29 with the compose-prefix
+verification mode Ransom required in that review and with his answers to the
+former open questions (see Decisions). Author: agent (Claude), reviewed by
+Codex. One design for four fork issues that share a mechanism:
 
 - [meridianlabs-ai/inspect_ai#479](https://github.com/meridianlabs-ai/inspect_ai/issues/479)
   — a seeded retry attempt re-uploads the prior log at `log_start`; compose
@@ -75,6 +79,10 @@ Goals:
   produced it.
 - Every failure falls back to today's full upload, and no failure leaves an
   incomplete multipart upload behind that the code could have aborted.
+- The compose-prefix invariant (below) is checked at runtime whenever the
+  test suite runs, not only by construction: a future change that rewrites
+  the temp file's leading bytes without clearing the prefix fails a test
+  instead of uploading a corrupt `.eval`.
 - Decide #482 (seed without the download) on measurement, with its design
   questions answered so the decision is only go/no-go.
 
@@ -438,6 +446,78 @@ area, a successful eval whose log carries little dead weight (every fresh
 eval; most retries) keeps composing through its final flush; one that does
 compact pays one full upload — the final one, whose bytes are all new anyway.
 
+### Verification mode: the invariant becomes a test failure
+
+Correctness under compose rests on the invariant above, which in turn rests
+on every writer of the temp file's leading bytes clearing `_compose_prefix`.
+Today those writers are `compact()` and `seed_from_prior_log`; a future
+change that rewrites those bytes without clearing the prefix (an in-place
+header edit, a new rewrite path) would compose a corrupt object with nothing
+at runtime to notice. Ransom's condition for landing #479 (review of PR
+#5391, 2026-09-29): a verification mode, on in the test suite and off in
+production, that hashes the local prefix and compares it with what is being
+composed before each compose, failing loudly on a mismatch.
+
+**Switch.** The environment variable `INSPECT_VERIFY_COMPOSE_PREFIX`,
+parsed with the same truthy rule as the other `INSPECT_*` flags
+(`_flag`, `_eval/eval_set_env.py:100-108`, click's boolean values), read
+once by a small helper in `eval.py`, `_verify_compose_prefix() -> bool`.
+Default off. `tests/conftest.py` sets it to `"1"` in `pytest_configure`,
+next to `INSPECT_EVAL_LOG_MODEL_API` (`tests/conftest.py:889`), so every
+run of the suite — plain `pytest`, `--runslow`, `--runtrio`, and any
+scheduled run of the suite — has it on without per-test setup. The repo has
+no nightly test workflow today (the only scheduled workflows are
+`pr-stale.yml` and `sync_model_data.yml`); when one exists it inherits the
+switch through `conftest.py`. A benchmark or a manual soak run turns it on
+the same way: `INSPECT_VERIFY_COMPOSE_PREFIX=1 inspect eval ...`.
+
+**What is compared.** `ZipLogFile` gains `_compose_prefix_digest: bytes |
+None`, set and cleared together with `_compose_prefix`. Whenever a prefix
+is established — the seed's adoption of a byte copy, and each successful S3
+flush in step 4 — verify mode hashes `tempfile[0:prefix.length]` with
+`hashlib.blake2b` in a worker thread (under `_lock`, where the flush already
+is) and stores the digest. Before every compose, `_write_remote` re-hashes
+the same range and compares:
+
+```python
+if _verify_compose_prefix():
+    digest = await anyio.to_thread.run_sync(_digest_prefix, self._temp_file, prefix.length)
+    if digest != self._compose_prefix_digest:
+        raise ComposePrefixInvariantError(
+            f"compose prefix of {self._file} changed since it was recorded: "
+            f"source={prefix.filename} length={prefix.length} "
+            f"recorded={self._compose_prefix_digest.hex()} now={digest.hex()}"
+        )
+```
+
+`ComposePrefixInvariantError` is a `RuntimeError` subclass that
+`_write_remote`'s fallback does **not** catch (it catches only
+`ComposeSourceChangedError` and `ClientError`): the flush fails, the
+failure rule clears the prefix, and the exception propagates — to the test,
+or in a verify-mode eval to the flush's caller as any flush failure does,
+with the invariant violation in the message. Falling back to a full upload
+here would hide exactly the bug the mode exists to expose.
+
+Why the recorded digest *is* "what is being composed": at the moment a
+prefix is recorded the local bytes and the object's leading bytes are the
+same by construction — the upload just sent them, or the seed just received
+them from that object version — and from then on the remote side is pinned
+by ETag (`HeadObject` plus `CopySourceIfMatch`; a change there is a
+`ComposeSourceChangedError`, never a silent compose). The only way the two
+can diverge silently is the local side changing, which is what the digest
+detects. Hashing the object's range instead would download the prefix on
+every flush (the cost this design removes) and would test S3's conditional
+semantics rather than the recorder; the moto byte-identity tests compare the
+composed object to the temp file after every flush in any case.
+
+Cost: one extra pass over the prefix at record time and one before each
+compose, verify mode only (`blake2b` runs near 1 GB/s, so a 500 MB log adds
+under a second per flush in the suite); production skips both. For the
+#482 sparse path the locally held part of the prefix is
+`[SparseSource.length, prefix.length)`, so the digest covers that range only;
+the hole itself is protected by the rule that a sparse temp file is never
+uploaded.
+
 ### #479: the seeded start flush
 
 `_copy_prior_log` returns the ETag `read_file_into` returned (from the final
@@ -787,12 +867,14 @@ section stands as the record of why.
   filesystem does not know when the temp file is replaced; the recorder
   does. Keeping the invariant next to the events that break it (`compact`,
   `seed_from_prior_log`) is the whole safety argument.
-- **Compare bytes rather than trust the invariant** (hash the prefix at each
-  flush and refuse to compose on mismatch). Hashing hundreds of MB per flush
-  costs what the upload cost in CPU. The invariant is a structural property
-  of append-mode `ZipFile` (verified) plus two explicit invalidation points;
-  a test that mutates the prefix and asserts the composed object still
-  equals the file is the check.
+- **Hash the prefix in production as well** (verify on every flush, not
+  only under the test switch). Hashing hundreds of MB per flush costs real
+  CPU on every S3 eval to defend against a bug the test suite catches
+  first, and a production mismatch has no better remedy than the failure
+  the test already reports. The invariant is a structural property of
+  append-mode `ZipFile` (verified) plus two explicit invalidation points;
+  the verification mode above checks it wherever the suite runs, and
+  production trusts it (decision: Ransom, 2026-09-29).
 - **Compose under trio through boto3 in a worker thread.** Possible
   (`upload_part_copy` exists on the sync client) but doubles the primitive
   for the backend the codebase treats as second-class for S3 (its uploads
@@ -915,6 +997,18 @@ Unit, `tests/log/test_eval_log.py` (next to the seed tests at `:1715-2300`):
   later flush uploads whole, `_compose_disabled` set.
 - **Failure clears the prefix**: cancel a compose mid-tail → the next
   flush uploads whole; the moto server lists no in-progress uploads.
+- **Verification mode** (the suite runs with `INSPECT_VERIFY_COMPOSE_PREFIX=1`;
+  a tripwire test asserts the variable is set): establish a prefix on moto,
+  then overwrite one byte inside `[0, prefix.length)` of the temp file
+  directly — the shape of a future rewrite that forgets to clear the
+  prefix — and flush → `ComposePrefixInvariantError`, the destination still
+  holds the previous complete object, the moto server lists no in-progress
+  upload, and the next flush (prefix cleared) uploads whole. With the
+  variable removed (`monkeypatch.delenv`) the same manipulation composes
+  without error, documenting that production relies on the invariant and
+  the suite on the check. The digest is recorded after a seed adoption and
+  after each successful flush (a spy on the hashing helper), and never
+  computed with the variable unset.
 - **#479 seeded start flush**: seed from an S3 prior >8 MiB (byte-copy
   path), `start()`, `flush()` → object equals the temp file and the client
   saw one `upload_part_copy` with `CopySource` = the prior key; restricted
@@ -1004,7 +1098,12 @@ size.
 3. **#479b — seeded start flush.** `src/inspect_ai/log/_recorders/eval.py`:
    `_compose_prefix`/`_compose_disabled`, `_write_remote`, `flush()` changes,
    `_copy_prior_log` returning the ETag, `seed_from_prior_log` setting the
-   prefix, `compact()` clearing it; tests in `tests/log/test_eval_log.py`;
+   prefix, `compact()` clearing it, and the verification mode
+   (`_verify_compose_prefix`, `_compose_prefix_digest`, `_digest_prefix`,
+   `ComposePrefixInvariantError`); `tests/conftest.py` sets
+   `INSPECT_VERIFY_COMPOSE_PREFIX=1` in `pytest_configure`; tests in
+   `tests/log/test_eval_log.py` including the verification-mode tests
+   (Ransom's condition for landing #479);
    CHANGELOG: "Retrying an eval whose logs are on S3 no longer re-uploads the
    prior attempt's log before the retry starts." Steps 2 and 3 are one PR
    (#479) in two commits, or two PRs if the first is wanted in isolation.
@@ -1029,14 +1128,22 @@ size.
    `run.py`/`_eval/task/log.py` (`read_prior_sample` failure fails the
    attempt) — with the #482 tests listed above.
 
-## Open questions
+## Decisions
 
-1. **#482 go threshold.** The issue says "material share of retry time in a
-   scenario users actually run". Recommendation: ≥ 20% of retry wall time on
-   shape A or B from the office link after #481; in-region numbers are
-   informational. Ransom to confirm or set the bar.
-2. **Trio.** Keep full uploads under trio (recommended; see Alternatives),
-   or build the boto3 variant now so both backends behave alike?
+The design's two open questions were answered when Ransom read it, and a
+third condition came from his review of the design PR. No open questions
+remain.
+
+1. **#482 go threshold** (decision: Ransom, 2026-09-23). Build the sparse
+   seed only if, after #481 lands, the seed download is at least 20% of
+   retry wall time on benchmark shape A or B from the office link; in-region
+   numbers are informational.
+2. **Trio keeps full uploads** (decision: Ransom, 2026-09-23). No boto3
+   `upload_part_copy` variant now; see Alternatives.
+3. **Verification mode is a condition for landing #479** (decision: Ransom,
+   2026-09-29, review of PR #5391). The mode described under "Verification
+   mode" ships with the compose path in step 3, on in the test suite and off
+   in production, and the suite's tests cover the mismatch case.
 
 ## Not this design
 
