@@ -175,9 +175,32 @@ def is_claude_opus_5_5_model(model_name: str) -> bool:
     return _CLAUDE_OPUS_5_5_OR_LATER.search(model_name) is not None
 
 
+# Sonnet 5.5 and later point releases, with the same exclusions as Opus above
+_CLAUDE_SONNET_5_5_OR_LATER = re.compile(
+    r"claude-sonnet-5[-.](?:[5-9]|[1-9]\d)(?![0-9A-Za-z])"
+)
+
+
+def is_claude_sonnet_5_5_model(model_name: str) -> bool:
+    """Sonnet 5.5 or a later Sonnet 5 point release.
+
+    Sonnet 5.5 shares Opus 5.5's breaking changes (forced tool choice is
+    rejected, thinking blocks are bound to the conversation prefix, and
+    `computer_20251124` is rejected on the Claude API and Vertex), except
+    that thinking can still be turned down: `disabled` is rejected in favor
+    of `between_tools`. These behaviors are assumed to persist in later
+    point releases.
+    """
+    return _CLAUDE_SONNET_5_5_OR_LATER.search(model_name) is not None
+
+
 def rejects_forced_tool_choice(model_name: str) -> bool:
     """Whether the model returns a 400 for `tool_choice` `any` / a specific tool."""
-    return is_claude_fable_5_1_model(model_name) or is_claude_opus_5_5_model(model_name)
+    return (
+        is_claude_fable_5_1_model(model_name)
+        or is_claude_opus_5_5_model(model_name)
+        or is_claude_sonnet_5_5_model(model_name)
+    )
 
 
 def is_forced_tool_choice(tool_choice: ToolChoice) -> bool:
