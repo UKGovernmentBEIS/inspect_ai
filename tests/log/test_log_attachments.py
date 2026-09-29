@@ -7,7 +7,14 @@ import pytest
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import JsonChange
 from inspect_ai.dataset._dataset import Sample
@@ -810,62 +817,87 @@ def test_tool_event_result_image_round_trips_through_eval_log(tmp_path: str) -> 
 
 
 # a 1x1 GIF: a valid data URI shorter than the event text-pooling threshold
+_MEDIA_KINDS = ["image", "audio", "video", "document"]
+
+
+def _media(kind: str, source: str) -> Content:
+    if kind == "image":
+        return ContentImage(image=source)
+    elif kind == "audio":
+        return ContentAudio(audio=source, format="mp3")
+    elif kind == "video":
+        return ContentVideo(video=source, format="mp4")
+    else:
+        return ContentDocument(document=source, filename="report.pdf")
+
+
+def _media_source(content: object) -> str:
+    if isinstance(content, ContentImage):
+        return content.image
+    elif isinstance(content, ContentAudio):
+        return content.audio
+    elif isinstance(content, ContentVideo):
+        return content.video
+    assert isinstance(content, ContentDocument)
+    return content.document
+
+
 _SHORT_IMAGE = (
     "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
 )
 _URL_IMAGE = "https://example.org/" + ("x" * 120) + ".png"
 
 
-def _image_result(image: str, as_list: bool) -> ToolResult:
-    return (
-        [ContentText(text=_TOOL_RESULT_TEXT), ContentImage(image=image)]
-        if as_list
-        else ContentImage(image=image)
+def _media_result(kind: str, source: str, as_list: bool) -> ToolResult:
+    media = _media(kind, source)
+    assert isinstance(
+        media, ContentImage | ContentAudio | ContentVideo | ContentDocument
     )
+    return [ContentText(text=_TOOL_RESULT_TEXT), media] if as_list else media
 
 
-def _result_image(result: ToolResult) -> str:
-    image = result[-1] if isinstance(result, list) else result
-    assert isinstance(image, ContentImage)
-    return image.image
+def _result_media(result: ToolResult) -> str:
+    return _media_source(result[-1] if isinstance(result, list) else result)
 
 
 @pytest.mark.parametrize("log_images", [True, False])
 @pytest.mark.parametrize("as_list", [True, False])
+@pytest.mark.parametrize("kind", _MEDIA_KINDS)
 def test_tool_event_short_data_uri_result_follows_message_policy(
-    log_images: bool, as_list: bool
+    kind: str, log_images: bool, as_list: bool
 ) -> None:
     # message media policy: every data URI is pooled or removed, whatever its
     # length; the event text policy would leave this one inline
     assert len(_SHORT_IMAGE) <= 100
-    sample = _sample_with_tool_result(_image_result(_SHORT_IMAGE, as_list))
+    sample = _sample_with_tool_result(_media_result(kind, _SHORT_IMAGE, as_list))
 
     condensed = condense_sample(sample, log_images=log_images)
-    image = _result_image(_tool_event(condensed).result)
+    source = _result_media(_tool_event(condensed).result)
     message = condensed.messages[1]
     assert isinstance(message, ChatMessageTool)
     assert isinstance(message.content, list)
-    message_image = message.content[-1]
-    assert isinstance(message_image, ContentImage)
-    assert image == message_image.image
+    assert source == _media_source(message.content[-1])
     if log_images:
-        assert image.startswith(ATTACHMENT_PROTOCOL)
+        assert source.startswith(ATTACHMENT_PROTOCOL)
         resolved = resolve_sample_attachments(condensed, "full")
-        assert _result_image(_tool_event(resolved).result) == _SHORT_IMAGE
+        assert _result_media(_tool_event(resolved).result) == _SHORT_IMAGE
     else:
-        assert image == BASE_64_DATA_REMOVED
+        assert source == BASE_64_DATA_REMOVED
 
 
 @pytest.mark.parametrize("log_images", [True, False])
 @pytest.mark.parametrize("as_list", [True, False])
-def test_tool_event_url_result_stays_inline(log_images: bool, as_list: bool) -> None:
+@pytest.mark.parametrize("kind", _MEDIA_KINDS)
+def test_tool_event_url_result_stays_inline(
+    kind: str, log_images: bool, as_list: bool
+) -> None:
     # message media policy: a URL is not a data URI, so it stays inline
     # whatever its length; the event text policy would pool it
     assert len(_URL_IMAGE) > 100
-    sample = _sample_with_tool_result(_image_result(_URL_IMAGE, as_list))
+    sample = _sample_with_tool_result(_media_result(kind, _URL_IMAGE, as_list))
 
     condensed = condense_sample(sample, log_images=log_images)
-    assert _result_image(_tool_event(condensed).result) == _URL_IMAGE
+    assert _result_media(_tool_event(condensed).result) == _URL_IMAGE
     assert _URL_IMAGE not in condensed.attachments.values()
 
 
@@ -887,14 +919,14 @@ def test_condense_event_tool_result_follows_message_policy() -> None:
     argument = condensed.arguments["path"]
     assert isinstance(argument, str)
     assert argument.startswith(ATTACHMENT_PROTOCOL)
-    image = _result_image(condensed.result)
+    image = _result_media(condensed.result)
     assert image.startswith(ATTACHMENT_PROTOCOL)
     assert attachments[image.removeprefix(ATTACHMENT_PROTOCOL)] == _SHORT_IMAGE
     assert set(attachments.values()) == {long_argument, _SHORT_IMAGE}
 
     removed = condense_event(event, {}, log_images=False)
     assert isinstance(removed, ToolEvent)
-    assert _result_image(removed.result) == BASE_64_DATA_REMOVED
+    assert _result_media(removed.result) == BASE_64_DATA_REMOVED
 
 
 @pytest.mark.parametrize("container", ["tool", "subtask"])
@@ -940,7 +972,7 @@ def test_nested_tool_event_result_stays_inline_through_eval_log(
     assert isinstance(parent_condensed, ToolEvent | SubtaskEvent)
     nested_condensed = parent_condensed.events[0]
     assert isinstance(nested_condensed, ToolEvent)
-    assert _result_image(nested_condensed.result) == _TOOL_RESULT_IMAGE
+    assert _result_media(nested_condensed.result) == _TOOL_RESULT_IMAGE
     assert _TOOL_RESULT_IMAGE not in condensed.attachments.values()
 
     log_file = os.path.join(tmp_path, "nested.eval")

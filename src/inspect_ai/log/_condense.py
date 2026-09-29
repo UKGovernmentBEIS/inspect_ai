@@ -1047,9 +1047,7 @@ def walk_nested_events(
     ]
 
 
-_ToolResultContent = (
-    ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument
-)
+_MediaContent = ContentImage | ContentAudio | ContentVideo | ContentDocument
 
 
 def walk_tool_result(
@@ -1057,34 +1055,39 @@ def walk_tool_result(
 ) -> ToolResult:
     """Apply ``content_fn`` to the media in a tool result.
 
-    Only media fields (image, audio, video, document) are walked, with the
-    media content function from ``WalkContext`` when condensing, so a result
-    image is pooled or removed exactly as the same image in a message. Text
-    (a ``str`` result or ``ContentText``) stays inline: the same text is
-    already inline in the tool message the model sees next, so pooling it
-    would add an attachment without removing a copy.
+    Only media (image, audio, video, document) is walked, through the same
+    ``walk_media_content`` as message content and with the media content
+    function from ``WalkContext`` when condensing, so a result image is pooled
+    or removed exactly as the same image in a message. Text (a ``str`` result
+    or ``ContentText``) stays inline: the same text is already inline in the
+    tool message the model sees next, so pooling it would add an attachment
+    without removing a copy.
     """
     if isinstance(result, list):
-        return [_walk_tool_result_content(content, content_fn) for content in result]
-    elif isinstance(result, _ToolResultContent):
-        return _walk_tool_result_content(result, content_fn)
+        return [
+            walk_media_content(content, content_fn)
+            if isinstance(content, _MediaContent)
+            else content
+            for content in result
+        ]
+    elif isinstance(result, _MediaContent):
+        return walk_media_content(result, content_fn)
     else:
         return result
 
 
-def _walk_tool_result_content(
-    content: _ToolResultContent, content_fn: Callable[[str], str]
-) -> _ToolResultContent:
+def walk_media_content(
+    content: _MediaContent, content_fn: Callable[[str], str]
+) -> _MediaContent:
+    """Apply ``content_fn`` to the source field of a media content block."""
     if isinstance(content, ContentImage):
         return content.model_copy(update=dict(image=content_fn(content.image)))
     elif isinstance(content, ContentAudio):
         return content.model_copy(update=dict(audio=content_fn(content.audio)))
     elif isinstance(content, ContentVideo):
         return content.model_copy(update=dict(video=content_fn(content.video)))
-    elif isinstance(content, ContentDocument):
-        return content.model_copy(update=dict(document=content_fn(content.document)))
     else:
-        return content
+        return content.model_copy(update=dict(document=content_fn(content.document)))
 
 
 def walk_info_event(
@@ -1350,12 +1353,8 @@ def walk_content(
 ) -> Content:
     if isinstance(content, ContentText):
         return content.model_copy(update=dict(text=content_fn(content.text)))
-    elif isinstance(content, ContentImage):
-        return content.model_copy(update=dict(image=content_fn(content.image)))
-    elif isinstance(content, ContentAudio):
-        return content.model_copy(update=dict(audio=content_fn(content.audio)))
-    elif isinstance(content, ContentVideo):
-        return content.model_copy(update=dict(video=content_fn(content.video)))
+    elif isinstance(content, _MediaContent):
+        return walk_media_content(content, content_fn)
     elif isinstance(content, ContentReasoning):
         return content.model_copy(update=dict(reasoning=content_fn(content.reasoning)))
     elif isinstance(content, ContentToolUse):
@@ -1370,8 +1369,6 @@ def walk_content(
         return content.model_copy(
             update=dict(data=walk_json_value(content.data, content_fn, context))
         )
-    elif isinstance(content, ContentDocument):
-        return content.model_copy(update=dict(document=content_fn(content.document)))
 
 
 def walk_tools(
