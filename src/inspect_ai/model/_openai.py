@@ -2,7 +2,7 @@ import functools
 import json
 import logging
 import re
-from collections.abc import Collection, Mapping
+from collections.abc import AsyncIterable, Collection, Mapping
 from copy import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, TypeAlias, cast
@@ -16,7 +16,6 @@ from openai import (
     APIResponseValidationError,
     APIStatusError,
     APITimeoutError,
-    AsyncStream,
     ContentFilterFinishReasonError,
     LengthFinishReasonError,
     OpenAIError,
@@ -1027,7 +1026,7 @@ def model_output_from_openai(
 
 
 async def openai_chat_completion_stream_final(
-    stream: AsyncStream[ChatCompletionChunk],
+    stream: AsyncIterable[ChatCompletionChunk],
 ) -> ChatCompletion:
     """Consume a raw chat-completions chunk stream and return the final completion.
 

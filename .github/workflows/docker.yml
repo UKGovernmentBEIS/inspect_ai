@@ -74,8 +74,6 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v4
-        with:
-          install: true
       - name: Build and (optionally) push multi-arch image
         uses: docker/build-push-action@v7
         with:
@@ -83,5 +81,6 @@ jobs:
           push: ${{ github.event.inputs.push }}
           platforms: ${{ github.event.inputs.platforms }}
           tags: ${{ github.event.inputs.org }}/${{ github.event.inputs.image }}:${{ github.event.inputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Release images are built from scratch: no layers are reused from
+          # earlier builds and none are exported for later ones.
+          no-cache: true
