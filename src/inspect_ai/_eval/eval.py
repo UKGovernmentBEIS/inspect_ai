@@ -644,6 +644,7 @@ async def eval_async(
     async def run(tg: TaskGroup) -> None:
         try:
             nonlocal result
+            # run_config and default_config are applied by the decorators
             result = await _eval_async_inner(
                 tg=tg,
                 tasks=tasks,
@@ -652,7 +653,6 @@ async def eval_async(
                 model_args=model_args,
                 model_roles=model_roles,
                 task_args=task_args,
-                default_config=default_config,
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
                 sandbox_prebuilt=sandbox_prebuilt,
@@ -787,7 +787,6 @@ async def _eval_async_inner(
     eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
-    default_config: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
