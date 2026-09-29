@@ -575,12 +575,34 @@ Choices the parent left open:
 
   **`eval_retry` of a merged log.** `eval_retry_async` takes a log's subset
   from `eval.config.sample_id` (`src/inspect_ai/_eval/eval.py:1795`), which
-  a merged log leaves unset. It gains one branch: when `eval.shards` is set
-  and `eval.shards.selection == "ids"`, the subset is
-  `eval.dataset.sample_ids`, passed through the same
-  `_requalify_sample_ids`; otherwise it reads `config.sample_id` as today.
+  a merged log leaves unset. It gains one branch, for a log with
+  `eval.shards` set and `eval.shards.selection == "ids"`:
+
+  - **Sample ids.** The subset is `eval.dataset.sample_ids`, which are
+    concrete ids, while the retry's selector matches patterns
+    (`sample_id_filter` normalises each value and applies `fnmatch`,
+    `src/inspect_ai/_eval/task/util.py:56`). Each string id is therefore
+    escaped for `fnmatch` first (every `*`, `?` and `[` wrapped in
+    brackets, so `item[0]` becomes `item[[]0]` and matches only itself),
+    then passed through `_requalify_sample_ids`, which adds the `task:`
+    prefix to string ids as it does today; integer ids pass unchanged. The
+    helper, `_literal_sample_id_patterns(ids)`, sits beside
+    `_requalify_sample_ids`. Ordinary retries keep reading
+    `config.sample_id` unescaped, since that value is a user's pattern
+    selection.
+  - **Shuffle.** The retry passes `sample_shuffle=None`. A merged log
+    inherits the template shard's `config.sample_shuffle` ("Building the
+    merged log"), and a shard made with `limit` and `sample_shuffle` is
+    valid, but `eval_async` refuses `sample_id` combined with
+    `sample_shuffle` (`src/inspect_ai/_eval/eval.py:906-909`); the recorded
+    ids already fix the selection, so the shuffle has nothing to do.
+    Ordinary retries keep their shuffle behaviour.
+
   A merged log with a count or no selection names no subset and is retried
   over the dataset, as earlier revisions of this document already had it.
+  Version boundary: an Inspect version without this field drops
+  `eval.shards` on read and finds no `config.sample_id`, so its
+  `eval_retry` of an id-selected merged log runs the whole dataset.
   Files: `_eval/eval.py` (PR 5).
 - **`size`, `etag`, `mtime`** are what `FileInfo` carries
   (`src/inspect_ai/_util/file.py:195`); change detection compares ETags when
@@ -1348,7 +1370,7 @@ Two PRs after the merge core, each with the measurement that justifies it:
 | `AsyncFilesystem.list_dir(base) -> DirListing(files: list[FileInfo], dirs: list[str])` | #528, landed (UKGovernmentBEIS/inspect_ai#5542) | listing `<name>.shards/` and each `<k>/` | the delimited walk |
 | `ZipEntry.crc32` and `AsyncZipReader(verify_crc=True)` / `ZipCrcError` | #528, landed (UKGovernmentBEIS/inspect_ai#5542) | consistent shard reads; raw copy | consistent member reads |
 | `list_shard_set`, `attempt_sort_key`, `is_shard_path` (`src/inspect_ai/log/_shards/_walk.py`) | PR 3 below | steps 4–5; the eval-set skip and companion discovery | its step 4 (shard aggregation) calls these instead of re-implementing the rules |
-| `EvalShards`, `EvalShardEntry` and the recorded selection ("The `EvalSpec.shards` field") | PR 2 below | writing the field | its step 6: totals from the recorded selection; a cold start of the one-row-per-task view from the merged `summaries.json` only for a complete `success` snapshot whose shards are all unchanged and each hold their whole selection (`samples == selected × epochs`), otherwise the shards; `--shards` rows read every shard |
+| `EvalShards`, `EvalShardEntry` and the recorded selection ("The `EvalSpec.shards` field") | PR 2 below | writing the field | its step 6: totals from the recorded selection; a cold start of the one-row-per-task `task list` row (not sample rows or per-sample reads) from the merged `summaries.json` only for a complete `success` snapshot whose shards are all unchanged and each hold their whole selection (`samples == selected × epochs`), otherwise the shards; `--shards` rows read every shard |
 
 `list_dir` (`src/inspect_ai/_util/asyncfiles.py:1029`) makes one
 delimited listing (on S3 one `list_objects_v2` sweep with `Delimiter="/"`;
@@ -1482,7 +1504,9 @@ today.
   editing of merged logs is not supported). The merged log's members are
   the ordinary finished `.eval` members. Shard headers are unchanged.
   The merged header's only per-sample data is what an ordinary header
-  carries (`dataset.sample_ids`; `config.sample_id` is left unset). `.json` logs and chunked-shape samples are not supported as
+  carries (`dataset.sample_ids`; `config.sample_id` is left unset). An
+  older Inspect's `eval_retry` of an id-selected merged log therefore runs
+  the whole dataset ("`eval_retry` of a merged log"). `.json` logs and chunked-shape samples are not supported as
   shards, and neither are shards of a `SampleSource` task or shards whose
   header has no `dataset.sample_ids` (logs from Inspect versions that did
   not record it); the merge refuses them ("Validation").
@@ -1662,8 +1686,14 @@ Per PR (numbers from "Implementation plan"):
      per-sample list other than `dataset.sample_ids`: `config.sample_id` is
      unset, and its `header.json` is no larger than an unsharded log's of
      the same selection plus a per-shard bound; `eval_retry` of an
-     id-selected merged log with missing samples runs only the selection's
-     missing samples; a new attempt in `<k>/` with a
+     id-selected merged log with a selected sample missing from it runs
+     only the selection's missing samples, including for dataset ids with
+     literal `[`/`]`, `*` and `?` (a dataset holding both `item[0]` and
+     `item0`, and `a*` beside `ab`, retries exactly the recorded ones), for
+     ids that begin with `<task>:`, and for a template shard made with
+     `limit` and `sample_shuffle` (the retry clears the shuffle and does
+     not raise); an ordinary retry of a `--sample-id` pattern log and of a
+     shuffled log behaves as before; a new attempt in `<k>/` with a
      different `--sample-id` is refused with both files named, and deleting
      `<name>.eval` then merges it; a new shard whose selection meets a
      carried record is refused; a changed shard whose merged records were
