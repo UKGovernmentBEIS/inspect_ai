@@ -105,6 +105,7 @@ EvalDataset: list[Column] = [
     EvalColumn("dataset_samples", path="eval.dataset.samples"),
     EvalColumn("dataset_sample_ids", path="eval.dataset.sample_ids"),
     EvalColumn("dataset_shuffled", path="eval.dataset.shuffled"),
+    EvalColumn("dataset_revision", path="eval.dataset.revision"),
 ]
 """Eval dataset columns."""
 
