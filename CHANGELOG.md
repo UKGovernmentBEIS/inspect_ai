@@ -3,6 +3,7 @@
 - Mistral: Support for mistralai 3.0, which is now the minimum required version.
 - Logs: Reading samples with `resolve_attachments` is much faster for long conversations; in full mode, deeply nested model API call content may keep two more nesting levels.
 - Bugfix: `self_critique()`, and `model_graded_qa()`/`model_graded_fact()` with `model_role=None`, now critique or grade with the correct model when one task is evaluated against several models.
+- Reading a remote `.eval` log from a non-S3 filesystem (e.g. `gs://`, `az://`) no longer stalls other running work for the whole download.
 - Eval Logs: Fewer redundant log writes when samples complete during a slow log flush.
 
 ## 0.3.272 (28 September 2026)
