@@ -572,15 +572,15 @@ def threshold(
         if score is None:
             return None
         if terminate_at is not None and score >= terminate_at:
-            return Decision.terminate(f"suspicion {score:.2f}")
+            return Decision.terminate(explain(observations, score))
         if score >= reject_at:
-            return Decision.reject(f"suspicion {score:.2f}")
+            return Decision.reject()
         return Decision.clear()
 
     return decide
 ```
 
-It holds the constants a monitor must not, validates them and its children when it is configured, reads its children's scores through the runner, and returns a decision.
+It holds the constants a monitor must not, validates them and its children when it is configured, reads its children's scores through the runner, and returns a decision. A reject carries no explanation, so the agent is told only that the call was not permitted and learns nothing about what the monitors saw, which matters where the agent is the adversary; the monitors' scores and reasoning stay in the log on their observation events. A terminate, which the agent never sees, is explained for the log: `explain` names the highest-scoring monitor and carries its explanation, e.g. `suspicion 0.95 from audit: posts credentials to an external host`.
 
 ```python
 ControlProtocol: TypeAlias = (
@@ -679,6 +679,7 @@ Shape checks raise. Each is a deterministic bug in a protocol, not agent input, 
 
 - The action is legal for the stage.
 - `modified` is set if and only if `action == "modify"`. Its type is enforced by `Decision`'s validation, not by the runner.
+- A `modify` keeps the call's `id` and `function` and rewrites only its arguments. To run a different tool, reject and say what to run instead.
 
 `final()` is the mechanism for a decision no layer above may weaken. It replaces an earlier design in which a `binding` flag set a floor that the runner clamped each layer's return up to, recording the override. A value-level rule requires every layer to carry or compare the property, and each patch to it leaked where a middle layer built a new decision; control flow cannot be dropped by a middle layer, because that layer's code does not run. It reuses `terminate`'s cancellation, and the first `final()` wins, as with two `terminate`s. Ordering several authorities is a `chain`, or a panel that collects advisory votes and calls `final()` itself; see [Humans](#humans).
 
@@ -954,7 +955,6 @@ class SentinelEvent(BaseEvent):
     suspicion: Suspicion | None
     decision: Action | None
     audit: bool
-    outcome: Action | None
     explanation: str | None
     metadata: dict[str, Any] | None
 ```
@@ -976,7 +976,7 @@ Rules:
 
 - **`name` is which code ran. `path` is which configured instance it was. `function` is which of its functions reported.** Two chains built from the same factory differ only in `path`; two functions of one instance differ only in `function`. `kind` says which family it belongs to, and agrees with the registry type by construction.
 - **`step_id` is what a label matches.** For `BeforeGenerate` it is the id of the message that triggered the generate, with an ordinal suffix on a regenerate; for `AfterGenerate` the assistant message id; for the tool stages the tool call id. All three exist before the monitor runs, so recorded events and replayed steps share ids. See `sentinel-development.md`.
-- **`decision` is what the child decided. `outcome` is what the parent protocol did.** Both are needed to tell an overridden decision from one never made.
+- **`decision` is what this layer decided.** What the layer above did with it is the event at the parent path, since every deciding layer records its own decision; a layer that a `final()` bypassed has no decision of its own, and the `final()` decision is the answer.
 - **There is no `strategy` field.** The protocol's name says what it did. "How often did this protocol defer" is `monitor == "defer_to_trusted" and decision == "modify"`. A protocol that takes several different actions should be composed from nested protocols, or record the detail in `metadata`.
 - **One flat event type across both families and all four stages.** The renderer, the dataframe, and the log schema all read it, and a split would push a union into `generated.ts`.
 
@@ -1103,7 +1103,7 @@ Making the report type the registry type removes them. A monitor cannot act, so 
 
 The decision-emitting tradition is served by rules: a protocol with no children is today's `Decision` monitor under an accurate name. The score-emitting tradition is served by monitors plus `threshold()`.
 
-The name `Decision.action` rather than the earlier draft's `Recommendation.recommend`: with leaves out of the picture, a protocol's return is a decision at every position. A nested protocol's decision may be overridden by its parent, and the event's `decision` and `outcome` fields carry that, but what the protocol returned was still what it decided.
+The name `Decision.action` rather than the earlier draft's `Recommendation.recommend`: with leaves out of the picture, a protocol's return is a decision at every position. A nested protocol's decision may be overridden by its parent, and the parent's own decision event shows that, but what the protocol returned was still what it decided.
 
 ### Why not return a bare number
 

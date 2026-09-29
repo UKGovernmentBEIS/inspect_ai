@@ -207,7 +207,7 @@ Both consume the same validation set, because both key results by step id.
 | **replay** | reconstruct steps, run the monitor, one result per step | you changed the prompt, the model, or the monitor's logic |
 | **read** | walk the transcript's recorded `SentinelEvent`s, one result per event | you want to know how the monitor behaved in the run it was attached to |
 
-Read mode costs no inference and is what makes "run the eval observe-only, then look" a real workflow rather than a slogan. It is also the only mode that sees `outcome` — what the protocol actually did with the report — so "how often did `defer_to_trusted` defer" is a read-mode query. Scout's `EventType` literal gains `"sentinel"` so the transcript loader can filter for these events.
+Read mode costs no inference and is what makes "run the eval observe-only, then look" a real workflow rather than a slogan. It is also the only mode that sees what the protocol actually did with each report, from the decision events at the parent paths, so "how often did `defer_to_trusted` defer" is a read-mode query. Scout's `EventType` literal gains `"sentinel"` so the transcript loader can filter for these events.
 
 Read mode also gives the honest check on replay itself: replay the monitor over a log it was attached to, and the two modes should agree wherever the monitor is deterministic. Where they do not, the reconstruction is wrong, and that is a test worth shipping.
 

@@ -371,7 +371,7 @@ The report type is the registry type. A `@monitor` function returns `Observation
 
 #### The name says the layering
 
-`Decision.action` reads as a command, and under this split it is one: the thing that returned it is the thing configured to decide. What softens it is nesting — a child protocol's decision is advisory to the protocol above it, which may overrule it ([Child decisions are advisory](#child-decisions-are-advisory)) — and the transcript carries that as two fields, `decision` (what this layer returned) and `outcome` (what happened). An earlier draft called the type `Decision`, because a leaf monitor could also return one and "decision" was accurate only when nothing wrapped it. With leaves out of the picture the shorter name is accurate at every position, and the event's two fields say the rest.
+`Decision.action` reads as a command, and under this split it is one: the thing that returned it is the thing configured to decide. What softens it is nesting — a child protocol's decision is advisory to the protocol above it, which may overrule it ([Child decisions are advisory](#child-decisions-are-advisory)) — and the transcript carries that as one event per layer: each records `decision`, what that layer returned, so a child's event and its parent's together show what happened. An earlier draft called the type `Decision`, because a leaf monitor could also return one and "decision" was accurate only when nothing wrapped it. With leaves out of the picture the shorter name is accurate at every position, and the events of the layers above say the rest.
 
 #### Progressive disclosure through defaults, not through the return type {#progressive-disclosure-through-defaults-not-through-the-return-type}
 
@@ -763,15 +763,15 @@ def threshold(
         if score is None:
             return None
         if terminate_at is not None and score >= terminate_at:
-            return Decision.terminate(f"suspicion {score:.2f}")
+            return Decision.terminate(explain(observations, score))
         if score >= reject_at:
-            return Decision.reject(f"suspicion {score:.2f}")
+            return Decision.reject()
         return Decision.clear()
 
     return decide
 ```
 
-It holds the constants a monitor cannot, reads its children's scores through the runner, and returns a decision. Nothing else.
+It holds the constants a monitor cannot, reads its children's scores through the runner, and returns a decision. Nothing else. Its reject says nothing, so the agent learns only that the call was refused; the monitors' reasoning is on their own events. A terminate is explained for the log, with the highest-scoring monitor's name, score and explanation.
 
 And `no_curl` from [Shape](#shape), which is the same thing with the middle removed: no monitors, no runner call, a decision straight from the step. Both are protocols. **Deciding is what makes something a protocol, not having children.** An earlier draft defined a protocol as "a monitor that takes monitors", which made the combinator the essence and left rules and `human()` as a special kind of monitor — the kind that decides — with a decorator whose only job was to distinguish the two. That was the wrong seam. The seam the literature draws, and the one the report types already encode, is between observing and deciding; whether a decider consults anything is a detail of its implementation.
 
@@ -981,6 +981,7 @@ When any layer returns a decision, or passes one to `final()`, the runner checks
 
 - **The action is legal for the stage** — no `reject` or `modify` at `AfterToolCall`, per [One vocabulary across stages](#one-vocabulary-across-stages).
 - **`modified` is set iff `action == "modify"`**. Its type is `Decision`'s field type, which validation already enforces, so the runner does not check it again; a decision built with `model_construct` has opted out of validation.
+- **A `modify` rewrites only the arguments.** The replacement keeps the call's `id` and `function`: the tool was resolved and the model's `tool_call_id` fixed before the protocol ran, so a different function or id would run one tool while the log and the model name another. A protocol that wants a different tool rejects the call and says what to run instead.
 
 A `final()` decision is shape-checked when it is made. The decision is recorded when it takes effect, at the root; each layer it passes is recorded as bypassed as it is passed; a losing final decision is recorded as superseded where it lost.
 
@@ -1350,14 +1351,13 @@ class SentinelEvent(BaseEvent):
     suspicion: Suspicion | None
     decision: Action | None
     audit: bool
-    outcome: Action | None
     explanation: str | None
     metadata: dict[str, Any] | None
 ```
 
-A `cancelled` event carries no suspicion, decision or outcome; it says the child was in flight when the layer was torn down, by a sibling's `terminate` or `final()` or by cancellation from above. A `final()` decision's event is the ordinary `decision` event of the protocol that called it, written at the root when the decision takes effect, so it follows the `bypassed` event of each layer above it, each a protocol whose own decision logic never ran. When two `final()` calls race in one layer, or an exception in the layer outranks one, the losing decision's event is `superseded`: it did not take effect. A `terminate` already recorded when a sibling's `final()` outran it is followed by a `superseded` event for the same reason.
+A `cancelled` event carries no suspicion or decision; it says the child was in flight when the layer was torn down, by a sibling's `terminate` or `final()` or by cancellation from above. A `final()` decision's event is the ordinary `decision` event of the protocol that called it, written at the root when the decision takes effect, so it follows the `bypassed` event of each layer above it, each a protocol whose own decision logic never ran. When two `final()` calls race in one layer, or an exception in the layer outranks one, the losing decision's event is `superseded`: it did not take effect. A `terminate` already recorded when a sibling's `final()` outran it is followed by a `superseded` event for the same reason.
 
-`decision` versus `outcome` is the layering made legible in the log: what this layer decided, and what the layer above did with it. Without both, a reader cannot tell an overruled decision from one that was never made — which is exactly what a reader of a nested configuration needs to see.
+What the layer above did with a report needs no field of its own. Every layer that decides records its decision at its own path, so the answer is the event at the parent path, or, for a layer a `final()` bypassed, the `final()` decision, which is recorded with the path that made it. A reader can therefore tell an overruled decision from one that was never made, which is what a reader of a nested configuration needs to see. An earlier draft carried an `outcome` field for this; it duplicated the parent's event and was removed. Which child's decision a top-level result came from is exact after `final()` and otherwise inferred, by walking down from the top-level decision to a child that made the same one.
 
 `conversation` is what lets a reader follow one agent through a sample that has several, and across that agent's compactions, without guessing from spans; see [Two histories](#two-histories). `step_id` is what lets a report be matched to a label. It is recorded live, from ids that exist before the monitor runs, so a validation set built against replayed steps also matches the events an eval recorded — the two scan modes in `sentinel-development.md` share it.
 
@@ -1381,7 +1381,7 @@ The residual case is a protocol that genuinely takes several different actions �
 
 `kind` and `stage` are both fine on an event, which is a record, in a way they are not on a protocol, which is a contract. The event stays one flat type across both kinds and all four stages — it is what the renderer, the dataframe and the log schema read, and splitting it would push a union into `generated.ts` for no reader's benefit.
 
-`decision` and `outcome` are typed rather than stringly typed only because the four stages share `Action`. With per-stage vocabularies the field would have to be a union of three Literals correlated with `stage`, which neither the JSON schema nor the generated TypeScript can express as a correlation — so consumers would get `string`.
+`decision` is typed rather than stringly typed only because the four stages share `Action`. With per-stage vocabularies the field would have to be a union of three Literals correlated with `stage`, which neither the JSON schema nor the generated TypeScript can express as a correlation — so consumers would get `string`.
 
 The event should be emitted for observations as well as decisions. A monitor that scores every step under a protocol that intervenes twice in a hundred samples is the common case, and the ninety-eight quiet steps are the interesting data — they are also the benign distribution a protocol's thresholds are calibrated against, so recording them is load-bearing rather than merely nice.
 

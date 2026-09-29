@@ -154,9 +154,9 @@ def threshold(
         if score is None:
             return None
         if terminate_at is not None and score >= terminate_at:
-            return Decision.terminate(f"suspicion {score:.2f}")
+            return Decision.terminate(explain(observations, score))
         if score >= reject_at:
-            return Decision.reject(f"suspicion {score:.2f}")
+            return Decision.reject()
         return Decision.clear()
 
     return decide
