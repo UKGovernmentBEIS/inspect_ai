@@ -21,6 +21,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
     ChatMessageUser,
+    GenerateConfig,
     ModelOutput,
     get_model,
 )
@@ -644,3 +645,53 @@ def test_missing_assistant_message_falls_back_to_the_whole_conversation(
         assert _model_input(addition_call(), history) == history
     warnings = [r for r in caplog.records if "No assistant message" in r.message]
     assert len(warnings) == 1
+
+
+def indexed_model_event(input: str, role: str | None = None) -> ModelEvent:
+    return ModelEvent(
+        model="mockllm/model",
+        role=role,
+        input=[ChatMessageUser(content=input)],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", content=input),
+    )
+
+
+def output_id(event: ModelEvent) -> str:
+    message_id = event.output.choices[0].message.id
+    assert message_id is not None
+    return message_id
+
+
+def test_model_input_index_is_bounded_to_resident_events() -> None:
+    from inspect_ai._sentinel._dispatch import _sample_inputs
+
+    current = Transcript(bounded=True, resident_tail=3)
+    init_transcript(current)
+    inputs = _sample_inputs(current)
+    events = []
+    for turn in range(10):
+        event = indexed_model_event(f"turn {turn}")
+        current._event(event)
+        events.append(event)
+        found = inputs.find(current, output_id(event))
+        assert found is not None and found[0].text == f"turn {turn}"
+    assert len(inputs._inputs) <= len(current.history.resident_events)
+
+
+def test_model_input_index_skips_monitor_calls() -> None:
+    from inspect_ai._sentinel._dispatch import _sample_inputs
+
+    current = Transcript()
+    init_transcript(current)
+    agent = indexed_model_event("agent")
+    monitor_call = indexed_model_event("monitor", role="monitor")
+    current._event(agent)
+    current._event(monitor_call)
+    inputs = _sample_inputs(current)
+    assert inputs.find(current, output_id(monitor_call)) is None
+    found = inputs.find(current, output_id(agent))
+    assert found is not None and found[0].text == "agent"
+    assert list(inputs._inputs) == [output_id(agent)]

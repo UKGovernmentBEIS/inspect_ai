@@ -192,7 +192,7 @@ def _model_input(call: ToolCall, history: list[ChatMessage]) -> list[ChatMessage
 
 class _SampleInputs:
     def __init__(self) -> None:
-        self._inputs: dict[str, list[ChatMessage]] = {}
+        self._inputs: dict[str, ModelEvent] = {}
         self._pending: list[ModelEvent] = []
         self._last: Event | None = None
         self._warned: set[str] = set()
@@ -200,7 +200,8 @@ class _SampleInputs:
     def find(self, current: Transcript, assistant_id: str) -> list[ChatMessage] | None:
         if assistant_id not in self._inputs:
             self._scan(current)
-        return self._inputs.get(assistant_id)
+        event = self._inputs.get(assistant_id)
+        return event.input if event is not None else None
 
     def warn(self, reason: str, message: str) -> None:
         if reason not in self._warned:
@@ -208,12 +209,17 @@ class _SampleInputs:
             logger.warning(message)
 
     def _scan(self, current: Transcript) -> None:
+        self._inputs = {
+            message_id: event
+            for message_id, event in self._inputs.items()
+            if current._is_resident(event)
+        }
         resident = current.history.resident_events
         new: list[ModelEvent] = []
         for event in reversed(resident):
             if event is self._last:
                 break
-            if isinstance(event, ModelEvent):
+            if isinstance(event, ModelEvent) and event.role != "monitor":
                 new.append(event)
         if resident:
             self._last = resident[-1]
@@ -224,7 +230,7 @@ class _SampleInputs:
             elif event.output.choices:
                 message_id = event.output.choices[0].message.id
                 if message_id is not None:
-                    self._inputs.setdefault(message_id, event.input)
+                    self._inputs.setdefault(message_id, event)
         self._pending = pending
 
 
