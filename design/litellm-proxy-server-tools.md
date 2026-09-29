@@ -1,6 +1,59 @@
 # LiteLLM proxy: server-side web search
 
-> **Status:** deferred until the initial `litellm-proxy` PR lands; not started.
+> **Status: not pursued** (decided 2026-09-26 after the Phase 0 spike).
+> Instead, `web_search()` with only built-in providers fails before the
+> request with an error naming the fix (an external provider, or
+> `responses_api=true` for OpenAI models). The plan below is kept for
+> reference if demand for built-in Claude or Gemini search through a proxy
+> appears.
+
+## Spike results (LiteLLM 1.104, 2026-09-26)
+
+**Decision.** The chat path can carry Anthropic and Gemini server tools, but
+only with a stream-level block-order recorder, replay in the original block
+order, and several strict xfails for LiteLLM data loss. That is roughly 800
+lines of provider code resting on undocumented `provider_specific_fields`
+behavior, for a capability users already have through an external search
+provider. OpenAI search already works on the Responses path.
+
+- **Requests (S1, S4).** Hosted Anthropic tool dicts (`web_search_*`,
+  `web_fetch_*`, with `cache_control`) pass through chat `tools` unchanged.
+  LiteLLM sends no `tool_choice` unless the client does.
+- **Non-streamed responses (S1, S4).** Server calls are `tool_calls` marked
+  only by `srvtoolu_` ids; their `index` is the upstream block index. Results
+  (including `web_fetch_tool_result`, with `caller`) are in
+  `psf.web_search_results`; citations are a list per cited text block, but
+  text blocks are joined into one string, so citations can't be placed.
+  `pause_turn` becomes `stop` (detectable only as a call with no result).
+- **Streaming (S1, S4).** `provider_specific_fields` is forwarded in block
+  order; `web_search_results` and `web_search_calls` are re-sent
+  cumulatively. The OpenAI SDK accumulator raises `Expected list delta entry
+  to have an index key` on these fields, so every LiteLLM extra would have to
+  be stripped before it. Not reachable today: the provider sends only
+  function tools.
+- **Block layout (S2, 59 live responses, Opus 5.5, Sonnet 5, Sonnet 4.5).**
+  57/59 had 2+ thinking blocks; 342/692 results were not adjacent to their
+  call (parallel searches: calls, then results; with 20260209, child calls
+  carry `caller` and precede the parent `code_execution` result). No
+  `pause_turn` in 59 responses (up to 34 server calls each) and no
+  redacted thinking.
+- **Replay acceptance (S3, 15 turns × 3 orders).** Original order: 15/15
+  accepted. LiteLLM's interleave heuristic: 9/9 with `web_search_20250305`,
+  2/6 with `20260209`. Thinking-first: 3/15. Every rejection: "`thinking` or
+  `redacted_thinking` blocks in the latest assistant message cannot be
+  modified." Anthropic checks signatures by position relative to server tool
+  blocks, so mode A is unsafe with dynamic filtering. Continuing a paused
+  turn in mode A fails (the unanswered call becomes a plain `tool_use`);
+  mode B works.
+- **Gemini (S4).** Mixed with function tools, `googleSearch` is silently
+  dropped unless `include_server_side_tool_invocations` is sent; with it,
+  AUTO is accepted. Replay moves the function call ahead of the search
+  invocation. Gemini 2.5 grounding is in top-level
+  `vertex_ai_grounding_metadata` (not `annotations`) and is absent when
+  streaming. Function call ids get `__thought__<sig>` appended.
+- **OpenAI on Responses (S4).** gpt-5.5 search, encrypted reasoning,
+  `url_citation` annotations and replay all work, streamed and not.
+- Not tested: Vertex (no credentials).
 > Background: [litellm-proxy.md](litellm-proxy.md).
 
 ## Context

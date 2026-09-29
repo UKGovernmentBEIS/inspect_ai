@@ -6,6 +6,7 @@ or the value. Values it forwards can still be rejected by the upstream
 provider (e.g. OpenAI for `max` on gpt-5). Both kinds of message name what was
 rejected, so the provider can lower the value (or drop it) and retry rather
 than replicating LiteLLM's per-model rules, which change between versions.
+The same applies to the `thinking` parameter the provider sends to Claude.
 """
 
 import re
@@ -55,6 +56,22 @@ def rejected_effort(message: str, sent: str) -> EffortRejection | None:
         if match and match.group(1) == sent:
             return EffortRejection(kind="value")
     return None
+
+
+_THINKING_REJECTED = (
+    # LiteLLM, for models its map gives no thinking support
+    re.compile(r"does not support parameters: \[[^\]]*'thinking'"),
+    # Anthropic, for a model without adaptive thinking
+    re.compile(r"adaptive thinking is not supported"),
+    # Anthropic, for a `display` it does not take (e.g. "thinking.adaptive.display:
+    # Input should be ...")
+    re.compile(r"thinking\.(?:\w+\.)?display\b"),
+)
+
+
+def rejected_thinking(message: str) -> bool:
+    """Whether an error message rejects the adaptive `thinking` the provider sent."""
+    return any(pattern.search(message) for pattern in _THINKING_REJECTED)
 
 
 def next_effort(requested: str, rejected: set[str]) -> str | None:
