@@ -66,7 +66,7 @@ from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util._json import json_schema_dump
 
-from ..._util.http_defaults import default_async_client
+from ..._util.http_defaults_httpx2 import default_async_client
 from ..._util.httpx import httpx_classify_retry
 from .._call_tools import parse_tool_call
 from .._chat_message import (
