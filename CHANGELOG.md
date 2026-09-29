@@ -1,5 +1,6 @@
 ## Unreleased
 
+- OpenAI: Support for GPT-6.1 Sol (`gpt-6.1-sol`), which always reasons, so Inspect drops `temperature`, `top_p`, and `logprobs` with a warning.
 - Mistral: Support for mistralai 3.0, which is now the minimum required version.
 - Logs: Reading samples with `resolve_attachments` is much faster for long conversations; in full mode, deeply nested model API call content may keep two more nesting levels.
 - Bugfix: `self_critique()`, and `model_graded_qa()`/`model_graded_fact()` with `model_role=None`, now critique or grade with the correct model when one task is evaluated against several models.

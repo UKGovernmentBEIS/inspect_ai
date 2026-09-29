@@ -391,6 +391,7 @@ def test_maybe_computer_use_tool_gpt54():
         "gpt-6",
         "gpt-6.0",
         "gpt-6-astra",
+        "gpt-6.1-sol",
         "gpt-7.2",
         "GPT-5.4",
         "my-gpt-6-deployment",
