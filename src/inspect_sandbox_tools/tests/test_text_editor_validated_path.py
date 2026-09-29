@@ -385,6 +385,33 @@ def test_unsafe_history_parent_is_rejected(
         tmp_path.chmod(0o700)
 
 
+def test_history_rejects_parent_symlink_swapped_after_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    intermediate = tmp_path / "intermediate"
+    parent = intermediate / "temp"
+    parent.mkdir(parents=True)
+    replacement = tmp_path / "replacement"
+    (replacement / "temp").mkdir(parents=True)
+    original_resolve = Path.resolve
+
+    def resolve_then_swap(path: Path, strict: bool = False) -> Path:
+        resolved = original_resolve(path, strict=strict)
+        if path == parent:
+            intermediate.rename(tmp_path / "moved")
+            intermediate.symlink_to(replacement, target_is_directory=True)
+        return resolved
+
+    # Deterministically inject the filesystem change between resolution and
+    # verification; this simulates the timing, not a real second OS account.
+    monkeypatch.setattr(text_editor_module, "_HISTORY_PARENT", parent)
+    monkeypatch.setattr(Path, "resolve", resolve_then_swap)
+    with pytest.raises(ToolException, match="History parent.*cannot be trusted"):
+        text_editor_module._load_history()
+    assert list((replacement / "temp").iterdir()) == []
+    assert list((tmp_path / "moved" / "temp").iterdir()) == []
+
+
 @pytest.mark.parametrize(
     "kind", ["symlink", "directory", "fifo", "hardlink", "exposed"]
 )

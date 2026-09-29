@@ -70,7 +70,7 @@ def ensure_private_server_dir(
     (development and tests) falls back to the system temp dir, where other users may
     be able to plant an entry before the server first starts. Either way an existing
     entry is adopted only if it is a real directory (not a symlink) owned by the
-    current effective uid, and it is then tightened to mode 0700; an owned directory
+    current effective uid, and by default tightened to mode 0700; an owned directory
     the uid cannot even enter is refused rather than repaired. This holds for root
     and non-root servers alike: a rootless server shares its uid with the sandbox's
     default user, but no other uid in the container may reach its socket or rewrite
@@ -78,8 +78,9 @@ def ensure_private_server_dir(
 
     Verification and tightening go through a descriptor so they bind to the entry
     that was inspected; a path-based chmod would follow a symlink swapped in later.
-    Only the final path component is checked: the caller must supply a parent that
-    other principals cannot write to (or that is sticky), and it must already exist.
+    Only the final path component is checked: the caller must supply existing
+    parents protected against replacement by other principals, including a trusted
+    owner for any sticky directory.
 
     Args:
         server_dir: The directory to create or verify.

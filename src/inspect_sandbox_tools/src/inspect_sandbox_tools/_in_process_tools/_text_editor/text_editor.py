@@ -289,18 +289,19 @@ def _trim_history(history: HistoryType) -> None:
 def _history_path() -> Path:
     """Verify private history storage for the effective uid at access time.
 
-    /tmp (including its resolved ancestors) must be owned by root or this uid
-    and protected against replacement by other users. A sticky parent permits
-    other users to pre-create our name, but ownership checks refuse that entry.
-    Exposed directories are never repaired: they may contain planted history.
-    This separates OS accounts, not processes sharing a uid, and cannot stop root.
+    Resolve platform aliases such as macOS /tmp, then check from root to leaf
+    without following further symlinks. Each accepted path component is protected
+    against replacement by another account before its children are inspected.
+    Root and same-UID processes remain outside this boundary.
     """
     try:
         parent = _HISTORY_PARENT.resolve(strict=True)
-        for directory in (parent, *parent.parents):
-            info = directory.stat()
-            if info.st_uid not in (0, os.geteuid()) or (
-                info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX
+        for directory in (*reversed(parent.parents), parent):
+            info = directory.lstat()
+            if (
+                not stat.S_ISDIR(info.st_mode)
+                or info.st_uid not in (0, os.geteuid())
+                or (info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX)
             ):
                 raise RuntimeError(f"History parent {directory} cannot be trusted")
         directory = parent / f"inspect-editor-{os.geteuid()}"
