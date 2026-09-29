@@ -79,8 +79,7 @@ var e = { env: {} };
 				}(e);
 			}
 			function m(e) {
-				var t;
-				return t = function(e) {
+				var t = function(e) {
 					function t() {
 						var t = [...arguments], n = e.apply(this, s([], o(t), !1)) || this, r = n.constructor, i = r.ProcessBits;
 						return i.has(`assistive-mml`) || i.allocate(`assistive-mml`), n.visitor = new f(n.mmlFactory), n.options.MathItem = p(n.options.MathItem), `addStyles` in n && n.addStyles(r.assistiveStyles), n;
@@ -107,7 +106,8 @@ var e = { env: {} };
 					}, t.prototype.state = function(t, n) {
 						return n === void 0 && (n = !1), e.prototype.state.call(this, t, n), t < l.STATE.ASSISTIVEMML && this.processed.clear(`assistive-mml`), this;
 					}, t;
-				}(e), t.OPTIONS = a(a({}, e.OPTIONS), {
+				}(e);
+				return t.OPTIONS = a(a({}, e.OPTIONS), {
 					enableAssistiveMml: !0,
 					renderActions: (0, d.expandable)(a(a({}, e.OPTIONS.renderActions), { assistiveMml: [l.STATE.ASSISTIVEMML] }))
 				}), t.assistiveStyles = {
@@ -21712,8 +21712,7 @@ var e = { env: {} };
 				return o;
 			};
 			Object.defineProperty(t, `__esModule`, { value: !0 }), t.CommonMsubsupMixin = t.CommonMsupMixin = t.CommonMsubMixin = void 0, t.CommonMsubMixin = function(e) {
-				var t;
-				return t = function(e) {
+				var t = function(e) {
 					function t() {
 						return e !== null && e.apply(this, arguments) || this;
 					}
@@ -21726,7 +21725,8 @@ var e = { env: {} };
 					}), t.prototype.getOffset = function() {
 						return [0, -this.getV()];
 					}, t;
-				}(e), t.useIC = !1, t;
+				}(e);
+				return t.useIC = !1, t;
 			}, t.CommonMsupMixin = function(e) {
 				return function(e) {
 					function t() {
@@ -21743,8 +21743,7 @@ var e = { env: {} };
 					}, t;
 				}(e);
 			}, t.CommonMsubsupMixin = function(e) {
-				var t;
-				return t = function(e) {
+				var t = function(e) {
 					function t() {
 						var t = e !== null && e.apply(this, arguments) || this;
 						return t.UVQ = null, t;
@@ -21783,7 +21782,8 @@ var e = { env: {} };
 							d
 						], this.UVQ;
 					}, t;
-				}(e), t.useIC = !1, t;
+				}(e);
+				return t.useIC = !1, t;
 			};
 		},
 		6237: function(e, t, n) {
@@ -22191,8 +22191,7 @@ var e = { env: {} };
 				n(e, t), e.prototype = t === null ? Object.create(t) : (r.prototype = t.prototype, new r());
 			});
 			Object.defineProperty(t, `__esModule`, { value: !0 }), t.CommonMtextMixin = void 0, t.CommonMtextMixin = function(e) {
-				var t;
-				return t = function(e) {
+				var t = function(e) {
 					function t() {
 						return e !== null && e.apply(this, arguments) || this;
 					}
@@ -22203,7 +22202,8 @@ var e = { env: {} };
 							this.variant = this.explicitVariant(o, a[2] ? `bold` : ``, a[1] ? `italic` : ``);
 						} else e.prototype.getVariant.call(this);
 					}, t;
-				}(e), t.INHERITFONTS = {
+				}(e);
+				return t.INHERITFONTS = {
 					normal: [
 						``,
 						!1,
@@ -22550,8 +22550,7 @@ var e = { env: {} };
 			Object.defineProperty(t, `__esModule`, { value: !0 }), t.CommonScriptbaseMixin = void 0;
 			var c = n(9007);
 			t.CommonScriptbaseMixin = function(e) {
-				var t;
-				return t = function(e) {
+				var t = function(e) {
 					function t() {
 						var t = [...arguments], n = e.apply(this, o([], a(t), !1)) || this;
 						n.baseScale = 1, n.baseIc = 0, n.baseRemoveIc = !1, n.baseIsChar = !1, n.baseHasAccentOver = null, n.baseHasAccentUnder = null, n.isLineAbove = !1, n.isLineBelow = !1, n.isMathAccent = !1;
@@ -22733,7 +22732,8 @@ var e = { env: {} };
 							}
 						}
 					}, t;
-				}(e), t.useIC = !0, t;
+				}(e);
+				return t.useIC = !0, t;
 			};
 		},
 		5806: function(e, t) {
@@ -22803,15 +22803,15 @@ var e = { env: {} };
 				return e.concat(r || Array.prototype.slice.call(t));
 			};
 			Object.defineProperty(t, `__esModule`, { value: !0 }), t.CommonTeXFontMixin = void 0, t.CommonTeXFontMixin = function(e) {
-				var t;
-				return t = function(e) {
+				var t = function(e) {
 					function t() {
 						return e !== null && e.apply(this, arguments) || this;
 					}
 					return r(t, e), t.prototype.getDelimiterData = function(e) {
 						return this.getChar(`-smallop`, e) || this.getChar(`-size4`, e);
 					}, t;
-				}(e), t.NAME = `TeX`, t.defaultVariants = o(o([], a(e.defaultVariants), !1), [
+				}(e);
+				return t.NAME = `TeX`, t.defaultVariants = o(o([], a(e.defaultVariants), !1), [
 					[`-smallop`, `normal`],
 					[`-largeop`, `normal`],
 					[`-size3`, `normal`],
@@ -42930,8 +42930,7 @@ var e = { env: {} };
 				}(e);
 			}
 			function m(e) {
-				var t;
-				return t = function(e) {
+				var t = function(e) {
 					function t() {
 						var t = [...arguments], n = e.apply(this, s([], o(t), !1)) || this;
 						n.menu = new n.options.MenuClass(n, n.options.menuOptions);
@@ -42966,7 +42965,8 @@ var e = { env: {} };
 					}, t.prototype.updateDocument = function() {
 						return e.prototype.updateDocument.call(this), this.menu.menu.store.sort(), this;
 					}, t;
-				}(e), t.OPTIONS = a(a({
+				}(e);
+				return t.OPTIONS = a(a({
 					enableEnrichment: !0,
 					enableComplexity: !0,
 					enableExplorer: !0,

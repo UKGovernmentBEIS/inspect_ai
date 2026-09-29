@@ -181,6 +181,113 @@ def test_eval_log_run_config_round_trip() -> None:
     assert grader_config.config.max_tokens == 500
 
 
+def test_run_config_repeated_eval_preserves_task_defaults_and_logs(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai._cli.eval import RunConfigInput, merge_run_config_params
+
+    task_instance = Task(
+        config=GenerateConfig(temperature=0.6, seed=42),
+        epochs=2,
+        score_on_error=True,
+        metadata={"task": "default"},
+    )
+    config = RunConfigInput.model_validate(
+        {
+            "model": "mockllm/model",
+            "generate_config": {"temperature": 0},
+            "eval_config": {"score_on_error": False},
+        }
+    )
+    before = config.model_dump()
+    params = merge_run_config_params(
+        config.to_params(), {"temperature": None, "score_on_error": None}
+    )
+    first = eval(task_instance, log_dir=str(tmp_path), **params)[0]
+    second = eval(
+        task_instance,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        temperature=None,
+        score_on_error=None,
+    )[0]
+    assert first.status == second.status == "success"
+    assert first.plan.config.temperature == 0
+    assert first.eval.config.score_on_error is False
+    assert second.plan.config.temperature == 0.6
+    assert second.eval.config.score_on_error is True
+    assert first.plan.config.seed == second.plan.config.seed == 42
+    assert first.eval.config.epochs == second.eval.config.epochs == 2
+    assert task_instance.config.temperature == 0.6
+    assert task_instance.score_on_error is True
+    assert config.model_dump() == before
+    for original in (first, second):
+        persisted = read_eval_log(original.location)
+        assert persisted.plan.config == original.plan.config
+        assert persisted.eval.config == original.eval.config
+        exported = eval_log_to_run_config_dict(persisted)
+        assert (
+            exported["generate_config"]["temperature"]
+            == original.plan.config.temperature
+        )
+        assert (
+            exported["eval_config"]["score_on_error"]
+            == original.eval.config.score_on_error
+        )
+
+
+def test_eval_log_export_omits_operational_fields_and_keeps_falsey_values() -> None:
+    log = _make_log()
+    operational = {
+        "log_samples": False,
+        "log_realtime": False,
+        "log_images": False,
+        "log_model_api": False,
+        "log_buffer": 0,
+        "log_shared": 0,
+        "score_display": False,
+        "sandbox_cleanup": False,
+        "sandbox_prebuilt": False,
+        "max_samples": 1,
+        "max_dataset_memory": 2,
+        "max_tasks": 3,
+        "max_subprocesses": 4,
+        "max_sandboxes": 5,
+    }
+    scientific = {
+        "limit": 0,
+        "score_on_error": False,
+        "continue_on_fail": False,
+        "sample_shuffle": False,
+    }
+    log.eval.config = EvalConfig.model_validate(operational | scientific)
+    log.eval.task_file = "tasks.py"
+    log.eval.task_registry_name = "registered_task"
+    log.eval.task_args = {"value": None}
+    log.eval.tags = ["tag", "tag"]
+    log.eval.metadata = {"value": None}
+    log.eval.model_base_url = "https://example.test"
+    log.eval.model_args = {"value": None}
+    log.eval.model_generate_config = GenerateConfig(temperature=0)
+    exported = eval_log_to_run_config_dict(log)
+    assert exported["eval_config"] == scientific
+    assert exported["task"] == {
+        "task": "tasks.py@registered_task",
+        "args": {"value": None},
+    }
+    assert exported["model"] == {
+        "model": "mockllm/model",
+        "base_url": "https://example.test",
+        "args": {"value": None},
+        "config": {"temperature": 0.0},
+    }
+    assert exported["tags"] == ["tag", "tag"]
+    assert exported["metadata"] == {"value": None}
+    assert "solver" not in exported
+    assert "sandbox" not in exported
+    assert "model_roles" not in exported
+
+
 def test_sandbox_string_config() -> None:
     log = _make_log(SandboxEnvironmentSpec(type="docker", config="compose.yaml"))
     d = eval_log_to_run_config_dict(log)
