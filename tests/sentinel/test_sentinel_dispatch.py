@@ -29,6 +29,7 @@ from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import Tool, ToolCall, ToolCallView, tool
 from inspect_ai.util import StoreModel
+from inspect_ai.util._limit import LimitExceededError
 
 try:
     from inspect_sentinel import (
@@ -739,3 +740,44 @@ def test_a_modify_decision_without_a_modified_call_fails_the_sample(
     assert tool_messages(log) == []
     [event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
     assert event.failed is True
+
+
+@pytest.mark.parametrize(
+    "error,limit",
+    [
+        (TerminateSampleError("stop now"), "operator"),
+        (
+            LimitExceededError(
+                "working", value=10, limit=5, message="working limit hit"
+            ),
+            "working",
+        ),
+    ],
+)
+def test_sentinel_limits_end_the_sample_before_the_call(
+    error: Exception, limit: str
+) -> None:
+    log = run([d3_raising(error)])
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is not None and sample.limit.type == limit
+    assert tool_messages(log) == []
+    [event] = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert event.pending is None
+    assert event.failed is True
+
+
+def test_each_turn_sees_its_own_model_input(caplog: pytest.LogCaptureFixture) -> None:
+    seen: Seen = []
+    with caplog.at_level(logging.WARNING):
+        log = run([d3_recording(seen)], turns=3)
+    assert log.status == "success", log.error
+    assert not [r for r in caplog.records if "sentinel step's input" in r.message]
+    assert log.samples
+    model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert len(seen) == 3
+    for (_, step), event in zip(seen, model_events, strict=False):
+        assert [m.id for m in step.input] == [m.id for m in event.input]
+    assert len({len(step.input) for _, step in seen}) == 3
