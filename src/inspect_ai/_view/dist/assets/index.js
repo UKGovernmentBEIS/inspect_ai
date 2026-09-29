@@ -38507,7 +38507,7 @@ var usePrismHighlight = (containerRef, contentLength) => {
 				highlightCodeBlocks(container);
 			});
 			const observer = new MutationObserver((mutations) => {
-				if (mutations.some(_temp2$63)) highlightCodeBlocks(container);
+				if (mutations.some(_temp2$64)) highlightCodeBlocks(container);
 			});
 			observer.observe(container, {
 				childList: true,
@@ -38528,12 +38528,12 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useEffect)(t0, t1);
 };
-function _temp$108(node) {
+function _temp$109(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
-function _temp2$63(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$108);
+function _temp2$64(mutation) {
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$109);
 	return false;
 }
 //#endregion
@@ -39078,7 +39078,7 @@ function useRevokableUrls() {
 	let t3;
 	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = () => () => {
-			urlsRef.current.forEach(_temp$107);
+			urlsRef.current.forEach(_temp$108);
 			urlsRef.current = [];
 		};
 		t3 = [];
@@ -39091,7 +39091,7 @@ function useRevokableUrls() {
 	(0, import_react.useEffect)(t2, t3);
 	return createRevokableUrl;
 }
-function _temp$107(url_0) {
+function _temp$108(url_0) {
 	return URL.revokeObjectURL(url_0);
 }
 //#endregion
@@ -39201,7 +39201,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 				testElement.style.margin = "0";
 				testElement.style.padding = "0";
 				container.appendChild(testElement);
-				replaceMeasurementItems(testElement, segments.map(_temp$106));
+				replaceMeasurementItems(testElement, segments.map(_temp$107));
 				if (testElement.scrollWidth <= containerWidth) {
 					container.removeChild(testElement);
 					setTruncatedData({
@@ -39227,7 +39227,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 					replaceMeasurementItems(testElement, [
 						firstSegment.text,
 						"...",
-						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$62),
+						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$63),
 						lastSegment.text
 					]);
 					if (testElement.scrollWidth <= containerWidth) {
@@ -39265,10 +39265,10 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 	(0, import_react.useEffect)(t1, t2);
 	return truncatedData;
 };
-function _temp$106(segment) {
+function _temp$107(segment) {
 	return segment.text;
 }
-function _temp2$62(segment_0) {
+function _temp2$63(segment_0) {
 	return segment_0.text;
 }
 //#endregion
@@ -39699,7 +39699,7 @@ function useEventListener(target, type, listener, options) {
 				setCopied(true);
 				window.clearTimeout(timer.current);
 				timer.current = window.setTimeout(() => setCopied(false), confirmMs);
-			}).catch(_temp$105);
+			}).catch(_temp$106);
 		};
 		$[1] = confirmMs;
 		$[2] = t2;
@@ -39717,7 +39717,7 @@ function useEventListener(target, type, listener, options) {
 	} else t3 = $[5];
 	return t3;
 }
-function _temp$105(error) {
+function _temp$106(error) {
 	console.error("Failed to copy:", error);
 }
 var AsyncGate_module_default = { gate: "_gate_111wv_1" };
@@ -39917,7 +39917,7 @@ var AutocompleteInput = (t0) => {
 		if (isBrowseMode) {
 			let t8;
 			if ($[0] !== suggestions) {
-				t8 = suggestions.filter(_temp$104);
+				t8 = suggestions.filter(_temp$105);
 				$[0] = suggestions;
 				$[1] = t8;
 			} else t8 = $[1];
@@ -40087,7 +40087,7 @@ var AutocompleteInput = (t0) => {
 					e_1.stopPropagation();
 					onCommit?.();
 				} else if (e_1.key === "ArrowDown" || e_1.key === "ArrowUp") {
-					const hasOptions = suggestions.some(_temp2$61);
+					const hasOptions = suggestions.some(_temp2$62);
 					if (filteredSuggestions.length > 0 || hasOptions) {
 						e_1.preventDefault();
 						e_1.stopPropagation();
@@ -40281,10 +40281,10 @@ var AutocompleteInput = (t0) => {
 	} else t30 = $[78];
 	return t30;
 };
-function _temp$104(s) {
+function _temp$105(s) {
 	return s !== null;
 }
-function _temp2$61(s_1) {
+function _temp2$62(s_1) {
 	return s_1 !== null;
 }
 function _temp3$46(prev) {
@@ -62623,7 +62623,7 @@ var MarkdownDivComponent = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) 
 				(0, import_react.startTransition)(() => {
 					setRenderedHtml(applyPostProcess(sanitizedResult));
 				});
-			}).catch(_temp$103);
+			}).catch(_temp$104);
 			return () => {
 				cancel();
 			};
@@ -62738,7 +62738,7 @@ var MarkdownRenderQueue = class {
 	}
 };
 var renderQueue = new MarkdownRenderQueue(10);
-function _temp$103(error) {
+function _temp$104(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
@@ -66292,7 +66292,7 @@ var Tab = (t0) => {
 				"aria-controls": tabContentsId,
 				"aria-selected": isActive,
 				onClick: inAppLinkClick(tab.props.onSelected),
-				onKeyDown: _temp$102,
+				onKeyDown: _temp$103,
 				children: content
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				id: tabId,
@@ -66330,7 +66330,7 @@ var TabPanels = (t0) => {
 	const t2 = `${id}-content`;
 	let t3;
 	if ($[2] !== tabs) {
-		t3 = tabs.map(_temp2$60);
+		t3 = tabs.map(_temp2$61);
 		$[2] = tabs;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -66422,13 +66422,13 @@ var flattenChildren$1 = (children) => {
 		return [];
 	});
 };
-function _temp$102(e) {
+function _temp$103(e) {
 	if (e.key === " ") {
 		e.preventDefault();
 		e.currentTarget.click();
 	}
 }
-function _temp2$60(tab, index) {
+function _temp2$61(tab, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 		...tab.props,
 		index
@@ -66459,7 +66459,7 @@ var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	const ctx = (0, import_react.useContext)(FindTargetContext);
 	let t0;
 	if ($[0] !== ctx?.setTarget) {
-		t0 = ctx?.setTarget ?? _temp$101;
+		t0 = ctx?.setTarget ?? _temp$102;
 		$[0] = ctx?.setTarget;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -66492,7 +66492,7 @@ var FindTargetProvider = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$101() {}
+function _temp$102() {}
 //#endregion
 //#region ../../packages/react/src/components/ExpandablePanel.tsx
 var ExpandablePanel = /*#__PURE__*/ (0, import_react.memo)((t0) => {
@@ -67827,7 +67827,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((t0, 
 	const [visibleKey, setVisibleKey, clearVisibleKey] = useProperty("popover", "visibleKey");
 	let t1;
 	if ($[0] !== references) {
-		t1 = new Map(references?.map(_temp$100));
+		t1 = new Map(references?.map(_temp$101));
 		$[0] = references;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -68045,7 +68045,7 @@ var popoverKey = (ref) => `markdown-ref-popover-${ref.id}`;
 	}
 	return emitted === 0 ? html : out + html.slice(emitted);
 }
-function _temp$100(r) {
+function _temp$101(r) {
 	return [r.id, r];
 }
 /**
@@ -69504,7 +69504,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== demand || $[4] !== logDir || $[5] !== logFile) {
 		t1 = () => {
-			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$99);
+			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$100);
 		};
 		t2 = [
 			logDir,
@@ -69593,7 +69593,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	} else t0 = $[1];
 	return t0;
 };
-function _temp$99() {}
+function _temp$100() {}
 //#endregion
 //#region src/log_data/pendingSamples.ts
 var kDefaultRefreshSeconds = 2;
@@ -69698,7 +69698,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 		t4 = {
 			queryKey: t2,
 			queryFn: t3,
-			refetchInterval: _temp$98,
+			refetchInterval: _temp$99,
 			refetchIntervalInBackground: true,
 			staleTime: 0,
 			refetchOnWindowFocus: false,
@@ -69711,7 +69711,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const result = useAsyncDataFromQuery(t4);
 	let t5;
 	if ($[14] !== enabled || $[15] !== result) {
-		t5 = enabled ? map$1(result, _temp2$59) : data(void 0);
+		t5 = enabled ? map$1(result, _temp2$60) : data(void 0);
 		$[14] = enabled;
 		$[15] = result;
 		$[16] = t5;
@@ -69738,10 +69738,10 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 * finalize decision). Returns
 * `undefined` when there's no resolved dir.
 */ var getPendingSamples = (logDir, logFile) => logDir === void 0 ? void 0 : queryClient.getQueryData(pendingSamplesKey(logDir, logFile)) ?? void 0;
-function _temp$98(query) {
+function _temp$99(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
-function _temp2$59(data) {
+function _temp2$60(data) {
 	return data ?? void 0;
 }
 function _temp3$45(data) {
@@ -72076,7 +72076,7 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 		t3 = map$1(compose({
 			rows,
 			pending
-		}), _temp2$58);
+		}), _temp2$59);
 		$[8] = pending;
 		$[9] = rows;
 		$[10] = t3;
@@ -72087,11 +72087,11 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 * Non-React snapshot of {@link useSampleSummaries} (for the running-sample
 * query's tick decisions). Empty when there's no resolved dir.
 */ var getSampleSummaries = async (logDir, logFile) => logDir === void 0 ? [] : mergeSampleSummaries(await readSettledSummaries(logDir, resolveLogKey(logDir, logFile)), getPendingSamples(logDir, logFile)?.samples ?? []);
-function _temp$97(row) {
+function _temp$98(row) {
 	return row.summary;
 }
-function _temp2$58(settled) {
-	return mergeSampleSummaries(settled.rows.map(_temp$97), settled.pending?.samples ?? []);
+function _temp2$59(settled) {
+	return mergeSampleSummaries(settled.rows.map(_temp$98), settled.pending?.samples ?? []);
 }
 //#endregion
 //#region src/log_data/runningSampleQuery.ts
@@ -72230,7 +72230,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 			queryKey: t2,
 			queryFn: t3,
 			structuralSharing: false,
-			refetchInterval: _temp$96,
+			refetchInterval: _temp$97,
 			refetchIntervalInBackground: true,
 			gcTime: kSampleGcTimeMs,
 			refetchOnWindowFocus: false,
@@ -72242,7 +72242,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 	} else t4 = $[13];
 	return useAsyncDataFromQuery(t4);
 };
-function _temp$96(query) {
+function _temp$97(query) {
 	return query.state.status === "error" || query.state.data?.finalized === true ? false : query.state.data?.catchup === true ? kCatchupIntervalMs : kRunningSampleIntervalMs;
 }
 //#endregion
@@ -75669,8 +75669,8 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 	const depth = t1 === void 0 ? 0 : t1;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter(_temp$95);
-	const groups = allEntries.filter(_temp2$57);
+	const scalars = allEntries.filter(_temp$96);
+	const groups = allEntries.filter(_temp2$58);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
 	const visibleScalars = isCollapsible && !expanded ? scalars.slice(0, maxRows) : scalars;
@@ -75797,10 +75797,10 @@ var entryRecords = (entries) => {
 	});
 	else return entries;
 };
-function _temp$95(e) {
+function _temp$96(e) {
 	return !isNonEmptyObject(e.value) || isHtmlEscape(e.value);
 }
-function _temp2$57(e_0) {
+function _temp2$58(e_0) {
 	return isNonEmptyObject(e_0.value) && !isHtmlEscape(e_0.value);
 }
 function _temp3$44(prev) {
@@ -75848,7 +75848,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 		$[1] = entry;
 		$[2] = t2;
 	} else t2 = $[2];
-	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$94).find(t2);
+	const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$95).find(t2);
 	if (renderer_0) {
 		const { rendered } = renderer_0.render(id, entry, renderOptions, references);
 		if (rendered !== void 0 && /*#__PURE__*/ (0, import_react.isValidElement)(rendered)) return rendered;
@@ -76062,7 +76062,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 	};
 	return contentRenderers;
 };
-function _temp$94(a, b) {
+function _temp$95(a, b) {
 	if (!a || !b) return 0;
 	return a.bucket - b.bucket;
 }
@@ -76550,7 +76550,7 @@ var WebSearchResults$1 = (t0) => {
 	}
 	let t3;
 	if ($[2] !== results) {
-		t3 = results.map(_temp$93);
+		t3 = results.map(_temp$94);
 		$[2] = results;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -76565,7 +76565,7 @@ var WebSearchResults$1 = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$93(result, index) {
+function _temp$94(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
@@ -76883,7 +76883,7 @@ var MessageCitations = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== citations) {
-		t2 = citations.map(_temp$92);
+		t2 = citations.map(_temp$93);
 		$[1] = citations;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -76957,7 +76957,7 @@ var OtherCitation = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-function _temp$92(citation, index) {
+function _temp$93(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
@@ -77549,7 +77549,7 @@ var WebSearchResults = (t0) => {
 	const t1 = `${id}-output`;
 	let t2;
 	if ($[0] !== results) {
-		t2 = results.map(_temp$91);
+		t2 = results.map(_temp$92);
 		$[0] = results;
 		$[1] = t2;
 	} else t2 = $[1];
@@ -77730,7 +77730,7 @@ var maybeListTools = (content) => {
 };
 /** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 /** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
-function _temp$91(result, index) {
+function _temp$92(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 		href: result.url,
 		title: result.url,
@@ -78240,7 +78240,7 @@ function asCoordinate(value) {
 	const { contents, annotation } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.findLastIndex(_temp$90);
+		t1 = contents.findLastIndex(_temp$91);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -78411,7 +78411,7 @@ function renderHtmlAnnotation(annotation) {
 	}
 	return null;
 }
-function _temp$90(c) {
+function _temp$91(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
 var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
@@ -78436,7 +78436,7 @@ var ToolSearchView_module_default = {
 	const { namespaces } = t0;
 	let t1;
 	if ($[0] !== namespaces) {
-		t1 = namespaces.map(_temp2$56);
+		t1 = namespaces.map(_temp2$57);
 		$[0] = namespaces;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -78451,7 +78451,7 @@ var ToolSearchView_module_default = {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$89(tool, toolIdx) {
+function _temp$90(tool, toolIdx) {
 	return tool.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("details", {
 		className: ToolSearchView_module_default.tool,
 		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("summary", {
@@ -78466,7 +78466,7 @@ function _temp$89(tool, toolIdx) {
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", { children: tool.signature })
 	}, `tool-${toolIdx}`);
 }
-function _temp2$56(namespace, nsIdx) {
+function _temp2$57(namespace, nsIdx) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: ToolSearchView_module_default.namespace,
 		children: [namespace.name ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -78475,7 +78475,7 @@ function _temp2$56(namespace, nsIdx) {
 		}), namespace.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolSearchView_module_default.namespaceDescription,
 			children: [" — ", namespace.description]
-		}) : null] }) : null, namespace.tools.map(_temp$89)]
+		}) : null] }) : null, namespace.tools.map(_temp$90)]
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
@@ -78655,7 +78655,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const normalizedContent = t6;
 	let t7;
 	if ($[8] !== normalizedContent) {
-		t7 = normalizedContent.find(_temp$88);
+		t7 = normalizedContent.find(_temp$89);
 		$[8] = normalizedContent;
 		$[9] = t7;
 	} else t7 = $[9];
@@ -78831,7 +78831,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const { contents } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.flatMap(_temp2$55).map(_temp3$43);
+		t1 = contents.flatMap(_temp2$56).map(_temp3$43);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -78856,7 +78856,7 @@ var normalizeContent = (output) => {
 		}]
 	}];
 };
-function _temp$88(c) {
+function _temp$89(c) {
 	if (c.type === "tool") {
 		for (const t of c.content) if (t.type === "text") {
 			if (t.text) return true;
@@ -78864,7 +78864,7 @@ function _temp$88(c) {
 		return false;
 	} else return true;
 }
-function _temp2$55(c) {
+function _temp2$56(c) {
 	return c.type === "tool" ? c.content : [c];
 }
 function _temp3$43(item, i) {
@@ -78879,8 +78879,8 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 * header (terminal icon · mono tool name · args summary), the input zone
 * (e.g. code) and the output well stacked beneath.
 */ var ClientToolCall = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(54);
-	const { id, tool, title, functionCall, input, description, contentType, view, output, selfAnnotation, inputScreenshot, error, className, getCustomToolView } = t0;
+	const $ = (0, import_compiler_runtime.c)(58);
+	const { id, tool, title, functionCall, input, description, contentType, view, output, selfAnnotation, inputScreenshot, error, className, getCustomToolView, afterInput, afterOutput } = t0;
 	const displayMode = useDisplayMode();
 	let t1;
 	let viewProps;
@@ -78925,56 +78925,62 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 			$[15] = t2;
 		} else t2 = $[15];
 		let t3;
-		if ($[16] !== customView || $[17] !== t2) {
-			t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		if ($[16] !== afterInput || $[17] !== afterOutput || $[18] !== customView || $[19] !== t2) {
+			t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: t2,
-				children: customView
+				children: [
+					afterInput,
+					customView,
+					afterOutput
+				]
 			});
-			$[16] = customView;
-			$[17] = t2;
-			$[18] = t3;
-		} else t3 = $[18];
+			$[16] = afterInput;
+			$[17] = afterOutput;
+			$[18] = customView;
+			$[19] = t2;
+			$[20] = t3;
+		} else t3 = $[20];
 		return t3;
 	}
 	const hasInput = input !== void 0 && input !== null && input !== "" || !!view?.content;
 	let argsBody;
 	let t2;
-	if ($[19] !== functionCall || $[20] !== hasInput || $[21] !== title || $[22] !== tool) {
+	if ($[21] !== functionCall || $[22] !== hasInput || $[23] !== title || $[24] !== tool) {
 		argsBody = hasInput ? void 0 : fullArgs(functionCall, title || tool);
 		t2 = argsBody?.replace(/\s+/g, " ").trim();
-		$[19] = functionCall;
-		$[20] = hasInput;
-		$[21] = title;
-		$[22] = tool;
-		$[23] = argsBody;
-		$[24] = t2;
+		$[21] = functionCall;
+		$[22] = hasInput;
+		$[23] = title;
+		$[24] = tool;
+		$[25] = argsBody;
+		$[26] = t2;
 	} else {
-		argsBody = $[23];
-		t2 = $[24];
+		argsBody = $[25];
+		t2 = $[26];
 	}
 	const argsSummary = t2;
 	const argsInInputZone = !!argsSummary && argsSummary.length > kMaxSummaryArgs;
 	const showError = !!error;
 	const showAnnotation = !!selfAnnotation && !!inputScreenshot;
 	let t3;
-	if ($[25] !== output || $[26] !== showAnnotation || $[27] !== showError) {
+	if ($[27] !== output || $[28] !== showAnnotation || $[29] !== showError) {
 		t3 = !showError && (hasOutputContent(output) || showAnnotation);
-		$[25] = output;
-		$[26] = showAnnotation;
-		$[27] = showError;
-		$[28] = t3;
-	} else t3 = $[28];
+		$[27] = output;
+		$[28] = showAnnotation;
+		$[29] = showError;
+		$[30] = t3;
+	} else t3 = $[30];
 	const showOutput = t3;
 	let t4;
-	if ($[29] !== tool) {
+	if ($[31] !== tool) {
 		t4 = iconForTool(tool);
-		$[29] = tool;
-		$[30] = t4;
-	} else t4 = $[30];
+		$[31] = tool;
+		$[32] = t4;
+	} else t4 = $[32];
 	const t5 = title || tool;
 	const t6 = description ?? (argsInInputZone ? void 0 : argsSummary);
 	let t7;
-	if ($[31] !== argsBody || $[32] !== argsInInputZone || $[33] !== contentType || $[34] !== hasInput || $[35] !== id || $[36] !== input || $[37] !== view) {
+	if ($[33] !== argsBody || $[34] !== argsInInputZone || $[35] !== contentType || $[36] !== hasInput || $[37] !== id || $[38] !== input || $[39] !== view) {
 		t7 = hasInput || argsInInputZone ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockInput, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: `${id}-tool-input`,
 			collapse: true,
@@ -78987,17 +78993,17 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 				toolCallView: hasInput ? view : void 0
 			})
 		}) }) : null;
-		$[31] = argsBody;
-		$[32] = argsInInputZone;
-		$[33] = contentType;
-		$[34] = hasInput;
-		$[35] = id;
-		$[36] = input;
-		$[37] = view;
-		$[38] = t7;
-	} else t7 = $[38];
+		$[33] = argsBody;
+		$[34] = argsInInputZone;
+		$[35] = contentType;
+		$[36] = hasInput;
+		$[37] = id;
+		$[38] = input;
+		$[39] = view;
+		$[40] = t7;
+	} else t7 = $[40];
 	let t8;
-	if ($[39] !== error || $[40] !== inputScreenshot || $[41] !== selfAnnotation || $[42] !== showError || $[43] !== showOutput || $[44] !== viewProps) {
+	if ($[41] !== error || $[42] !== inputScreenshot || $[43] !== selfAnnotation || $[44] !== showError || $[45] !== showOutput || $[46] !== viewProps) {
 		t8 = showError ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockOutput, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolCallErrorView, { error }), selfAnnotation && inputScreenshot ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnnotatedScreenshotOutput, {
 			contents: inputScreenshot,
 			annotation: selfAnnotation
@@ -79005,33 +79011,40 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 			...viewProps,
 			section: "output"
 		}) }) : null;
-		$[39] = error;
-		$[40] = inputScreenshot;
-		$[41] = selfAnnotation;
-		$[42] = showError;
-		$[43] = showOutput;
-		$[44] = viewProps;
-		$[45] = t8;
-	} else t8 = $[45];
+		$[41] = error;
+		$[42] = inputScreenshot;
+		$[43] = selfAnnotation;
+		$[44] = showError;
+		$[45] = showOutput;
+		$[46] = viewProps;
+		$[47] = t8;
+	} else t8 = $[47];
 	let t9;
-	if ($[46] !== className || $[47] !== id || $[48] !== t4 || $[49] !== t5 || $[50] !== t6 || $[51] !== t7 || $[52] !== t8) {
+	if ($[48] !== afterInput || $[49] !== afterOutput || $[50] !== className || $[51] !== id || $[52] !== t4 || $[53] !== t5 || $[54] !== t6 || $[55] !== t7 || $[56] !== t8) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlock, {
 			id,
 			icon: t4,
 			title: t5,
 			summary: t6,
 			className,
-			children: [t7, t8]
+			children: [
+				t7,
+				afterInput,
+				t8,
+				afterOutput
+			]
 		});
-		$[46] = className;
-		$[47] = id;
-		$[48] = t4;
-		$[49] = t5;
-		$[50] = t6;
-		$[51] = t7;
-		$[52] = t8;
-		$[53] = t9;
-	} else t9 = $[53];
+		$[48] = afterInput;
+		$[49] = afterOutput;
+		$[50] = className;
+		$[51] = id;
+		$[52] = t4;
+		$[53] = t5;
+		$[54] = t6;
+		$[55] = t7;
+		$[56] = t8;
+		$[57] = t9;
+	} else t9 = $[57];
 	return t9;
 };
 /** Args longer than this can't meaningfully summarize on the single header
@@ -79326,7 +79339,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : 15;
 	let t17;
 	if ($[58] !== id || $[59] !== isNonSubagentTool || $[60] !== message || $[61] !== references || $[62] !== subagentNotifications || $[63] !== toolMarkdown || $[64] !== toolSearchNamespaces) {
-		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$87) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
+		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$88) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
@@ -79402,7 +79415,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	}
 	return segments;
 };
-function _temp$87(c) {
+function _temp$88(c) {
 	return c.type === "text" || c.type === "image";
 }
 var ChatMessageRow_module_default = {
@@ -79638,7 +79651,7 @@ var MessageLabel_module_default = {
 		viewKinds = $[14];
 		views = $[15];
 	}
-	const hasTools = viewKinds.some(_temp$86);
+	const hasTools = viewKinds.some(_temp$87);
 	if (useLabels || hasTools) {
 		let t1;
 		if ($[37] !== hasTools || $[38] !== highlightLabeled || $[39] !== highlightUserMessage || $[40] !== index || $[41] !== messageChip || $[42] !== resolvedMessage || $[43] !== viewChips || $[44] !== viewKinds || $[45] !== views) {
@@ -79788,7 +79801,7 @@ var ToolCallViewCompact = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$86(k) {
+function _temp$87(k) {
 	return k !== "message";
 }
 //#endregion
@@ -80238,7 +80251,7 @@ var kLoadMoreMarginRows = 20;
 		$[30] = t10;
 	} else t10 = $[30];
 	const renderRow = t10;
-	const rowSearchText = _temp$85;
+	const rowSearchText = _temp$86;
 	if (rows.length === 0) {
 		if (backfilling) {
 			let t11;
@@ -80303,7 +80316,7 @@ var kLoadMoreMarginRows = 20;
 	} else t13 = $[48];
 	return t13;
 });
-function _temp$85(item_0) {
+function _temp$86(item_0) {
 	return messageSearchText(item_0.resolved);
 }
 //#endregion
@@ -80666,7 +80679,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 			queryKey: t4,
 			queryFn: t5,
 			initialPageParam: 0,
-			getNextPageParam: _temp$84,
+			getNextPageParam: _temp$85,
 			gcTime: kSampleGcTimeMs,
 			staleTime: Infinity,
 			retry: false,
@@ -80682,7 +80695,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	const pages = data?.pages;
 	let t7;
 	if ($[14] !== pages) {
-		t7 = pages?.flatMap(_temp2$54);
+		t7 = pages?.flatMap(_temp2$55);
 		$[14] = pages;
 		$[15] = t7;
 	} else t7 = $[15];
@@ -80790,10 +80803,10 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	}
 	return t12;
 };
-function _temp$84(last) {
+function _temp$85(last) {
 	return last.nextCursor?.offset;
 }
-function _temp2$54(page) {
+function _temp2$55(page) {
 	return page.rows;
 }
 function _temp3$42() {}
@@ -81092,7 +81105,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	if ($[0] !== config) {
 		t0 = () => {
 			activateFetchEngine(config);
-			return _temp$83;
+			return _temp$84;
 		};
 		t1 = [config];
 		$[0] = config;
@@ -81105,7 +81118,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	(0, import_react.useEffect)(t0, t1);
 	return null;
 };
-function _temp$83() {
+function _temp$84() {
 	return deactivateFetchEngine();
 }
 //#endregion
@@ -88626,7 +88639,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 		t3 = () => {
 			if (previousValue.current !== value) {
 				previousValue.current = value;
-				setFlashKey(_temp$82);
+				setFlashKey(_temp$83);
 			}
 		};
 		t4 = [value];
@@ -88641,7 +88654,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	let t5;
 	if ($[5] !== expandable) {
 		t5 = () => {
-			if (expandable) setExpanded(_temp2$53);
+			if (expandable) setExpanded(_temp2$54);
 		};
 		$[5] = expandable;
 		$[6] = t5;
@@ -88782,10 +88795,10 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	return t7;
 });
 TreeNode$1.displayName = "TreeNode";
-function _temp$82(k) {
+function _temp$83(k) {
 	return k + 1;
 }
-function _temp2$53(e) {
+function _temp2$54(e) {
 	return !e;
 }
 function _temp3$41(entry) {
@@ -90285,8 +90298,8 @@ var kDefaultScorePanelSort = {
 * own default (typically `chips` for ≤ 6 scores, `grid` for 7+).
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp$81);
-	const setPropertyValue = useStore(_temp2$52);
+	const stored = useStore(_temp$82);
+	const setPropertyValue = useStore(_temp2$53);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (view) => {
@@ -90793,11 +90806,11 @@ var useLogsListing = () => {
 	} else t0 = $[3];
 	return t0;
 };
-function _temp$81(state) {
+function _temp$82(state) {
 	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
 	return isScoreView(value) ? value : void 0;
 }
-function _temp2$52(state_0) {
+function _temp2$53(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
 function _temp3$40(state) {
@@ -91138,9 +91151,9 @@ var sampleEventUrl = (builder, eventId, logPath, sampleId, sampleEpoch) => {
 	const $ = (0, import_compiler_runtime.c)(9);
 	const { logPath: urlLogPath, id: urlSampleId, epoch: urlEpoch } = useLogOrSampleRouteParams();
 	const location = useLocation();
-	const logFile = useStore(_temp$80);
+	const logFile = useStore(_temp$81);
 	const logDir = useLogDir();
-	const selectedSampleHandle = useStore(_temp2$51);
+	const selectedSampleHandle = useStore(_temp2$52);
 	const surface = location.pathname.startsWith("/samples/") ? "/samples" : location.pathname.startsWith("/tasks") ? "/tasks" : "/logs";
 	let t0;
 	if ($[0] !== logDir || $[1] !== logFile || $[2] !== selectedSampleHandle?.epoch || $[3] !== selectedSampleHandle?.id || $[4] !== surface || $[5] !== urlEpoch || $[6] !== urlLogPath || $[7] !== urlSampleId) {
@@ -91272,10 +91285,10 @@ var routeFromFullUrl = (url) => {
 	const hashIndex = url.indexOf("#");
 	return hashIndex >= 0 ? url.slice(hashIndex + 1) : url;
 };
-function _temp$80(state) {
+function _temp$81(state) {
 	return state.logs.selectedLogFile;
 }
-function _temp2$51(state_0) {
+function _temp2$52(state_0) {
 	return state_0.log.selectedSampleHandle;
 }
 function _temp5$18(state) {
@@ -91367,7 +91380,7 @@ var FlowButton = () => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$79,
+			select: _temp$80,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -91376,7 +91389,7 @@ var FlowButton = () => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$79(flow) {
+function _temp$80(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
@@ -91684,9 +91697,9 @@ var subscribe = (onChange) => {
 		$[0] = preference;
 		$[1] = t0;
 	} else t0 = $[1];
-	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$78);
+	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$79);
 };
-function _temp$78() {
+function _temp$79() {
 	return false;
 }
 //#endregion
@@ -91701,13 +91714,13 @@ function _temp$78() {
 		t0 = { demand: "active" };
 		$[0] = t0;
 	} else t0 = $[0];
-	return useLogHeader(useLogDir(), useStore(_temp$77), t0);
+	return useLogHeader(useLogDir(), useStore(_temp$78), t0);
 };
 /** Whether the selected log's details are loading. Already false when no
 *  file is selected (`useLogHeader` idles as settled-undefined). */ var useSelectedLogLoading = () => {
 	return useSelectedLogDetail().loading;
 };
-function _temp$77(state) {
+function _temp$78(state) {
 	return state.logs.selectedLogFile;
 }
 var ViewerOptionsButton_module_default = {
@@ -92326,8 +92339,8 @@ var ApplicationNavbar = (t0) => {
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered, children, breadcrumbsEnabled, loading: t1 } = t0;
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
-	const themePreference = useUserSettings(_temp$76);
-	const setThemePreference = useUserSettings(_temp2$50);
+	const themePreference = useUserSettings(_temp$77);
+	const setThemePreference = useUserSettings(_temp2$51);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
 	const isShowing = useStore(_temp3$39);
@@ -92416,10 +92429,10 @@ var ApplicationNavbar = (t0) => {
 	} else t8 = $[27];
 	return t8;
 };
-function _temp$76(s) {
+function _temp$77(s) {
 	return s.themePreference;
 }
-function _temp2$50(s_0) {
+function _temp2$51(s_0) {
 	return s_0.setThemePreference;
 }
 function _temp3$39(state) {
@@ -92611,7 +92624,7 @@ var ViewSegmentedControl = (t0) => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$75,
+			select: _temp$76,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -92620,7 +92633,7 @@ var ViewSegmentedControl = (t0) => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$75(evalSet) {
+function _temp$76(evalSet) {
 	return evalSet ?? void 0;
 }
 //#endregion
@@ -92729,13 +92742,13 @@ var ColumnSelectorPopover = (t0) => {
 		}
 		let t10;
 		if ($[13] !== columns) {
-			t10 = columns.filter(_temp$74);
+			t10 = columns.filter(_temp$75);
 			$[13] = columns;
 			$[14] = t10;
 		} else t10 = $[14];
 		let t11;
 		if ($[15] !== columns) {
-			t11 = columns.filter(_temp2$49);
+			t11 = columns.filter(_temp2$50);
 			$[15] = columns;
 			$[16] = t11;
 		} else t11 = $[16];
@@ -93050,10 +93063,10 @@ var ColumnSelectorPopover = (t0) => {
 	} else t32 = $[88];
 	return t32;
 };
-function _temp$74(col_0) {
+function _temp$75(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
-function _temp2$49(col_1) {
+function _temp2$50(col_1) {
 	return isScoreField(getFieldKey(col_1));
 }
 function _temp3$38(col_2) {
@@ -99750,7 +99763,7 @@ var isConditionShaped = (value) => {
 	const t3 = `${columnId}-op${idSuffix}`;
 	let t4;
 	if ($[2] !== operatorOptions) {
-		t4 = operatorOptions.map(_temp$73);
+		t4 = operatorOptions.map(_temp$74);
 		$[2] = operatorOptions;
 		$[3] = t4;
 	} else t4 = $[3];
@@ -100008,7 +100021,7 @@ var ColumnFilterEditor = (t0) => {
 	} else t10 = $[32];
 	return t10;
 };
-function _temp$73(option) {
+function _temp$74(option) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 		value: option,
 		children: OPERATOR_LABELS[option]
@@ -101595,7 +101608,7 @@ function GridRowInner(t0) {
 		t19 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
 			role: "presentation",
-			onClick: _temp$72,
+			onClick: _temp$73,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 				columnId: header.column.id,
 				filterType,
@@ -101696,7 +101709,7 @@ function GridRowInner(t0) {
 	} else t23 = $[63];
 	return t23;
 }
-function _temp$72(e_2) {
+function _temp$73(e_2) {
 	return e_2.stopPropagation();
 }
 //#endregion
@@ -102279,7 +102292,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$71);
+		t11 = searchColumns.map(_temp$72);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -102291,7 +102304,7 @@ var LogListGrid = (t0) => {
 		$[29] = t12;
 	} else t12 = $[29];
 	const rowText = t12;
-	const getRowId = _temp2$48;
+	const getRowId = _temp2$49;
 	let t13;
 	if ($[30] !== accessorsKey || $[31] !== filter || $[32] !== findTerm || $[33] !== getComparator || $[34] !== getFilterType || $[35] !== getValue || $[36] !== listing || $[37] !== orderBy || $[38] !== rowText || $[39] !== searchKey || $[40] !== showFind) {
 		t13 = {
@@ -102570,10 +102583,10 @@ var LogListGrid = (t0) => {
 	} else t32 = $[108];
 	return t32;
 };
-function _temp$71(col_0) {
+function _temp$72(col_0) {
 	return col_0.id ?? "";
 }
-function _temp2$48(row_2) {
+function _temp2$49(row_2) {
 	return row_2.id;
 }
 function _temp3$37(row_3) {
@@ -102699,7 +102712,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$70, _temp2$47, _temp3$36);
+	const overlayData = useKeyedMemo(overlayItems, _temp$71, _temp2$48, _temp3$36);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -102838,10 +102851,10 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$70(item) {
+function _temp$71(item) {
 	return item.id;
 }
-function _temp2$47(item_0) {
+function _temp2$48(item_0) {
 	return [
 		item_0.id,
 		item_0.type,
@@ -103015,8 +103028,8 @@ var LogsPanel = (t0) => {
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$69);
-	const setShowRetriedLogs = useUserSettings(_temp2$46);
+	const showRetriedLogs = useUserSettings(_temp$70);
+	const setShowRetriedLogs = useUserSettings(_temp2$47);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
 	const { logPath } = useLogRouteParams();
@@ -103483,10 +103496,10 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$69(state) {
+function _temp$70(state) {
 	return state.showRetriedLogs;
 }
-function _temp2$46(state_0) {
+function _temp2$47(state_0) {
 	return state_0.setShowRetriedLogs;
 }
 function _temp3$35(state_1) {
@@ -103535,7 +103548,7 @@ function _temp5$15(prev) {
 	const prefix = useRoutePrefix();
 	const logDirectory = useLogDir();
 	const { logPath, tabId, sampleTabId } = useLogRouteParams();
-	const selectedLogFile = useStore(_temp2$45);
+	const selectedLogFile = useStore(_temp2$46);
 	let t0;
 	if ($[0] !== logDirectory || $[1] !== logPath || $[2] !== selectedLogFile) {
 		t0 = () => {
@@ -103914,7 +103927,7 @@ var useSampleDetailNavigation = () => {
 	} else t10 = $[42];
 	return t10;
 };
-function _temp2$45(state) {
+function _temp2$46(state) {
 	return state.logs.selectedLogFile;
 }
 function _temp3$34(state_0) {
@@ -103992,8 +104005,7 @@ var kDefaultExcludeEvents = [
 	"store",
 	"branch",
 	"anchor",
-	"checkpoint",
-	"sentinel"
+	"checkpoint"
 ];
 var EventNode = class {
 	id;
@@ -104432,7 +104444,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$68);
+		t1 = toolDefinitions.map(_temp$69);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -104476,7 +104488,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$68(toolDefinition, idx) {
+function _temp$69(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -104754,7 +104766,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$67);
+			setFocusEpoch(_temp$68);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -104958,7 +104970,7 @@ var GoToTurnBar_module_default = {
 	} else t15 = $[32];
 	return t15;
 });
-function _temp$67(epoch) {
+function _temp$68(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
@@ -105019,6 +105031,7 @@ var TranscriptIcons = {
 	model: "bi bi-grid-3x3-gap",
 	sample: "bi bi-database",
 	sandbox: "bi bi-box-seam",
+	sentinel: "bi bi-binoculars",
 	scorer: "bi bi-calculator",
 	solvers: { use_tools: "bi bi-tools" }
 };
@@ -105100,7 +105113,7 @@ var EventSelectCheckbox_module_default = {
 			"aria-label": t1,
 			title: t2,
 			className: t4,
-			onMouseDown: _temp$66,
+			onMouseDown: _temp$67,
 			onClick: t5,
 			children: t6
 		});
@@ -105114,7 +105127,7 @@ var EventSelectCheckbox_module_default = {
 	} else t7 = $[13];
 	return t7;
 };
-function _temp$66(e) {
+function _temp$67(e) {
 	if (e.shiftKey) e.preventDefault();
 }
 var EventRow_module_default = {
@@ -105583,7 +105596,7 @@ var EventNavsPicker_module_default = {
 	let t8;
 	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
 		t7 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
-		t8 = () => setOpen(_temp$65);
+		t8 = () => setOpen(_temp$66);
 		$[9] = t7;
 		$[10] = t8;
 	} else {
@@ -105676,7 +105689,7 @@ var EventNavsPicker_module_default = {
 	} else t15 = $[28];
 	return t15;
 };
-function _temp$65(v) {
+function _temp$66(v) {
 	return !v;
 }
 //#endregion
@@ -105770,7 +105783,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t5 = $[10];
 	let t6;
 	if ($[11] !== navs) {
-		t6 = navs.map(_temp$64);
+		t6 = navs.map(_temp$65);
 		$[11] = navs;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -105799,7 +105812,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t8 = $[18];
 	return t8;
 };
-function _temp$64(nav_1) {
+function _temp$65(nav_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: "nav-item",
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -106081,6 +106094,139 @@ function hasDataDefault(node) {
 	return /*#__PURE__*/ (0, import_react.isValidElement)(node) && node.props !== null && typeof node.props === "object" && "data-default" in node.props;
 }
 //#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/toolSentinels.ts
+var isFolded = (event) => event.kind === "bypassed" || event.kind === "superseded" || event.kind === "cancelled";
+var pathSegments = (path) => path === "" ? [] : path.split("/");
+/**
+* Orders a step's events so a nested configuration reads top to bottom: each
+* layer above its children, siblings in the order they were first recorded.
+*/ var pathOrderKeys = (nodes) => {
+	const firstSeen = /* @__PURE__ */ new Map();
+	nodes.forEach((node, index) => {
+		const segments = pathSegments(node.event.path);
+		for (let i = 1; i <= segments.length; i++) {
+			const prefix = segments.slice(0, i).join("/");
+			if (!firstSeen.has(prefix)) firstSeen.set(prefix, index);
+		}
+	});
+	const keys = /* @__PURE__ */ new Map();
+	for (const node of nodes) {
+		const segments = pathSegments(node.event.path);
+		keys.set(node, segments.map((_, i) => firstSeen.get(segments.slice(0, i + 1).join("/"))));
+	}
+	return keys;
+};
+var compareKeys = (a, b) => {
+	for (let i = 0; i < Math.min(a.length, b.length); i++) {
+		const diff = a[i] - b[i];
+		if (diff !== 0) return diff;
+	}
+	return a.length - b.length;
+};
+/**
+* Builds the rows for one step's events, given in recording order. Only
+* observations and decisions get rows; the rest fold onto the decision that
+* took effect, which the runner records last.
+*/ function buildSentinelStep(nodes) {
+	const first = nodes[0];
+	const reports = nodes.filter((n) => !isFolded(n.event));
+	const folded = nodes.filter((n) => isFolded(n.event));
+	const superseded = /* @__PURE__ */ new Set();
+	for (const loser of folded) {
+		if (loser.event.kind !== "superseded") continue;
+		const at = nodes.indexOf(loser);
+		for (const report of reports) if (report.event.kind === "decision" && report.event.path === loser.event.path && report.event.function === loser.event.function && nodes.indexOf(report) < at) superseded.add(report);
+	}
+	const effective = reports.findLast((n) => n.event.kind === "decision" && !superseded.has(n)) ?? reports.at(-1);
+	const keys = pathOrderKeys(nodes);
+	const depthOf = (node) => pathSegments(node.event.path).length;
+	const minDepth = Math.min(...reports.map(depthOf));
+	const rows = reports.map((node, index) => ({
+		node,
+		index
+	})).sort((a, b) => compareKeys(keys.get(a.node), keys.get(b.node)) || a.index - b.index).map(({ node }) => ({
+		node,
+		depth: depthOf(node) - minDepth,
+		superseded: superseded.has(node),
+		folded: node === effective ? folded : []
+	}));
+	return {
+		stage: first?.event.stage ?? "tool_call",
+		stepId: first?.event.step_id ?? "",
+		rows,
+		folded: effective ? [] : folded
+	};
+}
+var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
+/**
+* Groups SentinelEvents by the step they judged and pairs tool-stage steps to
+* their ToolEvent (`step_id == ToolEvent.id`), so the tool panel renders them
+* inline. Steps with no tool render as one row at their first event.
+*/ function pairToolSentinels(eventNodes) {
+	const toolNodeIdsByCallId = /* @__PURE__ */ new Map();
+	const steps = /* @__PURE__ */ new Map();
+	const seen = /* @__PURE__ */ new Set();
+	const walk = (nodes) => {
+		for (const n of nodes) {
+			if (seen.has(n.id)) continue;
+			seen.add(n.id);
+			if (n.event.event === "tool" && !toolNodeIdsByCallId.has(n.event.id)) toolNodeIdsByCallId.set(n.event.id, n.id);
+			else if (n.event.event === "sentinel") {
+				const key = `${n.event.stage}\u0000${n.event.step_id}`;
+				const step = steps.get(key) ?? [];
+				step.push(eventNodeOf(n, "sentinel"));
+				steps.set(key, step);
+			}
+			if (n.children.length) walk(n.children);
+		}
+	};
+	walk(eventNodes);
+	const toolSentinels = /* @__PURE__ */ new Map();
+	const standaloneSentinels = /* @__PURE__ */ new Map();
+	const hiddenSentinelIds = /* @__PURE__ */ new Set();
+	const sentinelScrollRedirects = /* @__PURE__ */ new Map();
+	for (const nodes of steps.values()) {
+		const step = buildSentinelStep(nodes);
+		const toolNodeId = kToolStages.has(step.stage) ? toolNodeIdsByCallId.get(step.stepId) : void 0;
+		const hostId = toolNodeId ?? nodes[0].id;
+		if (toolNodeId) {
+			const paired = toolSentinels.get(step.stepId) ?? {};
+			if (step.stage === "tool_call") paired.before = step;
+			else paired.after = step;
+			toolSentinels.set(step.stepId, paired);
+		} else standaloneSentinels.set(hostId, step);
+		for (const node of nodes) {
+			if (node.id === hostId) continue;
+			hiddenSentinelIds.add(node.id);
+			sentinelScrollRedirects.set(node.id, hostId);
+		}
+	}
+	return {
+		toolSentinels,
+		standaloneSentinels,
+		hiddenSentinelIds,
+		sentinelScrollRedirects
+	};
+}
+/** One line naming what the folded events did, e.g. "overrode 2 layers · 1 cancelled". */ var foldedSummary = (folded) => {
+	const count = (kind) => folded.filter((n) => n.event.kind === kind).length;
+	const bypassed = count("bypassed");
+	const superseded = count("superseded");
+	const cancelled = count("cancelled");
+	return [
+		bypassed ? `overrode ${plural(bypassed, "layer")}` : "",
+		superseded ? `${plural(superseded, "decision")} superseded` : "",
+		cancelled ? `${cancelled} cancelled` : ""
+	].filter(Boolean).join(" · ");
+};
+var plural = (n, noun) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+/** The instance path, or the factory's registry name at the root. */ var instanceLabel = (event) => event.path || event.name;
+var formatSuspicion = (suspicion) => {
+	const format = (value) => String(Math.round(value * 100) / 100);
+	if (typeof suspicion === "number") return format(suspicion);
+	return Object.entries(suspicion).map(([dimension, value]) => `${dimension} ${format(value)}`).join(", ");
+};
+//#endregion
 //#region ../../packages/inspect-components/src/transcript/event/utils.ts
 var sampleLimitTitles = {
 	custom: "Custom Limit Exceeded",
@@ -106147,6 +106293,7 @@ var reviewDecisionLabels = {
 		case "input": return "Input";
 		case "approval": return approvalDecisionLabels[event.decision] ?? event.decision;
 		case "review": return reviewDecisionLabels[event.decision] ?? event.decision;
+		case "sentinel": return `Sentinel ${toTitleCase(event.kind)}: ${instanceLabel(event)}`;
 		case "sandbox": return `Sandbox: ${event.action}`;
 		default: return "";
 	}
@@ -106478,7 +106625,7 @@ var Snapshot = (t0) => {
 	if ($[7] !== details.additional_files || $[8] !== details.files) {
 		t4 = details.files && details.files.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: CheckpointEventView_module_default.files,
-			children: [details.files.map(_temp$63), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			children: [details.files.map(_temp$64), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: CheckpointEventView_module_default.fileOverflow,
 				children: [
 					"+",
@@ -106633,7 +106780,7 @@ var CheckpointEventView = (t0) => {
 	} else t19 = $[32];
 	return t19;
 };
-function _temp$63(file) {
+function _temp$64(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: CheckpointEventView_module_default.file,
 		children: file
@@ -107222,8 +107369,8 @@ var ModelTokenTable = (t0) => {
 								(() => {
 									const cfg = model_configs?.[modelId];
 									const args = model_args?.[modelId];
-									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$62) : [];
-									const argEntries = args ? Object.entries(args).filter(_temp2$44) : [];
+									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$63) : [];
+									const argEntries = args ? Object.entries(args).filter(_temp2$45) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
 									const renderSection = _temp4$25;
 									return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -107337,11 +107484,11 @@ var ModelTokenTable = (t0) => {
 	} else t11 = $[37];
 	return t11;
 };
-function _temp$62(t0) {
+function _temp$63(t0) {
 	const [, v] = t0;
 	return v != null;
 }
-function _temp2$44(t0) {
+function _temp2$45(t0) {
 	const [, v_0] = t0;
 	return v_0 != null;
 }
@@ -107515,7 +107662,7 @@ var ModelUsagePanel = (t0) => {
 	let t7;
 	if ($[0] !== className || $[1] !== timing || $[2] !== usage) {
 		const categories = buildCategories(usage);
-		const composeTotal = categories.reduce(_temp$61, 0);
+		const composeTotal = categories.reduce(_temp$62, 0);
 		const total = usage.total_tokens || composeTotal;
 		const inputAll = (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
 		const denom = inputAll + ((usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0)) || total || 1;
@@ -107592,7 +107739,7 @@ var ModelUsagePanel = (t0) => {
 			}, c_0.key))
 		});
 		t1 = ModelUsagePanel_module_default.breakdown;
-		t2 = categories.map(_temp2$43);
+		t2 = categories.map(_temp2$44);
 		$[0] = className;
 		$[1] = timing;
 		$[2] = usage;
@@ -107703,10 +107850,10 @@ var ModelUsagePanel = (t0) => {
 	} else t11 = $[40];
 	return t11;
 };
-function _temp$61(a, c) {
+function _temp$62(a, c) {
 	return a + c.value;
 }
-function _temp2$43(c_1) {
+function _temp2$44(c_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: clsx(ModelUsagePanel_module_default.swatch, c_1.swatchClass) }),
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: formatNumber(c_1.value) }),
@@ -108368,7 +108515,7 @@ var ProvenanceGrid = (t0) => {
 	} else t4 = $[3];
 	let t5;
 	if ($[4] !== changes) {
-		t5 = changes.map(_temp$60);
+		t5 = changes.map(_temp$61);
 		$[4] = changes;
 		$[5] = t5;
 	} else t5 = $[5];
@@ -108415,7 +108562,7 @@ var ProvenanceGrid = (t0) => {
 	} else t9 = $[17];
 	return t9;
 };
-function _temp$60(change) {
+function _temp$61(change) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		change.name,
 		" ",
@@ -108626,7 +108773,7 @@ var ConnectionLogModal = (t0) => {
 			$[3] = retunes;
 			$[4] = t2;
 		} else t2 = $[4];
-		t1 = [...events.map(_temp$59), ...t2.map(_temp2$42)].sort(_temp3$32);
+		t1 = [...events.map(_temp$60), ...t2.map(_temp2$43)].sort(_temp3$32);
 		$[0] = events;
 		$[1] = retunes;
 		$[2] = t1;
@@ -108765,14 +108912,14 @@ var ConnectionLogModal = (t0) => {
 	} else t12 = $[35];
 	return t12;
 };
-function _temp$59(event) {
+function _temp$60(event) {
 	return {
 		kind: "controller",
 		time: event.timestamp,
 		event
 	};
 }
-function _temp2$42(retune) {
+function _temp2$43(retune) {
 	return {
 		kind: "config",
 		time: retune.timestamp,
@@ -108980,7 +109127,7 @@ var ConnectionsView_module_default = {
 									children: model_0
 								}), roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 									className: ConnectionsView_module_default.roles,
-									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$58)]
+									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$59)]
 								})]
 							}),
 							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -109140,7 +109287,7 @@ var kBaselineY = 60;
 					y1: y(seg.value),
 					y2: y(seg.value)
 				}, `cap-${i}`)),
-				data.events.filter(_temp2$41).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
+				data.events.filter(_temp2$42).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
 					className: ConnectionsView_module_default.rateLimitLine,
 					x1: x(e_1.timestamp),
 					x2: x(e_1.timestamp),
@@ -109264,13 +109411,13 @@ var kBaselineY = 60;
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$58(role) {
+function _temp$59(role) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ConnectionsView_module_default.roleChip,
 		children: role
 	}, role);
 }
-function _temp2$41(e_0) {
+function _temp2$42(e_0) {
 	return e_0.reason === "rate_limit";
 }
 var UsagePanel_module_default = {
@@ -109648,7 +109795,7 @@ var RetryChip = (t0) => {
 	let t10;
 	let t9;
 	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = () => setOpen(_temp$57);
+		t9 = () => setOpen(_temp$58);
 		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
 			className: clsx("bi", "bi-arrow-repeat", RetryChip_module_default.chipIcon),
 			"aria-hidden": "true"
@@ -109752,7 +109899,7 @@ function formatAttemptDuration(event) {
 	const sec = attemptDurationSec(event);
 	return sec != null ? formatTime$1(sec) : null;
 }
-function _temp$57(v) {
+function _temp$58(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
@@ -110027,7 +110174,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output.choices.map(_temp$56);
+		t4 = event.output.choices.map(_temp$57);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -110061,7 +110208,7 @@ var ModelEventView = (t0) => {
 	const [showAllMessages, setShowAllMessages] = (0, import_react.useState)(false);
 	let t7;
 	if ($[14] !== event.pending || $[15] !== isCancelled || $[16] !== outputMessages) {
-		t7 = event.pending || isCancelled ? outputMessages.filter(_temp2$40) : outputMessages;
+		t7 = event.pending || isCancelled ? outputMessages.filter(_temp2$41) : outputMessages;
 		$[14] = event.pending;
 		$[15] = isCancelled;
 		$[16] = outputMessages;
@@ -110593,10 +110740,10 @@ var ToolChoiceView = (t0) => {
 		return t1;
 	}
 };
-function _temp$56(choice) {
+function _temp$57(choice) {
 	return choice.message;
 }
-function _temp2$40(m) {
+function _temp2$41(m) {
 	return !isLivePlaceholderMessage(m);
 }
 //#endregion
@@ -110766,7 +110913,7 @@ var SampleInitEventView = (t0) => {
 			const t3 = `event-${eventNode.id}`;
 			let t4;
 			if ($[8] !== event.sample.files) {
-				t4 = Object.keys(event.sample.files).map(_temp$55);
+				t4 = Object.keys(event.sample.files).map(_temp$56);
 				$[8] = event.sample.files;
 				$[9] = t4;
 			} else t4 = $[9];
@@ -110830,7 +110977,7 @@ var SampleInitEventView = (t0) => {
 	} else t4 = $[21];
 	let t5;
 	if ($[22] !== event.sample.choices) {
-		t5 = event.sample.choices ? event.sample.choices.map(_temp2$39) : "";
+		t5 = event.sample.choices ? event.sample.choices.map(_temp2$40) : "";
 		$[22] = event.sample.choices;
 		$[23] = t5;
 	} else t5 = $[23];
@@ -110905,13 +111052,13 @@ var SampleInitEventView = (t0) => {
 	} else t11 = $[42];
 	return t11;
 };
-function _temp$55(file) {
+function _temp$56(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 		className: SampleInitEventView_module_default.noMargin,
 		children: file
 	}, `sample-init-file-${file}`);
 }
-function _temp2$39(choice, index) {
+function _temp2$40(choice, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		String.fromCharCode(65 + index),
 		") ",
@@ -110929,8 +111076,8 @@ function _temp3$31(target) {
 var SampleLimitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(14);
 	const { eventNode, className } = t0;
-	const resolve_title = _temp$54;
-	const resolve_icon = _temp2$38;
+	const resolve_title = _temp$55;
+	const resolve_icon = _temp2$39;
 	const baseTitle = resolve_title(eventNode.event.type);
 	let t1;
 	if ($[0] !== baseTitle || $[1] !== eventNode.event.timestamp) {
@@ -110980,7 +111127,7 @@ var SampleLimitEventView = (t0) => {
 	} else t6 = $[13];
 	return t6;
 };
-function _temp$54(type) {
+function _temp$55(type) {
 	switch (type) {
 		case "custom": return "Custom Limit Exceeded";
 		case "time": return "Time Limit Exceeded";
@@ -110992,7 +111139,7 @@ function _temp$54(type) {
 		case "cost": return "Cost Limit Exceeded";
 	}
 }
-function _temp2$38(type_0) {
+function _temp2$39(type_0) {
 	switch (type_0) {
 		case "custom": return TranscriptIcons.limits.custom;
 		case "time": return TranscriptIcons.limits.time;
@@ -111768,6 +111915,509 @@ var ScoreEventView = (t0) => {
 	} else t25 = $[42];
 	return t25;
 };
+var SentinelEventView_module_default = {
+	step: "_step_jilfi_1",
+	entry: "_entry_jilfi_8",
+	row: "_row_jilfi_12",
+	icon: "_icon_jilfi_21",
+	label: "_label_jilfi_25",
+	factory: "_factory_jilfi_31",
+	value: "_value_jilfi_35",
+	badge: "_badge_jilfi_40",
+	observation: "_observation_jilfi_51",
+	decision: "_decision_jilfi_57",
+	muted: "_muted_jilfi_63",
+	audit: "_audit_jilfi_68",
+	alarming: "_alarming_jilfi_74",
+	cautious: "_cautious_jilfi_78",
+	explanation: "_explanation_jilfi_82",
+	folded: "_folded_jilfi_92",
+	foldedToggle: "_foldedToggle_jilfi_97",
+	chevron: "_chevron_jilfi_112",
+	foldedList: "_foldedList_jilfi_116",
+	foldedItem: "_foldedItem_jilfi_123",
+	foldedExplanation: "_foldedExplanation_jilfi_131"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/SentinelEventView.tsx
+/**
+* Renders the sentinel reports for one step: a compact row per observation or
+* decision, nested by instance path. Bypassed, superseded and cancelled events
+* fold into a note on the decision that took effect.
+*/ var SentinelStepView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(10);
+	const { step, className } = t0;
+	let t1;
+	if ($[0] !== className) {
+		t1 = clsx(SentinelEventView_module_default.step, "text-size-small", className);
+		$[0] = className;
+		$[1] = t1;
+	} else t1 = $[1];
+	let t2;
+	if ($[2] !== step.rows) {
+		t2 = step.rows.map(_temp$54);
+		$[2] = step.rows;
+		$[3] = t2;
+	} else t2 = $[3];
+	let t3;
+	if ($[4] !== step.folded) {
+		t3 = step.folded[0] ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FoldedNote, {
+			id: step.folded[0].id,
+			folded: step.folded,
+			depth: 0
+		}) : null;
+		$[4] = step.folded;
+		$[5] = t3;
+	} else t3 = $[5];
+	let t4;
+	if ($[6] !== t1 || $[7] !== t2 || $[8] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t1,
+			children: [t2, t3]
+		});
+		$[6] = t1;
+		$[7] = t2;
+		$[8] = t3;
+		$[9] = t4;
+	} else t4 = $[9];
+	return t4;
+};
+/** A step as an event row, shaped like the approval row it sits beside in a tool card. */ var SentinelStepRow = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(10);
+	const { step, eventNodeId, showStage, className } = t0;
+	let t1;
+	if ($[0] !== step) {
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelStepView, { step });
+		$[0] = step;
+		$[1] = t1;
+	} else t1 = $[1];
+	let t2;
+	if ($[2] !== showStage || $[3] !== step) {
+		t2 = showStage ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: "text-style-secondary",
+			children: stageLabels[step.stage]
+		}) : null;
+		$[2] = showStage;
+		$[3] = step;
+		$[4] = t2;
+	} else t2 = $[4];
+	let t3;
+	if ($[5] !== className || $[6] !== eventNodeId || $[7] !== t1 || $[8] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
+			eventNodeId,
+			title: "Sentinel",
+			icon: TranscriptIcons.sentinel,
+			className,
+			below: t1,
+			children: t2
+		});
+		$[5] = className;
+		$[6] = eventNodeId;
+		$[7] = t1;
+		$[8] = t2;
+		$[9] = t3;
+	} else t3 = $[9];
+	return t3;
+};
+/** A sentinel step outside any tool panel, e.g. a model-stage step. */ var SentinelEventView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(7);
+	const { eventNode, step, className } = t0;
+	let t1;
+	if ($[0] !== eventNode || $[1] !== step) {
+		t1 = step ?? buildSentinelStep([eventNode]);
+		$[0] = eventNode;
+		$[1] = step;
+		$[2] = t1;
+	} else t1 = $[2];
+	let t2;
+	if ($[3] !== className || $[4] !== eventNode.id || $[5] !== t1) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelStepRow, {
+			step: t1,
+			eventNodeId: eventNode.id,
+			showStage: true,
+			className
+		});
+		$[3] = className;
+		$[4] = eventNode.id;
+		$[5] = t1;
+		$[6] = t2;
+	} else t2 = $[6];
+	return t2;
+};
+var SentinelRowView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(44);
+	const { row } = t0;
+	const event = row.node.event;
+	let t1;
+	if ($[0] !== event.explanation) {
+		t1 = event.explanation?.trim() ?? "";
+		$[0] = event.explanation;
+		$[1] = t1;
+	} else t1 = $[1];
+	const explanation = t1;
+	const t2 = `${row.depth * 1.25}em`;
+	let t3;
+	if ($[2] !== t2) {
+		t3 = { paddingLeft: t2 };
+		$[2] = t2;
+		$[3] = t3;
+	} else t3 = $[3];
+	const indent = t3;
+	let t4;
+	if ($[4] !== event.decision) {
+		t4 = event.decision && decisionClass(event.decision);
+		$[4] = event.decision;
+		$[5] = t4;
+	} else t4 = $[5];
+	let t5;
+	if ($[6] !== t4) {
+		t5 = clsx(TranscriptIcons.sentinel, SentinelEventView_module_default.icon, t4);
+		$[6] = t4;
+		$[7] = t5;
+	} else t5 = $[7];
+	let t6;
+	if ($[8] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: t5 });
+		$[8] = t5;
+		$[9] = t6;
+	} else t6 = $[9];
+	const t7 = event.function ? `${event.name} · ${event.function}` : "";
+	let t8;
+	if ($[10] !== event) {
+		t8 = instanceLabel(event);
+		$[10] = event;
+		$[11] = t8;
+	} else t8 = $[11];
+	let t9;
+	if ($[12] !== t7 || $[13] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: SentinelEventView_module_default.label,
+			title: t7,
+			children: t8
+		});
+		$[12] = t7;
+		$[13] = t8;
+		$[14] = t9;
+	} else t9 = $[14];
+	let t10;
+	if ($[15] !== event.name || $[16] !== event.path) {
+		t10 = event.path ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: clsx(SentinelEventView_module_default.factory, "text-style-secondary"),
+			children: event.name
+		}) : null;
+		$[15] = event.name;
+		$[16] = event.path;
+		$[17] = t10;
+	} else t10 = $[17];
+	const t11 = row.superseded ? "superseded" : event.kind;
+	let t12;
+	if ($[18] !== t11) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(KindBadge, { kind: t11 });
+		$[18] = t11;
+		$[19] = t12;
+	} else t12 = $[19];
+	let t13;
+	if ($[20] !== event) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReportValue, { event });
+		$[20] = event;
+		$[21] = t13;
+	} else t13 = $[21];
+	let t14;
+	if ($[22] !== event.audit) {
+		t14 = event.audit ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: clsx(SentinelEventView_module_default.badge, SentinelEventView_module_default.audit),
+			children: "audit"
+		}) : null;
+		$[22] = event.audit;
+		$[23] = t14;
+	} else t14 = $[23];
+	let t15;
+	if ($[24] !== indent || $[25] !== t10 || $[26] !== t12 || $[27] !== t13 || $[28] !== t14 || $[29] !== t6 || $[30] !== t9) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.row,
+			style: indent,
+			children: [
+				t6,
+				t9,
+				t10,
+				t12,
+				t13,
+				t14
+			]
+		});
+		$[24] = indent;
+		$[25] = t10;
+		$[26] = t12;
+		$[27] = t13;
+		$[28] = t14;
+		$[29] = t6;
+		$[30] = t9;
+		$[31] = t15;
+	} else t15 = $[31];
+	let t16;
+	if ($[32] !== explanation || $[33] !== indent || $[34] !== row.node.id) {
+		t16 = explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SentinelEventView_module_default.explanation,
+			style: indent,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+				id: `${row.node.id}-sentinel-explanation`,
+				collapse: true,
+				lines: 3,
+				togglePosition: "block-left",
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation })
+			})
+		}) : null;
+		$[32] = explanation;
+		$[33] = indent;
+		$[34] = row.node.id;
+		$[35] = t16;
+	} else t16 = $[35];
+	let t17;
+	if ($[36] !== row.depth || $[37] !== row.folded || $[38] !== row.node.id) {
+		t17 = row.folded.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FoldedNote, {
+			id: row.node.id,
+			folded: row.folded,
+			depth: row.depth
+		}) : null;
+		$[36] = row.depth;
+		$[37] = row.folded;
+		$[38] = row.node.id;
+		$[39] = t17;
+	} else t17 = $[39];
+	let t18;
+	if ($[40] !== t15 || $[41] !== t16 || $[42] !== t17) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.entry,
+			children: [
+				t15,
+				t16,
+				t17
+			]
+		});
+		$[40] = t15;
+		$[41] = t16;
+		$[42] = t17;
+		$[43] = t18;
+	} else t18 = $[43];
+	return t18;
+};
+var ReportValue = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(15);
+	const { event } = t0;
+	if (event.suspicion !== void 0 && event.suspicion !== null) {
+		let t1;
+		if ($[0] !== event.suspicion) {
+			t1 = formatSuspicion(event.suspicion);
+			$[0] = event.suspicion;
+			$[1] = t1;
+		} else t1 = $[1];
+		let t2;
+		if ($[2] !== t1) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: SentinelEventView_module_default.value,
+				children: t1
+			});
+			$[2] = t1;
+			$[3] = t2;
+		} else t2 = $[3];
+		return t2;
+	}
+	if (!event.decision) return null;
+	let t1;
+	if ($[4] !== event.decision) {
+		t1 = decisionClass(event.decision);
+		$[4] = event.decision;
+		$[5] = t1;
+	} else t1 = $[5];
+	let t2;
+	if ($[6] !== event.decision || $[7] !== t1) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t1,
+			children: event.decision
+		});
+		$[6] = event.decision;
+		$[7] = t1;
+		$[8] = t2;
+	} else t2 = $[8];
+	let t3;
+	if ($[9] !== event.decision || $[10] !== event.outcome) {
+		t3 = event.outcome && event.outcome !== event.decision ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: "text-style-secondary",
+			children: [
+				" ",
+				"→",
+				" ",
+				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+					className: decisionClass(event.outcome),
+					children: event.outcome
+				})
+			]
+		}) : null;
+		$[9] = event.decision;
+		$[10] = event.outcome;
+		$[11] = t3;
+	} else t3 = $[11];
+	let t4;
+	if ($[12] !== t2 || $[13] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: SentinelEventView_module_default.value,
+			children: [t2, t3]
+		});
+		$[12] = t2;
+		$[13] = t3;
+		$[14] = t4;
+	} else t4 = $[14];
+	return t4;
+};
+var KindBadge = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(5);
+	const { kind } = t0;
+	const t1 = kindClasses[kind];
+	let t2;
+	if ($[0] !== t1) {
+		t2 = clsx(SentinelEventView_module_default.badge, t1);
+		$[0] = t1;
+		$[1] = t2;
+	} else t2 = $[1];
+	let t3;
+	if ($[2] !== kind || $[3] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t2,
+			children: kind
+		});
+		$[2] = kind;
+		$[3] = t2;
+		$[4] = t3;
+	} else t3 = $[4];
+	return t3;
+};
+var FoldedNote = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(24);
+	const { id, folded, depth } = t0;
+	const [collapsed, setCollapsed] = useCollapsedState(`${id}-sentinel-folded`, true);
+	const t1 = `${depth * 1.25}em`;
+	let t2;
+	if ($[0] !== t1) {
+		t2 = { paddingLeft: t1 };
+		$[0] = t1;
+		$[1] = t2;
+	} else t2 = $[1];
+	let t3;
+	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = clsx(SentinelEventView_module_default.foldedToggle, "text-style-secondary");
+		$[2] = t3;
+	} else t3 = $[2];
+	const t4 = !collapsed;
+	let t5;
+	if ($[3] !== collapsed || $[4] !== setCollapsed) {
+		t5 = () => setCollapsed(!collapsed);
+		$[3] = collapsed;
+		$[4] = setCollapsed;
+		$[5] = t5;
+	} else t5 = $[5];
+	const t6 = collapsed ? "bi bi-chevron-right" : "bi bi-chevron-down";
+	let t7;
+	if ($[6] !== t6) {
+		t7 = clsx(t6, SentinelEventView_module_default.chevron);
+		$[6] = t6;
+		$[7] = t7;
+	} else t7 = $[7];
+	let t8;
+	if ($[8] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: t7 });
+		$[8] = t7;
+		$[9] = t8;
+	} else t8 = $[9];
+	let t9;
+	if ($[10] !== folded) {
+		t9 = foldedSummary(folded);
+		$[10] = folded;
+		$[11] = t9;
+	} else t9 = $[11];
+	let t10;
+	if ($[12] !== t4 || $[13] !== t5 || $[14] !== t8 || $[15] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: t3,
+			"aria-expanded": t4,
+			onClick: t5,
+			children: [t8, t9]
+		});
+		$[12] = t4;
+		$[13] = t5;
+		$[14] = t8;
+		$[15] = t9;
+		$[16] = t10;
+	} else t10 = $[16];
+	let t11;
+	if ($[17] !== collapsed || $[18] !== folded) {
+		t11 = collapsed ? null : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("ul", {
+			className: SentinelEventView_module_default.foldedList,
+			children: folded.map(_temp2$38)
+		});
+		$[17] = collapsed;
+		$[18] = folded;
+		$[19] = t11;
+	} else t11 = $[19];
+	let t12;
+	if ($[20] !== t10 || $[21] !== t11 || $[22] !== t2) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.folded,
+			style: t2,
+			children: [t10, t11]
+		});
+		$[20] = t10;
+		$[21] = t11;
+		$[22] = t2;
+		$[23] = t12;
+	} else t12 = $[23];
+	return t12;
+};
+var stageLabels = {
+	model_input: "model input",
+	model_output: "model output",
+	tool_call: "tool call",
+	tool_result: "tool result"
+};
+var kindClasses = {
+	observation: SentinelEventView_module_default.observation,
+	decision: SentinelEventView_module_default.decision,
+	superseded: SentinelEventView_module_default.muted,
+	bypassed: SentinelEventView_module_default.muted,
+	cancelled: SentinelEventView_module_default.muted
+};
+var decisionClass = (decision) => {
+	switch (decision) {
+		case "reject":
+		case "terminate": return SentinelEventView_module_default.alarming;
+		case "escalate":
+		case "modify": return SentinelEventView_module_default.cautious;
+		case "continue": return;
+	}
+};
+function _temp$54(row) {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelRowView, { row }, row.node.id);
+}
+function _temp2$38(node) {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("li", {
+		className: SentinelEventView_module_default.foldedItem,
+		children: [
+			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(KindBadge, { kind: node.event.kind }),
+			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: SentinelEventView_module_default.label,
+				children: instanceLabel(node.event)
+			}),
+			node.event.decision ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: SentinelEventView_module_default.value,
+				children: node.event.decision
+			}) : null,
+			node.event.explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: SentinelEventView_module_default.foldedExplanation,
+				children: node.event.explanation
+			}) : null
+		]
+	}, node.id);
+}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SpanEventView.tsx
 /**
@@ -114271,13 +114921,14 @@ function useTimelineRowSelect() {
 	return (0, import_react.useContext)(TimelineRowSelectContext);
 }
 var ToolEventView_module_default = {
-	summary: "_summary_1mtn2_1",
-	labeledToolCall: "_labeledToolCall_1mtn2_6",
-	label: "_label_1mtn2_6",
-	labeledToolContent: "_labeledToolContent_1mtn2_19",
-	approvalWrap: "_approvalWrap_1mtn2_23",
-	approval: "_approval_1mtn2_23",
-	progress: "_progress_1mtn2_33"
+	summary: "_summary_18l98_1",
+	labeledToolCall: "_labeledToolCall_18l98_6",
+	label: "_label_18l98_6",
+	labeledToolContent: "_labeledToolContent_18l98_19",
+	sentinel: "_sentinel_18l98_23",
+	approvalWrap: "_approvalWrap_18l98_28",
+	approval: "_approval_18l98_28",
+	progress: "_progress_18l98_38"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ToolEventView.tsx
@@ -114286,6 +114937,14 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 	const { name, input, description, functionCall, contentType, title } = (0, import_react.useMemo)(() => resolveToolInput(event.function, event.arguments), [event.function, event.arguments]);
 	const resolvedView = (0, import_react.useMemo)(() => event.view ? substituteToolCallContent(event.view, event.arguments) : void 0, [event.view, event.arguments]);
 	const approvalNode = context?.toolApprovals?.get(event.id);
+	const sentinels = context?.toolSentinels?.get(event.id);
+	const sentinelRow = (step) => step ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		className: ToolEventView_module_default.sentinel,
+		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelStepRow, {
+			step,
+			showStage: false
+		})
+	}) : void 0;
 	const lastModelNode = (0, import_react.useMemo)(() => {
 		const lastModel = childNodes.findLast((e) => e.event.event === "model");
 		return lastModel ? eventNodeOf(lastModel, "model") : void 0;
@@ -114323,7 +114982,9 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 		selfAnnotation: context?.selfAnnotation,
 		inputScreenshot: context?.inputScreenshot,
 		error: showError && event.error ? event.error : void 0,
-		view: resolvedView
+		view: resolvedView,
+		afterInput: sentinelRow(sentinels?.before),
+		afterOutput: sentinelRow(sentinels?.after)
 	});
 	const toolLabel = toolLabels.messageLabels?.[event.id];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
@@ -114557,6 +115218,20 @@ var sanitizeStringify = (v) => {
 			fields.push(["decision", reviewEvent.decision]);
 			if (reviewEvent.explanation) fields.push(["explanation", reviewEvent.explanation]);
 			fields.push(["reviewer", reviewEvent.reviewer]);
+			break;
+		}
+		case "sentinel": {
+			const sentinelEvent = event;
+			fields.push(["kind", sentinelEvent.kind]);
+			if (sentinelEvent.path) fields.push(["path", sentinelEvent.path]);
+			fields.push(["name", sentinelEvent.name]);
+			if (sentinelEvent.function) fields.push(["function", sentinelEvent.function]);
+			fields.push(["stage", sentinelEvent.stage]);
+			if (sentinelEvent.suspicion !== void 0 && sentinelEvent.suspicion !== null) fields.push(["suspicion", formatSuspicion(sentinelEvent.suspicion)]);
+			if (sentinelEvent.decision) fields.push(["decision", sentinelEvent.decision]);
+			if (sentinelEvent.outcome) fields.push(["outcome", sentinelEvent.outcome]);
+			if (sentinelEvent.audit) fields.push(["audit", "true"]);
+			if (sentinelEvent.explanation) fields.push(["explanation", sentinelEvent.explanation]);
 			break;
 		}
 		case "sandbox": {
@@ -115902,7 +116577,7 @@ function transcriptToolsRunning(eventNodes) {
 /**
 * Renders the event based on its type.
 */ var RenderedEventNodeInner = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(152);
+	const $ = (0, import_compiler_runtime.c)(161);
 	const { node, next, className, context, onAutoCollapse, renderAgentCard, eventCallbacks } = t0;
 	const selectRow = useTimelineRowSelect();
 	switch (node.event.event) {
@@ -116413,44 +117088,72 @@ function transcriptToolsRunning(eventNodes) {
 			} else t2 = $[140];
 			return t2;
 		}
-		case "sandbox": {
+		case "sentinel": {
 			let t1;
 			if ($[141] !== node) {
-				t1 = eventNodeOf(node, "sandbox");
+				t1 = eventNodeOf(node, "sentinel");
 				$[141] = node;
 				$[142] = t1;
 			} else t1 = $[142];
 			let t2;
-			if ($[143] !== className || $[144] !== t1) {
+			if ($[143] !== context?.standaloneSentinels || $[144] !== node.id) {
+				t2 = context?.standaloneSentinels?.get(node.id);
+				$[143] = context?.standaloneSentinels;
+				$[144] = node.id;
+				$[145] = t2;
+			} else t2 = $[145];
+			let t3;
+			if ($[146] !== className || $[147] !== t1 || $[148] !== t2) {
+				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelEventView, {
+					eventNode: t1,
+					step: t2,
+					className
+				});
+				$[146] = className;
+				$[147] = t1;
+				$[148] = t2;
+				$[149] = t3;
+			} else t3 = $[149];
+			return t3;
+		}
+		case "sandbox": {
+			let t1;
+			if ($[150] !== node) {
+				t1 = eventNodeOf(node, "sandbox");
+				$[150] = node;
+				$[151] = t1;
+			} else t1 = $[151];
+			let t2;
+			if ($[152] !== className || $[153] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SandboxEventView, {
 					eventNode: t1,
 					className
 				});
-				$[143] = className;
-				$[144] = t1;
-				$[145] = t2;
-			} else t2 = $[145];
+				$[152] = className;
+				$[153] = t1;
+				$[154] = t2;
+			} else t2 = $[154];
 			return t2;
 		}
 		case "checkpoint": {
 			let t1;
-			if ($[146] !== node) {
+			if ($[155] !== node) {
 				t1 = eventNodeOf(node, "checkpoint");
-				$[146] = node;
-				$[147] = t1;
-			} else t1 = $[147];
+				$[155] = node;
+				$[156] = t1;
+			} else t1 = $[156];
 			let t2;
-			if ($[148] !== className || $[149] !== eventCallbacks || $[150] !== t1) {
+			if ($[157] !== className || $[158] !== eventCallbacks || $[159] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckpointEventView, {
 					eventNode: t1,
 					className,
 					eventCallbacks
 				});
-				$[148] = className;
-				$[149] = eventCallbacks;
-				$[150] = t1;
-				$[151] = t2;
-			} else t2 = $[151];
+				$[157] = className;
+				$[158] = eventCallbacks;
+				$[159] = t1;
+				$[160] = t2;
+			} else t2 = $[160];
 			return t2;
 		}
 		default: return null;
@@ -116472,7 +117175,7 @@ var kExitFocusIcon = "bi bi-arrows-angle-contract";
 * card/gutter chrome. Shared by the inspect and scout focus pages, which
 * supply their own loading/error chrome.
 */ var FocusTurnView = ({ nav, eventId, header, className, onExit, exitHref, error }) => {
-	const { scrollRef, listHandle, slice, turnInfo, totalTurns, onPrev, onNext, canStepNext, canStepPrev, goToTurn, laneCrumbs, laneOptions, focusTab } = nav;
+	const { scrollRef, listHandle, slice, sentinels, turnInfo, totalTurns, onPrev, onNext, canStepNext, canStepPrev, goToTurn, laneCrumbs, laneOptions, focusTab } = nav;
 	const [laneMenuOpen, setLaneMenuOpen] = (0, import_react.useState)(false);
 	const handleExit = (0, import_react.useMemo)(() => {
 		if (!onExit) return void 0;
@@ -116634,7 +117337,10 @@ var kExitFocusIcon = "bi bi-arrows-angle-contract";
 						disableVirtualization: true,
 						relativeIndent: true,
 						eventCallbacks,
-						eventNodeContext: { hasToolEvents: true }
+						eventNodeContext: {
+							hasToolEvents: true,
+							...sentinels
+						}
 					})]
 				})
 			})
@@ -117157,7 +117863,7 @@ var PRIORITY_MODEL_INPUT = 4;
 * → `useEventNodes`) so "turn N/M" always agrees with the transcript view of
 * that swimlane.
 */ function useFocusTurnNavigation(eventNodes, eventId, tab, setParams, defaultCollapsedIds, laneScope, options) {
-	const $ = (0, import_compiler_runtime.c)(110);
+	const $ = (0, import_compiler_runtime.c)(119);
 	const scrollRef = (0, import_react.useRef)(null);
 	const listHandle = (0, import_react.useRef)(null);
 	let t0;
@@ -117198,59 +117904,91 @@ var PRIORITY_MODEL_INPUT = 4;
 		$[12] = t4;
 	} else t4 = $[12];
 	const resolvedEventId = t4;
+	let standaloneSentinels;
 	let t5;
+	let toolSentinels;
 	if ($[13] !== flat || $[14] !== resolvedEventId) {
-		t5 = resolvedEventId ? focusedTurnNodes(flat, resolvedEventId) : [];
+		const nodes = resolvedEventId ? focusedTurnNodes(flat, resolvedEventId) : [];
+		const { toolSentinels: t6, standaloneSentinels: t7, hiddenSentinelIds } = pairToolSentinels(nodes);
+		toolSentinels = t6;
+		standaloneSentinels = t7;
+		t5 = nodes.filter((n) => !hiddenSentinelIds.has(n.id));
 		$[13] = flat;
 		$[14] = resolvedEventId;
-		$[15] = t5;
-	} else t5 = $[15];
-	const slice = t5;
-	let t6;
-	let turnInfo;
-	if ($[16] !== anchorIds || $[17] !== resolvedEventId || $[18] !== turnMap) {
-		turnInfo = resolvedEventId ? turnMap.get(resolvedEventId) : void 0;
-		t6 = turnInfo ? anchorIndexForTurn(anchorIds, turnMap, turnInfo.turnNumber) : -1;
-		$[16] = anchorIds;
-		$[17] = resolvedEventId;
-		$[18] = turnMap;
-		$[19] = t6;
-		$[20] = turnInfo;
+		$[15] = standaloneSentinels;
+		$[16] = t5;
+		$[17] = toolSentinels;
 	} else {
-		t6 = $[19];
-		turnInfo = $[20];
+		standaloneSentinels = $[15];
+		t5 = $[16];
+		toolSentinels = $[17];
 	}
-	const turnIndex = t6;
+	let t6;
+	if ($[18] !== standaloneSentinels || $[19] !== toolSentinels) {
+		t6 = {
+			toolSentinels,
+			standaloneSentinels
+		};
+		$[18] = standaloneSentinels;
+		$[19] = toolSentinels;
+		$[20] = t6;
+	} else t6 = $[20];
 	let t7;
-	if ($[21] !== anchorIds[0] || $[22] !== anchorIds.length || $[23] !== turnMap) {
-		t7 = (anchorIds[0] ? turnMap.get(anchorIds[0])?.totalTurns : void 0) ?? anchorIds.length;
-		$[21] = anchorIds[0];
-		$[22] = anchorIds.length;
-		$[23] = turnMap;
-		$[24] = t7;
-	} else t7 = $[24];
-	const totalTurns = t7;
+	if ($[21] !== t5 || $[22] !== t6) {
+		t7 = {
+			slice: t5,
+			sentinels: t6
+		};
+		$[21] = t5;
+		$[22] = t6;
+		$[23] = t7;
+	} else t7 = $[23];
+	const { slice, sentinels } = t7;
+	let t8;
+	let turnInfo;
+	if ($[24] !== anchorIds || $[25] !== resolvedEventId || $[26] !== turnMap) {
+		turnInfo = resolvedEventId ? turnMap.get(resolvedEventId) : void 0;
+		t8 = turnInfo ? anchorIndexForTurn(anchorIds, turnMap, turnInfo.turnNumber) : -1;
+		$[24] = anchorIds;
+		$[25] = resolvedEventId;
+		$[26] = turnMap;
+		$[27] = t8;
+		$[28] = turnInfo;
+	} else {
+		t8 = $[27];
+		turnInfo = $[28];
+	}
+	const turnIndex = t8;
+	let t9;
+	if ($[29] !== anchorIds[0] || $[30] !== anchorIds.length || $[31] !== turnMap) {
+		t9 = (anchorIds[0] ? turnMap.get(anchorIds[0])?.totalTurns : void 0) ?? anchorIds.length;
+		$[29] = anchorIds[0];
+		$[30] = anchorIds.length;
+		$[31] = turnMap;
+		$[32] = t9;
+	} else t9 = $[32];
+	const totalTurns = t9;
 	const running = !!options?.running;
 	const following = !!options?.following;
 	const followingRef = (0, import_react.useRef)(following);
-	let t8;
-	let t9;
-	if ($[25] !== following) {
-		t8 = () => {
+	let t10;
+	let t11;
+	if ($[33] !== following) {
+		t10 = () => {
 			followingRef.current = following;
 		};
-		t9 = [following];
-		$[25] = following;
-		$[26] = t8;
-		$[27] = t9;
+		t11 = [following];
+		$[33] = following;
+		$[34] = t10;
+		$[35] = t11;
 	} else {
-		t8 = $[26];
-		t9 = $[27];
+		t10 = $[34];
+		t11 = $[35];
 	}
-	(0, import_react.useEffect)(t8, t9);
-	let t10;
-	if ($[28] !== anchorIds || $[29] !== running || $[30] !== setParams || $[31] !== turnIndex) {
-		t10 = (delta) => {
+	(0, import_react.useEffect)(t10, t11);
+	let t12;
+	if ($[36] !== anchorIds || $[37] !== running || $[38] !== setParams || $[39] !== turnIndex) {
+		t12 = (delta) => {
 			const isFollowing = followingRef.current;
 			const next = anchorIds[turnIndex + delta];
 			if (delta === 1 && next === void 0 && running && !isFollowing) {
@@ -117271,32 +118009,32 @@ var PRIORITY_MODEL_INPUT = 4;
 				follow: null
 			} : { event: next });
 		};
-		$[28] = anchorIds;
-		$[29] = running;
-		$[30] = setParams;
-		$[31] = turnIndex;
-		$[32] = t10;
-	} else t10 = $[32];
-	const stepTurn = t10;
-	let t11;
-	if ($[33] !== stepTurn) {
-		t11 = () => stepTurn(-1);
-		$[33] = stepTurn;
-		$[34] = t11;
-	} else t11 = $[34];
-	const onPrev = t11;
-	let t12;
-	if ($[35] !== stepTurn) {
-		t12 = () => stepTurn(1);
-		$[35] = stepTurn;
-		$[36] = t12;
-	} else t12 = $[36];
-	const onNext = t12;
+		$[36] = anchorIds;
+		$[37] = running;
+		$[38] = setParams;
+		$[39] = turnIndex;
+		$[40] = t12;
+	} else t12 = $[40];
+	const stepTurn = t12;
+	let t13;
+	if ($[41] !== stepTurn) {
+		t13 = () => stepTurn(-1);
+		$[41] = stepTurn;
+		$[42] = t13;
+	} else t13 = $[42];
+	const onPrev = t13;
+	let t14;
+	if ($[43] !== stepTurn) {
+		t14 = () => stepTurn(1);
+		$[43] = stepTurn;
+		$[44] = t14;
+	} else t14 = $[44];
+	const onNext = t14;
 	const canStepNext = turnIndex !== -1 && anchorIds[turnIndex + 1] !== void 0 || anchorIds[turnIndex + 1] === void 0 && running && !following;
 	const canStepPrev = turnIndex !== -1 && anchorIds[turnIndex - 1] !== void 0 || anchorIds[turnIndex - 1] === void 0 && following;
-	let t13;
-	if ($[37] !== anchorIds || $[38] !== following || $[39] !== setParams || $[40] !== turnMap) {
-		t13 = (turnNumber) => {
+	let t15;
+	if ($[45] !== anchorIds || $[46] !== following || $[47] !== setParams || $[48] !== turnMap) {
+		t15 = (turnNumber) => {
 			if (anchorIds.length === 0) return;
 			const anchor = anchorIds[anchorIndexForTurn(anchorIds, turnMap, turnNumber)];
 			if (anchor !== void 0) setParams(following ? {
@@ -117305,210 +118043,211 @@ var PRIORITY_MODEL_INPUT = 4;
 			} : { event: anchor });
 			else if (following) setParams({ follow: null });
 		};
-		$[37] = anchorIds;
-		$[38] = following;
-		$[39] = setParams;
-		$[40] = turnMap;
-		$[41] = t13;
-	} else t13 = $[41];
-	const goToTurn = t13;
-	let t14;
-	if ($[42] !== laneScope?.lanes) {
-		t14 = laneScope?.lanes ?? [];
-		$[42] = laneScope?.lanes;
-		$[43] = t14;
-	} else t14 = $[43];
-	const lanes = t14;
+		$[45] = anchorIds;
+		$[46] = following;
+		$[47] = setParams;
+		$[48] = turnMap;
+		$[49] = t15;
+	} else t15 = $[49];
+	const goToTurn = t15;
+	let t16;
+	if ($[50] !== laneScope?.lanes) {
+		t16 = laneScope?.lanes ?? [];
+		$[50] = laneScope?.lanes;
+		$[51] = t16;
+	} else t16 = $[51];
+	const lanes = t16;
 	const laneIndex = laneScope?.laneIndex ?? 0;
-	let t15;
-	if ($[44] !== following || $[45] !== setParams) {
-		t15 = (lane) => {
+	let t17;
+	if ($[52] !== following || $[53] !== setParams) {
+		t17 = (lane) => {
 			if (!lane?.firstAnchorId) return;
 			setParams(following ? {
 				event: lane.firstAnchorId,
 				follow: null
 			} : { event: lane.firstAnchorId });
 		};
-		$[44] = following;
-		$[45] = setParams;
-		$[46] = t15;
-	} else t15 = $[46];
-	const goToLane = t15;
-	let t16;
-	if ($[47] !== laneIndex || $[48] !== lanes) {
-		t16 = (delta_0) => {
+		$[52] = following;
+		$[53] = setParams;
+		$[54] = t17;
+	} else t17 = $[54];
+	const goToLane = t17;
+	let t18;
+	if ($[55] !== laneIndex || $[56] !== lanes) {
+		t18 = (delta_0) => {
 			for (let i = laneIndex + delta_0; i >= 0 && i < lanes.length; i = i + delta_0) if (lanes[i]?.firstAnchorId) return lanes[i];
 		};
-		$[47] = laneIndex;
-		$[48] = lanes;
-		$[49] = t16;
-	} else t16 = $[49];
-	const nextLane = t16;
-	let t17;
-	if ($[50] !== goToLane || $[51] !== nextLane) {
-		t17 = () => goToLane(nextLane(-1));
-		$[50] = goToLane;
-		$[51] = nextLane;
-		$[52] = t17;
-	} else t17 = $[52];
-	const onPrevAgent = t17;
-	let t18;
-	if ($[53] !== goToLane || $[54] !== nextLane) {
-		t18 = () => goToLane(nextLane(1));
-		$[53] = goToLane;
-		$[54] = nextLane;
-		$[55] = t18;
-	} else t18 = $[55];
-	const onNextAgent = t18;
+		$[55] = laneIndex;
+		$[56] = lanes;
+		$[57] = t18;
+	} else t18 = $[57];
+	const nextLane = t18;
 	let t19;
+	if ($[58] !== goToLane || $[59] !== nextLane) {
+		t19 = () => goToLane(nextLane(-1));
+		$[58] = goToLane;
+		$[59] = nextLane;
+		$[60] = t19;
+	} else t19 = $[60];
+	const onPrevAgent = t19;
+	let t20;
+	if ($[61] !== goToLane || $[62] !== nextLane) {
+		t20 = () => goToLane(nextLane(1));
+		$[61] = goToLane;
+		$[62] = nextLane;
+		$[63] = t20;
+	} else t20 = $[63];
+	const onNextAgent = t20;
+	let t21;
 	bb0: {
-		let t20;
-		if ($[56] !== laneScope?.lanePath) {
-			t20 = laneScope?.lanePath ?? [];
-			$[56] = laneScope?.lanePath;
-			$[57] = t20;
-		} else t20 = $[57];
-		const path = t20;
+		let t22;
+		if ($[64] !== laneScope?.lanePath) {
+			t22 = laneScope?.lanePath ?? [];
+			$[64] = laneScope?.lanePath;
+			$[65] = t22;
+		} else t22 = $[65];
+		const path = t22;
 		if (path.length === 0) {
-			let t21;
-			if ($[58] === Symbol.for("react.memo_cache_sentinel")) {
-				t21 = [{ label: "main" }];
-				$[58] = t21;
-			} else t21 = $[58];
-			t19 = t21;
+			let t23;
+			if ($[66] === Symbol.for("react.memo_cache_sentinel")) {
+				t23 = [{ label: "main" }];
+				$[66] = t23;
+			} else t23 = $[66];
+			t21 = t23;
 			break bb0;
 		}
-		let t21;
-		if ($[59] !== goToLane || $[60] !== path) {
-			let t22;
-			if ($[62] !== goToLane || $[63] !== path.length) {
-				t22 = (lane_0, i_0) => {
+		let t23;
+		if ($[67] !== goToLane || $[68] !== path) {
+			let t24;
+			if ($[70] !== goToLane || $[71] !== path.length) {
+				t24 = (lane_0, i_0) => {
 					return !(i_0 === path.length - 1) && lane_0.firstAnchorId ? {
 						label: lane_0.label,
 						onSelect: () => goToLane(lane_0)
 					} : { label: lane_0.label };
 				};
-				$[62] = goToLane;
-				$[63] = path.length;
-				$[64] = t22;
-			} else t22 = $[64];
-			t21 = path.map(t22);
-			$[59] = goToLane;
-			$[60] = path;
-			$[61] = t21;
-		} else t21 = $[61];
-		t19 = t21;
+				$[70] = goToLane;
+				$[71] = path.length;
+				$[72] = t24;
+			} else t24 = $[72];
+			t23 = path.map(t24);
+			$[67] = goToLane;
+			$[68] = path;
+			$[69] = t23;
+		} else t23 = $[69];
+		t21 = t23;
 	}
-	const laneCrumbs = t19;
-	let t20;
-	if ($[65] !== goToLane || $[66] !== lanes) {
-		let t21;
-		if ($[68] !== goToLane) {
-			t21 = (lane_2) => ({
+	const laneCrumbs = t21;
+	let t22;
+	if ($[73] !== goToLane || $[74] !== lanes) {
+		let t23;
+		if ($[76] !== goToLane) {
+			t23 = (lane_2) => ({
 				label: lane_2.label,
 				depth: lane_2.depth,
 				isCurrent: lane_2.isCurrent,
 				onSelect: () => goToLane(lane_2)
 			});
-			$[68] = goToLane;
-			$[69] = t21;
-		} else t21 = $[69];
-		t20 = lanes.filter(_temp$50).map(t21);
-		$[65] = goToLane;
-		$[66] = lanes;
-		$[67] = t20;
-	} else t20 = $[67];
-	const laneOptions = t20;
-	let t21;
-	if ($[70] !== goToTurn) {
-		t21 = () => goToTurn(1);
-		$[70] = goToTurn;
-		$[71] = t21;
-	} else t21 = $[71];
-	const onFirst = t21;
-	let t22;
-	if ($[72] !== goToTurn || $[73] !== totalTurns) {
-		t22 = () => goToTurn(totalTurns);
-		$[72] = goToTurn;
-		$[73] = totalTurns;
-		$[74] = t22;
-	} else t22 = $[74];
-	const onLast = t22;
-	const t23 = lanes.length > 1 ? onPrevAgent : void 0;
-	const t24 = lanes.length > 1 ? onNextAgent : void 0;
-	const t25 = anchorIds.length > 0 ? onFirst : void 0;
-	const t26 = anchorIds.length > 0 ? onLast : void 0;
-	let t27;
-	if ($[75] !== onNext || $[76] !== onPrev || $[77] !== slice.length || $[78] !== t23 || $[79] !== t24 || $[80] !== t25 || $[81] !== t26) {
-		t27 = {
+			$[76] = goToLane;
+			$[77] = t23;
+		} else t23 = $[77];
+		t22 = lanes.filter(_temp$50).map(t23);
+		$[73] = goToLane;
+		$[74] = lanes;
+		$[75] = t22;
+	} else t22 = $[75];
+	const laneOptions = t22;
+	let t23;
+	if ($[78] !== goToTurn) {
+		t23 = () => goToTurn(1);
+		$[78] = goToTurn;
+		$[79] = t23;
+	} else t23 = $[79];
+	const onFirst = t23;
+	let t24;
+	if ($[80] !== goToTurn || $[81] !== totalTurns) {
+		t24 = () => goToTurn(totalTurns);
+		$[80] = goToTurn;
+		$[81] = totalTurns;
+		$[82] = t24;
+	} else t24 = $[82];
+	const onLast = t24;
+	const t25 = lanes.length > 1 ? onPrevAgent : void 0;
+	const t26 = lanes.length > 1 ? onNextAgent : void 0;
+	const t27 = anchorIds.length > 0 ? onFirst : void 0;
+	const t28 = anchorIds.length > 0 ? onLast : void 0;
+	let t29;
+	if ($[83] !== onNext || $[84] !== onPrev || $[85] !== slice.length || $[86] !== t25 || $[87] !== t26 || $[88] !== t27 || $[89] !== t28) {
+		t29 = {
 			listHandle,
 			scrollRef,
 			itemCount: slice.length,
 			onPrev,
 			onNext,
-			onPrevAgent: t23,
-			onNextAgent: t24,
-			onFirst: t25,
-			onLast: t26
+			onPrevAgent: t25,
+			onNextAgent: t26,
+			onFirst: t27,
+			onLast: t28
 		};
-		$[75] = onNext;
-		$[76] = onPrev;
-		$[77] = slice.length;
-		$[78] = t23;
-		$[79] = t24;
-		$[80] = t25;
-		$[81] = t26;
-		$[82] = t27;
-	} else t27 = $[82];
-	useTranscriptKeyboardNavigation(t27);
+		$[83] = onNext;
+		$[84] = onPrev;
+		$[85] = slice.length;
+		$[86] = t25;
+		$[87] = t26;
+		$[88] = t27;
+		$[89] = t28;
+		$[90] = t29;
+	} else t29 = $[90];
+	useTranscriptKeyboardNavigation(t29);
 	const lastAnchor = anchorIds[anchorIds.length - 1];
-	let t28;
-	let t29;
-	if ($[83] !== eventId || $[84] !== following || $[85] !== lastAnchor || $[86] !== setParams) {
-		t28 = () => {
+	let t30;
+	let t31;
+	if ($[91] !== eventId || $[92] !== following || $[93] !== lastAnchor || $[94] !== setParams) {
+		t30 = () => {
 			if (following && lastAnchor && eventId !== lastAnchor) setParams({ event: lastAnchor });
 		};
-		t29 = [
+		t31 = [
 			following,
 			lastAnchor,
 			eventId,
 			setParams
 		];
-		$[83] = eventId;
-		$[84] = following;
-		$[85] = lastAnchor;
-		$[86] = setParams;
-		$[87] = t28;
-		$[88] = t29;
+		$[91] = eventId;
+		$[92] = following;
+		$[93] = lastAnchor;
+		$[94] = setParams;
+		$[95] = t30;
+		$[96] = t31;
 	} else {
-		t28 = $[87];
-		t29 = $[88];
+		t30 = $[95];
+		t31 = $[96];
 	}
-	(0, import_react.useEffect)(t28, t29);
+	(0, import_react.useEffect)(t30, t31);
 	const followingLatest = following && running;
-	let t30;
-	if ($[89] !== setParams) {
-		t30 = (next_0) => setParams({ tab: next_0 });
-		$[89] = setParams;
-		$[90] = t30;
-	} else t30 = $[90];
-	let t31;
-	if ($[91] !== t30 || $[92] !== tab) {
-		t31 = {
-			tab,
-			setTab: t30
-		};
-		$[91] = t30;
-		$[92] = tab;
-		$[93] = t31;
-	} else t31 = $[93];
-	const focusTab = t31;
 	let t32;
-	if ($[94] !== anchorIds.length || $[95] !== canStepNext || $[96] !== canStepPrev || $[97] !== focusTab || $[98] !== followingLatest || $[99] !== goToTurn || $[100] !== laneCrumbs || $[101] !== laneOptions || $[102] !== onNext || $[103] !== onPrev || $[104] !== resolvedEventId || $[105] !== slice || $[106] !== totalTurns || $[107] !== turnIndex || $[108] !== turnInfo) {
-		t32 = {
+	if ($[97] !== setParams) {
+		t32 = (next_0) => setParams({ tab: next_0 });
+		$[97] = setParams;
+		$[98] = t32;
+	} else t32 = $[98];
+	let t33;
+	if ($[99] !== t32 || $[100] !== tab) {
+		t33 = {
+			tab,
+			setTab: t32
+		};
+		$[99] = t32;
+		$[100] = tab;
+		$[101] = t33;
+	} else t33 = $[101];
+	const focusTab = t33;
+	let t34;
+	if ($[102] !== anchorIds.length || $[103] !== canStepNext || $[104] !== canStepPrev || $[105] !== focusTab || $[106] !== followingLatest || $[107] !== goToTurn || $[108] !== laneCrumbs || $[109] !== laneOptions || $[110] !== onNext || $[111] !== onPrev || $[112] !== resolvedEventId || $[113] !== sentinels || $[114] !== slice || $[115] !== totalTurns || $[116] !== turnIndex || $[117] !== turnInfo) {
+		t34 = {
 			scrollRef,
 			listHandle,
 			slice,
+			sentinels,
 			resolvedEventId,
 			followingLatest,
 			turnInfo,
@@ -117524,24 +118263,25 @@ var PRIORITY_MODEL_INPUT = 4;
 			laneOptions,
 			focusTab
 		};
-		$[94] = anchorIds.length;
-		$[95] = canStepNext;
-		$[96] = canStepPrev;
-		$[97] = focusTab;
-		$[98] = followingLatest;
-		$[99] = goToTurn;
-		$[100] = laneCrumbs;
-		$[101] = laneOptions;
-		$[102] = onNext;
-		$[103] = onPrev;
-		$[104] = resolvedEventId;
-		$[105] = slice;
-		$[106] = totalTurns;
-		$[107] = turnIndex;
-		$[108] = turnInfo;
-		$[109] = t32;
-	} else t32 = $[109];
-	return t32;
+		$[102] = anchorIds.length;
+		$[103] = canStepNext;
+		$[104] = canStepPrev;
+		$[105] = focusTab;
+		$[106] = followingLatest;
+		$[107] = goToTurn;
+		$[108] = laneCrumbs;
+		$[109] = laneOptions;
+		$[110] = onNext;
+		$[111] = onPrev;
+		$[112] = resolvedEventId;
+		$[113] = sentinels;
+		$[114] = slice;
+		$[115] = totalTurns;
+		$[116] = turnIndex;
+		$[117] = turnInfo;
+		$[118] = t34;
+	} else t34 = $[118];
+	return t34;
 }
 function _temp$50(lane_1) {
 	return lane_1.firstAnchorId;
@@ -122785,6 +123525,7 @@ var labelForNode = (node) => {
 			escalate: "escalated",
 			terminate: "terminated"
 		}[node.event.decision];
+		case "sentinel": return `sentinel ${node.event.decision ?? node.event.kind}`;
 		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
 		case "score": return "scoring";
 		case "step":
@@ -123993,20 +124734,30 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 		return (collapsedTranscript || defaultCollapsedIds)[nodeId] === true;
 	}, [collapsedTranscript, defaultCollapsedIds]);
 	const { toolApprovals, hiddenApprovalIds, approvalScrollRedirects } = (0, import_react.useMemo)(() => pairToolApprovals(eventNodes), [eventNodes]);
-	const scrollEventId = initialEventId ? approvalScrollRedirects.get(initialEventId) ?? initialEventId : initialEventId;
+	const { toolSentinels, standaloneSentinels, hiddenSentinelIds, sentinelScrollRedirects } = (0, import_react.useMemo)(() => pairToolSentinels(eventNodes), [eventNodes]);
+	const redirectEventId = (0, import_react.useCallback)((eventId) => approvalScrollRedirects.get(eventId) ?? sentinelScrollRedirects.get(eventId) ?? eventId, [approvalScrollRedirects, sentinelScrollRedirects]);
+	const scrollEventId = initialEventId ? redirectEventId(initialEventId) : initialEventId;
 	const flattenedNodes = (0, import_react.useMemo)(() => {
 		const all = flatTree(eventNodes, collapsedTranscript || defaultCollapsedIds);
-		return hiddenApprovalIds.size === 0 ? all : all.filter((n) => !hiddenApprovalIds.has(n.id));
+		return hiddenApprovalIds.size === 0 && hiddenSentinelIds.size === 0 ? all : all.filter((n) => !hiddenApprovalIds.has(n.id) && !hiddenSentinelIds.has(n.id));
 	}, [
 		eventNodes,
 		collapsedTranscript,
 		defaultCollapsedIds,
-		hiddenApprovalIds
+		hiddenApprovalIds,
+		hiddenSentinelIds
 	]);
 	const mergedEventNodeContext = (0, import_react.useMemo)(() => ({
 		...eventNodeContext,
-		toolApprovals
-	}), [eventNodeContext, toolApprovals]);
+		toolApprovals,
+		toolSentinels,
+		standaloneSentinels
+	}), [
+		eventNodeContext,
+		toolApprovals,
+		toolSentinels,
+		standaloneSentinels
+	]);
 	const selectionLatest = useLatestRef({
 		selection,
 		flattenedNodes
@@ -124072,7 +124823,8 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			onDone
 		});
 	}, [onProgrammaticScroll]);
-	const scrollToEvent = (0, import_react.useCallback)((eventId) => {
+	const scrollToEvent = (0, import_react.useCallback)((targetId) => {
+		const eventId = redirectEventId(targetId);
 		onHeadroomSetHidden?.(true);
 		const tryScroll = (idx) => {
 			if (listHandle.current) scrollRowToTop(idx);
@@ -124109,6 +124861,7 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 			behavior: "auto"
 		});
 	}, [
+		redirectEventId,
 		flattenedNodes,
 		eventNodes,
 		collapsedTranscript,
