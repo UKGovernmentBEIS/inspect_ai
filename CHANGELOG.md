@@ -1,3 +1,7 @@
+## Unreleased
+
+- Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
+
 ## 0.3.272 (28 September 2026)
 
 - Anthropic: Support for Claude Sonnet 5.5 (`claude-sonnet-5-5`): `reasoning_effort="none"` turns off up-front thinking, forced tool choice degrades to auto, and computer use uses the computer toolset on the Claude API and Vertex.
@@ -5,7 +9,6 @@
 - Inspect View: Shard logs under `<name>.shards/` are hidden once a successful merged log covers them (`inspect view --show-shards` to list them); bundles leave them out.
 - Computer tool: click actions called without a `coordinate` now click at the current cursor position instead of failing, and the tool description states which actions require one.
 - Computer tool: `back_click` and `forward_click` now work (with a rebuilt `aisiuk/inspect-computer-tool` image); previously they failed inside the container regardless of arguments.
-- Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
 
 ## 0.3.271 (26 September 2026)
 
