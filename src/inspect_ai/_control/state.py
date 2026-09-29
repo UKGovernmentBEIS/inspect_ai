@@ -859,10 +859,7 @@ async def sample_error_detail(
         return running
 
     sample = await _full_sample(
-        eval_id,
-        sample_id,
-        epoch,
-        exclude_fields={"messages", "events", "store", "attachments", "output"},
+        eval_id, sample_id, epoch, exclude_fields=set(SAMPLE_DETAIL_EXCLUDE_FIELDS)
     )
     if sample is None:
         # a cancelled-before-start sample has no record: mirror the listing's
@@ -915,6 +912,31 @@ async def sample_error_detail(
             "scores": {},
         }
 
+    return terminal_sample_detail(
+        sample, row, will_retry=_eval_will_retry(eval_id), content=content
+    )
+
+
+# The heavy fields the sample detail read never consumes (only error data and
+# the summary fields are needed).
+SAMPLE_DETAIL_EXCLUDE_FIELDS = frozenset(
+    {"messages", "events", "store", "attachments", "output"}
+)
+
+
+def terminal_sample_detail(
+    sample: Any,
+    row: dict[str, Any] | None,
+    *,
+    will_retry: bool,
+    content: bool,
+) -> dict[str, Any]:
+    """The detail envelope for a logged sample and its (ungated) summary row.
+
+    ``sample`` is the ``EvalSample`` read without
+    :data:`SAMPLE_DETAIL_EXCLUDE_FIELDS`. Shared by :func:`sample_error_detail`
+    and the ``--log-dir`` reader, so the two surfaces cannot drift.
+    """
     # status/error apply the listing's classification
     # (_summary_from_eval_sample_summary reads the same error message), so the
     # detail's override of the row can't contradict it: a cancellation is
@@ -924,7 +946,7 @@ async def sample_error_detail(
     if sample.error is None:
         status, error = "completed", None
     elif is_cancellation_message(sample.error.message):
-        status, error = _cancellation_status(_eval_will_retry(eval_id)), None
+        status, error = _cancellation_status(will_retry), None
     else:
         status, error = "error", _error_dict(sample.error, content)
 

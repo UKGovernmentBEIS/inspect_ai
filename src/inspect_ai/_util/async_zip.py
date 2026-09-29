@@ -5,6 +5,7 @@ stored locally or remotely (e.g., S3) using async range requests.
 """
 
 import struct
+import zlib
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -24,6 +25,24 @@ DEFAULT_CHUNK_SIZE = 1024 * 1024
 # Maximum archive comment length and minimum EOCD record size per the ZIP format
 _MAX_ZIP_COMMENT_SIZE = (1 << 16) - 1
 _MIN_EOCD_SIZE = 22
+
+
+class ZipCrcError(ValueError):
+    """A member's decompressed bytes do not match its central-directory CRC-32.
+
+    Raised only by readers constructed with ``verify_crc=True``. Usually means
+    the archive was replaced between the central-directory read and the member
+    read (each is a separate range request), so the bytes came from two
+    versions of the object.
+    """
+
+
+def _check_crc(filename: str, entry: ZipEntry, crc: int) -> None:
+    if entry.crc32 is not None and crc != entry.crc32:
+        raise ZipCrcError(
+            f"CRC-32 mismatch for member {entry.filename} of {filename} "
+            f"(expected {entry.crc32:08x}, read {crc:08x})"
+        )
 
 
 @dataclass
@@ -187,7 +206,7 @@ async def _parse_central_directory(
             method,
             _time,
             _date,
-            _crc,
+            crc,
             compressed_size,
             uncompressed_size,
             name_len,
@@ -241,6 +260,7 @@ async def _parse_central_directory(
                 compressed_size,
                 uncompressed_size,
                 local_header_off,
+                crc,
             )
         )
         pos += 46 + name_len + extra_len + comment_len
@@ -268,11 +288,15 @@ class _ZipMemberBytes:
         range_and_method: tuple[int, int, ZipCompressionMethod],
         *,
         raw: bool = False,
+        verify: ZipEntry | None = None,
     ):
         self._filesystem = filesystem
         self._filename = filename
         self._offset, self._end, self._method = range_and_method
         self._raw = raw
+        # entry whose CRC-32 the decompressed stream is checked against once
+        # fully consumed (never for raw reads, whose bytes are compressed)
+        self._verify = None if raw else verify
         self._active_streams: set[CompressedToUncompressedStream] = set()
 
     async def __aiter__(self) -> AsyncIterator[bytes]:
@@ -280,10 +304,13 @@ class _ZipMemberBytes:
             self._filename, self._offset, self._end
         )
 
+        crc = 0
         if self._raw or self._method == ZipCompressionMethod.STORED:
             # Pass through raw bytes directly - no decompression needed
             try:
                 async for chunk in byte_stream:
+                    if self._verify is not None:
+                        crc = zlib.crc32(chunk, crc)
                     yield chunk
             finally:
                 await byte_stream.aclose()
@@ -293,10 +320,16 @@ class _ZipMemberBytes:
             self._active_streams.add(stream)
             try:
                 async for chunk in stream:
+                    if self._verify is not None:
+                        crc = zlib.crc32(chunk, crc)
                     yield chunk
             finally:
                 self._active_streams.discard(stream)
                 await stream.aclose()
+        # reached only when the stream was consumed to its end: a stream
+        # closed early is never treated as verified
+        if self._verify is not None:
+            _check_crc(self._filename, self._verify, crc)
 
     async def __aenter__(self) -> Self:
         return self
@@ -328,6 +361,9 @@ class AsyncZipReader:
         filesystem: AsyncFilesystem,
         filename: str,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
+        *,
+        verify_crc: bool = False,
+        central_directory: CentralDirectory | None = None,
     ):
         """Initialize the async ZIP reader.
 
@@ -335,6 +371,11 @@ class AsyncZipReader:
             filesystem: AsyncFilesystem instance for reading files
             filename: Path or URL to ZIP file (local path or s3:// URL)
             chunk_size: Size of chunks for streaming compressed data
+            verify_crc: Check every decompressed member read (whole, or a
+                stream consumed to its end) against the central directory's
+                CRC-32, raising :class:`ZipCrcError` on a mismatch.
+            central_directory: A central directory already parsed from this
+                file, used instead of reading it again.
 
         Raises:
             ValueError: If filename is empty or None
@@ -344,7 +385,8 @@ class AsyncZipReader:
         self._filesystem = filesystem
         self._filename = filename
         self._chunk_size = chunk_size
-        self._central_directory: CentralDirectory | None = None
+        self._verify_crc = verify_crc
+        self._central_directory: CentralDirectory | None = central_directory
         self._lock = anyio.Lock()
 
     @property
@@ -413,10 +455,16 @@ class AsyncZipReader:
                 async for chunk in stream:
                     process(chunk)
         """
+        entry = (
+            member
+            if isinstance(member, ZipEntry)
+            else await self.get_member_entry(member)
+        )
         return _ZipMemberBytes(
             self._filesystem,
             self._filename,
-            await self._get_member_range_and_method(member),
+            await self._get_member_range_and_method(entry),
+            verify=entry if self._verify_crc else None,
         )
 
     async def read_member_fully(self, member: str | ZipEntry) -> bytes:
@@ -467,7 +515,10 @@ class AsyncZipReader:
                 abs_data_start + entry.compressed_size,
             )
 
-        return decompress_bytes(compressed_data, entry.compression_method)
+        data = decompress_bytes(compressed_data, entry.compression_method)
+        if self._verify_crc:
+            _check_crc(self._filename, entry, zlib.crc32(data))
+        return data
 
     async def _get_member_range_and_method(
         self, member: str | ZipEntry

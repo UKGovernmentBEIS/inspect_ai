@@ -49,3 +49,24 @@ def test_dotenv_loads_var_absent_from_environment(tmp_path, monkeypatch):
     init_dotenv()
 
     assert dotenv_mod.os.environ[_VAR] == "from_dotenv"
+
+
+def test_init_cli_env_quoted_commas_preserved(monkeypatch):
+    """Issue #5368: init_cli_env sets literal comma-separated strings without Python list stringification."""
+    from inspect_ai._util.config import parse_cli_args
+    from inspect_ai._util.dotenv import init_cli_env
+
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+
+    env_args = parse_cli_args(
+        [
+            'NO_PROXY="localhost,127.0.0.1"',
+            "CUDA_VISIBLE_DEVICES='0,1'",
+        ],
+        preserve_quoted_commas=True,
+    )
+    init_cli_env(env_args)
+
+    assert dotenv_mod.os.environ["NO_PROXY"] == "localhost,127.0.0.1"
+    assert dotenv_mod.os.environ["CUDA_VISIBLE_DEVICES"] == "0,1"
