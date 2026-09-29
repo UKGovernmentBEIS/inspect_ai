@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
 from typing import Any
@@ -13,7 +13,14 @@ from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import as_solver, react
 from inspect_ai.dataset import Sample
-from inspect_ai.event import ModelEvent, SentinelEvent, SpanBeginEvent, ToolEvent
+from inspect_ai.event import (
+    Event,
+    ModelEvent,
+    SentinelEvent,
+    SpanBeginEvent,
+    SpanEndEvent,
+    ToolEvent,
+)
 from inspect_ai.log import EvalLog
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
@@ -321,6 +328,49 @@ def test_host_generate_uses_the_monitor_role() -> None:
     assert roles.count("monitor") == 1
 
 
+def sentinel_span_ids(events: Sequence[Event]) -> list[str]:
+    return [
+        e.id for e in events if isinstance(e, SpanBeginEvent) and e.type == "sentinel"
+    ]
+
+
+def test_sentinel_events_nest_under_a_sentinel_span() -> None:
+    monitor_model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", content="0.5")],
+        memoize=False,
+    )
+    log = run([d3_asks_model()], model_roles={"monitor": monitor_model})
+    assert log.status == "success", log.error
+    assert log.samples
+    events = log.samples[0].events
+
+    before, after = sentinel_span_ids(events)
+    [monitor_call] = [
+        e for e in events if isinstance(e, ModelEvent) and e.role == "monitor"
+    ]
+    assert monitor_call.span_id == before
+    assert all(e.span_id == before for e in sentinel_events(log))
+    agent_calls = [e for e in events if isinstance(e, ModelEvent) and e.role is None]
+    assert agent_calls and all(e.span_id not in (before, after) for e in agent_calls)
+    [tool_event] = [e for e in events if isinstance(e, ToolEvent)]
+    assert tool_event.span_id not in (before, after)
+    ended = [e.id for e in events if isinstance(e, SpanEndEvent)]
+    assert ended.count(before) == 1 and ended.count(after) == 1
+
+
+def test_each_stage_runs_in_its_own_sentinel_span() -> None:
+    log = run([d3_trajectory()], turns=2)
+    assert log.status == "success", log.error
+    assert log.samples
+    events = log.samples[0].events
+    span_ids = sentinel_span_ids(events)
+    assert len(span_ids) == 4
+    ended = {e.id for e in events if isinstance(e, SpanEndEvent)}
+    assert set(span_ids) <= ended
+    assert {e.span_id for e in sentinel_events(log)} <= set(span_ids)
+
+
 def test_a_raising_monitor_fails_the_sample() -> None:
     log = run([d3_raises()])
     assert log.status == "error"
@@ -424,6 +474,11 @@ async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
         ("", "cancelled"),
     ]
     assert transcript_tool_events() == []
+    [span_id] = sentinel_span_ids(transcript().events)
+    assert {e.span_id for e in events} == {span_id}
+    assert any(
+        isinstance(e, SpanEndEvent) and e.id == span_id for e in transcript().events
+    )
 
 
 def test_sample_time_limit_during_the_sentinel_ends_the_sample() -> None:
@@ -571,6 +626,9 @@ def test_sentinel_errors_fail_the_sample_rather_than_the_call(
     assert event.pending is None
     assert event.failed is True
     assert event.result == ("2" if after else "")
+    events = log.samples[0].events
+    ended = {e.id for e in events if isinstance(e, SpanEndEvent)}
+    assert sentinel_span_ids(events) and set(sentinel_span_ids(events)) <= ended
 
 
 def test_host_generate_without_a_monitor_role_labels_the_agent_model() -> None:

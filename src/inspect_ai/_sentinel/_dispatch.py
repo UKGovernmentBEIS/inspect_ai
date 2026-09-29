@@ -33,7 +33,7 @@ from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
-from inspect_ai.util._span import current_agent_span_id
+from inspect_ai.util._span import current_agent_span_id, span
 from inspect_ai.util._store import store
 
 from ._context import SentinelFailure, active_sentinel, active_task_metadata
@@ -93,8 +93,9 @@ async def _run(step: Step) -> Decision | None:
     if root is None:
         return None
     try:
-        with suspend_token_limit(), suspend_turn_limit():
-            return await run_root(root, _context(), step)
+        async with span(name="sentinel", type="sentinel"):
+            with suspend_token_limit(), suspend_turn_limit():
+                return await run_root(root, _context(), step)
     except TimeoutError as ex:
         # the sample runner treats a bare TimeoutError as benign
         raise RuntimeError(
