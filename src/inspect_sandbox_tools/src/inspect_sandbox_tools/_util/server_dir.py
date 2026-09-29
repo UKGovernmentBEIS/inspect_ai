@@ -57,7 +57,9 @@ def server_socket_path(server_dir: Path) -> Path:
     return Path("/tmp") / f"inspect-sandbox-tools-{os.geteuid()}" / f"{identity}.sock"
 
 
-def ensure_private_server_dir(server_dir: Path, *, create: bool = True) -> None:
+def ensure_private_server_dir(
+    server_dir: Path, *, create: bool = True, repair_mode: bool = True
+) -> None:
     """Create ``server_dir`` as a private directory, or verify an existing one.
 
     The socket, pid, lock, and status files that the server and CLI trust live in
@@ -83,6 +85,8 @@ def ensure_private_server_dir(server_dir: Path, *, create: bool = True) -> None:
         server_dir: The directory to create or verify.
         create: Create the directory (mode 0700) when nothing exists at the path.
             With ``False`` a missing directory raises ``FileNotFoundError``.
+        repair_mode: Tighten an owned directory to 0700. With ``False``, refuse
+            other modes because the directory may contain planted content.
 
     Raises:
         RuntimeError: An entry exists at the path but cannot be trusted, or the
@@ -120,6 +124,11 @@ def ensure_private_server_dir(server_dir: Path, *, create: bool = True) -> None:
                 server_dir, f"it is owned by uid {info.st_uid}, not uid {expected_uid}"
             )
         if stat.S_IMODE(info.st_mode) != 0o700:
+            if not repair_mode:
+                raise _untrusted_server_dir(
+                    server_dir,
+                    f"it has mode {stat.S_IMODE(info.st_mode):04o}, not 0700",
+                )
             os.fchmod(dir_fd, 0o700)
     finally:
         os.close(dir_fd)
