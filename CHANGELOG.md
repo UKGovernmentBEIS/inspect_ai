@@ -1,6 +1,20 @@
 ## Unreleased
 
 - Logs: Reading samples with `resolve_attachments` is much faster for long conversations; in full mode, deeply nested model API call content may keep two more nesting levels.
+- Bugfix: `self_critique()`, and `model_graded_qa()`/`model_graded_fact()` with `model_role=None`, now critique or grade with the correct model when one task is evaluated against several models.
+
+## 0.3.272 (28 September 2026)
+
+- Anthropic: Support for Claude Sonnet 5.5 (`claude-sonnet-5-5`): `reasoning_effort="none"` turns off up-front thinking, forced tool choice degrades to auto, and computer use uses the computer toolset on the Claude API and Vertex.
+- Tools: `web_browser()` is deprecated, logs a warning when called, and will be removed in a future release.
+- Inspect View: Shard logs under `<name>.shards/` are hidden once a successful merged log covers them (`inspect view --show-shards` to list them); bundles leave them out.
+- Computer tool: click actions called without a `coordinate` now click at the current cursor position instead of failing, and the tool description states which actions require one.
+- Computer tool: `back_click` and `forward_click` now work (with a rebuilt `aisiuk/inspect-computer-tool` image); previously they failed inside the container regardless of arguments.
+
+## 0.3.271 (26 September 2026)
+
+- CLI: New `--extra-headers` and `--extra-body` options for `inspect eval` and `inspect eval-set`, taking an inline JSON or YAML mapping.
+- Google: Token counting falls back to a local estimate, with a warning, when the countTokens endpoint is unavailable or rejects the request.
 
 ## 0.3.270 (25 September 2026)
 
