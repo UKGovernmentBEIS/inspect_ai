@@ -607,6 +607,76 @@ async def test_write_file_local():
 
 
 # =============================================================================
+# Tests for list_dir
+# =============================================================================
+
+
+async def test_list_dir_local_lists_direct_children_only(tmp_path: Path) -> None:
+    (tmp_path / "a.eval").write_bytes(b"abc")
+    (tmp_path / "sub" / "deeper").mkdir(parents=True)
+    (tmp_path / "sub" / "b.eval").write_bytes(b"b")
+    # a directory symlink is neither listed as a directory nor followed
+    (tmp_path / "loop").symlink_to(tmp_path, target_is_directory=True)
+
+    async with AsyncFilesystem() as fs:
+        listing = await fs.list_dir(str(tmp_path))
+        uri_listing = await fs.list_dir(tmp_path.as_uri())
+
+    assert [f.name for f in listing.files] == [f"{tmp_path}/a.eval"]
+    assert listing.files[0].size == 3
+    assert listing.files[0].mtime == pytest.approx(
+        (tmp_path / "a.eval").stat().st_mtime * 1000
+    )
+    assert listing.dirs == [f"{tmp_path}/sub"]
+    # paths keep the form the base was given in
+    assert [f.name for f in uri_listing.files] == [f"{tmp_path.as_uri()}/a.eval"]
+
+
+async def test_list_dir_file_uri_encodes_reserved_characters(tmp_path: Path) -> None:
+    from inspect_ai._util.file import local_path
+
+    (tmp_path / "percent%20literal.eval").write_bytes(b"x")
+    (tmp_path / "dir #1?x").mkdir()
+
+    async with AsyncFilesystem() as fs:
+        listing = await fs.list_dir(tmp_path.as_uri())
+
+    # each child decodes back to the real path, not a sibling or a fragment
+    assert [local_path(f.name) for f in listing.files] == [
+        str(tmp_path / "percent%20literal.eval")
+    ]
+    assert [local_path(d) for d in listing.dirs] == [str(tmp_path / "dir #1?x")]
+    assert all(d.startswith("file://") for d in listing.dirs)
+
+
+async def test_list_dir_local_missing_raises(tmp_path: Path) -> None:
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(FileNotFoundError):
+            await fs.list_dir(str(tmp_path / "absent"))
+
+
+async def test_list_dir_s3_returns_files_and_prefixes_from_one_listing(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    for key in ("list_dir/a.eval", "list_dir/sub/b.eval", "list_dir/sub/c/d.eval"):
+        s3.put_object(Bucket="test-bucket", Key=key, Body=b"xy")
+    # a zero-byte "folder" marker is not a file
+    s3.put_object(Bucket="test-bucket", Key="list_dir/", Body=b"")
+
+    async with AsyncFilesystem() as fs:
+        listing = await fs.list_dir(f"{S3_BUCKET}/list_dir/")
+        empty = await fs.list_dir(f"{S3_BUCKET}/no_such_prefix")
+
+    assert [f.name for f in listing.files] == [f"{S3_BUCKET}/list_dir/a.eval"]
+    assert listing.files[0].size == 2 and listing.files[0].etag
+    assert listing.dirs == [f"{S3_BUCKET}/list_dir/sub"]
+    assert empty.files == [] and empty.dirs == []
+
+
+# =============================================================================
 # Tests for write_file_streaming
 # =============================================================================
 
@@ -670,14 +740,16 @@ async def test_write_file_streaming_s3(
 
 
 class _ThreadRecordingBytesIO(io.BytesIO):
-    """BytesIO that records the thread each ``read`` runs on."""
+    """BytesIO that records the thread and requested size of each ``read``."""
 
     def __init__(self, data: bytes) -> None:
         super().__init__(data)
         self.read_threads: list[int] = []
+        self.read_sizes: list[int | None] = []
 
     def read(self, size: int | None = -1) -> bytes:
         self.read_threads.append(threading.get_ident())
+        self.read_sizes.append(size)
         return super().read(size)
 
 
@@ -693,9 +765,9 @@ async def test_write_file_streaming_s3_reads_source_off_event_loop(
 ) -> None:
     """S3 streaming uploads must never read the source on the event loop.
 
-    The asyncio path assembles PUT bodies and multipart parts from
-    ``io_chunksize`` reads of the source; a plain sync handle read on the loop
-    would block it for every chunk. Both the single-PUT and multipart paths
+    The asyncio path assembles PUT bodies and multipart parts from whole-part
+    reads of the source; a plain sync handle read on the loop would block it
+    for every part. Both the single-PUT and multipart paths
     must hop to a worker thread for the read. The asyncio variant is the one
     that guards this; under trio the whole upload already runs in a worker
     thread.
@@ -731,9 +803,14 @@ class _BlockingReadBytesIO(io.BytesIO):
 
 
 class _PutObjectClient:
-    """Fake async S3 client for sub-threshold uploads."""
+    """Fake async S3 client for sub-threshold uploads.
+
+    ``put_object`` checkpoints like a real client awaiting the network, so a
+    pending cancellation lands there rather than being lost.
+    """
 
     async def put_object(self, **kwargs: Any) -> dict[str, Any]:
+        await anyio.lowlevel.checkpoint()
         return {"ETag": '"etag-1"'}
 
 
@@ -1091,6 +1168,40 @@ async def test_s3_upload_async_multipart_exact_multiple_of_chunksize() -> None:
     assert client.aborted == []
     assert not source.closed
     assert client.created is not None and "ChecksumAlgorithm" not in client.created
+
+
+async def test_s3_upload_async_reads_each_part_in_one_request() -> None:
+    """Each part is read off the loop with one request for the whole part.
+
+    Reading a part as ``io_chunksize`` slices, each hopping to a worker
+    thread, costs 32 round trips per default 8 MB part; the loop over short
+    reads belongs inside the single thread hop.
+    """
+    client = _MultipartClient()
+    source = _ThreadRecordingBytesIO(b"a" * 1024 + b"b" * 1024 + b"c" * 512)
+    loop_thread = threading.get_ident()
+
+    await _s3_upload_fileobj_async(
+        client,
+        source,
+        "bucket",
+        "key",
+        TransferConfig(
+            multipart_threshold=1024,
+            multipart_chunksize=1024,
+            max_concurrency=1,
+            io_chunksize=256,
+        ),
+    )
+
+    assert sorted(client.parts) == [
+        (1, b"a" * 1024),
+        (2, b"b" * 1024),
+        (3, b"c" * 512),
+    ]
+    # one whole-part request per part, then the short read that finds EOF
+    assert source.read_sizes == [1024, 1024, 1024, 512]
+    assert loop_thread not in source.read_threads
 
 
 async def test_s3_upload_async_multipart_aborts_on_part_failure() -> None:
