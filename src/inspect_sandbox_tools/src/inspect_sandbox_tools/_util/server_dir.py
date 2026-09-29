@@ -104,7 +104,7 @@ def ensure_private_server_dir(
             pass
         except OSError as ex:
             raise RuntimeError(
-                f"Sandbox-tools server directory {server_dir} cannot be created: "
+                f"Sandbox-tools directory {server_dir} cannot be created: "
                 f"{ex.strerror or ex}"
             ) from ex
         finally:
@@ -162,7 +162,7 @@ def _describe_entry(path: Path, open_error: OSError) -> str:
 
 def _untrusted_server_dir(server_dir: Path, reason: str) -> RuntimeError:
     return RuntimeError(
-        f"Sandbox-tools server directory {server_dir} cannot be trusted: {reason}. "
+        f"Sandbox-tools directory {server_dir} cannot be trusted: {reason}. "
         "Remove the entry (or correct its ownership and permissions) and retry."
     )
 
