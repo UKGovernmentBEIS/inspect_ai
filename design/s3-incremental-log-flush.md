@@ -464,12 +464,34 @@ parsed with the same truthy rule as the other `INSPECT_*` flags
 once by a small helper in `eval.py`, `_verify_compose_prefix() -> bool`.
 Default off. `tests/conftest.py` sets it to `"1"` in `pytest_configure`,
 next to `INSPECT_EVAL_LOG_MODEL_API` (`tests/conftest.py:889`), so every
-run of the suite — plain `pytest`, `--runslow`, `--runtrio`, and any
-scheduled run of the suite — has it on without per-test setup. The repo has
-no nightly test workflow today (the only scheduled workflows are
-`pr-stale.yml` and `sync_model_data.yml`); when one exists it inherits the
-switch through `conftest.py`. A benchmark or a manual soak run turns it on
-the same way: `INSPECT_VERIFY_COMPOSE_PREFIX=1 inspect eval ...`.
+run of the suite has it on without per-test setup. A benchmark or a manual
+soak run turns it on the same way: `INSPECT_VERIFY_COMPOSE_PREFIX=1 inspect
+eval ...`.
+
+**Where each pass runs.** This repository's own workflows run only the PR
+suite; the slow tests run from the `meridianlabs-ai/actions` repository,
+whose `inspect-ai-scheduled-tests.yml` checks out `inspect_ai` `main`
+every two hours and runs `pytest --runslow --runapi` in two matrix legs
+(asyncio, and `--runtrio`). Ransom's rule for this design: the slower
+verification passes belong in that scheduled run, not in the PR suite
+(decision: Ransom, 2026-09-29). So the mode has two tiers:
+
+1. **Local digest, every run.** The check described below costs one pass
+   over the prefix per flush; in the PR suite the composed logs are tens of
+   MiB, so it adds well under a second per test. It is on wherever the
+   suite runs, including the scheduled run, through `conftest.py`.
+2. **Slow verification, scheduled run only.** Tests marked `slow` (so they
+   run under `--runslow` in the scheduled workflow and are skipped by plain
+   `pytest`) that drive the compose path at the benchmark's shapes: a
+   multi-hundred-MiB log flushed repeatedly against the moto server, each
+   flush followed by a conditional range read of the composed object's
+   `[0, prefix.length)` (`if_match` = the flush's ETag) digested and
+   compared with the local prefix digest, and the whole object compared to
+   the temp file. This is the remote half of "compare with what is being
+   composed" — the pass that costs a download per flush and therefore does
+   not belong in the PR suite. If the local digest ever shows in the PR
+   suite's timing, the `conftest.py` line moves to the scheduled workflow's
+   step `env:` in the actions repository; no other change is needed.
 
 **What is compared.** `ZipLogFile` gains `_compose_prefix_digest: bytes |
 None`, set and cleared together with `_compose_prefix`. Whenever a prefix
@@ -512,7 +534,10 @@ composed object to the temp file after every flush in any case.
 
 Cost: one extra pass over the prefix at record time and one before each
 compose, verify mode only (`blake2b` runs near 1 GB/s, so a 500 MB log adds
-under a second per flush in the suite); production skips both. For the
+under a second per flush in the suite); production skips both. The remote
+comparison (tier 2) is a test, not a mode: it needs no switch and no
+production code beyond the conditional range read the design already adds
+for #482. For the
 #482 sparse path the locally held part of the prefix is
 `[SparseSource.length, prefix.length)`, so the digest covers that range only;
 the hole itself is protected by the rule that a sparse temp file is never
@@ -1009,6 +1034,15 @@ Unit, `tests/log/test_eval_log.py` (next to the seed tests at `:1715-2300`):
   the suite on the check. The digest is recorded after a seed adoption and
   after each successful flush (a spy on the hashing helper), and never
   computed with the variable unset.
+- **Slow verification** (`@pytest.mark.slow`, run by the scheduled
+  workflow in `meridianlabs-ai/actions`): benchmark shape A (≈120 MiB) and
+  B (≈200 MiB) logs built with the retry benchmark's synthetic samples,
+  flushed every `log_buffer` completions to the moto server through a
+  seeded retry and through a fresh eval; after every flush the composed
+  object's `[0, prefix.length)` is read back under `if_match` and its
+  digest compared with the recorded local digest, and the full object
+  compared to the temp file. Reported in the PR's `### Slow tests` section
+  with the command and counts, per AGENTS.md.
 - **#479 seeded start flush**: seed from an S3 prior >8 MiB (byte-copy
   path), `start()`, `flush()` → object equals the temp file and the client
   saw one `upload_part_copy` with `CopySource` = the prior key; restricted
@@ -1102,8 +1136,9 @@ size.
    (`_verify_compose_prefix`, `_compose_prefix_digest`, `_digest_prefix`,
    `ComposePrefixInvariantError`); `tests/conftest.py` sets
    `INSPECT_VERIFY_COMPOSE_PREFIX=1` in `pytest_configure`; tests in
-   `tests/log/test_eval_log.py` including the verification-mode tests
-   (Ransom's condition for landing #479);
+   `tests/log/test_eval_log.py` including the verification-mode tests and
+   the `slow`-marked remote-comparison tests that the scheduled workflow in
+   `meridianlabs-ai/actions` runs (Ransom's condition for landing #479);
    CHANGELOG: "Retrying an eval whose logs are on S3 no longer re-uploads the
    prior attempt's log before the retry starts." Steps 2 and 3 are one PR
    (#479) in two commits, or two PRs if the first is wanted in isolation.
@@ -1144,6 +1179,10 @@ remain.
    2026-09-29, review of PR #5391). The mode described under "Verification
    mode" ships with the compose path in step 3, on in the test suite and off
    in production, and the suite's tests cover the mismatch case.
+4. **Slower verification passes run from the scheduled slow tests**
+   (decision: Ransom, 2026-09-29). The remote-comparison pass is
+   `slow`-marked so it runs in `meridianlabs-ai/actions`'
+   `inspect-ai-scheduled-tests.yml`, not in the PR suite.
 
 ## Not this design
 
