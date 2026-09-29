@@ -1210,7 +1210,7 @@ Mirroring approval:
 
 ``` python
 Task(sentinel=...)
-eval(monitor=...)
+eval(sentinel=...)
 inspect eval task.py --sentinel sentinel.yaml
 ```
 
