@@ -913,6 +913,26 @@ async def call_tool(
     if approval and approval.modified:
         call = approval.modified
 
+    from inspect_ai._sentinel._context import active_sentinel
+
+    if active_sentinel() is not None and not isinstance(tool_def.tool, AgentTool):
+        from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
+
+        decision = await sentinel_before_tool_call(
+            message, call, tool_def.viewer, conversation
+        )
+        if decision is not None:
+            if decision.action == "reject":
+                await record_pending_tool_event()
+                raise ToolApprovalError(decision.explanation)
+            elif decision.action == "terminate":
+                await record_pending_tool_event()
+                raise TerminateSampleError(
+                    decision.explanation or "Sentinel requested termination."
+                )
+            elif decision.action == "modify" and decision.modified is not None:
+                call = decision.modified
+
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
@@ -951,7 +971,7 @@ async def _apply_tool_review(
     output: ToolResult,
     conversation: list[ChatMessage],
 ) -> None:
-    """Give the active review policies the executed call's result.
+    """Give the active review policies and sentinel the executed call's result.
 
     Only calls that actually ran are reviewed (the caller checks this): a call
     rejected at the call stage or failed by argument parsing produced no result,
@@ -960,7 +980,7 @@ async def _apply_tool_review(
     calls are reviewed individually as they execute.
 
     Raises:
-        TerminateSampleError: A reviewer requested termination.
+        TerminateSampleError: A reviewer or the sentinel requested termination.
     """
     from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.review._apply import apply_tool_review
@@ -978,6 +998,20 @@ async def _apply_tool_review(
     )
     if review is not None and review.decision == "terminate":
         raise TerminateSampleError("Tool result reviewer requested termination.")
+
+    from inspect_ai._sentinel._context import active_sentinel
+
+    if active_sentinel() is not None:
+        from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
+
+        await sentinel_after_tool_call(
+            message,
+            call,
+            result,
+            output,
+            tool_def.viewer if tool_def else None,
+            conversation,
+        )
 
 
 async def agent_handoff(

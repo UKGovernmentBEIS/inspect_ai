@@ -1,0 +1,497 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import replace
+from typing import Any
+
+import anyio
+import pytest
+
+from inspect_ai import Task, eval
+from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
+from inspect_ai._sentinel._context import init_sentinel
+from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai.agent import as_solver, react
+from inspect_ai.dataset import Sample
+from inspect_ai.event import ModelEvent, SentinelEvent, SpanBeginEvent, ToolEvent
+from inspect_ai.log import EvalLog
+from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ModelOutput,
+    get_model,
+)
+from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import Tool, ToolCall, tool
+from inspect_ai.util import StoreModel
+
+try:
+    from inspect_sentinel import (
+        AfterToolCall,
+        BeforeToolCall,
+        Context,
+        ControlProtocol,
+        Decision,
+        Monitor,
+        Observation,
+        concurrent,
+        final,
+        monitor,
+        protocol,
+    )
+except ImportError:
+    pytest.skip("inspect_sentinel is not installed", allow_module_level=True)
+
+
+@tool
+def addition() -> Tool:
+    async def execute(x: int, y: int) -> str:
+        """Add two numbers.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+        """
+        return str(x + y)
+
+    return execute
+
+
+@protocol
+def d3_reject(reason: str = "not allowed") -> ControlProtocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+        return Decision.reject(reason)
+
+    return decide
+
+
+@protocol
+def d3_modify() -> ControlProtocol:
+    async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
+        modified = replace(step.call, arguments={"x": 10, "y": 20})
+        return Decision(action="modify", modified=modified, explanation="bigger")
+
+    return rewrite
+
+
+@protocol
+def d3_terminate() -> ControlProtocol:
+    async def stop(context: Context, step: BeforeToolCall) -> Decision | None:
+        return Decision.terminate("too risky")
+
+    return stop
+
+
+@protocol
+def d3_terminate_after() -> ControlProtocol:
+    async def stop(context: Context, step: AfterToolCall) -> Decision | None:
+        return Decision.terminate(f"saw {step.result.text}")
+
+    return stop
+
+
+@protocol
+def d3_final() -> ControlProtocol:
+    async def veto(context: Context, step: BeforeToolCall) -> Decision | None:
+        final(Decision.reject("vetoed"))
+        return None
+
+    return veto
+
+
+@monitor
+def d3_suspicion(score: float = 0.25) -> Monitor:
+    async def check(context: Context, step: BeforeToolCall) -> Observation | None:
+        return Observation.score(score, "looked")
+
+    return check
+
+
+class Trajectory(StoreModel):
+    calls: int = 0
+
+
+@monitor
+def d3_trajectory() -> list[Monitor]:
+    async def count(context: Context, step: BeforeToolCall) -> Observation | None:
+        context.store_as(Trajectory).calls += 1
+        return None
+
+    async def report(context: Context, step: AfterToolCall) -> Observation | None:
+        return Observation.score(float(context.store_as(Trajectory).calls))
+
+    return [count, report]
+
+
+@monitor
+def d3_asks_model() -> Monitor:
+    async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
+        output = await context.host.generate("How suspicious is this call?")
+        return Observation.score(float(output.completion))
+
+    return ask
+
+
+@monitor
+def d3_raises() -> Monitor:
+    async def boom(context: Context, step: BeforeToolCall) -> Observation | None:
+        raise RuntimeError("monitor exploded")
+
+    return boom
+
+
+Seen = list[tuple[Context, BeforeToolCall]]
+
+
+@monitor
+def d3_recording(seen: Any) -> Monitor:
+    async def record(context: Context, step: BeforeToolCall) -> Observation | None:
+        seen.append((context, step))
+        return None
+
+    return record
+
+
+def agent_model(turns: int = 1) -> Any:
+    outputs = [
+        ModelOutput.for_tool_call(
+            "mockllm/model",
+            tool_name="addition",
+            tool_arguments={"x": 1, "y": turn + 1},
+        )
+        for turn in range(turns)
+    ]
+    outputs.append(ModelOutput.from_content("mockllm/model", content="done"))
+    return get_model("mockllm/model", custom_outputs=outputs, memoize=False)
+
+
+def run(sentinel: Any, turns: int = 1, **kwargs: Any) -> EvalLog:
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2", metadata={"s": 1})],
+        solver=[use_tools(addition()), generate()],
+        metadata={"t": 1},
+        sentinel=sentinel,
+    )
+    return eval(task, model=agent_model(turns), **kwargs)[0]
+
+
+def sentinel_events(log: EvalLog) -> list[SentinelEvent]:
+    assert log.samples
+    return [e for e in log.samples[0].events if isinstance(e, SentinelEvent)]
+
+
+def tool_messages(log: EvalLog) -> list[ChatMessageTool]:
+    assert log.samples
+    return [m for m in log.samples[0].messages if isinstance(m, ChatMessageTool)]
+
+
+def summary(events: list[SentinelEvent]) -> list[tuple[Any, ...]]:
+    return [(e.name, e.path, e.function, e.kind, e.decision) for e in events]
+
+
+def test_reject_reaches_the_model_and_is_recorded() -> None:
+    log = run(d3_reject(reason="no adding"))
+    assert log.status == "success", log.error
+
+    [message] = tool_messages(log)
+    assert message.error is not None
+    assert message.error.type == "approval"
+    assert message.error.message == "no adding"
+
+    events = sentinel_events(log)
+    assert summary(events) == [
+        ("d3_reject", "d3_reject", "decide", "decision", "reject"),
+        ("inspect_sentinel/concurrent", "", "run", "decision", "reject"),
+    ]
+    assert all(e.stage == "tool_call" for e in events)
+    assert all(e.step_id == message.tool_call_id for e in events)
+    assert all(e.explanation == "no adding" for e in events)
+
+
+def test_modify_executes_the_modified_call() -> None:
+    log = run(d3_modify())
+    assert log.status == "success", log.error
+
+    [message] = tool_messages(log)
+    assert message.error is None
+    assert message.text == "30"
+    assert [e.decision for e in sentinel_events(log)] == ["modify", "modify"]
+
+
+def test_terminate_ends_the_sample() -> None:
+    log = run(d3_terminate())
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "operator"
+    assert sample.limit.reason == "too risky"
+    tool_events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert [e.pending for e in tool_events] == [None]
+    assert tool_events[0].failed is True
+
+
+def test_terminate_after_the_call() -> None:
+    log = run(d3_terminate_after())
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "operator"
+    assert sample.limit.reason == "saw 2"
+    events = sentinel_events(log)
+    assert {e.stage for e in events} == {"tool_result"}
+    assert [e.decision for e in events] == ["terminate", "terminate"]
+
+
+def test_observe_records_observations_without_effect() -> None:
+    log = run([d3_suspicion(score=0.4)])
+    assert log.status == "success", log.error
+
+    [message] = tool_messages(log)
+    assert message.error is None
+    assert message.text == "2"
+    [event] = sentinel_events(log)
+    assert (event.name, event.path, event.function, event.kind) == (
+        "d3_suspicion",
+        "d3_suspicion",
+        "check",
+        "observation",
+    )
+    assert event.suspicion == 0.4
+    assert event.explanation == "looked"
+    assert event.decision is None
+
+
+def test_final_from_a_nested_protocol() -> None:
+    log = run(concurrent({"inner": d3_final()}))
+    assert log.status == "success", log.error
+
+    [message] = tool_messages(log)
+    assert message.error is not None
+    assert message.error.message == "vetoed"
+    assert summary(sentinel_events(log)) == [
+        ("inspect_sentinel/concurrent", "concurrent", None, "bypassed", None),
+        ("inspect_sentinel/concurrent", "", None, "bypassed", None),
+        ("d3_final", "concurrent/inner", "veto", "decision", "reject"),
+    ]
+
+
+def test_multi_function_monitor_shares_state_across_calls() -> None:
+    log = run([d3_trajectory()], turns=2)
+    assert log.status == "success", log.error
+
+    events = sentinel_events(log)
+    assert [(e.function, e.stage, e.suspicion) for e in events] == [
+        ("report", "tool_result", 1.0),
+        ("report", "tool_result", 2.0),
+    ]
+    assert log.samples
+    assert log.samples[0].store["Trajectory:d3_trajectory:calls"] == 2
+
+
+def test_host_generate_uses_the_monitor_role() -> None:
+    monitor_model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", content="0.75")],
+        memoize=False,
+    )
+    log = run([d3_asks_model()], model_roles={"monitor": monitor_model})
+    assert log.status == "success", log.error
+
+    [event] = sentinel_events(log)
+    assert event.suspicion == 0.75
+    assert log.samples
+    roles = [e.role for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert roles.count("monitor") == 1
+
+
+def test_a_raising_monitor_fails_the_sample() -> None:
+    log = run([d3_raises()])
+    assert log.status == "error"
+    assert log.samples
+    assert log.samples[0].error is not None
+    assert "monitor exploded" in log.samples[0].error.message
+
+
+def test_context_and_step_come_from_the_sample() -> None:
+    seen: Seen = []
+    log = run([d3_recording(seen)])
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+
+    [(context, step)] = seen
+    assert context.task == log.eval.task
+    assert context.sample_id == sample.id
+    assert context.epoch == 1
+    assert context.input == "What is 1 + 1?"
+    assert context.metadata == {"t": 1, "s": 1}
+    assert context.path == "d3_recording"
+    assert context.task_description is None
+    assert context.sample_description is None
+
+    assert step.conversation == sample.uuid
+    assert step.call.function == "addition"
+    assert step.view.call is not None
+    assert step.history[-1].role == "assistant"
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert [m.text for m in step.input] == [m.text for m in model_events[0].input]
+
+
+@contextmanager
+def active(sentinel: Any) -> Iterator[None]:
+    init_sentinel(resolve_sentinel_root(resolve_sentinel_spec(sentinel)))
+    try:
+        yield
+    finally:
+        init_sentinel(None)
+
+
+def addition_call(id: str = "call") -> ToolCall:
+    return ToolCall(id=id, function="addition", arguments={"x": 1, "y": 1})
+
+
+def transcript_tool_events() -> list[ToolEvent]:
+    return [e for e in transcript().events if isinstance(e, ToolEvent)]
+
+
+@monitor
+def d3_waiting(started: Any, cleaned_up: Any, after: bool = False) -> list[Monitor]:
+    async def wait() -> None:
+        started.set()
+        try:
+            await anyio.sleep_forever()
+        finally:
+            cleaned_up.set()
+
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        if not after:
+            await wait()
+        return None
+
+    async def later(context: Context, step: AfterToolCall) -> Observation | None:
+        if after:
+            await wait()
+        return None
+
+    return [before, later]
+
+
+async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
+    init_transcript(Transcript())
+    started = anyio.Event()
+    cleaned_up = anyio.Event()
+
+    with active([d3_waiting(started, cleaned_up)]):
+        with anyio.CancelScope() as scope:
+
+            async def cancel_sample() -> None:
+                await started.wait()
+                scope.cancel()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(cancel_sample)
+                await execute_tools(
+                    [ChatMessageAssistant(content=[], tool_calls=[addition_call()])],
+                    [addition()],
+                )
+
+    assert scope.cancelled_caught
+    assert cleaned_up.is_set()
+    events = [e for e in transcript().events if isinstance(e, SentinelEvent)]
+    assert [(e.path, e.kind) for e in events] == [
+        ("d3_waiting", "cancelled"),
+        ("", "cancelled"),
+    ]
+    assert all(e.pending is None for e in transcript_tool_events())
+
+
+async def test_operator_cancel_during_the_after_call_sentinel() -> None:
+    init_transcript(Transcript())
+    started = anyio.Event()
+    cleaned_up = anyio.Event()
+
+    async def cancel_call() -> None:
+        await started.wait()
+        [event] = transcript_tool_events()
+        event._cancel()
+
+    with active([d3_waiting(started, cleaned_up, after=True)]):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(cancel_call)
+            with pytest.raises(TerminateSampleError, match="cancelled"):
+                await execute_tools(
+                    [ChatMessageAssistant(content=[], tool_calls=[addition_call()])],
+                    [addition()],
+                )
+
+    [event] = transcript_tool_events()
+    assert event.result == "2"
+    assert event.pending is None
+    assert cleaned_up.is_set()
+
+
+async def test_parallel_calls_run_their_sentinels_concurrently() -> None:
+    init_transcript(Transcript())
+    both = anyio.Event()
+    arrived: list[str] = []
+
+    @monitor
+    def d3_rendezvous() -> Monitor:
+        async def meet(context: Context, step: BeforeToolCall) -> Observation | None:
+            arrived.append(step.call.id)
+            if len(arrived) == 2:
+                both.set()
+            await both.wait()
+            return Observation.score(0.0)
+
+        return meet
+
+    @tool(parallel=True)
+    def parallel_addition() -> Tool:
+        async def execute(x: int, y: int) -> str:
+            """Add two numbers.
+
+            Args:
+                x: First number to add.
+                y: Second number to add.
+            """
+            return str(x + y)
+
+        return execute
+
+    calls = [
+        ToolCall(id=id, function="parallel_addition", arguments={"x": 1, "y": 1})
+        for id in ("a", "b")
+    ]
+    with active([d3_rendezvous()]):
+        with anyio.fail_after(10):
+            result = await execute_tools(
+                [ChatMessageAssistant(content=[], tool_calls=calls)],
+                [parallel_addition()],
+            )
+
+    assert sorted(arrived) == ["a", "b"]
+    assert [m.text for m in result.messages] == ["2", "2"]
+    events = [e for e in transcript().events if isinstance(e, SentinelEvent)]
+    assert sorted(e.step_id for e in events) == ["a", "b"]
+
+
+def test_conversation_is_the_enclosing_agent_span() -> None:
+    seen: Seen = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?")],
+        solver=as_solver(react(tools=[addition()], submit=False)),
+        sentinel=[d3_recording(seen)],
+    )
+    log = eval(task, model=agent_model())[0]
+    assert log.status == "success", log.error
+    assert log.samples
+
+    [(_, step)] = seen
+    agent_spans = [
+        e.id
+        for e in log.samples[0].events
+        if isinstance(e, SpanBeginEvent) and e.type == "agent"
+    ]
+    assert step.conversation == agent_spans[-1]
