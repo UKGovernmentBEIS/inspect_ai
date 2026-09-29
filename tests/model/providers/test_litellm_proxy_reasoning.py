@@ -42,6 +42,7 @@ from test_helpers.litellm_proxy.stubs import (
 )
 from test_helpers.utils import skip_if_no_openai_package
 
+from inspect_ai._util.content import ContentToolUse
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageUser,
@@ -51,7 +52,9 @@ from inspect_ai.model import (
     execute_tools,
     get_model,
 )
-from inspect_ai.tool import Tool, tool
+from inspect_ai.model._providers import litellm_proxy as litellm_proxy_module
+from inspect_ai.model._providers.litellm_proxy import LiteLLMProxyAPI
+from inspect_ai.tool import Tool, code_execution, computer, tool, web_search
 
 
 @pytest.fixture(autouse=True)
@@ -521,6 +524,17 @@ def fake_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[FakeProxy]:
                 }
                 for provider in FAKE_PROVIDERS
             ]
+            + [
+                # an OpenAI model the Responses API default doesn't cover
+                {
+                    "model_name": "fake-openai-chat",
+                    "litellm_params": {
+                        "model": "openai/gpt-4.1",
+                        "api_base": f"{upstream.docker_url}/v1",
+                        "api_key": "fake",
+                    },
+                }
+            ]
         }
         with run_litellm_proxy(
             tmp_path_factory.mktemp("litellm-fake"), config, capture=True
@@ -680,6 +694,94 @@ async def test_reasoning_round_trip(
     turns = await SCENARIOS[scenario](fake_proxy.proxy, model)
     served = provider.served(turns.first.request)
     assert provider.check(served, turns.second.request) > 0
+
+
+# Responses API default for OpenAI upstreams ---------------------------------
+
+
+@pytest.fixture
+def fake_openai_api_base(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Treat the fake upstream as OpenAI's API (the default requires it)."""
+    monkeypatch.setattr(
+        litellm_proxy_module, "is_openai_api_base", lambda api_base: True
+    )
+
+
+def _default_model(proxy: LiteLLMProxy, alias: str, **model_args: Any) -> Model:
+    # no responses_api arg, and model info fetched (the default needs the route)
+    return proxy_model(
+        proxy, alias, require_model_info=False, memoize=False, **model_args
+    )
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("stream", [None, False], ids=["default-stream", "nostream"])
+@pytest.mark.parametrize("scenario", list(SCENARIOS))
+async def test_responses_default_round_trip(
+    fake_proxy: FakeProxy,
+    fake_openai_api_base: None,
+    stream: bool | None,
+    scenario: str,
+) -> None:
+    model_args = {} if stream is None else {"stream": stream}
+    model = _default_model(fake_proxy.proxy, "fake-openai", **model_args)
+    assert isinstance(model.api, LiteLLMProxyAPI)
+    assert model.api.responses_api is True
+    turns = await SCENARIOS[scenario](fake_proxy.proxy, model)
+    for exchange in (turns.first, turns.second):
+        assert exchange.url is not None and exchange.url.endswith("/responses")
+        assert "input" in exchange.request and "messages" not in exchange.request
+        # stateless: reasoning travels as encrypted content, so any key or
+        # deployment behind the proxy can serve the next turn
+        assert exchange.request.get("store") is False
+        assert "reasoning.encrypted_content" in exchange.request.get("include", [])
+        assert bool(exchange.request.get("stream")) is (stream is None)
+    served = openai_responses_response(turns.first.request)
+    assert check_openai_responses_replay(served, turns.second.request) > 0
+    # OpenAI rejects reasoning input items with content
+    for item in turns.second.request["input"]:
+        if isinstance(item, dict) and item.get("type") == "reasoning":
+            assert not item.get("content"), item
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+async def test_responses_default_hosted_tools_as_functions(
+    fake_proxy: FakeProxy, fake_openai_api_base: None
+) -> None:
+    model = _default_model(fake_proxy.proxy, "fake-openai")
+    _, exchange = await _generate(
+        fake_proxy.proxy,
+        model,
+        [ChatMessageUser(content=TOOL_PROMPT)],
+        tools=[get_weather(), computer(), code_execution()],
+    )
+    types = {
+        tool.get("name", tool["type"]): tool["type"]
+        for tool in exchange.request["tools"]
+    }
+    assert types == {
+        "get_weather": "function",
+        "computer": "function",
+        "code_execution": "function",
+    }
+    # computer() is not OpenAI's computer tool, so the request stays stateless
+    assert exchange.request.get("store") is False
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+async def test_chat_default_for_other_openai_models(
+    fake_proxy: FakeProxy, fake_openai_api_base: None
+) -> None:
+    model = _default_model(fake_proxy.proxy, "fake-openai-chat")
+    assert isinstance(model.api, LiteLLMProxyAPI)
+    assert not model.api.responses_api
+    turns = await run_text_turns(fake_proxy.proxy, model)
+    # LiteLLM records only the api_base as the URL for chat calls
+    assert "messages" in turns.first.request
+    assert "input" not in turns.first.request
 
 
 # Live round trips against real providers -----------------------------------
@@ -973,3 +1075,88 @@ async def test_live_reasoning_round_trip(
     if provider.check(turns.first.response, turns.second.request) == 0:
         # e.g. adaptive thinking that chose not to think on this turn
         pytest.skip("the provider returned no reasoning on the first turn")
+
+
+def _live_marks(provider: LiveProvider) -> list[Any]:
+    return [
+        pytest.mark.api,
+        pytest.mark.skipif(
+            not _env_available(provider.env),
+            reason=f"Requires {', '.join(provider.env)}",
+        ),
+    ]
+
+
+LIVE_OPENAI = [p for p in LIVE_PROVIDERS if p.family == "openai"]
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("stream", [None, False], ids=["default-stream", "nostream"])
+@pytest.mark.parametrize(
+    "provider",
+    [pytest.param(p, id=p.name, marks=_live_marks(p)) for p in LIVE_OPENAI],
+)
+async def test_live_responses_default_round_trip(
+    live_proxy: LiteLLMProxy, provider: LiveProvider, stream: bool | None
+) -> None:
+    model_args = {} if stream is None else {"stream": stream}
+    model = proxy_model(
+        live_proxy,
+        f"live-{provider.name}",
+        reasoning_effort="high",
+        memoize=False,
+        **model_args,
+    )
+    assert isinstance(model.api, LiteLLMProxyAPI)
+    assert model.api.responses_api is True
+    # the second generate raises if OpenAI rejects the replayed turn
+    turns = await run_tool_loop(live_proxy, model)
+    assert "input" in turns.second.request
+    if turns.first.response is None:
+        assert stream is None, "no upstream response captured for a non-streaming call"
+        return
+    if provider.check(turns.first.response, turns.second.request) == 0:
+        pytest.skip("the model returned no reasoning on the first turn")
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize(
+    "provider",
+    [pytest.param(p, id=p.name, marks=_live_marks(p)) for p in LIVE_OPENAI[:1]],
+)
+async def test_live_responses_default_web_search(
+    live_proxy: LiteLLMProxy, provider: LiveProvider
+) -> None:
+    model = proxy_model(live_proxy, f"live-{provider.name}", memoize=False)
+    output = await model.generate(
+        "Use web search to find the current population of Reykjavik. "
+        "Answer in one sentence.",
+        tools=[web_search()],
+    )
+    assert output.stop_reason != "unknown", output.error
+    tool_uses = [
+        content
+        for content in output.message.content
+        if isinstance(content, ContentToolUse) and content.tool_type == "web_search"
+    ]
+    assert tool_uses, "OpenAI's built-in search was not used"
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize(
+    "provider",
+    [
+        pytest.param(p, id=p.name, marks=_live_marks(p))
+        for p in LIVE_PROVIDERS
+        if p.family in ("anthropic", "gemini")
+    ],
+)
+def test_live_chat_default_for_other_vendors(
+    live_proxy: LiteLLMProxy, provider: LiveProvider
+) -> None:
+    model = proxy_model(live_proxy, f"live-{provider.name}", memoize=False)
+    assert isinstance(model.api, LiteLLMProxyAPI)
+    assert not model.api.responses_api
