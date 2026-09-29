@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
+- Bugfix: `self_critique()`, and `model_graded_qa()`/`model_graded_fact()` with `model_role=None`, now critique or grade with the correct model when one task is evaluated against several models.
 
 ## 0.3.272 (28 September 2026)
 
