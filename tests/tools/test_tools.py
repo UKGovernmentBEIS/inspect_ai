@@ -215,7 +215,7 @@ def test_deepseek_tools():
     # V4 thinking mode (on by default) rejects any forced tool_choice, so the
     # provider coerces it to "auto" (which suffices for the single-tool
     # "calls" check but can't guarantee the multi-tool "force" check).
-    check_tools("deepseek/deepseek-v4-flash", disable=["force"])
+    check_tools("deepseek/deepseek-flash", disable=["force"])
 
 
 def test_dynamic_tools():

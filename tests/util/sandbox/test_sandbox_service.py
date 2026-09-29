@@ -621,6 +621,8 @@ async def test_handle_request_bridged_tool_limit_keeps_service_handling(
         port=13131,
         model=None,
         bridged_tools={"srv": {"limited": limited()}},
+        # called directly, outside a model turn: opt out of the proposal requirement
+        proposal_exempt_servers={"srv"},
     )
     request_id = "11111111-2222-3333-4444-555555555555"
     fake = _RequestReadSandbox(

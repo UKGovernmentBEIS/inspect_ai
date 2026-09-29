@@ -32,6 +32,7 @@ def view(
     trusted_origins: tuple[str, ...] = (),
     trusted_hosts: tuple[str, ...] = (),
     unsafe_allow_unauthenticated: bool = False,
+    show_shards: bool = False,
 ) -> None:
     """Run the Inspect View server.
 
@@ -51,6 +52,8 @@ def view(
             clients.
         unsafe_allow_unauthenticated: Allow a non-loopback bind without request
             authorization.
+        show_shards: List shard logs (under `<name>.shards/`) that their merged
+            log already covers. By default these are hidden.
     """
     init_dotenv()
     init_logger(log_level)
@@ -80,6 +83,7 @@ def view(
         port=port,
         network_policy=network_policy,
         fs_options=fs_options,
+        show_shards=show_shards,
     )
 
 
