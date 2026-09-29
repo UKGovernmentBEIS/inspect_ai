@@ -154,11 +154,19 @@ def publish(
     run_url: str,
     run_attempt: int = 1,
 ) -> list[str]:
-    """Publish each finding once per run and trigger an issue at most once.
+    """Publish each finding once per run; never authorize its implementation.
 
     The workflow serializes runs. Markers make retries skip completed writes.
     Closed findings are left closed, and deferred findings are left untouched.
     Returns the URLs of the open, non-deferred finding issues only.
+
+    The findings are model output over CI data anyone can shape, so this
+    publisher applies no label and posts no trigger: until 2026-09-22 it
+    labelled every non-human finding ``auto``, and the fork's kickoff took the
+    machine account's label as a maintainer's decision to start the coding
+    agent (Claude Security finding 4628345 in meridianlabs-ai/actions). A
+    maintainer who reads the issue applies ``auto`` themselves; the machine
+    account is the writer of these issues, not the authority behind them.
     """
     match = re.fullmatch(
         r"https://github.com/meridianlabs-ai/actions/actions/runs/(\d+)", run_url
@@ -192,7 +200,7 @@ def publish(
                     number = matched["number"]
             evidence_marker = f"<!-- ci-perf-evidence:{run_id}:{finding['key']} -->"
             human_note = (
-                "\n\nNeeds a human to implement. No `auto` label applied."
+                "\n\nNeeds a human to implement (a workflow, node or pnpm change)."
                 if finding.get("human_implementation", False)
                 else ""
             )
@@ -227,22 +235,6 @@ def publish(
                     else body
                 )
                 api(f"issues/{number}/comments", {"body": evidence})
-            if finding.get("human_implementation", False):
-                continue
-            if not any(
-                "<!-- ci-perf-trigger:" in comment["body"] for comment in existing
-            ):
-                if not any(
-                    label["name"] == "auto" for label in issue.get("labels", [])
-                ):
-                    api(f"issues/{number}/labels", {"labels": ["auto"]})
-                api(
-                    f"issues/{number}/comments",
-                    {
-                        "body": f"<!-- ci-perf-trigger:{finding['key']} -->\n"
-                        f"Applied the `auto` label. Run: {run_url}"
-                    },
-                )
 
         findings_complete = True
     finally:
