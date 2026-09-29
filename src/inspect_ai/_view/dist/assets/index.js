@@ -62904,7 +62904,7 @@ function applyStyles(_ref) {
 		});
 	});
 }
-function effect$3(_ref2) {
+function effect$4(_ref2) {
 	var state = _ref2.state;
 	var initialStyles = {
 		popper: {
@@ -62940,7 +62940,7 @@ var applyStyles_default = {
 	enabled: true,
 	phase: "write",
 	fn: applyStyles,
-	effect: effect$3,
+	effect: effect$4,
 	requires: ["computeStyles"]
 };
 //#endregion
@@ -63145,7 +63145,7 @@ function arrow(_ref) {
 	var axisProp = axis;
 	state.modifiersData[name] = (_state$modifiersData$ = {}, _state$modifiersData$[axisProp] = offset, _state$modifiersData$.centerOffset = offset - center, _state$modifiersData$);
 }
-function effect$2(_ref2) {
+function effect$3(_ref2) {
 	var state = _ref2.state;
 	var _options$element = _ref2.options.element, arrowElement = _options$element === void 0 ? "[data-popper-arrow]" : _options$element;
 	if (arrowElement == null) return;
@@ -63161,7 +63161,7 @@ var arrow_default = {
 	enabled: true,
 	phase: "main",
 	fn: arrow,
-	effect: effect$2,
+	effect: effect$3,
 	requires: ["popperOffsets"],
 	requiresIfExists: ["preventOverflow"]
 };
@@ -63280,7 +63280,7 @@ var computeStyles_default = {
 //#endregion
 //#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/eventListeners.js
 var passive = { passive: true };
-function effect$1(_ref) {
+function effect$2(_ref) {
 	var state = _ref.state, instance = _ref.instance, options = _ref.options;
 	var _options$scroll = options.scroll, scroll = _options$scroll === void 0 ? true : _options$scroll, _options$resize = options.resize, resize = _options$resize === void 0 ? true : _options$resize;
 	var window = getWindow(state.elements.popper);
@@ -63301,7 +63301,7 @@ var eventListeners_default = {
 	enabled: true,
 	phase: "write",
 	fn: function fn() {},
-	effect: effect$1,
+	effect: effect$2,
 	data: {}
 };
 //#endregion
@@ -94168,7 +94168,7 @@ function createAtom(valueOrFn, options) {
 		subscribe(observerOrFn) {
 			const obs = toObserver(observerOrFn);
 			const observed = { current: false };
-			const e = effect(() => {
+			const e = effect$1(() => {
 				atom.get();
 				if (!observed.current) observed.current = true;
 				else obs.next?.(atom._snapshot);
@@ -94226,7 +94226,7 @@ function createAtom(valueOrFn, options) {
 	};
 	return atom;
 }
-function effect(fn) {
+function effect$1(fn) {
 	const run = () => {
 		const prevSub = activeSub;
 		activeSub = effectObj;
@@ -106126,7 +106126,8 @@ var compareKeys = (a, b) => {
 /**
 * Builds the rows for one step's events, given in recording order. Only
 * observations and decisions get rows; the rest fold onto the decision that
-* took effect, which the runner records last.
+* took effect, which the runner records last. A decision a later
+* `superseded` event names appears only in the fold.
 */ function buildSentinelStep(nodes) {
 	const first = nodes[0];
 	const reports = nodes.filter((n) => !isFolded(n.event));
@@ -106137,17 +106138,19 @@ var compareKeys = (a, b) => {
 		const at = nodes.indexOf(loser);
 		for (const report of reports) if (report.event.kind === "decision" && report.event.path === loser.event.path && report.event.function === loser.event.function && nodes.indexOf(report) < at) superseded.add(report);
 	}
-	const effective = reports.findLast((n) => n.event.kind === "decision" && !superseded.has(n)) ?? reports.at(-1);
+	const shown = reports.filter((n) => !superseded.has(n));
+	const effective = shown.findLast((n) => n.event.kind === "decision") ?? shown.at(-1);
+	const effect = folded.some((n) => n.event.kind === "bypassed") ? "final" : "took effect";
 	const keys = pathOrderKeys(nodes);
 	const depthOf = (node) => pathSegments(node.event.path).length;
-	const minDepth = Math.min(...reports.map(depthOf));
-	const rows = reports.map((node, index) => ({
+	const minDepth = Math.min(...shown.map(depthOf));
+	const rows = shown.map((node, index) => ({
 		node,
 		index
 	})).sort((a, b) => compareKeys(keys.get(a.node), keys.get(b.node)) || a.index - b.index).map(({ node }) => ({
 		node,
 		depth: depthOf(node) - minDepth,
-		superseded: superseded.has(node),
+		effect: node === effective && folded.length > 0 ? effect : void 0,
 		folded: node === effective ? folded : []
 	}));
 	return {
@@ -106226,6 +106229,7 @@ var formatSuspicion = (suspicion) => {
 	if (typeof suspicion === "number") return format(suspicion);
 	return Object.entries(suspicion).map(([dimension, value]) => `${dimension} ${format(value)}`).join(", ");
 };
+/** A modify decision's replacement call, with every argument spelled out. */ var formatModifiedCall = (call) => `${call.function}(${Object.entries(call.arguments).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(", ")})`;
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/utils.ts
 var sampleLimitTitles = {
@@ -111916,27 +111920,31 @@ var ScoreEventView = (t0) => {
 	return t25;
 };
 var SentinelEventView_module_default = {
-	step: "_step_jilfi_1",
-	entry: "_entry_jilfi_8",
-	row: "_row_jilfi_12",
-	icon: "_icon_jilfi_21",
-	label: "_label_jilfi_25",
-	factory: "_factory_jilfi_31",
-	value: "_value_jilfi_35",
-	badge: "_badge_jilfi_40",
-	observation: "_observation_jilfi_51",
-	decision: "_decision_jilfi_57",
-	muted: "_muted_jilfi_63",
-	audit: "_audit_jilfi_68",
-	alarming: "_alarming_jilfi_74",
-	cautious: "_cautious_jilfi_78",
-	explanation: "_explanation_jilfi_82",
-	folded: "_folded_jilfi_92",
-	foldedToggle: "_foldedToggle_jilfi_97",
-	chevron: "_chevron_jilfi_112",
-	foldedList: "_foldedList_jilfi_116",
-	foldedItem: "_foldedItem_jilfi_123",
-	foldedExplanation: "_foldedExplanation_jilfi_131"
+	step: "_step_1mwye_1",
+	entry: "_entry_1mwye_8",
+	row: "_row_1mwye_12",
+	icon: "_icon_1mwye_21",
+	label: "_label_1mwye_25",
+	factory: "_factory_1mwye_31",
+	value: "_value_1mwye_35",
+	badge: "_badge_1mwye_40",
+	observation: "_observation_1mwye_51",
+	decision: "_decision_1mwye_57",
+	muted: "_muted_1mwye_63",
+	audit: "_audit_1mwye_68",
+	alarming: "_alarming_1mwye_74",
+	cautious: "_cautious_1mwye_78",
+	modified: "_modified_1mwye_82",
+	explanation: "_explanation_1mwye_97",
+	clamp: "_clamp_1mwye_107",
+	moreToggle: "_moreToggle_1mwye_116",
+	effect: "_effect_1mwye_131",
+	folded: "_folded_1mwye_137",
+	foldedToggle: "_foldedToggle_1mwye_142",
+	chevron: "_chevron_1mwye_157",
+	foldedList: "_foldedList_1mwye_161",
+	foldedItem: "_foldedItem_1mwye_168",
+	foldedExplanation: "_foldedExplanation_1mwye_176"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SentinelEventView.tsx
@@ -112045,7 +112053,7 @@ var SentinelEventView_module_default = {
 	return t2;
 };
 var SentinelRowView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(44);
+	const $ = (0, import_compiler_runtime.c)(52);
 	const { row } = t0;
 	const event = row.node.event;
 	let t1;
@@ -112109,30 +112117,38 @@ var SentinelRowView = (t0) => {
 		$[16] = event.path;
 		$[17] = t10;
 	} else t10 = $[17];
-	const t11 = row.superseded ? "superseded" : event.kind;
+	let t11;
+	if ($[18] !== event.kind) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(KindBadge, { kind: event.kind });
+		$[18] = event.kind;
+		$[19] = t11;
+	} else t11 = $[19];
 	let t12;
-	if ($[18] !== t11) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(KindBadge, { kind: t11 });
-		$[18] = t11;
-		$[19] = t12;
-	} else t12 = $[19];
-	let t13;
 	if ($[20] !== event) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReportValue, { event });
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReportValue, { event });
 		$[20] = event;
-		$[21] = t13;
-	} else t13 = $[21];
+		$[21] = t12;
+	} else t12 = $[21];
+	let t13;
+	if ($[22] !== row.effect) {
+		t13 = row.effect ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: clsx(SentinelEventView_module_default.badge, SentinelEventView_module_default.effect),
+			children: row.effect
+		}) : null;
+		$[22] = row.effect;
+		$[23] = t13;
+	} else t13 = $[23];
 	let t14;
-	if ($[22] !== event.audit) {
+	if ($[24] !== event.audit) {
 		t14 = event.audit ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: clsx(SentinelEventView_module_default.badge, SentinelEventView_module_default.audit),
 			children: "audit"
 		}) : null;
-		$[22] = event.audit;
-		$[23] = t14;
-	} else t14 = $[23];
+		$[24] = event.audit;
+		$[25] = t14;
+	} else t14 = $[25];
 	let t15;
-	if ($[24] !== indent || $[25] !== t10 || $[26] !== t12 || $[27] !== t13 || $[28] !== t14 || $[29] !== t6 || $[30] !== t9) {
+	if ($[26] !== indent || $[27] !== t10 || $[28] !== t11 || $[29] !== t12 || $[30] !== t13 || $[31] !== t14 || $[32] !== t6 || $[33] !== t9) {
 		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: SentinelEventView_module_default.row,
 			style: indent,
@@ -112140,66 +112156,148 @@ var SentinelRowView = (t0) => {
 				t6,
 				t9,
 				t10,
+				t11,
 				t12,
 				t13,
 				t14
 			]
 		});
-		$[24] = indent;
-		$[25] = t10;
-		$[26] = t12;
-		$[27] = t13;
-		$[28] = t14;
-		$[29] = t6;
-		$[30] = t9;
-		$[31] = t15;
-	} else t15 = $[31];
+		$[26] = indent;
+		$[27] = t10;
+		$[28] = t11;
+		$[29] = t12;
+		$[30] = t13;
+		$[31] = t14;
+		$[32] = t6;
+		$[33] = t9;
+		$[34] = t15;
+	} else t15 = $[34];
 	let t16;
-	if ($[32] !== explanation || $[33] !== indent || $[34] !== row.node.id) {
-		t16 = explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: SentinelEventView_module_default.explanation,
+	if ($[35] !== event.decision || $[36] !== event.modified || $[37] !== indent) {
+		t16 = event.decision === "modify" && event.modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.modified,
 			style: indent,
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
-				id: `${row.node.id}-sentinel-explanation`,
-				collapse: true,
-				lines: 3,
-				togglePosition: "block-left",
-				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation })
-			})
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: "text-style-secondary",
+				children: "modified call"
+			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", { children: formatModifiedCall(event.modified) })]
 		}) : null;
-		$[32] = explanation;
-		$[33] = indent;
-		$[34] = row.node.id;
-		$[35] = t16;
-	} else t16 = $[35];
+		$[35] = event.decision;
+		$[36] = event.modified;
+		$[37] = indent;
+		$[38] = t16;
+	} else t16 = $[38];
 	let t17;
-	if ($[36] !== row.depth || $[37] !== row.folded || $[38] !== row.node.id) {
-		t17 = row.folded.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FoldedNote, {
+	if ($[39] !== explanation || $[40] !== row.depth || $[41] !== row.node.id) {
+		t17 = explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Explanation$1, {
+			id: row.node.id,
+			explanation,
+			depth: row.depth
+		}) : null;
+		$[39] = explanation;
+		$[40] = row.depth;
+		$[41] = row.node.id;
+		$[42] = t17;
+	} else t17 = $[42];
+	let t18;
+	if ($[43] !== row.depth || $[44] !== row.folded || $[45] !== row.node.id) {
+		t18 = row.folded.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FoldedNote, {
 			id: row.node.id,
 			folded: row.folded,
 			depth: row.depth
 		}) : null;
-		$[36] = row.depth;
-		$[37] = row.folded;
-		$[38] = row.node.id;
-		$[39] = t17;
-	} else t17 = $[39];
-	let t18;
-	if ($[40] !== t15 || $[41] !== t16 || $[42] !== t17) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[43] = row.depth;
+		$[44] = row.folded;
+		$[45] = row.node.id;
+		$[46] = t18;
+	} else t18 = $[46];
+	let t19;
+	if ($[47] !== t15 || $[48] !== t16 || $[49] !== t17 || $[50] !== t18) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: SentinelEventView_module_default.entry,
 			children: [
 				t15,
 				t16,
-				t17
+				t17,
+				t18
 			]
 		});
-		$[40] = t15;
-		$[41] = t16;
-		$[42] = t17;
-		$[43] = t18;
-	} else t18 = $[43];
-	return t18;
+		$[47] = t15;
+		$[48] = t16;
+		$[49] = t17;
+		$[50] = t18;
+		$[51] = t19;
+	} else t19 = $[51];
+	return t19;
+};
+/** Clamped to two whole lines of plain text; expanding renders the Markdown. */ var Explanation$1 = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(18);
+	const { id, explanation, depth } = t0;
+	const [collapsed, setCollapsed] = useCollapsedState(`${id}-sentinel-explanation`, true);
+	const [overflows, setOverflows] = (0, import_react.useState)(false);
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = (entry) => {
+			const el = entry.target;
+			setOverflows(el.scrollHeight > el.clientHeight + 1);
+		};
+		$[0] = t1;
+	} else t1 = $[0];
+	const clampRef = useResizeObserver(t1);
+	let t2;
+	if ($[1] !== explanation || $[2] !== overflows) {
+		t2 = overflows || explanation.includes("\n");
+		$[1] = explanation;
+		$[2] = overflows;
+		$[3] = t2;
+	} else t2 = $[3];
+	const expandable = t2;
+	const t3 = `${depth * 1.25}em`;
+	let t4;
+	if ($[4] !== t3) {
+		t4 = { paddingLeft: t3 };
+		$[4] = t3;
+		$[5] = t4;
+	} else t4 = $[5];
+	let t5;
+	if ($[6] !== clampRef || $[7] !== collapsed || $[8] !== explanation) {
+		t5 = collapsed ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			ref: clampRef,
+			className: SentinelEventView_module_default.clamp,
+			children: explanation.replace(/\s+/g, " ")
+		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation });
+		$[6] = clampRef;
+		$[7] = collapsed;
+		$[8] = explanation;
+		$[9] = t5;
+	} else t5 = $[9];
+	let t6;
+	if ($[10] !== collapsed || $[11] !== expandable || $[12] !== setCollapsed) {
+		t6 = expandable ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: SentinelEventView_module_default.moreToggle,
+			"aria-expanded": !collapsed,
+			onClick: () => setCollapsed(!collapsed),
+			children: collapsed ? "more" : "less"
+		}) : null;
+		$[10] = collapsed;
+		$[11] = expandable;
+		$[12] = setCollapsed;
+		$[13] = t6;
+	} else t6 = $[13];
+	let t7;
+	if ($[14] !== t4 || $[15] !== t5 || $[16] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.explanation,
+			style: t4,
+			children: [t5, t6]
+		});
+		$[14] = t4;
+		$[15] = t5;
+		$[16] = t6;
+		$[17] = t7;
+	} else t7 = $[17];
+	return t7;
 };
 var ReportValue = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(15);
@@ -115229,6 +115327,7 @@ var sanitizeStringify = (v) => {
 			fields.push(["stage", sentinelEvent.stage]);
 			if (sentinelEvent.suspicion !== void 0 && sentinelEvent.suspicion !== null) fields.push(["suspicion", formatSuspicion(sentinelEvent.suspicion)]);
 			if (sentinelEvent.decision) fields.push(["decision", sentinelEvent.decision]);
+			if (sentinelEvent.modified) fields.push(["modified", formatModifiedCall(sentinelEvent.modified)]);
 			if (sentinelEvent.outcome) fields.push(["outcome", sentinelEvent.outcome]);
 			if (sentinelEvent.audit) fields.push(["audit", "true"]);
 			if (sentinelEvent.explanation) fields.push(["explanation", sentinelEvent.explanation]);
