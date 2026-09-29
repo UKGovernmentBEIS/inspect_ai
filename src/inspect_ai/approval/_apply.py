@@ -29,21 +29,7 @@ async def apply_tool_approval(
 ) -> tuple[bool, Approval | None]:
     approver = _tool_approver.get(None)
     if approver:
-        # resolve view
-        if viewer:
-            try:
-                view = viewer(call)
-                if not view.call:
-                    view.call = default_tool_call_viewer(call).call
-            except Exception as ex:
-                warn_once(
-                    logger,
-                    f"Error in viewer for tool '{call.function}': {ex}. "
-                    "Falling back to default rendering.",
-                )
-                view = default_tool_call_viewer(call)
-        else:
-            view = default_tool_call_viewer(call)
+        view = resolve_tool_call_view(call, viewer)
 
         # call approver (approvers which use model inference — e.g. LLM monitors —
         # shouldn't have that inference charged to the agent's own budget)
@@ -69,6 +55,24 @@ async def apply_tool_approval(
     # no approval system registered
     else:
         return True, None
+
+
+def resolve_tool_call_view(
+    call: ToolCall, viewer: ToolCallViewer | None
+) -> ToolCallView:
+    if viewer:
+        try:
+            view = viewer(call)
+            if not view.call:
+                view.call = default_tool_call_viewer(call).call
+            return view
+        except Exception as ex:
+            warn_once(
+                logger,
+                f"Error in viewer for tool '{call.function}': {ex}. "
+                "Falling back to default rendering.",
+            )
+    return default_tool_call_viewer(call)
 
 
 def default_tool_call_viewer(call: ToolCall) -> ToolCallView:

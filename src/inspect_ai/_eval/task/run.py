@@ -775,6 +775,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         options.task.approval,
         options.task.review,
         options.sentinel,
+        options.task.metadata,
     )
 
     # track stats, results, and log. progress results are keyed by
