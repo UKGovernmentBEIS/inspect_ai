@@ -484,6 +484,44 @@ async def test_task_logger_rechecks_threshold_for_completions_during_flush(
 
 
 @pytest.mark.anyio
+async def test_task_logger_completion_during_stale_flush_rearms_timer() -> None:
+    # A completion that reaches the threshold while a stale-timer flush is
+    # writing stops the timer (bumping its generation, so that flush does not
+    # re-arm for the tail) and then waits for it. Its own sample is then below
+    # the threshold, and only the decline path's re-arm keeps it from being
+    # stranded without a timer.
+    recorder = _FlushRecorder()
+    recorder.allow_flush = anyio.Event()
+    buffer_db = _FlushBufferDB()
+    logger = _flush_logger(flush_buffer=2, buffer_db=buffer_db, recorder=recorder)
+    logger._stale_flush_interval = 0
+
+    async def complete_sample(sample: EvalSample) -> None:
+        await logger.complete_sample(sample, flush=True)
+
+    async with _running_stale_flush_timer(logger, start=False):
+        await complete_sample(_sample())
+        with anyio.fail_after(5):
+            await recorder.flush_started.wait()
+        # keep the re-armed timer from firing before the assertions
+        logger._stale_flush_interval = 60
+        stale_generation = logger._stale_flush_generation
+
+        async with anyio.create_task_group() as tg:
+            second = _sample().model_copy(update={"id": "sample-2"})
+            tg.start_soon(complete_sample, second)
+            with anyio.fail_after(5):
+                while logger._stale_flush_generation == stale_generation:
+                    await anyio.sleep(0)
+            recorder.allow_flush.set()
+
+        assert recorder.flush_count == 1
+        assert logger.flush_pending == [("sample-2", 1)]
+        assert logger._stale_flush_cancel_scope is not None
+        assert buffer_db.removed == [("sample", 1)]
+
+
+@pytest.mark.anyio
 async def test_task_logger_threshold_flush_cancels_scheduled_stale_flush() -> None:
     recorder = _FlushRecorder()
     buffer_db = _FlushBufferDB()
