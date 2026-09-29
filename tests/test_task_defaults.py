@@ -333,6 +333,23 @@ async def test_eval_async_loads_task_default(tmp_path: Path) -> None:
     assert_default_config(logs[0], attached.config)
 
 
+async def test_eval_async_run_config_replaces_task_default(tmp_path: Path) -> None:
+    attached = make_task(tmp_path, runtime_config())
+    path = tmp_path / "explicit.yaml"
+    path.write_text(yaml.safe_dump({"generate_config": {"temperature": 0.4}}))
+    logs = await eval_async(
+        attached.factory,
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+        ctl_server=False,
+        run_config=str(path),
+    )
+    assert logs[0].status == "success"
+    assert logs[0].plan.config.temperature == 0.4
+    assert logs[0].eval.config.message_limit == 20
+    assert logs[0].eval.run_config_source == f"run_config:{path}"
+
+
 @pytest.mark.parametrize(
     "content",
     [None, "invalid: [", runtime_config() | {"task": {"args": {"value": "file"}}}],
@@ -439,7 +456,7 @@ def test_task_default_file_works_standalone_as_run_config(tmp_path: Path) -> Non
     assert expected["task"].pop("task").endswith(attached.name)
     assert actual["task"].pop("task").endswith(attached.name)
     assert actual == expected
-    assert standalone.eval.run_config_source == f"cli:{attached.config}"
+    assert standalone.eval.run_config_source == f"run_config:{attached.config}"
 
 
 @pytest.mark.parametrize(
@@ -545,15 +562,23 @@ def test_opt_out_skips_entire_default(
     assert getattr(log.eval, "run_config_source", None) is None
 
 
+@pytest.mark.parametrize("interface", ["api", "cli"])
 @pytest.mark.parametrize("content", [None, "invalid: [", runtime_config()])
 @pytest.mark.parametrize("replacement", [{}, {"generate_config": {"temperature": 0.4}}])
 def test_explicit_run_config_replaces_attached_default(
-    tmp_path: Path, content: dict[str, Any] | str | None, replacement: dict[str, Any]
+    tmp_path: Path,
+    interface: str,
+    content: dict[str, Any] | str | None,
+    replacement: dict[str, Any],
 ) -> None:
     source = make_source(tmp_path, content)
     path = tmp_path / "explicit.yaml"
     path.write_text(yaml.safe_dump(replacement))
-    log = run_cli(tmp_path, [source.spec, "--run-config", str(path)])
+    log = (
+        run_task(source, tmp_path, run_config=str(path))
+        if interface == "api"
+        else run_cli(tmp_path, [source.spec, "--run-config", str(path)])
+    )
     assert log.plan.config.temperature == replacement.get("generate_config", {}).get(
         "temperature", 0.9
     )
@@ -562,7 +587,36 @@ def test_explicit_run_config_replaces_attached_default(
     assert log.eval.config.token_limit == 200
     assert log.eval.config.epochs == 1
     assert log.eval.config.limit is None
-    assert getattr(log.eval, "run_config_source", None) == f"cli:{path}"
+    assert getattr(log.eval, "run_config_source", None) == f"run_config:{path}"
+
+
+# "python", not "api": a bare "api" id counts as the api marker and is skipped
+@pytest.mark.parametrize("interface", ["python", "cli"])
+def test_empty_run_config_keeps_attached_default(
+    tmp_path: Path, interface: str
+) -> None:
+    source = make_source(tmp_path, runtime_config())
+    log = (
+        run_task(source, tmp_path, run_config="")
+        if interface == "python"
+        else run_cli(tmp_path, [source.spec, "--run-config", ""])
+    )
+    assert_default_config(log, source.config)
+
+
+def test_retry_keeps_explicit_run_config_source(tmp_path: Path) -> None:
+    attached = make_task(tmp_path, runtime_config())
+    path = tmp_path / "explicit.yaml"
+    path.write_text(yaml.safe_dump(runtime_config(0.4)))
+    original = run_task(attached, tmp_path, run_config=str(path))
+    path.unlink()
+    attached.config.unlink()
+    retried = eval_retry(
+        original.location, log_dir=str(tmp_path / "retry"), display="none"
+    )[0]
+    assert retried.status == "success"
+    assert effective_run_config(retried) == effective_run_config(original)
+    assert retried.eval.run_config_source == f"run_config:{path}"
 
 
 @pytest.mark.parametrize("interface", ["eval", "eval_set"])
@@ -633,7 +687,7 @@ def test_export_config_replay_is_independent_of_attached_file(
         attached.config.unlink()
     replay = run_cli(tmp_path, ["--run-config", str(exported)])
     assert effective_run_config(replay) == effective_run_config(original)
-    assert getattr(replay.eval, "run_config_source", None) == f"cli:{exported}"
+    assert getattr(replay.eval, "run_config_source", None) == f"run_config:{exported}"
     assert_default_config(original, attached.config)
 
 

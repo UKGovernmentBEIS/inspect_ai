@@ -1047,7 +1047,7 @@ class EvalSpec(BaseModel):
     """Attributes of the @task decorator."""
 
     run_config_source: str | None = Field(default=None)
-    """Configuration source, prefixed with `task_default:` or `cli:` when present."""
+    """Configuration source, prefixed with `task_default:` or `run_config:` when present."""
 
     task_args: dict[str, Any] = Field(default_factory=dict)
     """Arguments used for invoking the task (including defaults)."""

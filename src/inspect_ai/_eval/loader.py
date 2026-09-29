@@ -52,6 +52,7 @@ from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
 from .registry import task_source_create
+from .run_config import current_run_config_source
 from .task import PreviousTask, Task, TaskInfo
 from .task.constants import (
     TASK_DEFAULT_CONFIG_ATTR,
@@ -63,11 +64,7 @@ from .task.hf import task_create_from_hf
 from .task.run import eval_log_sample_source
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
-from .task_defaults import (
-    create_task_with_defaults,
-    current_run_config_source,
-    resolve_task_eval_config,
-)
+from .task_defaults import create_task_with_defaults, resolve_task_eval_config
 
 logger = getLogger(__name__)
 

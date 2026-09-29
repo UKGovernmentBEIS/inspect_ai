@@ -698,11 +698,11 @@ eval(my_task, model="openai/gpt-4o", default_config=False)
 inspect eval tasks.py@my_task --model openai/gpt-4o --no-default-config
 ```
 
-An expressly selected `--run-config` replaces the attached default entirely, even if the selected file is empty. When applying a standalone run config through the Python API, pass `default_config=False` alongside the parameters returned by `to_params()`. Disabling or replacing a default skips reading it, so a missing default file does not prevent those runs.
+An expressly selected run config, from `--run-config` or the `run_config` argument of `eval()` and `eval_async()`, replaces the attached default entirely, even if the selected file is empty, and `default_config` has no effect alongside it. If you pass `to_params()` output to `eval()` yourself, add `default_config=False` to replace the default the same way; the log then records no `run_config_source`. Disabling or replacing a default skips reading it, so a missing default file does not prevent those runs.
 
 `list_tasks()` exposes the declared path through `TaskInfo.default_config`; `inspect list tasks --json` includes it in `attribs.default_config`. Discovery does not read or validate the file. Validation occurs when Inspect resolves the task for execution.
 
-Runs using a task default display its filename and record `EvalSpec.run_config_source` as `task_default:<resolved-path>`. CLI-selected files are recorded as `cli:<path>`. `inspect log export-config` exports the effective settings for replay without the attached file, and retries preserve the settings recorded in the original log.
+Runs using a task default display its filename and record `EvalSpec.run_config_source` as `task_default:<resolved-path>`. Files selected with `--run-config` or `run_config` are recorded as `run_config:<path>`. `inspect log export-config` exports the effective settings for replay without the attached file, and retries preserve the settings recorded in the original log.
 
 ### Scorer Override {#scorer-override}
 

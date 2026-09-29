@@ -327,9 +327,11 @@ def eval(
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
         run_config: Run config file to apply, as for `inspect eval --run-config`.
             Supplied arguments take precedence over its values; task args,
-            model args and model roles merge by key.
+            model args and model roles merge by key. Replaces any run config
+            attached to a task with `@task(default_config=...)`.
         default_config: Apply run configuration files attached to task
             definitions via `@task(default_config=...)` (defaults to True).
+            Has no effect when `run_config` is given.
         **kwargs: Model generation options.
 
     Returns:
@@ -609,9 +611,11 @@ async def eval_async(
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
         run_config: Run config file to apply, as for `inspect eval --run-config`.
             Supplied arguments take precedence over its values; task args,
-            model args and model roles merge by key.
+            model args and model roles merge by key. Replaces any run config
+            attached to a task with `@task(default_config=...)`.
         default_config: Apply run configuration files attached to task
             definitions via `@task(default_config=...)` (defaults to True).
+            Has no effect when `run_config` is given.
         **kwargs: Model generation options.
 
     Returns:

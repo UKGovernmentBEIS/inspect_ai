@@ -54,8 +54,6 @@ RUN_WIDE_FIELDS = frozenset(EvalConfig.model_fields) - PER_TASK_FIELDS
 
 logger = logging.getLogger(__name__)
 
-_source: ContextVar[str | None] = ContextVar("run_config_source", default=None)
-
 
 @dataclass(frozen=True)
 class DefaultsScope:
@@ -69,21 +67,6 @@ _scope: ContextVar[DefaultsScope | None] = ContextVar(
 )
 P = ParamSpec("P")
 R = TypeVar("R")
-
-
-@contextmanager
-def run_config_source(source: str | None) -> Iterator[None]:
-    """Annotate resolved tasks with an explicitly selected run configuration."""
-    token = _source.set(source)
-    try:
-        yield
-    finally:
-        _source.reset(token)
-
-
-def current_run_config_source() -> str | None:
-    """Return CLI provenance in the current evaluation scope, if any."""
-    return _source.get()
 
 
 def defaults_enabled() -> bool:

@@ -1,5 +1,7 @@
 import inspect
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import deepcopy
 from functools import wraps
 from typing import Any, ParamSpec, TypeVar
@@ -247,18 +249,37 @@ def merge_run_config_params(
 P = ParamSpec("P")
 R = TypeVar("R")
 
+_source: ContextVar[str | None] = ContextVar("run_config_source", default=None)
+
+
+@contextmanager
+def run_config_source(path: str | None) -> Iterator[None]:
+    """Record an explicitly selected run config as the source of resolved tasks."""
+    token = _source.set(f"run_config:{path}" if path else None)
+    try:
+        yield
+    finally:
+        _source.reset(token)
+
+
+def current_run_config_source() -> str | None:
+    """Return the source of the explicitly selected run config, if any."""
+    return _source.get()
+
 
 def run_config_arguments(
     signature: inspect.Signature, args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> inspect.BoundArguments | None:
+) -> tuple[str, inspect.BoundArguments] | None:
     """Merge the arguments a caller supplied over their ``run_config`` file.
 
     Only supplied arguments count, so a parameter default (such as the
-    ``NOT_GIVEN`` model) never displaces a value from the file.
+    ``NOT_GIVEN`` model) never displaces a value from the file. The file
+    replaces any default config attached to the tasks, as ``--run-config`` does.
 
     Returns:
-        Arguments for the call, or None when no run_config was supplied. An
-        empty path counts as none, as it does for ``--run-config``.
+        The file path and the arguments for the call, or None when no
+        run_config was supplied. An empty path counts as none, as it does for
+        ``--run-config``.
     """
     supplied = dict(signature.bind(*args, **kwargs).arguments)
     path = supplied.pop("run_config", None)
@@ -272,7 +293,9 @@ def run_config_arguments(
         if isinstance(supplied.get(key), str):
             supplied[key] = resolve_args(supplied[key])
     params = read_run_config(path).to_params(resolve_models=False)
-    return signature.bind(**merge_run_config_params(params, supplied))
+    params = merge_run_config_params(params, supplied)
+    params["default_config"] = False
+    return path, signature.bind(**params)
 
 
 def with_run_config(fn: Callable[P, R]) -> Callable[P, R]:
@@ -281,10 +304,12 @@ def with_run_config(fn: Callable[P, R]) -> Callable[P, R]:
 
     @wraps(fn)
     def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
-        bound = run_config_arguments(signature, args, kwargs)
-        if bound is None:
+        applied = run_config_arguments(signature, args, kwargs)
+        if applied is None:
             return fn(*args, **kwargs)
-        return fn(*bound.args, **bound.kwargs)
+        path, bound = applied
+        with run_config_source(path):
+            return fn(*bound.args, **bound.kwargs)
 
     return wrapped
 
@@ -297,9 +322,11 @@ def with_run_config_async(
 
     @wraps(fn)
     async def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
-        bound = run_config_arguments(signature, args, kwargs)
-        if bound is None:
+        applied = run_config_arguments(signature, args, kwargs)
+        if applied is None:
             return await fn(*args, **kwargs)
-        return await fn(*bound.args, **bound.kwargs)
+        path, bound = applied
+        with run_config_source(path):
+            return await fn(*bound.args, **bound.kwargs)
 
     return wrapped

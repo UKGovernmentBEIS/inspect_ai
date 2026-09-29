@@ -22,7 +22,7 @@ from inspect_ai._eval.run_config import TaskInput as TaskInput
 from inspect_ai._eval.run_config import (
     merge_run_config_params as merge_run_config_params,
 )
-from inspect_ai._eval.run_config import read_run_config
+from inspect_ai._eval.run_config import read_run_config, run_config_source
 from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -2032,11 +2032,10 @@ def eval_exec(
         merge_run_config_params(run_params, cli_params) if run_params else cli_params
     )
 
-    params["default_config"] = not (no_default_config or run_config is not None)
-    from inspect_ai._eval.task_defaults import run_config_source
+    params["default_config"] = not (no_default_config or run_config)
 
     # evaluate
-    with run_config_source(f"cli:{run_config}" if run_config is not None else None):
+    with run_config_source(run_config):
         if is_eval_set:
             params["retry_attempts"] = retry_attempts
             params["retry_immediate"] = retry_immediate
