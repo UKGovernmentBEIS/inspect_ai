@@ -273,6 +273,18 @@ def _lookup_in_db(name: str, db: dict[str, ModelInfo]) -> ModelInfo | None:
     return _fuzzy_match(name, db)
 
 
+def _strict_db_key(name: str) -> str | None:
+    """The database key for `name` by exact or case-insensitive match.
+
+    Unlike `_lookup_in_db`, there is no fuzzy stage, for callers that try
+    several candidate spellings and must not settle on a different model.
+    """
+    db = _get_model_info_db()
+    if name in db:
+        return name
+    return _get_lookup_index().get(_normalize_for_lookup(name))
+
+
 def get_model_info(model: str | Model) -> ModelInfo | None:
     """Get model information including context window, output tokens, etc.
 
