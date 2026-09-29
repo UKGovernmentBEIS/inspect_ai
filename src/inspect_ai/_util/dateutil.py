@@ -23,19 +23,20 @@ def _normalize_iso_z_suffix(input: str) -> str:
     """Normalize Z suffix in ISO format strings for Python 3.10 compatibility.
 
     Python 3.10's fromisoformat() doesn't support Z suffix for UTC.
-    Python 3.11+ handles Z natively.
+    Python 3.11+ handles uppercase Z natively, but neither 3.10 nor 3.11+
+    accepts a lowercase z, so that suffix is always replaced.
 
     Args:
         input: ISO format string (may end with Z or z)
 
     Returns:
-        ISO format string with Z/z replaced by +00:00 (if Python < 3.11)
+        ISO format string with z always, and Z on Python < 3.11, replaced by +00:00
     """
-    return (
-        input
-        if sys.version_info >= (3, 11) or not input.endswith(("Z", "z"))
-        else input[:-1] + "+00:00"
-    )
+    if input.endswith("z"):
+        return input[:-1] + "+00:00"
+    if sys.version_info >= (3, 11) or not input.endswith("Z"):
+        return input
+    return input[:-1] + "+00:00"
 
 
 def is_file_older_than(path: str | Path, delta: timedelta, *, default: bool) -> bool:

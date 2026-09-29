@@ -37,6 +37,8 @@ def validate_model(model: BaseModel, input_str: str) -> None:
         ("2025-01-24T12:00:00", "2025-01-24T12:00:00+00:00"),
         # Z suffix converts to +00:00
         ("2025-01-24T12:00:00Z", "2025-01-24T12:00:00+00:00"),
+        # Lowercase z suffix converts to +00:00
+        ("2025-01-24T12:00:00z", "2025-01-24T12:00:00+00:00"),
         # Positive offset (UTC+5)
         ("2025-01-24T12:00:00+05:00", "2025-01-24T07:00:00+00:00"),
         # Negative offset (UTC-8)
