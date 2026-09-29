@@ -15,6 +15,7 @@ from inspect_ai.event._sentinel import (
     SentinelEvent,
     SentinelSuspicion,
 )
+from inspect_ai.tool import ToolCall
 
 
 def test_event_public_alias_stays_introspectable() -> None:
@@ -94,6 +95,9 @@ def _sentinel_event(**kwargs: Any) -> SentinelEvent:
     return SentinelEvent.model_validate(fields)
 
 
+_MODIFIED = ToolCall(id="call_1", function="bash", arguments={"cmd": "ls"})
+
+
 def _observation(**kwargs: Any) -> SentinelEvent:
     fields: dict[str, Any] = dict(
         kind="observation", decision=None, outcome=None, suspicion=0.5
@@ -110,6 +114,8 @@ def _observation(**kwargs: Any) -> SentinelEvent:
         _observation(),
         _observation(suspicion={"exfiltration": 0.9, "sabotage": 0.1}),
         _sentinel_event(kind="bypassed", function=None, decision=None, outcome=None),
+        _sentinel_event(decision="modify", modified=_MODIFIED),
+        _sentinel_event(kind="superseded", decision="modify", modified=_MODIFIED),
     ],
 )
 def test_sentinel_event_round_trips(event: SentinelEvent) -> None:
@@ -166,6 +172,26 @@ def test_sentinel_decision_requires_decision_only(
 ) -> None:
     with pytest.raises(ValidationError):
         _sentinel_event(kind=kind, **overrides)
+
+
+@pytest.mark.parametrize("kind", ["decision", "superseded"])
+def test_sentinel_modify_requires_modified(kind: str) -> None:
+    with pytest.raises(ValidationError, match="requires modified"):
+        _sentinel_event(kind=kind, decision="modify")
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        dict(decision="reject"),
+        dict(kind="superseded", decision="continue"),
+        dict(kind="observation", decision=None, outcome=None, suspicion=0.5),
+        dict(kind="cancelled", function=None, decision=None, outcome=None),
+    ],
+)
+def test_sentinel_modified_is_only_for_modify(event: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError, match="modified is set only"):
+        _sentinel_event(modified=_MODIFIED, **event)
 
 
 def test_sentinel_event_outcome_is_unconstrained_for_reports() -> None:

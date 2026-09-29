@@ -4,6 +4,7 @@ from pydantic import Field, FiniteFloat, model_validator
 from typing_extensions import Self
 
 from inspect_ai.event._base import BaseEvent
+from inspect_ai.tool._tool_call import ToolCall
 
 SentinelAction: TypeAlias = Literal[
     "continue", "modify", "reject", "terminate", "escalate"
@@ -58,6 +59,9 @@ class SentinelEvent(BaseEvent):
     audit: bool = Field(default=False)
     """Whether the report requested that oversight budget be spent on this step."""
 
+    modified: ToolCall | None = Field(default=None)
+    """The replacement call, for a `modify` decision."""
+
     outcome: SentinelAction | None = Field(default=None)
     """What the layer above did with this layer's decision."""
 
@@ -85,6 +89,15 @@ class SentinelEvent(BaseEvent):
         elif self.decision is None or self.suspicion is not None:
             raise ValueError(
                 f"A '{self.kind}' SentinelEvent requires decision and no suspicion."
+            )
+        is_modify = (
+            self.kind in ("decision", "superseded") and self.decision == "modify"
+        )
+        if is_modify and self.modified is None:
+            raise ValueError(f"A '{self.kind}' modify SentinelEvent requires modified.")
+        if not is_modify and self.modified is not None:
+            raise ValueError(
+                "modified is set only on a 'decision' or 'superseded' modify SentinelEvent."
             )
         if self.kind not in ("cancelled", "bypassed") and self.function is None:
             raise ValueError(f"A '{self.kind}' SentinelEvent requires function.")

@@ -219,7 +219,17 @@ def test_modify_executes_the_modified_call() -> None:
     [message] = tool_messages(log)
     assert message.error is None
     assert message.text == "30"
-    assert [e.decision for e in sentinel_events(log)] == ["modify", "modify"]
+    events = sentinel_events(log)
+    assert [e.decision for e in events] == ["modify", "modify"]
+    for event in events:
+        assert event.modified is not None
+        assert event.modified.arguments == {"x": 10, "y": 20}
+        assert event.modified.id == message.tool_call_id
+
+    # as with approval's modify, the ToolEvent shows the call the model made
+    assert log.samples
+    [tool_event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    assert tool_event.arguments == {"x": 1, "y": 1}
 
 
 def test_terminate_ends_the_sample() -> None:

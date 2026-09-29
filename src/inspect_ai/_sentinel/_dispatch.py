@@ -307,6 +307,7 @@ def _emit_decision(
         audit=decision.audit,
         explanation=decision.explanation,
         metadata=decision.metadata,
+        modified=decision.modified if decision.action == "modify" else None,
     )
 
 
@@ -321,6 +322,7 @@ def _emit(
     audit: bool = False,
     explanation: str | None = None,
     metadata: dict[str, Any] | None = None,
+    modified: ToolCall | None = None,
 ) -> None:
     transcript()._event(
         SentinelEvent(
@@ -336,5 +338,6 @@ def _emit(
             audit=audit,
             explanation=explanation,
             metadata=metadata,
+            modified=modified,
         )
     )
