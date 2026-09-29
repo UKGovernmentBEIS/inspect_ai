@@ -302,8 +302,8 @@ class ConverseHooks(HttpHooks):
 
 
 # Structural stand-ins for httpx types, covering only what the hooks touch.
-# The openai (>= 3) and anthropic (>= 1) SDKs are built on `httpx2` while
-# other SDKs (google, mistral, groq) hand us legacy `httpx` clients; both
+# The openai (>= 3), anthropic (>= 1) and mistralai (>= 3) SDKs are built on
+# `httpx2` while other SDKs (google, groq) hand us legacy `httpx` clients; both
 # flavors satisfy these protocols.
 class HttpxRequestLike(Protocol):
     @property
