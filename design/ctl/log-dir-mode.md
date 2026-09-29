@@ -276,8 +276,8 @@ that reuses the merged log's `task_id`, and with `retry_cleanup=False` the
 merged log and its companion stay beside it; an unsharded `success` log
 wins over a merged log with the same `task_id` regardless of mtime (parent
 design, "Eval-set integration"). The merged log carries a
-provenance field and ledger (per shard: file name, `eval_id`, samples merged,
-status, ETag or mtime, its selection's size and digest; no per-sample keys),
+provenance field and ledger (per shard: file name, samples merged, status,
+ETag or mtime, its selection's size and digest; no per-sample keys),
 whose exact shape is in the sharding implementation document
 ([`eval-sharding-implementation.md`](../eval-sharding-implementation.md),
 "The `EvalSpec.shards` field").
@@ -886,9 +886,11 @@ the source for sample state:
   (`src/inspect_ai/log/_score.py:13`) but not its key, status, tokens or
   messages, which are all the aggregate row takes from summaries. So the
   row is the same; per-sample content is not, which is why the shortcut
-  stops at the aggregate row. The `shards` block and per-shard fields come from the ledger entries
-  (status, `attempts`, `started_at`, `completed_at`) and `updated_at` from
-  the listing's mtimes.
+  stops at the aggregate row. The `shards` block and per-shard fields come
+  from the ledger entries (status, `started_at`, `completed_at`) and from
+  the fresh listing the shortcut already requires: `attempts` counts the
+  `.eval` files in each `<k>/`, and `updated_at` is the latest of their
+  mtimes.
 
   Otherwise (an incomplete, running or drained snapshot, a changed, new or
   missing shard, a stray file) the view reads the shards and manifests as

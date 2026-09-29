@@ -382,9 +382,8 @@ storage errors as they occur.
 
 Trust: the merge follows `resolve_scorers_info`'s `task_file` fallback as
 `recompute_metrics` does, logs a warning naming the imported file when it
-does, and records which source it used in the field (`metrics_source`,
-below). Parent "Trust": the merge runs only as a trusted step; no reader
-path calls it.
+does; the CLI also prints a notice (below). Parent "Trust": the merge runs
+only as a trusted step; no reader path calls it.
 
 #### CLI
 
@@ -437,15 +436,6 @@ class EvalShardEntry(BaseModel):
     log: str
     """File name of the shard's current attempt (the newest `.eval` in `<k>/`)."""
 
-    attempts: int
-    """Number of `.eval` files in `<k>/` (superseded attempts plus the current one)."""
-
-    eval_id: str
-    """`eval_id` of the current attempt."""
-
-    task_id: str
-    """`task_id` of the current attempt (each shard has its own)."""
-
     eval_set_id: str | None = Field(default=None)
     """`eval_set_id` of the current attempt."""
 
@@ -489,27 +479,25 @@ class EvalShardEntry(BaseModel):
 class EvalShards(BaseModel):
     """Provenance of a merged log: its shards and the ledger of the last merge."""
 
-    location: str
-    """Companion directory the last merge read (informational; readers derive it from the name)."""
-
     selection: Literal["ids", "count", "none"]
     """Form of the intended selection the last merge had; the ids are `eval.dataset.sample_ids`."""
 
     sample_count: int | None = Field(default=None)
     """Intended selection as a count, when `selection` is `"count"`."""
 
-    template: str
-    """Name of the shard whose header supplied the merged header's task fields."""
-
-    merged_at: UtcDatetimeStr
-    """Time of the last merge that wrote this log."""
-
-    metrics_source: Literal["registry", "task_file"]
-    """Whether metrics were resolved from registered code or by importing the header's `task_file`."""
-
     ledger: list[EvalShardEntry]
     """One entry per shard with a current attempt, in shard order."""
 ```
+
+Nothing else is recorded (decision: Ransom, 2026-09-29): no companion
+location (readers derive it from the name, and a recorded one goes stale
+when the log moves), no template name (the template shard is the first
+in shard order, so the last merge's template is `ledger[0].shard`; the
+ledger is in shard order and a companion with vanished entries is refused,
+"Validation"), no merge time, no metric source (the merge's warning and
+the CLI notice name an imported `task_file`), and per shard no attempt
+count (a reader that shows it counts the `.eval` files in `<k>/`) and no
+`eval_id` or `task_id` (`log` names the attempt).
 
 `EvalSpec` gains `shards: EvalShards | None = Field(default=None)` with the
 docstring "Shards merged into this log (merged logs only)." Absent on every
@@ -525,8 +513,7 @@ Choices the parent left open:
   failing shard's, and `EvalError` requires `traceback` and
   `traceback_ansi`, `src/inspect_ai/_util/error.py:12`), the statistics
   (`stats` is recomputed from the entries, so replacing one shard's attempt
-  replaces exactly its contribution), `eval_set_id`, which shard supplied
-  the task fields (`template`, "Building the merged log"), and the
+  replaces exactly its contribution), `eval_set_id`, and the
   values that let the merge attribute merged records to shards without
   listing them: `samples` (the parent's per-shard sample count) and
   `selection_digest`. `selected`, the size of the shard's selection, is
@@ -674,7 +661,7 @@ downloaded and rewritten only when step 10 says so.
    summaries for a running attempt), with the opt-in CRC check
    (`verify_crc=True`) on every member read ("Consistent reads"). If the
    template shard ("Building the merged log") is unchanged but is not the
-   recorded `template`, read its header too. The ledger records the
+   last merge's template, `ledger[0].shard`, read its header too. The ledger records the
    reader's ETag
    (`AsyncZipReader.etag`), which may differ from the listing's when the
    object was replaced in between; the next pass then sees a changed ETag
@@ -901,8 +888,8 @@ digits first.
 The *template shard* is the first shard in shard order. Its current
 attempt's header supplies every field not listed below (task name, file,
 args, model, plan, scorers, metrics, packages, revision, sandbox, metadata
-and so on). When the template shard equals the recorded `template` and its
-attempt is unchanged, these fields are carried from the merged header,
+and so on). When the template shard is the last merge's template
+(`ledger[0].shard`) and its attempt is unchanged, these fields are carried from the merged header,
 which was built from that same header; otherwise its header was read in
 step 6. Fields that validation proves equal are the same whichever shard
 supplies them; the rest (for example `packages` and `revision`) come from a
@@ -917,7 +904,7 @@ well-defined shard, so fresh and incremental merges agree.
 | `eval.eval_set_id` | the entries' common `eval_set_id`, else absent |
 | `eval.dataset.sample_ids` | the selection ids when given as ids, else the sorted distinct held ids, typed as in the summaries written ("Recorded selection") |
 | `eval.config.sample_id`, `eval.config.limit` | `None` ("Recorded selection") |
-| `eval.shards` | the new field: ledger entries for every current attempt (a read shard's with `samples` the number of keys taken, `selected` the size of its `S_k` and the digest of `S_k`; an unchanged shard's carried as they were), `selection` and `sample_count` ("Recorded selection"), `template` the template shard's name, `merged_at` now, `metrics_source` from "Metric recomputation" |
+| `eval.shards` | the new field: ledger entries for every current attempt (a read shard's with `samples` the number of keys taken, `selected` the size of its `S_k` and the digest of `S_k`; an unchanged shard's carried as they were), `selection` and `sample_count` ("Recorded selection") |
 | `results` | from "Metric recomputation"; `total_samples` is the selection size (or, without one, the distinct held ids) times epochs, `completed_samples` the merged samples without `error`; `early_stopping`, `logged_samples`, `metadata` absent |
 | `stats` | from the ledger entries: `started_at` the earliest, `completed_at` the latest (`""` while any entry's is empty), `model_usage` and `role_usage` summed per key with `ModelUsage.__add__`; `connection_limit_history` empty (per-process history stays in the shards) |
 | `log_updates`, `tags`, `invalidated` | carried from the existing merged header (merged-log edits), absent at the first merge |
@@ -954,10 +941,11 @@ completed_samples=..., headline_metric=h.eval.headline_metric)` with the
 template header `h`, mirroring `recompute_metrics` without loading the log.
 Carried samples are read from the merged log's temp copy on every pass that
 writes, because the merged log's sample members are the only lossless
-source (summaries are lossy, parent "Constraints"). `metrics_source` is
-`"task_file"` when `resolve_scorers_info` imported the header's `task_file`
-(detected by checking the registry for each metric name before the call),
-else `"registry"`. A metric that neither source provides raises, as
+source (summaries are lossy, parent "Constraints"). When
+`resolve_scorers_info` would import the header's `task_file` (detected by
+checking the registry for each metric name before the call), the merge
+logs a warning naming the file and the CLI prints its notice; nothing is
+recorded in the log. A metric that neither source provides raises, as
 `metric_create` does today, and nothing is written (parent: "fails rather
 than store metrics from a lossy input").
 
@@ -1566,8 +1554,8 @@ today.
   the bucket. They go through the existing pydantic models and zip readers.
   Paths are derived from listed names by fixed rules (`<name>` from the
   basename, `<k>` from listed prefixes, member names from keys); the
-  field's `location`, ledger file names and selection digests are never
-  used to locate anything. Merged records parsed from the merged log's
+  ledger's file names and selection digests are never used to locate
+  anything. Merged records parsed from the merged log's
   member names are used only as `(str(id), epoch)` keys for planning and
   counting; a name that does not parse is refused. Sample member names are rebuilt from `(id, epoch)` with the
   existing `_sample_filename` rather than copied from a source central
@@ -1579,8 +1567,8 @@ today.
   `<name>.eval` without the field.
 - **Code execution.** Recomputation may import the header's `task_file`
   (the existing `resolve_scorers_info` fallback). The merge runs only in
-  trusted steps (API, CLI, `eval_set()` startup), records the source used,
-  and the CLI prints a notice. No reader path (viewer server,
+  trusted steps (API, CLI, `eval_set()` startup), logs a warning naming
+  the imported file, and the CLI prints a notice. No reader path (viewer server,
   `read_eval_log*`, dataframes, ctl log-dir mode) calls it.
 - **Viewer.** No change to the viewer server; its delete endpoint still
   authorizes and deletes only the requested file, so the new companion
@@ -1619,7 +1607,9 @@ Per PR (numbers from "Implementation plan"):
 2. **The field.** `tests/log/test_eval_log.py`: round trip of a header
    with `shards` (each `selection` form, with `sample_count` for `"count"`,
    entries with and without `etag`/`error`, with usage, `samples`,
-   `selected` and `selection_digest`); a header
+   `selected` and `selection_digest`; none of the dropped fields, `location`,
+   `template`, `merged_at`, `metrics_source`, `attempts`, `eval_id` or
+   `task_id`, is in the schema); a header
    without it serialises with
    no `shards` key; a
    header carrying an unknown extra key still validates (the property old
@@ -1763,7 +1753,7 @@ Per PR (numbers from "Implementation plan"):
      deleted it has its conditional publish refused (`WriteConflictError`),
      on `mock_s3` with a pause between the read and the publish;
    - trust: a metric registered only in a `task_file` is resolved through
-     the fallback and recorded as `metrics_source: "task_file"`; a missing
+     the fallback, with a warning naming the file (and the CLI notice); a missing
      metric fails without writing; a spy asserts no reader path
      (`read_eval_log`, `list_eval_logs`, `evals_df`) calls the merge;
    - cancellation mid-pass (after reads, during the build, during the S3
