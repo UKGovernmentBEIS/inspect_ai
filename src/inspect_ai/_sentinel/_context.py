@@ -4,6 +4,12 @@ from typing import Any, NamedTuple
 from ._config import SentinelRoot
 
 
+class SentinelFailure(Exception):
+    def __init__(self, error: Exception) -> None:
+        super().__init__(str(error))
+        self.error = error
+
+
 class _ActiveSentinel(NamedTuple):
     root: "SentinelRoot"
     task_metadata: dict[str, Any]

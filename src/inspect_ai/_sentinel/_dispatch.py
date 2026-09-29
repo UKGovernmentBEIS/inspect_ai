@@ -33,7 +33,7 @@ from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 from inspect_ai.util._span import current_agent_span_id
 from inspect_ai.util._store import store
 
-from ._context import active_sentinel, active_task_metadata
+from ._context import SentinelFailure, active_sentinel, active_task_metadata
 
 _Kind = Literal["observation", "decision", "cancelled", "bypassed", "superseded"]
 
@@ -52,7 +52,10 @@ async def sentinel_before_tool_call(
         input=_model_input(call, history),
         history=history,
     )
-    return await _run(step)
+    try:
+        return await _run(step)
+    except Exception as ex:
+        raise SentinelFailure(ex) from ex
 
 
 async def sentinel_after_tool_call(
@@ -84,8 +87,18 @@ async def _run(step: Step) -> Decision | None:
     root = active_sentinel()
     if root is None:
         return None
-    with suspend_token_limit(), suspend_turn_limit():
-        return await run_root(root, _context(), step)
+    try:
+        with suspend_token_limit(), suspend_turn_limit():
+            return await run_root(root, _context(), step)
+    except TimeoutError as ex:
+        # the sample runner treats a bare TimeoutError as benign
+        raise RuntimeError(
+            f"A sentinel timed out at the {_stage(step)} stage: {ex}"
+        ) from ex
+
+
+def _stage(step: Step) -> Literal["tool_call", "tool_result"]:
+    return "tool_call" if isinstance(step, BeforeToolCall) else "tool_result"
 
 
 def _context() -> RunnerContext:
@@ -252,7 +265,7 @@ def _emit(
             function=function,
             step_id=step.call.id,
             conversation=step.conversation,
-            stage="tool_call" if isinstance(step, BeforeToolCall) else "tool_result",
+            stage=_stage(step),
             kind=kind,
             suspicion=suspicion,
             decision=decision,

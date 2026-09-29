@@ -495,3 +495,42 @@ def test_conversation_is_the_enclosing_agent_span() -> None:
         if isinstance(e, SpanBeginEvent) and e.type == "agent"
     ]
     assert step.conversation == agent_spans[-1]
+
+
+@monitor
+def d3_raising(error: Any, after: bool = False) -> list[Monitor]:
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        if not after:
+            raise error
+        return None
+
+    async def later(context: Context, step: AfterToolCall) -> Observation | None:
+        if after:
+            raise error
+        return None
+
+    return [before, later]
+
+
+@pytest.mark.parametrize("after", [False, True])
+@pytest.mark.parametrize(
+    "error", [TimeoutError("sentinel timed out"), PermissionError("sentinel denied")]
+)
+def test_sentinel_errors_fail_the_sample_rather_than_the_call(
+    error: Exception, after: bool
+) -> None:
+    log = run([d3_raising(error, after=after)])
+    assert log.status == "error"
+    assert log.samples
+    sample_error = log.samples[0].error
+    assert sample_error is not None
+    assert type(error).__name__ in sample_error.traceback
+    assert str(error) in sample_error.message
+    if isinstance(error, TimeoutError):
+        stage = "tool_result" if after else "tool_call"
+        assert f"A sentinel timed out at the {stage} stage" in sample_error.message
+    assert tool_messages(log) == []
+    [event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    assert event.pending is None
+    assert event.failed is True
+    assert event.result == ("2" if after else "")

@@ -40,6 +40,7 @@ from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel
 from typing_extensions import is_typeddict
 
+from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -336,6 +337,8 @@ async def _execute_tools_impl(
                     inner_ex = inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
+            except SentinelFailure as ex:
+                tool_exception = ex.error
             except Exception as ex:
                 mapped = tool_call_error(ex, call.function)
                 if mapped is not None:
@@ -913,14 +916,16 @@ async def call_tool(
     if approval and approval.modified:
         call = approval.modified
 
-    from inspect_ai._sentinel._context import active_sentinel
-
     if active_sentinel() is not None and not isinstance(tool_def.tool, AgentTool):
         from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
 
-        decision = await sentinel_before_tool_call(
-            message, call, tool_def.viewer, conversation
-        )
+        try:
+            decision = await sentinel_before_tool_call(
+                message, call, tool_def.viewer, conversation
+            )
+        except SentinelFailure:
+            await record_pending_tool_event()
+            raise
         if decision is not None:
             if decision.action == "reject":
                 await record_pending_tool_event()
@@ -998,8 +1003,6 @@ async def _apply_tool_review(
     )
     if review is not None and review.decision == "terminate":
         raise TerminateSampleError("Tool result reviewer requested termination.")
-
-    from inspect_ai._sentinel._context import active_sentinel
 
     if active_sentinel() is not None:
         from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
