@@ -576,7 +576,7 @@ Choices the parent left open:
   **`eval_retry` of a merged log.** `eval_retry_async` re-launches a log's
   task with the log's `config.sample_id` as its subset
   (`src/inspect_ai/_eval/eval.py:1795`), which a merged log leaves unset.
-  Decision (this document): `eval_retry` of a merged log is supported only
+  Decision (Ransom, 2026-09-29): `eval_retry` of a merged log is supported only
   for `selection == "none"`, whose selection is the whole dataset, so the
   ordinary retry (the whole dataset, reusing prior records by `(id, epoch)`
   under the existing stability checks, `src/inspect_ai/_eval/task/run.py:3625`)
@@ -599,7 +599,8 @@ Choices the parent left open:
   on `eval.shards`. Version boundary: an Inspect version without this field
   drops `eval.shards` on read and so retries an id- or count-selected
   merged log over the whole dataset, which may run samples outside the
-  selection. Files: `_eval/eval.py` (PR 5).
+  selection; Ransom accepts that boundary (2026-09-29: "Fine with older
+  Inspect version not knowing about shards"). Files: `_eval/eval.py` (PR 5).
 - **`size`, `etag`, `mtime`** are what `FileInfo` carries
   (`src/inspect_ai/_util/file.py:195`); change detection compares ETags when
   both sides have one and `(size, mtime)` otherwise.
