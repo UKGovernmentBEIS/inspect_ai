@@ -573,37 +573,33 @@ Choices the parent left open:
   say which form it is, and `config.limit` means the first N of the
   dataset, which a merge cannot claim.
 
-  **`eval_retry` of a merged log.** `eval_retry_async` takes a log's subset
-  from `eval.config.sample_id` (`src/inspect_ai/_eval/eval.py:1795`), which
-  a merged log leaves unset. It gains one branch, for a log with
-  `eval.shards` set and `eval.shards.selection == "ids"`:
-
-  - **Sample ids.** The subset is `eval.dataset.sample_ids`, which are
-    concrete ids, while the retry's selector matches patterns
-    (`sample_id_filter` normalises each value and applies `fnmatch`,
-    `src/inspect_ai/_eval/task/util.py:56`). Each string id is therefore
-    escaped for `fnmatch` first (every `*`, `?` and `[` wrapped in
-    brackets, so `item[0]` becomes `item[[]0]` and matches only itself),
-    then passed through `_requalify_sample_ids`, which adds the `task:`
-    prefix to string ids as it does today; integer ids pass unchanged. The
-    helper, `_literal_sample_id_patterns(ids)`, sits beside
-    `_requalify_sample_ids`. Ordinary retries keep reading
-    `config.sample_id` unescaped, since that value is a user's pattern
-    selection.
-  - **Shuffle.** The retry passes `sample_shuffle=None`. A merged log
-    inherits the template shard's `config.sample_shuffle` ("Building the
-    merged log"), and a shard made with `limit` and `sample_shuffle` is
-    valid, but `eval_async` refuses `sample_id` combined with
-    `sample_shuffle` (`src/inspect_ai/_eval/eval.py:906-909`); the recorded
-    ids already fix the selection, so the shuffle has nothing to do.
-    Ordinary retries keep their shuffle behaviour.
-
-  A merged log with a count or no selection names no subset and is retried
-  over the dataset, as earlier revisions of this document already had it.
-  Version boundary: an Inspect version without this field drops
-  `eval.shards` on read and finds no `config.sample_id`, so its
-  `eval_retry` of an id-selected merged log runs the whole dataset.
-  Files: `_eval/eval.py` (PR 5).
+  **`eval_retry` of a merged log.** `eval_retry_async` re-launches a log's
+  task with the log's `config.sample_id` as its subset
+  (`src/inspect_ai/_eval/eval.py:1795`), which a merged log leaves unset.
+  Decision (this document): `eval_retry` of a merged log is supported only
+  for `selection == "none"`, whose selection is the whole dataset, so the
+  ordinary retry (the whole dataset, reusing prior records by `(id, epoch)`
+  under the existing stability checks, `src/inspect_ai/_eval/task/run.py:3625`)
+  runs exactly the right samples. For `"ids"` and `"count"` it raises
+  `ValueError` before any sample runs, naming the log and the ways to
+  finish the run: `eval_set()` over the directory with the same selection
+  (which seeds its retry from the merged log, "No recovery of merged
+  logs"), or re-running the incomplete shards and merging again. Why not
+  pass the recorded ids as the retry's subset: the retry selects with
+  patterns, not exact keys. `sample_id_filter` normalises digit strings to
+  integers and applies `fnmatch` (`src/inspect_ai/_eval/task/util.py:56`,
+  `src/inspect_ai/dataset/_util.py:25`), so `"01"` also selects `"1"`,
+  `"-1"` does not select the integer `-1`, wildcards and, on Windows, case
+  and separators change the match; and a shard made with `limit` and
+  `sample_shuffle` from a dataset without ids records ids assigned after
+  the shuffle (`src/inspect_ai/_eval/run.py:206`), which name different
+  samples in an unshuffled retry. A count names no ids at all. An exact
+  selection path for retries is listed under "Not this design". The check
+  is one branch at the top of the per-log loop in `eval_retry_async`, keyed
+  on `eval.shards`. Version boundary: an Inspect version without this field
+  drops `eval.shards` on read and so retries an id- or count-selected
+  merged log over the whole dataset, which may run samples outside the
+  selection. Files: `_eval/eval.py` (PR 5).
 - **`size`, `etag`, `mtime`** are what `FileInfo` carries
   (`src/inspect_ai/_util/file.py:195`); change detection compares ETags when
   both sides have one and `(size, mtime)` otherwise.
@@ -1504,9 +1500,10 @@ today.
   editing of merged logs is not supported). The merged log's members are
   the ordinary finished `.eval` members. Shard headers are unchanged.
   The merged header's only per-sample data is what an ordinary header
-  carries (`dataset.sample_ids`; `config.sample_id` is left unset). An
-  older Inspect's `eval_retry` of an id-selected merged log therefore runs
-  the whole dataset ("`eval_retry` of a merged log"). `.json` logs and chunked-shape samples are not supported as
+  carries (`dataset.sample_ids`; `config.sample_id` is left unset).
+- **`eval_retry` of a merged log** is refused unless its selection is the
+  whole dataset; an older Inspect retries any merged log over the whole
+  dataset ("`eval_retry` of a merged log"). `.json` logs and chunked-shape samples are not supported as
   shards, and neither are shards of a `SampleSource` task or shards whose
   header has no `dataset.sample_ids` (logs from Inspect versions that did
   not record it); the merge refuses them ("Validation").
@@ -1685,15 +1682,13 @@ Per PR (numbers from "Implementation plan"):
      `"1"`; a merged header of a 3-epoch, 100-sample set holds no
      per-sample list other than `dataset.sample_ids`: `config.sample_id` is
      unset, and its `header.json` is no larger than an unsharded log's of
-     the same selection plus a per-shard bound; `eval_retry` of an
-     id-selected merged log with a selected sample missing from it runs
-     only the selection's missing samples, including for dataset ids with
-     literal `[`/`]`, `*` and `?` (a dataset holding both `item[0]` and
-     `item0`, and `a*` beside `ab`, retries exactly the recorded ones), for
-     ids that begin with `<task>:`, and for a template shard made with
-     `limit` and `sample_shuffle` (the retry clears the shuffle and does
-     not raise); an ordinary retry of a `--sample-id` pattern log and of a
-     shuffled log behaves as before; a new attempt in `<k>/` with a
+     the same selection plus a per-shard bound; `eval_retry` of an incomplete
+     merged log with `selection` `"ids"` (including one whose template shard
+     used `limit` and `sample_shuffle`) and with `"count"` raises
+     `ValueError` naming the log and runs no sample, while one with
+     `"none"` retries the missing samples and reuses the merged records; an
+     ordinary retry of a `--sample-id` pattern log and of a shuffled log
+     behaves as before; a new attempt in `<k>/` with a
      different `--sample-id` is refused with both files named, and deleting
      `<name>.eval` then merges it; a new shard whose selection meets a
      carried record is refused; a changed shard whose merged records were
@@ -1882,7 +1877,7 @@ Step 1 in eight PRs, of which PR 1 has landed. There is no viewer PR
 5. **Merge core, public API and CLI.** `log/_shards/{_api,_plan,_write,
    _publish,_delete}.py` (`_plan.py` holds the member-name parser, the
    selection digest, attribution by id and the ledger checks), the
-   `eval_retry` branch for id-selected merged logs (`_eval/eval.py`), exports and
+   `eval_retry` refusal for id- and count-selected merged logs (`_eval/eval.py`), exports and
    the reference section, `inspect log
    merge-shards`, docs (a "Sharding" section in `docs/parallelism.qmd`
    covering the layout, the launcher's job (disjoint `--sample-id` or
@@ -1941,6 +1936,10 @@ same-host dead-pid check can be added if crashed merges turn out to happen.
   crash, if interrupted or concurrent deletions turn out to matter in
   practice.
 
+- An exact-key sample selection for `eval_retry` (and `--sample-id`
+  generally): the current selector matches normalised patterns, which is
+  why `eval_retry` refuses id- and count-selected merged logs
+  ("`eval_retry` of a merged log").
 - Chunked-shape samples in shards: refused in Step 1. Supporting them means
   copying every member under the sample's prefix and extracting scores from
   the shell member, once the recorder writes the shape.
