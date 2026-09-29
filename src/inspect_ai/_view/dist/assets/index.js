@@ -106095,6 +106095,7 @@ function hasDataDefault(node) {
 }
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/transform/toolSentinels.ts
+/** The span a sentinel's dispatch runs in; it holds the step's events and the model calls its monitors made. */ var isSentinelSpan = (node) => node.event.event === "span_begin" && node.event.type === "sentinel";
 var isFolded = (event) => event.kind === "bypassed" || event.kind === "superseded" || event.kind === "cancelled";
 var pathSegments = (path) => path === "" ? [] : path.split("/");
 /**
@@ -106123,12 +106124,27 @@ var compareKeys = (a, b) => {
 	}
 	return a.length - b.length;
 };
+var sameDecision = (a, b) => a.decision === b.decision && a.audit === b.audit && (a.explanation?.trim() || null) === (b.explanation?.trim() || null) && JSON.stringify(a.modified ?? null) === JSON.stringify(b.modified ?? null);
+/**
+* The root decision when it only repeats its single deciding child, e.g. the
+* implicit root that wraps a lone protocol, along with that child.
+*/ var redundantRoot = (shown) => {
+	const root = shown.find((n) => n.event.path === "" && n.event.kind === "decision");
+	const children = shown.filter((n) => n.event.kind === "decision" && pathSegments(n.event.path).length === 1);
+	const child = children.length === 1 ? children[0] : void 0;
+	return root && child && sameDecision(root.event, child.event) ? {
+		root,
+		child
+	} : void 0;
+};
 /**
 * Builds the rows for one step's events, given in recording order. Only
 * observations and decisions get rows; the rest fold onto the decision that
 * took effect, which the runner records last. A decision a later
-* `superseded` event names appears only in the fold.
-*/ function buildSentinelStep(nodes) {
+* `superseded` event names appears only in the fold. A root decision that
+* repeats its single deciding child is left out, and the child carries the
+* fold instead.
+*/ function buildSentinelStep(nodes, modelCalls = []) {
 	const first = nodes[0];
 	const reports = nodes.filter((n) => !isFolded(n.event));
 	const folded = nodes.filter((n) => isFolded(n.event));
@@ -106138,8 +106154,10 @@ var compareKeys = (a, b) => {
 		const at = nodes.indexOf(loser);
 		for (const report of reports) if (report.event.kind === "decision" && report.event.path === loser.event.path && report.event.function === loser.event.function && nodes.indexOf(report) < at) superseded.add(report);
 	}
-	const shown = reports.filter((n) => !superseded.has(n));
-	const effective = shown.findLast((n) => n.event.kind === "decision") ?? shown.at(-1);
+	const reported = reports.filter((n) => !superseded.has(n));
+	const redundant = redundantRoot(reported);
+	const shown = redundant ? reported.filter((n) => n !== redundant.root) : reported;
+	const effective = redundant?.child ?? shown.findLast((n) => n.event.kind === "decision") ?? shown.at(-1);
 	const effect = folded.some((n) => n.event.kind === "bypassed") ? "final" : "took effect";
 	const keys = pathOrderKeys(nodes);
 	const depthOf = (node) => pathSegments(node.event.path).length;
@@ -106157,7 +106175,8 @@ var compareKeys = (a, b) => {
 		stage: first?.event.stage ?? "tool_call",
 		stepId: first?.event.step_id ?? "",
 		rows,
-		folded: effective ? [] : folded
+		folded: effective ? [] : folded,
+		modelCalls
 	};
 }
 var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
@@ -106168,37 +106187,53 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 */ function pairToolSentinels(eventNodes) {
 	const toolNodeIdsByCallId = /* @__PURE__ */ new Map();
 	const steps = /* @__PURE__ */ new Map();
+	const spans = [];
 	const seen = /* @__PURE__ */ new Set();
-	const walk = (nodes) => {
+	const walk = (nodes, span) => {
 		for (const n of nodes) {
 			if (seen.has(n.id)) continue;
 			seen.add(n.id);
+			span?.members.push(n);
 			if (n.event.event === "tool" && !toolNodeIdsByCallId.has(n.event.id)) toolNodeIdsByCallId.set(n.event.id, n.id);
 			else if (n.event.event === "sentinel") {
 				const key = `${n.event.stage}\u0000${n.event.step_id}`;
 				const step = steps.get(key) ?? [];
 				step.push(eventNodeOf(n, "sentinel"));
 				steps.set(key, step);
+				if (span) span.stepKey ??= key;
+			} else if (span && n.event.event === "model") span.modelCalls.push(eventNodeOf(n, "model"));
+			let inner = span;
+			if (isSentinelSpan(n)) {
+				inner = {
+					node: n,
+					members: [],
+					modelCalls: []
+				};
+				spans.push(inner);
 			}
-			if (n.children.length) walk(n.children);
+			if (n.children.length) walk(n.children, inner);
 		}
 	};
-	walk(eventNodes);
+	walk(eventNodes, void 0);
+	const spansByStep = /* @__PURE__ */ new Map();
+	for (const span of spans) if (span.stepKey !== void 0 && !spansByStep.has(span.stepKey)) spansByStep.set(span.stepKey, span);
 	const toolSentinels = /* @__PURE__ */ new Map();
 	const standaloneSentinels = /* @__PURE__ */ new Map();
 	const hiddenSentinelIds = /* @__PURE__ */ new Set();
 	const sentinelScrollRedirects = /* @__PURE__ */ new Map();
-	for (const nodes of steps.values()) {
-		const step = buildSentinelStep(nodes);
+	for (const [key, nodes] of steps) {
+		const span = spansByStep.get(key);
+		const step = buildSentinelStep(nodes, span?.modelCalls);
 		const toolNodeId = kToolStages.has(step.stage) ? toolNodeIdsByCallId.get(step.stepId) : void 0;
-		const hostId = toolNodeId ?? nodes[0].id;
+		const hostId = toolNodeId ?? span?.node.id ?? nodes[0].id;
 		if (toolNodeId) {
 			const paired = toolSentinels.get(step.stepId) ?? {};
 			if (step.stage === "tool_call") paired.before = step;
 			else paired.after = step;
 			toolSentinels.set(step.stepId, paired);
 		} else standaloneSentinels.set(hostId, step);
-		for (const node of nodes) {
+		const hidden = span ? [span.node, ...span.members] : nodes;
+		for (const node of hidden) {
 			if (node.id === hostId) continue;
 			hiddenSentinelIds.add(node.id);
 			sentinelScrollRedirects.set(node.id, hostId);
@@ -111920,31 +111955,32 @@ var ScoreEventView = (t0) => {
 	return t25;
 };
 var SentinelEventView_module_default = {
-	step: "_step_1mwye_1",
-	entry: "_entry_1mwye_8",
-	row: "_row_1mwye_12",
-	icon: "_icon_1mwye_21",
-	label: "_label_1mwye_25",
-	factory: "_factory_1mwye_31",
-	value: "_value_1mwye_35",
-	badge: "_badge_1mwye_40",
-	observation: "_observation_1mwye_51",
-	decision: "_decision_1mwye_57",
-	muted: "_muted_1mwye_63",
-	audit: "_audit_1mwye_68",
-	alarming: "_alarming_1mwye_74",
-	cautious: "_cautious_1mwye_78",
-	modified: "_modified_1mwye_82",
-	explanation: "_explanation_1mwye_97",
-	clamp: "_clamp_1mwye_107",
-	moreToggle: "_moreToggle_1mwye_116",
-	effect: "_effect_1mwye_131",
-	folded: "_folded_1mwye_137",
-	foldedToggle: "_foldedToggle_1mwye_142",
-	chevron: "_chevron_1mwye_157",
-	foldedList: "_foldedList_1mwye_161",
-	foldedItem: "_foldedItem_1mwye_168",
-	foldedExplanation: "_foldedExplanation_1mwye_176"
+	step: "_step_1d7ur_1",
+	entry: "_entry_1d7ur_8",
+	row: "_row_1d7ur_12",
+	icon: "_icon_1d7ur_21",
+	label: "_label_1d7ur_25",
+	factory: "_factory_1d7ur_31",
+	value: "_value_1d7ur_35",
+	badge: "_badge_1d7ur_40",
+	observation: "_observation_1d7ur_51",
+	decision: "_decision_1d7ur_57",
+	muted: "_muted_1d7ur_63",
+	audit: "_audit_1d7ur_68",
+	alarming: "_alarming_1d7ur_74",
+	cautious: "_cautious_1d7ur_78",
+	modified: "_modified_1d7ur_82",
+	explanation: "_explanation_1d7ur_97",
+	clamp: "_clamp_1d7ur_107",
+	moreToggle: "_moreToggle_1d7ur_116",
+	effect: "_effect_1d7ur_131",
+	folded: "_folded_1d7ur_137",
+	foldedToggle: "_foldedToggle_1d7ur_142",
+	chevron: "_chevron_1d7ur_157",
+	foldedList: "_foldedList_1d7ur_161",
+	foldedItem: "_foldedItem_1d7ur_168",
+	foldedExplanation: "_foldedExplanation_1d7ur_176",
+	modelCalls: "_modelCalls_1d7ur_181"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SentinelEventView.tsx
@@ -111953,8 +111989,8 @@ var SentinelEventView_module_default = {
 * decision, nested by instance path. Bypassed, superseded and cancelled events
 * fold into a note on the decision that took effect.
 */ var SentinelStepView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(10);
-	const { step, className } = t0;
+	const $ = (0, import_compiler_runtime.c)(14);
+	const { step, context, className } = t0;
 	let t1;
 	if ($[0] !== className) {
 		t1 = clsx(SentinelEventView_module_default.step, "text-size-small", className);
@@ -111978,39 +112014,140 @@ var SentinelEventView_module_default = {
 		$[5] = t3;
 	} else t3 = $[5];
 	let t4;
-	if ($[6] !== t1 || $[7] !== t2 || $[8] !== t3) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	if ($[6] !== context || $[7] !== step.modelCalls) {
+		t4 = step.modelCalls[0] ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelCallsNote, {
+			id: step.modelCalls[0].id,
+			modelCalls: step.modelCalls,
+			context
+		}) : null;
+		$[6] = context;
+		$[7] = step.modelCalls;
+		$[8] = t4;
+	} else t4 = $[8];
+	let t5;
+	if ($[9] !== t1 || $[10] !== t2 || $[11] !== t3 || $[12] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t1,
-			children: [t2, t3]
+			children: [
+				t2,
+				t3,
+				t4
+			]
 		});
-		$[6] = t1;
-		$[7] = t2;
-		$[8] = t3;
-		$[9] = t4;
-	} else t4 = $[9];
-	return t4;
+		$[9] = t1;
+		$[10] = t2;
+		$[11] = t3;
+		$[12] = t4;
+		$[13] = t5;
+	} else t5 = $[13];
+	return t5;
+};
+/** The step's monitor model calls, collapsed to a count that expands to the model call views. */ var ModelCallsNote = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(22);
+	const { id, modelCalls, context } = t0;
+	const [collapsed, setCollapsed] = useCollapsedState(`${id}-sentinel-model-calls`, true);
+	const t1 = context?.retryAttempts;
+	let t2;
+	if ($[0] !== t1) {
+		t2 = { retryAttempts: t1 };
+		$[0] = t1;
+		$[1] = t2;
+	} else t2 = $[1];
+	const callContext = t2;
+	let t3;
+	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = clsx(SentinelEventView_module_default.foldedToggle, "text-style-secondary");
+		$[2] = t3;
+	} else t3 = $[2];
+	const t4 = !collapsed;
+	let t5;
+	if ($[3] !== collapsed || $[4] !== setCollapsed) {
+		t5 = () => setCollapsed(!collapsed);
+		$[3] = collapsed;
+		$[4] = setCollapsed;
+		$[5] = t5;
+	} else t5 = $[5];
+	const t6 = collapsed ? "bi bi-chevron-right" : "bi bi-chevron-down";
+	let t7;
+	if ($[6] !== t6) {
+		t7 = clsx(t6, SentinelEventView_module_default.chevron);
+		$[6] = t6;
+		$[7] = t7;
+	} else t7 = $[7];
+	let t8;
+	if ($[8] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: t7 });
+		$[8] = t7;
+		$[9] = t8;
+	} else t8 = $[9];
+	const t9 = `${modelCalls.length} monitor model call${modelCalls.length === 1 ? "" : "s"}`;
+	let t10;
+	if ($[10] !== t4 || $[11] !== t5 || $[12] !== t8 || $[13] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: t3,
+			"aria-expanded": t4,
+			onClick: t5,
+			children: [t8, t9]
+		});
+		$[10] = t4;
+		$[11] = t5;
+		$[12] = t8;
+		$[13] = t9;
+		$[14] = t10;
+	} else t10 = $[14];
+	let t11;
+	if ($[15] !== callContext || $[16] !== collapsed || $[17] !== modelCalls) {
+		t11 = collapsed ? null : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SentinelEventView_module_default.modelCalls,
+			children: modelCalls.map((node) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelEventView, {
+				eventNode: node,
+				showToolCalls: true,
+				context: callContext
+			}, node.id))
+		});
+		$[15] = callContext;
+		$[16] = collapsed;
+		$[17] = modelCalls;
+		$[18] = t11;
+	} else t11 = $[18];
+	let t12;
+	if ($[19] !== t10 || $[20] !== t11) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.folded,
+			children: [t10, t11]
+		});
+		$[19] = t10;
+		$[20] = t11;
+		$[21] = t12;
+	} else t12 = $[21];
+	return t12;
 };
 /** A step as an event row, shaped like the approval row it sits beside in a tool card. */ var SentinelStepRow = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(10);
-	const { step, eventNodeId, showStage, className } = t0;
+	const $ = (0, import_compiler_runtime.c)(11);
+	const { step, context, eventNodeId, showStage, className } = t0;
 	let t1;
-	if ($[0] !== step) {
-		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelStepView, { step });
-		$[0] = step;
-		$[1] = t1;
-	} else t1 = $[1];
+	if ($[0] !== context || $[1] !== step) {
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelStepView, {
+			step,
+			context
+		});
+		$[0] = context;
+		$[1] = step;
+		$[2] = t1;
+	} else t1 = $[2];
 	let t2;
-	if ($[2] !== showStage || $[3] !== step) {
+	if ($[3] !== showStage || $[4] !== step) {
 		t2 = showStage ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: "text-style-secondary",
 			children: stageLabels[step.stage]
 		}) : null;
-		$[2] = showStage;
-		$[3] = step;
-		$[4] = t2;
-	} else t2 = $[4];
+		$[3] = showStage;
+		$[4] = step;
+		$[5] = t2;
+	} else t2 = $[5];
 	let t3;
-	if ($[5] !== className || $[6] !== eventNodeId || $[7] !== t1 || $[8] !== t2) {
+	if ($[6] !== className || $[7] !== eventNodeId || $[8] !== t1 || $[9] !== t2) {
 		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventRow, {
 			eventNodeId,
 			title: "Sentinel",
@@ -112019,12 +112156,12 @@ var SentinelEventView_module_default = {
 			below: t1,
 			children: t2
 		});
-		$[5] = className;
-		$[6] = eventNodeId;
-		$[7] = t1;
-		$[8] = t2;
-		$[9] = t3;
-	} else t3 = $[9];
+		$[6] = className;
+		$[7] = eventNodeId;
+		$[8] = t1;
+		$[9] = t2;
+		$[10] = t3;
+	} else t3 = $[10];
 	return t3;
 };
 /** A sentinel step outside any tool panel, e.g. a model-stage step. */ var SentinelEventView = (t0) => {
@@ -115040,7 +115177,8 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 		className: ToolEventView_module_default.sentinel,
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelStepRow, {
 			step,
-			showStage: false
+			showStage: false,
+			context
 		})
 	}) : void 0;
 	const lastModelNode = (0, import_react.useMemo)(() => {
@@ -116097,6 +116235,7 @@ var removeNodeVisitor = (event) => {
 		return [node];
 	} };
 };
+/** Drops a sentinel's span with its contents; the monitor model calls in it are not agent turns. */ var removeSentinelSpanVisitor = () => ({ visit: (node) => isSentinelSpan(node) ? [] : [node] });
 var removeStepSpanNameVisitor = (name) => {
 	return { visit: (node) => {
 		if ((node.event.event === "step" || node.event.event === "span_begin") && node.event.name === name) return [];
@@ -116116,6 +116255,7 @@ var removeStepSpanNameVisitor = (name) => {
 	removeNodeVisitor("approval"),
 	removeNodeVisitor("review"),
 	removeNodeVisitor("sentinel"),
+	removeSentinelSpanVisitor(),
 	removeNodeVisitor("input"),
 	removeNodeVisitor("sandbox"),
 	removeStepSpanNameVisitor(kSandboxSignalName)
@@ -116350,15 +116490,18 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 */ function resolveEventTurnAnchor(flattenedNodes, eventId) {
 	const stack = [];
 	const lastAnchorByLane = /* @__PURE__ */ new Map();
+	let sentinelDepth;
 	for (const node of flattenedNodes) {
 		while (stack.length > 0 && node.depth <= stack[stack.length - 1].depth) stack.pop();
+		if (sentinelDepth !== void 0 && node.depth <= sentinelDepth) sentinelDepth = void 0;
 		const laneId = stack.length > 0 ? stack[stack.length - 1].laneId : null;
-		if (node.event.event === "model") lastAnchorByLane.set(laneId, node.id);
+		if (node.event.event === "model" && sentinelDepth === void 0) lastAnchorByLane.set(laneId, node.id);
 		if (node.id === eventId) return lastAnchorByLane.get(laneId);
 		if (agentBoundaryName(node) !== void 0) stack.push({
 			depth: node.depth,
 			laneId: node.id
 		});
+		if (sentinelDepth === void 0 && isSentinelSpan(node)) sentinelDepth = node.depth;
 	}
 }
 /** Events that close out a sample: they trail the last turn OUTSIDE every
@@ -116676,7 +116819,7 @@ function transcriptToolsRunning(eventNodes) {
 /**
 * Renders the event based on its type.
 */ var RenderedEventNodeInner = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(161);
+	const $ = (0, import_compiler_runtime.c)(169);
 	const { node, next, className, context, onAutoCollapse, renderAgentCard, eventCallbacks } = t0;
 	const selectRow = useTimelineRowSelect();
 	switch (node.event.event) {
@@ -116937,154 +117080,155 @@ function transcriptToolsRunning(eventNodes) {
 				} else t3 = $[68];
 				return t3;
 			}
-			if (node.event.type === "empty_branch") {
-				let t1;
-				if ($[69] !== node) {
-					t1 = eventNodeOf(node, "span_begin");
-					$[69] = node;
-					$[70] = t1;
-				} else t1 = $[70];
+			let t1;
+			if ($[69] !== context?.standaloneSentinels || $[70] !== node.id) {
+				t1 = context?.standaloneSentinels?.get(node.id);
+				$[69] = context?.standaloneSentinels;
+				$[70] = node.id;
+				$[71] = t1;
+			} else t1 = $[71];
+			const sentinelStep = t1;
+			if (sentinelStep) {
 				let t2;
-				if ($[71] !== className || $[72] !== t1) {
-					t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyBranchView, {
-						eventNode: t1,
+				if ($[72] !== className || $[73] !== context || $[74] !== node.id || $[75] !== sentinelStep) {
+					t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelStepRow, {
+						step: sentinelStep,
+						eventNodeId: node.id,
+						showStage: true,
+						context,
 						className
 					});
-					$[71] = className;
-					$[72] = t1;
-					$[73] = t2;
-				} else t2 = $[73];
+					$[72] = className;
+					$[73] = context;
+					$[74] = node.id;
+					$[75] = sentinelStep;
+					$[76] = t2;
+				} else t2 = $[76];
 				return t2;
+			}
+			if (node.event.type === "empty_branch") {
+				let t2;
+				if ($[77] !== node) {
+					t2 = eventNodeOf(node, "span_begin");
+					$[77] = node;
+					$[78] = t2;
+				} else t2 = $[78];
+				let t3;
+				if ($[79] !== className || $[80] !== t2) {
+					t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyBranchView, {
+						eventNode: t2,
+						className
+					});
+					$[79] = className;
+					$[80] = t2;
+					$[81] = t3;
+				} else t3 = $[81];
+				return t3;
 			}
 			if (renderAgentCard && node.sourceSpan) {
 				const spanType = node.sourceSpan.spanType;
 				if (spanType === "agent" || spanType === "branch") {
-					let t1;
-					if ($[74] !== className || $[75] !== node || $[76] !== renderAgentCard) {
-						t1 = renderAgentCard(node, className);
-						$[74] = className;
-						$[75] = node;
-						$[76] = renderAgentCard;
-						$[77] = t1;
-					} else t1 = $[77];
 					let t2;
-					if ($[78] !== t1) {
-						t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: t1 });
-						$[78] = t1;
-						$[79] = t2;
-					} else t2 = $[79];
-					return t2;
+					if ($[82] !== className || $[83] !== node || $[84] !== renderAgentCard) {
+						t2 = renderAgentCard(node, className);
+						$[82] = className;
+						$[83] = node;
+						$[84] = renderAgentCard;
+						$[85] = t2;
+					} else t2 = $[85];
+					let t3;
+					if ($[86] !== t2) {
+						t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: t2 });
+						$[86] = t2;
+						$[87] = t3;
+					} else t3 = $[87];
+					return t3;
 				}
 			}
-			let t1;
-			if ($[80] !== node) {
-				t1 = eventNodeOf(node, "span_begin");
-				$[80] = node;
-				$[81] = t1;
-			} else t1 = $[81];
 			let t2;
-			if ($[82] !== className || $[83] !== eventCallbacks || $[84] !== node.children || $[85] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SpanEventView, {
-					eventNode: t1,
+			if ($[88] !== node) {
+				t2 = eventNodeOf(node, "span_begin");
+				$[88] = node;
+				$[89] = t2;
+			} else t2 = $[89];
+			let t3;
+			if ($[90] !== className || $[91] !== eventCallbacks || $[92] !== node.children || $[93] !== t2) {
+				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SpanEventView, {
+					eventNode: t2,
 					childNodes: node.children,
 					className,
 					eventCallbacks
 				});
-				$[82] = className;
-				$[83] = eventCallbacks;
-				$[84] = node.children;
-				$[85] = t1;
-				$[86] = t2;
-			} else t2 = $[86];
-			return t2;
+				$[90] = className;
+				$[91] = eventCallbacks;
+				$[92] = node.children;
+				$[93] = t2;
+				$[94] = t3;
+			} else t3 = $[94];
+			return t3;
 		}
 		case "step": {
 			let t1;
-			if ($[87] !== node) {
+			if ($[95] !== node) {
 				t1 = eventNodeOf(node, "step");
-				$[87] = node;
-				$[88] = t1;
-			} else t1 = $[88];
+				$[95] = node;
+				$[96] = t1;
+			} else t1 = $[96];
 			let t2;
-			if ($[89] !== className || $[90] !== eventCallbacks || $[91] !== node.children || $[92] !== t1) {
+			if ($[97] !== className || $[98] !== eventCallbacks || $[99] !== node.children || $[100] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SpanEventView, {
 					eventNode: t1,
 					childNodes: node.children,
 					className,
 					eventCallbacks
 				});
-				$[89] = className;
-				$[90] = eventCallbacks;
-				$[91] = node.children;
-				$[92] = t1;
-				$[93] = t2;
-			} else t2 = $[93];
+				$[97] = className;
+				$[98] = eventCallbacks;
+				$[99] = node.children;
+				$[100] = t1;
+				$[101] = t2;
+			} else t2 = $[101];
 			return t2;
 		}
 		case "store": {
 			let t1;
-			if ($[94] !== node) {
+			if ($[102] !== node) {
 				t1 = eventNodeOf(node, "store");
-				$[94] = node;
-				$[95] = t1;
-			} else t1 = $[95];
+				$[102] = node;
+				$[103] = t1;
+			} else t1 = $[103];
 			let t2;
-			if ($[96] !== className || $[97] !== eventCallbacks || $[98] !== onAutoCollapse || $[99] !== t1) {
+			if ($[104] !== className || $[105] !== eventCallbacks || $[106] !== onAutoCollapse || $[107] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StateEventView, {
 					eventNode: t1,
 					className,
 					onAutoCollapse,
 					eventCallbacks
 				});
-				$[96] = className;
-				$[97] = eventCallbacks;
-				$[98] = onAutoCollapse;
-				$[99] = t1;
-				$[100] = t2;
-			} else t2 = $[100];
+				$[104] = className;
+				$[105] = eventCallbacks;
+				$[106] = onAutoCollapse;
+				$[107] = t1;
+				$[108] = t2;
+			} else t2 = $[108];
 			return t2;
 		}
 		case "subtask": {
 			let t1;
-			if ($[101] !== node) {
+			if ($[109] !== node) {
 				t1 = eventNodeOf(node, "subtask");
-				$[101] = node;
-				$[102] = t1;
-			} else t1 = $[102];
+				$[109] = node;
+				$[110] = t1;
+			} else t1 = $[110];
 			let t2;
-			if ($[103] !== className || $[104] !== eventCallbacks || $[105] !== node.children || $[106] !== t1) {
+			if ($[111] !== className || $[112] !== eventCallbacks || $[113] !== node.children || $[114] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SubtaskEventView, {
 					eventNode: t1,
 					className,
 					childNodes: node.children,
 					eventCallbacks
 				});
-				$[103] = className;
-				$[104] = eventCallbacks;
-				$[105] = node.children;
-				$[106] = t1;
-				$[107] = t2;
-			} else t2 = $[107];
-			return t2;
-		}
-		case "tool": {
-			let t1;
-			if ($[108] !== node) {
-				t1 = eventNodeOf(node, "tool");
-				$[108] = node;
-				$[109] = t1;
-			} else t1 = $[109];
-			let t2;
-			if ($[110] !== className || $[111] !== context || $[112] !== eventCallbacks || $[113] !== node.children || $[114] !== t1) {
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolEventView, {
-					eventNode: t1,
-					className,
-					childNodes: node.children,
-					context,
-					eventCallbacks
-				});
-				$[110] = className;
-				$[111] = context;
+				$[111] = className;
 				$[112] = eventCallbacks;
 				$[113] = node.children;
 				$[114] = t1;
@@ -117092,167 +117236,192 @@ function transcriptToolsRunning(eventNodes) {
 			} else t2 = $[115];
 			return t2;
 		}
-		case "input": {
+		case "tool": {
 			let t1;
 			if ($[116] !== node) {
-				t1 = eventNodeOf(node, "input");
+				t1 = eventNodeOf(node, "tool");
 				$[116] = node;
 				$[117] = t1;
 			} else t1 = $[117];
 			let t2;
-			if ($[118] !== className || $[119] !== t1) {
+			if ($[118] !== className || $[119] !== context || $[120] !== eventCallbacks || $[121] !== node.children || $[122] !== t1) {
+				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolEventView, {
+					eventNode: t1,
+					className,
+					childNodes: node.children,
+					context,
+					eventCallbacks
+				});
+				$[118] = className;
+				$[119] = context;
+				$[120] = eventCallbacks;
+				$[121] = node.children;
+				$[122] = t1;
+				$[123] = t2;
+			} else t2 = $[123];
+			return t2;
+		}
+		case "input": {
+			let t1;
+			if ($[124] !== node) {
+				t1 = eventNodeOf(node, "input");
+				$[124] = node;
+				$[125] = t1;
+			} else t1 = $[125];
+			let t2;
+			if ($[126] !== className || $[127] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InputEventView, {
 					eventNode: t1,
 					className
 				});
-				$[118] = className;
-				$[119] = t1;
-				$[120] = t2;
-			} else t2 = $[120];
+				$[126] = className;
+				$[127] = t1;
+				$[128] = t2;
+			} else t2 = $[128];
 			return t2;
 		}
 		case "interrupt": {
 			let t1;
-			if ($[121] !== node) {
+			if ($[129] !== node) {
 				t1 = eventNodeOf(node, "interrupt");
-				$[121] = node;
-				$[122] = t1;
-			} else t1 = $[122];
+				$[129] = node;
+				$[130] = t1;
+			} else t1 = $[130];
 			let t2;
-			if ($[123] !== className || $[124] !== t1) {
+			if ($[131] !== className || $[132] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InterruptEventView, {
 					eventNode: t1,
 					className
 				});
-				$[123] = className;
-				$[124] = t1;
-				$[125] = t2;
-			} else t2 = $[125];
+				$[131] = className;
+				$[132] = t1;
+				$[133] = t2;
+			} else t2 = $[133];
 			return t2;
 		}
 		case "error": {
 			let t1;
-			if ($[126] !== node) {
+			if ($[134] !== node) {
 				t1 = eventNodeOf(node, "error");
-				$[126] = node;
-				$[127] = t1;
-			} else t1 = $[127];
+				$[134] = node;
+				$[135] = t1;
+			} else t1 = $[135];
 			let t2;
-			if ($[128] !== className || $[129] !== t1) {
+			if ($[136] !== className || $[137] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ErrorEventView, {
 					eventNode: t1,
 					className
 				});
-				$[128] = className;
-				$[129] = t1;
-				$[130] = t2;
-			} else t2 = $[130];
+				$[136] = className;
+				$[137] = t1;
+				$[138] = t2;
+			} else t2 = $[138];
 			return t2;
 		}
 		case "approval": {
 			let t1;
-			if ($[131] !== node) {
+			if ($[139] !== node) {
 				t1 = eventNodeOf(node, "approval");
-				$[131] = node;
-				$[132] = t1;
-			} else t1 = $[132];
+				$[139] = node;
+				$[140] = t1;
+			} else t1 = $[140];
 			let t2;
-			if ($[133] !== className || $[134] !== t1) {
+			if ($[141] !== className || $[142] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalEventView, {
 					eventNode: t1,
 					className
 				});
-				$[133] = className;
-				$[134] = t1;
-				$[135] = t2;
-			} else t2 = $[135];
+				$[141] = className;
+				$[142] = t1;
+				$[143] = t2;
+			} else t2 = $[143];
 			return t2;
 		}
 		case "review": {
 			let t1;
-			if ($[136] !== node) {
+			if ($[144] !== node) {
 				t1 = eventNodeOf(node, "review");
-				$[136] = node;
-				$[137] = t1;
-			} else t1 = $[137];
+				$[144] = node;
+				$[145] = t1;
+			} else t1 = $[145];
 			let t2;
-			if ($[138] !== className || $[139] !== t1) {
+			if ($[146] !== className || $[147] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ReviewEventView, {
 					eventNode: t1,
-					className
-				});
-				$[138] = className;
-				$[139] = t1;
-				$[140] = t2;
-			} else t2 = $[140];
-			return t2;
-		}
-		case "sentinel": {
-			let t1;
-			if ($[141] !== node) {
-				t1 = eventNodeOf(node, "sentinel");
-				$[141] = node;
-				$[142] = t1;
-			} else t1 = $[142];
-			let t2;
-			if ($[143] !== context?.standaloneSentinels || $[144] !== node.id) {
-				t2 = context?.standaloneSentinels?.get(node.id);
-				$[143] = context?.standaloneSentinels;
-				$[144] = node.id;
-				$[145] = t2;
-			} else t2 = $[145];
-			let t3;
-			if ($[146] !== className || $[147] !== t1 || $[148] !== t2) {
-				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelEventView, {
-					eventNode: t1,
-					step: t2,
 					className
 				});
 				$[146] = className;
 				$[147] = t1;
 				$[148] = t2;
-				$[149] = t3;
-			} else t3 = $[149];
+			} else t2 = $[148];
+			return t2;
+		}
+		case "sentinel": {
+			let t1;
+			if ($[149] !== node) {
+				t1 = eventNodeOf(node, "sentinel");
+				$[149] = node;
+				$[150] = t1;
+			} else t1 = $[150];
+			let t2;
+			if ($[151] !== context?.standaloneSentinels || $[152] !== node.id) {
+				t2 = context?.standaloneSentinels?.get(node.id);
+				$[151] = context?.standaloneSentinels;
+				$[152] = node.id;
+				$[153] = t2;
+			} else t2 = $[153];
+			let t3;
+			if ($[154] !== className || $[155] !== t1 || $[156] !== t2) {
+				t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelEventView, {
+					eventNode: t1,
+					step: t2,
+					className
+				});
+				$[154] = className;
+				$[155] = t1;
+				$[156] = t2;
+				$[157] = t3;
+			} else t3 = $[157];
 			return t3;
 		}
 		case "sandbox": {
 			let t1;
-			if ($[150] !== node) {
+			if ($[158] !== node) {
 				t1 = eventNodeOf(node, "sandbox");
-				$[150] = node;
-				$[151] = t1;
-			} else t1 = $[151];
+				$[158] = node;
+				$[159] = t1;
+			} else t1 = $[159];
 			let t2;
-			if ($[152] !== className || $[153] !== t1) {
+			if ($[160] !== className || $[161] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SandboxEventView, {
 					eventNode: t1,
 					className
 				});
-				$[152] = className;
-				$[153] = t1;
-				$[154] = t2;
-			} else t2 = $[154];
+				$[160] = className;
+				$[161] = t1;
+				$[162] = t2;
+			} else t2 = $[162];
 			return t2;
 		}
 		case "checkpoint": {
 			let t1;
-			if ($[155] !== node) {
+			if ($[163] !== node) {
 				t1 = eventNodeOf(node, "checkpoint");
-				$[155] = node;
-				$[156] = t1;
-			} else t1 = $[156];
+				$[163] = node;
+				$[164] = t1;
+			} else t1 = $[164];
 			let t2;
-			if ($[157] !== className || $[158] !== eventCallbacks || $[159] !== t1) {
+			if ($[165] !== className || $[166] !== eventCallbacks || $[167] !== t1) {
 				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckpointEventView, {
 					eventNode: t1,
 					className,
 					eventCallbacks
 				});
-				$[157] = className;
-				$[158] = eventCallbacks;
-				$[159] = t1;
-				$[160] = t2;
-			} else t2 = $[160];
+				$[165] = className;
+				$[166] = eventCallbacks;
+				$[167] = t1;
+				$[168] = t2;
+			} else t2 = $[168];
 			return t2;
 		}
 		default: return null;
@@ -117962,7 +118131,7 @@ var PRIORITY_MODEL_INPUT = 4;
 * → `useEventNodes`) so "turn N/M" always agrees with the transcript view of
 * that swimlane.
 */ function useFocusTurnNavigation(eventNodes, eventId, tab, setParams, defaultCollapsedIds, laneScope, options) {
-	const $ = (0, import_compiler_runtime.c)(119);
+	const $ = (0, import_compiler_runtime.c)(124);
 	const scrollRef = (0, import_react.useRef)(null);
 	const listHandle = (0, import_react.useRef)(null);
 	let t0;
@@ -118003,91 +118172,105 @@ var PRIORITY_MODEL_INPUT = 4;
 		$[12] = t4;
 	} else t4 = $[12];
 	const resolvedEventId = t4;
-	let standaloneSentinels;
 	let t5;
-	let toolSentinels;
-	if ($[13] !== flat || $[14] !== resolvedEventId) {
-		const nodes = resolvedEventId ? focusedTurnNodes(flat, resolvedEventId) : [];
-		const { toolSentinels: t6, standaloneSentinels: t7, hiddenSentinelIds } = pairToolSentinels(nodes);
-		toolSentinels = t6;
-		standaloneSentinels = t7;
-		t5 = nodes.filter((n) => !hiddenSentinelIds.has(n.id));
+	if ($[13] !== flat) {
+		t5 = pairToolSentinels(flat);
 		$[13] = flat;
-		$[14] = resolvedEventId;
-		$[15] = standaloneSentinels;
-		$[16] = t5;
-		$[17] = toolSentinels;
-	} else {
-		standaloneSentinels = $[15];
-		t5 = $[16];
-		toolSentinels = $[17];
-	}
+		$[14] = t5;
+	} else t5 = $[14];
+	const pairing = t5;
+	let standaloneSentinels;
 	let t6;
-	if ($[18] !== standaloneSentinels || $[19] !== toolSentinels) {
-		t6 = {
+	let toolSentinels;
+	if ($[15] !== flat || $[16] !== pairing || $[17] !== resolvedEventId) {
+		const nodes = resolvedEventId ? focusedTurnNodes(flat, resolvedEventId) : [];
+		const { toolSentinels: t7, standaloneSentinels: t8, hiddenSentinelIds } = pairing;
+		toolSentinels = t7;
+		standaloneSentinels = t8;
+		let t9;
+		if ($[21] !== hiddenSentinelIds) {
+			t9 = (n) => !hiddenSentinelIds.has(n.id);
+			$[21] = hiddenSentinelIds;
+			$[22] = t9;
+		} else t9 = $[22];
+		t6 = nodes.filter(t9);
+		$[15] = flat;
+		$[16] = pairing;
+		$[17] = resolvedEventId;
+		$[18] = standaloneSentinels;
+		$[19] = t6;
+		$[20] = toolSentinels;
+	} else {
+		standaloneSentinels = $[18];
+		t6 = $[19];
+		toolSentinels = $[20];
+	}
+	let t7;
+	if ($[23] !== standaloneSentinels || $[24] !== toolSentinels) {
+		t7 = {
 			toolSentinels,
 			standaloneSentinels
 		};
-		$[18] = standaloneSentinels;
-		$[19] = toolSentinels;
-		$[20] = t6;
-	} else t6 = $[20];
-	let t7;
-	if ($[21] !== t5 || $[22] !== t6) {
-		t7 = {
-			slice: t5,
-			sentinels: t6
-		};
-		$[21] = t5;
-		$[22] = t6;
-		$[23] = t7;
-	} else t7 = $[23];
-	const { slice, sentinels } = t7;
+		$[23] = standaloneSentinels;
+		$[24] = toolSentinels;
+		$[25] = t7;
+	} else t7 = $[25];
 	let t8;
-	let turnInfo;
-	if ($[24] !== anchorIds || $[25] !== resolvedEventId || $[26] !== turnMap) {
-		turnInfo = resolvedEventId ? turnMap.get(resolvedEventId) : void 0;
-		t8 = turnInfo ? anchorIndexForTurn(anchorIds, turnMap, turnInfo.turnNumber) : -1;
-		$[24] = anchorIds;
-		$[25] = resolvedEventId;
-		$[26] = turnMap;
-		$[27] = t8;
-		$[28] = turnInfo;
-	} else {
-		t8 = $[27];
-		turnInfo = $[28];
-	}
-	const turnIndex = t8;
+	if ($[26] !== t6 || $[27] !== t7) {
+		t8 = {
+			slice: t6,
+			sentinels: t7
+		};
+		$[26] = t6;
+		$[27] = t7;
+		$[28] = t8;
+	} else t8 = $[28];
+	const { slice, sentinels } = t8;
 	let t9;
-	if ($[29] !== anchorIds[0] || $[30] !== anchorIds.length || $[31] !== turnMap) {
-		t9 = (anchorIds[0] ? turnMap.get(anchorIds[0])?.totalTurns : void 0) ?? anchorIds.length;
-		$[29] = anchorIds[0];
-		$[30] = anchorIds.length;
+	let turnInfo;
+	if ($[29] !== anchorIds || $[30] !== resolvedEventId || $[31] !== turnMap) {
+		turnInfo = resolvedEventId ? turnMap.get(resolvedEventId) : void 0;
+		t9 = turnInfo ? anchorIndexForTurn(anchorIds, turnMap, turnInfo.turnNumber) : -1;
+		$[29] = anchorIds;
+		$[30] = resolvedEventId;
 		$[31] = turnMap;
 		$[32] = t9;
-	} else t9 = $[32];
-	const totalTurns = t9;
+		$[33] = turnInfo;
+	} else {
+		t9 = $[32];
+		turnInfo = $[33];
+	}
+	const turnIndex = t9;
+	let t10;
+	if ($[34] !== anchorIds[0] || $[35] !== anchorIds.length || $[36] !== turnMap) {
+		t10 = (anchorIds[0] ? turnMap.get(anchorIds[0])?.totalTurns : void 0) ?? anchorIds.length;
+		$[34] = anchorIds[0];
+		$[35] = anchorIds.length;
+		$[36] = turnMap;
+		$[37] = t10;
+	} else t10 = $[37];
+	const totalTurns = t10;
 	const running = !!options?.running;
 	const following = !!options?.following;
 	const followingRef = (0, import_react.useRef)(following);
-	let t10;
 	let t11;
-	if ($[33] !== following) {
-		t10 = () => {
+	let t12;
+	if ($[38] !== following) {
+		t11 = () => {
 			followingRef.current = following;
 		};
-		t11 = [following];
-		$[33] = following;
-		$[34] = t10;
-		$[35] = t11;
+		t12 = [following];
+		$[38] = following;
+		$[39] = t11;
+		$[40] = t12;
 	} else {
-		t10 = $[34];
-		t11 = $[35];
+		t11 = $[39];
+		t12 = $[40];
 	}
-	(0, import_react.useEffect)(t10, t11);
-	let t12;
-	if ($[36] !== anchorIds || $[37] !== running || $[38] !== setParams || $[39] !== turnIndex) {
-		t12 = (delta) => {
+	(0, import_react.useEffect)(t11, t12);
+	let t13;
+	if ($[41] !== anchorIds || $[42] !== running || $[43] !== setParams || $[44] !== turnIndex) {
+		t13 = (delta) => {
 			const isFollowing = followingRef.current;
 			const next = anchorIds[turnIndex + delta];
 			if (delta === 1 && next === void 0 && running && !isFollowing) {
@@ -118108,32 +118291,32 @@ var PRIORITY_MODEL_INPUT = 4;
 				follow: null
 			} : { event: next });
 		};
-		$[36] = anchorIds;
-		$[37] = running;
-		$[38] = setParams;
-		$[39] = turnIndex;
-		$[40] = t12;
-	} else t12 = $[40];
-	const stepTurn = t12;
-	let t13;
-	if ($[41] !== stepTurn) {
-		t13 = () => stepTurn(-1);
-		$[41] = stepTurn;
-		$[42] = t13;
-	} else t13 = $[42];
-	const onPrev = t13;
+		$[41] = anchorIds;
+		$[42] = running;
+		$[43] = setParams;
+		$[44] = turnIndex;
+		$[45] = t13;
+	} else t13 = $[45];
+	const stepTurn = t13;
 	let t14;
-	if ($[43] !== stepTurn) {
-		t14 = () => stepTurn(1);
-		$[43] = stepTurn;
-		$[44] = t14;
-	} else t14 = $[44];
-	const onNext = t14;
+	if ($[46] !== stepTurn) {
+		t14 = () => stepTurn(-1);
+		$[46] = stepTurn;
+		$[47] = t14;
+	} else t14 = $[47];
+	const onPrev = t14;
+	let t15;
+	if ($[48] !== stepTurn) {
+		t15 = () => stepTurn(1);
+		$[48] = stepTurn;
+		$[49] = t15;
+	} else t15 = $[49];
+	const onNext = t15;
 	const canStepNext = turnIndex !== -1 && anchorIds[turnIndex + 1] !== void 0 || anchorIds[turnIndex + 1] === void 0 && running && !following;
 	const canStepPrev = turnIndex !== -1 && anchorIds[turnIndex - 1] !== void 0 || anchorIds[turnIndex - 1] === void 0 && following;
-	let t15;
-	if ($[45] !== anchorIds || $[46] !== following || $[47] !== setParams || $[48] !== turnMap) {
-		t15 = (turnNumber) => {
+	let t16;
+	if ($[50] !== anchorIds || $[51] !== following || $[52] !== setParams || $[53] !== turnMap) {
+		t16 = (turnNumber) => {
 			if (anchorIds.length === 0) return;
 			const anchor = anchorIds[anchorIndexForTurn(anchorIds, turnMap, turnNumber)];
 			if (anchor !== void 0) setParams(following ? {
@@ -118142,207 +118325,207 @@ var PRIORITY_MODEL_INPUT = 4;
 			} : { event: anchor });
 			else if (following) setParams({ follow: null });
 		};
-		$[45] = anchorIds;
-		$[46] = following;
-		$[47] = setParams;
-		$[48] = turnMap;
-		$[49] = t15;
-	} else t15 = $[49];
-	const goToTurn = t15;
-	let t16;
-	if ($[50] !== laneScope?.lanes) {
-		t16 = laneScope?.lanes ?? [];
-		$[50] = laneScope?.lanes;
-		$[51] = t16;
-	} else t16 = $[51];
-	const lanes = t16;
-	const laneIndex = laneScope?.laneIndex ?? 0;
+		$[50] = anchorIds;
+		$[51] = following;
+		$[52] = setParams;
+		$[53] = turnMap;
+		$[54] = t16;
+	} else t16 = $[54];
+	const goToTurn = t16;
 	let t17;
-	if ($[52] !== following || $[53] !== setParams) {
-		t17 = (lane) => {
+	if ($[55] !== laneScope?.lanes) {
+		t17 = laneScope?.lanes ?? [];
+		$[55] = laneScope?.lanes;
+		$[56] = t17;
+	} else t17 = $[56];
+	const lanes = t17;
+	const laneIndex = laneScope?.laneIndex ?? 0;
+	let t18;
+	if ($[57] !== following || $[58] !== setParams) {
+		t18 = (lane) => {
 			if (!lane?.firstAnchorId) return;
 			setParams(following ? {
 				event: lane.firstAnchorId,
 				follow: null
 			} : { event: lane.firstAnchorId });
 		};
-		$[52] = following;
-		$[53] = setParams;
-		$[54] = t17;
-	} else t17 = $[54];
-	const goToLane = t17;
-	let t18;
-	if ($[55] !== laneIndex || $[56] !== lanes) {
-		t18 = (delta_0) => {
+		$[57] = following;
+		$[58] = setParams;
+		$[59] = t18;
+	} else t18 = $[59];
+	const goToLane = t18;
+	let t19;
+	if ($[60] !== laneIndex || $[61] !== lanes) {
+		t19 = (delta_0) => {
 			for (let i = laneIndex + delta_0; i >= 0 && i < lanes.length; i = i + delta_0) if (lanes[i]?.firstAnchorId) return lanes[i];
 		};
-		$[55] = laneIndex;
-		$[56] = lanes;
-		$[57] = t18;
-	} else t18 = $[57];
-	const nextLane = t18;
-	let t19;
-	if ($[58] !== goToLane || $[59] !== nextLane) {
-		t19 = () => goToLane(nextLane(-1));
-		$[58] = goToLane;
-		$[59] = nextLane;
-		$[60] = t19;
-	} else t19 = $[60];
-	const onPrevAgent = t19;
+		$[60] = laneIndex;
+		$[61] = lanes;
+		$[62] = t19;
+	} else t19 = $[62];
+	const nextLane = t19;
 	let t20;
-	if ($[61] !== goToLane || $[62] !== nextLane) {
-		t20 = () => goToLane(nextLane(1));
-		$[61] = goToLane;
-		$[62] = nextLane;
-		$[63] = t20;
-	} else t20 = $[63];
-	const onNextAgent = t20;
+	if ($[63] !== goToLane || $[64] !== nextLane) {
+		t20 = () => goToLane(nextLane(-1));
+		$[63] = goToLane;
+		$[64] = nextLane;
+		$[65] = t20;
+	} else t20 = $[65];
+	const onPrevAgent = t20;
 	let t21;
+	if ($[66] !== goToLane || $[67] !== nextLane) {
+		t21 = () => goToLane(nextLane(1));
+		$[66] = goToLane;
+		$[67] = nextLane;
+		$[68] = t21;
+	} else t21 = $[68];
+	const onNextAgent = t21;
+	let t22;
 	bb0: {
-		let t22;
-		if ($[64] !== laneScope?.lanePath) {
-			t22 = laneScope?.lanePath ?? [];
-			$[64] = laneScope?.lanePath;
-			$[65] = t22;
-		} else t22 = $[65];
-		const path = t22;
+		let t23;
+		if ($[69] !== laneScope?.lanePath) {
+			t23 = laneScope?.lanePath ?? [];
+			$[69] = laneScope?.lanePath;
+			$[70] = t23;
+		} else t23 = $[70];
+		const path = t23;
 		if (path.length === 0) {
-			let t23;
-			if ($[66] === Symbol.for("react.memo_cache_sentinel")) {
-				t23 = [{ label: "main" }];
-				$[66] = t23;
-			} else t23 = $[66];
-			t21 = t23;
+			let t24;
+			if ($[71] === Symbol.for("react.memo_cache_sentinel")) {
+				t24 = [{ label: "main" }];
+				$[71] = t24;
+			} else t24 = $[71];
+			t22 = t24;
 			break bb0;
 		}
-		let t23;
-		if ($[67] !== goToLane || $[68] !== path) {
-			let t24;
-			if ($[70] !== goToLane || $[71] !== path.length) {
-				t24 = (lane_0, i_0) => {
+		let t24;
+		if ($[72] !== goToLane || $[73] !== path) {
+			let t25;
+			if ($[75] !== goToLane || $[76] !== path.length) {
+				t25 = (lane_0, i_0) => {
 					return !(i_0 === path.length - 1) && lane_0.firstAnchorId ? {
 						label: lane_0.label,
 						onSelect: () => goToLane(lane_0)
 					} : { label: lane_0.label };
 				};
-				$[70] = goToLane;
-				$[71] = path.length;
-				$[72] = t24;
-			} else t24 = $[72];
-			t23 = path.map(t24);
-			$[67] = goToLane;
-			$[68] = path;
-			$[69] = t23;
-		} else t23 = $[69];
-		t21 = t23;
+				$[75] = goToLane;
+				$[76] = path.length;
+				$[77] = t25;
+			} else t25 = $[77];
+			t24 = path.map(t25);
+			$[72] = goToLane;
+			$[73] = path;
+			$[74] = t24;
+		} else t24 = $[74];
+		t22 = t24;
 	}
-	const laneCrumbs = t21;
-	let t22;
-	if ($[73] !== goToLane || $[74] !== lanes) {
-		let t23;
-		if ($[76] !== goToLane) {
-			t23 = (lane_2) => ({
+	const laneCrumbs = t22;
+	let t23;
+	if ($[78] !== goToLane || $[79] !== lanes) {
+		let t24;
+		if ($[81] !== goToLane) {
+			t24 = (lane_2) => ({
 				label: lane_2.label,
 				depth: lane_2.depth,
 				isCurrent: lane_2.isCurrent,
 				onSelect: () => goToLane(lane_2)
 			});
-			$[76] = goToLane;
-			$[77] = t23;
-		} else t23 = $[77];
-		t22 = lanes.filter(_temp$50).map(t23);
-		$[73] = goToLane;
-		$[74] = lanes;
-		$[75] = t22;
-	} else t22 = $[75];
-	const laneOptions = t22;
-	let t23;
-	if ($[78] !== goToTurn) {
-		t23 = () => goToTurn(1);
-		$[78] = goToTurn;
-		$[79] = t23;
-	} else t23 = $[79];
-	const onFirst = t23;
+			$[81] = goToLane;
+			$[82] = t24;
+		} else t24 = $[82];
+		t23 = lanes.filter(_temp$50).map(t24);
+		$[78] = goToLane;
+		$[79] = lanes;
+		$[80] = t23;
+	} else t23 = $[80];
+	const laneOptions = t23;
 	let t24;
-	if ($[80] !== goToTurn || $[81] !== totalTurns) {
-		t24 = () => goToTurn(totalTurns);
-		$[80] = goToTurn;
-		$[81] = totalTurns;
-		$[82] = t24;
-	} else t24 = $[82];
-	const onLast = t24;
-	const t25 = lanes.length > 1 ? onPrevAgent : void 0;
-	const t26 = lanes.length > 1 ? onNextAgent : void 0;
-	const t27 = anchorIds.length > 0 ? onFirst : void 0;
-	const t28 = anchorIds.length > 0 ? onLast : void 0;
-	let t29;
-	if ($[83] !== onNext || $[84] !== onPrev || $[85] !== slice.length || $[86] !== t25 || $[87] !== t26 || $[88] !== t27 || $[89] !== t28) {
-		t29 = {
+	if ($[83] !== goToTurn) {
+		t24 = () => goToTurn(1);
+		$[83] = goToTurn;
+		$[84] = t24;
+	} else t24 = $[84];
+	const onFirst = t24;
+	let t25;
+	if ($[85] !== goToTurn || $[86] !== totalTurns) {
+		t25 = () => goToTurn(totalTurns);
+		$[85] = goToTurn;
+		$[86] = totalTurns;
+		$[87] = t25;
+	} else t25 = $[87];
+	const onLast = t25;
+	const t26 = lanes.length > 1 ? onPrevAgent : void 0;
+	const t27 = lanes.length > 1 ? onNextAgent : void 0;
+	const t28 = anchorIds.length > 0 ? onFirst : void 0;
+	const t29 = anchorIds.length > 0 ? onLast : void 0;
+	let t30;
+	if ($[88] !== onNext || $[89] !== onPrev || $[90] !== slice.length || $[91] !== t26 || $[92] !== t27 || $[93] !== t28 || $[94] !== t29) {
+		t30 = {
 			listHandle,
 			scrollRef,
 			itemCount: slice.length,
 			onPrev,
 			onNext,
-			onPrevAgent: t25,
-			onNextAgent: t26,
-			onFirst: t27,
-			onLast: t28
+			onPrevAgent: t26,
+			onNextAgent: t27,
+			onFirst: t28,
+			onLast: t29
 		};
-		$[83] = onNext;
-		$[84] = onPrev;
-		$[85] = slice.length;
-		$[86] = t25;
-		$[87] = t26;
-		$[88] = t27;
-		$[89] = t28;
-		$[90] = t29;
-	} else t29 = $[90];
-	useTranscriptKeyboardNavigation(t29);
+		$[88] = onNext;
+		$[89] = onPrev;
+		$[90] = slice.length;
+		$[91] = t26;
+		$[92] = t27;
+		$[93] = t28;
+		$[94] = t29;
+		$[95] = t30;
+	} else t30 = $[95];
+	useTranscriptKeyboardNavigation(t30);
 	const lastAnchor = anchorIds[anchorIds.length - 1];
-	let t30;
 	let t31;
-	if ($[91] !== eventId || $[92] !== following || $[93] !== lastAnchor || $[94] !== setParams) {
-		t30 = () => {
+	let t32;
+	if ($[96] !== eventId || $[97] !== following || $[98] !== lastAnchor || $[99] !== setParams) {
+		t31 = () => {
 			if (following && lastAnchor && eventId !== lastAnchor) setParams({ event: lastAnchor });
 		};
-		t31 = [
+		t32 = [
 			following,
 			lastAnchor,
 			eventId,
 			setParams
 		];
-		$[91] = eventId;
-		$[92] = following;
-		$[93] = lastAnchor;
-		$[94] = setParams;
-		$[95] = t30;
-		$[96] = t31;
+		$[96] = eventId;
+		$[97] = following;
+		$[98] = lastAnchor;
+		$[99] = setParams;
+		$[100] = t31;
+		$[101] = t32;
 	} else {
-		t30 = $[95];
-		t31 = $[96];
+		t31 = $[100];
+		t32 = $[101];
 	}
-	(0, import_react.useEffect)(t30, t31);
+	(0, import_react.useEffect)(t31, t32);
 	const followingLatest = following && running;
-	let t32;
-	if ($[97] !== setParams) {
-		t32 = (next_0) => setParams({ tab: next_0 });
-		$[97] = setParams;
-		$[98] = t32;
-	} else t32 = $[98];
 	let t33;
-	if ($[99] !== t32 || $[100] !== tab) {
-		t33 = {
-			tab,
-			setTab: t32
-		};
-		$[99] = t32;
-		$[100] = tab;
-		$[101] = t33;
-	} else t33 = $[101];
-	const focusTab = t33;
+	if ($[102] !== setParams) {
+		t33 = (next_0) => setParams({ tab: next_0 });
+		$[102] = setParams;
+		$[103] = t33;
+	} else t33 = $[103];
 	let t34;
-	if ($[102] !== anchorIds.length || $[103] !== canStepNext || $[104] !== canStepPrev || $[105] !== focusTab || $[106] !== followingLatest || $[107] !== goToTurn || $[108] !== laneCrumbs || $[109] !== laneOptions || $[110] !== onNext || $[111] !== onPrev || $[112] !== resolvedEventId || $[113] !== sentinels || $[114] !== slice || $[115] !== totalTurns || $[116] !== turnIndex || $[117] !== turnInfo) {
+	if ($[104] !== t33 || $[105] !== tab) {
 		t34 = {
+			tab,
+			setTab: t33
+		};
+		$[104] = t33;
+		$[105] = tab;
+		$[106] = t34;
+	} else t34 = $[106];
+	const focusTab = t34;
+	let t35;
+	if ($[107] !== anchorIds.length || $[108] !== canStepNext || $[109] !== canStepPrev || $[110] !== focusTab || $[111] !== followingLatest || $[112] !== goToTurn || $[113] !== laneCrumbs || $[114] !== laneOptions || $[115] !== onNext || $[116] !== onPrev || $[117] !== resolvedEventId || $[118] !== sentinels || $[119] !== slice || $[120] !== totalTurns || $[121] !== turnIndex || $[122] !== turnInfo) {
+		t35 = {
 			scrollRef,
 			listHandle,
 			slice,
@@ -118362,25 +118545,25 @@ var PRIORITY_MODEL_INPUT = 4;
 			laneOptions,
 			focusTab
 		};
-		$[102] = anchorIds.length;
-		$[103] = canStepNext;
-		$[104] = canStepPrev;
-		$[105] = focusTab;
-		$[106] = followingLatest;
-		$[107] = goToTurn;
-		$[108] = laneCrumbs;
-		$[109] = laneOptions;
-		$[110] = onNext;
-		$[111] = onPrev;
-		$[112] = resolvedEventId;
-		$[113] = sentinels;
-		$[114] = slice;
-		$[115] = totalTurns;
-		$[116] = turnIndex;
-		$[117] = turnInfo;
-		$[118] = t34;
-	} else t34 = $[118];
-	return t34;
+		$[107] = anchorIds.length;
+		$[108] = canStepNext;
+		$[109] = canStepPrev;
+		$[110] = focusTab;
+		$[111] = followingLatest;
+		$[112] = goToTurn;
+		$[113] = laneCrumbs;
+		$[114] = laneOptions;
+		$[115] = onNext;
+		$[116] = onPrev;
+		$[117] = resolvedEventId;
+		$[118] = sentinels;
+		$[119] = slice;
+		$[120] = totalTurns;
+		$[121] = turnIndex;
+		$[122] = turnInfo;
+		$[123] = t35;
+	} else t35 = $[123];
+	return t35;
 }
 function _temp$50(lane_1) {
 	return lane_1.firstAnchorId;
