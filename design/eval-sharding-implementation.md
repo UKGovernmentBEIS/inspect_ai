@@ -4,7 +4,8 @@ Status: proposed, 2026-09-24; revised the same day after Ransom removed
 viewer changes from Step 1 and asked for simple shard deletion. Issue:
 https://github.com/meridianlabs-ai/inspect_ai/issues/529 (part of #509).
 Author: agent (Claude), reviewed by Codex; see the PR. Verified against
-`43ebaebc38`.
+`43ebaebc38`; the layout helpers were updated on 2026-09-29 to what landed
+in UKGovernmentBEIS/inspect_ai#5541 (`18acb828a2`).
 
 This is the follow-on document that [`eval-sharding.md`](eval-sharding.md)
 ("the parent design") names: the public surface, the shape of the stored
@@ -23,7 +24,8 @@ The parent design fixes the direction: shards are ordinary `.eval` files in
 log `<dir>/<name>.eval`, and `eval_set()` runs the merge at startup. It
 leaves the API signatures, the ledger's exact shape and the order of work to
 this document, and two implementation efforts have already started against
-it: the layout helpers (meridianlabs-ai/inspect_ai#530) and ctl log-dir mode
+it: the layout helpers (meridianlabs-ai/inspect_ai#530, since landed as
+UKGovernmentBEIS/inspect_ai#5541) and ctl log-dir mode
 (meridianlabs-ai/inspect_ai#528, whose later steps read the merged log's
 provenance field). Without a fixed surface and sequence, those efforts and
 the merge would each invent their own versions of the shared pieces (the
@@ -72,16 +74,37 @@ Non-goals:
 Only what the plan depends on. Verified by reading the code at `43ebaebc38`
 and, where noted, by running it.
 
-**Layout helpers.** `log_basename` (strip `.eval`, then `-recovered`) and
-`eval_checkpoints_dir` live in
-`src/inspect_ai/util/_checkpoint/_layout/eval_checkpoints_dir.py:23,40`;
-the checkpoint package (`hydrate.py:78`, `staging_dir.py:29`) is their only
-caller. The log file name is built by `FileRecorder._log_file_key`
-(`src/inspect_ai/log/_recorders/file.py:157`) from an `EvalSpec`:
-`{created}_` + `INSPECT_EVAL_LOG_FILE_PATTERN` (default `{task}_{id}`), with
-`{model}` substituted. #530 moves the first two to a neutral module, adds
-`eval_shards_dir` and its reverse, and factors the name builder; its
-worktree has no commits yet.
+**Layout helpers** (landed in UKGovernmentBEIS/inspect_ai#5541, from
+#530). `src/inspect_ai/_util/log_layout.py` is the single owner of the
+suffix rule and the log name, as pure path functions:
+
+- `log_basename(log)`: the basename with `.eval`, then `-recovered`,
+  stripped.
+- `eval_checkpoints_dir(log, override_root)`: `<log-base>.checkpoints`.
+  The checkpoint package re-exports it from
+  `util/_checkpoint/_layout/eval_checkpoints_dir.py` and imports
+  `log_basename` in `staging_dir.py`.
+- `eval_shards_dir(log)`: `<dir>/<name>.eval` or
+  `<dir>/<name>-recovered.eval` to `<dir>/<name>.shards`.
+- `eval_log_for_shards_dir(shards_dir)`: the inverse, to
+  `<dir>/<name>.eval` (a trailing `/` or `\` is allowed). It raises
+  `ValueError` when the last component does not end in `.shards` or is
+  exactly `.shards`. A `-recovered` log and its original share one
+  companion, which maps back to the original.
+- `merged_log_candidates_for_shard(shard)`: for
+  `<dir>/<name>.shards/<k>/<file>`, `[<name>.eval, <name>-recovered.eval]`;
+  `None` off the layout. Added later by UKGovernmentBEIS/inspect_ai#5591
+  for the viewer's shard hiding (`log/_shard_listing.py`).
+- `eval_log_name(*, task, task_id, created, model)`: the log file name
+  without directory or suffix, `{created}_` +
+  `INSPECT_EVAL_LOG_FILE_PATTERN` (default `{task}_{id}`) with `{model}`
+  substituted. `FileRecorder._log_file_key`
+  (`src/inspect_ai/log/_recorders/file.py:156`) now calls it, so a launcher
+  can mint `<name>` without an `EvalSpec`.
+
+The derivations replace only the last path component, so relative names,
+`file://` and `s3://bucket/` prefixes and Windows separators keep their
+form.
 
 **The header model.** `EvalSpec` (`src/inspect_ai/log/_log.py:1013`) sets
 no `extra` policy (`model_config` at `:1120` only sets
@@ -204,8 +227,7 @@ as `<log>.checkpoints/` (`eval_checkpoints_dir`), deleted on success by
 default and kept with `retention="retain"`
 (`src/inspect_ai/util/_checkpoint/config.py:172,233`).
 
-**Work in flight that overlaps this plan.** #530 (layout helpers, not
-started), #528 (ctl log-dir mode steps 1–2, including
+**Work in flight that overlaps this plan.** #528 (ctl log-dir mode steps 1–2, including
 `AsyncFilesystem.list_dir` and the `ZipEntry` CRC, not started),
 UKGovernmentBEIS/inspect_ai#5396 (open: retry cleanup also removes older
 `started` logs and their buffers; touches `latest_completed_task_eval_logs`)
@@ -264,7 +286,8 @@ Parameters:
 
 - `log`: the merged log `<dir>/<name>.eval` or its companion
   `<dir>/<name>.shards` (trailing slash allowed); each is derived from the
-  other with #530's helpers. Plain paths, `file://` and `s3://` (and other
+  other with `eval_shards_dir` / `eval_log_for_shards_dir` ("Layout
+  helpers"). Plain paths, `file://` and `s3://` (and other
   fsspec URLs, without the overlap guard; see "Overlap guards"). A `.eval`
   argument is the output path; a companion argument writes `<name>.eval`.
 - `sample_ids` / `sample_count`: the intended selection, mutually exclusive
@@ -499,7 +522,8 @@ One pass, in order. Steps 1–9 run on every call; the merged log is
 downloaded and rewritten only when step 10 says so.
 
 1. **Derive the pair.** From `log`, derive `<name>.eval` (or the given
-   `.eval` path) and `<name>.shards/`. Open one `AsyncFilesystem` scope for
+   `.eval` path) and `<name>.shards/` with `eval_shards_dir` /
+   `eval_log_for_shards_dir`. Open one `AsyncFilesystem` scope for
    the whole pass; every read below shares it.
 2. **Acquire the local guard** when the output is local ("Overlap guards").
    S3 has nothing to acquire; its guard is at publication.
@@ -1136,7 +1160,7 @@ Two PRs after the merge core, each with the measurement that justifies it:
 
 | Piece | Owner PR | Merge uses it for | ctl log-dir mode uses it for |
 |---|---|---|---|
-| `log_basename`, `eval_shards_dir`, reverse derivation, the name builder | #530 | the `<name>.eval` / `<name>.shards/` pair, `<name>` minting by launchers | mapping `X.shards/` to its merged log (its "Logical tasks") |
+| `log_basename`, `eval_shards_dir`, `eval_log_for_shards_dir`, `eval_log_name` (`src/inspect_ai/_util/log_layout.py`) | #530, landed (UKGovernmentBEIS/inspect_ai#5541) | the `<name>.eval` / `<name>.shards/` pair, `<name>` minting by launchers | mapping `X.shards/` to its merged log (its "Logical tasks") |
 | `AsyncFilesystem.list_dir(base) -> DirListing(files: list[FileInfo], dirs: list[str])` | #528 (its step 2); PR 3 below if #528 has not landed | listing `<name>.shards/` and each `<k>/` | the delimited walk |
 | `ZipEntry` CRC-32 and the opt-in CRC check | #528 (its step 2); PR 5 below if #528 has not landed | consistent shard reads; raw copy | consistent member reads |
 | `list_shard_set`, `attempt_sort_key`, `is_shard_path` (`src/inspect_ai/log/_shards/_walk.py`) | PR 3 below | steps 4–5; the eval-set skip and companion discovery | its step 4 (shard aggregation) calls these instead of re-implementing the rules |
@@ -1342,10 +1366,9 @@ named below. Async tests run under asyncio by default and under Trio with
 
 Per PR (numbers from "Implementation plan"):
 
-1. **#530, layout helpers.** Its own issue's list: both derivations for
-   local paths, `file://` and `s3://`; `-recovered`; checkpoint results
-   unchanged; the factored name builder equals the recorder's name for the
-   default and a custom pattern with `{model}`.
+1. **Layout helpers.** Landed with their tests in
+   `tests/log/test_log_filename.py` (UKGovernmentBEIS/inspect_ai#5541).
+   Nothing further here; later PRs test their own use of the helpers.
 2. **The field.** `tests/log/test_eval_log.py`: round trip of a header
    with `shards` (both selection forms, entries with and without
    `etag`/`error`, with usage and keys); a header without it serialises with
@@ -1535,25 +1558,25 @@ enforce) is recommended and reported in the PR's "Slow tests" section.
 
 ## Implementation plan
 
-Step 1 in eight PRs. There is no viewer PR (decision: Ransom,
-2026-09-24).
+Step 1 in eight PRs, of which PR 1 has landed. There is no viewer PR
+(decision: Ransom, 2026-09-24).
 
 | PR | Depends on | Can run in parallel with |
 |---|---|---|
-| 1 layout helpers (#530) | none | 2, 4 |
-| 2 field + `ts-mono` | none | 1, 3, 4 |
-| 3 shared walk | 1 | 2, 4 |
-| 4 guard primitives | none | 1, 2, 3 |
+| 1 layout helpers (#530) | landed (#5541) | — |
+| 2 field + `ts-mono` | none | 3, 4 |
+| 3 shared walk | none (1 landed) | 2, 4 |
+| 4 guard primitives | none | 2, 3 |
 | 5 merge core, API, CLI | 2, 3, 4 | none |
 | 6 eval-set integration | 5 | 7 |
 | 7 streaming recomputation | 5 | 6 |
 | 8 raw member copy | 5, 7 | 6 |
 
-1. **Layout and naming helpers** (#530, in progress). Moves `log_basename`
-   and `eval_checkpoints_dir` to a neutral module, adds `eval_shards_dir`
-   and the reverse derivation, factors the name builder. No behaviour
-   change. Files: the neutral module #530 chooses,
-   `util/_checkpoint/_layout/`, `log/_recorders/file.py`, tests.
+1. **Layout and naming helpers** (#530): landed as
+   UKGovernmentBEIS/inspect_ai#5541. `src/inspect_ai/_util/log_layout.py`
+   holds `log_basename`, `eval_checkpoints_dir`, `eval_shards_dir`,
+   `eval_log_for_shards_dir` and `eval_log_name` ("Layout helpers"), with
+   no behaviour change. The later PRs keep their numbers.
 2. **The `EvalSpec.shards` field and its `ts-mono` landing.** Models,
    field, exports, `inspect-openapi.json`, the `ts-mono` PR regenerating
    `generated.ts`, gitlink bump per `land-ts-mono`. No behaviour change
@@ -1563,7 +1586,7 @@ Step 1 in eight PRs. There is no viewer PR (decision: Ransom,
    entry (no user-visible change until PR 5).
 3. **Shared walk.** `AsyncFilesystem.list_dir` if #528 has not landed it
    (otherwise reuse), `log/_shards/_walk.py` (`list_shard_set`,
-   `attempt_sort_key`, `is_shard_path`). Depends on 1. Files:
+   `attempt_sort_key`, `is_shard_path`). Uses PR 1's helpers. Files:
    `_util/asyncfiles.py`, `log/_shards/__init__.py`, `log/_shards/_walk.py`,
    `tests/util/test_asyncfiles.py`, `tests/log/test_shards.py`. After this
    PR, ctl log-dir mode's step 4 can land.
