@@ -9881,24 +9881,6 @@
             "title": "Name",
             "type": "string"
           },
-          "outcome": {
-            "anyOf": [
-              {
-                "enum": [
-                  "continue",
-                  "modify",
-                  "reject",
-                  "terminate",
-                  "escalate"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Outcome"
-          },
           "path": {
             "title": "Path",
             "type": "string"

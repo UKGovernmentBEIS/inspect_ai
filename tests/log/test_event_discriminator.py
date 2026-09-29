@@ -88,7 +88,6 @@ def _sentinel_event(**kwargs: Any) -> SentinelEvent:
         stage="tool_call",
         kind="decision",
         decision="reject",
-        outcome="reject",
         explanation="too suspicious",
     )
     fields.update(kwargs)
@@ -99,9 +98,7 @@ _MODIFIED = ToolCall(id="call_1", function="bash", arguments={"cmd": "ls"})
 
 
 def _observation(**kwargs: Any) -> SentinelEvent:
-    fields: dict[str, Any] = dict(
-        kind="observation", decision=None, outcome=None, suspicion=0.5
-    )
+    fields: dict[str, Any] = dict(kind="observation", decision=None, suspicion=0.5)
     fields.update(kwargs)
     return _sentinel_event(**fields)
 
@@ -113,7 +110,7 @@ def _observation(**kwargs: Any) -> SentinelEvent:
         _sentinel_event(kind="superseded", audit=True, metadata={"k": 1}),
         _observation(),
         _observation(suspicion={"exfiltration": 0.9, "sabotage": 0.1}),
-        _sentinel_event(kind="bypassed", function=None, decision=None, outcome=None),
+        _sentinel_event(kind="bypassed", function=None, decision=None),
         _sentinel_event(decision="modify", modified=_MODIFIED),
         _sentinel_event(kind="superseded", decision="modify", modified=_MODIFIED),
     ],
@@ -138,13 +135,12 @@ def test_sentinel_event_rejects_invalid_suspicion() -> None:
         ("function", "f"),
         ("suspicion", 0.5),
         ("decision", "continue"),
-        ("outcome", "continue"),
     ],
 )
 def test_sentinel_event_without_report_rejects_report_fields(
     kind: str, field: str, value: Any
 ) -> None:
-    fields: dict[str, Any] = dict(kind=kind, function=None, decision=None, outcome=None)
+    fields: dict[str, Any] = dict(kind=kind, function=None, decision=None)
     _sentinel_event(**fields)
     fields[field] = value
     with pytest.raises(ValidationError, match=field):
@@ -185,18 +181,13 @@ def test_sentinel_modify_requires_modified(kind: str) -> None:
     [
         dict(decision="reject"),
         dict(kind="superseded", decision="continue"),
-        dict(kind="observation", decision=None, outcome=None, suspicion=0.5),
-        dict(kind="cancelled", function=None, decision=None, outcome=None),
+        dict(kind="observation", decision=None, suspicion=0.5),
+        dict(kind="cancelled", function=None, decision=None),
     ],
 )
 def test_sentinel_modified_is_only_for_modify(event: dict[str, Any]) -> None:
     with pytest.raises(ValidationError, match="modified is set only"):
         _sentinel_event(modified=_MODIFIED, **event)
-
-
-def test_sentinel_event_outcome_is_unconstrained_for_reports() -> None:
-    assert _observation(outcome="terminate").outcome == "terminate"
-    assert _sentinel_event(outcome=None).outcome is None
 
 
 def test_sentinel_event_renders_in_tui() -> None:

@@ -62,9 +62,6 @@ class SentinelEvent(BaseEvent):
     modified: ToolCall | None = Field(default=None)
     """The replacement call, for a `modify` decision."""
 
-    outcome: SentinelAction | None = Field(default=None)
-    """What the layer above did with this layer's decision."""
-
     explanation: str | None = Field(default=None)
     """Explanation for the report."""
 
@@ -73,7 +70,7 @@ class SentinelEvent(BaseEvent):
         if self.kind in ("cancelled", "bypassed"):
             unexpected = [
                 field
-                for field in ("function", "suspicion", "decision", "outcome")
+                for field in ("function", "suspicion", "decision")
                 if getattr(self, field) is not None
             ]
             if unexpected:
