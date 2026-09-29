@@ -53,8 +53,9 @@ Goals:
   `<name>.shards/*/` and the merged log `<name>.eval` when it exists, and
   one row per task for an unsharded directory.
 - Every command that mutates, or that needs state held only in the live
-  process, fails in this mode with a structured `--json` error of a new
-  `unsupported` kind, enforced mechanically so new commands fail closed.
+  process, has no `--log-dir` option, so passing it is click's ordinary
+  usage error and a new command fails closed until it is implemented and
+  given the option (decision: Ransom, 2026-09-24).
 - Stated staleness per field, and a cost per invocation at about 300 shards
   on S3 and for large logs, with a cache that keeps steady-state polling
   cheap.
@@ -283,30 +284,37 @@ implementation document.
 
 ### CLI surface
 
-A root option on the `ctl` group
-(`src/inspect_ai/_cli/ctl/_group.py:327`):
+An option on each command the mode serves, after the command like every
+other `ctl` option and like `--log-dir` on `inspect eval`, `eval-set` and
+`log list` (decision: Ransom, 2026-09-24):
 
 ```
-inspect ctl --log-dir <dir> task list [--shards] [--json]
-inspect ctl --log-dir <dir> sample list [TASK] [...]
-inspect ctl --log-dir <dir> sample events TASK SAMPLE_ID [EPOCH] [...]
+inspect ctl task list --log-dir <dir> [--shards] [--json]
+inspect ctl sample list [TASK] --log-dir <dir> [...]
+inspect ctl sample events TASK SAMPLE_ID [EPOCH] --log-dir <dir> [...]
 ```
 
 - `--log-dir` takes a directory in any form Inspect reads (plain path,
   `file://`, `s3://`, other fsspec URLs). It is also accepted when the
   directory is a `<name>.shards/` companion or a single `<k>/`; the walk
   below treats the given directory as the root either way.
-- It is a group option, not a per-command one, so that every command,
-  supported or not, runs under the mode and an unsupported command fails
-  with the structured error rather than click's usage error, which exits 2
-  without an envelope (`_group.py:333-336`, the root help's own caveat).
+- It is a per-command option, declared once as a shared decorator
+  (`_log_dir_option` in `_group.py`) and applied to `task list` and the six
+  sample reads, so the help and behaviour cannot drift between them. Every
+  other command lacks it: `--log-dir` there is click's usage error (exit 2,
+  `No such option`, no `--json` envelope), like any other unknown option.
+  The bare nouns (`task --log-dir <dir>`, `sample --log-dir <dir>`) take it
+  through the existing `list`-option mirroring (`_mirror_list_options`); a
+  noun-level `--log-dir` before a verb without the option is refused by
+  `_forward_group_options`.
 - No environment-variable mirror: switching ctl from the live process to
   stale logs silently, because a variable was left set, is the wrong
   failure. Every output in the mode says where it came from (below).
-- The group callback stores the resolved root in `ctx.meta` under
+- The option's callback stores the root in `ctx.meta` under
   `inspect_ai.ctl.log_dir` (click's per-invocation shared dict), read by a
   helper `_log_dir_root() -> str | None` in a new module
-  `src/inspect_ai/_cli/ctl/_log_dir.py`.
+  `src/inspect_ai/_cli/ctl/_log_dir.py`; the value is not passed to the
+  command function.
 - `task list` gains `--shards`: expand each sharded row into one row per
   shard after the logical row. Without it, sharded runs show one row. The
   flag is mirrored onto the bare `task` noun by the existing
@@ -324,47 +332,48 @@ inspect ctl --log-dir <dir> sample events TASK SAMPLE_ID [EPOCH] [...]
 
 Verdicts: **works** (same semantics, data as of the last flush or sync),
 **degraded** (served with fields missing or coarser; the difference is
-listed), **unsupported** (fails with `kind: "unsupported"`). The live route
-and handler are for reference; the mode calls none of them.
+listed), **not available** (the command has no `--log-dir` option; passing
+it is click's usage error). Within an available command, an option or a
+target the logs cannot serve fails with `kind: "unsupported"`. The live
+route and handler are for reference; the mode calls none of them.
 
 | Command (click definition) | Live route (handler) | Log-dir verdict | Source in log-dir mode, and what differs |
 |---|---|---|---|
 | `task list` (`_task.py:82`) | `GET /tasks` (`server.py:769`) | degraded | Headers, summaries and buffer manifests. Live-only fields null (see "Task rows"). |
-| `task log-flush` (`_task.py:101`) | `POST /tasks/{id}/log-flush` (`server.py:990`) | unsupported | Mutation. The staleness bound replaces it. |
-| `task cancel` (`_task.py:121`) | `POST /tasks/{id}/cancel` (`server.py:1011`) | unsupported | Mutation. |
-| `task score` (`_task.py:177`), including `--status` | `POST`/`GET /tasks/{id}/score` (`server.py:1107,1125`) | unsupported | Mutation; the pass state read by `--status` lives in the process (`get_score_pass`, `src/inspect_ai/_control/scoring.py:396`). |
-| `task drain` (`_task.py:253`) | `POST /tasks/{id}/drain` (`server.py:1052`) | unsupported | Mutation. |
-| `task pause` / `resume` (`_task.py:295,342`) | `POST /tasks/{id}/pause`, `/resume` (`server.py:1073,1085`) | unsupported | Mutation. |
+| `task log-flush` (`_task.py:101`) | `POST /tasks/{id}/log-flush` (`server.py:990`) | not available | Mutation. The staleness bound replaces it. |
+| `task cancel` (`_task.py:121`) | `POST /tasks/{id}/cancel` (`server.py:1011`) | not available | Mutation. |
+| `task score` (`_task.py:177`), including `--status` | `POST`/`GET /tasks/{id}/score` (`server.py:1107,1125`) | not available | Mutation; the pass state read by `--status` lives in the process (`get_score_pass`, `src/inspect_ai/_control/scoring.py:396`). |
+| `task drain` (`_task.py:253`) | `POST /tasks/{id}/drain` (`server.py:1052`) | not available | Mutation. |
+| `task pause` / `resume` (`_task.py:295,342`) | `POST /tasks/{id}/pause`, `/resume` (`server.py:1073,1085`) | not available | Mutation. |
 | `sample list` (`_sample.py:90`) | `GET /evals/{id}/samples` (`server.py:798`) | degraded; `--active-since` unsupported | Summaries plus manifest rows through one source selection; `activity`, `events`, `interrupt`, `last_activity_at` for running rows are null; no `queued` rows; `--active-since` would drop samples published after the next lower bound (see "Sample rows"). |
 | `sample errors` (`_sample.py:184`) | same, `filter=errors&all=true` | degraded | Errors from flushed logs, and from completed-but-unflushed buffer rows where `--log-shared` is on. |
 | `sample show` (`_sample.py:209`) | `GET /evals/{id}/sample` (`server.py:861`) | works when the selected record is in the log; degraded when it is a buffer row | Log: the sample member read with heavy fields excluded, as the live terminal path does. Buffer: the manifest summary only; `error_retries` empty until flushed. |
 | `sample events` (`_sample.py:263`) | `GET /evals/{id}/sample/events` (`server.py:881`) | works for log records; degraded for buffer rows; unavailable for running samples without `--log-shared` | Log: the sample member's events. Buffer: events reconstructed from the sample's segments, up to the last sync; the cursor restarts when the source becomes the log. |
 | `sample messages` (`_sample.py:401`) | `GET /evals/{id}/sample/messages` (`server.py:938`) | works for log records; unsupported for buffer rows | Log: the sample member. The buffer has no message list (decision: Ransom, 2026-09-23). |
 | `sample store` (`_sample.py:477`) | `GET /evals/{id}/sample/store` (`server.py:966`) | works for log records; unsupported for buffer rows | Log: the sample member. The buffer has no store snapshot. |
-| `sample cancel` (`_sample.py:552`) | `POST .../sample/cancel` (`server.py:1224`) | unsupported | Mutation. |
-| `sample cancel-tool-call` (`_sample.py:610`) | `POST .../sample/cancel-tool-call` (`server.py:1288`) | unsupported | Mutation. |
-| `sample requeue` (`_sample.py:671`) | `POST .../sample/requeue` (`server.py:1341`) | unsupported | Mutation. |
-| `sample score` (`_sample.py:1422`), including `--status` | `POST`/`GET .../sample/score` (`server.py:1149,1191`) | unsupported | Interim scoring runs scorers in the process; its pass state is in memory. |
-| `process list` (`_process.py:87`) | discovery files plus `GET /tasks` | unsupported | There are no processes to list; `task list` is the mode's discovery surface. |
-| `process keep` / `release` / `pause` / `resume` (`_process.py:100,114,127,161`) | `POST /keep`, `/release`, `/pause`, `/resume` (`server.py:1615,1597,1631,1635`) | unsupported | Mutations. |
-| `process anomalies` (`_process.py:181`) | none; reads `trace-<pid>.log[.gz]` (`_trace_file_for_pid`, `_process.py:429`) | unsupported | Trace files are on the worker hosts, keyed by their pids. |
-| `model pause` / `resume` (`_model.py:47,85`) | `POST /models/pause`, `/resume` (`server.py:1668,1685`) | unsupported | Mutations. |
-| `model throughput` (`_model.py:108`) | `GET /models/throughput` (`server.py:1650`) | unsupported | Windowed rates from an in-memory registry (`throughput_report`, `src/inspect_ai/model/_throughput.py:419`). |
-| `config`, view and set (`_config.py:36`) | `GET`/`PATCH /config`, `/tasks/{id}/config` (`server.py:1375,1394,1466,1486`) | unsupported | The view reports live limiter and override state (`process_limits`, `task_limits`, `src/inspect_ai/_control/limits.py:155,242`). A log records the launch `EvalConfig` and persisted `ConfigUpdate`s, which could back a degraded view later ("Not this design"). |
+| `sample cancel` (`_sample.py:552`) | `POST .../sample/cancel` (`server.py:1224`) | not available | Mutation. |
+| `sample cancel-tool-call` (`_sample.py:610`) | `POST .../sample/cancel-tool-call` (`server.py:1288`) | not available | Mutation. |
+| `sample requeue` (`_sample.py:671`) | `POST .../sample/requeue` (`server.py:1341`) | not available | Mutation. |
+| `sample score` (`_sample.py:1422`), including `--status` | `POST`/`GET .../sample/score` (`server.py:1149,1191`) | not available | Interim scoring runs scorers in the process; its pass state is in memory. |
+| `process list` (`_process.py:87`) | discovery files plus `GET /tasks` | not available | There are no processes to list; `task list` is the mode's discovery surface. |
+| `process keep` / `release` / `pause` / `resume` (`_process.py:100,114,127,161`) | `POST /keep`, `/release`, `/pause`, `/resume` (`server.py:1615,1597,1631,1635`) | not available | Mutations. |
+| `process anomalies` (`_process.py:181`) | none; reads `trace-<pid>.log[.gz]` (`_trace_file_for_pid`, `_process.py:429`) | not available | Trace files are on the worker hosts, keyed by their pids. |
+| `model pause` / `resume` (`_model.py:47,85`) | `POST /models/pause`, `/resume` (`server.py:1668,1685`) | not available | Mutations. |
+| `model throughput` (`_model.py:108`) | `GET /models/throughput` (`server.py:1650`) | not available | Windowed rates from an in-memory registry (`throughput_report`, `src/inspect_ai/model/_throughput.py:419`). |
+| `config`, view and set (`_config.py:36`) | `GET`/`PATCH /config`, `/tasks/{id}/config` (`server.py:1375,1394,1466,1486`) | not available | The view reports live limiter and override state (`process_limits`, `task_limits`, `src/inspect_ai/_control/limits.py:155,242`). A log records the launch `EvalConfig` and persisted `ConfigUpdate`s, which could back a degraded view later ("Not this design"). |
 
 ### Structured errors in the mode
 
 - **Two new `_ErrorKind` values** (`_failure.py:42-53`):
-  - `unsupported`: the command, one of its options (`sample list
+  - `unsupported`: one of an available command's options (`sample list
     --active-since`), or the command on this target (a sample whose
     selected record is a buffer row, for `sample messages`/`store`), cannot
-    be served from logs.
-    Message: ``"`inspect ctl sample cancel` needs a live eval process and is
-    not available with --log-dir (read-only log mode)."``; for the
-    per-target case it names the reason and the nearest supported read
-    (``"sample s3 epoch 1 is still running; its message list is not in the
-    shared buffer. `inspect ctl --log-dir ... sample events --type model`
-    shows its model calls."``). `status` and `exception` are null.
+    be served from logs. The message names the reason and, for the
+    per-target case, the nearest supported read (``"sample s3 epoch 1 is
+    still running; its message list is not in the shared buffer. `inspect
+    ctl sample events ... --type model --log-dir ...` shows its model
+    calls."``). `status` and `exception` are null. A command that cannot be
+    served at all has no `--log-dir` option, so it never reaches this kind.
   - `storage_error`: reading the directory failed for a reason other than
     absence: permissions, credentials, throttling, a transport failure, or
     an object that kept changing under a per-sample read after the bounded
@@ -386,21 +395,18 @@ and handler are for reference; the mode calls none of them.
   fan-out warns and skips an unreachable server, but visible in the
   envelope) and is `invalid_response` for a single-target read of that
   log.
-- **Where unsupported is enforced.** `_envelope_failures` already wraps
-  every command runner and reads its `as_json` argument. It gains one
-  check before calling the runner: if `_log_dir_root()` is set and the
-  current command path (`click.get_current_context().command_path`) is not
-  in `LOG_DIR_COMMANDS`, a frozenset of supported command paths in
-  `_log_dir.py`, it raises `_CtlFailure("unsupported", ...)`. Unlisted
-  means unsupported, so a command added later fails closed until someone
-  implements and lists it. The per-option case (`--active-since`) and the
-  per-target cases (buffer rows for messages/store) raise from the log-dir
-  read itself.
-- **Guard tests** (see "Testing"): every entry of `LOG_DIR_COMMANDS` names a
-  registered leaf command; every registered leaf command not in it, invoked
-  with `--log-dir ... --json`, exits 1 with `kind: "unsupported"` before any
-  storage access; `task list`, `sample list` and the per-sample reads never
-  reach the discovery layer in the mode.
+- **Where the mode is bounded.** Only commands carrying the shared
+  `--log-dir` decorator accept the option, so a command added later fails
+  closed (a usage error) until someone implements the mode for it and adds
+  the decorator. The per-option case (`--active-since`) and the per-target
+  cases (buffer rows for messages/store) raise `unsupported` from the
+  log-dir read itself. `_envelope_failures` prints the mode's stderr banner
+  before the runner.
+- **Guard tests** (see "Testing"): the commands carrying the option are
+  exactly the supported set; every other registered leaf command, invoked
+  with `--log-dir <dir>`, is a usage error (exit 2) before any storage
+  access; `task list`, `sample list` and the per-sample reads never reach
+  the discovery layer in the mode.
 
 ### Walking the directory
 
@@ -977,14 +983,15 @@ below per-prefix limits, and the mode never touches a worker.
 
 ### Where the code goes
 
-- `src/inspect_ai/_cli/ctl/_group.py`: the `--log-dir` group option and
-  callback; `task list --shards`.
-- `src/inspect_ai/_cli/ctl/_log_dir.py` (new): `_log_dir_root()`,
-  `LOG_DIR_COMMANDS`, the stderr banner, and the CLI-side calls into the
-  log-dir reader.
-- `src/inspect_ai/_cli/ctl/_failure.py`: the two new kinds; the
-  unsupported check in `_envelope_failures`; storage-exception
-  classification for log-dir reads.
+- `src/inspect_ai/_cli/ctl/_group.py`: the shared `--log-dir` option
+  decorator and its callback; `task list --shards`.
+- `src/inspect_ai/_cli/ctl/_task.py`, `_sample.py`: the decorator on `task
+  list` and the six sample reads.
+- `src/inspect_ai/_cli/ctl/_log_dir.py` (new): `_log_dir_root()`, the
+  stderr banner, and the CLI-side calls into the log-dir reader.
+- `src/inspect_ai/_cli/ctl/_failure.py`: the two new kinds; the banner call
+  in `_envelope_failures`; storage-exception classification for log-dir
+  reads.
 - `src/inspect_ai/_cli/ctl/_fetch.py`, `_task.py`, `_sample_read.py`: branch
   at the existing fetch seams (`_fetch_summaries`, `_fetch_sample_summaries`,
   `_fetch_samples_async`, `_fetch_sample_detail`, `_fetch_sample_events`,
@@ -1043,9 +1050,13 @@ below per-prefix limits, and the mode never touches a worker.
 - **Transparent fallback.** When no live server is found, read logs
   automatically. Rejected: a silent switch from live to stale semantics,
   and ctl has no way to know which directory to read without a process.
-- **Per-command `--log-dir` on the read commands only.** Unsupported
-  commands would then fail with click's usage error and no `--json`
-  envelope. Rejected for the group option.
+- **A root option on the `ctl` group** (`inspect ctl --log-dir <dir> task
+  list`), so every command runs under the mode and an unsupported one fails
+  with a structured `unsupported` envelope instead of a usage error. It was
+  the first implementation; rejected because every other `ctl` option, and
+  `--log-dir` everywhere else in Inspect, goes after the command, and a
+  usage error is the ordinary answer to an option a command does not take
+  (decision: Ransom, 2026-09-24).
 - **Reuse `list_eval_logs` and `read_eval_log_headers`.** Simplest, and fine
   for a small local directory, but on S3 the recursive listing pages through
   every buffer segment and checkpoint object and the header read fetches
@@ -1073,9 +1084,10 @@ below per-prefix limits, and the mode never touches a worker.
 
 No migration required. The mode is opt-in through a new flag.
 
-- **CLI.** A new root option on `inspect ctl` and a new `task list --shards`
-  flag (a no-op in live mode). Live-mode behaviour, envelopes and exit codes
-  are unchanged.
+- **CLI.** A new `--log-dir` option on `task list` and the six sample reads,
+  and a new `task list --shards` flag (a no-op in live mode). Other
+  commands reject `--log-dir` as a usage error. Live-mode behaviour,
+  envelopes and exit codes are unchanged.
 - **`--json` contract.** The closed `kind` vocabulary gains `unsupported`
   and `storage_error`; neither is raised in live mode. In the mode, task and
   sample rows have every live key (live-only values null) plus the additive
@@ -1143,9 +1155,9 @@ with a different transport:
   runs on an eval's event loop (`security.md`, Vector 3 does not apply).
 - **Access.** No listener, no socket, no new network path. Anyone who can
   read the log directory could already read everything this mode shows; the
-  mode adds convenience, not access. The unsupported-command guard is not a
-  security boundary (the mode has no write path to guard); it is the
-  contract that tells an agent why the command did not act.
+  mode adds convenience, not access. Limiting `--log-dir` to the read
+  commands is not a security boundary (the mode has no write path to
+  guard); it keeps a mutation from ever running against a directory.
 - **Cache.** Owner-only, keyed by URI and ETag, re-parsed through the same
   pydantic models on read; a same-user attacker who can edit it is out of
   scope, as for the discovery directory.
@@ -1235,10 +1247,10 @@ real moto server on an ephemeral port). New tests go in a new
   is corrupted fails its CRC check; one cancelled mid-stream is not
   validated and writes nothing. Deleting or corrupting every cache entry
   between two polls changes no output, only the request count.
-- **Contract guards.** `LOG_DIR_COMMANDS` names only registered leaf
-  commands; every other leaf command, invoked with `--log-dir <tmp> --json`,
-  exits 1 with `kind: "unsupported"` and makes no storage or discovery call
-  (parametrized over the command tree, so a new command is covered
+- **Contract guards.** The commands carrying `--log-dir` are exactly the
+  supported set; every other leaf command, invoked with `--log-dir <tmp>`,
+  is a usage error (exit 2, no envelope) and makes no storage or discovery
+  call (parametrized over the command tree, so a new command is covered
   automatically); a missing directory is `not_found`; a storage permission
   failure is `storage_error` with `status`.
 - **Cost.** On `mock_s3`, a botocore event hook counts requests by
@@ -1267,10 +1279,9 @@ real moto server on an ephemeral port). New tests go in a new
 
 Each step is one PR; steps 1–5 are the MVP.
 
-1. **Mode plumbing and the contract.** The `--log-dir` group option,
-   `_log_dir_root()`, `LOG_DIR_COMMANDS` (empty at first, so every command is
-   `unsupported`), the `unsupported` and `storage_error` kinds, the check in
-   `_envelope_failures`, the guard tests. Files: `_cli/ctl/_group.py`,
+1. **Mode plumbing and the contract.** The shared `--log-dir` option
+   decorator, `_log_dir_root()`, the `unsupported` and `storage_error`
+   kinds, the stderr banner, the guard tests. Files: `_cli/ctl/_group.py`,
    `_cli/ctl/_log_dir.py`, `_cli/ctl/_failure.py`,
    `tests/_control/test_ctl.py`.
 2. **Unsharded reads of logged data.** `AsyncFilesystem.list_dir`, the
@@ -1279,12 +1290,11 @@ Each step is one PR; steps 1–5 are the MVP.
    step), task rows with `log_target`, sample listing with `--active-since`
    refused, identity-only target resolution, `log_target` routing at the
    five sample call sites, per-sample reads of log records with the CRC check and
-   bounded re-reads; the `page_*` refactors; `task list`, `sample
-   list`/`errors`/`show`/`events`/`messages`/`store` added to
-   `LOG_DIR_COMMANDS`. Files: `_util/asyncfiles.py`, `_util/async_zip.py`,
+   bounded re-reads; the `page_*` refactors; the `--log-dir` option on `task list`, `sample
+   list`/`errors`/`show`/`events`/`messages`/`store`. Files: `_util/asyncfiles.py`, `_util/async_zip.py`,
    `_control/log_dir/{walk,snapshot,select,consistency,samples}.py`,
    `_control/events.py`, `messages.py`, `store.py`, `_cli/ctl/_fetch.py`,
-   `_task.py`, `_sample_read.py`, `tests/_control/test_log_dir.py`.
+   `_task.py`, `_sample.py`, `_sample_read.py`, `tests/_control/test_log_dir.py`.
 3. **Buffer rows from shared buffers.** `AsyncFilesystem.read_file_info`,
    manifest reads, buffer candidates and the newer-buffer precedence in
    `select_source`, the key-set currency rule for per-sample lookups, running and completed-but-unflushed rows, `in_flight`,
