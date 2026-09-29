@@ -2777,6 +2777,22 @@
             ],
             "title": "Score On Error"
           },
+          "sentinel": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentinel"
+          },
           "time_limit": {
             "anyOf": [
               {

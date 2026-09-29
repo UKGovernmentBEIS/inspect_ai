@@ -21940,6 +21940,7 @@ var EVAL_CONFIG_KEYS = {
 	sandbox_prebuilt: true,
 	score_display: true,
 	score_on_error: true,
+	sentinel: true,
 	time_limit: true,
 	token_limit: true,
 	token_limit_type: true,
