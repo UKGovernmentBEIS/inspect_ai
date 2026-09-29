@@ -7,7 +7,11 @@ Author: agent (Claude), reviewed by Codex; see the PR. Verified against
 `43ebaebc38`; updated on 2026-09-29 (`18acb828a2`) for what has landed
 since: the layout helpers (UKGovernmentBEIS/inspect_ai#5541), ctl log-dir
 mode steps 1–2 with `list_dir` and the CRC check (#5542) and the viewer's
-hiding of merged shards (#5591).
+hiding of merged shards (#5591). Revised on 2026-09-29 so that the merged
+header carries no per-sample data beyond the `dataset.sample_ids` list
+every log header has (decision: Ransom, 2026-09-29): the ledger holds a
+count and a selection digest per shard instead of each shard's exact keys,
+and the recorded selection lives in the ordinary header fields.
 
 This is the follow-on document that [`eval-sharding.md`](eval-sharding.md)
 ("the parent design") names: the public surface, the shape of the stored
@@ -127,6 +131,29 @@ and `inspect log schema` prints the OpenAPI file
 (`src/inspect_ai/_cli/log.py:265`). `evals_df` columns are an explicit list
 (`src/inspect_ai/analysis/_dataframe/evals/columns.py`), so a new field adds
 no column by itself.
+
+**A log's recorded selection.** `TaskLogger.__init__` sets
+`eval.dataset.sample_ids` to the ids of `slice_dataset(dataset, limit,
+sample_id, dynamic=...)` (`src/inspect_ai/_eval/task/log.py:242`), so a
+worker started with `--sample-id` or a `limit` range records exactly the
+ids it selected, in dataset order; `eval.config.sample_id` keeps the
+`--sample-id` value as given. The header of a running attempt comes from
+`_journal/start.json`, a `LogStart` holding the same `EvalSpec`
+(`src/inspect_ai/log/_recorders/eval.py:98,1045`), so the selection is
+known from a shard's first flush. The field is optional (`| None`,
+`_log.py:966`), and older logs may lack it. A task driven by a
+`SampleSource` (`Task.sample_source`, `src/inspect_ai/_eval/task/run.py:751`)
+records only its seed there: samples the source adds while the task runs
+are appended to a local list (`run.py:1684`) and reported through
+`record_samples_added`, never written back into `dataset.sample_ids`.
+
+**Sample member names.** A monolith sample is the member
+`samples/{id}_epoch_{epoch}.json` (`_sample_filename`,
+`src/inspect_ai/log/_recorders/eval.py:2010`); readers treat `1` and `"1"`
+as the same sample for that reason (`log/_recorders/recorder.py:91`).
+Because the epoch is an integer, splitting the name after `samples/` and
+before `.json` at its last `_epoch_` recovers `(str(id), epoch)`, including
+for an id containing `/` or `_epoch_`.
 
 **Reading logs.** `AsyncZipReader` (`src/inspect_ai/_util/async_zip.py:343`)
 reads the central directory with a suffix read, records the object's ETag
@@ -320,7 +347,8 @@ Parameters:
 - `sample_ids` / `sample_count`: the intended selection, mutually exclusive
   (`ValueError` if both). Ids are compared as `str(id)`, the readers' sample
   key. When neither is given, the selection recorded in the merged log's
-  field is used; when that is absent too, the set is complete only if the
+  header is used ("Recorded selection", under the field below); when that
+  is absent too, the set is complete only if the
   distinct ids held equal the shards' `dataset.samples` (a whole-dataset
   run, parent "Completeness"). A given selection replaces the recorded one
   while the companion exists; once it is gone, a selection that differs
@@ -400,13 +428,6 @@ means log-edit provenance. In `src/inspect_ai/log/_log.py`, exported from
 `inspect_ai.log`:
 
 ```python
-class EvalShardSampleKey(BaseModel):
-    """One `(id, epoch)` record merged from a shard."""
-
-    id: str | int
-    epoch: int
-
-
 class EvalShardEntry(BaseModel):
     """Ledger entry for one shard, as of the merge that last read it."""
 
@@ -434,8 +455,11 @@ class EvalShardEntry(BaseModel):
     error: EvalError | None = Field(default=None)
     """Error of the current attempt when its status is `error` or `cancelled`."""
 
-    sample_keys: list[EvalShardSampleKey]
-    """The `(id, epoch)` records merged from this shard, exactly as held."""
+    samples: int
+    """Number of `(id, epoch)` records the current attempt held when read (all merged)."""
+
+    selection_digest: str
+    """SHA-256 (hex) of the current attempt's selection, its `eval.dataset.sample_ids`."""
 
     started_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
     """`stats.started_at` of the current attempt."""
@@ -465,11 +489,8 @@ class EvalShards(BaseModel):
     location: str
     """Companion directory the last merge read (informational; readers derive it from the name)."""
 
-    sample_ids: list[str] | list[int] | list[str | int] | None = Field(default=None)
-    """Intended selection as ids, when the last merge had one."""
-
     sample_count: int | None = Field(default=None)
-    """Intended selection as a count, when the last merge had one."""
+    """Intended selection as a count, when the last merge had one (ids: `eval.config.sample_id`)."""
 
     template: str
     """Name of the shard whose header supplied the merged header's task fields."""
@@ -492,30 +513,57 @@ log-dir mode recognise a merged log.
 Choices the parent left open:
 
 - **The ledger holds everything a later pass needs from a shard it does not
-  reopen.** A pass reopens only changed and new shards, so every
-  per-shard input to the merged header must be in the ledger: the exact
-  keys (to attribute merged samples to shards, detect conflicts against
-  unchanged shards, and decide completeness), the full `EvalError` (the
-  merged log's `error` is the first failing shard's, and `EvalError`
-  requires `traceback` and `traceback_ansi`, `src/inspect_ai/_util/error.py:12`),
-  the statistics (`stats` is recomputed from the entries, so replacing one
-  shard's attempt replaces exactly its contribution), `eval_set_id`, and
-  which shard supplied the task fields (`template`, "Building the merged
-  log"). With this, an incremental pass and a fresh merge of the same
-  companion compute the same header. The parent listed a per-shard sample
-  count; the count is `len(sample_keys)`.
-- **Exact keys, not ids times epochs.** A shard can hold fewer records than
-  its ids times epochs: a running shard, a failed one, and a gracefully
-  drained `success` shard (`logged_samples`, `evalset.py:1868`). Expanding
-  ids would invent records. ctl log-dir mode's step 6 uses the same keys to
-  take an unchanged shard's rows from the merged log's `summaries.json`.
-  Size: an unsharded header already lists every id in
-  `dataset.sample_ids`; the ledger adds one small object per `(id, epoch)`,
-  so a merged header is larger by a factor of about the epoch count, the
-  same order of growth.
-- **Two selection fields**, not one `list | int` union, so the generated
-  TypeScript type stays two plain optional fields and ctl reads "id list
-  times epochs, or count times epochs" without type tests.
+  reopen, and nothing per sample.** A pass reopens only changed and new
+  shards, so every per-shard input to the merged header must be in the
+  ledger: the full `EvalError` (the merged log's `error` is the first
+  failing shard's, and `EvalError` requires `traceback` and
+  `traceback_ansi`, `src/inspect_ai/_util/error.py:12`), the statistics
+  (`stats` is recomputed from the entries, so replacing one shard's attempt
+  replaces exactly its contribution), `eval_set_id`, which shard supplied
+  the task fields (`template`, "Building the merged log"), and the two
+  values that let the merge attribute merged records to shards without
+  listing them: `samples` (the parent's per-shard sample count) and
+  `selection_digest`. The records themselves are the merged log's own
+  sample members, which step 3 reads from its central directory; "The
+  sample set" gives the attribution rule and the checks that keep it
+  sound. With this, an incremental pass and a fresh merge of the same
+  companion compute the same header.
+- **The digest.** `selection_digest` is the SHA-256 hex digest of
+  `json.dumps(sorted({str(i) for i in ids}), ensure_ascii=False,
+  separators=(",", ":")).encode()`, where `ids` is the attempt's
+  `eval.dataset.sample_ids`: 64 characters whatever the selection's size,
+  independent of dataset order and of `1` versus `"1"`, as the readers'
+  keys are. It detects a shard whose selection changed between attempts
+  ("Validation"); it is never used to locate anything.
+- **Size.** The ledger is a fixed set of fields per shard (the usage
+  dictionaries grow with the models used and a failed shard's error with
+  its traceback, not with samples), so a merged header is an ordinary
+  header plus an amount per shard that does not depend on its samples. Its only
+  per-sample content is what an ordinary header has: `dataset.sample_ids`,
+  and `config.sample_id` when the selection was given as ids, as in an
+  ordinary log run with `--sample-id`. At 10,000 samples and 5 epochs the
+  exact-key ledger of the previous revision added about 50,000 objects
+  (about 2 MB for short ids) to `header.json`, which every `eval_set()` listing,
+  `read_eval_log_headers` call and viewer log list would parse.
+- **Recorded selection in the ordinary header fields**, not in
+  `eval.shards`. The merge writes the selection it merged against as:
+
+  | Selection | `eval.config.sample_id` | `eval.shards.sample_count` | `eval.dataset.sample_ids` |
+  |---|---|---|---|
+  | ids | the ids, as given | absent | the same ids |
+  | count | absent | the count | the distinct held ids, sorted by `str(id)` |
+  | neither | absent | absent | the distinct held ids, sorted by `str(id)` |
+
+  `eval.config.sample_id` being set is the marker for an id selection; the
+  merge writes it only from one, so no flag is needed. It is also what
+  `eval_retry` reads to re-run a log's subset (`src/inspect_ai/_eval/eval.py:1796`),
+  so a retry of a merged log keeps its selection. A later pass reads the
+  recorded selection back as: ids when `config.sample_id` is set (the
+  `dataset.sample_ids` list), else the count when `sample_count` is set,
+  else none. Selections are compared as sets of `str(id)`. `sample_count`
+  stays in `eval.shards` because no ordinary header field means "a count
+  of samples chosen by shards"; `config.limit` means the first N of the
+  dataset, which a merge cannot claim.
 - **`size`, `etag`, `mtime`** are what `FileInfo` carries
   (`src/inspect_ai/_util/file.py:195`); change detection compares ETags when
   both sides have one and `(size, mtime)` otherwise.
@@ -526,8 +574,8 @@ Choices the parent left open:
   the result is an ordinary log, which the merge then refuses to overwrite
   (step 3). That is the support boundary for cross-version editing.
 
-Schema impact: three new component schemas (`EvalShards`,
-`EvalShardEntry`, `EvalShardSampleKey`) and one optional property on
+Schema impact: two new component schemas (`EvalShards`,
+`EvalShardEntry`) and one optional property on
 `EvalSpec` in `inspect-openapi.json`; the same in `generated.ts`.
 `EvalStatus`, `EvalError` and `ModelUsage` are reused. The viewer ignores
 the field until Step 3 but the generated types change, so the PR lands with
@@ -561,7 +609,11 @@ downloaded and rewritten only when step 10 says so.
    (a later publish then uses `IfNoneMatch: *`). If the log exists and
    `eval.shards` is absent, raise `ShardSetError` ("`<name>.eval` is an
    ordinary log; refusing to overwrite it"): a merge never replaces a log
-   it did not write.
+   it did not write. The central directory's `samples/` members give the
+   merged log's records, `M`, as `(str(id), epoch)` pairs ("Sample member
+   names"); a `samples/` member that does not parse as a monolith name
+   raises `ShardSetError` (the merge writes only monoliths, so the log was
+   rewritten outside it).
 4. **List the shard set** with `list_shard_set` ("Code shared ...") into
    shards `<k>` with their attempt files in attempt order, stray files and
    ancillary entries. Stray files (an `.eval` directly in `<name>.shards/`,
@@ -590,12 +642,14 @@ downloaded and rewritten only when step 10 says so.
    (`AsyncZipReader.etag`), which may differ from the listing's when the
    object was replaced in between; the next pass then sees a changed ETag
    and re-reads. A key is *held* by an attempt when its summaries list it
-   and its central directory has the sample member.
+   and its central directory has the sample member. A read attempt's
+   *selection* `S_k` is its header's `eval.dataset.sample_ids`, as
+   `str(id)`.
 7. **Validate** ("Validation"). Refuse with `ShardSetError` on any failure.
 8. **Plan** the sample set ("The sample set"), the status ("Status") and
    the header ("Building the merged log"), from the ledger entries of
-   unchanged shards and the attempts read in step 6. A call that read no
-   shard plans from the ledger alone.
+   unchanged shards, the merged records `M` and the attempts read in step
+   6. A call that read no shard plans from the ledger and `M` alone.
 9. **Enforce the status.** An incomplete status without `allow_incomplete`
    raises `ShardSetIncomplete`, before any write, whether or not anything
    changed.
@@ -667,12 +721,43 @@ the merged header, the unchanged ones:
   merged log already holds every recorded shard's records), verifies the
   merged log against its ledger, and deletes what remains; this is what
   makes re-running an interrupted `delete_shards` finish the job.
-- **One owner per id.** Each id is held by at most one shard's current
-  attempt, where an unchanged shard's keys are its ledger `sample_keys`.
-  A shard selects whole samples, so two shards holding records of one id,
-  even different epochs of it, both selected that id, and their keys would
-  collide as they progress. This is stricter than the parent's disjoint
+- **A recorded selection that covers what the shard holds.** Every read
+  attempt has `eval.dataset.sample_ids` (not `None`), and every key it holds
+  has its id in `S_k`. Otherwise refused, naming the shard: the merge
+  attributes records to shards by selection ("The sample set"), and an
+  attempt with no recorded selection, or holding samples outside it,
+  cannot be attributed. This is how a shard of a `SampleSource` task is
+  refused: its header lists only the seed ("A log's recorded selection"),
+  so the first added sample it holds is outside `S_k`. Decision (this
+  document): refuse. A launcher shards by `--sample-id` or `limit`, which
+  presumes the samples are known before the workers start, and the
+  fallback (re-reading the attempt the ledger's `log` names to recover its
+  keys) does not work for the common change, a running attempt that grew
+  in place, whose earlier contents no longer exist.
+- **A shard's selection does not change across attempts.** For a changed
+  shard, the digest of `S_k` equals its ledger `selection_digest`.
+  Otherwise refused, naming both files: a new attempt in `<k>/` that
+  selects different samples belongs in a new `<k>/`; to accept it where it
+  is, delete `<name>.eval`, and the next merge rebuilds it from the current
+  attempts (a first merge has no ledger to compare with). The message says
+  both.
+- **One owner per id, by selection.** The selections of the shards read in
+  the pass are pairwise disjoint, and for each read shard the merged
+  records with ids in `S_k` number exactly its ledger `samples` if it is
+  changed, and zero if it is new (a new shard whose selection meets a
+  merged record would take over another shard's records). A shard selects
+  whole samples, so an id belongs to the one shard that selected it,
+  whatever epochs it has run; this is stricter than the parent's disjoint
   `(id, epoch)` sets and makes ownership unambiguous.
+- **The merged log matches its ledger.** While the companion exists, `M`
+  numbers the sum of `samples` over the ledger entries. With the per-shard
+  counts above, the records carried for unchanged shards therefore number
+  exactly the sum of those shards' `samples`. A mismatch means the merged
+  log's samples were changed outside the merge (a member removed, a log
+  rebuilt by other tooling); refused with the advice to delete
+  `<name>.eval` and re-merge from the shards. Checked on every pass,
+  including one that writes nothing. Sample edits that keep the member
+  (`edit_score`) do not change the count.
 - When a selection is known (given or recorded), every held id is in it
   (ids outside it mean a stray or mislabelled shard). With a count, the
   number of distinct held ids must not exceed it.
@@ -689,13 +774,53 @@ attempt appeared in `<k>/`), all of `<k>`'s records are taken from the
 current attempt and any `<k>` record the new attempt lacks is dropped. A
 shard whose files disappear is refused, not dropped ("Validation"). Within one
 attempt a duplicated key resolves as the readers resolve it (last summary
-row and last member of the name win). For an unchanged shard the keys are
-its ledger `sample_keys`, which are exactly what the pass that read it
-held.
+row and last member of the name win).
 
-Reasons: the result is a function of the companion's current attempts, so
-an incremental merge and a fresh merge of the same companion hold the same
-records (the parent's "idempotent and deterministic"); it is the rule ctl
+**Attribution by id.** The ledger does not list a shard's keys; the merged
+log's own members `M` are the record of what unchanged shards contributed.
+A pass plans:
+
+- *dropped*: the records of `M` whose id is in the selection `S_k` of some
+  shard read in this pass (changed or new);
+- *carried*: the rest of `M`, copied from the merged log as they are;
+- *taken*: every key each read shard's current attempt holds.
+
+The planned set is carried plus taken. A record of `M` is never assigned to
+a particular unchanged shard; all that matters is that it belongs to one of
+them, which the checks in "Validation" establish.
+
+Why this is exact. After every write, `M` is the union of the keys held by
+each ledger entry's recorded attempt, and those sets have disjoint ids
+(induction over passes; a first merge reads every shard). In a later pass,
+a changed shard's recorded keys lie in its recorded selection, which has
+the same digest as `S_k` ("Validation"), and `M` has exactly `samples` records
+with ids in `S_k`, as many as the recorded keys, so those records are
+exactly its recorded keys. A new shard has none. So *dropped* is exactly
+the read shards' previous records, *carried* is exactly the unchanged
+shards' held keys, and the planned set is the union of every current
+attempt's held keys, with disjoint ids since the read selections are
+disjoint from each other and from the carried records. That is also what a
+fresh merge of the same companion plans, so an incremental merge and a
+fresh merge hold the same records (the parent's "idempotent and
+deterministic"). The count checks are what make the step from counts to
+key sets valid; an edit to `M` outside the merge breaks the induction, and
+"The merged log matches its ledger" refuses it.
+
+Where the two can decide differently: a fresh merge reads every selection
+and so refuses any two overlapping ones; an incremental pass reads only the
+changed and new shards' selections and refuses an overlap with an unchanged
+shard when a record falls in the intersection: at once if the unchanged
+shard holds it (a new or changed shard's selection meets a carried
+record), otherwise when that unchanged shard is next read (its count check
+then sees the other shard's record). Overlapping selections break the
+launcher contract; both merges refuse them, and whenever both accept they
+hold the same records. An incremental pass keeps accepting such an overlap
+only while the overlapped shard is never read again (for example it
+finished, drained, without holding the shared ids); the merged records are
+still exact, each held once.
+
+Reasons for the rule: the result is a function of the companion's current
+attempts, so incremental and fresh merges agree as shown above; it is the rule ctl
 log-dir mode already uses ("Older files in the same `<k>/` are superseded
 ... otherwise ignored"), so the two never disagree about which records a
 shard contributes; and it loses nothing in the normal paths, because a
@@ -723,7 +848,8 @@ From the planned set (parent "Completeness" and "Errored shards"):
   log's `error` is the first such entry's `EvalError` in shard order, and
   every failing entry keeps its own.
 - else `success` if every current attempt is `success` and the held keys
-  equal the selection's ids times epochs `1..E` exactly (with ids: every
+  (the planned set, "The sample set") equal the selection's ids times
+  epochs `1..E` exactly (with ids: every
   `(id, epoch)` of every selected id; with a count: that many distinct ids,
   each with every epoch; with neither: the distinct held ids equal
   `dataset.samples`, each with every epoch). A drained `success` shard
@@ -752,9 +878,9 @@ well-defined shard, so fresh and incremental merges agree.
 | `eval.eval_id`, `eval.run_id`, `eval.created` | minted at the first merge, then carried from the merged header (parent: one `eval_id` across passes) |
 | `eval.task_id` | `{id}` parsed from `<name>` with `_try_parse_filename` (`src/inspect_ai/log/_file.py:1178`), so name and header agree; when `<name>` does not parse, minted at the first merge and then carried |
 | `eval.eval_set_id` | the entries' common `eval_set_id`, else absent |
-| `eval.dataset.sample_ids` | the selection ids when given as ids, else the sorted distinct held ids |
+| `eval.dataset.sample_ids` | the selection ids when given as ids, else the sorted distinct held ids, typed as in the summaries written ("Recorded selection") |
 | `eval.config.sample_id`, `eval.config.limit` | the selection ids and `None` when given as ids; otherwise both `None` |
-| `eval.shards` | the new field: ledger entries for every current attempt, `template` the template shard's name, `merged_at` now, `metrics_source` from "Metric recomputation" |
+| `eval.shards` | the new field: ledger entries for every current attempt (a read shard's with `samples` the number of keys taken and the digest of its `S_k`; an unchanged shard's carried as they were), `sample_count` for a count selection, `template` the template shard's name, `merged_at` now, `metrics_source` from "Metric recomputation" |
 | `results` | from "Metric recomputation"; `total_samples` is the selection size (or, without one, the distinct held ids) times epochs, `completed_samples` the merged samples without `error`; `early_stopping`, `logged_samples`, `metadata` absent |
 | `stats` | from the ledger entries: `started_at` the earliest, `completed_at` the latest (`""` while any entry's is empty), `model_usage` and `role_usage` summed per key with `ModelUsage.__add__`; `connection_limit_history` empty (per-process history stays in the shards) |
 | `log_updates`, `tags`, `invalidated` | carried from the existing merged header (merged-log edits), absent at the first merge |
@@ -827,8 +953,10 @@ cleanup (removes the merged log too). Both use one routine,
   pass has published or confirmed a `success` merged log and verified it:
   it reopens the merged log (S3: checking the reader's ETag equals the
   publish response's ETag, or `E0` when nothing was written), checks that
-  its central directory has a sample member for every ledger key, and that
-  its `eval.shards.ledger` matches the plan; a failed verification raises
+  its central directory's sample members are exactly the planned keys
+  (every selected id with every epoch, numbering the sum of the ledger's
+  `samples`), and that its `eval.shards.ledger` matches the plan; a failed
+  verification raises
   `ShardSetError` with nothing deleted. Retry cleanup runs it only for a
   merged log that an unsharded `success` log has superseded ("Eval-set
   integration").
@@ -1076,7 +1204,8 @@ never scans the directory.
 
    | Cause | Raised by the merge as | What the message tells the user to do |
    |---|---|---|
-   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; one id in two shards; ids outside the selection; stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files), then re-run |
+   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; overlapping shard selections; ids outside the selection; a shard with no recorded selection or holding samples outside it (a `SampleSource` task); a shard whose selection changed across attempts; stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files; for a changed selection, move the new attempt to its own `<k>/` or delete `<name>.eval`), then re-run |
+   | Merged log does not match its ledger (its samples were changed outside the merge) | `ShardSetError` | delete `<name>.eval` so the next merge rebuilds it from the shards, then re-run |
    | Vanished shard or attempt regression (shard files deleted after they were merged, for example an interrupted `delete_shards`) | `ShardSetError` | finish the deletion (`inspect log merge-shards <name>.eval --delete-shards`, or delete `<name>.shards/` by hand) or restore the files, then re-run |
    | An ordinary `<name>.eval` (no `eval.shards` field) where the merged log belongs | `ShardSetError` | move or rename that log, or the companion, then re-run |
    | Local merge lock held (`<name>.merge.lock`), including one left by a crashed merge | `WriteConflictError` | wait for the other merge to finish and re-run; if no merge is running (the lock's `pid`/`host` shown in the message), delete the lock file and re-run |
@@ -1094,11 +1223,17 @@ it already holds.
 **Completeness.** `log_samples_complete` gains a branch for a log with
 `eval.shards`: complete when `status == "success"` (already required by the
 caller), epochs are unchanged (the existing `epochs_changed` check), and
-every planned key (each `selected_sample_ids` id with every epoch) is in
-the union of the ledger's `sample_keys`. The count comparison is not used
-for such logs. After a successful startup merge this agrees with the merged
-status; it matters when the startup merge was skipped (no matching task) or
-when an older merged log with a different selection is present.
+the log's `eval.dataset.sample_ids`, as a set of `str(id)`, equals the
+planned selection (`selected_sample_ids`). The count comparison is not used
+for such logs, and no key list is needed: the merge writes `success` only
+when the held keys are the recorded selection times every epoch, and on a
+`success` log `dataset.sample_ids` is the selection's ids in every form of
+selection ("Recorded selection": the ids themselves, or the held ids,
+which then are the whole selection). After a successful startup merge this
+agrees with the merged status, since the startup merge records the eval
+set's own selection; the branch keeps the rule right on its own, for
+example for a merged log last written by the CLI with a different
+selection.
 
 **No recovery of merged logs.** `_recover_crashed_log` returns its inputs
 unchanged when `eval_log.eval.shards` is set, so neither call site recovers
@@ -1195,7 +1330,7 @@ Two PRs after the merge core, each with the measurement that justifies it:
 | `AsyncFilesystem.list_dir(base) -> DirListing(files: list[FileInfo], dirs: list[str])` | #528, landed (UKGovernmentBEIS/inspect_ai#5542) | listing `<name>.shards/` and each `<k>/` | the delimited walk |
 | `ZipEntry.crc32` and `AsyncZipReader(verify_crc=True)` / `ZipCrcError` | #528, landed (UKGovernmentBEIS/inspect_ai#5542) | consistent shard reads; raw copy | consistent member reads |
 | `list_shard_set`, `attempt_sort_key`, `is_shard_path` (`src/inspect_ai/log/_shards/_walk.py`) | PR 3 below | steps 4–5; the eval-set skip and companion discovery | its step 4 (shard aggregation) calls these instead of re-implementing the rules |
-| `EvalShards`, `EvalShardEntry`, `EvalShardSampleKey` | PR 2 below | writing the field | its step 6 (totals from the selection, cold start from the ledger's exact keys) |
+| `EvalShards`, `EvalShardEntry` and the recorded selection ("The `EvalSpec.shards` field") | PR 2 below | writing the field | its step 6: totals from the recorded selection; a cold start of the one-row-per-task view from the merged `summaries.json`, attributed by id as the merge does ("The sample set"); `--shards` rows on a cold cache read every shard |
 
 `list_dir` (`src/inspect_ai/_util/asyncfiles.py:1029`) makes one
 delimited listing (on S3 one `list_objects_v2` sweep with `Delimiter="/"`;
@@ -1238,19 +1373,40 @@ depends on the merge.
 
 ## Alternatives considered
 
-- **Key attribution outside the header.** A `shards.json` zip member in the
-  merged log mapping keys to shards keeps the header small. Rejected: a new
-  stored member that seeded retries would copy into unsharded logs unless
-  `_prune_prior_members` learned it (`eval.py:1522` keeps unknown
-  members), and ctl would need a second read for its cold start. The header
-  already carries `dataset.sample_ids`; exact keys add a factor of about the
-  epoch count.
+- **Exact keys in the ledger** (`sample_keys`, one `(id, epoch)` object per
+  record merged from each shard; this document's earlier revisions).
+  Attributes every record to its shard directly and lets ctl take any
+  shard's rows from the merged summaries. Rejected (Ransom, 2026-09-29): it
+  puts about epochs times `dataset.sample_ids` of new per-sample data in
+  every merged header, which every header read parses; the merged log's
+  own members already say which records exist, and attribution by id
+  needs only a count and a digest per shard ("The sample set").
+- **Key attribution in a zip member** (a `shards.json` mapping keys to
+  shards) instead of the header. Keeps the header small, but adds a stored
+  member that seeded retries would copy into unsharded logs unless
+  `_prune_prior_members` learned it (`eval.py:1522` keeps unknown members),
+  and a second read for ctl's cold start. Attribution by id needs no
+  mapping at all.
 - **Reopen unchanged shards instead of storing their stats and errors.**
   Keeps the ledger small, but every pass would read one header per shard,
   which is exactly the cost the incremental design avoids at 300 shards.
-- **Id-level ledger (`sample_ids`) expanded by epochs.** Smaller, but it
+- **Each shard's selection ids in the ledger** instead of a digest. Would
+  let an incremental pass check every pair of selections, as a fresh merge
+  does, but it is per-sample data again (one id per selected sample). The
+  digest detects the one change attribution cannot survive; overlaps are
+  refused through the counts ("The sample set").
+- **Id-level records (`sample_ids` expanded by epochs).** Smaller, but it
   invents records for running, failed and drained shards and makes fresh
-  and incremental merges disagree (round 1 of this document).
+  and incremental merges disagree (round 1 of this document). Attribution by
+  id is different: it groups the records that exist, taken from the merged
+  log's members, and never expands ids into keys.
+- **Fall back for a shard with no usable selection** (a `SampleSource`
+  task, or a header without `sample_ids`) by re-reading the attempt the
+  ledger's `log` names and attributing its keys exactly. Rejected:
+  a running attempt grows in place, so the attempt the ledger names is the
+  same file with newer contents, and its old keys are gone; and sharding a
+  task whose samples are produced while it runs has no launcher use in
+  Step 1 ("Validation").
 - **Deletion that survives crashes and concurrent deleters, and a viewer
   delete cascade.** Rounds 2 to 5 of this document's review built a
   deletion marker, recorded object identities, a `detached` header state,
@@ -1307,23 +1463,31 @@ today.
   ordinary log, which the merge then refuses to overwrite (cross-version
   editing of merged logs is not supported). The merged log's members are
   the ordinary finished `.eval` members. Shard headers are unchanged.
-  `.json` logs and chunked-shape samples are not supported as shards.
+  The merged header's only per-sample data is what an ordinary header
+  carries (`dataset.sample_ids`, and `config.sample_id` for an id
+  selection). `.json` logs and chunked-shape samples are not supported as
+  shards, and neither are shards of a `SampleSource` task or shards whose
+  header has no `dataset.sample_ids` (logs from Inspect versions that did
+  not record it); the merge refuses them ("Validation").
+- **Changing a shard's selection.** A new attempt in an existing `<k>/`
+  must select the same samples as the attempt already merged; otherwise the
+  merge refuses until the attempt is moved to its own `<k>/` or the merged
+  log is deleted and rebuilt.
 - **Generated types.** `inspect-openapi.json` and `ts-mono`'s
-  `generated.ts` gain `EvalShards`, `EvalShardEntry`, `EvalShardSampleKey`
-  and `EvalSpec.shards?`; landed through `land-ts-mono`. The viewer does
+  `generated.ts` gain `EvalShards`, `EvalShardEntry` and
+  `EvalSpec.shards?`; landed through `land-ts-mono`. The viewer does
   not read the field in Step 1. `inspect_scout` gets the types from
   `@tsmono/inspect-common` when its `ts-mono` version moves.
 - **Public Python API.** New: `merge_eval_log_shards`,
   `merge_eval_log_shards_async`, `ShardMergeResult`, `ShardSetError`,
-  `ShardSetIncomplete`, `EvalShards`, `EvalShardEntry`,
-  `EvalShardSampleKey` in `inspect_ai.log`,
+  `ShardSetIncomplete`, `EvalShards`, `EvalShardEntry` in `inspect_ai.log`,
   listed in a "Sharding" section of `docs/reference/inspect_ai.log.qmd`.
   `list_all_eval_logs` (internal, but imported by `inspect_flow`) gains a
   keyword argument whose default keeps its behaviour.
 - **CLI.** New `inspect log merge-shards`. No existing command changes.
 - **Eval sets.** Behaviour changes only for task groups that contain a
   merged log: startup merges, shards skipped before header reads, merged
-  logs classified by the ledger's exact keys, not recovered, and, once an
+  logs classified by their status and recorded selection, not recovered, and, once an
   unsharded retry succeeds, never chosen as latest and removed with their
   companions (including a `started` merged log) unless the companion holds
   scan results or checkpoints. Ordering among unsharded attempts is
@@ -1363,8 +1527,10 @@ today.
   the bucket. They go through the existing pydantic models and zip readers.
   Paths are derived from listed names by fixed rules (`<name>` from the
   basename, `<k>` from listed prefixes, member names from keys); the
-  field's `location` and ledger file names are never used to locate
-  anything. Sample member names are rebuilt from `(id, epoch)` with the
+  field's `location`, ledger file names and selection digests are never
+  used to locate anything. Merged records parsed from the merged log's
+  member names are used only as `(str(id), epoch)` keys for planning and
+  counting; a name that does not parse is refused. Sample member names are rebuilt from `(id, epoch)` with the
   existing `_sample_filename` rather than copied from a source central
   directory, so a crafted member name cannot place data under another key.
 - **Membership by location.** Strict validation (identifier, scorers,
@@ -1412,8 +1578,9 @@ Per PR (numbers from "Implementation plan"):
    `tests/log/test_log_filename.py` (UKGovernmentBEIS/inspect_ai#5541).
    Nothing further here; later PRs test their own use of the helpers.
 2. **The field.** `tests/log/test_eval_log.py`: round trip of a header
-   with `shards` (both selection forms, entries with and without
-   `etag`/`error`, with usage and keys); a header without it serialises with
+   with `shards` (with and without `sample_count`, entries with and without
+   `etag`/`error`, with usage, `samples` and `selection_digest`); a header
+   without it serialises with
    no `shards` key; a
    header carrying an unknown extra key still validates (the property old
    versions rely on). `check-schema-and-types` in CI proves the regenerated
@@ -1464,13 +1631,32 @@ Per PR (numbers from "Implementation plan"):
      drained `success` shard holding fewer records leaves the set
      `started`;
    - partial epochs: with two epochs, a running shard holding only `(x, 1)`
-     is recorded with exactly that key, and after another shard changes the
-     next pass still holds `(x, 1)` only and stays `started`; two shards
-     holding different epochs of one id are refused; fresh and incremental
-     merges make the same conflict and completeness decisions;
+     is recorded with exactly that key (`samples: 1`), and after another
+     shard changes the next pass still holds `(x, 1)` only and stays
+     `started`; two shards selecting one id are refused; fresh and
+     incremental merges make the same completeness decisions and, for
+     disjoint selections, the same conflict decisions;
+   - attribution: the recorded selection round-trips in all three forms
+     (ids: `config.sample_id` and `dataset.sample_ids`; count:
+     `sample_count`; neither), and a later pass without a selection reads
+     it back; the digest is independent of id order and of `1` versus
+     `"1"`; a merged header of a 3-epoch, 100-sample set holds no
+     per-sample list other than `dataset.sample_ids` and `config.sample_id`
+     (its `header.json` size is asserted against an unsharded log of the
+     same selection plus a per-shard bound); a new attempt in `<k>/` with a
+     different `--sample-id` is refused with both files named, and deleting
+     `<name>.eval` then merges it; a new shard whose selection meets a
+     carried record is refused; a changed shard whose merged records were
+     reduced by hand (a member removed from the merged log) is refused, as
+     is a pass over unchanged shards after the same edit; a shard of a
+     `SampleSource` task that adds a sample is refused once it holds the
+     added sample, and a shard header without `sample_ids` is refused;
+     overlapping selections where neither shard holds the shared id yet
+     are accepted incrementally and refused when the overlapped shard
+     next changes, while a fresh merge refuses them at once;
    - validation: identifier, scorer, metric, dataset-size, epochs, reducer
      and format-version mismatches (a scorer change that keeps the
-     identifier included), one id in two shards, a held id outside the
+     identifier included), overlapping selections, a held id outside the
      selection, a chunked-shape sample, a slash-containing id
      (`group/item`, a monolith, accepted), stray files, and an existing
      ordinary `<name>.eval`, each refused (or accepted) with nothing
@@ -1490,7 +1676,8 @@ Per PR (numbers from "Implementation plan"):
      template changes), and after a sequence where shard A fails,
      then B fails, then A recovers, the incremental header equals a fresh
      merge's (`stats` with distinct per-shard usage, `error` with full
-     traceback fields, `eval_set_id`, template fields, results, keys);
+     traceback fields, `eval_set_id`, template fields, results, ledger
+     counts and digests) and the member lists are equal;
    - no-write paths keep the contract: after an `allow_incomplete=True`
      merge, an unchanged call without it raises `ShardSetIncomplete`; after
      a `success` merge that kept shards, an unchanged call with
@@ -1540,7 +1727,10 @@ Per PR (numbers from "Implementation plan"):
    a log directory; `--sample-id` and `--sample-count`; the usage error for
    a selection with a directory; `--json` shape; the `task_file` notice;
    exit codes.
-6. **Eval-set integration.** `tests/test_eval_set.py`: startup over a
+6. **Eval-set integration.** `tests/test_eval_set.py`: `log_samples_complete`
+   on a `success` merged log is true when its `dataset.sample_ids` equals the
+   eval set's selection (for each recorded form: ids, count, neither) and
+   false for a different selection or changed epochs; startup over a
    complete shard set pairs only the merged log and runs nothing; over an
    incomplete set writes a `started` merged log that the set resumes
    (missing samples run once, unsharded); an `error` shard set is retried
@@ -1640,9 +1830,12 @@ Step 1 in eight PRs, of which PR 1 has landed. There is no viewer PR
    `_util/file.py`, `tests/util/test_asyncfiles.py`,
    `tests/util/test_file.py`.
 5. **Merge core, public API and CLI.** `log/_shards/{_api,_plan,_write,
-   _publish,_delete}.py`, exports and the reference section, `inspect log
+   _publish,_delete}.py` (`_plan.py` holds the member-name parser, the
+   selection digest, attribution by id and the ledger checks), exports and
+   the reference section, `inspect log
    merge-shards`, docs (a "Sharding" section in `docs/parallelism.qmd`
-   covering the layout, the launcher's job and the harness notes from the
+   covering the layout, the launcher's job (disjoint `--sample-id` or
+   `limit` selections, fixed per `<k>/`; no `SampleSource` tasks) and the harness notes from the
    parent, and the limitations: deletion is not safe against concurrent
    operations, and a viewer delete of a merged log leaves its companion,
    whose shards the viewer lists again until the next eval set re-merges
@@ -1677,7 +1870,12 @@ performance-only. Each PR reports its
 None. Resolved by Ransom on 2026-09-24: Step 1 makes no viewer changes and
 keeps deletion simple ("Deleting shards"), and a refused startup merge
 stops `eval_set()` with `PrerequisiteError` in all cases ("Eval-set
-integration").
+integration"). Resolved by Ransom on 2026-09-29: the merged header carries
+no per-sample data beyond `dataset.sample_ids` (a count and digest per
+shard, attribution by id, the selection in the ordinary header fields).
+This document decides the one case that left open: a shard with no usable
+selection (a `SampleSource` task, or no `sample_ids`) is refused, not
+merged by a fallback ("Validation").
 
 Stale local locks are report-only, as the parent's test list requires; a
 same-host dead-pid check can be added if crashed merges turn out to happen.
