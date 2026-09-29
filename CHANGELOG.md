@@ -1,3 +1,7 @@
+## Unreleased
+
+- Mistral: Support for mistralai 3.0, which is now the minimum required version.
+
 ## 0.3.272 (28 September 2026)
 
 - Anthropic: Support for Claude Sonnet 5.5 (`claude-sonnet-5-5`): `reasoning_effort="none"` turns off up-front thinking, forced tool choice degrades to auto, and computer use uses the computer toolset on the Claude API and Vertex.
