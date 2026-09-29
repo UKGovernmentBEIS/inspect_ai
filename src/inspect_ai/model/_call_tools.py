@@ -935,7 +935,12 @@ async def call_tool(
                 raise TerminateSampleError(
                     decision.explanation or "Sentinel requested termination."
                 )
-            elif decision.action == "modify" and decision.modified is not None:
+            elif decision.action == "modify":
+                if decision.modified is None:
+                    await record_pending_tool_event()
+                    raise SentinelFailure(
+                        RuntimeError("A sentinel modify decision has no modified call.")
+                    )
                 call = decision.modified
 
     # validate the schema of the passed object

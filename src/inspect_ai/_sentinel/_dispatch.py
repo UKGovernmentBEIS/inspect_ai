@@ -313,7 +313,7 @@ def _emit_decision(
         audit=decision.audit,
         explanation=decision.explanation,
         metadata=decision.metadata,
-        modified=decision.modified if decision.action == "modify" else None,
+        modified=decision.modified,
     )
 
 

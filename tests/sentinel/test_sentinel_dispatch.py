@@ -27,7 +27,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import Tool, ToolCall, tool
+from inspect_ai.tool import Tool, ToolCall, ToolCallView, tool
 from inspect_ai.util import StoreModel
 
 try:
@@ -39,6 +39,7 @@ try:
         Decision,
         Monitor,
         Observation,
+        Reported,
         concurrent,
         final,
         monitor,
@@ -695,3 +696,46 @@ def test_model_input_index_skips_monitor_calls() -> None:
     found = inputs.find(current, output_id(agent))
     assert found is not None and found[0].text == "agent"
     assert list(inputs._inputs) == [output_id(agent)]
+
+
+@pytest.mark.parametrize("action", ["continue", "reject", "terminate"])
+def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
+    action: Any,
+) -> None:
+    from inspect_ai._sentinel._dispatch import _context, _Recorder
+
+    init_transcript(Transcript())
+    call = addition_call()
+    step = BeforeToolCall(
+        conversation="c",
+        message="",
+        call=call,
+        view=ToolCallView(),
+        input=[],
+        history=[],
+    )
+    reported = Reported(
+        name="p", path="p", function="f", report=Decision(action=action, modified=call)
+    )
+    with pytest.raises(ValueError, match="modified is set only"):
+        _Recorder().record(replace(_context(), factory="p", path="p"), step, reported)
+
+
+def test_a_modify_decision_without_a_modified_call_fails_the_sample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._sentinel import _dispatch
+
+    async def modify_without_call(*args: Any) -> Decision:
+        return Decision(action="modify")
+
+    monkeypatch.setattr(_dispatch, "sentinel_before_tool_call", modify_without_call)
+    log = run([d3_suspicion()])
+    assert log.status == "error"
+    assert log.samples
+    sample_error = log.samples[0].error
+    assert sample_error is not None
+    assert "modify decision has no modified call" in sample_error.message
+    assert tool_messages(log) == []
+    [event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
+    assert event.failed is True
