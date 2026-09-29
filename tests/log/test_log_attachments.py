@@ -797,6 +797,30 @@ def test_resolve_core_ignores_refs_in_excluded_fields(where: str) -> None:
     assert resolved.attachments == {}
 
 
+class _RedactingUser(ChatMessageUser):
+    @field_serializer("metadata")
+    def _redact(self, metadata: object) -> None:
+        return None
+
+
+def test_resolve_core_scans_messages_as_declared_type() -> None:
+    # logs serialize messages through the declared ChatMessage type, which
+    # ignores a subclass's own serializers
+    sample = _sample_with_model_call_payload("payload")
+    event = sample.events[0]
+    assert isinstance(event, ModelEvent)
+    event.input = [
+        _RedactingUser(
+            content="hello", metadata={"ref": f"{ATTACHMENT_PROTOCOL}payload"}
+        )
+    ]
+    sample.attachments = {"payload": "content"}
+
+    resolved = resolve_sample_attachments(sample, "core")
+
+    assert resolved.attachments == {"payload": "content"}
+
+
 def _count_strings(value: object) -> int:
     if isinstance(value, str):
         return 1
