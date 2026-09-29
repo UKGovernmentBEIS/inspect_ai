@@ -1387,7 +1387,7 @@ pip install "sglang[all]>=0.4.4.post2" --find-links https://flashinfer.ai/whl/cu
 inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
-For the `sglang` provider, custom model args (-M) are forwarded to the sglang [CLI](https://docs.sglang.ai/backend/server_arguments.html).
+For the `sglang` provider, custom model args (-M) are forwarded to the sglang [CLI](https://docs.sglang.ai/advanced_features/server_arguments.html).
 
 The following environment variables are supported by the SGLang provider:
 
@@ -1413,7 +1413,7 @@ $ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct --model
 
 ### Tool Use and Reasoning
 
-SGLang supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
+SGLang supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/advanced_features/tool_parser.html) and [Reasoning](https://docs.sglang.ai/advanced_features/separate_reasoning.html) sections of the SGLang documentation for details.
 
 ### Batching
 
