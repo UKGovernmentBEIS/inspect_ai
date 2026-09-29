@@ -277,7 +277,7 @@ merged log and its companion stay beside it; an unsharded `success` log
 wins over a merged log with the same `task_id` regardless of mtime (parent
 design, "Eval-set integration"). The merged log carries a
 provenance field and ledger (per shard: file name, `eval_id`, samples merged,
-status, ETag or mtime, and a digest of its selection; no per-sample keys),
+status, ETag or mtime, its selection's size and digest; no per-sample keys),
 whose exact shape is in the sharding implementation document
 ([`eval-sharding-implementation.md`](../eval-sharding-implementation.md),
 "The `EvalSpec.shards` field").
@@ -564,7 +564,7 @@ below).
   `results.total_samples`, which counts dynamically admitted samples;
 - for a shard set, the intended selection recorded in the merged log's
   header: its id list (`eval.dataset.sample_ids`, when
-  `eval.config.sample_id` marks an id selection) times `epochs`, or
+  `eval.shards.selection` is `"ids"`) times `epochs`, or
   `eval.shards.sample_count` times `epochs` when the merge was given a
   count (parent design, "Completeness"; sharding implementation,
   "Recorded selection").
@@ -855,22 +855,44 @@ the source for sample state:
   gives only `pending_unlisted`. Until then the total covers discovered
   shards only, and the human output says so.
 - **Later optimisation (implementation step 6).** The ledger records each
-  merged shard's ETag but not its keys, so the merged log's rows can stand
-  in for unchanged shards as a group, not one by one. On a cold cache, when
-  every ledger shard is in the listing, the one-row-per-task view reads the
-  merged log's `summaries.json` (one GET) and only the shards whose listing
-  ETag differs from their ledger ETag or that the ledger lacks. A merged row
-  whose id is in no read shard's selection (that shard header's
-  `eval.dataset.sample_ids`) is an unchanged shard's row and is used with
-  the merged log as its member log; merged rows with ids in a read shard's
-  selection are ignored in favour of that shard's own rows. This is the
-  merge's attribution by id (sharding implementation, "The sample set"),
-  and the merge has already refused overlapping ownership among the
-  records it carries. `--shards` rows need each shard's own rows, which the
-  ledger cannot attribute, so on a cold cache they read every shard, as
-  does any listing in which a ledger shard is missing. The warm cache
-  already avoids re-reading unchanged shards, so this only matters for the
-  first read of a finished run.
+  merged shard's ETag, status, record count (`samples`) and selection size
+  (`selected`), but not its keys, so the merged log can stand in for its
+  shards only when it is a complete snapshot of all of them. On a cold
+  cache, the one-row-per-task view reads the merged log's
+  `summaries.json` (one GET) instead of the shards when every condition
+  holds:
+  - the merged log's status is `success`;
+  - the listing's shards are exactly the ledger's: every `<k>/` has a ledger
+    entry and every entry a `<k>/`, each current attempt has the entry's
+    `log` name and ETag (or `size` and `mtime` where either side has no
+    ETag), and the companion has no stray file;
+  - every entry is `success` with `samples == selected × epochs`, so each
+    shard holds its whole selection and nothing is pending, running or
+    buffered.
+
+  Why the row is then the same as one built from the shards: an unchanged
+  attempt is the bytes the merge read and validated (selections disjoint,
+  held ids within each selection, the ledger counts matching the merged
+  members; sharding implementation, "Validation" and "The sample set"), so
+  each shard's key set, its `dataset.sample_ids` times `epochs`, equals the
+  keys it holds; the key sets are disjoint; and the merged log holds
+  exactly their union, with the shards' own summary rows. `known_keys` and
+  `select_source` (`src/inspect_ai/_control/log_dir/select.py:61,101`) then
+  give every key one holder and no pending or conflicted keys either way.
+  The merged log is the member log for per-sample reads of those keys. The
+  `shards` block and per-shard fields come from the ledger entries
+  (status, `attempts`, `started_at`, `completed_at`) and `updated_at` from
+  the listing's mtimes.
+
+  Otherwise (an incomplete, running or drained snapshot, a changed, new or
+  missing shard, a stray file) the view reads the shards and manifests as
+  it does without a merged log, and reports what it finds there,
+  including conflicts and invalid shard sets, without invoking the merge.
+  There is no partial substitution: the ledger cannot say which merged rows
+  belong to which unchanged shard, and a changed attempt the merge has not
+  validated can overlap them. `--shards` rows always read every shard. The
+  warm cache already avoids re-reading unchanged shards, so this only
+  matters for the first read of a finished run.
 
 ### Cache
 
@@ -1199,10 +1221,14 @@ real moto server on an ephemeral port). New tests go in a new
   `in_flight`, `unfinished`, `conflicted`, `total_final`, `live_samples`,
   `shards` and `merged` match the fixture; mismatched shards are counted; a
   merged log whose companion is gone is an ordinary row. With step 6, a
-  cold `task list` over a merged shard set with one changed shard reads the
-  merged `summaries.json` and that shard only, and its row equals the row
-  built by reading every shard; `--shards` on a cold cache reads every
-  shard; a listing missing a ledger shard falls back to reading every
+  cold `task list` row equals the row built from every shard in each of
+  these cases: a complete `success` snapshot with an id, a count and no
+  selection (the merged summaries are read and no shard is); and, reading
+  the shards instead, a drained shard, a running shard with a shared
+  buffer, a changed attempt with a different selection, a new shard whose
+  selection overlaps an existing shard's records, a shard of a
+  `SampleSource` task, a missing ledger shard and a stray file, including
+  the conflicted and pending counts. `--shards` on a cold cache reads every
   shard.
 - **Sample key set.** A static selection; a `SampleSource` that adds a
   sample mid-run (the added key appears in `total`, is locatable by every
@@ -1337,8 +1363,8 @@ Each step is one PR; steps 1–5 are the MVP.
 6. **Merged-log integration** (after the sharding implementation adds the
    provenance field and ledger). The `merged` block, the recorded selection
    (id list or count) as the authoritative total, the cold-start read of
-   the default view from the merged summaries attributed by id (`--shards`
-   rows read every shard). Files:
+   the default view from the merged summaries of a complete snapshot
+   (`--shards` rows and every other case read the shards). Files:
    `snapshot.py`, tests.
 7. **Docs.** `docs/control-channel.qmd` (the mode, the verdict table,
    polling guidance) and `design/ctl/control-channel.md` (the error kinds in
