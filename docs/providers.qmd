@@ -293,11 +293,11 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
 
 ### Computer Use {#anthropic-computer-use}
 
-When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. On the Claude API and Vertex, Claude Opus 5.5 (which rejects the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5 and Fable/Mythos included) uses the legacy tool.
+When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. On the Claude API and Vertex, Claude Opus 5.5 and Sonnet 5.5 (which reject the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, and Fable/Mythos included) uses the legacy tool.
 
 With the toolset, each computer action arrives as its own tool call. Inspect executes the actions in one assistant turn in order and stops at the first failure, reporting the remaining actions to the model as not executed. Logs record each action as a `computer` tool call with an `action` argument, exactly as with the legacy tool.
 
-Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
+Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5 and Sonnet 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
 
 ``` bash
 inspect eval computer.py --model anthropic/claude-opus-5 -M computer_toolset=true
@@ -1387,7 +1387,7 @@ pip install "sglang[all]>=0.4.4.post2" --find-links https://flashinfer.ai/whl/cu
 inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
-For the `sglang` provider, custom model args (-M) are forwarded to the sglang [CLI](https://docs.sglang.ai/backend/server_arguments.html).
+For the `sglang` provider, custom model args (-M) are forwarded to the sglang [CLI](https://docs.sglang.ai/advanced_features/server_arguments.html).
 
 The following environment variables are supported by the SGLang provider:
 
@@ -1413,7 +1413,7 @@ $ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct --model
 
 ### Tool Use and Reasoning
 
-SGLang supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
+SGLang supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/advanced_features/tool_parser.html) and [Reasoning](https://docs.sglang.ai/advanced_features/separate_reasoning.html) sections of the SGLang documentation for details.
 
 ### Batching
 

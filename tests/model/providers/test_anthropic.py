@@ -3,7 +3,11 @@ from typing import Any, Literal, cast
 from unittest.mock import AsyncMock, create_autospec, patch
 
 import pytest
-from test_helpers.utils import setenv_if_unset, skip_if_no_anthropic
+from test_helpers.utils import (
+    setenv_if_unset,
+    skip_if_no_anthropic,
+    skip_if_no_bedrock,
+)
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import (
@@ -269,39 +273,43 @@ def test_anthropic_thinking_keeps_display_without_full_thinking_beta() -> None:
 
 
 @pytest.mark.parametrize(
-    "model_name,disabled",
+    "model_name,thinking_type",
     [
         # 4.7+ run adaptive thinking by default and accept `disabled`
-        ("claude-opus-5", True),
-        ("claude-sonnet-5", True),
-        ("claude-opus-4-8", True),
-        ("claude-opus-4-7", True),
+        ("claude-opus-5", "disabled"),
+        ("claude-sonnet-5", "disabled"),
+        ("claude-opus-4-8", "disabled"),
+        ("claude-opus-4-7", "disabled"),
+        # Sonnet 5.5 rejects `disabled`; `between_tools` is its lowest setting
+        ("claude-sonnet-5-5", "between_tools"),
+        ("anthropic.claude-sonnet-5-5", "between_tools"),
         # Fable/Mythos 5 and Opus 5.5 always think and reject `disabled` —
         # leave thinking unset
-        ("claude-fable-5", False),
-        ("claude-mythos-5", False),
-        ("claude-fable-5-1", False),
-        ("claude-mythos-5-1", False),
-        ("claude-opus-5-5", False),
+        ("claude-fable-5", None),
+        ("claude-mythos-5", None),
+        ("claude-fable-5-1", None),
+        ("claude-mythos-5-1", None),
+        ("claude-opus-5-5", None),
         # pre-4.7 default to no thinking — omitting the field already means off
-        ("claude-sonnet-4-6", False),
-        ("claude-sonnet-4-5", False),
+        ("claude-sonnet-4-6", None),
+        ("claude-sonnet-4-5", None),
     ],
 )
 def test_anthropic_reasoning_effort_none_disables_thinking(
-    model_name: str, disabled: bool
+    model_name: str, thinking_type: str | None
 ) -> None:
-    """`reasoning_effort="none"` disables thinking only where it applies.
+    """`reasoning_effort="none"` turns thinking off only where it applies.
 
     Sends `thinking:{type:"disabled"}` where thinking is on by default and can be
-    turned off (Claude 4.7+, excluding Fable/Mythos); omits it otherwise.
+    turned off (Claude 4.7+, excluding Fable/Mythos and Opus 5.5), and
+    `between_tools` on Sonnet 5.5; omits it otherwise.
     """
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     params, _e, _h, _b = api.completion_config(
         GenerateConfig(max_tokens=64, reasoning_effort="none")
     )
-    if disabled:
-        assert params["thinking"] == {"type": "disabled"}
+    if thinking_type is not None:
+        assert params["thinking"] == {"type": thinking_type}
     else:
         assert "thinking" not in params
 
@@ -326,6 +334,50 @@ def test_anthropic_opus_5_disabled_thinking_clamps_effort(
     )
     assert params["thinking"] == {"type": "disabled"}
     assert params["output_config"]["effort"] == "high"
+
+
+@pytest.mark.parametrize("effort", ["xhigh", "max"])
+def test_anthropic_sonnet_5_5_between_tools_clamps_effort(
+    effort: Literal["xhigh", "max"],
+    _warn_once_messages: list[str],
+) -> None:
+    """Sonnet 5.5 rejects `between_tools` with effort above `high`; clamp to `high`."""
+    api = AnthropicAPI(model_name="claude-sonnet-5-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort=effort)
+    )
+    assert params["thinking"] == {"type": "between_tools"}
+    assert params["output_config"]["effort"] == "high"
+    assert any(
+        "claude-sonnet-5-5" in m and "clamping effort to 'high'" in m
+        for m in _warn_once_messages
+    )
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high"])
+def test_anthropic_sonnet_5_5_between_tools_keeps_effort_at_or_below_high(
+    effort: Literal["low", "medium", "high"],
+) -> None:
+    """Effort at or below `high` passes through unclamped with `between_tools`."""
+    api = AnthropicAPI(model_name="claude-sonnet-5-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort=effort)
+    )
+    assert params["thinking"] == {"type": "between_tools"}
+    assert params["output_config"]["effort"] == effort
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
+def test_anthropic_sonnet_5_5_reasoning_effort_is_adaptive(
+    effort: Literal["low", "medium", "high", "xhigh", "max"],
+) -> None:
+    """A real reasoning effort routes to adaptive thinking on Sonnet 5.5."""
+    api = AnthropicAPI(model_name="claude-sonnet-5-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort=effort)
+    )
+    assert params["thinking"] == {"type": "adaptive", "display": "summarized"}
+    assert params["output_config"]["effort"] == effort
 
 
 @pytest.mark.parametrize("model_name", ["claude-opus-4-8", "claude-sonnet-5"])
@@ -1285,6 +1337,7 @@ def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
         "claude-fable-5",
         "claude-opus-5-0",
         "claude-opus-5-5",
+        "claude-sonnet-5-5",
         "claude-sonnet-4-7",
         "claude-sonnet-5-0",
     ],
@@ -1487,6 +1540,7 @@ async def test_anthropic_opus_5_disabled_thinking_effort_clamp_live() -> None:
         # Claude 5 (GA opus/fable + hypothetical tier-named): 128k via "claude 5+" branch
         ("claude-opus-5", 128000),
         ("claude-opus-5-5", 128000),
+        ("claude-sonnet-5-5", 128000),
         ("claude-fable-5", 128000),
         ("claude-fable-5-1", 128000),
         ("claude-mythos-5-1", 128000),
@@ -1522,6 +1576,7 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
         "claude-mythos-5",
         # point releases
         "claude-opus-5-5",
+        "claude-sonnet-5-5",
         "claude-fable-5-1",
         "claude-mythos-5-1",
         # forward-compat variants: tier-named, new codename
@@ -1612,14 +1667,16 @@ def test_anthropic_computer_use_tool_version(
     assert param["type"] == expected_type
 
 
-def test_anthropic_opus_5_5_computer_use_on_bedrock() -> None:
-    """Bedrock still accepts `computer_20251124` on Opus 5.5."""
+@pytest.mark.parametrize(
+    "model_name",
+    ["bedrock/anthropic.claude-opus-5-5", "bedrock/anthropic.claude-sonnet-5-5"],
+)
+def test_anthropic_5_5_computer_use_on_bedrock(model_name: str) -> None:
+    """Bedrock still accepts `computer_20251124` on Opus 5.5 and Sonnet 5.5."""
     setenv_if_unset("AWS_REGION", "us-east-1")
     setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
     setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
-    api = AnthropicAPI(
-        model_name="bedrock/anthropic.claude-opus-5-5", api_key="test-key"
-    )
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     param = api.computer_use_tool_param(_computer_tool_info())
     assert param is not None
     assert param["type"] == "computer_20251124"
@@ -1699,6 +1756,42 @@ def test_anthropic_is_claude_opus_5_5_or_later(model_name: str, expected: bool) 
 
 
 @pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("claude-sonnet-5-5", True),
+        ("anthropic.claude-sonnet-5-5", True),
+        ("us.anthropic.claude-sonnet-5-5-20260928-v1:0", True),
+        ("claude-sonnet-5-5@20260928", True),
+        ("claude-sonnet-5.5", True),
+        ("claude-sonnet-5-5-20260928", True),
+        # assume later point releases keep the 5.5 behavior
+        ("claude-sonnet-5-6", True),
+        ("claude-sonnet-5-10", True),
+        # the base release, earlier (hypothetical) point releases, other tiers
+        ("claude-sonnet-5", False),
+        ("claude-sonnet-5-0", False),
+        ("claude-sonnet-5-1", False),
+        ("claude-opus-5-5", False),
+        ("claude-sonnet-4-5", False),
+        ("claude-sonnet-4-6", False),
+        # 1M-context style and date suffixes are not point releases
+        ("claude-sonnet-5-5m", False),
+        ("claude-sonnet-5-20260629", False),
+    ],
+)
+def test_anthropic_is_claude_sonnet_5_5_or_later(
+    model_name: str, expected: bool
+) -> None:
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.is_claude_sonnet_5_5_or_later() is expected
+    if expected:
+        # 5.5 is still a Sonnet 5 / Claude 5 model for the shared gates
+        assert api.is_claude_sonnet_5() is True
+        assert api.is_claude_5() is True
+        assert api.is_claude_opus_5_5_or_later() is False
+
+
+@pytest.mark.parametrize(
     "model_name", ["claude-fable-5-1", "claude-mythos-5-1", "claude-opus-5-5"]
 )
 def test_anthropic_fable_5_1_degrades_forced_tool_choice(model_name: str) -> None:
@@ -1745,7 +1838,9 @@ def _request_with_thinking_history() -> dict[str, Any]:
     }
 
 
-@pytest.mark.parametrize("model_name", ["claude-fable-5-1", "claude-opus-5-5"])
+@pytest.mark.parametrize(
+    "model_name", ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5"]
+)
 def test_anthropic_fable_5_1_thinking_block_binding(model_name: str) -> None:
     """Replayed thinking blocks opt into drop_block on prefix mismatch."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
@@ -1810,10 +1905,12 @@ def test_anthropic_fable_5_no_binding_on_base_model(model_name: str) -> None:
         "bedrock/anthropic.claude-opus-5-5",
         "vertex/claude-opus-5-5",
         "azure/claude-opus-5-5",
+        "vertex/claude-sonnet-5-5",
+        "azure/claude-sonnet-5-5",
     ],
 )
 def test_anthropic_fable_5_1_no_binding_off_first_party(model_name: str) -> None:
-    """The thinking-binding beta is first-party only (not bedrock/vertex/azure)."""
+    """The thinking-binding beta is first-party only, except Sonnet 5.5 on Bedrock."""
     setenv_if_unset("AWS_REGION", "us-east-1")
     setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
     setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
@@ -1826,6 +1923,46 @@ def test_anthropic_fable_5_1_no_binding_off_first_party(model_name: str) -> None
     api.apply_thinking_block_binding(request, betas)
     assert betas == []
     assert "thinking" not in request
+
+
+def test_anthropic_sonnet_5_5_between_tools_has_no_binding_config() -> None:
+    """`between_tools` takes no other field, so block_binding is not added to it.
+
+    The beta header is still sent, keeping headers uniform across a task's
+    requests.
+    """
+    api = AnthropicAPI(model_name="claude-sonnet-5-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none")
+    )
+    request = _request_with_thinking_history() | params
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {"type": "between_tools"}
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "bedrock/anthropic.claude-sonnet-5-5",
+        "bedrock/global.anthropic.claude-sonnet-5-5",
+    ],
+)
+def test_anthropic_sonnet_5_5_binding_on_bedrock(model_name: str) -> None:
+    """Bedrock offers the thinking-binding beta for Sonnet 5.5."""
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
 
 
 def test_anthropic_mythos_5_1_no_binding() -> None:
@@ -1846,6 +1983,8 @@ def test_anthropic_mythos_5_1_no_binding() -> None:
         ("claude-fable-5", "tool"),
         ("claude-opus-5-5", "auto"),
         ("claude-opus-5", "tool"),
+        ("claude-sonnet-5-5", "auto"),
+        ("claude-sonnet-5", "tool"),
     ],
 )
 async def test_anthropic_forced_tool_choice_request_wiring(
@@ -1909,6 +2048,7 @@ async def test_anthropic_forced_tool_choice_request_wiring(
         # forcing is never honored on 5.1 / Opus 5.5, so record the degradation
         ("claude-fable-5-1", True),
         ("claude-opus-5-5", True),
+        ("claude-sonnet-5-5", True),
         # other models keep their existing log shape on this long-standing path
         ("claude-opus-4-8", False),
     ],
@@ -2040,7 +2180,9 @@ async def test_anthropic_no_thinking_dropped_warning_when_empty(
 
 @pytest.mark.anyio
 @skip_if_no_anthropic
-@pytest.mark.parametrize("model_name", ["claude-fable-5-1", "claude-opus-5-5"])
+@pytest.mark.parametrize(
+    "model_name", ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5"]
+)
 async def test_anthropic_bound_thinking_drop_reported_live(
     model_name: str,
     _warn_once_messages: list[str],
@@ -2053,10 +2195,25 @@ async def test_anthropic_bound_thinking_drop_reported_live(
     binding enforcement); with it, the request succeeds, the API reports the
     drop via input_transformations, and inspect surfaces a warning.
     """
+    await _check_bound_thinking_drop(f"anthropic/{model_name}", _warn_once_messages)
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_anthropic_bound_thinking_drop_reported_bedrock_live(
+    _warn_once_messages: list[str],
+) -> None:
+    """Sonnet 5.5 on Bedrock drops a prefix-mismatched thinking block (not 400s)."""
+    await _check_bound_thinking_drop(
+        "anthropic/bedrock/global.anthropic.claude-sonnet-5-5", _warn_once_messages
+    )
+
+
+async def _check_bound_thinking_drop(model_str: str, warn_messages: list[str]) -> None:
     from inspect_ai.model import ChatMessageSystem as SystemMsg
 
     model = get_model(
-        f"anthropic/{model_name}",
+        model_str,
         config=GenerateConfig(reasoning_effort="high", max_tokens=8192),
     )
     prompt = "Find all real solutions of 3*x^3 - 5*x = 1 to 3 decimal places."
@@ -2082,7 +2239,7 @@ async def test_anthropic_bound_thinking_drop_reported_live(
     assert second.metadata is not None
     transformations = second.metadata["extra_body"]["input_transformations"]
     assert any(t.get("type") == "thinking_dropped" for t in transformations)
-    assert any("dropped replayed thinking block" in m for m in _warn_once_messages)
+    assert any("dropped replayed thinking block" in m for m in warn_messages)
 
 
 @pytest.mark.anyio
@@ -2155,6 +2312,81 @@ async def test_anthropic_opus_5_5_forced_tool_choice_live() -> None:
         tool_choice=ToolFunction(name="addition"),
     )
     assert len(response.completion) >= 1 or response.message.tool_calls
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_sonnet_5_5_generate_live() -> None:
+    """Sonnet 5.5 accepts our request shape (adaptive thinking + effort) and generates."""
+    model = get_model(
+        "anthropic/claude-sonnet-5-5",
+        config=GenerateConfig(effort="low", max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+@pytest.mark.parametrize("effort", [None, "max"])
+async def test_anthropic_sonnet_5_5_reasoning_effort_none_live(
+    effort: Literal["max"] | None,
+) -> None:
+    """reasoning_effort='none' must not 400 on Sonnet 5.5 (sent as between_tools).
+
+    `max` pins the effort clamp: the API rejects `between_tools` above `high`.
+    """
+    model = get_model(
+        "anthropic/claude-sonnet-5-5",
+        config=GenerateConfig(reasoning_effort="none", effort=effort, max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+@pytest.mark.parametrize("effort", [None, "max"])
+async def test_anthropic_sonnet_5_5_reasoning_effort_none_bedrock_live(
+    effort: Literal["max"] | None,
+) -> None:
+    """reasoning_effort='none' (between_tools) must not 400 on Bedrock either."""
+    model = get_model(
+        "anthropic/bedrock/global.anthropic.claude-sonnet-5-5",
+        config=GenerateConfig(reasoning_effort="none", effort=effort, max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_sonnet_5_5_forced_tool_choice_live() -> None:
+    """Forced tool choice must not 400 on Sonnet 5.5 (degraded to auto)."""
+    await _check_forced_tool_choice_degrades("anthropic/claude-sonnet-5-5")
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_anthropic_sonnet_5_5_forced_tool_choice_bedrock_live() -> None:
+    """Forced tool choice must not 400 on Sonnet 5.5 via Bedrock (degraded to auto)."""
+    await _check_forced_tool_choice_degrades(
+        "anthropic/bedrock/global.anthropic.claude-sonnet-5-5"
+    )
+
+
+async def _check_forced_tool_choice_degrades(model_str: str) -> None:
+    from test_helpers.tools import addition
+
+    model = get_model(model_str, config=GenerateConfig(max_tokens=1024))
+    response = await model.generate(
+        input="What is 1 + 1? Use the addition tool to compute it.",
+        tools=[addition()],
+        tool_choice=ToolFunction(name="addition"),
+    )
+    assert len(response.completion) >= 1 or response.message.tool_calls
+    assert response.metadata is not None
+    assert response.metadata["tool_choice_degraded"]["used"] == {"type": "auto"}
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,26 @@
 
 - Anthropic: Prompts can mark a stable prefix for caching while allowing the remaining text to change.
 - OpenAI: GPT-5.6 and later support explicit prompt-cache boundaries; other models retain automatic caching.
+- Mistral: Support for mistralai 3.0, which is now the minimum required version.
+- Logs: Reading samples with `resolve_attachments` is much faster for long conversations; in full mode, deeply nested model API call content may keep two more nesting levels.
+- Bugfix: `self_critique()`, and `model_graded_qa()`/`model_graded_fact()` with `model_role=None`, now critique or grade with the correct model when one task is evaluated against several models.
+- Reading a remote `.eval` log from a non-S3 filesystem (e.g. `gs://`, `az://`) no longer stalls other running work for the whole download.
+- S3: Streaming uploads now read each multipart part from the source file in a single worker-thread call rather than 32 chunked calls, reducing event-loop wakeups during log flushes.
+- Recording an eval or model error no longer spends seconds syntax highlighting its traceback: the stored ANSI traceback keeps its frames and source snippets, without syntax colouring.
+- Bugfix: `subprocess()` and Docker sandbox `exec()` no longer intermittently fail with `BrokenPipeError` when the command exits before reading its input.
+
+## 0.3.272 (28 September 2026)
+
+- Anthropic: Support for Claude Sonnet 5.5 (`claude-sonnet-5-5`): `reasoning_effort="none"` turns off up-front thinking, forced tool choice degrades to auto, and computer use uses the computer toolset on the Claude API and Vertex.
+- Tools: `web_browser()` is deprecated, logs a warning when called, and will be removed in a future release.
+- Inspect View: Shard logs under `<name>.shards/` are hidden once a successful merged log covers them (`inspect view --show-shards` to list them); bundles leave them out.
+- Computer tool: click actions called without a `coordinate` now click at the current cursor position instead of failing, and the tool description states which actions require one.
+- Computer tool: `back_click` and `forward_click` now work (with a rebuilt `aisiuk/inspect-computer-tool` image); previously they failed inside the container regardless of arguments.
+
+## 0.3.271 (26 September 2026)
+
+- CLI: New `--extra-headers` and `--extra-body` options for `inspect eval` and `inspect eval-set`, taking an inline JSON or YAML mapping.
+- Google: Token counting falls back to a local estimate, with a warning, when the countTokens endpoint is unavailable or rejects the request.
 
 ## 0.3.270 (25 September 2026)
 
