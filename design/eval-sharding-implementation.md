@@ -4,8 +4,10 @@ Status: proposed, 2026-09-24; revised the same day after Ransom removed
 viewer changes from Step 1 and asked for simple shard deletion. Issue:
 https://github.com/meridianlabs-ai/inspect_ai/issues/529 (part of #509).
 Author: agent (Claude), reviewed by Codex; see the PR. Verified against
-`43ebaebc38`; the layout helpers were updated on 2026-09-29 to what landed
-in UKGovernmentBEIS/inspect_ai#5541 (`18acb828a2`).
+`43ebaebc38`; updated on 2026-09-29 (`18acb828a2`) for what has landed
+since: the layout helpers (UKGovernmentBEIS/inspect_ai#5541), ctl log-dir
+mode steps 1–2 with `list_dir` and the CRC check (#5542) and the viewer's
+hiding of merged shards (#5591).
 
 This is the follow-on document that [`eval-sharding.md`](eval-sharding.md)
 ("the parent design") names: the public surface, the shape of the stored
@@ -26,7 +28,8 @@ leaves the API signatures, the ledger's exact shape and the order of work to
 this document, and two implementation efforts have already started against
 it: the layout helpers (meridianlabs-ai/inspect_ai#530, since landed as
 UKGovernmentBEIS/inspect_ai#5541) and ctl log-dir mode
-(meridianlabs-ai/inspect_ai#528, whose later steps read the merged log's
+(meridianlabs-ai/inspect_ai#528, steps 1–2 since landed as
+UKGovernmentBEIS/inspect_ai#5542; its later steps read the merged log's
 provenance field). Without a fixed surface and sequence, those efforts and
 the merge would each invent their own versions of the shared pieces (the
 directory walk, the attempt order inside `<k>/`, the ledger fields) and
@@ -53,15 +56,19 @@ Non-goals:
 - Anything the parent design places in Step 2 or Step 3 (live whole-task
   metrics, viewer collapsing of shards, per-shard metrics in the viewer).
 - A launcher. Inspect ships none in Step 1 (parent, "Phased plan").
-- A listing exclusion for shards (deferred by the parent, "Listing").
+- A listing exclusion for shards beyond the viewer's. The viewer already
+  hides shards that a `success` merged log covers
+  (UKGovernmentBEIS/inspect_ai#5591; parent, "Listing"); other enumerators
+  still list them.
 - S3 server-side composition with `UploadPartCopy`; the parent orders it
   after raw member copy, "when measured merges of large logs justify it".
 - Chunked-shape samples (see "Validation" and "Not this design").
 - Distributed merge ownership and a remote lock protocol (parent,
   "Overlapping merges").
 - Viewer changes of any kind (decision: Ransom, 2026-09-24: "for stage 1,
-  we are not planning any viewer changes"). `/log-delete` keeps deleting
-  the one file requested; see "Deleting shards" for the limitation this
+  we are not planning any viewer changes"). The shard hiding in #5591
+  landed separately and needs nothing from this plan. `/log-delete` keeps
+  deleting the one file requested; see "Deleting shards" for the limitation this
   leaves.
 - Deletion that is safe against concurrent deleters or resumable after a
   crash (decision: Ransom, 2026-09-24, "keep deletion simple"). Earlier
@@ -121,13 +128,15 @@ and `inspect log schema` prints the OpenAPI file
 (`src/inspect_ai/analysis/_dataframe/evals/columns.py`), so a new field adds
 no column by itself.
 
-**Reading logs.** `AsyncZipReader` (`src/inspect_ai/_util/async_zip.py:310`)
+**Reading logs.** `AsyncZipReader` (`src/inspect_ai/_util/async_zip.py:343`)
 reads the central directory with a suffix read, records the object's ETag
-(`etag`, `:351`), and streams a member decompressed (`open_member`) or raw
-(`open_member_raw`, `:373`). `ZipEntry`
-(`src/inspect_ai/_util/zip_common.py:18`) holds name, method, sizes and
-local-header offset, but no CRC-32; ctl log-dir mode adds the CRC and an
-opt-in CRC check on member reads (its step 2, #528). A running log has no
+(`etag`, `:393`), and streams a member decompressed (`open_member`) or raw
+(`open_member_raw`). `ZipEntry` (`src/inspect_ai/_util/zip_common.py`)
+holds name, method, sizes, local-header offset and, since #5542, `crc32`
+(`int | None`, from the central directory). `AsyncZipReader(...,
+verify_crc=True)` checks every decompressed member read against it and
+raises `ZipCrcError` (a `ValueError`) on a mismatch; ctl log-dir mode
+re-reads up to twice on one. A running log has no
 `header.json`; `_read_header_async` synthesises the header from
 `_journal/start.json` and `_read_all_summaries_async` reads journal
 summaries, deduped by `(id, epoch)` with the last row winning
@@ -214,10 +223,23 @@ mtime and removes every non-`started` log but the newest with a bare
 below this point is eval-set orchestration ... deliberately skipped"
 (`:832-837`), so a worker never scans the directory.
 
-**Viewer delete.** `/log-delete/{log}` (`fastapi_server.py:228`) checks
+**Viewer delete.** `/log-delete/{log}` (`fastapi_server.py:238`) checks
 the access policy for the requested path and calls `delete_log`
-(`src/inspect_ai/_view/common.py:409`), a bare `fs.rm` of that one file.
+(`src/inspect_ai/_view/common.py:500`), a bare `fs.rm` of that one file.
 Step 1 leaves it unchanged.
+
+**Viewer shard hiding** (UKGovernmentBEIS/inspect_ai#5591). The view
+server's `/logs` and `/log-files` listings (`hide_merged_shards`,
+`src/inspect_ai/_view/common.py:174`) and `write_log_listing`
+(`listing.json`, bundles; `src/inspect_ai/log/_file.py:1309`) drop a log
+under `<name>.shards/<k>/` when its merged log is in the same listing, has
+status `success`, and is strictly newer than the shard by mtime
+(`filter_merged_shards`, `src/inspect_ai/log/_shard_listing.py:43`). A
+shard tied with the merged log or newer than it, and every shard of a
+merged log that is `started`, `error`, `cancelled` or unreadable, stays
+visible.
+`inspect view --show-shards` turns the filter off. It keys on the layout
+and the merged log's status only; it does not read `eval.shards`.
 
 **Other outputs beside a worker's log.** A worker's default scan directory
 is under its own log directory, `<k>/scans/scan_id=...`, while an eval
@@ -227,8 +249,13 @@ as `<log>.checkpoints/` (`eval_checkpoints_dir`), deleted on success by
 default and kept with `retention="retain"`
 (`src/inspect_ai/util/_checkpoint/config.py:172,233`).
 
-**Work in flight that overlaps this plan.** #528 (ctl log-dir mode steps 1–2, including
-`AsyncFilesystem.list_dir` and the `ZipEntry` CRC, not started),
+**Landed since the first revision.** #528's steps 1–2
+(UKGovernmentBEIS/inspect_ai#5542): `inspect ctl --log-dir`,
+`AsyncFilesystem.list_dir`, the `ZipEntry` CRC and the opt-in CRC check
+("Code shared with ctl log-dir mode"). Its steps 4 and 6 (shard
+aggregation, ledger totals) wait for PRs 3 and 2 below.
+
+**Work in flight that overlaps this plan.**
 UKGovernmentBEIS/inspect_ai#5396 (open: retry cleanup also removes older
 `started` logs and their buffers; touches `latest_completed_task_eval_logs`)
 and UKGovernmentBEIS/inspect_ai#5391 (design: S3 flushes by server-side
@@ -555,10 +582,11 @@ downloaded and rewritten only when step 10 says so.
 6. **Read changed and new shards**, bounded (16 concurrent), each through
    one `AsyncZipReader`: the central directory, the header (synthesised from
    `_journal/start.json` for a running attempt), the summaries (journal
-   summaries for a running attempt), with ctl log-dir mode's opt-in CRC
-   check on every member read ("Consistent reads"). If the template shard
-   ("Building the merged log") is unchanged but is not the recorded
-   `template`, read its header too. The ledger records the reader's ETag
+   summaries for a running attempt), with the opt-in CRC check
+   (`verify_crc=True`) on every member read ("Consistent reads"). If the
+   template shard ("Building the merged log") is unchanged but is not the
+   recorded `template`, read its header too. The ledger records the
+   reader's ETag
    (`AsyncZipReader.etag`), which may differ from the listing's when the
    object was replaced in between; the next pass then sees a changed ETag
    and re-reads. A key is *held* by an attempt when its summaries list it
@@ -778,9 +806,10 @@ memory follows the largest sample; "Scale items" bounds it.
 
 A running shard's object is replaced on every flush, so a member range read
 after the central directory can land in a newer object. Every member read
-of a shard uses the CRC check ctl log-dir mode adds (#528, its step 2). A
-mismatch means the shard changed after it was planned: the pass discards
-its plan and temp output and restarts from step 4 (a fresh listing, so the
+of a shard goes through an `AsyncZipReader` built with `verify_crc=True`
+(#5542). A `ZipCrcError` means the shard changed after it was planned:
+the pass discards its plan and temp output and restarts from step 4 (a
+fresh listing, so the
 shard's keys, status and identity are re-read and re-validated), at most
 three times, then fails with the storage error and writes nothing. The
 merged log itself is read from a local copy pinned to `E0` (S3) or under the
@@ -865,9 +894,11 @@ What the user sees after an interruption:
 **The viewer is not a deleter.** `/log-delete` is unchanged (decision:
 Ransom, 2026-09-24): deleting a merged log in the viewer deletes only that
 file. Its `<name>.shards/` companion remains, and the next `eval_set()`
-startup merge over the directory rebuilds the merged log from it. To
-remove a sharded run for good, delete the companion directory as well.
-This is a documented limitation of Step 1, stated in the sharding docs.
+startup merge over the directory rebuilds the merged log from it. Until
+then the viewer lists the shards again, since no merged log covers them
+(#5591). To remove a sharded run for good, delete the companion directory
+as well. This is a documented limitation of Step 1, stated in the sharding
+docs.
 
 Compatibility boundary for ancillary output: Step 1 does not merge
 per-shard scan results or checkpoints. Scan rows written by workers stay in
@@ -1150,8 +1181,8 @@ Two PRs after the merge core, each with the measurement that justifies it:
   built from the source central-directory entry (method, CRC-32, sizes,
   name), the compressed bytes verbatim (`AsyncZipReader.open_member_raw`
   for shards, the local copy for carried members), and a central-directory
-  entry with the new offset, ZIP64 when needed. Needs the `ZipEntry` CRC
-  (#528 or PR 5). Removes the recompress of every sample; the decompress for
+  entry with the new offset, ZIP64 when needed. Uses the `ZipEntry` CRC
+  (landed, #5542). Removes the recompress of every sample; the decompress for
   score extraction remains. With CRCs available, a changed shard's member
   whose CRC equals the carried member's is kept from the merged log without
   reading the shard.
@@ -1161,14 +1192,19 @@ Two PRs after the merge core, each with the measurement that justifies it:
 | Piece | Owner PR | Merge uses it for | ctl log-dir mode uses it for |
 |---|---|---|---|
 | `log_basename`, `eval_shards_dir`, `eval_log_for_shards_dir`, `eval_log_name` (`src/inspect_ai/_util/log_layout.py`) | #530, landed (UKGovernmentBEIS/inspect_ai#5541) | the `<name>.eval` / `<name>.shards/` pair, `<name>` minting by launchers | mapping `X.shards/` to its merged log (its "Logical tasks") |
-| `AsyncFilesystem.list_dir(base) -> DirListing(files: list[FileInfo], dirs: list[str])` | #528 (its step 2); PR 3 below if #528 has not landed | listing `<name>.shards/` and each `<k>/` | the delimited walk |
-| `ZipEntry` CRC-32 and the opt-in CRC check | #528 (its step 2); PR 5 below if #528 has not landed | consistent shard reads; raw copy | consistent member reads |
+| `AsyncFilesystem.list_dir(base) -> DirListing(files: list[FileInfo], dirs: list[str])` | #528, landed (UKGovernmentBEIS/inspect_ai#5542) | listing `<name>.shards/` and each `<k>/` | the delimited walk |
+| `ZipEntry.crc32` and `AsyncZipReader(verify_crc=True)` / `ZipCrcError` | #528, landed (UKGovernmentBEIS/inspect_ai#5542) | consistent shard reads; raw copy | consistent member reads |
 | `list_shard_set`, `attempt_sort_key`, `is_shard_path` (`src/inspect_ai/log/_shards/_walk.py`) | PR 3 below | steps 4–5; the eval-set skip and companion discovery | its step 4 (shard aggregation) calls these instead of re-implementing the rules |
 | `EvalShards`, `EvalShardEntry`, `EvalShardSampleKey` | PR 2 below | writing the field | its step 6 (totals from the selection, cold start from the ledger's exact keys) |
 
-`DirListing.dirs` entries are full URIs ending in `/`, as `iter_dirs`
-yields today (`asyncfiles.py:952`). `list_dir` does not follow local
-directory symlinks.
+`list_dir` (`src/inspect_ai/_util/asyncfiles.py:1029`) makes one
+delimited listing (on S3 one `list_objects_v2` sweep with `Delimiter="/"`;
+locally `os.scandir`, not following directory symlinks). Paths keep the
+form `base` was given in (a `file://` child is built with `to_uri`), and
+`DirListing.dirs` entries have no trailing separator. A missing local
+`base` raises `FileNotFoundError`, while an empty S3 prefix lists as empty;
+`list_shard_set` maps both to an empty listing (no companion), so local and
+S3 behave the same.
 
 The shard-set rules, one implementation for both consumers:
 
@@ -1300,17 +1336,23 @@ today.
   scanners over the parent directory scans the merged log's samples again
   under `<dir>/scans/`, and every deletion path refuses a companion that
   holds them.
-- **Viewer.** Unchanged, including `/log-delete`. Limitation: deleting a
+- **Viewer.** Unchanged, including `/log-delete`. Its shard hiding
+  (#5591) applies to merged logs as written here: a complete merge
+  publishes a `success` log after reading its shards, so it is newer than
+  them and hides them; an incomplete merge's log is not `success`, so its
+  shards stay visible; a pass that writes nothing leaves the mtime as it
+  was. Limitation: deleting a
   merged log in the viewer deletes only that file; its `<name>.shards/`
-  companion remains and the next `eval_set()` startup merge rebuilds the
-  merged log. To remove a sharded run for good, delete the companion
-  directory as well. The sharding docs (PR 5) say so.
+  companion remains, its shards show again, and the next `eval_set()`
+  startup merge rebuilds the merged log. To remove a sharded run for
+  good, delete the companion directory as well. The sharding docs (PR 5)
+  say so.
 - **Deletion guarantees.** `delete_shards` and retry cleanup assume they
   are the only operation on that log; an interrupted deletion reports what
   is left and is finished by re-running or by hand ("Deleting shards").
-- **`AsyncFilesystem`.** New `list_dir` (if not already added by #528),
-  `get_file_if_match` and `write_file_conditional`, and a second,
-  non-retrying S3 client used only by the conditional final call; existing
+- **`AsyncFilesystem`.** New `get_file_if_match` and
+  `write_file_conditional`, and a second, non-retrying S3 client used
+  only by the conditional final call; existing
   methods and clients unchanged.
 
 ## Security
@@ -1376,10 +1418,8 @@ Per PR (numbers from "Implementation plan"):
    header carrying an unknown extra key still validates (the property old
    versions rely on). `check-schema-and-types` in CI proves the regenerated
    schema and types match.
-3. **Shared walk.** `tests/util/test_asyncfiles.py` (if this PR adds
-   `list_dir`): files and prefixes from one delimited listing on `mock_s3`,
-   including more than 1,000 keys (pagination); local listing does not
-   follow a directory symlink loop. `tests/log/test_shards.py`: a companion
+3. **Shared walk.** `list_dir` landed with its tests (#5542).
+   `tests/log/test_shards.py`: a companion
    with `<k>/` directories holding one attempt, an original plus its
    `-recovered` copy (recovered current), two attempts with the older one
    touched last (the file-name timestamp wins over mtime), an empty `<k>/`,
@@ -1584,11 +1624,10 @@ Step 1 in eight PRs, of which PR 1 has landed. There is no viewer PR
    `log/_log.py`, `log/__init__.py`, `_view/inspect-openapi.json`,
    `_view/ts-mono` (gitlink), `tests/log/test_eval_log.py`. No CHANGELOG
    entry (no user-visible change until PR 5).
-3. **Shared walk.** `AsyncFilesystem.list_dir` if #528 has not landed it
-   (otherwise reuse), `log/_shards/_walk.py` (`list_shard_set`,
-   `attempt_sort_key`, `is_shard_path`). Uses PR 1's helpers. Files:
-   `_util/asyncfiles.py`, `log/_shards/__init__.py`, `log/_shards/_walk.py`,
-   `tests/util/test_asyncfiles.py`, `tests/log/test_shards.py`. After this
+3. **Shared walk.** `log/_shards/_walk.py` (`list_shard_set`,
+   `attempt_sort_key`, `is_shard_path`) over the landed `list_dir`. Uses
+   PR 1's helpers. Files: `log/_shards/__init__.py`, `log/_shards/_walk.py`,
+   `tests/log/test_shards.py`. After this
    PR, ctl log-dir mode's step 4 can land.
 4. **Guard primitives.** `AsyncFilesystem.write_file_conditional` (asyncio
    and Trio routes, pre-checks, abort, cooperative cancellation on Trio, a
@@ -1606,14 +1645,13 @@ Step 1 in eight PRs, of which PR 1 has landed. There is no viewer PR
    covering the layout, the launcher's job and the harness notes from the
    parent, and the limitations: deletion is not safe against concurrent
    operations, and a viewer delete of a merged log leaves its companion,
-   which the next eval set re-merges), CHANGELOG entry. Depends on 2, 3,
+   whose shards the viewer lists again until the next eval set re-merges
+   them), CHANGELOG entry. Depends on 2, 3,
    4. Files as listed plus `log/__init__.py`, `_cli/log.py`,
    `docs/reference/inspect_ai.log.qmd`, `docs/parallelism.qmd`,
    `CHANGELOG.md`, `tests/log/test_shards.py`, `tests/cli/test_log.py`.
-   Needs the `ZipEntry` CRC and the opt-in CRC
-   check ("Consistent reads"): if #528 has not landed them, this PR adds
-   them in `_util/zip_common.py` and `_util/async_zip.py` as #528's design
-   specifies, and #528 reuses them.
+   Uses the landed `ZipEntry` CRC and `verify_crc=True` reads
+   ("Consistent reads").
 6. **Eval-set integration.** Startup merge, `selected_sample_ids`,
    `skip_shards`, completeness branch, no recovery of merged logs, cleanup
    ordering and companion deletion, `docs/eval-sets.qmd` note, CHANGELOG
@@ -1625,8 +1663,8 @@ Step 1 in eight PRs, of which PR 1 has landed. There is no viewer PR
    `log/_recorders/eval.py` (expose the builder if needed),
    `tests/log/test_shards.py`.
 8. **Raw compressed-member copy.** The raw member writer and its use in the
-   merge, with the CRC shortcut. Depends on 5 (which brings the CRC);
-   after 7 so the two measurements are separable. Files:
+   merge, with the CRC shortcut. Depends on 5; after 7 so the two
+   measurements are separable. Files:
    `_util/zipfile.py`, `log/_shards/_write.py`, `tests/util/test_zipfile.py`,
    `tests/log/test_shards.py`.
 
