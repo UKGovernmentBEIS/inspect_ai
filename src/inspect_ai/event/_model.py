@@ -94,6 +94,11 @@ class ModelEvent(BaseEvent):
     role: str | None = Field(default=None)
     """Model role."""
 
+    requested_model: str | None = Field(default=None)
+    """Model name the client requested, for calls made through an agent bridge
+    (`None` for direct calls). Differs from `model` when the bridge served the
+    request with a different model."""
+
     input: list[ChatMessage]
     """Model input (list of messages)."""
 

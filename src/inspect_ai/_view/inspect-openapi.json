@@ -7585,6 +7585,17 @@
             ],
             "title": "Pending"
           },
+          "requested_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Model"
+          },
           "retries": {
             "anyOf": [
               {
