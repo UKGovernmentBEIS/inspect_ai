@@ -3628,6 +3628,23 @@ def eval_log_sample_source(
         next((sample for sample in dataset if sample.id is None), None) is None
     )
 
+    # A dataset that GREW since the prior run (a strict superset) with stable
+    # sample ids is a safe resume rather than a reason to discard prior work:
+    # samples are reused by (id, epoch), so a newly added sample simply has no
+    # prior record and runs fresh while every existing sample is reused. This
+    # lets `eval_set` top up a completed log in place when the dataset is
+    # extended (e.g. a corpus that grows over time) instead of re-running
+    # everything. Only growth qualifies: a SHRUNK dataset would drop scored
+    # samples from the successor log (no longer a superset), and growth without
+    # stable ids can map position-assigned ids onto different samples — so both
+    # of those stay a full re-run.
+    prior_dataset_samples = eval_log.eval.dataset.samples
+    dataset_grew_with_stable_ids = (
+        prior_dataset_samples is not None
+        and len(dataset) > prior_dataset_samples
+        and samples_have_ids
+    )
+
     # the stability guards below deliberately withhold `prior_checkpoints_dir`
     # too: checkpoint resume keys purely on (id, epoch), so unstable ids or a
     # changed dataset could restore a prior sample's state onto a different
@@ -3639,13 +3656,24 @@ def eval_log_sample_source(
         )
         return EvalSampleSource(no_sample_source)
 
-    elif eval_log.eval.dataset.samples != len(dataset):
+    if (
+        eval_log.eval.dataset.samples != len(dataset)
+        and not dataset_grew_with_stable_ids
+    ):
         py_logger.warning(
             "Unable to re-use samples from retry log file because the dataset size changed "
             + f"(log samples {eval_log.eval.dataset.samples}, dataset samples {len(dataset)})"
         )
         return EvalSampleSource(no_sample_source)
-    elif eval_log_info:
+
+    if dataset_grew_with_stable_ids:
+        py_logger.info(
+            "Dataset grew since the prior run "
+            + f"(log samples {prior_dataset_samples}, dataset samples {len(dataset)}); "
+            + "reusing prior samples by id and running only the newly added samples."
+        )
+
+    if eval_log_info:
         reader: AsyncZipReader | None = None
 
         async def read_from_file(id: int | str, epoch: int) -> PriorResolution:
