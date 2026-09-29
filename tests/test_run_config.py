@@ -4,8 +4,10 @@ from typing import Any, get_type_hints
 from unittest.mock import patch
 
 import pytest
+import yaml
 
-from inspect_ai import RunConfig, Task, eval, merge_run_config_params, read_run_config
+from inspect_ai import RunConfig, Task, eval, eval_async, read_run_config, task
+from inspect_ai._eval.run_config import merge_run_config_params
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import file
 from inspect_ai.dataset import Sample
@@ -160,7 +162,7 @@ def test_model_config_helper_type_hints(
     assert get_type_hints(getattr(_model_config, function))[annotation] == expected
 
 
-def test_run_config_merge_public_api() -> None:
+def test_merge_run_config_params_follows_cli_precedence() -> None:
     base = {"task_args": {"a": 1, "b": 2}, "score": False, "tags": ["base"]}
     overrides = {"task_args": {"b": None}, "score": True, "tags": []}
     assert merge_run_config_params(base, overrides) == {
@@ -210,6 +212,129 @@ def test_run_config_deferred_models_eval_and_log(tmp_path: Path) -> None:
     )
     assert logs[0].status == "success"
     assert logs[0].eval.model_roles == config.model_roles
+
+
+@task
+def run_config_greeting(greeting: str = "Hello", repeats: int = 1) -> Task:
+    return Task(dataset=[Sample(input=greeting) for _ in range(repeats)])
+
+
+GREETING_TASK = "tests/test_run_config.py@run_config_greeting"
+GREETING_CONFIG: dict[str, Any] = {
+    "task": {"task": GREETING_TASK, "args": {"greeting": "Hi", "repeats": 2}},
+    "model": "mockllm/model",
+    "generate_config": {"temperature": 0.25},
+    "eval_config": {"epochs": 2},
+    "tags": ["from-file"],
+}
+
+
+def write_run_config(tmp_path: Path, config: dict[str, Any]) -> str:
+    path = tmp_path / "run.yaml"
+    path.write_text(yaml.safe_dump(config))
+    return str(path)
+
+
+def test_eval_run_config_applies_file(tmp_path: Path) -> None:
+    log = eval(
+        run_config=write_run_config(tmp_path, GREETING_CONFIG),
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+    assert log.status == "success"
+    assert log.eval.task_args == {"greeting": "Hi", "repeats": 2}
+    assert log.eval.model == "mockllm/model"
+    assert log.plan.config.temperature == 0.25
+    assert log.eval.config.epochs == 2
+    assert log.eval.tags == ["from-file"]
+
+
+def test_eval_run_config_supplied_arguments_take_precedence(tmp_path: Path) -> None:
+    log = eval(
+        run_config=write_run_config(tmp_path, GREETING_CONFIG),
+        task_args={"repeats": 3},
+        temperature=0.75,
+        epochs=1,
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+    assert log.eval.task_args == {"greeting": "Hi", "repeats": 3}
+    assert log.plan.config.temperature == 0.75
+    assert log.eval.config.epochs == 1
+    assert log.eval.tags == ["from-file"]
+
+
+def test_eval_run_config_positional_task_replaces_file_task(tmp_path: Path) -> None:
+    config = {
+        "task": GREETING_TASK,
+        "model": "mockllm/model",
+        "generate_config": {"temperature": 0.25},
+    }
+    log = eval(
+        Task(dataset=[Sample(input="positional")], name="positional"),
+        run_config=write_run_config(tmp_path, config),
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+    assert log.eval.task == "positional"
+    assert log.plan.config.temperature == 0.25
+
+
+async def test_eval_async_run_config(tmp_path: Path) -> None:
+    logs = await eval_async(
+        run_config=write_run_config(tmp_path, GREETING_CONFIG),
+        log_dir=str(tmp_path),
+    )
+    assert logs[0].eval.task_args == {"greeting": "Hi", "repeats": 2}
+    assert logs[0].eval.model == "mockllm/model"
+    assert logs[0].plan.config.temperature == 0.25
+
+
+@pytest.mark.parametrize("key", ["task_args", "model_args"])
+def test_eval_run_config_merges_args_file_by_key(tmp_path: Path, key: str) -> None:
+    args = {"greeting": "Hi", "repeats": 2}
+    config = GREETING_CONFIG | {"model": {"model": "mockllm/model", "args": args}}
+    args_file = tmp_path / "args.yaml"
+    args_file.write_text(yaml.safe_dump({"repeats": 3}))
+    supplied: dict[str, Any] = {key: str(args_file)}
+    log = eval(
+        run_config=write_run_config(tmp_path, config),
+        log_dir=str(tmp_path),
+        display="none",
+        **supplied,
+    )[0]
+    assert getattr(log.eval, key) == {"greeting": "Hi", "repeats": 3}
+
+
+def test_eval_run_config_defers_role_models(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the file's grader is never constructed, so its provider needs no key
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    config = GREETING_CONFIG | {"model_roles": {"grader": {"model": "openai/gpt-4o"}}}
+    log = eval(
+        run_config=write_run_config(tmp_path, config),
+        model_roles={"grader": "mockllm/grader"},
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+    assert log.status == "success"
+    assert log.eval.model_roles is not None
+    grader = log.eval.model_roles["grader"]
+    assert isinstance(grader, ModelConfig)
+    assert grader.model == "mockllm/grader"
+
+
+@pytest.mark.parametrize("run_config", [None, ""])
+def test_eval_without_run_config_file(tmp_path: Path, run_config: str | None) -> None:
+    log = eval(
+        Task(dataset=[Sample(input="Hello")]),
+        model="mockllm/model",
+        run_config=run_config,
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+    assert log.status == "success"
 
 
 def test_run_config_cli_compatibility_imports(tmp_path: Path) -> None:

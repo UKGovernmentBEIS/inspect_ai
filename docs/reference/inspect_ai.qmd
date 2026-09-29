@@ -14,7 +14,6 @@ description: Tasks, evaluation, and scoring.
 
 ### RunConfig
 ### read_run_config
-### merge_run_config_params
 
 ## Tasks
 

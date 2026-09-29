@@ -1,5 +1,8 @@
+import inspect
+from collections.abc import Awaitable, Callable
 from copy import deepcopy
-from typing import Any
+from functools import wraps
+from typing import Any, ParamSpec, TypeVar
 
 from pydantic import (
     BaseModel,
@@ -238,3 +241,64 @@ def merge_run_config_params(
         else:
             params[key] = value
     return params
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def run_config_arguments(
+    signature: inspect.Signature, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> inspect.BoundArguments | None:
+    """Merge the arguments a caller supplied over their ``run_config`` file.
+
+    Only supplied arguments count, so a parameter default (such as the
+    ``NOT_GIVEN`` model) never displaces a value from the file.
+
+    Returns:
+        Arguments for the call, or None when no run_config was supplied. An
+        empty path counts as none, as it does for ``--run-config``.
+    """
+    supplied = dict(signature.bind(*args, **kwargs).arguments)
+    path = supplied.pop("run_config", None)
+    if not path:
+        return None
+    for name, parameter in signature.parameters.items():
+        if parameter.kind is inspect.Parameter.VAR_KEYWORD:
+            supplied |= supplied.pop(name, {})
+    # an args file merges by key, as its contents would
+    for key in ("task_args", "model_args"):
+        if isinstance(supplied.get(key), str):
+            supplied[key] = resolve_args(supplied[key])
+    params = read_run_config(path).to_params(resolve_models=False)
+    return signature.bind(**merge_run_config_params(params, supplied))
+
+
+def with_run_config(fn: Callable[P, R]) -> Callable[P, R]:
+    """Apply a ``run_config`` argument before the function sees any other."""
+    signature = inspect.signature(fn)
+
+    @wraps(fn)
+    def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
+        bound = run_config_arguments(signature, args, kwargs)
+        if bound is None:
+            return fn(*args, **kwargs)
+        return fn(*bound.args, **bound.kwargs)
+
+    return wrapped
+
+
+def with_run_config_async(
+    fn: Callable[P, Awaitable[R]],
+) -> Callable[P, Awaitable[R]]:
+    """Apply a ``run_config`` argument before the function sees any other."""
+    signature = inspect.signature(fn)
+
+    @wraps(fn)
+    async def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
+        bound = run_config_arguments(signature, args, kwargs)
+        if bound is None:
+            return await fn(*args, **kwargs)
+        return await fn(*bound.args, **bound.kwargs)
+
+    return wrapped

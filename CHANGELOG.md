@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Evaluation: Read, validate, and apply run configuration files from Python, with optional deferred model initialization and CLI-compatible overrides.
+- Evaluation: Apply run configuration files from Python with `eval(run_config=...)`, using the same override rules as `--run-config`, and read and validate them without initializing models using `read_run_config()`. `tasks` is now optional for `eval()` and `eval_async()`, so a file that names its task can run on its own.
 
 ## 0.3.268 (22 September 2026)
 

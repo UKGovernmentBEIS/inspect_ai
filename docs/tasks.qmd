@@ -617,20 +617,26 @@ See [Exporting Run Config](eval-logs.qmd#exporting-run-config) for details.
 
 #### Python API
 
-Use `read_run_config()` to read and validate the same YAML or JSON file from Python. It returns a `RunConfig` without instantiating models or loading tasks and solvers, so inspecting a configuration does not require model API credentials. Local paths, `file://` URIs, and remote filesystem URLs (such as `s3://bucket/run.yaml`) are supported.
+Pass `run_config` to `eval()` or `eval_async()` to apply the same file from Python:
 
 ``` python
-from inspect_ai import eval, merge_run_config_params, read_run_config
+from inspect_ai import eval
+
+eval(run_config="run.yaml", temperature=0.9, limit=10)
+```
+
+Arguments you pass take precedence over the file, as CLI flags do. Task arguments, model arguments, and model roles merge by key; other values replace the file's value. Passing `None` or an empty dictionary does not clear a value set in the file. When the file names a task you can omit `tasks`. A task you pass replaces the file's task, but not the file's task arguments. Models assigned to roles are resolved when the evaluation runs, so a role you override needs no credentials for the file's model.
+
+To inspect a configuration without running it, use `read_run_config()`. It reads and validates the same YAML or JSON file and returns a `RunConfig` without instantiating models or loading tasks and solvers, so it does not require model API credentials. Local paths, `file://` URIs, and remote filesystem URLs (such as `s3://bucket/run.yaml`) are supported, both here and for `run_config`.
+
+``` python
+from inspect_ai import read_run_config
 
 config = read_run_config("run.yaml")
 params = config.to_params(resolve_models=False)
-params = merge_run_config_params(params, {"temperature": 0.9, "limit": 10})
-eval(**params)
 ```
 
 `to_params()` converts the configuration to `eval()` keyword arguments. By default it instantiates models assigned to roles, matching the CLI. With `resolve_models=False`, role values remain `ModelConfig` objects, which `eval()` resolves when the evaluation runs. The main model is represented by its name and separate configuration arguments in either mode. You can also validate an in-memory dictionary with `RunConfig.model_validate(data)`.
-
-`merge_run_config_params()` follows CLI precedence: task arguments, model arguments, and model roles merge by key, while other values replace the configured value. Overrides of `None`, empty dictionaries, and `score=True` are ignored to match CLI defaults; this is not a general-purpose dictionary merge.
 
 ### Scorer Override {#scorer-override}
 
