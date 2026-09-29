@@ -6,7 +6,10 @@ instead, and resolves a rejection by telling the model and regenerating rather
 than by editing the response the scaffold sees.
 """
 
+import json
+import logging
 from pathlib import PurePosixPath
+from typing import Any, Awaitable, Callable, Iterator
 from unittest.mock import AsyncMock
 
 import pytest
@@ -49,12 +52,73 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import GenerateInput, Model, get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.model._openai_responses import (
+    TOOL_SEARCH_NAME,
+    tool_search_output_tools,
+)
 from inspect_ai.tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParam, ToolParams
 
 TASK = "Tidy up the working directory."
+
+READ_FILE = "Read a file from the host."
+"""The description the bridge serves for the test's bridged `read_file` tool."""
+
+DISPATCHER = "call_mcp_tool"
+DISPATCHER_DESCRIPTION = "Call a lazy-loaded MCP tool."
+DISPATCHER_PARAMETERS = ("ServerName", "ToolName", "Arguments")
+
+
+def params(*names: str) -> ToolParams:
+    return ToolParams(
+        properties={name: ToolParam(type="string", description=name) for name in names},
+        required=list(names),
+    )
+
+
+def declare(
+    *names: str,
+    description: str = READ_FILE,
+    parameters: tuple[str, ...] = ("path",),
+) -> list[ToolInfo]:
+    """The scaffold's declarations of these tools to the model.
+
+    Whatever the scaffold named the tool, it forwards the description (and schema)
+    the bridge served; by default that is the test's `read_file` tool's.
+    """
+    return [
+        ToolInfo(name=name, description=description, parameters=params(*parameters))
+        for name in names
+    ]
+
+
+def declare_dispatcher() -> list[ToolInfo]:
+    """Antigravity's `call_mcp_tool(ServerName, ToolName, Arguments)` declaration."""
+    return declare(
+        DISPATCHER, description=DISPATCHER_DESCRIPTION, parameters=DISPATCHER_PARAMETERS
+    )
+
+
+def served_tool(
+    mock: AsyncMock,
+    description: str = READ_FILE,
+    parameters: tuple[str, ...] = ("path",),
+    name: str = "read_file",
+) -> Tool:
+    """A bridged tool the bridge serves with this description and schema; runs `mock`."""
+
+    async def execute(**kwargs: Any) -> str:
+        return await mock(**kwargs)
+
+    return ToolDef(
+        execute, name=name, description=description, parameters=params(*parameters)
+    ).as_tool()
 
 
 @approver(name="test_bridge_reject")
@@ -136,8 +200,13 @@ async def run_bridge(
     approval: list[ApprovalPolicy] | None = None,
     bridge: AgentBridge | None = None,
     input: list[ChatMessage] | None = None,
+    tools: list[ToolInfo] | None = None,
 ) -> BridgeRun:
-    """Drive `bridge_generate`, recording the input each generation saw."""
+    """Drive `bridge_generate`, recording the input each generation saw.
+
+    `tools` are the declarations the scaffold made in the request; grants are
+    resolved against them.
+    """
     inputs: list[list[ChatMessage]] = []
     remaining = list(outputs)
 
@@ -159,7 +228,7 @@ async def run_bridge(
         bridge.approval = approval
 
     output, _ = await bridge_generate(
-        bridge, model, list(messages), [], None, GenerateConfig()
+        bridge, model, list(messages), list(tools or []), None, GenerateConfig()
     )
     return BridgeRun(output, inputs)
 
@@ -547,7 +616,7 @@ def read_file(mock: AsyncMock) -> Tool:
         offset: int | None = None,
         raw: bool | None = None,
     ) -> str:
-        """Read a file.
+        """Read a file from the host.
 
         Args:
             path: Path of the file to read.
@@ -563,7 +632,10 @@ def read_file(mock: AsyncMock) -> Tool:
 
 
 def sandbox_bridge_with_tool(
-    tool: AsyncMock, approval: list[ApprovalPolicy] | None
+    tool: AsyncMock,
+    approval: list[ApprovalPolicy] | None,
+    *,
+    require_proposal: bool = True,
 ) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
@@ -574,25 +646,20 @@ def sandbox_bridge_with_tool(
         model=None,
         approval=approval,
         bridged_tools={"host": {"read_file": read_file(tool)}},
+        proposal_exempt_servers=set() if require_proposal else {"host"},
     )
 
 
-async def test_ungranted_host_tool_call_executes_under_approval() -> None:
-    """The execution-grant check in `call_tool` is disabled pending #5428.
-
-    Scaffolds present bridged tools to their model under names the grant
-    resolution does not recognise, so the check denied every approved call; until
-    #5428 lands a host tool call with no matching grant executes.
-    """
+async def test_forged_host_tool_call_is_rejected_before_execution() -> None:
     tool = AsyncMock(return_value="secret")
     bridge = sandbox_bridge_with_tool(
         tool, [ApprovalPolicy(auto_approver("approve"), "*")]
     )
 
-    result = await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
 
-    assert result == "secret"
-    tool.assert_awaited_once_with(path="/secret")
+    tool.assert_not_awaited()
 
 
 async def test_approved_host_tool_call_has_one_exact_execution_grant() -> None:
@@ -604,18 +671,16 @@ async def test_approved_host_tool_call_has_one_exact_execution_grant() -> None:
         id="approved", function="read_file", arguments={"path": "notes.txt"}
     )
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     execute = call_host_tool(bridge)
     assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
-    tool.assert_awaited_once_with(path="notes.txt")
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "notes.txt"})
 
-    assert bridge.consume_tool_execution_grant(
-        "host", "read_file", {"path": "notes.txt"}
-    )
-    assert not bridge.consume_tool_execution_grant(
-        "host", "read_file", {"path": "notes.txt"}
-    )
+    tool.assert_awaited_once_with(path="notes.txt")
 
 
 async def test_host_tool_execution_grant_binds_arguments() -> None:
@@ -627,14 +692,14 @@ async def test_host_tool_execution_grant_binds_arguments() -> None:
         id="approved", function="read_file", arguments={"path": "notes.txt"}
     )
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
-    assert not bridge.consume_tool_execution_grant(
-        "host", "read_file", {"path": "/secret"}
-    )
-    assert bridge.consume_tool_execution_grant(
-        "host", "read_file", {"path": "notes.txt"}
-    )
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
+
+    tool.assert_not_awaited()
 
 
 async def test_host_tool_grant_matches_regardless_of_argument_key_order() -> None:
@@ -646,7 +711,9 @@ async def test_host_tool_grant_matches_regardless_of_argument_key_order() -> Non
         id="approved", function="read_file", arguments={"path": "a", "mode": "r"}
     )
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     # the scaffold re-issues the approved call with the keys in a different order
     result = await call_host_tool(bridge)(
@@ -656,28 +723,14 @@ async def test_host_tool_grant_matches_regardless_of_argument_key_order() -> Non
     assert result == "contents"
 
 
-@pytest.mark.parametrize(
-    "function",
-    ["mcp__host__read_file", "host__read_file"],
-    ids=["claude-code-style", "server-qualified"],
-)
-async def test_host_tool_grant_matches_namespaced_tool_names(function: str) -> None:
-    """Scaffolds declare MCP tools to the model under qualified names."""
-    tool = AsyncMock(return_value="contents")
-    bridge = sandbox_bridge_with_tool(
-        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
-    )
-    call = ToolCall(id="approved", function=function, arguments={"path": "notes.txt"})
-
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
-
-    result = await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
-
-    assert result == "contents"
-    tool.assert_awaited_once_with(path="notes.txt")
+# ---------------------------------------------------------------------------
+# matching a proposal to the bridged tool it denotes, by served content
+# ---------------------------------------------------------------------------
 
 
-def duplicate_name_bridge(tool_a: AsyncMock, tool_b: AsyncMock) -> SandboxAgentBridge:
+def sandbox_bridge_with_servers(
+    bridged_tools: dict[str, dict[str, Tool]],
+) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
         filter=None,
@@ -685,37 +738,503 @@ def duplicate_name_bridge(tool_a: AsyncMock, tool_b: AsyncMock) -> SandboxAgentB
         compaction=None,
         port=13131,
         model=None,
-        approval=[ApprovalPolicy(auto_approver("approve"), "*")],
-        bridged_tools={"a": {"read_file": tool_a}, "b": {"read_file": tool_b}},
+        bridged_tools=bridged_tools,
     )
 
 
-async def test_ambiguous_host_tool_name_registers_no_grant() -> None:
-    """A name denoting more than one bridged tool fails closed."""
-    bridge = duplicate_name_bridge(
-        AsyncMock(return_value="a"), AsyncMock(return_value="b")
+@pytest.mark.parametrize(
+    "function",
+    [
+        "read_file",
+        "mcp__host__read_file",
+        "mcp_host_read_file",
+        "host_read_file",
+        "read_fil_9f2b038d5e15",
+        "mcp_" + "s" * 26 + "..." + "s" * 20 + "_read_file",
+    ],
+    ids=["bare", "claude-code", "gemini-cli", "opencode", "codex-hashed", "gemini-cut"],
+)
+async def test_declared_name_plays_no_part_in_resolution(function: str) -> None:
+    """Whatever the scaffold renamed, cut or hashed the tool to, the served description finds it."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(id="proposed", function=function, arguments={"path": "notes.txt"})
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge, tools=declare(function))
+
+    result = await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+
+    assert result == "contents"
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+async def test_declaration_with_another_description_denotes_nothing() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "x"})
+
+    await run_bridge(
+        [tool_calls_output(call)],
+        bridge=bridge,
+        tools=declare("read_file", description="Read a file from the sandbox."),
+    )
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "x"})
+    tool.assert_not_awaited()
+
+
+async def test_undeclared_call_registers_no_grant() -> None:
+    """A name the scaffold never declared to the model denotes nothing."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={})], []
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_grants_resolve_against_the_declarations_the_filter_generated_with() -> (
+    None
+):
+    """A filter that rewrites the declarations changes what a call denotes.
+
+    The scaffold declared the bridged tool, but the filter replaced that
+    declaration with an unrelated local one of the same name before generation;
+    the model's call names the local tool, so no host grant is minted.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+
+    async def replace_declarations(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> GenerateInput:
+        return GenerateInput(
+            input,
+            declare("read_file", description="Read a file inside the sandbox."),
+            tool_choice,
+            config,
+        )
+
+    bridge.filter = replace_declarations
+    call = ToolCall(id="proposed", function="read_file", arguments={"path": "x"})
+
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare("read_file")
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_empty_declared_description_resolves_an_empty_served_one() -> None:
+    """An empty description is matched like any other, so an undocumented tool stays usable.
+
+    `ToolDef` rejects a missing description, so whitespace-only is the served
+    empty case.
+    """
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), description=" ")}}
     )
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="approved", function="read_file", arguments={"path": "x"})]
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=""),
     )
 
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
+
+
+async def test_local_tool_with_a_bridged_tools_description_grants_it() -> None:
+    """Chosen behaviour: content is the identity, so an identically described local tool is the same tool.
+
+    The bridge cannot tell a scaffold-local tool declared with a bridged tool's
+    exact served description and schema from the bridged tool; a call to it
+    grants the bridged tool, bounded to the call's arguments. Bridged tools
+    should carry distinctive descriptions.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="local", function="read_file_local", arguments={"path": "x"})],
+        declare("read_file_local"),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
+
+
+def two_tools_one_description() -> SandboxAgentBridge:
+    return sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock())},
+            "b": {"read_file": served_tool(AsyncMock())},
+        }
+    )
+
+
+async def test_declared_schema_does_not_affect_matching() -> None:
+    """Scaffolds rewrite schemas (Gemini CLI adds `wait_for_previous`), so only the description counts."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", parameters=("path", "encoding", "wait_for_previous")),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
+
+
+async def test_same_description_and_schema_grants_each_once() -> None:
+    """Two bridged tools the served content cannot tell apart: one grant each.
+
+    Whichever the scaffold's `tools/call` targets runs once with the proposed
+    arguments; a second call to the same tool, or other arguments, is denied.
+    """
+    bridge = two_tools_one_description()
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file"),
+    )
+
+    assert not bridge.consume_tool_execution_grant("a", "read_file", {"path": "y"})
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
     assert not bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
     assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
 
 
-async def test_qualified_name_binds_grant_to_exact_server() -> None:
-    """A qualified name is unambiguous even when servers share a tool name."""
-    bridge = duplicate_name_bridge(
-        AsyncMock(return_value="a"), AsyncMock(return_value="b")
+@pytest.fixture
+def capture_bridge_warnings(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
+    """Route the sandbox bridge module's warnings to caplog.
+
+    Attached directly because `init_logger` stops the inspect_ai logger
+    propagating once an earlier test has triggered it.
+    """
+    module_logger = logging.getLogger(SandboxAgentBridge.__module__)
+    module_logger.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(logging.WARNING, logger=module_logger.name):
+            yield
+    finally:
+        module_logger.removeHandler(caplog.handler)
+
+
+@pytest.mark.usefixtures("capture_bridge_warnings")
+def test_setup_warns_once_naming_every_tool_sharing_a_description(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    bridge = two_tools_one_description()
+
+    bridge.warn_indistinct_tools()
+
+    warnings = [r.getMessage() for r in caplog.records]
+    assert len(warnings) == 1
+    assert "sharing a description" in warnings[0]
+    assert "a/read_file" in warnings[0] and "b/read_file" in warnings[0]
+
+
+@pytest.mark.usefixtures("capture_bridge_warnings")
+def test_setup_warns_about_tools_sharing_an_empty_description(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`ToolDef` rejects a missing description, so a whitespace-only one is the empty case."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), description=" ")},
+            "b": {"read_file": served_tool(AsyncMock(), description="\n")},
+        }
+    )
+
+    bridge.warn_indistinct_tools()
+
+    warnings = [r.getMessage() for r in caplog.records]
+    assert len(warnings) == 1
+    assert "a/read_file" in warnings[0] and "b/read_file" in warnings[0]
+
+
+@pytest.mark.usefixtures("capture_bridge_warnings")
+def test_setup_is_silent_for_distinct_descriptions(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), "Read from a.")},
+            "b": {"read_file": served_tool(AsyncMock(), "Read from b.")},
+        }
+    )
+
+    bridge.warn_indistinct_tools()
+
+    assert caplog.records == []
+
+
+async def test_description_selects_the_server_whatever_the_name() -> None:
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {
+                "read_file": served_tool(AsyncMock(return_value="a"), "Read from a.")
+            },
+            "b": {
+                "read_file": served_tool(AsyncMock(return_value="b"), "Read from b.")
+            },
+        }
     )
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="approved", function="mcp__a__read_file", arguments={"path": "x"})]
+        [ToolCall(id="proposed", function="mcp__a__read_file", arguments={})],
+        declare("mcp__a__read_file", description="Read from b."),
+    )
+
+    assert not bridge.consume_tool_execution_grant("a", "read_file", {})
+    assert bridge.consume_tool_execution_grant("b", "read_file", {})
+
+
+# ---------------------------------------------------------------------------
+# truncated descriptions
+# ---------------------------------------------------------------------------
+
+LONG = "Read a file from the host and return its contents. " * 60
+"""A served description far longer than any scaffold's limit (about 3000 chars)."""
+
+
+@pytest.mark.parametrize(
+    "declared",
+    [
+        LONG[:2048] + "… [truncated]",
+        LONG[:2048] + "...",
+        LONG[:100] + " [...]",
+        LONG[:100].rstrip() + "…",
+    ],
+    ids=["claude-code-style", "ellipsis", "bracketed", "single-ellipsis-char"],
+)
+async def test_truncated_description_resolves(declared: str) -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(tool, LONG)}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=declared),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
+
+
+async def test_truncation_shorter_than_the_minimum_prefix_does_not_resolve() -> None:
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), LONG)}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=LONG[:40] + "..."),
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_rewritten_tail_longer_than_a_marker_does_not_resolve() -> None:
+    """A truncation marker is short; a longer tail after the common prefix is a rewrite."""
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(AsyncMock(), LONG)}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare(
+            "read_file",
+            description=LONG[:2048] + " (the scaffold's own note on this tool)",
+        ),
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+def two_tools_sharing_a_prefix() -> SandboxAgentBridge:
+    return sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), LONG + " Text files only.")},
+            "b": {"read_file": served_tool(AsyncMock(), LONG + " Any file type.")},
+        }
+    )
+
+
+async def test_truncation_matching_two_tools_grants_both() -> None:
+    bridge = two_tools_sharing_a_prefix()
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=LONG[:2048] + "… [truncated]"),
+    )
+
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_served_description_that_prefixes_another_grants_both_when_truncated() -> (
+    None
+):
+    """A truncation ending exactly at the shorter description could be either tool."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), LONG)},
+            "b": {"read_file": served_tool(AsyncMock(), LONG + " Any file type.")},
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=LONG.rstrip() + "…"),
+    )
+
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+    assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+
+
+async def test_exact_match_wins_over_a_prefix_match() -> None:
+    """A declaration equal to the shorter description is that tool; the scaffold forwarded it whole."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"read_file": served_tool(AsyncMock(), LONG)},
+            "b": {"read_file": served_tool(AsyncMock(), LONG + " Any file type.")},
+        }
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=LONG),
     )
 
     assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
     assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+
+
+# ---------------------------------------------------------------------------
+# the dispatcher shape (Antigravity's call_mcp_tool)
+# ---------------------------------------------------------------------------
+
+
+async def test_dispatcher_call_grants_the_named_target_with_its_arguments() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(
+        id="proposed",
+        function=DISPATCHER,
+        arguments={
+            "ServerName": "host",
+            "ToolName": "read_file",
+            "Arguments": {"path": "notes.txt"},
+        },
+    )
+
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare_dispatcher()
+    )
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "notes.txt"})
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"ServerName": "other", "ToolName": "read_file", "Arguments": {}},
+        {"ServerName": "host", "ToolName": "write_file", "Arguments": {}},
+        {"ServerName": "host", "ToolName": "read_file", "Arguments": "{}"},
+        {"ServerName": "host", "ToolName": "read_file"},
+        {"server": "host", "tool": "read_file", "arguments": {}},
+    ],
+    ids=[
+        "unknown-server",
+        "unknown-tool",
+        "arguments-not-an-object",
+        "no-arguments",
+        "other-parameter-names",
+    ],
+)
+async def test_dispatcher_call_off_shape_registers_no_grant(
+    arguments: dict[str, object],
+) -> None:
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function=DISPATCHER, arguments=arguments)],
+        declare_dispatcher(),
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+@pytest.mark.parametrize("function", ["bash", "read_file"], ids=["local", "bridged"])
+async def test_ordinary_call_with_dispatcher_shaped_arguments_mints_no_grant(
+    function: str,
+) -> None:
+    """Only `call_mcp_tool` dispatches; naming a bridged tool in arguments is not a proposal.
+
+    The local `bash` declaration denotes nothing; the bridged `read_file`
+    declaration denotes itself, so its grant binds these odd arguments and the
+    nested `Arguments` never reach `host/read_file`.
+    """
+    tool = AsyncMock(return_value="secret")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(
+        id="proposed",
+        function=function,
+        arguments={
+            "cmd": "ls",
+            "ServerName": "host",
+            "ToolName": "read_file",
+            "Arguments": {"path": "/secret"},
+        },
+    )
+    declarations = (
+        declare("bash", description="Run a shell command.", parameters=("cmd",))
+        if function == "bash"
+        else declare("read_file")
+    )
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge, tools=declarations)
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
+    tool.assert_not_awaited()
+
+
+async def test_bridged_tool_matched_by_content_takes_precedence_over_dispatch() -> None:
+    """A bridged tool that happens to look like a dispatcher is that tool, not a dispatch."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {
+                DISPATCHER: served_tool(
+                    tool, "Route a call.", DISPATCHER_PARAMETERS, name=DISPATCHER
+                )
+            },
+            "other": {"read_file": served_tool(AsyncMock(return_value="other"))},
+        }
+    )
+    arguments = {"ServerName": "other", "ToolName": "read_file", "Arguments": {}}
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function=DISPATCHER, arguments=arguments)],
+        declare(
+            DISPATCHER, description="Route a call.", parameters=DISPATCHER_PARAMETERS
+        ),
+    )
+
+    assert not bridge.consume_tool_execution_grant("other", "read_file", {})
+    assert bridge.consume_tool_execution_grant("host", DISPATCHER, arguments)
 
 
 async def test_scaffold_local_tool_calls_are_not_stored() -> None:
@@ -726,7 +1245,8 @@ async def test_scaffold_local_tool_calls_are_not_stored() -> None:
     )
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="local", function="bash", arguments={"cmd": "ls"})]
+        [ToolCall(id="local", function="bash", arguments={"cmd": "ls"})],
+        declare("bash", description="Run a shell command.", parameters=("cmd",)),
     )
 
     assert len(bridge._tool_execution_grants) == 0
@@ -740,7 +1260,9 @@ async def test_host_tool_grant_matches_numeric_reserialization() -> None:
     )
     call = ToolCall(id="approved", function="read_file", arguments={"offset": 5.0})
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     result = await call_host_tool(bridge)("host", "read_file", {"offset": 5})
 
@@ -760,7 +1282,9 @@ async def test_host_tool_grant_normalizes_non_json_arguments() -> None:
     )
     call = ToolCall(id="approved", function="read_file", arguments={"path": "a.txt"})
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x.txt"})
 
@@ -773,14 +1297,14 @@ async def test_host_tool_grant_distinguishes_bool_from_number() -> None:
     )
     call = ToolCall(id="approved", function="read_file", arguments={"raw": True})
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     execute = call_host_tool(bridge)
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"raw": 1})
     assert await execute("host", "read_file", {"raw": True}) == "contents"
-    tool.assert_awaited_once_with(raw=True)
-
-    assert not bridge.consume_tool_execution_grant("host", "read_file", {"raw": 1})
-    assert bridge.consume_tool_execution_grant("host", "read_file", {"raw": True})
 
 
 async def test_multi_choice_response_truncated_under_approval() -> None:
@@ -849,25 +1373,91 @@ async def test_host_tool_grant_binds_to_approver_modified_arguments() -> None:
         id="approved", function="read_file", arguments={"path": "original.txt"}
     )
 
-    await run_bridge([tool_calls_output(call)], bridge=bridge)
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
 
     execute = call_host_tool(bridge)
+    # the model's original arguments are not what the approver approved
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "original.txt"})
+    # the modified arguments are the approved action
     assert await execute("host", "read_file", {"path": "rewritten.txt"}) == "contents"
     tool.assert_awaited_once_with(path="rewritten.txt")
 
-    # the model's original arguments are not what the approver approved
-    assert not bridge.consume_tool_execution_grant(
-        "host", "read_file", {"path": "original.txt"}
-    )
-    # the modified arguments are the approved action
-    assert bridge.consume_tool_execution_grant(
-        "host", "read_file", {"path": "rewritten.txt"}
-    )
+
+# ---------------------------------------------------------------------------
+# sandbox host-tool execution boundary without an approval policy
+# ---------------------------------------------------------------------------
 
 
-async def test_host_tool_call_without_approval_policy_remains_available() -> None:
+async def test_unproposed_host_tool_call_is_denied_without_approval_policy() -> None:
+    """A host tool runs only for a call the model proposed, policy or no policy."""
     tool = AsyncMock(return_value="contents")
     bridge = sandbox_bridge_with_tool(tool, None)
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+
+    tool.assert_not_awaited()
+
+
+async def test_proposed_host_tool_call_executes_once_without_approval_policy() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(
+        id="proposed", function="read_file", arguments={"path": "notes.txt"}
+    )
+
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    # a second call for the same proposal (e.g. a scaffold retrying after a
+    # transport failure) is denied; the model has to propose the call again
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "notes.txt"})
+
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+async def test_host_tool_call_with_other_arguments_is_denied_without_approval_policy() -> (
+    None
+):
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(
+        id="proposed", function="read_file", arguments={"path": "notes.txt"}
+    )
+
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
+
+    tool.assert_not_awaited()
+
+
+async def test_host_tool_grants_are_stored_without_approval_policy() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "a"})],
+        declare("read_file"),
+    )
+
+    assert len(bridge._tool_execution_grants) == 1
+
+
+async def test_opted_out_server_executes_without_a_proposal() -> None:
+    """`require_proposal=False` gives up the correspondence for that server."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
 
     result = await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
 
@@ -875,15 +1465,57 @@ async def test_host_tool_call_without_approval_policy_remains_available() -> Non
     tool.assert_awaited_once_with(path="notes.txt")
 
 
-async def test_host_tool_grants_are_not_stored_without_approval_policy() -> None:
+async def test_opted_out_server_stores_no_grants() -> None:
+    """Grants nothing will consume must not fill the bounded store."""
     tool = AsyncMock(return_value="contents")
-    bridge = sandbox_bridge_with_tool(tool, None)
+    bridge = sandbox_bridge_with_tool(tool, None, require_proposal=False)
 
     bridge.register_tool_execution_grants(
-        [ToolCall(id="unused", function="read_file", arguments={"path": "a"})]
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "a"})],
+        declare("read_file"),
     )
 
     assert len(bridge._tool_execution_grants) == 0
+
+
+def multi_choice_output_with_tool_call_alternate() -> ModelOutput:
+    output = tool_calls_output(
+        ToolCall(id="main", function="bash", arguments={"cmd": "ls"})
+    )
+    output.choices.append(
+        ChatCompletionChoice(
+            message=ChatMessageAssistant(
+                content="",
+                tool_calls=[
+                    ToolCall(id="alt", function="bash", arguments={"cmd": "rm -rf /"})
+                ],
+            ),
+            stop_reason="tool_calls",
+        )
+    )
+    return output
+
+
+async def test_multi_choice_alternates_with_tool_calls_dropped_for_sandbox_bridge() -> (
+    None
+):
+    """Alternates' calls would have no execution grant, so they must not reach the scaffold."""
+    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+
+    run = await run_bridge(
+        [multi_choice_output_with_tool_call_alternate()], bridge=bridge
+    )
+
+    assert len(run.output.choices) == 1
+    assert run.output.message.tool_calls is not None
+    assert run.output.message.tool_calls[0].id == "main"
+
+
+async def test_multi_choice_alternates_pass_through_for_in_process_bridge() -> None:
+    """An in-process bridge grants nothing, so without a policy there is nothing to protect."""
+    run = await run_bridge([multi_choice_output_with_tool_call_alternate()])
+
+    assert len(run.output.choices) == 2
 
 
 async def test_host_tool_execution_grants_are_bounded() -> None:
@@ -900,7 +1532,8 @@ async def test_host_tool_execution_grants_are_bounded() -> None:
                 arguments={"path": str(index)},
             )
             for index in range(_MAX_TOOL_EXECUTION_GRANTS + 1)
-        ]
+        ],
+        declare("read_file"),
     )
 
     assert len(bridge._tool_execution_grants) == _MAX_TOOL_EXECUTION_GRANTS
@@ -1443,6 +2076,375 @@ async def test_responses_dialect_hides_the_rejected_call() -> None:
 
     assert [item.type for item in response.output] == ["message"]
     assert response.output_text == "safer plan"
+
+
+def sandbox_responses_bridge(
+    tool: AsyncMock, outputs: list[ModelOutput]
+) -> SandboxAgentBridge:
+    """A sandbox bridge serving `host/read_file`, reached through the Responses dialect."""
+    bridge = sandbox_bridge_with_tool(tool, None)
+    bridge.model_aliases = {
+        BRIDGE_MODEL: get_model("mockllm/model", custom_outputs=outputs)
+    }
+    return bridge
+
+
+def discovered_read_file_namespace() -> dict[str, Any]:
+    """`mcp__host` as a Codex `tool_search_output` lists it: served description and schema."""
+    return {
+        "type": "namespace",
+        "name": "mcp__host",
+        "description": "Tools from the host server.",
+        "tools": [
+            {
+                "type": "function",
+                "name": "read_file",
+                "description": READ_FILE,
+                "parameters": params("path").model_dump(exclude_none=True),
+            }
+        ],
+    }
+
+
+def responses_request_with_tool_search(
+    discovered: list[Any],
+) -> dict[str, Any]:
+    """A Responses request whose top-level tools declare only `tool_search`."""
+    return {
+        "model": BRIDGE_MODEL,
+        "tools": [{"type": "tool_search", "execution": "client"}],
+        "input": [
+            {"role": "user", "content": TASK},
+            {
+                "type": "tool_search_call",
+                "id": "x1",
+                "call_id": "ts_1",
+                "arguments": {"query": "file tools"},
+                "execution": "client",
+                "status": "completed",
+            },
+            {
+                "type": "tool_search_output",
+                "call_id": "ts_1",
+                "tools": discovered,
+                "execution": "client",
+                "status": "completed",
+            },
+        ],
+    }
+
+
+async def test_tool_discovered_through_tool_search_is_granted() -> None:
+    """A Codex tool declared only inside a `tool_search_output` item is a declaration.
+
+    The call comes back under its namespace as before, and the host service
+    executes it once against the grant it minted.
+    """
+    tool = AsyncMock(return_value="contents")
+    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
+
+    response = await inspect_responses_api_request(
+        responses_request_with_tool_search([discovered_read_file_namespace()]),
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    calls = [item for item in response.output if item.type == "function_call"]
+    assert [(c.name, c.namespace) for c in calls] == [("read_file", "mcp__host")]
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "notes.txt"})
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+def tool_search_result(messages: list[ChatMessage]) -> ChatMessageTool:
+    """The `tool_search_output` item as the model sees it: a tool result carrying JSON."""
+    (message,) = [
+        m
+        for m in messages
+        if isinstance(m, ChatMessageTool) and m.function == TOOL_SEARCH_NAME
+    ]
+    return message
+
+
+def with_tool_search_result(
+    messages: list[ChatMessage], discovered: list[dict[str, Any]]
+) -> list[ChatMessage]:
+    """`messages` with the tool-search result replaced by one listing `discovered`.
+
+    A copy, not an in-place edit: the request's own message objects must stay as
+    the scaffold sent them, so a stale snapshot of them would not see the rewrite.
+    """
+    result = tool_search_result(messages)
+    replacement = result.model_copy(update={"content": json.dumps(discovered)})
+    return [replacement if m is result else m for m in messages]
+
+
+def discovery_rewriting_filter(
+    rewrite: Callable[[list[ChatMessage], list[ToolInfo]], GenerateInput],
+) -> Callable[..., Awaitable[GenerateInput]]:
+    async def filter(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> GenerateInput:
+        rewritten = rewrite(list(input), list(tools))
+        return GenerateInput(rewritten.input, rewritten.tools, tool_choice, config)
+
+    return filter
+
+
+async def request_with_rewritten_discovery(
+    tool: AsyncMock,
+    discovered: list[dict[str, Any]],
+    rewrite: Callable[[list[ChatMessage], list[ToolInfo]], GenerateInput],
+) -> SandboxAgentBridge:
+    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
+    bridge.filter = discovery_rewriting_filter(rewrite)
+    await inspect_responses_api_request(
+        responses_request_with_tool_search(discovered),
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+    return bridge
+
+
+async def test_discovery_removed_by_a_filter_does_not_grant() -> None:
+    """The declarations are the ones the model saw, not the request's.
+
+    The filter drops the discovery result and declares a local `read_file`
+    instead; the model's call names that local tool, so `host/read_file` is not
+    proposed.
+    """
+    tool = AsyncMock(return_value="contents")
+
+    def remove_discovery(
+        input: list[ChatMessage], tools: list[ToolInfo]
+    ) -> GenerateInput:
+        without = [m for m in input if m is not tool_search_result(input)]
+        local = declare("read_file", description="Read a file inside the sandbox.")
+        return GenerateInput(without, local, None, GenerateConfig())
+
+    bridge = await request_with_rewritten_discovery(
+        tool, [discovered_read_file_namespace()], remove_discovery
+    )
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+async def test_discovery_description_rewritten_by_a_filter_does_not_grant() -> None:
+    tool = AsyncMock(return_value="contents")
+
+    def rewrite_description(
+        input: list[ChatMessage], tools: list[ToolInfo]
+    ) -> GenerateInput:
+        namespace = discovered_read_file_namespace()
+        namespace["tools"][0]["description"] = "Read a file inside the sandbox."
+        return GenerateInput(
+            with_tool_search_result(input, [namespace]), tools, None, GenerateConfig()
+        )
+
+    bridge = await request_with_rewritten_discovery(
+        tool, [discovered_read_file_namespace()], rewrite_description
+    )
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+async def test_discovery_added_by_a_filter_grants_once() -> None:
+    """A declaration the filter put in front of the model counts, once."""
+    tool = AsyncMock(return_value="contents")
+
+    def add_discovery(input: list[ChatMessage], tools: list[ToolInfo]) -> GenerateInput:
+        return GenerateInput(
+            with_tool_search_result(input, [discovered_read_file_namespace()]),
+            tools,
+            None,
+            GenerateConfig(),
+        )
+
+    bridge = await request_with_rewritten_discovery(tool, [], add_discovery)
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "read_file", {"path": "notes.txt"})
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+def responses_request_with_ordinary_tool_search_result(output: Any) -> dict[str, Any]:
+    """A request whose ordinary function tool happens to be named `tool_search`.
+
+    Its result replays as a `function_call_output`, not a native
+    `tool_search_output`; the model's own `read_file` is a local tool.
+    """
+    return {
+        "model": BRIDGE_MODEL,
+        "tools": [
+            {
+                "type": "function",
+                "name": TOOL_SEARCH_NAME,
+                "description": "Search the notes.",
+                "parameters": params("query").model_dump(exclude_none=True),
+                "strict": False,
+            },
+            {
+                "type": "function",
+                "name": "read_file",
+                "description": "Read a file inside the sandbox.",
+                "parameters": params("path").model_dump(exclude_none=True),
+                "strict": False,
+            },
+        ],
+        "input": [
+            {"role": "user", "content": TASK},
+            {
+                "type": "function_call",
+                "id": "fc_notes",
+                "call_id": "fc_notes_1",
+                "name": TOOL_SEARCH_NAME,
+                "arguments": json.dumps({"query": "file tools"}),
+                "status": "completed",
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "fc_notes_1",
+                "output": json.dumps(output),
+            },
+        ],
+    }
+
+
+async def test_ordinary_result_from_a_tool_named_tool_search_declares_nothing() -> None:
+    """Only a native tool-search result is discovery; an ordinary tool's output is not.
+
+    The output carries the host tool's declaration, but the model's `read_file`
+    is the local one, so `host/read_file` is not proposed.
+    """
+    tool = AsyncMock(return_value="contents")
+    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
+
+    await inspect_responses_api_request(
+        responses_request_with_ordinary_tool_search_result(
+            [discovered_read_file_namespace()]
+        ),
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+@pytest.mark.parametrize("sandbox", [True, False], ids=["sandbox", "in-process"])
+async def test_ordinary_tool_search_result_of_strings_is_ignored(sandbox: bool) -> None:
+    """An ordinary result that is not tool declarations must not break the request."""
+    tool = AsyncMock(return_value="contents")
+    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    outputs = [tool_calls_output(call)]
+    bridge: AgentBridge = (
+        sandbox_responses_bridge(tool, outputs)
+        if sandbox
+        else AgentBridge(
+            AgentState(messages=[]),
+            model_aliases={
+                BRIDGE_MODEL: get_model("mockllm/model", custom_outputs=outputs)
+            },
+        )
+    )
+
+    response = await inspect_responses_api_request(
+        responses_request_with_ordinary_tool_search_result(["note-one", "note-two"]),
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    assert [item.type for item in response.output] == ["message", "function_call"]
+    if isinstance(bridge, SandboxAgentBridge):
+        with pytest.raises(PermissionError, match="was not proposed by the model"):
+            await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "invalid_entry",
+    [
+        "note-one",
+        7,
+        {"type": "telepathy", "name": "read_minds"},
+        {"type": "function", "name": "read_file"},
+    ],
+    ids=["string", "number", "unknown-type", "incomplete-function"],
+)
+async def test_native_discovery_the_encoder_rejects_declares_nothing(
+    invalid_entry: Any,
+) -> None:
+    """Grants follow the wire: the encoder validates the list as a whole.
+
+    One invalid entry makes the replayed `tool_search_output` carry no tools, so
+    the model was told nothing about `host/read_file`; the valid entry beside it
+    is not salvaged for grants and the call is denied.
+    """
+    discovered = [invalid_entry, discovered_read_file_namespace()]
+    as_the_model_sees_it = ChatMessageTool(
+        tool_call_id="ts_1", function=TOOL_SEARCH_NAME, content=json.dumps(discovered)
+    )
+    assert tool_search_output_tools(as_the_model_sees_it) == []
+
+    tool = AsyncMock(return_value="contents")
+    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
+
+    await inspect_responses_api_request(
+        responses_request_with_tool_search(discovered),
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+async def test_undiscovered_and_undeclared_call_is_still_denied() -> None:
+    """Without the `tool_search_output` declaration the call denotes nothing."""
+    tool = AsyncMock(return_value="contents")
+    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
+    request = responses_request_with_tool_search([])
+
+    await inspect_responses_api_request(
+        request,
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
 
 
 async def test_google_dialect_hides_the_rejected_call() -> None:

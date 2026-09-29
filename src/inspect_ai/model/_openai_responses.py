@@ -124,6 +124,9 @@ from openai.types.responses.response_output_text import (
 from openai.types.responses.response_output_text_param import (
     Annotation as AnnotationParam,
 )
+from openai.types.responses.response_reasoning_item_param import (
+    Content as ReasoningTextParam,
+)
 from openai.types.responses.response_reasoning_item_param import Summary as SummaryParam
 from openai.types.responses.response_tool_search_output_item_param_param import (
     ResponseToolSearchOutputItemParamParam,
@@ -240,6 +243,24 @@ class ResponsesModelInfo(Protocol):
     def is_o3_mini(self) -> bool: ...
     def is_deep_research(self) -> bool: ...
     def is_codex(self) -> bool: ...
+    def replays_reasoning_text(self) -> bool:
+        """Send readable reasoning that has no encrypted content back as reasoning `content`.
+
+        OpenAI rejects reasoning input items with non-empty `content`, so this
+        is only for services that accept it (e.g. a LiteLLM proxy, which
+        converts it to the upstream provider's reasoning field). Without it,
+        reasoning from a model with no encrypted reasoning is not sent back.
+        """
+        ...
+
+    def omits_empty_tool_call_text(self) -> bool:
+        """Leave out empty text returned alongside tool calls when replaying.
+
+        By default, empty text that came from the model (it has a message id)
+        is replayed. Some upstream providers behind a LiteLLM proxy reject an
+        assistant message with empty text content.
+        """
+        ...
 
 
 def _extract_compaction_from_content_data(
@@ -393,10 +414,18 @@ async def _openai_input_item_from_chat_message(
         raise ValueError(f"Unexpected message role '{message.role}'")
 
 
-def _tool_search_output_param_from_tool_message(
-    message: ChatMessageTool,
-) -> ResponseToolSearchOutputItemParamParam:
-    # tools were carried as JSON in the tool message content; parse them back
+def tool_search_output_tools(message: ChatMessageTool) -> list[Any]:
+    """The discovered tools a `tool_search` result message carries, as sent on the wire.
+
+    The tools were carried as JSON in the tool message content
+    (`messages_from_responses_input`); this parses them back and validates the
+    whole list as `list[ToolParam]`. Validation is all-or-nothing: if any entry
+    is invalid (content cleared by compaction, a rewrite, a malformed entry) the
+    result is an empty list, and that is what the `tool_search_output` item
+    replayed to the model carries. Anything else that reasons about what the
+    model was told by a tool-search result (the agent bridge's grant resolution)
+    must go through this same function so it cannot disagree with the wire.
+    """
     content = message.content
     tools_json = (
         content
@@ -412,14 +441,19 @@ def _tool_search_output_param_from_tool_message(
         # exhausted on the first pass and the wire body carries an empty `tools`
         # array (OpenAI then rejects it as "empty array"). dump_python
         # materializes the iterators into plain lists that survive re-serialization.
-        tools = tool_search_tools_adapter.dump_python(validated, mode="json")
+        tools: list[Any] = tool_search_tools_adapter.dump_python(validated, mode="json")
     except (ValidationError, ValueError):
-        # e.g. content cleared by compaction; fall back to an empty tool list
         tools = []
+    return tools
+
+
+def _tool_search_output_param_from_tool_message(
+    message: ChatMessageTool,
+) -> ResponseToolSearchOutputItemParamParam:
     return ResponseToolSearchOutputItemParamParam(
         type="tool_search_output",
         call_id=message.tool_call_id or str(message.function),
-        tools=tools,
+        tools=tool_search_output_tools(message),
         execution="client",
         status="completed",
     )
@@ -1169,6 +1203,7 @@ def read_reasoning_item_param(
 
 def responses_reasoning_from_reasoning(
     content: ContentReasoning,
+    replay_reasoning_text: bool = False,
 ) -> ResponseReasoningItemParam:
     encrypted_content: str | None = content.reasoning if content.redacted else None
 
@@ -1183,11 +1218,22 @@ def responses_reasoning_from_reasoning(
     if not content.redacted and content.summary:
         summary_params.append(SummaryParam(type="summary_text", text=content.summary))
 
+    # Responses API rejects non-empty content on reasoning input items
+    # (array_above_max_length); reasoning replays via encrypted_content.
+    reasoning_text: list[ReasoningTextParam] = []
+    if (
+        replay_reasoning_text
+        and not content.redacted
+        and encrypted_content is None
+        and content.reasoning
+    ):
+        reasoning_text = [
+            ReasoningTextParam(type="reasoning_text", text=content.reasoning)
+        ]
+
     param = ResponseReasoningItemParam(  # type: ignore[typeddict-item]
         type="reasoning",
-        # Responses API rejects non-empty content on reasoning input items
-        # (array_above_max_length); reasoning replays via encrypted_content.
-        content=[],
+        content=reasoning_text,
         summary=summary_params,
         encrypted_content=encrypted_content,
     )
@@ -1440,6 +1486,9 @@ def _openai_input_items_from_chat_message_assistant(
     )
 
     if message.tool_calls:
+        omit_model_text = (
+            model_info is not None and model_info.omits_empty_tool_call_text()
+        )
         content_items = [
             content
             for content in content_items
@@ -1447,7 +1496,7 @@ def _openai_input_items_from_chat_message_assistant(
                 isinstance(content, ContentText)
                 and content.text == ""
                 and not content.refusal
-                and content.internal is None
+                and (content.internal is None or omit_model_text)
             )
         ]
 
@@ -1528,7 +1577,13 @@ def _openai_input_items_from_chat_message_assistant(
                     )
                 )
             case ContentReasoning():
-                items.append(responses_reasoning_from_reasoning(content))
+                items.append(
+                    responses_reasoning_from_reasoning(
+                        content,
+                        replay_reasoning_text=model_info is not None
+                        and model_info.replays_reasoning_text(),
+                    )
+                )
             case ContentToolUse(
                 id=id,
                 tool_type=tool_type,

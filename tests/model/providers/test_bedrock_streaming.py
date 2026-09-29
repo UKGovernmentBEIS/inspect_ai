@@ -151,6 +151,7 @@ async def test_bedrock_converse_response_from_stream() -> None:
     assert response.metrics.latencyMs == 42
     content = response.output.message.content
     assert content[0].reasoningContent is not None
+    assert content[0].reasoningContent.reasoningText is not None
     assert content[0].reasoningContent.reasoningText.text == "hmm"
     assert content[1].text == "hel"
     assert content[2].toolUse is not None

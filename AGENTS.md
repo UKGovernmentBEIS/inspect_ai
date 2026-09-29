@@ -184,21 +184,19 @@ tests that cover the change locally, and the PR description must report the
 run. The `slow-tests` skill (`.agents/skills/slow-tests/SKILL.md`) says which
 flags and directories go with which change and what each class needs.
 
-Report the run in the PR description, in a `### Slow tests` section after
-`### Validation`, with:
-
-- the exact command(s) run
-- what ran, per class or provider, with the passed and skipped counts from
-  the summary
-- what you could not run, and why (no key, no Docker, no model access,
-  needs a local server)
+Report the run in a `### Slow tests` section after `### Validation`. Use one
+short bullet per run: test class/provider, version when relevant, exact
+command, and passed, failed, and skipped counts. End with a "Not run" bullet
+naming each relevant class or provider you could not run and why (for
+example, no API key, Docker daemon, model access, or local server).
 
 A test that skipped did not run. Say so rather than counting it. If you ran
 nothing, say that, so a maintainer with the keys or Docker runs the tests
 before merge.
 
-Summarize live behavior and remaining gaps; link detailed logs instead of
-narrating every request or tool call.
+Link detailed logs instead of narrating individual requests, models, or test
+assertions. In `### Validation`, give only the conclusion from these runs;
+keep their commands and counts here.
 
 ## Subsystem Documentation
 
@@ -235,17 +233,21 @@ A bare "No" is insufficient when a public contract or persisted data changes.
 For code changes, run focused tests for the changed behavior and relevant
 neighboring paths, as well as `make check` and `make test`. Follow "Gated
 tests" above and the `slow-tests` skill for applicable slow, live-provider,
-Docker, and Trio runs. In `### Validation`, report the commands run and their
-outcomes, including passed, failed, and skipped counts where applicable. Tie
-each relevant test group briefly to the important behavior or compatibility
-claim it covers; do not list every test case or assertion when the tests or CI
-show that detail. Use a compact table when comparing SDK versions, models, or
-platforms. Identify anything not run and why. Report results for the
-current PR head; when the branch changes, refresh results affected by the
-change rather than leaving historical runs to appear current. If an agent
-worked on the PR, fill in `### Agent review` as described above. Human-only
-PRs may omit that section. Keep the `### Slow tests` section for changes in
-gated-test areas, as described above.
+Docker, and Trio runs. Write `### Validation` as a short decision summary:
+lead with the evidence that proves the change or checks compatibility beyond
+routine CI, such as a before/after reproduction, another SDK version, or a
+live provider run. For non-gated local runs CI cannot show, give the command,
+environment, and passed, failed, and skipped counts. Routine green CI is
+visible on the PR; omit it from the description. Report CI failures and local
+failures that differ from CI, with a brief cause and baseline comparison.
+State what remains untested and why. Keep exact gated commands and counts in
+`### Slow tests`; give only their conclusion in `### Validation`. Use a table
+only when its entries are short; put long commands in bullets or linked notes.
+Report results for the current PR head; when the branch changes, refresh
+results affected by the change rather than leaving historical runs to appear
+current. If an agent worked on the PR, fill in `### Agent review` as described
+above. Human-only PRs may omit that section. Keep the `### Slow tests` section
+for changes in gated-test areas, as described above.
 
 Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
 

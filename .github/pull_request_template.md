@@ -13,10 +13,13 @@ unchanged behavior briefly. Put implementation details, test names, and
 unrelated project sequencing elsewhere. -->
 
 ### Validation
-<!-- List commands and results (passed, failed, skipped). Briefly say which key
-behaviors or compatibility risks they cover and what remains untested, with
-reasons. Use a small table for version or platform comparisons. Link test
-files or CI logs instead of listing every case or assertion. -->
+<!-- Lead with evidence CI cannot provide: a before/after reproduction, another
+SDK or platform, or live tests. Give commands and results for non-gated local
+runs. Omit routine green CI, which is visible on the PR; report failures,
+discrepancies, and gaps. If you add
+"Slow tests," use one bullet per run with command, environment, and counts,
+plus a "Not run" bullet; give only the conclusion here. Do not repeat job
+lists or test-case inventories. -->
 
 ### Agent review
 <!-- If an agent worked on this PR, give the authoring tool, reviewer model/tool,
