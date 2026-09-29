@@ -2276,6 +2276,96 @@ async def test_copy_prior_log_reads_a_non_s3_remote_in_chunks(monkeypatch) -> No
     assert yields == 4
 
 
+async def test_read_log_downloads_a_non_s3_remote_in_chunks(monkeypatch) -> None:
+    # read_log downloads a remote .eval log to a temp file before reading it;
+    # a non-S3 remote (gs://, az://; memory:// here) has no async client and
+    # cannot be read in a worker thread (the fsspec rule), so the download
+    # must read on the event loop one chunk at a time, yielding between chunks
+    # rather than stalling the loop for the whole file
+    from inspect_ai._util.file import file
+    from inspect_ai.log._file import read_eval_log_async
+
+    local_log = os.path.join("tests", "log", "test_eval_log", "log_streaming.eval")
+    location = "memory://read_log/log.eval"
+    with open(local_log, "rb") as src, file(location, "wb") as dst:
+        dst.write(src.read())
+    with file(location, "rb") as f:
+        memory_file_cls = type(f)  # fsspec MemoryFile (its module is untyped)
+
+    yields = 0
+    original_checkpoint = anyio.lowlevel.checkpoint
+
+    async def counting_checkpoint() -> None:
+        nonlocal yields
+        yields += 1
+        await original_checkpoint()
+
+    monkeypatch.setattr(anyio.lowlevel, "checkpoint", counting_checkpoint)
+
+    # the number of yields seen so far at each chunk read of the remote file
+    yields_at_read: list[int] = []
+    original_read = memory_file_cls.read
+
+    def counting_read(self: io.BytesIO, size: int = -1) -> bytes:
+        yields_at_read.append(yields)
+        return original_read(self, size)
+
+    monkeypatch.setattr(memory_file_cls, "read", counting_read)
+
+    log = await read_eval_log_async(location)
+
+    assert log.eval.task == (await read_eval_log_async(local_log)).eval.task
+    # the file is read in chunks up to the empty read at EOF, and the loop
+    # gets a checkpoint between one chunk read and the next
+    assert len(yields_at_read) >= 2
+    assert all(b > a for a, b in zip(yields_at_read, yields_at_read[1:]))
+
+
+async def test_read_log_cancelled_mid_download_removes_the_temp_file(
+    monkeypatch,
+) -> None:
+    # the chunked download yields between chunks, so a cancellation can land
+    # mid-download; the temp file the log is downloaded into must not leak
+    from inspect_ai._util.file import file
+    from inspect_ai.log._file import read_eval_log_async
+
+    local_log = os.path.join("tests", "log", "test_eval_log", "log_streaming.eval")
+    location = "memory://read_log/cancelled.eval"
+    with open(local_log, "rb") as src, file(location, "wb") as dst:
+        dst.write(src.read())
+    with file(location, "rb") as f:
+        memory_file_cls = type(f)
+
+    created: list[str] = []
+    original_named_temporary_file = tempfile.NamedTemporaryFile
+
+    def recording_named_temporary_file(*args, **kwargs):
+        temp = original_named_temporary_file(*args, **kwargs)
+        created.append(temp.name)
+        return temp
+
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", recording_named_temporary_file)
+
+    # cancel once the first chunk has been read (takes effect at the
+    # checkpoint that follows writing it)
+    original_read = memory_file_cls.read
+
+    def cancelling_read(self: io.BytesIO, size: int = -1) -> bytes:
+        chunk = original_read(self, size)
+        if chunk:
+            scope.cancel()
+        return chunk
+
+    monkeypatch.setattr(memory_file_cls, "read", cancelling_read)
+
+    with anyio.CancelScope() as scope:
+        await read_eval_log_async(location)
+
+    assert scope.cancelled_caught
+    assert len(created) == 1
+    assert not os.path.exists(created[0])
+
+
 async def test_eval_recorder_seed_preserves_config_updates_and_discard(
     tmp_path,
 ) -> None:
