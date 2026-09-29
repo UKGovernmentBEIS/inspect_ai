@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
 
+from inspect_ai._sentinel._config import SentinelSpec, resolve_sentinel_spec
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.registry import (
@@ -103,6 +104,7 @@ class Task:
         on_resume: OnResumeCallback | None = None,
         approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
         review: str | ReviewPolicyConfig | list[ReviewPolicy] | None = None,
+        sentinel: SentinelSpec | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         continue_on_fail: bool | None = None,
@@ -163,6 +165,8 @@ class Task:
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
             review: Tool result review policies.
                 Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
+            sentinel: Monitors and protocols that watch tool calls (requires the `inspect_sentinel` package).
+                A monitor, a protocol, a list or mapping of them, a config file path or registered name, or a parsed configuration. Defaults to no sentinel.
             epochs: Epochs to repeat samples for and optional score
                 reducer function(s) used to combine sample scores (defaults to "mean")
             fail_on_error: `True` to fail on first sample error
@@ -246,6 +250,9 @@ class Task:
         self.checkpoint = normalize_checkpoint(checkpoint)
         self.approval = resolve_approval(approval)
         self.review = resolve_review(review)
+        self.sentinel = (
+            resolve_sentinel_spec(sentinel) if sentinel is not None else None
+        )
         epochs = resolve_epochs(epochs)
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
@@ -327,6 +334,7 @@ def task_with(
     | None
     | NotGiven = NOT_GIVEN,
     review: str | ReviewPolicyConfig | list[ReviewPolicy] | None | NotGiven = NOT_GIVEN,
+    sentinel: SentinelSpec | None | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
@@ -390,6 +398,8 @@ def task_with(
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         review: Tool result review policies.
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
+        sentinel: Monitors and protocols that watch tool calls (requires the `inspect_sentinel` package).
+            A monitor, a protocol, a list or mapping of them, a config file path or registered name, or a parsed configuration. Defaults to no sentinel.
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
@@ -463,6 +473,10 @@ def task_with(
         task.approval = resolve_approval(approval)
     if not isinstance(review, NotGiven):
         task.review = resolve_review(review)
+    if not isinstance(sentinel, NotGiven):
+        task.sentinel = (
+            resolve_sentinel_spec(sentinel) if sentinel is not None else None
+        )
     if not isinstance(epochs, NotGiven):
         epochs = resolve_epochs(epochs)
         task.epochs = epochs.epochs if epochs else None

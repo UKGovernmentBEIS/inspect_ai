@@ -117,6 +117,12 @@ class EvalConfig(BaseModel):
     review: ReviewPolicyConfig | None = Field(default=None)
     """Review policy for tool results."""
 
+    sentinel: list[Any] | dict[str, Any] | None = Field(default=None)
+    """Sentinel monitors and protocols, as the configuration that rebuilds them.
+
+    A list of entries, or a mapping of instance names to entries, each with a `name`, `params` and any nested entries. Plain data so that logs load without `inspect_sentinel` installed.
+    """
+
     notification: bool | str | None = Field(default=None)
     """Notification routing for human-in-the-loop interactions.
 

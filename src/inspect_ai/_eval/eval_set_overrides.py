@@ -387,6 +387,12 @@ class EvalSetOverrides(BaseModel):
     As for `approval`, the `list[ReviewPolicy]` arm is absent because its reviewers are callables.
     """
 
+    sentinel: str | list[Any] | dict[str, Any] | None = None
+    """Sentinel config file path, registered name, or parsed configuration, overriding the definition's.
+
+    Constructed monitors and protocols are absent for the same reason as approvers.
+    """
+
     # --- what happens when something goes wrong -------------------------------
 
     retry_on_error: StrictInt | None = None
