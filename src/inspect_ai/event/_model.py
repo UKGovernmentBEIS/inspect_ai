@@ -94,6 +94,14 @@ class ModelEvent(BaseEvent):
     role: str | None = Field(default=None)
     """Model role."""
 
+    requested_model: str | None = Field(default=None)
+    """Model name the client requested, for calls made through an agent bridge
+    (`None` for direct calls). Differs from `model` when the bridge routed the
+    request elsewhere: an alias, a resolver, a pin, or the default of serving
+    an unrecognised name with the eval's model. For the Google dialect through
+    the sandbox proxy this is the name as the proxy read it from the URL, which
+    truncates an `inspect/`-prefixed name at its first slash."""
+
     input: list[ChatMessage]
     """Model input (list of messages)."""
 
