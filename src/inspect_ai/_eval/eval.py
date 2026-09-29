@@ -107,6 +107,7 @@ from inspect_ai.util._notify import build_apprise, init_apprise
 from .context import init_eval_context
 from .loader import resolve_task_source, resolve_tasks
 from .run import TaskInjection, eval_run
+from .run_config import with_run_config, with_run_config_async
 from .task import Epochs, PreviousTask, Task, TaskSource
 from .task.enqueue import (
     TaskEnqueuer,
@@ -121,8 +122,9 @@ from .task.tasks import Tasks
 log = logging.getLogger(__name__)
 
 
+@with_run_config
 def eval(
-    tasks: Tasks,
+    tasks: Tasks = None,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
@@ -183,13 +185,14 @@ def eval(
     eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
+    run_config: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
 
     Args:
-        tasks: Task(s) to evaluate. If None, attempt
-            to evaluate a task in the current working directory
+        tasks: Task(s) to evaluate. If None, evaluate the task named by
+            `run_config`, or attempt to evaluate a task in the current working directory
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -320,6 +323,9 @@ def eval(
         eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
+        run_config: Run config file to apply, as for `inspect eval --run-config`.
+            Supplied arguments take precedence over its values; task args,
+            model args and model roles merge by key.
         **kwargs: Model generation options.
 
     Returns:
@@ -335,6 +341,7 @@ def eval(
 
     async def run_task_app() -> list[EvalLog]:
         try:
+            # run_config is not forwarded: @with_run_config already merged it
             return await eval_async(
                 tasks=tasks,
                 model=model,
@@ -424,8 +431,9 @@ def eval(
 _eval_async_running = False
 
 
+@with_run_config_async
 async def eval_async(
-    tasks: Tasks,
+    tasks: Tasks = None,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
@@ -484,13 +492,14 @@ async def eval_async(
     eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
+    run_config: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
 
     Args:
-        tasks: Task(s) to evaluate. If None, attempt
-            to evaluate a task in the current working directory
+        tasks: Task(s) to evaluate. If None, evaluate the task named by
+            `run_config`, or attempt to evaluate a task in the current working directory
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -591,6 +600,9 @@ async def eval_async(
         eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
+        run_config: Run config file to apply, as for `inspect eval --run-config`.
+            Supplied arguments take precedence over its values; task args,
+            model args and model roles merge by key.
         **kwargs: Model generation options.
 
     Returns:
