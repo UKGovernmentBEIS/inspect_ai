@@ -6,6 +6,7 @@
 - Reading a remote `.eval` log from a non-S3 filesystem (e.g. `gs://`, `az://`) no longer stalls other running work for the whole download.
 - S3: Streaming uploads now read each multipart part from the source file in a single worker-thread call rather than 32 chunked calls, reducing event-loop wakeups during log flushes.
 - Recording an eval or model error no longer spends seconds syntax highlighting its traceback: the stored ANSI traceback keeps its frames and source snippets, without syntax colouring.
+- Bugfix: `subprocess()` and Docker sandbox `exec()` no longer intermittently fail with `BrokenPipeError` when the command exits before reading its input.
 
 ## 0.3.272 (28 September 2026)
 
