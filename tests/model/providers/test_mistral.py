@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 from test_helpers.utils import skip_if_no_mistral, skip_if_no_mistral_package
 
@@ -222,7 +222,7 @@ async def test_mistral_chat_forwards_config_extra_headers() -> None:
     from unittest import mock
     from unittest.mock import AsyncMock, MagicMock
 
-    import httpx
+    import httpx2
 
     from inspect_ai.model._providers.mistral import MistralAPI
     from inspect_ai.model._providers.util.hooks import HttpxHooks
@@ -242,7 +242,7 @@ async def test_mistral_chat_forwards_config_extra_headers() -> None:
     client = MagicMock()
     client.__enter__.return_value = client
     client.__exit__.return_value = False
-    client.sdk_configuration.async_client = httpx.AsyncClient()
+    client.sdk_configuration.async_client = httpx2.AsyncClient()
     client.chat.complete_async = AsyncMock(side_effect=_capture)
 
     with mock.patch("inspect_ai.model._providers.mistral.Mistral", return_value=client):
@@ -280,7 +280,7 @@ async def test_mistral_chat_forwards_reasoning_effort() -> None:
     from unittest import mock
     from unittest.mock import AsyncMock, MagicMock
 
-    import httpx
+    import httpx2
 
     from inspect_ai.model._providers.mistral import MistralAPI
 
@@ -300,7 +300,7 @@ async def test_mistral_chat_forwards_reasoning_effort() -> None:
         client = MagicMock()
         client.__enter__.return_value = client
         client.__exit__.return_value = False
-        client.sdk_configuration.async_client = httpx.AsyncClient()
+        client.sdk_configuration.async_client = httpx2.AsyncClient()
         client.chat.complete_async = AsyncMock(side_effect=_capture)
 
         with mock.patch(
@@ -764,11 +764,11 @@ def _mistral_sdk_stream(body: bytes) -> Any:
     from mistralai.client.utils import unmarshal_json
     from mistralai.client.utils.eventstreaming import EventStreamAsync
 
-    response = httpx.Response(
+    response = httpx2.Response(
         200,
         headers={"content-type": "text/event-stream"},
         content=body,
-        request=httpx.Request("POST", "https://api.mistral.ai/v1/chat/completions"),
+        request=httpx2.Request("POST", "https://api.mistral.ai/v1/chat/completions"),
     )
     return EventStreamAsync(
         response, lambda raw: unmarshal_json(raw, CompletionEvent), sentinel="[DONE]"
