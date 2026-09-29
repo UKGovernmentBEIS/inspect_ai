@@ -1010,13 +1010,6 @@ class EvalRevision(BaseModel):
     """Working tree has uncommitted changes or untracked files."""
 
 
-class EvalShardSampleKey(BaseModel):
-    """One `(id, epoch)` record merged from a shard."""
-
-    id: str | int
-    epoch: int
-
-
 class EvalShardEntry(BaseModel):
     """Ledger entry for one shard, as of the merge that last read it."""
 
@@ -1044,8 +1037,14 @@ class EvalShardEntry(BaseModel):
     error: EvalError | None = Field(default=None)
     """Error of the current attempt when its status is `error` or `cancelled`."""
 
-    sample_keys: list[EvalShardSampleKey]
-    """The `(id, epoch)` records merged from this shard, exactly as held."""
+    samples: int
+    """Number of `(id, epoch)` records the current attempt held when read (all merged)."""
+
+    selected: int
+    """Number of distinct ids in the current attempt's selection (its `eval.dataset.sample_ids`)."""
+
+    selection_digest: str
+    """SHA-256 (hex) of the current attempt's selection."""
 
     started_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
     """`stats.started_at` of the current attempt."""
@@ -1075,11 +1074,11 @@ class EvalShards(BaseModel):
     location: str
     """Companion directory the last merge read (informational; readers derive it from the name)."""
 
-    sample_ids: list[str] | list[int] | list[str | int] | None = Field(default=None)
-    """Intended selection as ids, when the last merge had one."""
+    selection: Literal["ids", "count", "none"]
+    """Form of the intended selection the last merge had; the ids are `eval.dataset.sample_ids`."""
 
     sample_count: int | None = Field(default=None)
-    """Intended selection as a count, when the last merge had one."""
+    """Intended selection as a count, when `selection` is `"count"`."""
 
     template: str
     """Name of the shard whose header supplied the merged header's task fields."""

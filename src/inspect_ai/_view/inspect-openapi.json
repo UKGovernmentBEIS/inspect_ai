@@ -4851,12 +4851,17 @@
             "title": "Role Usage",
             "type": "object"
           },
-          "sample_keys": {
-            "items": {
-              "$ref": "#/components/schemas/EvalShardSampleKey"
-            },
-            "title": "Sample Keys",
-            "type": "array"
+          "samples": {
+            "title": "Samples",
+            "type": "integer"
+          },
+          "selected": {
+            "title": "Selected",
+            "type": "integer"
+          },
+          "selection_digest": {
+            "title": "Selection Digest",
+            "type": "string"
           },
           "shard": {
             "title": "Shard",
@@ -4900,7 +4905,9 @@
           "eval_id",
           "task_id",
           "status",
-          "sample_keys",
+          "samples",
+          "selected",
+          "selection_digest",
           "started_at",
           "completed_at",
           "model_usage",
@@ -4908,32 +4915,6 @@
           "size"
         ],
         "title": "EvalShardEntry",
-        "type": "object"
-      },
-      "EvalShardSampleKey": {
-        "description": "One `(id, epoch)` record merged from a shard.",
-        "properties": {
-          "epoch": {
-            "title": "Epoch",
-            "type": "integer"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "integer"
-              }
-            ],
-            "title": "Id"
-          }
-        },
-        "required": [
-          "id",
-          "epoch"
-        ],
-        "title": "EvalShardSampleKey",
         "type": "object"
       },
       "EvalShards": {
@@ -4973,38 +4954,14 @@
             ],
             "title": "Sample Count"
           },
-          "sample_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "items": {
-                  "type": "integer"
-                },
-                "type": "array"
-              },
-              {
-                "items": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer"
-                    }
-                  ]
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
+          "selection": {
+            "enum": [
+              "ids",
+              "count",
+              "none"
             ],
-            "title": "Sample Ids"
+            "title": "Selection",
+            "type": "string"
           },
           "template": {
             "title": "Template",
@@ -5013,6 +4970,7 @@
         },
         "required": [
           "location",
+          "selection",
           "template",
           "merged_at",
           "metrics_source",

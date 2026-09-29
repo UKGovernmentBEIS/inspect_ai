@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import math
@@ -35,7 +36,6 @@ from inspect_ai.log import (
     EvalError,
     EvalShardEntry,
     EvalShards,
-    EvalShardSampleKey,
     read_eval_log,
 )
 from inspect_ai.log._edit import ProvenanceData
@@ -524,11 +524,10 @@ def test_read_bytes_header(format):
 log_formats_eval = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
 
 
-def _eval_shards(selection: Literal["ids", "count"]) -> EvalShards:
-    sample_ids: list[str | int] = ["a", 2]
+def _eval_shards(selection: Literal["ids", "count", "none"]) -> EvalShards:
     return EvalShards(
         location="file:///logs/task.shards",
-        sample_ids=sample_ids if selection == "ids" else None,
+        selection=selection,
         sample_count=3 if selection == "count" else None,
         template="0",
         merged_at="2026-09-24T12:00:00+00:00",
@@ -542,11 +541,9 @@ def _eval_shards(selection: Literal["ids", "count"]) -> EvalShards:
                 task_id="task-0",
                 eval_set_id="set-1",
                 status="success",
-                sample_keys=[
-                    EvalShardSampleKey(id="a", epoch=1),
-                    EvalShardSampleKey(id="a", epoch=2),
-                    EvalShardSampleKey(id="2", epoch=1),
-                ],
+                samples=4,
+                selected=2,
+                selection_digest=hashlib.sha256(b'["2","a"]').hexdigest(),
                 started_at="2026-09-24T11:00:00+00:00",
                 completed_at="2026-09-24T11:30:00+00:00",
                 model_usage={
@@ -573,7 +570,9 @@ def _eval_shards(selection: Literal["ids", "count"]) -> EvalShards:
                 error=EvalError(
                     message="boom", traceback="Traceback", traceback_ansi="Traceback"
                 ),
-                sample_keys=[EvalShardSampleKey(id=2, epoch=1)],
+                samples=1,
+                selected=1,
+                selection_digest=hashlib.sha256(b'["b"]').hexdigest(),
                 started_at="2026-09-24T11:05:00+00:00",
                 size=99,
             ),
@@ -586,9 +585,9 @@ def _eval_log_header_json(location: str) -> dict[str, Any]:
         return cast(dict[str, Any], json.loads(zf.read("header.json")))
 
 
-@pytest.mark.parametrize("selection", ["ids", "count"])
+@pytest.mark.parametrize("selection", ["ids", "count", "none"])
 def test_eval_log_header_round_trips_shards(
-    tmp_path: Path, selection: Literal["ids", "count"]
+    tmp_path: Path, selection: Literal["ids", "count", "none"]
 ) -> None:
     log = read_eval_log(log_formats_eval, header_only=True)
     shards = _eval_shards(selection)
@@ -597,12 +596,14 @@ def test_eval_log_header_round_trips_shards(
     write_eval_log(log, location)
 
     stored = _eval_log_header_json(location)["eval"]["shards"]
-    if selection == "ids":
-        assert stored["sample_ids"] == ["a", 2]
-        assert "sample_count" not in stored
-    else:
+    assert stored["selection"] == selection
+    if selection == "count":
         assert stored["sample_count"] == 3
-        assert "sample_ids" not in stored
+    else:
+        assert "sample_count" not in stored
+    assert stored["ledger"][0]["samples"] == 4
+    assert stored["ledger"][0]["selected"] == 2
+    assert len(stored["ledger"][0]["selection_digest"]) == 64
     assert stored["ledger"][0]["etag"] == '"0123abcd"'
     assert "error" not in stored["ledger"][0]
     assert stored["ledger"][1]["error"]["message"] == "boom"
@@ -610,12 +611,7 @@ def test_eval_log_header_round_trips_shards(
     assert "mtime" not in stored["ledger"][1]
 
     assert read_eval_log(location).eval.shards == shards
-    read = read_eval_log(location, header_only=True).eval.shards
-    assert read == shards
-    # ids keep their type: the string "2" and the integer 2 are different ids
-    assert read is not None
-    assert [k.id for k in read.ledger[0].sample_keys] == ["a", "a", "2"]
-    assert [k.id for k in read.ledger[1].sample_keys] == [2]
+    assert read_eval_log(location, header_only=True).eval.shards == shards
 
 
 def test_eval_log_header_without_shards_has_no_shards_key(tmp_path: Path) -> None:
