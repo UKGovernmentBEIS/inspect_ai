@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
@@ -16,8 +17,10 @@ from inspect_ai.event import ModelEvent, SentinelEvent, SpanBeginEvent, ToolEven
 from inspect_ai.log import EvalLog
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
+    ChatMessageUser,
     ModelOutput,
     get_model,
 )
@@ -313,9 +316,13 @@ def test_a_raising_monitor_fails_the_sample() -> None:
     assert "monitor exploded" in log.samples[0].error.message
 
 
-def test_context_and_step_come_from_the_sample() -> None:
+def test_context_and_step_come_from_the_sample(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     seen: Seen = []
-    log = run([d3_recording(seen)])
+    with caplog.at_level(logging.WARNING):
+        log = run([d3_recording(seen)])
+    assert not [r for r in caplog.records if "sentinel step's input" in r.message]
     assert log.status == "success", log.error
     assert log.samples
     sample = log.samples[0]
@@ -403,7 +410,24 @@ async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
         ("d3_waiting", "cancelled"),
         ("", "cancelled"),
     ]
-    assert all(e.pending is None for e in transcript_tool_events())
+    assert transcript_tool_events() == []
+
+
+def test_sample_time_limit_during_the_sentinel_ends_the_sample() -> None:
+    started = anyio.Event()
+    cleaned_up = anyio.Event()
+    log = run([d3_waiting(started, cleaned_up)], time_limit=1)
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "time"
+    assert cleaned_up.is_set()
+    assert [(e.path, e.kind) for e in sentinel_events(log)] == [
+        ("d3_waiting", "cancelled"),
+        ("", "cancelled"),
+    ]
+    assert tool_messages(log) == []
 
 
 async def test_operator_cancel_during_the_after_call_sentinel() -> None:
@@ -534,3 +558,79 @@ def test_sentinel_errors_fail_the_sample_rather_than_the_call(
     assert event.pending is None
     assert event.failed is True
     assert event.result == ("2" if after else "")
+
+
+def test_host_generate_without_a_monitor_role_labels_the_agent_model() -> None:
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="addition", tool_arguments={"x": 1, "y": 1}
+            ),
+            ModelOutput.from_content("mockllm/model", content="0.5"),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?")],
+        solver=[use_tools(addition()), generate()],
+        sentinel=[d3_asks_model()],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "success", log.error
+
+    [event] = sentinel_events(log)
+    assert event.suspicion == 0.5
+    assert log.samples
+    roles = [e.role for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert roles == [None, "monitor", None]
+
+
+async def test_missing_model_event_falls_back_to_the_prior_conversation(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    init_transcript(Transcript())
+    seen: Seen = []
+
+    @tool(parallel=True)
+    def parallel_addition() -> Tool:
+        async def execute(x: int, y: int) -> str:
+            """Add two numbers.
+
+            Args:
+                x: First number to add.
+                y: Second number to add.
+            """
+            return str(x + y)
+
+        return execute
+
+    prompt = ChatMessageUser(content="What is 1 + 1?")
+    calls = [
+        ToolCall(id=id, function="parallel_addition", arguments={"x": 1, "y": 1})
+        for id in ("a", "b")
+    ]
+    with active([d3_recording(seen)]), caplog.at_level(logging.WARNING):
+        await execute_tools(
+            [prompt, ChatMessageAssistant(content=[], tool_calls=calls)],
+            [parallel_addition()],
+        )
+
+    assert [step.input for _, step in seen] == [[prompt], [prompt]]
+    warnings = [r for r in caplog.records if "No ModelEvent was found" in r.message]
+    assert len(warnings) == 1
+
+
+def test_missing_assistant_message_falls_back_to_the_whole_conversation(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    init_transcript(Transcript())
+    from inspect_ai._sentinel._dispatch import _model_input
+
+    history: list[ChatMessage] = [ChatMessageUser(content="hi")]
+    with caplog.at_level(logging.WARNING):
+        assert _model_input(addition_call(), history) == history
+        assert _model_input(addition_call(), history) == history
+    warnings = [r for r in caplog.records if "No assistant message" in r.message]
+    assert len(warnings) == 1
