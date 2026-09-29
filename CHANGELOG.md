@@ -1,10 +1,48 @@
 ## Unreleased
 
+- Mistral: Support for mistralai 3.0, which is now the minimum required version.
+- Logs: Reading samples with `resolve_attachments` is much faster for long conversations; in full mode, deeply nested model API call content may keep two more nesting levels.
+- Bugfix: `self_critique()`, and `model_graded_qa()`/`model_graded_fact()` with `model_role=None`, now critique or grade with the correct model when one task is evaluated against several models.
+- Eval Logs: Fewer redundant log writes when samples complete during a slow log flush.
+
+## 0.3.272 (28 September 2026)
+
+- Anthropic: Support for Claude Sonnet 5.5 (`claude-sonnet-5-5`): `reasoning_effort="none"` turns off up-front thinking, forced tool choice degrades to auto, and computer use uses the computer toolset on the Claude API and Vertex.
+- Tools: `web_browser()` is deprecated, logs a warning when called, and will be removed in a future release.
+- Inspect View: Shard logs under `<name>.shards/` are hidden once a successful merged log covers them (`inspect view --show-shards` to list them); bundles leave them out.
+- Computer tool: click actions called without a `coordinate` now click at the current cursor position instead of failing, and the tool description states which actions require one.
+- Computer tool: `back_click` and `forward_click` now work (with a rebuilt `aisiuk/inspect-computer-tool` image); previously they failed inside the container regardless of arguments.
+
+## 0.3.271 (26 September 2026)
+
+- CLI: New `--extra-headers` and `--extra-body` options for `inspect eval` and `inspect eval-set`, taking an inline JSON or YAML mapping.
+- Google: Token counting falls back to a local estimate, with a warning, when the countTokens endpoint is unavailable or rejects the request.
+
+## 0.3.270 (25 September 2026)
+
+- `eval_set`: a task whose dataset GREW since its last run (a strict superset, with stable sample ids) is now topped up in place — the prior samples are reused and only the newly added samples run — instead of re-running the whole dataset. A shrunk dataset, or growth without stable ids, still triggers a full re-run.
+- LiteLLM Proxy: GPT-5 and later, o-series and Codex models served by OpenAI use the Responses API by default, streamed, carrying reasoning between turns (`-M responses_api=false` to opt out).
+- LiteLLM Proxy: Key and team aliases resolve to the model they route to, instead of failing for lack of model info.
+- LiteLLM Proxy: Claude 4.7 and later models with a reasoning effort record summarized thinking in the log, including through older LiteLLM versions, which returned none (`-M thinking_display=omitted` to opt out).
+- LiteLLM Proxy: Claude codename deployments that LiteLLM sends extended thinking fail with an error naming the proxy `model_info` flags that enable adaptive thinking.
+- LiteLLM Proxy: `web_search()` without a search provider usable through the proxy fails when the model is first called, with an error naming the fix.
+- Checkpointing: after a resume, restored events reach hooks, the live viewer, ACP clients and transcript readers with long text and images inline instead of as `attachment://` references; raw model API calls stay condensed until the sample completes.
+- Bugfix: `f1()` now counts repeated tokens (multiset overlap, matching SQuAD F1); scores can rise or fall for answers or targets containing repeated words.
+- Bugfix: A sample retried or requeued in a shared log directory no longer shows the previous attempt's events alongside its own while it runs.
+
+## 0.3.269 (25 September 2026)
+
+- LiteLLM Proxy: New `litellm-proxy` provider for models served by a LiteLLM proxy, which reads each model's upstream model for context window, cost, reasoning and Claude prompt caching.
+- CLI: Quoted YAML and JSON strings in `--env` arguments preserve commas as literal text (such as `--env 'NO_PROXY="localhost,127.0.0.1"'`) instead of being coerced into lists. (#5368)
 - DeepSeek: Support for DeepSeek-V4.1-Flash (`deepseek-flash`), including image input; model info notes that the retired `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` names are now served by V4.1 Flash.
 - Sandbox agent bridge: host tools exposed with `bridged_tools` are again denied unless the model proposed the call in a bridged generation, once per proposal, with or without an approval policy (0.3.265 ran them regardless as a stopgap); `BridgedToolsSpec(require_proposal=False)` opts a server out.
 - Bugfix: Docker sandboxes for samples a `SampleSource` adds (including an empty-seed task with `sandbox="docker"`) no longer fail with a `LookupError`, and their containers and generated compose files are cleaned up at the end of the run.
+- Bedrock: Models that return encrypted reasoning (OpenAI's GPT-5.6 family) no longer fail every request, and their reasoning is now carried across turns so multi-turn and tool-calling evals work, streamed or not.
 - Scoring: `match()`, `includes()`, `exact()`, `f1()`, `pattern()` and `answer()` now record `reason="no_response"` when the raw model completion is empty or whitespace only, so a model that returned nothing is distinguishable from one that answered wrong. Score values are unchanged. (#5376)
-- Eval Logs: Fewer redundant log writes when samples complete during a slow log flush.
+- Grok: Non-streaming requests cut off by `attempt_timeout` are now retried, and ones cut off by a sample `time_limit` are recorded as that limit, instead of failing with a bare cancellation.
+- Grok: Safety refusals that report "I can't help with that request" now produce a content-filter response instead of failing the sample.
+- Bugfix: Samples whose solver is cut off by a cancellation that inspect did not issue are now recorded as sample errors instead of being scored as completed.
+- Control Channel: `inspect ctl task list` and the `inspect ctl sample` reads take `--log-dir <dir>` to read task and sample status, events, messages and store from the `.eval` logs in a local or S3 directory, without a live eval process.
 
 ## 0.3.268 (22 September 2026)
 

@@ -9466,3 +9466,295 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
         )
         Visitor(module_file.name).visit(tree)
     assert not offenders, f"direct output calls outside _echo/_echo_raw: {offenders}"
+
+
+# --- --log-dir mode: the contract (design/ctl/log-dir-mode.md) ----------------
+#
+# The reads themselves are tested in test_log_dir.py; these pin which commands
+# take `--log-dir` and the mode's error kinds.
+
+# The commands that serve read-only log mode. Adding the option to another
+# command is a decision; this list changes with it.
+_LOG_DIR_COMMANDS = {
+    ("task", "list"),
+    ("sample", "list"),
+    ("sample", "errors"),
+    ("sample", "show"),
+    ("sample", "events"),
+    ("sample", "messages"),
+    ("sample", "store"),
+}
+
+
+def _ctl_leaf_commands(
+    group: click.Group, path: tuple[str, ...] = ()
+) -> list[tuple[tuple[str, ...], click.Command]]:
+    leaves: list[tuple[tuple[str, ...], click.Command]] = []
+    for name, command in sorted(group.commands.items()):
+        if isinstance(command, click.Group):
+            leaves.extend(_ctl_leaf_commands(command, (*path, name)))
+        else:
+            leaves.append(((*path, name), command))
+    return leaves
+
+
+def _leaf_args(command: click.Command) -> list[str]:
+    """A value for each required argument (and one variadic target)."""
+    return [
+        "1"
+        for param in command.params
+        if isinstance(param, click.Argument) and (param.required or param.nargs == -1)
+    ]
+
+
+def test_log_dir_option_is_on_exactly_the_log_dir_commands() -> None:
+    carrying = {
+        path
+        for path, command in _ctl_leaf_commands(ctl_command)
+        if any(param.name == "log_dir" for param in command.params)
+    }
+    assert carrying == _LOG_DIR_COMMANDS
+    # the root group no longer takes it
+    assert all(param.name != "log_dir" for param in ctl_command.params)
+
+
+@pytest.fixture
+def no_log_dir_reads(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail the test on any discovery or storage access."""
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("unexpected discovery or storage access")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", forbidden)
+    monkeypatch.setattr(AsyncFilesystem, "list_dir", forbidden)
+    monkeypatch.setattr(AsyncFilesystem, "read_file_suffix", forbidden)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        path
+        for path, _ in _ctl_leaf_commands(ctl_command)
+        if path not in _LOG_DIR_COMMANDS
+    ],
+    ids=lambda path: " ".join(path),
+)
+def test_other_commands_reject_log_dir_as_a_usage_error(
+    path: tuple[str, ...], tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    command: click.Command = ctl_command
+    for name in path:
+        assert isinstance(command, click.Group)
+        command = command.commands[name]
+    result = cli_runner().invoke(
+        ctl_command,
+        [*path, *_leaf_args(command), "--json", "--log-dir", str(tmp_path)],
+    )
+    # click's ordinary usage error: exit 2, no --json envelope
+    assert result.exit_code == 2, result.output
+    assert re.search(r"No such option\W+--log-dir", result.output)
+    assert result.stdout.strip() == ""
+
+
+def test_log_dir_before_the_command_is_a_usage_error(
+    tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["--log-dir", str(tmp_path), "task", "list", "--json"]
+    )
+    assert result.exit_code == 2
+    assert re.search(r"No such option\W+--log-dir", result.output)
+
+
+def test_log_dir_on_a_noun_group_is_refused_for_a_verb_without_it(
+    tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    # the mirrored `list` option on the bare noun does not reach other verbs
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "--log-dir", str(tmp_path), "cancel", "t", "1", "--json"],
+    )
+    assert result.exit_code == 2
+    assert "does not accept" in result.output
+
+
+@pytest.mark.parametrize(
+    "args",
+    [["task", "--json"], ["task", "--log-dir", "{dir}", "list", "--json"]],
+)
+def test_log_dir_bare_task_noun_lists_the_directory(
+    tmp_path: Path, args: list[str]
+) -> None:
+    argv = [arg.replace("{dir}", str(tmp_path)) for arg in args]
+    if "--log-dir" not in argv:
+        argv += ["--log-dir", str(tmp_path)]
+    result = cli_runner().invoke(ctl_command, argv)
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["tasks"] == [] and payload["incomplete"] is False
+
+
+def test_log_dir_bare_sample_noun_lists_the_directory(tmp_path: Path) -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "--json", "--log-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["samples"] == []
+
+
+def test_log_dir_active_since_is_unsupported(
+    tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    result = cli_runner().invoke(
+        ctl_command,
+        [
+            "sample",
+            "list",
+            "--active-since",
+            "5",
+            "--json",
+            "--log-dir",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "unsupported"
+    assert "--active-since" in error["message"]
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["task", "list"],
+        ["sample", "list"],
+        ["sample", "show", "t", "1"],
+        ["sample", "events", "t", "1"],
+    ],
+)
+def test_log_dir_missing_directory_is_not_found(
+    tmp_path: Path, args: list[str]
+) -> None:
+    missing = tmp_path / "absent"
+    result = cli_runner().invoke(
+        ctl_command, [*args, "--json", "--log-dir", str(missing)]
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "not_found"
+    assert str(missing) in error["message"]
+
+
+def test_log_dir_empty_value_is_a_usage_error() -> None:
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--log-dir", ""])
+    assert result.exit_code == 2
+    assert "must not be empty" in result.output
+
+
+def test_log_dir_storage_failure_is_storage_error_with_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from botocore.exceptions import ClientError
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+
+    response: Any = {
+        "Error": {"Code": "AccessDenied", "Message": "Access Denied"},
+        "ResponseMetadata": {"HTTPStatusCode": 403},
+    }
+
+    async def denied(self: Any, base: str) -> Any:
+        raise ClientError(response, "ListObjectsV2")
+
+    monkeypatch.setattr(AsyncFilesystem, "list_dir", denied)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "list", "--json", "--log-dir", "s3://bucket/run"]
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error == {
+        "kind": "storage_error",
+        "exception": "botocore.ClientError",
+        "message": error["message"],
+        "status": 403,
+    }
+    assert "s3://bucket/run" in error["message"]
+
+
+def test_log_dir_empty_directory_human_output(tmp_path: Path) -> None:
+    result = cli_runner().invoke(ctl_command, ["task", "--log-dir", str(tmp_path)])
+    assert result.exit_code == 0
+    assert result.stdout.strip() == f"No eval logs found in {tmp_path}."
+    assert f"Reading logs in {tmp_path} (read-only, not live" in result.stderr
+
+
+def test_log_dir_live_mode_is_unchanged_without_the_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # no --log-dir: the discovery layer is what `task list` reads
+    calls: list[bool] = []
+
+    def discovered() -> list[Any]:
+        calls.append(True)
+        return []
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", discovered)
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--json"])
+    assert result.exit_code == 0
+    assert calls == [True]
+    assert set(json.loads(result.stdout)) == {"as_of", "tasks"}
+
+
+def _inspect_main(args: list[str], env: dict[str, str]) -> Any:
+    """Invoke ``inspect <args>`` as the entry point does (``INSPECT_`` auto-env)."""
+    from inspect_ai._cli.main import inspect
+
+    return cli_runner().invoke(inspect, args, env=env, auto_envvar_prefix="INSPECT")
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        *sorted(_LOG_DIR_COMMANDS),
+        ("task",),
+        ("sample",),
+        ("task", "cancel"),
+        ("sample", "cancel"),
+    ],
+    ids=lambda path: " ".join(path),
+)
+def test_log_dir_has_no_environment_variable_mirror(
+    path: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the variable click's auto-env would read for this command's option,
+    # plus the mirrored noun's
+    env = {
+        f"INSPECT_CTL_{'_'.join(p.upper() for p in path)}_LOG_DIR": str(tmp_path),
+        f"INSPECT_CTL_{path[0].upper()}_LOG_DIR": str(tmp_path),
+    }
+    discovered: list[bool] = []
+
+    def no_servers() -> list[Any]:
+        discovered.append(True)
+        return []
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", no_servers)
+    command: click.Command = ctl_command
+    for name in path:
+        assert isinstance(command, click.Group)
+        command = command.commands[name]
+    result = _inspect_main(["ctl", *path, *_leaf_args(command), "--json"], env)
+    # live behaviour: the discovery layer is read, and no log-dir banner or
+    # envelope keys appear
+    assert discovered, result.output
+    assert "Reading logs in" not in result.output
+    assert '"incomplete"' not in result.stdout
+
+
+def test_explicit_log_dir_works_through_the_entry_point(tmp_path: Path) -> None:
+    result = _inspect_main(
+        ["ctl", "task", "list", "--json", "--log-dir", str(tmp_path)], {}
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["incomplete"] is False
