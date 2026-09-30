@@ -220,8 +220,7 @@ class Job:
                 os.killpg(pgid, signal.SIGTERM)
                 await asyncio.wait_for(self._process.wait(), timeout=timeout)
             except asyncio.TimeoutError:
-                os.killpg(pgid, signal.SIGKILL)
-                await self._process.wait()
+                await self._force_kill_group(pgid, timeout)
             except ProcessLookupError:
                 pass
 
@@ -246,6 +245,27 @@ class Job:
         finally:
             self._known_descendants.clear()
             await self._wait_for_readers()
+
+    async def _force_kill_group(self, pgid: int, timeout: int) -> None:
+        """SIGKILL the group once SIGTERM's grace period has passed.
+
+        On Python 3.11+ ``Process.wait()`` returns only after every pipe has
+        closed, so the grace period can expire with the leader already dead
+        and its group gone while a descendant still holds stdout or stderr.
+        The leader is therefore rechecked before signalling by id, and the
+        wait after SIGKILL is bounded because it may never return while such
+        a descendant lives.
+        """
+        if not self._leader_running():
+            return
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+        try:
+            await asyncio.wait_for(self._process.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            pass
 
     def _leader_running(self) -> bool:
         """Whether the group leader is still the process this job started.

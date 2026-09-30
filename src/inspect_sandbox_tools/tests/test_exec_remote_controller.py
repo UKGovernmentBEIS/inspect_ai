@@ -6,7 +6,10 @@ subprocesses to exercise kill and shutdown behaviour.
 
 import asyncio
 import os
+import shlex
 import signal
+import sys
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -201,3 +204,49 @@ async def test_kill_treats_reused_pid_as_exited(
         await _stop_job(job)
 
     killpg.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_kill_does_not_escalate_to_a_dead_leaders_group(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The leader dies on SIGTERM while a descendant in its own session holds the pipes.
+
+    On Python 3.11+ ``Process.wait()`` then stays blocked past the grace period,
+    and the SIGKILL escalation must not signal the dead leader's group id.
+    """
+    pidfile = tmp_path / "grandchild.pid"
+    grandchild = (
+        "import os,pathlib,time; os.setsid(); "
+        f"pathlib.Path({str(pidfile)!r}).write_text(str(os.getpid())); time.sleep(300)"
+    )
+    parent = (
+        "import subprocess,sys,time; "
+        f"subprocess.Popen([sys.executable, '-c', {grandchild!r}]); time.sleep(300)"
+    )
+    job = await Job.create(f"{shlex.quote(sys.executable)} -c {shlex.quote(parent)}")
+    for _ in range(200):
+        if pidfile.exists():
+            break
+        await asyncio.sleep(0.05)
+    assert pidfile.exists(), "grandchild did not start"
+
+    signalled: list[int] = []
+    real_killpg = os.killpg
+
+    def record_killpg(pgid: int, sig: int) -> None:
+        signalled.append(sig)
+        real_killpg(pgid, sig)
+
+    monkeypatch.setattr(os, "killpg", record_killpg)
+    try:
+        await asyncio.wait_for(job.kill(ack_seq=0, timeout=1), 10)
+    finally:
+        try:
+            os.kill(int(pidfile.read_text()), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        await _stop_job(job)
+
+    assert signalled == [signal.SIGTERM]
+    assert job._process.returncode is not None
