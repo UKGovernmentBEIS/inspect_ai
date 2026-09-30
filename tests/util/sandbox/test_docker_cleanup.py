@@ -13,7 +13,6 @@ generated and removed for real (in an isolated auto-compose directory).
 """
 
 import os
-import re
 from pathlib import Path
 from typing import Any
 
@@ -550,43 +549,38 @@ async def test_direct_provider_lifecycles_in_child_tasks_are_independent(
 # -- retained environments and CLI cleanup -------------------------------------
 
 
-@pytest.mark.usefixtures("fake_docker")
-async def test_retained_project_table_shows_project_name_for_cleanup(
-    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+async def test_retained_projects_print_their_cleanup_commands(
+    fake_docker: FakeDocker,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Retained environments list their full project name, the cleanup argument."""
-    # Longest name task_project_name() generates, beside a long container name,
-    # in an 80-column console: the row cannot fit without shrinking a column.
-    project_name = "inspect-abcdefghijkl-iabcdef"
-    project = ComposeProject(
-        name=project_name, config=None, sample_id=1, epoch=1, env=None
-    )
+    """Each retained project gets a complete cleanup command of its own.
 
-    async def fake_compose_ps(
-        project: ComposeProject,
-        status: str | None = None,
-        all: bool = False,
-        timeout: int = 300,
-    ) -> list[dict[str, str]]:
-        return [{"Name": f"{project.name}-long-running-service-1"}]
+    At 80 columns, Rich's width when output is not a terminal, the container
+    names of a 12-character task name still print whole on one line.
+    """
+    project_names = ["inspect-gpqa_diamond-ib4tutw", "inspect-gpqa_diamond-ic5vuvx"]
 
     # Print through a console of the test's own: the global one takes its width
-    # from the environment, and display "none" (this fixture's, or an earlier
-    # eval's in this process) quiets it.
+    # from the environment, and an earlier `display="none"` eval in this process
+    # leaves it quiet.
     monkeypatch.setattr(cleanup_module, "print", Console(width=80).print)
-    monkeypatch.setattr(cleanup_module, "compose_ps", fake_compose_ps)
 
     cleanup_module.project_cleanup_startup()
-    cleanup_module.project_startup(project)
+    for sample_id, project_name in enumerate(project_names, start=1):
+        fake_docker.running.add(project_name)
+        cleanup_module.project_startup(
+            ComposeProject(
+                name=project_name, config=None, sample_id=sample_id, epoch=1, env=None
+            )
+        )
     await cleanup_module.project_cleanup_shutdown(cleanup=False)
 
-    output = capsys.readouterr().out
-    # Container names start with the project name, so match it as a whole value.
-    assert re.search(rf"(?<![\w-]){re.escape(project_name)}(?![\w…-])", output)
-    assert "Cleanup all environments  : inspect sandbox cleanup docker\n" in output
-    assert (
-        "Cleanup single environment: inspect sandbox cleanup docker <project>" in output
-    )
+    lines = [line.rstrip() for line in capsys.readouterr().out.splitlines()]
+    assert "Cleanup all environments: inspect sandbox cleanup docker" in lines
+    for project_name in project_names:
+        assert f"  inspect sandbox cleanup docker {project_name}" in lines
+        assert any(f" {project_name}-default-1 " in line for line in lines)
 
 
 @pytest.mark.usefixtures("fake_docker")

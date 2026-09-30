@@ -395,13 +395,13 @@ You can also do this when using `eval(`):
 eval("ctf.py", sandbox_cleanup = False)
 ```
 
-When you do this, you'll see a table of the sandbox environments that were not cleaned up, which includes the project name and container names of each environment. You can then use a container name to get a shell inside that container:
+When you do this, you'll see a list of sandbox containers printed out which includes the ID of each container. You can then use this ID to get a shell inside one of the containers:
 
 ``` bash
 docker exec -it inspect-task-ielnkhh-default-1 bash -l
 ```
 
-When you no longer need the environments, you can clean them up either all at once or individually by project name:
+When you no longer need the environments, you can clean them up either all at once or individually by project name. The printed list ends with the cleanup command for each environment:
 
 ``` bash
 # cleanup all environments

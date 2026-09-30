@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Docker: `--no-sandbox-cleanup` now lists each environment's project name, and `inspect sandbox cleanup docker <project>` now removes custom networks declared in a `ComposeConfig`.
+- Docker: `--no-sandbox-cleanup` now lists each environment's cleanup command, and `inspect sandbox cleanup docker <project>` now removes custom networks declared in a `ComposeConfig`.
 
 ## 0.3.273 (29 September 2026)
 

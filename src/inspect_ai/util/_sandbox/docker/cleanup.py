@@ -34,7 +34,12 @@ class DockerCleanupState:
     """Projects brought up by ``sample_init`` and not yet brought down."""
 
     auto_compose_files: set[str] = field(default_factory=set)
-    """Generated compose files (startup and per-sample) to remove at shutdown."""
+    """Generated compose files (startup and per-sample) to remove at shutdown.
+
+    A reported project's config is released instead and kept for
+    ``inspect sandbox cleanup docker <project>``; see
+    ``project_cleanup_shutdown``.
+    """
 
     closed: bool = False
     """``project_cleanup_shutdown`` has run: this lifecycle is finished."""
@@ -124,6 +129,10 @@ def project_startup(project: ComposeProject) -> None:
 def project_record_auto_compose(project: ComposeProject) -> bool:
     """Register a project's generated compose file for removal at shutdown.
 
+    A reported project's config is released instead and kept for
+    ``inspect sandbox cleanup docker <project>``; see
+    ``project_cleanup_shutdown``.
+
     Returns whether this call registered it: ``False`` for an explicit compose
     file, and for a generated file already registered by an earlier
     initialization or a live sample (a legacy ``.compose.yaml``, or a path
@@ -198,22 +207,29 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
             )
             table.add_column("Sample ID")
             table.add_column("Epoch")
-            table.add_column("Project", no_wrap=True)
-            table.add_column("Container(s)", overflow="fold")
+            table.add_column("Container(s)", no_wrap=True)
             for project in shutdown_projects:
                 containers = await compose_ps(project, all=True)
                 table.add_row(
                     str(project.sample_id) if project.sample_id is not None else "",
                     str(project.epoch if project.epoch is not None else ""),
-                    project.name,
                     "\n".join(container["Name"] for container in containers),
                 )
             print(table)
             print(
                 "\n"
-                "Cleanup all environments  : [blue]inspect sandbox cleanup docker[/blue]\n"
-                "Cleanup single environment: [blue]inspect sandbox cleanup docker <project>[/blue]",
+                "Cleanup all environments: [blue]inspect sandbox cleanup docker[/blue]\n"
+                "Cleanup each environment:\n"
+                + "\n".join(
+                    f"  [blue]inspect sandbox cleanup docker {project.name}[/blue]"
+                    for project in shutdown_projects
+                ),
                 "\n",
+            )
+
+            # handed to the user with the projects (see docstring)
+            state.auto_compose_files.difference_update(
+                project.config for project in shutdown_projects
             )
 
     # release the processed projects (brought down, or handed to the user)
@@ -221,15 +237,9 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
         if project in state.running_projects:
             state.running_projects.remove(project)
 
-    # remove auto-compose files (keeping those of projects handed to the user)
-    retained: set[str] = (
-        set()
-        if cleanup
-        else {project.config for project in shutdown_projects if project.config}
-    )
+    # remove auto-compose files
     for file in list(state.auto_compose_files):
-        if file not in retained:
-            safe_cleanup_auto_compose(file)
+        safe_cleanup_auto_compose(file)
         state.auto_compose_files.discard(file)
 
     state.closed = True
