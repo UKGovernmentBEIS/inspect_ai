@@ -33,6 +33,7 @@ provider credit; leave that to the scheduled job.
 | You changed | Run |
 |---|---|
 | `src/inspect_ai/model/_providers/**` or a provider conversion module in `src/inspect_ai/model/` | `pytest --runapi --runslow tests/model/providers/test_<provider>*.py` with that provider's key set. Shared code (`_providers/util/`, `openai_compatible.py`, `providers.py`) is used by many providers; run `tests/model tests/tools tests/agent` with a key for each provider built on it |
+| `litellm_proxy.py` or `_litellm_proxy_*.py` in `src/inspect_ai/model/_providers/` | `pytest --runslow tests/model/providers/test_litellm_proxy*.py`, then again with `--runtrio`. The Docker tests run the proxy image and fake upstreams offline. Add `--runapi` for the live round trips; each live deployment skips unless its key is set (see "LiteLLM proxy" below) |
 | `src/inspect_ai/tool/**` or `src/inspect_sandbox_tools/**` | `pytest --runslow -m slow tests/tools/ -x` with Docker running. Add `--local-inspect-tools` to build the sandbox tools from your working tree instead of using the published binary (see `src/inspect_sandbox_tools/AGENTS.md`) |
 | `src/inspect_ai/util/_sandbox/**` or `src/inspect_ai/util/_checkpoint/**` | `pytest --runslow tests/util/ tests/checkpoint/` with Docker running |
 | `src/inspect_ai/agent/**` | `pytest --runslow --runapi tests/agent/`. Many of these are ACP and TUI tests that need only time; the rest need Docker or an OpenAI or Anthropic key |
@@ -52,6 +53,16 @@ A provider file's tests often gate on several keys. With only
 `OPENAI_API_KEY` set, `test_openai*.py` still reports skips for Together,
 Bedrock, vLLM, and reasoning-summary access. Those are expected. A skip
 whose reason names the key you set means that test did not run.
+
+## LiteLLM proxy
+
+The litellm-proxy tests never pull images. They skip unless
+`ghcr.io/berriai/litellm:main-latest` (override with `LITELLM_PROXY_IMAGE`)
+is present locally, and the key and team alias tests also need
+`postgres:16` (`LITELLM_PROXY_POSTGRES_IMAGE`). Pull them once with
+`docker pull`. The live tests pass the provider keys to the proxy container:
+`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `MOONSHOT_API_KEY`,
+`TOGETHER_API_KEY`, and `ENABLE_BEDROCK_TESTS` with AWS credentials.
 
 ## Docker
 

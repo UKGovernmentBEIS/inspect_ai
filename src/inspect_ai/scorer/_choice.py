@@ -5,7 +5,7 @@ from inspect_ai.solver._multiple_choice import (
 )
 from inspect_ai.solver._task_state import Choices, TaskState
 
-from ._metric import CORRECT, INCORRECT, Score
+from ._metric import CORRECT, INCORRECT, NOANSWER, Score
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 from ._target import Target
@@ -79,13 +79,8 @@ def choice() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         choices = state.choices
 
-        # a sample with no choices isn't a multiple choice sample at all (e.g.
-        # re-scoring a non-multiple-choice log): score it incorrect without
-        # parsing the target, which is likely free text rather than answer labels
         if not choices:
-            return Score(
-                value=INCORRECT, answer="", explanation=state.output.completion
-            )
+            raise ValueError("The choice scorer requires samples with choices")
 
         if _choices_are_shuffled(choices):
             explanation = _shuffled_explanation(choices)
@@ -103,8 +98,37 @@ def choice() -> Scorer:
 
         target_matches_choices = generated_selected_choices == sorted(target_positions)
 
+        if target_matches_choices:
+            return Score(
+                value=CORRECT,
+                answer=", ".join(answers),
+                explanation=explanation,
+            )
+
+        # The model left no usable answer. An empty completion means there
+        # is nothing to grade; any other completion without a selected
+        # choice means the model did not follow the requested ANSWER
+        # format. The sample stays in the denominator either way, but the
+        # reason lets analysis separate the two causes (see ScoreReason).
+        # These branches only run when no choice was selected: a marked
+        # choice keeps its answer even if the completion text is empty.
+        if not generated_selected_choices:
+            completion = state.output.completion or ""
+            if not completion.strip():
+                return Score(
+                    value=NOANSWER,
+                    answer="",
+                    explanation=explanation,
+                    reason="no_response",
+                )
+            return Score(
+                value=INCORRECT,
+                answer="",
+                explanation=explanation,
+                reason="invalid_response_format",
+            )
         return Score(
-            value=CORRECT if target_matches_choices else INCORRECT,
+            value=INCORRECT,
             answer=", ".join(answers),
             explanation=explanation,
         )

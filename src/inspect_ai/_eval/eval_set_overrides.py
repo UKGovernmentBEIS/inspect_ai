@@ -103,6 +103,7 @@ from inspect_ai._util.file import file
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_data.model_data import ModelCost
+from inspect_ai.review._policy import ReviewPolicyConfig
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig
 from inspect_ai.util._checkpoint._triggers.types import (
@@ -378,6 +379,12 @@ class EvalSetOverrides(BaseModel):
     """Approval policy (or a path to one), overriding the definition's.
 
     The `list[ApprovalPolicy]` arm of the parameter is absent because its approvers are callables. A named policy or a policy config says the same thing from outside the process.
+    """
+
+    review: str | ReviewPolicyConfig | None = None
+    """Review policy (or a path to one), overriding the definition's.
+
+    As for `approval`, the `list[ReviewPolicy]` arm is absent because its reviewers are callables.
     """
 
     # --- what happens when something goes wrong -------------------------------

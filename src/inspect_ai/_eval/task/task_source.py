@@ -30,6 +30,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 if TYPE_CHECKING:
+    from inspect_ai.dataset import Sample
     from inspect_ai.log._log import EvalLog, EvalSample
 
     from .task import Task
@@ -80,7 +81,37 @@ class TaskSource:
         via the log passed to ``task_complete``. A cancelled sample's
         ``error.message`` is the cancellation exception's repr (it starts
         with ``CancelledError(`` or ``Cancelled(``), which is how to tell it
-        from a genuine error.
+        from a genuine error. A sample cancelled before it produced anything
+        to log is reported via :meth:`sample_abandoned` instead.
+        """
+        return None
+
+    async def sample_abandoned(
+        self, sample: "Sample", epoch: int, task: "Task"
+    ) -> list["Task"] | None:
+        """A sample was cancelled without ever being logged.
+
+        ``sample`` is a copy of the sample as the task's dataset held it,
+        ``epoch`` the epoch that was abandoned and ``task`` the task it was
+        queued under. Nothing about the run reached the log (no
+        ``EvalSample`` exists, and the sample is absent from the log passed
+        to ``task_complete``), so unlike :meth:`sample_complete` there is no
+        result to deliver. Return a list of tasks to add to the run
+        (equivalent to calling ``enqueue_task`` with them) or ``None`` (the
+        default) to add nothing.
+
+        Fires when an operator cancels a sample still waiting in the queue
+        (``inspect ctl sample cancel --action cancel``), when a cancel lands
+        on an errored sample in the window before its ``retry_on_error``
+        re-run, or when a graceful task cancel (``--action drain``,
+        ``score``, ``error``) abandons a queued sample — in each case the
+        task itself keeps running, so a source waiting on the sample must
+        hear that it will never complete. Like :meth:`sample_complete` it
+        does not fire for samples cancelled by the task itself unwinding (a
+        task-level cancel or ^C), nor for a withdrawn requeue (the prior
+        terminal outcome, already reported, stands). With ``epochs > 1`` it
+        fires once per abandoned epoch, as ``sample_complete`` fires once per
+        completed one.
         """
         return None
 
@@ -104,6 +135,10 @@ class TaskSource:
         | None = None,
         task_complete: Callable[["EvalLog"], Awaitable[list["Task"] | None]]
         | None = None,
+        sample_abandoned: Callable[
+            ["Sample", int, "Task"], Awaitable[list["Task"] | None]
+        ]
+        | None = None,
     ) -> "TaskSource":
         """Create a :class:`TaskSource` from a seed plus optional callbacks.
 
@@ -126,12 +161,15 @@ class TaskSource:
                 finishes; may return follow-up tasks to add to the run.
             task_complete: Optional async callback invoked as each task finishes;
                 may return follow-up tasks to add to the run.
+            sample_abandoned: Optional async callback invoked when a sample is
+                cancelled without being logged (see :meth:`sample_abandoned`);
+                may return follow-up tasks to add to the run.
 
         Returns:
             A ``TaskSource`` that delegates to the provided seed and callbacks.
         """
         return _CallableTaskSource(
-            initial_tasks, next_tasks, sample_complete, task_complete
+            initial_tasks, next_tasks, sample_complete, task_complete, sample_abandoned
         )
 
 
@@ -147,11 +185,16 @@ class _CallableTaskSource(TaskSource):
         ]
         | None,
         task_complete: Callable[["EvalLog"], Awaitable[list["Task"] | None]] | None,
+        sample_abandoned: Callable[
+            ["Sample", int, "Task"], Awaitable[list["Task"] | None]
+        ]
+        | None,
     ) -> None:
         self._initial_tasks = list(initial_tasks)
         self._next_tasks = next_tasks
         self._sample_complete = sample_complete
         self._task_complete = task_complete
+        self._sample_abandoned = sample_abandoned
 
     def initial_tasks(self) -> list["Task"]:
         return self._initial_tasks
@@ -171,4 +214,11 @@ class _CallableTaskSource(TaskSource):
     async def task_complete(self, log: "EvalLog") -> list["Task"] | None:
         if self._task_complete is not None:
             return await self._task_complete(log)
+        return None
+
+    async def sample_abandoned(
+        self, sample: "Sample", epoch: int, task: "Task"
+    ) -> list["Task"] | None:
+        if self._sample_abandoned is not None:
+            return await self._sample_abandoned(sample, epoch, task)
         return None

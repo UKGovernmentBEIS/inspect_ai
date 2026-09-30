@@ -421,6 +421,14 @@ metrics and an `as_of` stamp — the dashboard/agent surface. The envelope is
 process output, not persistence; a caller who wants a durable copy captures
 it.
 
+Each interim-metrics entry mirrors the fields of the `EvalScore` it came
+from — `{name, scorer, reducer, metrics}` — so a consumer can reconstruct
+the score and resolve a task's `HeadlineMetric`. `name` is the score's name
+(a dict-valued scorer names its scores for its value keys, e.g. `hijack`);
+`scorer` is the originating scorer (e.g. `oss_fuzz_scorer`). The two differ
+only for dict-valued scorers, and `scorer` is what tells two scorers' scores
+of the same `name` apart — `name` alone cannot.
+
 The pass **persists** through the log, via the transcript (in-flight
 samples): each held-state score is a `ScoreEvent(intermediate=True)` on the
 sample's live transcript, so it persists through the realtime sample buffer

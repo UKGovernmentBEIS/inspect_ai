@@ -29,7 +29,9 @@ unavailable, with the count recorded in `unavailable_job_timings`. Missing or
 inverted workflow wall, job wait, and step observations are excluded from their
 distributions and counted in `excluded_timings`. The collector retains step
 status so the summarizer can omit skipped steps; legacy raw files lack that
-status, and the baseline does not retain step distributions.
+status, and the baseline does not retain step distributions. The collector keeps
+only runs whose PR head repository is upstream or the Meridian fork and records
+the number dropped in `excluded_untrusted_runs`.
 
 `report.md` and `prs.md` are historical records. Their referenced snapshots
 are available in Git history.

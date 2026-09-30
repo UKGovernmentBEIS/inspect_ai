@@ -341,20 +341,98 @@ def test_sync_request_pending_when_thread_reference_exists_but_not_alive(
     assert shared_db._sync_pending is True
 
 
-def test_cleanup_skips_deletion_when_sync_remains_active(
+def test_close_waits_for_sync_without_deleting_recovery_files(
     shared_db: SampleBufferDatabase,
     monkeypatch: pytest.MonkeyPatch,
     cleanup_recorder: CleanupRecorder,
     sync_releases: list[threading.Event],
 ) -> None:
     release = threading.Event()
-    monkeypatch.setattr(database_module, "SYNC_CLEANUP_TIMEOUT", 0.01)
     _start_blocked_sync(shared_db, monkeypatch, release, sync_releases)
+    sync_thread = _current_sync_thread(shared_db)
+    join_started = _signal_when_join_starts(monkeypatch, sync_thread)
+    closer, finished, errors = _run_in_thread(shared_db.close)
+    try:
+        _assert_event(join_started, "close did not wait for sync")
+        assert not finished.is_set()
+        assert not shared_db._closed
+    finally:
+        release.set()
+        closer.join(timeout=2)
+
+    assert finished.is_set() and not errors
+    assert not sync_thread.is_alive()
+    assert shared_db._closed and not shared_db._connections
+    assert shared_db.db_path.exists()
+    assert cleanup_recorder.calls == []
+
+
+def test_close_drains_a_pending_upload_before_stopping(
+    shared_db: SampleBufferDatabase,
+    monkeypatch: pytest.MonkeyPatch,
+    cleanup_recorder: CleanupRecorder,
+) -> None:
+    # a completion requested an upload that is not yet due (30s interval);
+    # close preserves recovery data, so the worker uploads at once before it
+    # stops rather than abandoning the shared copy another host recovers from
+    synced: list[str] = []
+
+    def record_sync(db: SampleBufferDatabase, filestore: SampleBufferFilestore) -> None:
+        synced.append("sync")
+
+    monkeypatch.setattr(database_module, "sync_to_filestore", record_sync)
+    _write_event(shared_db, "pending")
+    assert shared_db._sync_pending is True
+
+    shared_db.close()
+
+    assert synced == ["sync"]
+    assert shared_db._sync_pending is False
+    assert shared_db._sync_thread is None
+    assert shared_db.db_path.exists()
+    assert cleanup_recorder.calls == []
+
+
+def test_cleanup_drops_a_pending_upload(
+    shared_db: SampleBufferDatabase,
+    monkeypatch: pytest.MonkeyPatch,
+    cleanup_recorder: CleanupRecorder,
+) -> None:
+    # destructive cleanup deletes the files the upload would mirror
+    synced: list[str] = []
+
+    def record_sync(db: SampleBufferDatabase, filestore: SampleBufferFilestore) -> None:
+        synced.append("sync")
+
+    monkeypatch.setattr(database_module, "sync_to_filestore", record_sync)
+    _write_event(shared_db, "pending")
 
     shared_db.cleanup()
 
+    assert synced == []
+    assert shared_db._sync_thread is None
+
+
+@pytest.mark.parametrize("keep_files", [False, True])
+def test_cleanup_skips_deletion_when_sync_remains_active(
+    shared_db: SampleBufferDatabase,
+    monkeypatch: pytest.MonkeyPatch,
+    cleanup_recorder: CleanupRecorder,
+    sync_releases: list[threading.Event],
+    keep_files: bool,
+) -> None:
+    release = threading.Event()
+    monkeypatch.setattr(database_module, "SYNC_CLEANUP_TIMEOUT", 0.01)
+    _start_blocked_sync(shared_db, monkeypatch, release, sync_releases)
+
+    if keep_files:
+        shared_db.close()
+    else:
+        shared_db.cleanup()
+
     assert cleanup_recorder.calls == []
     assert shared_db._sync_closed is True
+    assert not shared_db._closed
     release.set()
 
 

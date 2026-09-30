@@ -41,6 +41,7 @@ from inspect_ai.util._sandbox._framework_directory import (
     try_ensure_framework_directory_as_root,
     verify_framework_directory,
 )
+from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
     sandbox_with_injection,
@@ -327,7 +328,7 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
     re-raises a contract violation rather than reading it as "no root".
     """
     try:
-        probe = await sandbox.exec(["/bin/sh", "-c", _ROOT_PROBE_CMD], user="root")
+        probe = await privileged_shell(sandbox, _ROOT_PROBE_CMD, user="root")
         fields = _fields(probe.stdout)
         if not probe.success or not fields.keys() >= {"Uid", "CapEff", "setgroups"}:
             raise RuntimeError(f"root probe failed: {probe.stderr or probe.stdout!r}")
@@ -375,7 +376,7 @@ _DEFAULT_USER_CMD = (
 
 async def _detect_default_user(sandbox: SandboxEnvironment) -> SandboxDefaultUser:
     try:
-        result = await sandbox.exec(["/bin/sh", "-c", _DEFAULT_USER_CMD])
+        result = await privileged_shell(sandbox, _DEFAULT_USER_CMD, user=None)
     except Exception as ex:
         raise SandboxDefaultUserError(
             f"Failed to detect sandbox default user: {ex}"

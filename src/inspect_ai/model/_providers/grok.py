@@ -1,10 +1,13 @@
+import asyncio
 import json
 import os
 import time
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from copy import copy
 from typing import Any, Literal, cast
 
+import anyio
 import grpc
 from google.protobuf.json_format import MessageToDict
 from pydantic import JsonValue
@@ -85,6 +88,7 @@ from .._model_output import (
     StopReason,
     TopLogprob,
 )
+from ._first_party import FRONTIER_MODELS
 from ._grok_batch import GrokBatcher
 
 XAI_API_KEY = "XAI_API_KEY"
@@ -143,6 +147,26 @@ def _sdk_supports_xhigh_effort() -> bool:
     (shipped alongside grok-4.6); older SDKs reject "xhigh" client-side.
     """
     return "EFFORT_XHIGH" in chat_pb2.ReasoningEffort.keys()
+
+
+@asynccontextmanager
+async def _scope_cancellation_restored() -> AsyncIterator[None]:
+    """Let an enclosing anyio cancel scope own the cancellation of a unary gRPC call.
+
+    grpc.aio runs a unary RPC in its own task: when the awaiting task is
+    cancelled, that task swallows the (anyio-marked) CancelledError and the
+    await raises a fresh, message-less one that anyio does not recognise as its
+    own. Left alone, `fail_after` leaks a bare CancelledError instead of
+    TimeoutError and `attempt_timeout` never becomes AttemptTimeoutError. The
+    checkpoint lets an already-cancelled enclosing scope re-deliver its marked
+    cancellation (chained to grpc's); any other cancellation re-raises unchanged.
+    Streaming calls re-raise the original exception and need no guard.
+    """
+    try:
+        yield
+    except asyncio.CancelledError:
+        await anyio.lowlevel.checkpoint()
+        raise
 
 
 class GrokAPI(ModelAPI):
@@ -284,7 +308,7 @@ class GrokAPI(ModelAPI):
 
     @override
     async def count_text_tokens(self, text: str) -> int:
-        async with self.model_client() as client:
+        async with self.model_client() as client, _scope_cancellation_restored():
             tokens = await client.tokenize.tokenize_text(
                 text=text, model=self.service_model_name()
             )
@@ -365,11 +389,12 @@ class GrokAPI(ModelAPI):
 
                     # handle structured output
                     if config.response_schema is not None:
-                        chat_response, _ = await chat.parse(
-                            json_schema_to_base_model(
-                                config.response_schema.json_schema
+                        async with _scope_cancellation_restored():
+                            chat_response, _ = await chat.parse(
+                                json_schema_to_base_model(
+                                    config.response_schema.json_schema
+                                )
                             )
-                        )
                     # stream the reponse for improved connectivity for long requests
                     elif self._resolve_streaming(config):
                         report_model_stream_start()
@@ -383,7 +408,8 @@ class GrokAPI(ModelAPI):
                             )
                         chat_response = streamed_response
                     else:
-                        chat_response = await chat.sample()
+                        async with _scope_cancellation_restored():
+                            chat_response = await chat.sample()
 
             model_call.set_response(
                 MessageToDict(chat_response._proto), time.monotonic() - start_time
@@ -498,7 +524,7 @@ class GrokAPI(ModelAPI):
             self.is_at_least_grok_4()
             and _get_model_info_direct(self.canonical_name()) is None
         ):
-            return "grok/grok-4.6"
+            return FRONTIER_MODELS["grok"]
         return super().input_tokens_name()
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
@@ -521,7 +547,11 @@ class GrokAPI(ModelAPI):
 
     def _handle_grpc_permission_denied(self, ex: grpc.RpcError) -> ModelOutput | None:
         details = ex.details() or ""
-        if "safety_check" in details.lower():
+        normalized_details = details.casefold()
+        if (
+            "safety_check" in normalized_details
+            or "can't help with that request" in normalized_details
+        ):
             return ModelOutput.from_content(
                 model=self.model_name,
                 content=details,
@@ -603,8 +633,8 @@ class GrokAPI(ModelAPI):
             gconfig["response_format"] = "json_object"
 
         # grok-3-mini and grok-4-or-later variants (4-fast, 4.1, 4.20, 4.3,
-        # 4.5, 4.6, plus future/codename models) accept reasoning_effort. The
-        # *original* grok-4 reasons but rejects the parameter and must be
+        # 4.5, 4.6, 4.7, plus future/codename models) accept reasoning_effort.
+        # The *original* grok-4 reasons but rejects the parameter and must be
         # excluded.
         if config.reasoning_effort is not None and (
             self.is_grok_3_mini()
@@ -668,7 +698,7 @@ class GrokAPI(ModelAPI):
         server_tool_calls: list[chat_pb2.ToolCall] = []
         client_tool_calls: list[chat_pb2.ToolCall] = []
         for tool_call in response.tool_calls:
-            if get_tool_call_type(tool_call) == "client_side_tool":
+            if self._is_client_tool_call(tool_call, tools):
                 client_tool_calls.append(tool_call)
             else:
                 server_tool_calls.append(tool_call)
@@ -736,6 +766,35 @@ class GrokAPI(ModelAPI):
             return "grok" in tool.options.get("providers", {})
         else:
             return False
+
+    def _is_client_tool_call(
+        self, tool_call: chat_pb2.ToolCall, tools: list[ToolInfo]
+    ) -> bool:
+        """Whether a returned tool call is for a client-side function tool.
+
+        xAI sometimes types a call to a client function named
+        `code_execution` as its built-in code execution tool, even though
+        the request declared it as a plain function and the server did not
+        run it. Trusting the reported type would render the call as a
+        completed server tool use and never execute it. So when the request
+        sent no native code execution tool, a code-execution-typed call whose
+        name matches a tool sent as a function is treated as a call to that
+        function. Other server types keep their reported type: a native web
+        search call, for example, may legitimately share a name with a
+        client function.
+        """
+        tool_call_type = get_tool_call_type(tool_call)
+        if tool_call_type == "client_side_tool":
+            return True
+        if tool_call_type != "code_execution_tool" or any(
+            self._is_internal_code_execution_tool(tool) for tool in tools
+        ):
+            return False
+        return any(
+            tool.name == tool_call.function.name
+            and self._grok_tool(tool).HasField("function")
+            for tool in tools
+        )
 
 
 async def _report_grok_stream_chunk(chunk: Chunk) -> None:

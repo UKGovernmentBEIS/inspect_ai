@@ -6,8 +6,8 @@ Prints nothing when the ledger is unchanged.
 Usage: python3 suppressions_pr_delta.py <base.json> <head.json>
 """
 
-import html
 import json
+import string
 import sys
 from pathlib import Path
 from typing import TypeGuard
@@ -54,9 +54,22 @@ def _load(path: str) -> Ledger | None:
 
 
 def _cell(value: str) -> str:
-    """Render untrusted ledger text safely inside a Markdown table cell."""
+    """Render untrusted ledger text as literal content of a Markdown table cell.
+
+    Every ASCII punctuation character becomes a numeric character reference.
+    CommonMark decodes references to plain text but never reads them as
+    syntax, so links, emphasis, backticks, HTML tags, autolinks and the
+    table's own `|` all display as typed instead of producing active markup
+    or extra cells. HTML-escaping alone is not enough: Markdown stays live
+    inside a raw `<code>` tag. That tag is still needed, because GitHub
+    applies @mention, #issue and :emoji: rendering to text outside code.
+    Line breaks become spaces: a bare newline would end the table row.
+    """
     value = value.replace("\r", " ").replace("\n", " ")
-    return f"<code>{html.escape(value).replace('|', '&#124;')}</code>"
+    literal = "".join(
+        f"&#{ord(char)};" if char in string.punctuation else char for char in value
+    )
+    return f"<code>{literal}</code>"
 
 
 def render(base: Ledger, head: Ledger) -> str | None:
