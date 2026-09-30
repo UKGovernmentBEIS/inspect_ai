@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.util import ComposeConfig, ComposeService
@@ -204,7 +205,9 @@ async def test_retained_project_table_shows_project_name_for_cleanup(
     ) -> list[dict[str, str]]:
         return [{"Name": f"{project.name}-long-running-service-1"}]
 
-    monkeypatch.setenv("COLUMNS", "80")
+    # Print through a console of the test's own: the global one takes its width
+    # from the environment, and an earlier eval in this process may quiet it.
+    monkeypatch.setattr(cleanup_module, "print", Console(width=80).print)
     monkeypatch.setattr(cleanup_module, "compose_ps", fake_compose_ps)
 
     cleanup_module.project_cleanup_startup()
@@ -281,6 +284,10 @@ async def test_retained_project_preserves_config_until_exact_cleanup(
 
     assert config_path.exists()
     assert "retained-network" in config_path.read_text(encoding="utf-8")
+
+    # the batch calls shutdown once per Docker config; a repeat keeps the config
+    await cleanup_module.project_cleanup_shutdown(cleanup=False)
+    assert config_path.exists()
 
     await cleanup_module.cli_cleanup(project_name)
 
