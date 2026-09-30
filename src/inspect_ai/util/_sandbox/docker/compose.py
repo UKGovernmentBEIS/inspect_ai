@@ -36,8 +36,9 @@ COMPOSE_WAIT = 600
 
 # Allowance for the work `compose up` does before its health wait starts (creating
 # and starting containers, waiting on their dependencies), which Docker does not
-# count against `--wait-timeout` but which does count against our timeout
-COMPOSE_STARTUP_TIMEOUT = 60
+# count against the `--wait-timeout` of its health wait (each dependency wait gets
+# its own `--wait-timeout`) but which does count against our timeout
+COMPOSE_STARTUP_ALLOWANCE = 60
 
 
 async def compose_up(
@@ -51,11 +52,11 @@ async def compose_up(
     # default
     healthcheck_time = services_healthcheck_time(services)
     if healthcheck_time > 0:
-        timeout: int = COMPOSE_STARTUP_TIMEOUT + healthcheck_time
+        timeout: int = COMPOSE_STARTUP_ALLOWANCE + healthcheck_time
         trace_message(
             logger,
             TRACE_DOCKER,
-            f"Docker services healthcheck timeout: {healthcheck_time}",
+            f"Docker services startup timeout: {timeout} (healthcheck estimate {healthcheck_time})",
         )
     else:
         timeout = COMPOSE_WAIT
