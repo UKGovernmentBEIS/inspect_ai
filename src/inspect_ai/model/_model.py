@@ -2079,45 +2079,22 @@ ModelResponseFilter: TypeAlias = Callable[
 ]
 """Filter that can replace a model's output after generation.
 
-Called inside the bridge's refusal-retry loop, after ``model.generate()``
-returns and after the compaction baseline is updated from that call's
-actual usage. Receives the resolved ``Model``, a deep copy of the
-``ModelOutput`` returned by ``model.generate()``, and a ``GenerateInput``
-holding the input messages, tools, tool choice and config that were sent to
-the model (what a request ``filter`` can return).
+Receives the resolved ``Model``, a deep copy of the attempt's ``ModelOutput``,
+and a ``GenerateInput`` with the messages, tools, tool choice and config sent to
+the model. The output comes from ``model.generate()``, or is the one a request
+``filter`` substituted (then there is no ``model.generate()`` call and no
+``ModelEvent``). The ``GenerateInput`` holds the bridge's live objects, which are
+recorded in the ``ModelEvent`` and bridge state: do not mutate them.
 
-Return a ``ModelOutput`` to replace the response, or ``None`` to pass
-through the provider output unchanged. Mutations to the callback argument have
-no effect unless the callback returns that output. Returning an output with
-``stop_reason="content_filter"`` triggers a refusal retry (subject to
-``bridge.retry_refusals``); returning one with any other ``stop_reason``
-completes the turn.
+Return ``None`` to keep the output, or a ``ModelOutput`` with at least one choice
+to replace it (its ``completion`` is re-derived from its message). A
+``stop_reason="content_filter"`` replacement is handled like a model refusal
+(``retry_refusals``, ``fail_on_refusal``). The ``ModelEvent`` keeps the model's
+own output; the replacement is what the agent, bridge state and later turns see.
 
-Note: mutations to the ``ModelOutput`` returned from the filter propagate into
-bridge state and into the assistant history sent to the model on subsequent
-turns. If a filter mutates ``output.message.tool_calls[*].arguments`` (for
-example, to rewrite tool inputs before execution), callers that want the model
-to see a consistent view across turns should apply a symmetric inverse mutation
-in the request ``filter`` so the assistant history visible to the model on the
-next turn matches what the model originally emitted. Filters that only
-substitute outputs without depending on cross-turn consistency do not need this
-symmetric setup.
-
-Recording: the ``ModelEvent`` emitted by ``model.generate()`` keeps the
-model's original output (it is evidence of what the model actually produced),
-while the filtered output is what enters bridge state and the conversation
-recorded on subsequent turns. When a filter replaces the response, the event
-and the adjacent conversation therefore differ, and nothing in the log marks
-the substitution.
-
-A filter is eval logic, not a passive observer of the model response: an
-exception raised from it propagates and fails the sample (attributed to the
-filter), on both the in-process and sandboxed bridge paths, rather than
-being reported to the scaffold as a model or provider error. Sample limits
-and termination are the exception: a ``LimitExceededError`` (e.g. a judge
-model call made by the filter exceeding the sample's token limit) or a
-``TerminateSampleError`` raised from the filter ends the sample with that
-limit or termination rather than with an error.
+An exception, or an invalid return, fails the sample as a ``ResponseFilterError``,
+except that a ``LimitExceededError``, ``TerminateSampleError`` or
+``ModelRefusalError`` keeps its normal outcome.
 """
 
 

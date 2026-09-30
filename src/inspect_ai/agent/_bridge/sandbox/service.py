@@ -53,11 +53,11 @@ def _forward_provider_errors(
 
     A `ModelRefusalError` (`fail_on_refusal`), a `ResponseFilterError` (a
     `response_filter` is eval logic, not a passive observer) and a
-    `TerminateSampleError` (approver termination, or one raised by a request or
-    response filter) must also end the sample, but the sandbox service
-    dispatcher would swallow a re-raise into an RPC error, so they are signalled
-    through `bridge.request_fail` (raised on the agent's side by the bridge's
-    monitor task) while the scaffold still gets an error reply.
+    `TerminateSampleError` (for example one raised by a request or response
+    filter) must also end the sample, but the sandbox service dispatcher would
+    swallow a re-raise into an RPC error, so they are signalled through
+    `bridge.request_fail` (raised on the agent's side by the bridge's monitor
+    task) while the scaffold still gets an error reply.
     """
 
     async def generate_forwarding_errors(

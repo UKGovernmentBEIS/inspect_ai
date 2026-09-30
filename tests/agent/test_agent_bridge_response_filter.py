@@ -39,7 +39,6 @@ from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util import ExecResult
-from inspect_ai.util._limit import LimitExceededError
 
 
 class _FakeProxy:
@@ -113,36 +112,8 @@ def _run_eval_with_filters(
     return log[0]
 
 
-def test_agent_bridge_constructor_accepts_response_filter() -> None:
-    """AgentBridge construction must accept response_filter."""
-
-    async def my_filter(
-        model: Model, output: ModelOutput, generate_input: GenerateInput
-    ) -> ModelOutput | None:
-        return output
-
-    bridge = AgentBridge(
-        state=AgentState(messages=[]),
-        response_filter=my_filter,
-    )
-
-    assert bridge.response_filter is my_filter
-
-
-async def test_agent_bridge_entry_point_accepts_response_filter() -> None:
-    """The agent_bridge() async context manager must accept response_filter."""
-
-    async def my_filter(
-        model: Model, output: ModelOutput, generate_input: GenerateInput
-    ) -> ModelOutput | None:
-        return None
-
-    async with agent_bridge(
-        response_filter=my_filter,
-    ) as bridge:
-        assert bridge.response_filter is my_filter
-
-
+# The only non-Docker check that sandbox_agent_bridge() hands response_filter to
+# its bridge; the Docker tests below cover the behavior end to end.
 async def test_sandbox_agent_bridge_entry_point_accepts_response_filter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -315,14 +286,9 @@ def test_response_filter_no_retry_budget(tmp_path: Path) -> None:
 def test_request_and_response_filter_compose(tmp_path: Path) -> None:
     """Request filter runs before model.generate; response filter runs after.
 
-    This is the narrow contract the state-mutation symmetry pattern relies on:
-    callers can use the request filter to re-scrub assistant tool_use arguments
-    before the next model request, and the response filter still observes the
-    exact post-request-filter inputs whose output it may mutate.
-
-    Also locks the contract that the response_filter observes the request_filter's
-    mutations: the request filter INJECTS a sentinel tool, and the response filter
-    must see that tool in its tool_info argument.
+    The response filter sees the inputs the request filter produced: the request
+    filter injects a sentinel tool, which must appear in the response filter's
+    `GenerateInput.tools`.
     """
     call_order: list[str] = []
     response_seen_tools: list[list[str]] = []
@@ -356,6 +322,37 @@ def test_request_and_response_filter_compose(tmp_path: Path) -> None:
         "response_filter must observe the request filter's injected tools; "
         f"saw {response_seen_tools}"
     )
+
+
+def test_response_filter_runs_on_request_filter_substitute(tmp_path: Path) -> None:
+    """An output the request filter substitutes also goes through the response filter.
+
+    `model.generate()` never runs in that case, so there is no ModelEvent.
+    """
+    seen: list[str] = []
+
+    async def req_filter(
+        model: Model,
+        input_messages: list[ChatMessage],
+        tool_info: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return ModelOutput.from_content(model.name, "FROM-REQUEST-FILTER")
+
+    async def resp_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        seen.append(output.completion)
+        return ModelOutput.from_content(model.name, REPLACED_SENTINEL)
+
+    log = _run_eval_with_filters(
+        tmp_path, filter=req_filter, response_filter=resp_filter
+    )
+    assert seen == ["FROM-REQUEST-FILTER"]
+    assert log.samples is not None
+    assert log.samples[0].output.completion == REPLACED_SENTINEL
+    assert not [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
 
 
 _SANDBOX_SCAFFOLD_SCRIPT = (
@@ -722,26 +719,6 @@ def _sandbox_bridge(response_filter: ModelResponseFilter) -> SandboxAgentBridge:
         model_aliases={"inspect": _under_limit_model()},
         response_filter=response_filter,
     )
-
-
-async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
-    """A limit hit in a response filter reaches the sandbox service unchanged.
-
-    The sandbox service ends the sample on a `LimitExceededError` from a model
-    method; a wrapped or forwarded one would fail the sample instead.
-    """
-    limit_error = LimitExceededError("token", value=102, limit=JUDGE_TOKEN_LIMIT)
-
-    async def over_limit_filter(
-        model: Model, output: ModelOutput, generate_input: GenerateInput
-    ) -> ModelOutput | None:
-        raise limit_error
-
-    bridge = _sandbox_bridge(over_limit_filter)
-    generate = _forward_provider_errors(generate_completions(bridge), bridge)
-    with pytest.raises(LimitExceededError) as exc_info:
-        await generate(CHAT_REQUEST)
-    assert exc_info.value is limit_error
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,4 @@
-"""Shared helpers for forwarding provider errors through the agent bridge.
+"""Agent bridge error types and helpers for forwarding provider errors.
 
 The sandbox model proxy (a separate, shipped binary that cannot import
 `inspect_ai`) forwards provider errors to the proxied agent instead of crashing.
@@ -34,13 +34,14 @@ class BridgePolicyError(Exception):
 
 
 class ResponseFilterError(Exception):
-    """A `response_filter` raised while transforming a model's output.
+    """A `response_filter` raised, or returned something other than `None` or a `ModelOutput` with choices.
 
-    The original exception is preserved as `__cause__`.
+    The original exception is preserved as `__cause__`, and its type leads the
+    message.
 
-    `LimitExceededError` and `TerminateSampleError` are never wrapped: they
-    are sample control flow rather than filter failures, so a limit hit or
-    termination requested inside a filter keeps its normal outcome.
+    `LimitExceededError`, `TerminateSampleError` and `ModelRefusalError` are never
+    wrapped: they are sample control flow rather than filter failures, so a limit,
+    termination or refusal raised inside a filter keeps its normal outcome.
     """
 
 
