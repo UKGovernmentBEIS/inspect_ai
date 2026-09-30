@@ -446,15 +446,15 @@ async def test_responses_api_terminal_error_block_code_converts() -> None:
         output=[],
         tools=[],
         error=ResponseError.model_construct(
-            code="bio_policy",
-            message="This content was flagged for possible biological risk.",
+            code="content_policy_violation",
+            message="Your prompt was blocked by our content policy.",
         ),
         status="failed",
     )
     output, model_call = await _generate_responses_with_mock(blocked_response)
     assert isinstance(output, ModelOutput)
     assert output.stop_reason == "content_filter"
-    assert "biological risk" in output.completion
+    assert "blocked" in output.completion
     assert model_call.error is True
 
     server_error_response = Response.model_construct(
@@ -473,6 +473,30 @@ async def test_responses_api_terminal_error_block_code_converts() -> None:
     with pytest.raises(OpenAIResponseError) as excinfo:
         await _generate_responses_with_mock(server_error_response)
     assert excinfo.value.code == "server_error"
+
+
+async def test_responses_api_terminal_bio_policy_converts() -> None:
+    """A terminal biological-risk policy error becomes a content filter stop."""
+    from openai.types.responses import Response, ResponseError
+
+    blocked_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError.model_construct(
+            code="bio_policy",
+            message="This content was flagged for possible biological risk.",
+        ),
+        status="failed",
+    )
+    output, model_call = await _generate_responses_with_mock(blocked_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert "biological risk" in output.completion
+    assert model_call.error is True
 
 
 async def test_responses_api_metadata_surfaced():
