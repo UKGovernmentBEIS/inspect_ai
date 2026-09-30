@@ -428,10 +428,14 @@ async def _apply_response_filter(
 
     Exceptions are classified after unwrapping by hand, not with `inner_exception`,
     which follows `__context__` and can pick the exception already being handled.
-    A single-exception group is unwrapped, since a task group inside the filter
-    wraps a lone limit or termination. A group of only limits, terminations and
-    refusals (e.g. concurrent judges through `collect()`) counts as its first. A
-    group mixing them with any other exception is a filter failure.
+    A group of only limits, terminations and refusals (e.g. concurrent judges
+    through `collect()`) counts as its first. A group mixing them with any other
+    exception is a filter failure. Single-exception groups are unwrapped first only
+    so that the `ResponseFilterError` message names the underlying exception.
+
+    Only tool calls the filter changed have their arguments checked for JSON: a
+    provider's own arguments (e.g. `parse_tool_call`'s YAML fallback yields dates)
+    are not the filter's to answer for.
     """
     candidate = output.model_copy(deep=True)
     try:
@@ -467,12 +471,18 @@ async def _apply_response_filter(
             "response_filter returned an invalid ModelOutput: "
             f"{_validation_error_details(ex)}"
         ) from ex
+    original_arguments = {
+        call.id: call.arguments
+        for choice in output.choices
+        for call in choice.message.tool_calls or []
+    }
     try:
         # the one Any-typed field the dialect converters json.dumps
         for choice in filtered.choices:
             for call in choice.message.tool_calls or []:
-                json.dumps(call.arguments)
-    except (TypeError, ValueError) as ex:
+                if original_arguments.get(call.id) != call.arguments:
+                    json.dumps(call.arguments)
+    except (TypeError, ValueError, RecursionError) as ex:
         raise ResponseFilterError(
             "response_filter returned tool call arguments that are not "
             f"JSON-serializable: {ex}"
@@ -582,7 +592,8 @@ async def bridge_generate(
     The filter can either return a ModelOutput directly or modify the generation inputs.
     Refusals (stop_reason="content_filter") from either the filter or model will trigger
     retries up to bridge.retry_refusals times, with inputs reset to original values for
-    each retry to ensure clean state.
+    each retry to ensure clean state. A `response_filter`, if configured, runs on each
+    attempt's output before that refusal check (see `_apply_response_filter`).
 
     Tool calls in the output are approved before it is handed back to the scaffold. A
     rejected call is not edited out of the response — instead the model is told it was

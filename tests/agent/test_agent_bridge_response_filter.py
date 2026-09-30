@@ -20,6 +20,7 @@ from inspect_ai.agent._bridge.sandbox.bridge import (
 )
 from inspect_ai.agent._bridge.sandbox.service import (
     _forward_provider_errors,
+    generate_anthropic,
     generate_completions,
 )
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
@@ -27,6 +28,7 @@ from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.event import ModelEvent
 from inspect_ai.log import EvalLog
+from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -51,6 +53,7 @@ from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util import ExecResult, collect
 from inspect_ai.util._limit import LimitExceededError
 
@@ -625,6 +628,7 @@ FilterFailure = Literal[
     "wrong_type",
     "no_choices",
     "non_json_tool_arguments",
+    "limit_and_bug",
     InvalidOutput,
 ]
 
@@ -699,6 +703,17 @@ def _failing_response_filter(failure: FilterFailure) -> ModelResponseFilter:
                     ToolCall(id="call_1", function="bash", arguments={"x": {1, 2}})
                 ]
                 return output
+            case "limit_and_bug":
+
+                async def over_limit() -> None:
+                    raise LimitExceededError(
+                        "token", value=102, limit=JUDGE_TOKEN_LIMIT
+                    )
+
+                async def judge_bug() -> None:
+                    raise ValueError("judge bug")
+
+                await collect(over_limit(), judge_bug())
             case "message_not_assistant":
                 output.choices[0].message = cast(ChatMessageAssistant, "edited")
                 return output
@@ -760,6 +775,8 @@ def _expected_error(failure: FilterFailure) -> ExpectedError | None:
             return ExpectedError(ResponseFilterError, "no choices")
         case "non_json_tool_arguments":
             return ExpectedError(ResponseFilterError, "not JSON-serializable")
+        case "limit_and_bug":
+            return ExpectedError(ResponseFilterError, "ExceptionGroup")
         case (
             "message_not_assistant"
             | "user_message"
@@ -856,6 +873,7 @@ async def test_response_filter_error_keeps_the_filter_exception_as_cause() -> No
         "bug",
         "message_not_assistant",
         "non_json_tool_arguments",
+        "limit_and_bug",
     ],
 )
 def test_sandbox_response_filter_failure_outcome(
@@ -871,7 +889,9 @@ def test_sandbox_response_filter_failure_outcome(
     _assert_failure_outcome(log, failure)
 
 
-def _sandbox_bridge(response_filter: ModelResponseFilter) -> SandboxAgentBridge:
+def _sandbox_bridge(
+    response_filter: ModelResponseFilter, model: Model | None = None
+) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
         filter=None,
@@ -879,9 +899,55 @@ def _sandbox_bridge(response_filter: ModelResponseFilter) -> SandboxAgentBridge:
         compaction=None,
         port=13131,
         model=None,
-        model_aliases={"inspect": _under_limit_model()},
+        model_aliases={"inspect": model or _under_limit_model()},
         response_filter=response_filter,
     )
+
+
+async def test_sandbox_identity_filter_keeps_provider_tool_arguments() -> None:
+    """Only arguments the filter changed must be JSON-serializable.
+
+    `parse_tool_call`'s YAML fallback turns a bare `2024-01-01` into a `date`, which
+    the Anthropic dialect renders. A filter that returns the output unchanged must
+    not fail a sample that would pass without it.
+    """
+    events_tool = ToolInfo(
+        name="get_events",
+        description="List events on a date.",
+        parameters=ToolParams(properties={"date": ToolParam(type="string")}),
+    )
+    provider_call = parse_tool_call("call_1", "get_events", "2024-01-01", [events_tool])
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput(
+                model="mockllm/model",
+                choices=[
+                    ChatCompletionChoice(
+                        message=ChatMessageAssistant(
+                            content="", tool_calls=[provider_call]
+                        ),
+                        stop_reason="tool_calls",
+                    )
+                ],
+            )
+        ],
+    )
+
+    async def identity_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        return output
+
+    bridge = _sandbox_bridge(identity_filter, model)
+    reply = await _forward_provider_errors(
+        generate_anthropic(None, None, bridge), bridge
+    )({"model": "inspect", "max_tokens": 1024, "messages": CHAT_REQUEST["messages"]})
+
+    assert PROVIDER_ERROR_KEY not in reply
+    assert not bridge._failure_requested.is_set()
+    tool_use = cast(list[dict[str, JsonValue]], reply["content"])[-1]
+    assert tool_use["input"] == {"date": "2024-01-01"}
 
 
 async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
