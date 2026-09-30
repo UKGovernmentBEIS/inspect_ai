@@ -1381,7 +1381,7 @@ class AnthropicAPI(ModelAPI):
         # via extra_body as the SDK only exposes `fallbacks` on
         # client.beta.messages.create but inspect calls client.messages.create.
         # `fallback_models` takes precedence over a caller's verbatim `fallbacks`
-        # directive, which goes under FALLBACK_DEFAULT_BETA.
+        # directive.
         if config.fallback_models:
             fallbacks: Any = [{"model": model} for model in config.fallback_models]
             fallback_source, fallback_beta = "fallback_models", FALLBACK_BETA

@@ -311,11 +311,15 @@ def _fallback_betas(request: dict[str, Any]) -> list[str]:
     return [b for b in header.split(",") if b.startswith("server-side-fallback-")]
 
 
+# Both documented forms of a client `fallbacks` directive.
+FALLBACK_DIRECTIVES = [
+    pytest.param([{"model": "claude-opus-4-8"}], id="explicit-list"),
+    "default",
+]
+
+
 @pytest.mark.anyio
-@pytest.mark.parametrize(
-    "fallbacks",
-    [pytest.param([{"model": "claude-opus-4-8"}], id="explicit-list"), "default"],
-)
+@pytest.mark.parametrize("fallbacks", FALLBACK_DIRECTIVES)
 async def test_bridged_fallbacks_withheld_from_non_anthropic_model(
     monkeypatch: pytest.MonkeyPatch, fallbacks: Any, _warn_once_messages: list[str]
 ) -> None:
@@ -343,10 +347,7 @@ async def test_bridged_fallbacks_withheld_from_non_anthropic_model(
     "client_model",
     ["claude-fable-5", "anthropic/claude-fable-5", "inspect/anthropic/claude-fable-5"],
 )
-@pytest.mark.parametrize(
-    "fallbacks",
-    [pytest.param([{"model": "claude-opus-4-8"}], id="explicit-list"), "default"],
-)
+@pytest.mark.parametrize("fallbacks", FALLBACK_DIRECTIVES)
 async def test_bridged_fallbacks_reach_named_anthropic_model_under_2026_07_01(
     monkeypatch: pytest.MonkeyPatch, fallbacks: Any, client_model: str
 ) -> None:

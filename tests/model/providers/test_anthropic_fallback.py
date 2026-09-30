@@ -124,7 +124,6 @@ def test_fallback_ignored_on_bedrock_vertex_azure(
     setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
     setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
     monkeypatch.setenv("AZUREAI_ANTHROPIC_BASE_URL", "https://fake.example/anthropic")
-    monkeypatch.setenv("AZUREAI_ANTHROPIC_API_KEY", "fake")
     from inspect_ai._util import logger as logger_mod
     from inspect_ai.model._providers import anthropic as anthropic_mod
 
