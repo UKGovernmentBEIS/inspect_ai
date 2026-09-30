@@ -253,8 +253,9 @@ async def _bridged_provider_request(
     model: Model,
     fallbacks: Any,
     messages: list[dict[str, Any]] | None = None,
+    client_model: str = "claude-fable-5",
 ) -> dict[str, Any]:
-    """Send a client `fallbacks` directive for `claude-fable-5` through the bridge.
+    """Send a client `fallbacks` directive for `client_model` through the bridge.
 
     The client's model name is aliased to `model`. The provider's SDK create
     call must be patched with `_capture_sdk_request`; the returned dict is what
@@ -267,11 +268,11 @@ async def _bridged_provider_request(
     from inspect_ai.agent._bridge.types import AgentBridge
 
     bridge = AgentBridge(state=AgentState(messages=[]))
-    bridge.model_aliases = {"claude-fable-5": model}
+    bridge.model_aliases = {client_model: model}
     with pytest.raises(_ProviderRequest) as exc_info:
         await inspect_anthropic_api_request_impl(
             json_data={
-                "model": "claude-fable-5",
+                "model": client_model,
                 "max_tokens": 64,
                 "messages": messages or [{"role": "user", "content": "hi"}],
                 "fallbacks": fallbacks,
@@ -323,19 +324,25 @@ async def test_bridged_fallbacks_withheld_from_non_anthropic_model(
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
+    "client_model",
+    ["claude-fable-5", "anthropic/claude-fable-5", "inspect/anthropic/claude-fable-5"],
+)
+@pytest.mark.parametrize(
     "fallbacks",
     [pytest.param([{"model": "claude-opus-4-8"}], id="explicit-list"), "default"],
 )
 async def test_bridged_fallbacks_reach_named_anthropic_model_under_2026_07_01(
-    monkeypatch: pytest.MonkeyPatch, fallbacks: Any
+    monkeypatch: pytest.MonkeyPatch, fallbacks: Any, client_model: str
 ) -> None:
-    """Both documented `fallbacks` forms reach the model the client named.
+    """Both `fallbacks` forms reach the model the client named, however spelled.
 
-    Each goes under `server-side-fallback-2026-07-01`, the beta that accepts
-    both; `2026-06-01` rejects `"default"`.
+    Each form goes under `server-side-fallback-2026-07-01`, the beta that
+    accepts both; `2026-06-01` rejects `"default"`.
     """
     model = _anthropic_model(monkeypatch, "anthropic/claude-fable-5")
-    request = await _bridged_provider_request(model, fallbacks)
+    request = await _bridged_provider_request(
+        model, fallbacks, client_model=client_model
+    )
     assert request["extra_body"]["fallbacks"] == fallbacks
     assert _fallback_betas(request) == ["server-side-fallback-2026-07-01"]
 
@@ -344,11 +351,12 @@ async def test_bridged_fallbacks_reach_named_anthropic_model_under_2026_07_01(
 async def test_bridged_fallback_list_withheld_from_another_anthropic_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A client's fallback list is written for the model it named.
+    """A client's fallback list names targets chosen for the model it named.
 
-    Served by another model (here via an alias), the API rejects the list with
-    a 400, so it is withheld with a warning. `"default"` routing is valid on any
-    Anthropic model and is still forwarded.
+    Served by another model (here via an alias), some of those targets may not
+    be permitted, which fails the request, so the list is withheld with a
+    warning. `"default"` routing is valid on any Anthropic model and is still
+    forwarded.
     """
     from inspect_ai._util import logger as logger_mod
     from inspect_ai.agent._bridge import anthropic_api_impl

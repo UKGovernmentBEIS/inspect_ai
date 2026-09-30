@@ -253,9 +253,10 @@ def withhold_fallback_list_for_other_model(
 ) -> None:
     """Withhold a client's `fallbacks` list when another model serves the request.
 
-    The list names fallback targets permitted for the model the client asked
-    for, and the API rejects it (400) on a model it was not written for.
-    `"default"` routing is valid on any Anthropic model and is kept.
+    The list names fallback targets the client chose for the model it asked
+    for. A different served model may not permit some of them, which fails the
+    request, so the list goes only to the model it names. `"default"` routing
+    is valid on any Anthropic model and is kept.
     """
     extra_body = config.extra_body
     if extra_body is None or extra_body.get(FALLBACKS_FIELD) in (None, "default"):
@@ -268,8 +269,8 @@ def withhold_fallback_list_for_other_model(
             logger,
             f"The bridged agent sent a `fallbacks` list for '{requested_model}', "
             f"but '{served_model}' is serving the request; the list has been "
-            "withheld because the API accepts only fallback targets permitted "
-            "for the served model.",
+            "withheld because its targets were chosen for the requested model "
+            "and may not be permitted for the served one.",
         )
         del extra_body[FALLBACKS_FIELD]
 
