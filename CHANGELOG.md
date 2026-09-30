@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Sandbox tools: the root check now runs once at sample start, before solver/agent execution begins; an inconclusive check warns before falling back to the sandbox's default user, and a check that could not run, or a later root failure, is an error.
+- Local sandbox: `exec(user=...)` now rejects unsupported users instead of ignoring them; the current effective user's name or UID is accepted on POSIX.
 - Agent Bridge: Client-executed tool search can now expose discovered tools to model providers that do not use the OpenAI Responses API.
 
 ## 0.3.273 (29 September 2026)
