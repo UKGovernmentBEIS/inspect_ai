@@ -1,7 +1,7 @@
 ## Unreleased
 
 - Sandbox tools: the root check now runs once at sample start, before solver/agent execution begins; an inconclusive check warns before falling back to the sandbox's default user, and a check that could not run, or a later root failure, is an error.
-- Sandbox tools: killing an `exec_remote` job whose process has already exited no longer signals its former process group, which a reused PID could have handed to unrelated processes.
+- Sandbox tools: killing an `exec_remote` job that has already exited now guards against signalling unrelated processes that reused its PID.
 - Local sandbox: `exec(user=...)` now rejects unsupported users instead of ignoring them; the current effective user's name or UID is accepted on POSIX.
 - Control Channel: `inspect ctl ... --log-dir` now shows running and completed-but-unflushed samples, with current counts and their events, for evals run with `--log-shared`.
 - OpenAI Compatible: Fixed concurrent sample failures during credential refresh, including OpenRouter evaluations on Hawk, and added an overridable `ModelAPI.refresh_credentials()` for model API extensions.

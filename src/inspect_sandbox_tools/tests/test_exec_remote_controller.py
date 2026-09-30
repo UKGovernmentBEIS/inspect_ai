@@ -1,7 +1,7 @@
-"""Unit tests for the exec_remote Controller.
+"""Unit tests for the exec_remote Controller and Job.
 
-These test the Controller in isolation by injecting mock Jobs, without
-spawning real subprocesses.
+Controller tests inject mock Jobs. Job tests spawn short-lived real
+subprocesses to exercise kill and shutdown behaviour.
 """
 
 import asyncio
@@ -158,11 +158,11 @@ async def test_kill_signals_group_while_leader_runs(
     monkeypatch.setattr(os, "killpg", record_killpg)
     try:
         await job.kill(ack_seq=0)
+        assert job._process.returncode is not None
     finally:
         await _stop_job(job)
 
     assert signalled == [(job.pid, signal.SIGTERM)]
-    assert job._process.returncode is not None
 
 
 @pytest.mark.asyncio

@@ -18,12 +18,10 @@ async def terminate_process_tree(
     """Terminate a subprocess, known/discoverable descendants, and optional group members.
 
     With ``process_group=True`` the group is signalled by id even after the
-    leader has exited, so orphaned members still die. Once every member has
-    gone, though, the id can be reused by an unrelated process. This is only
-    reached from server shutdown, which only the local sandbox's graceful stop
-    triggers; a graceful stop for container sandboxes, where the server runs
-    as root, would need the live-leader check exec_remote's ``Job.kill``
-    applies before signalling by id.
+    leader has exited, so orphaned members still die. Once the group is empty
+    that id can be reused by an unrelated process, so this must not be reached
+    from a per-sample path; Inspect's container providers destroy the container
+    rather than stopping the server.
     """
     pid = getattr(process, "pid", None)
     if pid is None:

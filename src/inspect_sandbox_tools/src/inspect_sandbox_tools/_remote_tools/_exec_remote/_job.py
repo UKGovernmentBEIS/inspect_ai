@@ -203,7 +203,7 @@ class Job:
         the group id, may already belong to an unrelated process, and a server
         running as root would kill that process's group instead. A job whose
         leader exited on its own is therefore treated as finished: its buffered
-        output is returned and any children that outlived it are left running.
+        output is returned and any children that outlived it may be left running.
         """
         if self._state != "running":
             self._acked_buffer.push(("", ""))
