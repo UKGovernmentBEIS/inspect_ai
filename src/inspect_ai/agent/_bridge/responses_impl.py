@@ -65,7 +65,7 @@ from openai.types.responses.response_tool_search_output_item_param_param import 
     ResponseToolSearchOutputItemParamParam,
 )
 from openai.types.responses.tool_param import CodeInterpreter
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from shortuuid import uuid
 
 from inspect_ai._util.content import (
@@ -142,6 +142,7 @@ from inspect_ai.model._openai_responses import (
     to_inspect_citation,
     tool_call_from_openai_tool_search_call,
     tool_search_output_tools,
+    tool_search_tools_adapter,
     tool_use_to_code_interpreter_param,
     tool_use_to_mcp_call_param,
     tool_use_to_mcp_list_tools_param,
@@ -226,6 +227,26 @@ def _is_client_tool_search_output(
     )
 
 
+def _client_discovery_tools(
+    item: ResponseToolSearchOutputItemParamParam,
+) -> list[ToolParam]:
+    """The tools a client tool_search result declares to a generic provider.
+
+    Validated as a whole, exactly as `tool_search_output_tools` validates the
+    replayed result: one invalid entry means the result declares nothing, so the
+    tools a generic provider is given agree with the declarations execution
+    grants are resolved against.
+    """
+    try:
+        tools: list[ToolParam] = tool_search_tools_adapter.dump_python(
+            tool_search_tools_adapter.validate_python(item.get("tools") or []),
+            mode="json",
+        )
+    except (ValidationError, ValueError):
+        tools = []
+    return tools
+
+
 def _contains_computer_tool(tool_param: ToolParam) -> bool:
     """Whether a tool declaration contains computer use."""
     return is_computer_tool_param(tool_param) or (
@@ -298,7 +319,7 @@ async def inspect_responses_api_request_impl(
             elif not is_openai and _is_client_tool_search_output(
                 item, client_tool_search_declared, client_tool_search_call_ids
             ):
-                item_tools = item.get("tools")
+                item_tools = _client_discovery_tools(item)
                 client_discovery_output = True
             for declared in item_tools or []:
                 if client_discovery_output:
@@ -782,9 +803,10 @@ def tool_from_responses_tool(
         # client-resolved tool discovery (e.g. codex-cli). Preserve the native
         # tool fields in options so the OpenAI Responses provider can re-emit the
         # ToolSearchToolParam verbatim; the scaffold resolves the calls locally.
+        schema = tool_param.get("parameters")
         parameters = (
-            ToolParams.model_validate(tool_param["parameters"])
-            if tool_param.get("execution") == "client"
+            ToolParams.model_validate(schema)
+            if tool_param.get("execution") == "client" and schema is not None
             else ToolParams()
         )
         return ToolInfo(

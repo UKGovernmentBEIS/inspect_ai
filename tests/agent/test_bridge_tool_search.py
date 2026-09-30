@@ -602,23 +602,7 @@ async def test_client_tool_search_accumulates_overlapping_namespace_discoveries(
     assert response.output_text == "done"
 
 
-@pytest.mark.parametrize(
-    "discovered_tools",
-    [
-        [{"type": "computer"}],
-        [
-            {
-                "type": "namespace",
-                "name": "deferred",
-                "tools": [{"type": "computer"}],
-            }
-        ],
-    ],
-    ids=["top-level", "namespace"],
-)
-async def test_client_tool_search_rejects_discovered_computer_use(
-    discovered_tools: list[dict[str, Any]],
-) -> None:
+async def test_client_tool_search_rejects_discovered_computer_use() -> None:
     """Client discovery cannot add computer use to a non-OpenAI bridge."""
     model = get_model("mockllm/model")
     bridge = AgentBridge(
@@ -642,7 +626,7 @@ async def test_client_tool_search_rejects_discovered_computer_use(
                     {
                         "type": "tool_search_output",
                         "call_id": "tool_search_1",
-                        "tools": discovered_tools,
+                        "tools": [{"type": "computer"}],
                         "status": "completed",
                     },
                 ],
@@ -653,6 +637,67 @@ async def test_client_tool_search_rejects_discovered_computer_use(
             None,
             bridge,
         )
+
+
+async def test_client_tool_search_drops_computer_inside_namespace() -> None:
+    """A namespace cannot carry computer use; the entry declares no tool for it.
+
+    Responses namespaces hold only function and custom tools, and the replayed
+    discovery result drops any other member, so the model is never told about it.
+    """
+    tool_names_seen: list[set[str]] = []
+
+    def custom_outputs(
+        _input: list[ChatMessage],
+        tools: list[ToolInfo],
+        _tool_choice: ToolChoice,
+        _config: GenerateConfig,
+    ) -> ModelOutput:
+        tool_names_seen.append({tool.name for tool in tools})
+        return ModelOutput.from_content("mockllm/model", "done")
+
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        model_aliases={
+            "inspect": get_model("mockllm/model", custom_outputs=custom_outputs)
+        },
+    )
+    response = await inspect_responses_api_request(
+        {
+            "model": "inspect",
+            "input": [
+                {
+                    "type": "tool_search_call",
+                    "id": "ts_1",
+                    "call_id": "tool_search_1",
+                    "arguments": {"query": "browser tools"},
+                    "execution": "client",
+                    "status": "completed",
+                },
+                {
+                    "type": "tool_search_output",
+                    "call_id": "tool_search_1",
+                    "tools": [
+                        {
+                            "type": "namespace",
+                            "name": "deferred",
+                            "description": "Deferred tools.",
+                            "tools": [{"type": "computer"}],
+                        }
+                    ],
+                    "status": "completed",
+                },
+            ],
+            "tools": [_tool_search_tool_param()],
+        },
+        None,
+        None,
+        None,
+        bridge,
+    )
+
+    assert response.output_text == "done"
+    assert tool_names_seen == [{TOOL_SEARCH_NAME}]
 
 
 async def test_client_tool_search_rejects_ambiguous_flattened_name() -> None:
@@ -933,8 +978,9 @@ def test_client_tool_search_keeps_schema_for_generic_provider() -> None:
         cast(ToolParam, {"type": "tool_search"}),
         cast(ToolParam, {"type": "tool_search", "execution": "server"}),
         cast(ToolParam, {"type": "tool_search", "parameters": None}),
+        cast(ToolParam, {"type": "tool_search", "execution": "client"}),
     ],
-    ids=["omitted", "server", "null-schema"],
+    ids=["omitted", "server", "null-schema", "client-omitted"],
 )
 async def test_native_tool_search_allows_optional_parameters(
     tool_param: ToolParam,

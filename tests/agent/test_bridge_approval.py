@@ -2141,7 +2141,9 @@ async def test_tool_discovered_through_tool_search_is_granted() -> None:
     executes it once against the grant it minted.
     """
     tool = AsyncMock(return_value="contents")
-    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    call = ToolCall(
+        id="c1", function="mcp__host__read_file", arguments={"path": "notes.txt"}
+    )
     bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
 
     response = await inspect_responses_api_request(
