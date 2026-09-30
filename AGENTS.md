@@ -110,23 +110,25 @@ Example:
 
 - **File Paths**: All code that handles file paths must support `s3://` URLs, `file://` URIs, and plain local paths. Use `filesystem()` from `inspect_ai._util.file` for filesystem operations and `local_path()` to resolve `file://` URIs to local paths before passing to APIs that only accept local paths (e.g. `ZipFile`).
 
-- **Framework-owned sandbox directories**: When adding or changing sandbox
-  storage whose contents Inspect later trusts, use the existing verified-directory
-  helpers in `inspect_ai.util._sandbox._framework_directory` on the host, and
-  `ensure_private_server_dir` in `inspect_sandbox_tools._util.server_dir` inside
-  the sandbox. Here, `inspect_sandbox_tools` is the code built into the executables
-  injected into and run inside the sandbox. Follow the helpers' documented
-  ownership and ancestor requirements; calling a helper alone does not establish
-  safety.
-
-  During review, check the intended owner, whether another sandbox user can replace
-  the directory or its ancestors, and whether verification occurs before trusted
-  use. If a different implementation is necessary, explain how it meets the same
-  security requirements. Ordinary caller-requested output directories are outside
-  this rule unless Inspect subsequently treats their contents as trusted framework
-  state.
-
 - **Respect existing patterns**: Respect existing code patterns when modifying files. Run linting before committing changes.
+
+## Sandbox directory security
+
+When adding or changing sandbox
+storage whose contents Inspect later trusts, use the existing verified-directory
+helpers in `inspect_ai.util._sandbox._framework_directory` on the host, and
+`ensure_private_server_dir` in `inspect_sandbox_tools._util.server_dir` inside
+the sandbox. Here, `inspect_sandbox_tools` is the code built into the executables
+injected into and run inside the sandbox. Follow the helpers' documented
+ownership and ancestor requirements; calling a helper alone does not establish
+safety.
+
+During review, check the intended owner, whether another sandbox user can replace
+the directory or its ancestors, and whether verification occurs before trusted
+use. If a different implementation is necessary, explain how it meets the same
+security requirements. Ordinary caller-requested output directories are outside
+this rule unless Inspect subsequently treats their contents as trusted framework
+state.
 
 ## Writing for users and reviewers
 
