@@ -9,7 +9,7 @@ from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import AgentState
-from inspect_ai.agent._bridge._errors import ResponseFilterError
+from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY, ResponseFilterError
 from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.sandbox import bridge as sandbox_bridge_module
 from inspect_ai.agent._bridge.sandbox.bridge import (
@@ -591,23 +591,6 @@ async def test_response_filter_exception_fails_sample_in_process() -> None:
     assert isinstance(exc_info.value.__cause__, ValueError)
 
 
-async def test_forward_provider_errors_excludes_response_filter_error() -> None:
-    """The sandbox path must not report a filter failure as a provider error.
-
-    Otherwise a hook bug looks like a model API failure to the scaffold, which
-    may retry forever against a filter that always breaks. `ResponseFilterError`
-    must be excluded from `_forward_provider_errors` the same way
-    `LimitExceededError` is.
-    """
-
-    async def failing_generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-        raise ResponseFilterError("filter is broken") from ValueError("boom")
-
-    wrapped = _forward_provider_errors(failing_generate, _sandbox_bridge())
-    with pytest.raises(ResponseFilterError):
-        await wrapped({})
-
-
 # ---------------------------------------------------------------------------
 # sample control flow raised from a response filter
 # ---------------------------------------------------------------------------
@@ -716,9 +699,7 @@ def test_sandbox_response_filter_failure_outcome(
     _assert_failure_outcome(log, failure)
 
 
-def _sandbox_bridge(
-    response_filter: ModelResponseFilter | None = None,
-) -> SandboxAgentBridge:
+def _sandbox_bridge(response_filter: ModelResponseFilter) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
         filter=None,
@@ -757,22 +738,28 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
 
 
 @pytest.mark.parametrize(
-    "failure, expected",
-    [("terminate", TerminateSampleError), ("bug", ResponseFilterError)],
+    "failure, expected, message",
+    [
+        ("terminate", TerminateSampleError, TERMINATE_REASON),
+        ("bug", ResponseFilterError, "filter is broken"),
+    ],
 )
 async def test_sandbox_response_filter_ends_sample_through_the_monitor(
-    failure: FilterFailure, expected: type[Exception]
+    failure: FilterFailure, expected: type[Exception], message: str
 ) -> None:
     """A filter's termination or failure reaches the sample runner from the sandbox.
 
-    A sandbox generation's exceptions never leave the sandbox service, so the
-    bridge's monitor must raise the same exception in the agent's task group.
+    A re-raise from a sandbox model method would become an RPC error and never
+    reach the sample runner, so the forwarder hands the exception to the
+    bridge's monitor, which raises it in the agent's task group, while the
+    scaffold gets an error reply.
     """
     bridge = _sandbox_bridge(_failing_response_filter(failure))
-    with pytest.raises(expected) as raised:
-        await generate_completions(bridge)(CHAT_REQUEST)
+    reply = await _forward_provider_errors(generate_completions(bridge), bridge)(
+        CHAT_REQUEST
+    )
 
+    assert PROVIDER_ERROR_KEY in reply
     assert bridge._failure_requested.is_set()
-    with pytest.raises(expected) as monitored:
+    with pytest.raises(expected, match=message):
         await _monitor_failure(bridge)
-    assert monitored.value is raised.value

@@ -229,15 +229,6 @@ class AgentBridge:
         """
         raise TerminateSampleError(reason)
 
-    def _end_sample(self, error: Exception) -> NoReturn:
-        """End the sample by raising `error` to the sample runner from a bridged generation.
-
-        Raises `error`, which propagates out through the agent to the sample runner.
-        `SandboxAgentBridge` overrides this for the same reason it overrides
-        `request_terminate`.
-        """
-        raise error
-
     grants_tool_execution: bool = False
     """Whether this bridge binds host-tool execution to the calls in each response.
 

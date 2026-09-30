@@ -261,16 +261,6 @@ class SandboxAgentBridge(AgentBridge):
         self.request_fail(error)
         raise error
 
-    def _end_sample(self, error: Exception) -> NoReturn:
-        """End the sample by raising `error` to the sample runner from a bridged generation.
-
-        Signals the sample failure via `request_fail` (see there for why a plain
-        raise would not reach the sample runner) and raises so the current RPC
-        unwinds.
-        """
-        self.request_fail(error)
-        raise error
-
 
 class _ToolExecutionGrant(NamedTuple):
     """Identity of one host tool execution the model proposed."""

@@ -624,15 +624,10 @@ async def bridge_generate(
                     tool_choice,
                     config,
                 )
-            except LimitExceededError:
-                # the sandbox service itself ends the sample on a limit error
+            except (LimitExceededError, TerminateSampleError):
                 raise
-            except TerminateSampleError as ex:
-                bridge._end_sample(ex)
             except Exception as ex:
-                error = ResponseFilterError(str(ex))
-                error.__cause__ = ex
-                bridge._end_sample(error)
+                raise ResponseFilterError(str(ex)) from ex
             if filtered is not None:
                 output = filtered
 
