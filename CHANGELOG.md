@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.273 (29 September 2026)
 
 - Anthropic: Prompts can mark a stable prefix for caching while allowing the remaining text to change.
 - OpenAI: GPT-5.6 and later support explicit prompt-cache boundaries; other models retain automatic caching.
