@@ -50,6 +50,7 @@ from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
+    FALLBACKS_FIELD,
     ToolParamDef,
     anthropic_extra_body_fields,
     assistant_message_blocks,
@@ -330,18 +331,16 @@ def generate_config_from_anthropic(
 
     # Forward a client-supplied server-side fallback directive VERBATIM. Claude
     # Code sends `fallbacks` (plus the matching `server-side-fallback` beta) so
-    # the API can serve a refused request with another model. Dropping it turns
-    # a refusal that production would transparently hand off into a dead turn:
-    # the client sees stop_reason=refusal with an empty completion, retries the
-    # same model, and the sample lands scored-but-empty. We do not reinterpret it
-    # into `fallback_models` -- that would re-serialize to `[{"model": ...}]` and
-    # drop any other field the client sent, and it is subject to Inspect's own
-    # warn-and-ignore gating. The response side records the handoff regardless
-    # (see `serving_model` / `ModelFallback` in the anthropic provider).
+    # the API can serve a refused request with another model. We do not
+    # reinterpret it into `fallback_models` -- that would re-serialize to
+    # `[{"model": ...}]` and drop any other field the client sent, and it is
+    # subject to Inspect's own warn-and-ignore gating. The response side records
+    # the handoff regardless (see `serving_model` / `ModelFallback` in the
+    # anthropic provider).
     # Only when `forward_fallbacks` (the resolved model is an Anthropic one):
     # other providers would send it on as an unsupported request field.
-    if forward_fallbacks and (fallbacks := json_data.get("fallbacks")) is not None:
-        extra_body["fallbacks"] = fallbacks
+    if forward_fallbacks and (fallbacks := json_data.get(FALLBACKS_FIELD)) is not None:
+        extra_body[FALLBACKS_FIELD] = fallbacks
     if len(extra_body) > 0:
         config.extra_body = extra_body
 
