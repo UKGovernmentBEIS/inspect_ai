@@ -45,6 +45,7 @@ try:
         Context,
         Decision,
         Monitor,
+        MonitorGroup,
         Observation,
         Protocol,
         Reported,
@@ -128,7 +129,7 @@ class Trajectory(StoreModel):
 
 
 @monitor
-def d3_trajectory() -> list[Monitor]:
+def d3_trajectory() -> MonitorGroup:
     async def count(context: Context, step: BeforeToolCall) -> Observation | None:
         context.store_as(Trajectory).calls += 1
         return None
@@ -136,7 +137,7 @@ def d3_trajectory() -> list[Monitor]:
     async def report(context: Context, step: AfterToolCall) -> Observation | None:
         return Observation.score(float(context.store_as(Trajectory).calls))
 
-    return [count, report]
+    return MonitorGroup(count, report)
 
 
 @monitor
@@ -441,7 +442,7 @@ def transcript_tool_events() -> list[ToolEvent]:
 
 
 @monitor
-def d3_waiting(started: Any, cleaned_up: Any, after: bool = False) -> list[Monitor]:
+def d3_waiting(started: Any, cleaned_up: Any, after: bool = False) -> MonitorGroup:
     async def wait() -> None:
         started.set()
         try:
@@ -459,7 +460,7 @@ def d3_waiting(started: Any, cleaned_up: Any, after: bool = False) -> list[Monit
             await wait()
         return None
 
-    return [before, later]
+    return MonitorGroup(before, later)
 
 
 async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
@@ -605,7 +606,7 @@ def test_conversation_is_the_enclosing_agent_span() -> None:
 
 
 @monitor
-def d3_raising(error: Any, after: bool = False) -> list[Monitor]:
+def d3_raising(error: Any, after: bool = False) -> MonitorGroup:
     async def before(context: Context, step: BeforeToolCall) -> Observation | None:
         if not after:
             raise error
@@ -616,7 +617,7 @@ def d3_raising(error: Any, after: bool = False) -> list[Monitor]:
             raise error
         return None
 
-    return [before, later]
+    return MonitorGroup(before, later)
 
 
 @pytest.mark.parametrize("after", [False, True])
