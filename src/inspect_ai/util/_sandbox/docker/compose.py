@@ -30,6 +30,11 @@ logger = getLogger(__name__)
 # How long to wait for compose environment to pass a health check
 COMPOSE_WAIT = 600
 
+# Allowance for the work `compose up` does before its health wait starts (creating
+# and starting containers, waiting on their dependencies), which Docker does not
+# count against `--wait-timeout` but which does count against our deadline
+COMPOSE_STARTUP_TIMEOUT = 60
+
 
 async def compose_up(
     project: ComposeProject, services: dict[str, ComposeService]
@@ -38,33 +43,30 @@ async def compose_up(
     up_command = ["up", "--detach", "--wait"]
 
     # are there healthchecks in the service definitions? if so then peg our timeout
-    # at the maximum total wait time. otherwise, pick a reasonable default
-    healthcheck_timeout = services_healthcheck_time(services)
-    if healthcheck_timeout > 0:
+    # at the maximum total wait time plus time to start. otherwise, pick a reasonable
+    # default
+    healthcheck_time = services_healthcheck_time(services)
+    if healthcheck_time > 0:
+        timeout: int = COMPOSE_STARTUP_TIMEOUT + healthcheck_time
         trace_message(
             logger,
             TRACE_DOCKER,
-            f"Docker services healthcheck timeout: {healthcheck_timeout}",
+            f"Docker services healthcheck timeout: {healthcheck_time}",
         )
     else:
-        healthcheck_timeout = COMPOSE_WAIT
+        timeout = COMPOSE_WAIT
 
-    # Compose creates and starts services before applying --wait-timeout. Reserve
-    # up to COMPOSE_WAIT seconds for startup, then give Docker its full healthcheck
-    # window.
-    wait_timeout = healthcheck_timeout + 1
-    up_command.extend(["--wait-timeout", str(wait_timeout)])
+    # keep docker's wait longer than our timeout, so a service that is still starting
+    # when our timeout expires fails with a TimeoutError (the result of `up` is not
+    # checked, see below)
+    up_command.extend(["--wait-timeout", str(timeout + 1)])
 
     # Start the environment. Note that we don't check the result because docker will
     # return a non-zero exit code for services that exit (even successfully) when
     # passing the --wait flag (see https://github.com/docker/compose/issues/10596).
     # In practice, we will catch any errors when calling compose_check_running()
     # immediately after we call compose_up().
-    result = await compose_command(
-        up_command,
-        project=project,
-        timeout=COMPOSE_WAIT + wait_timeout,
-    )
+    result = await compose_command(up_command, project=project, timeout=timeout)
     return result
 
 
