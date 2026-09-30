@@ -350,11 +350,7 @@ async def test_bridged_fallbacks_withheld_from_non_anthropic_model(
 async def test_bridged_fallbacks_reach_named_anthropic_model_under_2026_07_01(
     monkeypatch: pytest.MonkeyPatch, fallbacks: Any, client_model: str
 ) -> None:
-    """Both `fallbacks` forms reach the model the client named, however spelled.
-
-    Each form goes under `server-side-fallback-2026-07-01`, the beta that
-    accepts both; `2026-06-01` rejects `"default"`.
-    """
+    """Both forms reach the named model, however spelled, under 2026-07-01."""
     model = _anthropic_model(monkeypatch, "anthropic/claude-fable-5")
     request = await _bridged_provider_request(
         model, fallbacks, client_model=client_model
@@ -367,13 +363,7 @@ async def test_bridged_fallbacks_reach_named_anthropic_model_under_2026_07_01(
 async def test_bridged_fallback_list_withheld_from_another_anthropic_model(
     monkeypatch: pytest.MonkeyPatch, _warn_once_messages: list[str]
 ) -> None:
-    """A client's fallback list names targets chosen for the model it named.
-
-    Served by another model (here via an alias), some of those targets may not
-    be permitted, which fails the request, so the list is withheld with a
-    warning. `"default"` routing is valid on any Anthropic model and is still
-    forwarded.
-    """
+    """An aliased model gets `"default"`, but not the list (which warns)."""
     model = _anthropic_model(monkeypatch, "anthropic/claude-opus-4-8")
 
     request = await _bridged_provider_request(model, [{"model": "claude-opus-4-8"}])

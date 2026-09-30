@@ -1381,8 +1381,7 @@ class AnthropicAPI(ModelAPI):
         # via extra_body as the SDK only exposes `fallbacks` on
         # client.beta.messages.create but inspect calls client.messages.create.
         # `fallback_models` takes precedence over a caller's verbatim `fallbacks`
-        # directive, which goes under FALLBACK_DEFAULT_BETA (it accepts both
-        # directive forms).
+        # directive, which goes under FALLBACK_DEFAULT_BETA.
         if config.fallback_models:
             fallbacks: Any = [{"model": model} for model in config.fallback_models]
             fallback_source, fallback_beta = "fallback_models", FALLBACK_BETA
@@ -5023,13 +5022,15 @@ def _warn_refusal_without_fallback(
 ) -> None:
     """Suggest fallback_models when a rescuable classifier refusal occurs.
 
-    Fires only when fallback could actually have been used: fallback_models
-    not configured, first-party non-batch API, and a Claude 5+ requested model
-    (the `fallbacks` param is only accepted for models publishing
-    allowed_fallback_models -- Opus 4.7/4.8 emit the same refusal stop_details
-    but cannot fall back).
+    Fires only when fallback could actually have been used: neither
+    fallback_models nor a caller's `fallbacks` directive configured, first-party
+    non-batch API, and a Claude 5+ requested model (the `fallbacks` param is
+    only accepted for models publishing allowed_fallback_models -- Opus 4.7/4.8
+    emit the same refusal stop_details but cannot fall back).
     """
     if config.fallback_models:
+        return
+    if (config.extra_body or {}).get(FALLBACKS_FIELD) is not None:
         return
     if api.is_bedrock() or api.is_vertex() or api.is_azure():
         return

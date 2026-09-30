@@ -1,8 +1,9 @@
-"""Tests for Anthropic server-side refusal fallback (`fallback_models`).
+"""Tests for Anthropic server-side refusal fallback.
 
-Covers config plumbing, service/batch gating, response-side detection
-(ContentData wrapping, serving-model resolution, metadata, usage), the
-declined-attempt stripping rule, and replay/bridge round-tripping.
+Covers `fallback_models` and client `fallbacks` directives: config plumbing,
+service/batch gating, response-side detection (ContentData wrapping,
+serving-model resolution, metadata, usage), the declined-attempt stripping
+rule, and replay/bridge round-tripping.
 """
 
 from typing import Any, cast
@@ -111,9 +112,10 @@ def _fallback_betas(betas: list[str]) -> list[str]:
     [
         "bedrock/us.anthropic.claude-sonnet-4-6",
         "vertex/claude-sonnet-4-6@20250929",
+        "azure/claude-sonnet-4-6",
     ],
 )
-def test_fallback_ignored_on_bedrock_vertex(
+def test_fallback_ignored_on_bedrock_vertex_azure(
     model_name: str, source: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     setenv_if_unset("AWS_REGION", "us-east-1")
@@ -121,7 +123,8 @@ def test_fallback_ignored_on_bedrock_vertex(
     setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
     setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
     setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
-
+    monkeypatch.setenv("AZUREAI_ANTHROPIC_BASE_URL", "https://fake.example/anthropic")
+    monkeypatch.setenv("AZUREAI_ANTHROPIC_API_KEY", "fake")
     from inspect_ai._util import logger as logger_mod
     from inspect_ai.model._providers import anthropic as anthropic_mod
 
@@ -167,11 +170,7 @@ def test_fallback_ignored_in_batch_mode(
 def test_client_fallback_directive_sent_verbatim_under_2026_07_01(
     fallbacks: Any,
 ) -> None:
-    """Both directive forms go under `2026-07-01`, which documents both.
-
-    Under `2026-06-01` the API rejects `"default"`, and a list whose request uses
-    Sonnet 5.5's `between_tools` thinking.
-    """
+    """Both directive forms go under `2026-07-01`, which accepts both."""
     api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
     config = GenerateConfig(max_tokens=64, extra_body={"fallbacks": fallbacks})
     _params, extra_body, _headers, betas = api.completion_config(config)
@@ -451,13 +450,14 @@ def test_refusal_hint_emitted(hint_warnings: list[str]) -> None:
     assert "cyber" in hint_warnings[0]
 
 
+@pytest.mark.parametrize("source", FALLBACK_SOURCES)
 def test_refusal_hint_suppressed_when_fallback_configured(
-    hint_warnings: list[str],
+    source: dict[str, Any], hint_warnings: list[str]
 ) -> None:
     api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
     _warn_refusal_without_fallback(
         api,
-        GenerateConfig(fallback_models=[FALLBACK_MODEL]),
+        GenerateConfig(**source),
         _refusal_output(_refusal_details()),
     )
     assert hint_warnings == []
