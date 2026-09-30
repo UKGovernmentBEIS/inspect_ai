@@ -392,23 +392,16 @@ class TestPollTimeoutRecovery:
         assert raised.value.__cause__ is not None
         assert "No job found with pid 42" in str(raised.value.__cause__)
 
-    @pytest.mark.parametrize(("stalled", "killed"), [(False, False), (True, True)])
-    async def test_no_job_found_stays_the_servers_error_unless_a_live_poll_stalled(
-        self, monkeypatch: pytest.MonkeyPatch, stalled: bool, killed: bool
+    async def test_no_job_found_without_a_timed_out_poll_stays_the_servers_error(
+        self,
     ) -> None:
-        """Without a timed-out poll, or once the caller killed the process, nothing was lost."""
-        monkeypatch.setattr(
-            exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.0
+        """Without a timed-out poll no response was lost, so nothing is relabelled."""
+        sandbox = _make_scripted_sandbox(
+            [_start_response(42), _rpc_error("No job found with pid 42")]
         )
-        script: list[str | Exception] = [_start_response(42)]
-        if stalled:
-            script.append(SandboxTimeoutError("the pod is not answering."))
-        script.append(_rpc_error("No job found with pid 42"))
-        sandbox = _make_scripted_sandbox(script)
         proc = await exec_remote_streaming(
             sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
         )
-        proc._killed = killed
 
         with patch(
             "inspect_ai.util._sandbox.exec_remote.wait_exponential_jitter",
@@ -416,6 +409,97 @@ class TestPollTimeoutRecovery:
         ):
             with pytest.raises(RuntimeError, match=r"^No job found with pid 42$"):
                 await proc._poll()
+
+    @pytest.mark.parametrize(
+        ("kill_during", "kill_reaches_sandbox", "raised", "match"),
+        [
+            ("pause", True, SandboxTimeoutError, "not answering"),
+            ("pause", False, SandboxTimeoutError, "not answering"),
+            # the server's own error: the caller killed the process
+            ("repoll", True, RuntimeError, r"^No job found with pid 42$"),
+            ("repoll", False, SandboxTimeoutError, "not answering"),
+        ],
+        ids=[
+            "pause-kill_answered",
+            "pause-kill_timed_out",
+            "repoll-kill_answered",
+            "repoll-kill_timed_out",
+        ],
+    )
+    async def test_no_poll_is_issued_after_kill(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        kill_during: str,
+        kill_reaches_sandbox: bool,
+        raised: type[Exception],
+        match: str,
+    ) -> None:
+        """kill() during recovery stops it, even when the kill request itself timed out.
+
+        The kill comes either during the pause before a re-poll, or while a re-poll
+        is in flight; that re-poll then gets the server's `No job found` (the kill
+        reached the sandbox) or times out (it did not), and is not retried.
+        """
+        monkeypatch.setattr(
+            exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.2
+        )
+        first_poll_timed_out = anyio.Event()
+        repoll_started = anyio.Event()
+        kill_requested = anyio.Event()
+        polls = 0
+        requests: list[str] = []
+
+        def answer(stdout: str) -> ExecResult[str]:
+            return ExecResult(success=True, returncode=0, stdout=stdout, stderr="")
+
+        async def fake_exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
+            nonlocal polls
+            method = json.loads(kwargs["input"])["method"]
+            requests.append(method)
+            if method == "exec_remote_start":
+                return answer(_start_response(42))
+            if method == "exec_remote_kill":
+                kill_requested.set()
+                if not kill_reaches_sandbox:
+                    raise SandboxTimeoutError("the pod is not answering.")
+                return answer(_kill_response())
+            polls += 1
+            if polls == 1:
+                first_poll_timed_out.set()
+                raise SandboxTimeoutError("the pod is not answering.")
+            if polls == 2 and kill_during == "repoll":
+                repoll_started.set()
+                await kill_requested.wait()
+            if kill_requested.is_set() and kill_reaches_sandbox:
+                return answer(_rpc_error("No job found with pid 42"))
+            raise SandboxTimeoutError("the pod is not answering.")
+
+        sandbox = _mock_sandbox()
+        sandbox.default_polling_interval.return_value = 5
+        sandbox.no_events = _no_events_context
+        sandbox.exec = AsyncMock(side_effect=fake_exec)
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
+        )
+
+        async def kill_at_the_chosen_moment() -> None:
+            await (
+                first_poll_timed_out if kill_during == "pause" else repoll_started
+            ).wait()
+            await proc.kill()
+
+        # A retried "No job found" would otherwise back off for ~30s.
+        with patch(
+            "inspect_ai.util._sandbox.exec_remote.wait_exponential_jitter",
+            new=lambda *a, **k: wait_none(),
+        ):
+            with anyio.fail_after(10):
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(kill_at_the_chosen_moment)
+                    with pytest.raises(raised, match=match):
+                        _ = [event async for event in proc]
+
+        assert requests[-1] == "exec_remote_kill"
 
 
 class TestKill:

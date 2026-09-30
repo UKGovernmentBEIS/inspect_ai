@@ -135,9 +135,11 @@ class ExecRemoteCommonOptions:
     raised. While the command is running, a re-issued poll replays any output the
     lost response carried; if the command ended during the stall, its exit status
     is lost and `RuntimeError` is raised. Starts, stdin writes and kills are never
-    re-issued, and a caller's `timeout` (awaitable mode) or cancellation still ends
-    the wait at once. Raises `ValueError` with `poll_timeout_retry=False`, which
-    asks for timed-out requests not to be retried.
+    re-issued, and no poll is re-issued once `kill()` has been called, even if the
+    kill request itself timed out; the timeout is raised instead. A caller's
+    `timeout` (awaitable mode) or cancellation still ends the wait at once. Raises
+    `ValueError` with `poll_timeout_retry=False`, which asks for timed-out requests
+    not to be retried.
     """
 
     def __post_init__(self) -> None:
@@ -439,10 +441,18 @@ class ExecRemoteProcess:
             raise
 
     async def _poll(self) -> _PollResult:
+        recovery_deadline: float | None = None
+
+        def retryable(ex: BaseException) -> bool:
+            # a re-issued poll is not retried once kill() has been called
+            return isinstance(ex, RuntimeError) and not (
+                recovery_deadline is not None and self._killed
+            )
+
         @retry(
             wait=wait_exponential_jitter(initial=2),
             stop=(stop_after_attempt(5) | stop_after_delay(30)),
-            retry=retry_if_exception(lambda e: isinstance(e, RuntimeError)),
+            retry=retry_if_exception(retryable),
             # reraise the underlying RuntimeError on exhaustion so callers and
             # eval logs see the sandbox's own message instead of an opaque
             # RetryError wrapping a Future
@@ -465,13 +475,12 @@ class ExecRemoteProcess:
         # output chunk until the host acknowledges it (ack_seq), so re-issuing the
         # poll replays what the lost response carried. Each poll() call above is a
         # fresh RuntimeError retry sequence.
-        recovery_deadline: float | None = None
         while True:
             try:
                 return await poll()
             except TimeoutError as ex:
                 recovery = self._options.poll_timeout_recovery
-                if recovery is None:
+                if recovery is None or self._killed:
                     raise
                 now = time.monotonic()
                 if recovery_deadline is None:
@@ -487,6 +496,8 @@ class ExecRemoteProcess:
                     recovery_deadline - now,
                 )
                 await anyio.sleep(POLL_TIMEOUT_RECOVERY_WAIT_SECONDS)
+                if self._killed:
+                    raise
             except RuntimeError as ex:
                 if (
                     recovery_deadline is not None
