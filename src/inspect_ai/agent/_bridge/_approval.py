@@ -17,13 +17,16 @@ conversation never contains the rejected call. This mirrors the native path
 A call made through a scaffold's dispatcher function (`AgentBridge.dispatched_call`)
 is reviewed as the bridged tool call it stands for, so policies match the tool's own
 name and approvers see its own arguments; the decision is mapped back onto the
-dispatcher call the scaffold receives.
+dispatcher call the scaffold receives. Likewise a call to a tool the model was shown
+under another name than the scaffold declared it (`review_names`, from the Responses
+bridge's client tool discovery) is reviewed under the scaffold's name.
 """
 
+import dataclasses
 import sys
 from contextlib import AbstractContextManager, nullcontext
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
+from typing import TYPE_CHECKING, Any, Mapping, NamedTuple, NoReturn
 
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
@@ -88,6 +91,7 @@ async def apply_bridge_tool_approval(
     bridge: AgentBridge,
     output: ModelOutput,
     history: list[ChatMessage],
+    review_names: Mapping[str, str] | None = None,
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
@@ -107,6 +111,9 @@ async def apply_bridge_tool_approval(
         bridge: Bridge whose `approval` policies (if any) apply for this call.
         output: Model output about to be handed to the scaffold.
         history: Conversation that produced `output`.
+        review_names: Name each call is reviewed under, keyed by the name the
+            model called, for tools the model is shown under another name than
+            the scaffold declared. Calls with other names are reviewed as called.
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
@@ -144,6 +151,9 @@ async def apply_bridge_tool_approval(
         for call in tool_calls:
             dispatched = bridge.dispatched_call(call)
             reviewed = dispatched.target if dispatched else call
+            review_name = (review_names or {}).get(reviewed.function)
+            if review_name is not None:
+                reviewed = dataclasses.replace(reviewed, function=review_name)
             # no viewer: bridged tools reach us as ToolInfo from the scaffold's
             # request, not as ToolDef, so there is no registered viewer to resolve.
             # apply_tool_approval falls back to its default rendering.
