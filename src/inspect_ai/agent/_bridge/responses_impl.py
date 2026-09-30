@@ -1,5 +1,5 @@
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from logging import getLogger
 from time import time
 from typing import Any, Set, TypeGuard, cast
@@ -378,7 +378,12 @@ async def inspect_responses_api_request_impl(
 
     debug_log("SCAFFOLD INPUT", input)
 
-    messages = messages_from_responses_input(input, tools, model_name)
+    messages = messages_from_responses_input(
+        input,
+        tools,
+        model_name,
+        discovered_tool_names=_discovered_tool_names(tool_names),
+    )
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
@@ -465,6 +470,19 @@ def _register_client_tool(
         )
     tool_names[exposed_name] = identity
     return True
+
+
+def _discovered_tool_names(
+    tool_names: dict[str, tuple[str, str | None, ToolParams] | None],
+) -> dict[tuple[str, str], str]:
+    """Map each client-discovered ``(namespace, name)`` to its generic tool name."""
+    discovered: dict[tuple[str, str], str] = {}
+    for exposed_name, identity in tool_names.items():
+        if identity is not None:
+            name, namespace, _ = identity
+            if namespace is not None:
+                discovered[(namespace, name)] = exposed_name
+    return discovered
 
 
 def _harvest_tool_namespaces(
@@ -929,7 +947,19 @@ def messages_from_responses_input(
     input: str | list[ResponseInputItemParam],
     tools: list[ToolInfo | Tool],
     model_name: str | None = None,
+    discovered_tool_names: Mapping[tuple[str, str], str] | None = None,
 ) -> list[ChatMessage]:
+    """Convert Responses input items to Inspect chat messages.
+
+    Args:
+        input: Responses input text or items.
+        tools: Tools available to the model, used to parse replayed calls.
+        model_name: Model recorded on replayed assistant messages.
+        discovered_tool_names: Generic tool names registered by client tool
+            discovery, keyed by Responses ``(namespace, name)``. Only these
+            namespaced calls are replayed under a generic name; any other call
+            keeps its Responses name.
+    """
     # enture input is a list
     if isinstance(input, str):
         input = [
@@ -945,7 +975,7 @@ def messages_from_responses_input(
         tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
         for tool in tools
     ]
-    available_tool_names = {tool.name for tool in tools_info}
+    discovered_names = discovered_tool_names or {}
 
     messages: list[ChatMessage] = []
     function_calls_by_id: dict[str, str] = {}
@@ -1083,9 +1113,7 @@ def messages_from_responses_input(
                     function = param["name"]
                     namespace = param.get("namespace")
                     if namespace is not None:
-                        namespaced_function = f"{namespace}__{function}"
-                        if namespaced_function in available_tool_names:
-                            function = namespaced_function
+                        function = discovered_names.get((namespace, function), function)
                     function_calls_by_id[param["call_id"]] = function
                     # Preserve the call's `namespace` for verbatim replay to the
                     # real model. The provider replays from assistant_internal

@@ -35,7 +35,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai_responses import (
     TOOL_SEARCH_NAME,
@@ -738,6 +738,118 @@ async def test_client_discovery_rejects_plain_namespace_name_collisions(
             None,
             bridge,
         )
+
+
+@pytest.mark.parametrize(
+    "model_name", ["mockllm/model", "openai/gpt-4o"], ids=["generic", "openai"]
+)
+async def test_replayed_namespace_call_keeps_identity_beside_plain_generic_name(
+    model_name: str,
+) -> None:
+    """A declared ``ns.read`` call does not replay as an unrelated ``ns__read``."""
+    init_sample_openai_assistant_internal()
+    namespace_tool = {
+        "type": "namespace",
+        "name": "ns",
+        "description": "Namespaced tools.",
+        "tools": [
+            {
+                "type": "function",
+                "name": "read",
+                "description": "Read a namespaced note.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                    "required": ["path"],
+                },
+                "strict": False,
+            }
+        ],
+    }
+    plain_tool = {
+        "type": "function",
+        "name": "ns__read",
+        "description": "Read an unrelated record.",
+        "parameters": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+        },
+        "strict": False,
+    }
+    generations: list[tuple[set[str], list[ChatMessage]]] = []
+
+    async def capture(
+        _model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        _tool_choice: ToolChoice | None,
+        _config: GenerateConfig,
+    ) -> ModelOutput:
+        generations.append(({tool.name for tool in tools}, messages))
+        return ModelOutput.from_content(model_name, "done")
+
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        filter=capture,
+        model_aliases={
+            "inspect": get_model(model_name, api_key="test-key", memoize=False)
+        },
+    )
+    response = await inspect_responses_api_request(
+        {
+            "model": "inspect",
+            "input": [
+                {"role": "user", "content": "Read the note and the record."},
+                {
+                    "type": "function_call",
+                    "call_id": "namespaced_read",
+                    "name": "read",
+                    "namespace": "ns",
+                    "arguments": '{"path": "note.txt"}',
+                },
+                {
+                    "type": "function_call",
+                    "call_id": "plain_read",
+                    "name": "ns__read",
+                    "arguments": '{"id": "42"}',
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "namespaced_read",
+                    "output": "note contents",
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "plain_read",
+                    "output": "record 42",
+                },
+            ],
+            "tools": [_tool_search_tool_param(), namespace_tool, plain_tool],
+        },
+        None,
+        None,
+        None,
+        bridge,
+    )
+
+    assert response.output_text == "done"
+    assert len(generations) == 1
+    tool_names, replayed = generations[0]
+    assert tool_names == {TOOL_SEARCH_NAME, "read", "ns__read"}
+    calls = {
+        call.id: call.function
+        for message in replayed
+        if isinstance(message, ChatMessageAssistant)
+        for call in message.tool_calls or []
+    }
+    results = {
+        message.tool_call_id: message.function
+        for message in replayed
+        if isinstance(message, ChatMessageTool)
+    }
+    assert calls == {"namespaced_read": "read", "plain_read": "ns__read"}
+    assert results == calls
 
 
 def test_client_discovery_skips_custom_and_server_builtins() -> None:
