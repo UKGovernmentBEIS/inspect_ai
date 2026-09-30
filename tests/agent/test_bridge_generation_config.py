@@ -15,7 +15,10 @@ from inspect_ai.agent._bridge._errors import (
     BridgePolicyError,
     provider_error_payload,
 )
-from inspect_ai.agent._bridge.anthropic_api_impl import generate_config_from_anthropic
+from inspect_ai.agent._bridge.anthropic_api_impl import (
+    forward_client_fallbacks,
+    generate_config_from_anthropic,
+)
 from inspect_ai.agent._bridge.completions import (
     generate_config_from_openai_completions,
 )
@@ -212,12 +215,17 @@ def test_anthropic_fallbacks_forwarded_verbatim():
     """A client `fallbacks` directive must survive the bridge untouched."""
     fallbacks = [{"model": "claude-opus-4-8"}]
     json_data = {
-        "model": "inspect",
+        "model": "claude-fable-5",
         "max_tokens": 64000,
         "fallbacks": fallbacks,
     }
 
-    config = generate_config_from_anthropic(json_data, anthropic_model=True)
+    config = generate_config_from_anthropic(json_data)
+    forward_client_fallbacks(
+        config,
+        json_data,
+        get_model("anthropic/claude-fable-5", api_key="test-key", memoize=False),
+    )
     assert config.extra_body is not None
     # byte-for-byte the client's structure, not a remapping
     assert config.extra_body["fallbacks"] == fallbacks
@@ -232,10 +240,14 @@ def test_anthropic_fallbacks_forwarded_verbatim():
 
 def test_anthropic_no_fallbacks_key_when_client_sends_none():
     """Absent `fallbacks` must not synthesize the key."""
-    config = generate_config_from_anthropic(
-        {"model": "inspect", "max_tokens": 100}, anthropic_model=True
+    json_data = {"model": "claude-fable-5", "max_tokens": 100}
+    config = generate_config_from_anthropic(json_data)
+    forward_client_fallbacks(
+        config,
+        json_data,
+        get_model("anthropic/claude-fable-5", api_key="test-key", memoize=False),
     )
-    assert config.extra_body is None or "fallbacks" not in config.extra_body
+    assert config.extra_body is None
 
 
 class _ProviderRequest(Exception):
@@ -300,13 +312,16 @@ def _fallback_betas(request: dict[str, Any]) -> list[str]:
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "fallbacks",
+    [pytest.param([{"model": "claude-opus-4-8"}], id="explicit-list"), "default"],
+)
 async def test_bridged_fallbacks_withheld_from_non_anthropic_model(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, fallbacks: Any, _warn_once_messages: list[str]
 ) -> None:
     """`fallbacks` is an Anthropic request field; other providers must not get it.
 
-    Left in generic extra_body it survives `clear_generation_params`, and the
-    OpenAI request builder sends it on as an unsupported body field.
+    The client names the served model, so only the provider gate can drop it.
     """
     from inspect_ai.model._providers.openai import OpenAIAPI
 
@@ -318,8 +333,9 @@ async def test_bridged_fallbacks_withheld_from_non_anthropic_model(
         model.api.client.chat.completions, "create", _capture_sdk_request
     )
 
-    request = await _bridged_provider_request(model, [{"model": "claude-opus-4-8"}])
+    request = await _bridged_provider_request(model, fallbacks, client_model="gpt-4.1")
     assert "fallbacks" not in request.get("extra_body", {})
+    assert not any("fallbacks" in w for w in _warn_once_messages)
 
 
 @pytest.mark.anyio

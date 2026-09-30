@@ -121,7 +121,6 @@ async def inspect_anthropic_api_request_impl(
         model_resolver=bridge.model_resolver,
         provider="anthropic",
     )
-    anthropic_model = ModelName(model).api == "anthropic"
 
     # tools
     anthropic_tools: list[ToolParamDef] | None = json_data.get("tools", None)
@@ -130,7 +129,7 @@ async def inspect_anthropic_api_request_impl(
     )
     # validate computer use compatibility
     has_computer_use = any(is_computer_tool(tool) for tool in anthropic_tools or [])
-    if has_computer_use and not anthropic_model:
+    if has_computer_use and ModelName(model).api != "anthropic":
         raise RuntimeError(
             f"computer use with the Anthropic agent bridge requires an "
             f"Anthropic model, got '{ModelName(model)}'"
@@ -159,8 +158,8 @@ async def inspect_anthropic_api_request_impl(
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system messages)
-    config = generate_config_from_anthropic(json_data, anthropic_model=anthropic_model)
-    withhold_fallback_list_for_other_model(config, bridge_model_name, model)
+    config = generate_config_from_anthropic(json_data)
+    forward_client_fallbacks(config, json_data, model)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
     validate_client_config(config)
@@ -248,22 +247,25 @@ def anthropic_system_to_texts(value: Any) -> list[str]:
     return texts
 
 
-def withhold_fallback_list_for_other_model(
-    config: GenerateConfig, requested_model: str, model: Model
+def forward_client_fallbacks(
+    config: GenerateConfig, json_data: dict[str, Any], model: Model
 ) -> None:
-    """Withhold a client's `fallbacks` list when another model serves the request.
+    """Forward the client's `fallbacks` directive verbatim when `model` accepts it.
 
-    The list names fallback targets the client chose for the model it asked
-    for. A different served model may not permit some of them, which fails the
-    request, so the list goes only to the model it names. `"default"` routing
-    is valid on any Anthropic model and is kept.
+    `fallbacks` is an Anthropic request field, so it goes only to Anthropic
+    models; other providers would send it on as an unknown field. It is sent
+    verbatim rather than via the lossy `fallback_models`. An explicit list names
+    targets the client chose for the model it asked for, and a different served
+    model may not permit some of them, which fails the request, so the list goes
+    only to the model it names. `"default"` routing is valid on any Anthropic
+    model.
     """
-    extra_body = config.extra_body
-    if extra_body is None or extra_body.get(FALLBACKS_FIELD) in (None, "default"):
+    fallbacks = json_data.get(FALLBACKS_FIELD)
+    if fallbacks is None or ModelName(model).api != "anthropic":
         return
-    if model.name != requested_model.removeprefix("inspect/").removeprefix(
-        "anthropic/"
-    ):
+    requested_model = str(json_data["model"])
+    named_model = requested_model.removeprefix("inspect/").removeprefix("anthropic/")
+    if fallbacks != "default" and model.name != named_model:
         warn_once(
             logger,
             f"The bridged agent sent a `fallbacks` list for '{requested_model}', "
@@ -271,19 +273,11 @@ def withhold_fallback_list_for_other_model(
             "withheld because its targets were chosen for the requested model "
             "and may not be permitted for the served one.",
         )
-        del extra_body[FALLBACKS_FIELD]
+        return
+    config.extra_body = (config.extra_body or {}) | {FALLBACKS_FIELD: fallbacks}
 
 
-def generate_config_from_anthropic(
-    json_data: dict[str, Any], *, anthropic_model: bool = False
-) -> GenerateConfig:
-    """Build the `GenerateConfig` for a bridged Anthropic Messages API request.
-
-    Args:
-        json_data: The client's request body.
-        anthropic_model: Whether an Anthropic model serves the request; the
-            client's `fallbacks` directive is forwarded only then.
-    """
+def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     config = GenerateConfig()
     config.max_tokens = json_data.get("max_tokens", None)
     config.stop_seqs = json_data.get("stop_sequences", None) or None
@@ -362,12 +356,6 @@ def generate_config_from_anthropic(
     for field in anthropic_extra_body_fields():
         if field in json_data:
             extra_body[field] = json_data[field]
-
-    # Forward a client `fallbacks` directive verbatim (not via the lossy
-    # `fallback_models`), and only to Anthropic models: other providers would
-    # send it on as an unknown request field.
-    if anthropic_model and (fallbacks := json_data.get(FALLBACKS_FIELD)) is not None:
-        extra_body[FALLBACKS_FIELD] = fallbacks
     if len(extra_body) > 0:
         config.extra_body = extra_body
 
