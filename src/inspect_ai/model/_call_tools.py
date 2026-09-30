@@ -929,7 +929,7 @@ async def call_tool(
         if decision is not None:
             if decision.action == "reject":
                 await record_pending_tool_event()
-                raise ToolApprovalError(decision.explanation)
+                raise ToolApprovalError(decision.message)
             elif decision.action == "terminate":
                 await record_pending_tool_event()
                 raise TerminateSampleError(

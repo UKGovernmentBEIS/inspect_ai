@@ -72,9 +72,11 @@ def addition() -> Tool:
 
 
 @protocol
-def d3_reject(reason: str = "not allowed") -> ControlProtocol:
+def d3_reject(
+    reason: str = "not allowed", message: str | None = "no adding"
+) -> ControlProtocol:
     async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
-        return Decision.reject(reason)
+        return Decision.reject(reason, message=message)
 
     return decide
 
@@ -107,7 +109,7 @@ def d3_terminate_after() -> ControlProtocol:
 @protocol
 def d3_final() -> ControlProtocol:
     async def veto(context: Context, step: BeforeToolCall) -> Decision | None:
-        final(Decision.reject("vetoed"))
+        final(Decision.reject(message="vetoed"))
         return None
 
     return veto
@@ -203,14 +205,15 @@ def summary(events: list[SentinelEvent]) -> list[tuple[Any, ...]]:
     return [(e.factory, e.path, e.function, e.kind, e.action) for e in events]
 
 
-def test_reject_reaches_the_model_and_is_recorded() -> None:
-    log = run(d3_reject(reason="no adding"))
+def test_reject_message_reaches_the_model_and_is_recorded() -> None:
+    log = run(d3_reject(reason="internal reason", message="use X instead"))
     assert log.status == "success", log.error
 
     [message] = tool_messages(log)
     assert message.error is not None
     assert message.error.type == "approval"
-    assert message.error.message == "no adding"
+    assert message.error.message == "use X instead"
+    assert "internal reason" not in message.text
 
     events = sentinel_events(log)
     assert summary(events) == [
@@ -219,7 +222,19 @@ def test_reject_reaches_the_model_and_is_recorded() -> None:
     ]
     assert all(e.stage == "tool_call" for e in events)
     assert all(e.step_id == message.tool_call_id for e in events)
-    assert all(e.explanation == "no adding" for e in events)
+    assert all(e.explanation == "internal reason" for e in events)
+    assert all(e.message == "use X instead" for e in events)
+
+
+def test_reject_without_message_uses_the_default() -> None:
+    log = run(d3_reject(reason="internal reason", message=None))
+    assert log.status == "success", log.error
+
+    [message] = tool_messages(log)
+    assert message.error is not None
+    assert message.error.message == "Tool call not approved."
+    assert "internal reason" not in message.text
+    assert all(e.message is None for e in sentinel_events(log))
 
 
 def test_modify_executes_the_modified_call() -> None:
