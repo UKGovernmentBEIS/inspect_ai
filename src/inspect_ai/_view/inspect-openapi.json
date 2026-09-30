@@ -1950,6 +1950,17 @@
       "ContentText": {
         "description": "Text content.",
         "properties": {
+          "cache_breakpoint": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Breakpoint"
+          },
           "citations": {
             "anyOf": [
               {
