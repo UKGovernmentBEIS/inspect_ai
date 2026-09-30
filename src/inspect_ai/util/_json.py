@@ -357,8 +357,9 @@ def set_additional_properties_false(schema: JSONSchema) -> None:
     reject `additionalProperties` on non-object nodes: the Anthropic API answers
     HTTP 400 ("For 'anyOf', 'additionalProperties' is not supported") when the
     keyword lands on the `anyOf` that Pydantic emits for an optional field, and
-    Bedrock's grammar compiler does the same. Only object nodes are stamped,
-    matching the transformation the Anthropic and OpenAI SDKs apply themselves.
+    Bedrock's grammar compiler does the same. Only object nodes are stamped;
+    they include nullable objects typed `["object", "null"]`, which Bedrock
+    requires to be strict, and nodes with properties but no type.
     """
     if (
         schema.type == "object"

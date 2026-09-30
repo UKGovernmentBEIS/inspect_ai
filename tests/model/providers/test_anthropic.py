@@ -181,7 +181,9 @@ def test_anthropic_extra_headers_not_mutated_across_calls() -> None:
         }
 
 
-def test_response_schema_with_optional_field_omits_additional_properties_on_anyof():
+def test_response_schema_with_optional_field_omits_additional_properties_on_anyof() -> (
+    None
+):
     """The API rejects additionalProperties on the anyOf an optional field renders as."""
 
     class Report(BaseModel):

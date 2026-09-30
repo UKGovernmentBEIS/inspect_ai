@@ -639,7 +639,7 @@ def test_json_schema_dump_anyof_exclude():
     assert result["anyOf"][1]["type"] == "integer"
 
 
-def test_set_additional_properties_false_stamps_object_nodes_only():
+def test_set_additional_properties_false_stamps_object_nodes_only() -> None:
     """Optional fields render as anyOf; providers reject additionalProperties there."""
 
     class Inner(BaseModel):
@@ -665,16 +665,17 @@ def test_set_additional_properties_false_stamps_object_nodes_only():
     assert all("additionalProperties" not in member for member in nickname["anyOf"])
 
 
-def test_set_additional_properties_false_stamps_nullable_object_type_arrays():
-    """Object alternatives expressed by a type array remain strict."""
+def test_set_additional_properties_false_stamps_nullable_object_type_arrays() -> None:
+    """Type-array objects and untyped nodes with properties stay strict."""
     schema = JSONSchema(
         anyOf=[
             JSONSchema(type=["object", "null"]),
-            JSONSchema(type=["object", "null"], properties={}),
+            JSONSchema(properties={"x": JSONSchema(type="string")}),
         ]
     )
 
     set_additional_properties_false(schema)
 
+    assert schema.additionalProperties is None
     assert schema.anyOf is not None
     assert all(member.additionalProperties is False for member in schema.anyOf)

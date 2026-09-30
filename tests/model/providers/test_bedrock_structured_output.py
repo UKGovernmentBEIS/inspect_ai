@@ -127,7 +127,7 @@ def test_optional_field_keeps_additional_properties_on_objects_only():
     )  # anyOf: clean
 
 
-def test_nullable_object_type_array_sets_additional_properties_false():
+def test_nullable_object_type_array_sets_additional_properties_false() -> None:
     """Bedrock rejects any object node without additionalProperties:false."""
     api = _make_claude_api()
     config = GenerateConfig(
