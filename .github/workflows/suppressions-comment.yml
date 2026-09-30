@@ -54,6 +54,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          # blob:none: all refs/commits, which is all merge-tree needs, no
+          # historical file contents (the full pack is ~400MB). Blobs the
+          # step below reads are lazy-fetched from origin.
+          filter: "blob:none"
 
       - name: Comment ledger delta on PR
         env:
@@ -86,8 +90,18 @@ jobs:
               '<!-- suppressions-delta -->' \
               'Suppression delta unavailable because suppressions.json does not merge cleanly with the current base. Resolve the conflict and update the PR to rerun this check.')
           else
-            git show "$merge_tree:suppressions.json" > /tmp/merged-suppressions.json 2>/dev/null \
-              || echo '{}' > /tmp/merged-suppressions.json
+            # Under the blob:none checkout this git show is a network read
+            # (the merged entry is the PR's own blob, which merge-tree never
+            # had to open), so "absent" and "unfetchable" must not collapse
+            # into the same fallback: {} renders as a false "all suppressions
+            # removed" delta. Trees are always local, so rev-parse answers
+            # "does this path exist" offline; a failing show is then a real
+            # fetch failure and fails the job.
+            if git rev-parse --verify -q "$merge_tree:suppressions.json" > /dev/null; then
+              git show "$merge_tree:suppressions.json" > /tmp/merged-suppressions.json
+            else
+              echo '{}' > /tmp/merged-suppressions.json
+            fi
             # Base script, system python, stdlib only — no installs (see the
             # security model above).
             body=$(python3 .github/scripts/suppressions_pr_delta.py /tmp/base-suppressions.json /tmp/merged-suppressions.json)

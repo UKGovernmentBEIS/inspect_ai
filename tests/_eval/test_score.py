@@ -916,3 +916,66 @@ async def test_score_restores_sample_timelines() -> None:
         action="append",
     )
     assert seen == ["target"]
+
+
+def test_scorer_from_spec_resolves_registered_scanner() -> None:
+    """``--scorer pkg/name`` must resolve ``@scanner`` objects, not just ``@scorer``.
+
+    Scanners live under the ``scanner`` registry type. The ``file.py@name`` path of
+    ``scorer_from_spec`` already checks both types (wrapping scanners via
+    ``inspect_scout.as_scorer``); the registry-name path has to do the same so that
+    e.g. ``inspect score log.eval --scorer inspect_petri/audit_judge`` works.
+    """
+    pytest.importorskip("inspect_scout")
+    from inspect_scout import Result, Transcript, scanner
+
+    from inspect_ai._eval.loader import scorer_from_spec
+    from inspect_ai._util.registry import registry_info
+    from inspect_ai.scorer._scorer import ScorerSpec
+
+    @scanner(messages="all")
+    def registry_only_scanner(threshold: int = 1) -> Any:
+        async def scan(transcript: Transcript) -> Result:
+            return Result(value=threshold)
+
+        return scan
+
+    resolved = scorer_from_spec(
+        ScorerSpec(scorer="registry_only_scanner"), task_path=None, threshold=3
+    )
+    assert registry_info(resolved).type == "scorer"
+    assert registry_info(resolved).name.endswith("registry_only_scanner")
+
+
+def test_scorer_from_spec_unknown_name_is_prerequisite_error() -> None:
+    """An unknown registry name should surface the guidance error, not a raw LookupError."""
+    from inspect_ai._eval.loader import scorer_from_spec
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai.scorer._scorer import ScorerSpec
+
+    with pytest.raises(PrerequisiteError, match="couldn't be loaded"):
+        scorer_from_spec(ScorerSpec(scorer="no_such_scorer_anywhere"), task_path=None)
+
+
+def test_scorer_from_spec_preserves_scorer_name_argument() -> None:
+    from inspect_ai._eval.loader import scorer_from_spec
+    from inspect_ai.scorer._scorer import ScorerSpec
+
+    received_names: list[str] = []
+
+    @scorer(metrics=[accuracy()])
+    def scorer_with_name_argument(scorer_name: str) -> Scorer:
+        received_names.append(scorer_name)
+
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1)
+
+        return score
+
+    resolved = scorer_from_spec(
+        ScorerSpec(scorer="scorer_with_name_argument"),
+        task_path=None,
+        scorer_name="custom",
+    )
+    assert callable(resolved)
+    assert received_names == ["custom"]

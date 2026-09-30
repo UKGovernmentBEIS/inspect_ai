@@ -1,8 +1,13 @@
+import shlex
+import sys
 from time import monotonic
 
 from inspect_sandbox_tools._remote_tools._bash_session._process import Process
 
 from tests.conftest import DEFAULT_RPC_TIMEOUT, RpcClient
+
+# A bare `python` need not be on PATH; name the suite's own interpreter.
+PYTHON = shlex.quote(sys.executable)
 
 
 def test_bash_session_truncates_large_output_before_jsonrpc_response(
@@ -26,7 +31,7 @@ def test_bash_session_truncates_large_output_before_jsonrpc_response(
                 "session_name": session_name,
                 "max_output_bytes": 2048,
                 "input": (
-                    "python - <<'PY'\nprint('head-' + 'a' * 12000 + '-tail')\nPY\n"
+                    f"{PYTHON} - <<'PY'\nprint('head-' + 'a' * 12000 + '-tail')\nPY\n"
                 ),
                 "wait_for_output": 5,
                 "idle_timeout": 0.2,
@@ -87,7 +92,7 @@ def test_bash_session_honors_larger_rpc_output_limit(
                 "session_name": session_name,
                 "max_output_bytes": 8000,
                 "input": (
-                    "python - <<'PY'\nprint('head-' + 'a' * 3000 + '-tail')\nPY\n"
+                    f"{PYTHON} - <<'PY'\nprint('head-' + 'a' * 3000 + '-tail')\nPY\n"
                 ),
                 "wait_for_output": 5,
                 "idle_timeout": 0.2,
@@ -129,7 +134,7 @@ def test_bash_session_bounds_multibyte_stdout_and_stderr(
             "params": {
                 **params,
                 "input": (
-                    "python - <<'PY'\n"
+                    f"{PYTHON} - <<'PY'\n"
                     "import sys\n"
                     "sys.stdout.write('stdout-head-' + '🙂' * 200000)\n"
                     "sys.stdout.flush()\n"
@@ -179,7 +184,7 @@ async def test_bash_session_survives_split_multibyte_character() -> None:
     process = await Process.create()
     try:
         command = (
-            "python3 - <<'PY'\n"
+            f"{PYTHON} - <<'PY'\n"
             "import sys, time\n"
             "sys.stdout.buffer.write(b'start-')\n"
             "sys.stdout.buffer.flush()\n"

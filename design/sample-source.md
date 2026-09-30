@@ -16,6 +16,7 @@ class SampleSource:
     def initial_samples(self) -> list[Sample]: ...                       # sync seed (immediate; may be empty)
     async def next_samples(self) -> list[Sample] | None: ...             # async; None ends the task
     async def sample_complete(self, sample: EvalSample) -> list[Sample] | None: ...  # observe + add
+    async def sample_abandoned(self, sample: Sample, epoch: int) -> list[Sample] | None: ...  # never-logged cancel
 ```
 
 The asymmetry mirrors `TaskSource`:
@@ -37,10 +38,40 @@ The asymmetry mirrors `TaskSource`:
   delivered (the task runs on, and a source waiting on it would otherwise
   stall), but a sample cancelled by the task's own unwind (abort/retry cancel,
   ^C) is not — the scope is cancelled and no follow-up could run.
+- **`sample_abandoned()`** covers the cancels `sample_complete()` cannot: a
+  run cancelled before anything reached the log, so there is no `EvalSample`
+  to deliver. Three paths end that way (all return the scheduler's
+  `DISCARDED` sentinel from `task_run_sample`): a queued-sample cancel
+  (`ctl sample cancel --action cancel` on a parked run, discarded at its
+  queue-exit check), a graceful task cancel (`drain` / `score` / `error`)
+  abandoning a queued run at the same check, and an interrupt landing in an
+  errored attempt's pre-retry drain window (the retry is suppressed and the
+  attempt abandoned). `run_sample` fires the hook — for the `SampleSource`
+  and the `TaskSource` alike — when `task_run_sample` returns `DISCARDED`,
+  delivering a copy of the dataset `Sample` plus the epoch, and routes any
+  returned samples onto the enqueuer like `sample_complete`'s. The delivery
+  rule is `sample_complete`'s: not while the task is unwinding
+  (`abort`/`retry` stamp), where no follow-up could run; and additionally
+  not for a requeue re-run, whose withdrawn/abandoned run leaves the prior,
+  already-reported terminal outcome standing. A separate hook was chosen
+  over synthesizing an `EvalSample` with a cancellation `error`: the source
+  would otherwise be handed a record that exists nowhere in the log and
+  cannot be distinguished from a logged operator cancel. Because the hook
+  runs *after* the run's terminal count (unlike `sample_complete`, which
+  precedes it), the last sample's count can land while the source is still
+  being told — so a `TaskSource`-driven eval also registers as `dynamic`
+  (its `completed_at` is stamped by `finalize_eval`, as a `SampleSource`
+  task's already is), keeping `ctl task cancel` effective while a callback
+  is suspended rather than reading the task as finished. Timing: a
+  queued-sample cancel is *counted* at accept but the parked coroutine
+  discards only when it next acquires a slot, so the notification arrives
+  when the sample would otherwise have started — an orchestrator waiting on
+  a rollout it enqueued therefore needs spare sample capacity, exactly as it
+  would for the rollout to run at all.
 
 `SampleSource.from_samples(initial_samples, *, next_samples=None,
-sample_complete=None)` builds a source from a seed + callbacks without
-subclassing (mirrors `TaskSource.from_tasks`).
+sample_complete=None, sample_abandoned=None)` builds a source from a seed +
+callbacks without subclassing (mirrors `TaskSource.from_tasks`).
 
 There is no `@sample_source` decorator: a `SampleSource` lives *inside* a
 `Task`, and tasks are already registerable / loadable by name via `@task` — the
@@ -174,6 +205,43 @@ dropping samples.
   seed is empty — still gets `task_init` (image build/pull, validation) and a
   registered `task_cleanup`. Already-started configs are a set-membership
   no-op. Per-sample sandboxes then run via `sandboxenv_context` as usual.
+- **Provider state a late `task_init` registers is owned by the batch, not
+  the feeder.** `start_for_samples` runs inside the feeder task, which
+  `SampleScheduler.run` starts as a *sibling* of the sample tasks; the
+  run-level `task_cleanup` runs in `eval_run`'s own context. A `ContextVar`
+  a provider *binds* in `task_init` on this path is therefore visible to
+  nobody else — not the samples, not the cleanup (the Docker provider's
+  registries of running projects and generated compose files used to be
+  bound this way, so an empty-seed `sandbox="docker"` task failed every
+  sample with a `LookupError`, and files registered by the feeder were never
+  removed). The fix is explicit ownership rather than a default on the
+  variable: `SandboxManager.open()` binds a fresh
+  `SandboxLifecycleState` (`util/_sandbox/lifecycle.py`) in `eval_run`'s
+  context before any task of the batch is spawned — even when no initial
+  sample has a sandbox — and `SandboxManager.shutdown()` runs the
+  accumulated cleanups and then releases it. Every task of the batch
+  inherits a reference to the same object, so provider hooks (`task_init`,
+  `sample_init`, `sample_cleanup`, `task_cleanup`) *mutate* the state they
+  inherit and never rebind or clear it: a second config's `task_init` keeps
+  the first's registrations, a `task_init` that fails releases only a
+  startup file it alone registered — a legacy `.compose.yaml` or a reused
+  auto-compose path that an earlier initialization or a live sample already
+  registered is kept, since their `compose` commands still name it (the
+  batch's live samples and its final cleanup are untouched either way) —
+  and `task_cleanup` releases the entries it
+  processes so repeat calls (one per started config) are no-ops. Because the
+  scope is per `eval_run`, sequential `TaskSource` batches (which reuse the
+  outer task) and independent evaluations in one process each start from an
+  empty registry; a process-wide mutable default would instead have carried
+  one batch's projects into the next batch's cleanup or "not yet cleaned up"
+  report. Outside any scope (the provider driven directly, without a
+  `SandboxManager`) a registry belongs to the task whose `task_init` bound it,
+  for one lifecycle: a `task_init` in another task (a child that inherited
+  the binding) or after that registry's `task_cleanup` binds its own, so
+  concurrent or successive direct lifecycles never share cleanup state,
+  while reads (`sample_init`, `task_cleanup`) use whatever registry the
+  context holds, so a direct lifecycle may still spread over a task and its
+  children.
 - **Progress bar steps** (`profile.steps`) are fixed at seed size; the
   completed/total counter grows correctly (total passed on each update), and a
   zero-step seed no longer divides by zero (`RichProgress.update` guards it).
@@ -191,3 +259,23 @@ totals (budget spent, seed-consumed limit never consults the source, batch
 truncation, samples-not-runs with epochs); `--sample-id` filters produced
 samples and tolerates ids missing from the seed; samples enqueued during a
 terminal `next_samples()` still run.
+
+`tests/util/sandbox/test_docker_cleanup.py` — the Docker provider's cleanup
+registry under batch ownership, with the daemon stubbed at the compose-command
+layer and compose files generated and removed for real: `task_init` in a
+feeder task and `sample_init` in a sibling share the scope's registry for
+every config family (bare Docker, Dockerfile, `ComposeConfig`, explicit
+compose file preserved, legacy `.compose.yaml` removed); shutdown cleans or
+reports (`sandbox_cleanup=False`) an interrupted sample and releases every
+entry; a second config's `task_init` keeps the first's startup file; a failed
+`task_init` releases only its own file and leaves live samples and the final
+cleanup alone, and a failed or cancelled re-initialization of a shared legacy
+or reused auto-compose path keeps that file; direct provider use without a
+scope, including two overlapping child-task lifecycles after a parent's; and,
+through `eval_async`
+(asyncio and trio): the first Docker sample arriving via `next_samples`,
+`enqueue_sample` or a `sample_complete` return; a late config alongside the
+seed's; a late config failing while the seed sample is live; two sequential
+`TaskSource` batches with a cancel in the second; two independent evaluations
+(the first retaining its container). One real-Docker test runs the empty-seed
+dynamic evaluation.

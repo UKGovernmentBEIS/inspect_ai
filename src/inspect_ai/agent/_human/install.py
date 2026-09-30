@@ -39,13 +39,13 @@ from textwrap import dedent
 
 from inspect_ai.util import SandboxEnvironment, sandbox
 from inspect_ai.util._sandbox._framework_directory import (
-    SHELL_PATH,
     ensure_framework_directory,
     expected_uid_for,
     stat_in_framework_directory,
     try_ensure_framework_directory_as_root,
     write_file_in_framework_directory,
 )
+from inspect_ai.util._sandbox._privileged import SHELL_PATH, SYSTEM_PATH, pinned_env
 
 from .commands.command import HumanAgentCommand
 
@@ -166,13 +166,13 @@ async def _task_py_installed(sb: SandboxEnvironment, owner: str | None) -> bool:
 # getent is missing, not that the account is. A named login must also own the uid the
 # script runs as: a provider that ignores or downgrades ``user`` would otherwise
 # append as the default user (root in most images) through a ``.bashrc`` the login
-# user cannot write, so a mismatch is an error naming both uids. PATH is pinned to the
-# base system directories for the same reason the framework-directory helper pins it:
-# this may run as root.
+# user cannot write, so a mismatch is an error naming both uids. PATH is replaced with
+# the shared `SYSTEM_PATH` pin (see `_privileged`) for the same reason the
+# framework-directory helper does it: this may run as root.
 _BASHRC_APPEND_SCRIPT = """
 set -u
 unset CDPATH
-PATH=/usr/sbin:/usr/bin:/sbin:/bin
+PATH=@PATH@
 export PATH
 name=$1 login=$2 marker=$3
 uid=$(id -u) || { echo "cannot determine the current uid" >&2; exit 2; }
@@ -215,7 +215,7 @@ fi
 # Not atomic: an append that fails after the marker line leaves a retry believing
 # the block is present. Accepted; the block is a few KB and completes or fails whole.
 cat >> "$name"
-"""
+""".replace("@PATH@", SYSTEM_PATH)
 
 
 async def append_bashrc(
@@ -226,6 +226,9 @@ async def append_bashrc(
     Runs as ``user`` (``None`` = the sandbox default user) so the write carries no
     authority that user does not already have. A missing ``.bashrc`` is created; a
     non-regular one is refused; one containing ``BASHRC_MARKER`` is left unchanged.
+    The script is launched with the shared ``PATH`` pin (in the script and through
+    the provider's ``env``, as ``_privileged`` does), since the default user is root
+    in most images.
 
     Raises:
         RuntimeError: ``user`` is not in the sandbox's passwd database (or the
@@ -243,6 +246,7 @@ async def append_bashrc(
             BASHRC_MARKER,
         ],
         input=contents,
+        env=pinned_env(None),
         user=user,
     )
     if not result.success:

@@ -3,10 +3,12 @@
 import logging
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Literal
 
 from inspect_ai._util._async import run_coroutine
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.file import dirname, filesystem
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -17,8 +19,8 @@ from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.eval import _sample_filename
 
-from ._buffer import read_buffer_recovery_data
-from ._read import read_crashed_eval_log
+from ._buffer import BufferRecoveryData, read_buffer_recovery_data
+from ._read import CrashedEvalLog, read_crashed_eval_log
 from ._reconstruct import IncompleteAction, reconstruct_eval_sample
 from ._write import (
     RecoveryStats,
@@ -228,8 +230,12 @@ async def recover_eval_log_async(
     if recovery_data is None:
         raise RecoveryNotAvailable(f"No sample buffer database found for {log}")
 
-    # Derive flushed sample keys for deduplication against buffer DB
-    flushed_keys = set(crashed.sample_entries)
+    # Derive flushed sample keys for deduplication against buffer DB: the
+    # log's record is authoritative for a key unless the buffer holds a newer
+    # entry for it (see _superseded_by_buffer)
+    flushed_keys = set(crashed.sample_entries) - _superseded_by_buffer(
+        crashed, recovery_data
+    )
 
     # Guard: refuse a resolving disposition when more samples are in progress
     # than incomplete_max allows (checked before anything is written)
@@ -323,6 +329,61 @@ async def recover_eval_log_async(
         recovery_data.buffer.cleanup()
 
     return recovered_log
+
+
+def _superseded_by_buffer(
+    crashed: CrashedEvalLog, recovery_data: BufferRecoveryData
+) -> set[str]:
+    """Sample entries in the crashed log that the buffer holds a newer entry for.
+
+    A seeded retry attempt's log carries the prior attempt's records for the
+    very keys it re-runs. Where this attempt re-ran such a key — completing
+    it, or still running it at the crash — without reaching a destination
+    flush, the buffer's entry is the newer result and must not be shadowed by
+    the inherited record. The same holds for a sample requeued after its
+    completion was flushed. "Newer" is decided from the timestamps both
+    sides already carry: the buffer entry started after the log's record
+    ended (``sample_record_time``). A record this attempt flushed always
+    predates its own start, so it stays authoritative; a record missing
+    either timestamp stays authoritative too (today's behavior; only logs
+    and buffers written before realtime rows carried a start lack them).
+
+    The comparison spans attempts, so it assumes their clocks agree to within
+    the gap between the prior attempt finishing and the retry starting;
+    ``TaskLogger.seed_from_prior`` warns at startup when the clock is seen
+    to run behind the prior's records. Under undetected skew the inherited
+    record wins, which is the pre-existing behavior for that key.
+    """
+    ended_at: dict[str, datetime] = {}
+    for summary in crashed.summaries:
+        ended = sample_record_time(summary)
+        if ended is not None:
+            ended_at[_sample_filename(summary.id, summary.epoch)] = ended
+    superseded: set[str] = set()
+    for summary in recovery_data.completed + recovery_data.in_progress:
+        entry = _sample_filename(summary.id, summary.epoch)
+        ended = ended_at.get(entry)
+        started = _timestamp(summary.started_at)
+        if ended is not None and started is not None and started > ended:
+            superseded.add(entry)
+    return superseded
+
+
+def sample_record_time(summary: EvalSampleSummary) -> datetime | None:
+    """The latest moment a logged sample record vouches for.
+
+    Its completion, normally. A record with none is a recovered interruption:
+    a still-running sample that recovery wrote from its realtime row, which
+    knows only when the sample started (``completed_at`` stays unset, as the
+    sample never completed). Its start is then the latest time it carries,
+    and anything started after that is newer. Both fields are validated
+    ``UtcDatetimeStr``, so they parse; ``None`` only for a record with neither.
+    """
+    return _timestamp(summary.completed_at) or _timestamp(summary.started_at)
+
+
+def _timestamp(value: str | None) -> datetime | None:
+    return datetime_from_iso_format_safe(value) if value is not None else None
 
 
 def recoverable_eval_logs(

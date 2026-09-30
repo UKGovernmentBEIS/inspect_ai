@@ -32,11 +32,13 @@ import anyio
 import anyio.to_thread
 from anyio import AsyncFile, EndOfStream, open_file
 from anyio.abc import ByteReceiveStream
-from botocore.exceptions import ClientError
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+from botocore.exceptions import ClientError, ResponseStreamingError
 from tenacity import (
     AsyncRetrying,
     RetryCallState,
     retry_if_exception,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential_jitter,
 )
@@ -46,13 +48,16 @@ if TYPE_CHECKING:
     from aiobotocore.response import StreamingBody
     from boto3.s3.transfer import TransferConfig
 
-from inspect_ai._util._async import current_async_backend
+from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.constants import HTTP
-from inspect_ai._util.file import FileInfo, file, filesystem, local_path
+from inspect_ai._util.file import FileInfo, file, filesystem, local_path, to_uri
 
 logger = logging.getLogger(__name__)
 
 _S3_MISSING_OBJECT_CODES = ("404", "NoSuchKey", "NotFound")
+
+# default chunk size for read_file_into
+_READ_INTO_CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 
 @contextmanager
@@ -181,6 +186,16 @@ class SuffixResult:
     etag: str | None = None
 
 
+class DirListing(NamedTuple):
+    """One directory's direct children (see :meth:`AsyncFilesystem.list_dir`)."""
+
+    files: list[FileInfo]
+    """The files directly under the directory."""
+
+    dirs: list[str]
+    """The subdirectories' paths, each without a trailing separator."""
+
+
 class _S3ETagCapture:
     """Proxy an S3 client and retain the exact completed-upload ETag."""
 
@@ -202,21 +217,110 @@ class _S3ETagCapture:
             raise RuntimeError("S3 upload completed without returning an ETag")
         return self.etag
 
-
-class _AsyncS3ETagCapture(_S3ETagCapture):
-    async def put_object(self, **kwargs: Any) -> dict[str, Any]:
-        return self._capture(await self._client.put_object(**kwargs))
-
-    async def complete_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
-        return self._capture(await self._client.complete_multipart_upload(**kwargs))
-
-
-class _SyncS3ETagCapture(_S3ETagCapture):
     def put_object(self, **kwargs: Any) -> dict[str, Any]:
         return self._capture(self._client.put_object(**kwargs))
 
     def complete_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
         return self._capture(self._client.complete_multipart_upload(**kwargs))
+
+
+def _read_exactly_sync(source: BinaryIO, size: int) -> bytearray:
+    """Read up to ``size`` bytes from ``source``, retrying short reads until EOF."""
+    data = bytearray()
+    while len(data) < size:
+        chunk = source.read(size - len(data))
+        if not chunk:
+            break
+        data += chunk
+
+    return data
+
+
+async def _read_exactly(source: BinaryIO, size: int) -> bytearray:
+    """Read up to ``size`` bytes from ``source`` without blocking the event loop.
+
+    The whole part is read in one worker-thread hop: ``EvalRecorder.flush()``
+    and checkpoint egress stream from disk, and a blocking read on the loop
+    stalls every other sample for its duration, while hopping per
+    ``io_chunksize`` slice costs 32 round trips for a default 8 MB part.
+    ``run_sync`` is left non-abandoning (the default), so a cancelled upload
+    does not unwind while a read is still in flight; callers reuse or close
+    the source right after the upload (``flush()`` reopens its temp-file zip
+    in a ``finally``), and an abandoned read would race that.
+    """
+    return await anyio.to_thread.run_sync(_read_exactly_sync, source, size)
+
+
+async def _s3_multipart_upload_async(
+    client: Any,
+    source: BinaryIO,
+    bucket: str,
+    key: str,
+    first_part: bytearray,
+    config: TransferConfig,
+) -> dict[str, Any]:
+    # Real S3 rejects this upload with "Checksum Type mismatch" if botocore attaches its default
+    # CRC32 to each part without it being declared here. We rely on `_create_s3_client_async`
+    # setting `request_checksum_calculation="when_required"` so no checksum is attached.
+    created = await client.create_multipart_upload(Bucket=bucket, Key=key)
+    upload_id = created["UploadId"]
+    parts: list[dict[str, Any]] = []
+
+    async def read_parts(send: MemoryObjectSendStream[tuple[int, bytearray]]) -> None:
+        async with send:
+            part_number = 1
+            await send.send((part_number, first_part))
+
+            while True:
+                body = await _read_exactly(source, config.multipart_chunksize)
+                if body:
+                    part_number += 1
+                    await send.send((part_number, body))
+                if len(body) < config.multipart_chunksize:
+                    break
+
+    async def upload_parts(
+        receive: MemoryObjectReceiveStream[tuple[int, bytearray]],
+    ) -> None:
+        async with receive:
+            async for part_number, body in receive:
+                response = await client.upload_part(
+                    Bucket=bucket,
+                    Key=key,
+                    UploadId=upload_id,
+                    PartNumber=part_number,
+                    Body=body,
+                )
+                parts.append({"ETag": response["ETag"], "PartNumber": part_number})
+
+    try:
+        send, receive = anyio.create_memory_object_stream[tuple[int, bytearray]](0)
+        async with receive:
+            await tg_collect(
+                [
+                    functools.partial(read_parts, send),
+                    *[
+                        functools.partial(upload_parts, receive.clone())
+                        for _ in range(config.max_request_concurrency)
+                    ],
+                ]
+            )
+
+        parts.sort(key=lambda part: part["PartNumber"])
+        response = await client.complete_multipart_upload(
+            Bucket=bucket,
+            Key=key,
+            UploadId=upload_id,
+            MultipartUpload={"Parts": parts},
+        )
+    except BaseException:
+        with anyio.move_on_after(_S3_ABORT_TIMEOUT, shield=True), suppress(Exception):
+            await client.abort_multipart_upload(
+                Bucket=bucket, Key=key, UploadId=upload_id
+            )
+        raise
+
+    return cast(dict[str, Any], response)
 
 
 async def _s3_upload_fileobj_async(
@@ -225,29 +329,73 @@ async def _s3_upload_fileobj_async(
     bucket: str,
     key: str,
     config: TransferConfig | None = None,
-) -> str | None:
-    """Run aioboto3's managed upload and capture its final response ETag."""
-    if not hasattr(client, "meta"):
-        await client.upload_fileobj(
-            Fileobj=source, Bucket=bucket, Key=key, Config=config
-        )
-        return None
+) -> str:
+    """Upload `source` to S3 and capture the final response ETag."""
+    from boto3.s3.transfer import TransferConfig
 
-    # aioboto3's public upload_fileobj discards the final response. Call its
-    # injected implementation with a proxy so we can capture the exact
-    # PutObject/CompleteMultipartUpload ETag. This private-API coupling is
-    # guarded by the moto-backed multipart test and verified with aioboto3 15.5.0.
-    from aioboto3.s3.inject import upload_fileobj
-
-    capture = _AsyncS3ETagCapture(client)
-    await upload_fileobj(
-        capture,
-        source,
-        bucket,
-        key,
-        Config=config,  # type: ignore[arg-type]
+    config = config or TransferConfig()
+    first_part = await _read_exactly(
+        source, max(config.multipart_threshold, config.multipart_chunksize)
     )
-    return capture.require_etag()
+    if len(first_part) < config.multipart_threshold:
+        response = await client.put_object(Bucket=bucket, Key=key, Body=first_part)
+    else:
+        response = await _s3_multipart_upload_async(
+            client, source, bucket, key, first_part, config
+        )
+
+    etag = response.get("ETag")
+    if etag is None:
+        raise RuntimeError("S3 upload completed without returning an ETag")
+
+    return str(etag).strip('"')
+
+
+async def _s3_download_file_async(
+    client: Any, bucket: str, key: str, local: str, config: TransferConfig
+) -> None:
+    """Download an S3 object to `local` with concurrent ranged GETs."""
+    import aiohttp
+    from s3transfer.utils import S3_RETRYABLE_DOWNLOAD_ERRORS
+
+    head = await client.head_object(Bucket=bucket, Key=key)
+    size = int(head["ContentLength"])
+    part_starts = range(0, size, config.multipart_chunksize)
+    pending = iter(part_starts)
+    open(local, "wb").close()
+
+    async def download_part(f: BinaryIO, start: int) -> None:
+        response = await client.get_object(
+            Bucket=bucket,
+            Key=key,
+            IfMatch=head["ETag"],
+            Range=s3_range_header(start, min(start + config.multipart_chunksize, size)),
+        )
+        body = response["Body"]
+        try:
+            data = await body.read()
+        except aiohttp.ClientPayloadError as e:
+            raise ResponseStreamingError(error=e) from e
+        finally:
+            body.close()
+
+        f.seek(start)
+        await anyio.to_thread.run_sync(f.write, data)
+
+    async def download_parts() -> None:
+        with open(local, "r+b") as f:
+            for start in pending:
+                async for attempt in AsyncRetrying(
+                    retry=retry_if_exception_type(S3_RETRYABLE_DOWNLOAD_ERRORS),
+                    stop=stop_after_attempt(config.num_download_attempts),
+                    reraise=True,
+                ):
+                    with attempt:
+                        await download_part(f, start)
+
+    await tg_collect(
+        [download_parts] * min(config.max_request_concurrency, len(part_starts))
+    )
 
 
 def _s3_upload_fileobj_sync(
@@ -265,7 +413,7 @@ def _s3_upload_fileobj_sync(
     from boto3.s3.transfer import TransferConfig
     from s3transfer.manager import TransferManager
 
-    capture = _SyncS3ETagCapture(client)
+    capture = _S3ETagCapture(client)
     # Always use the classic manager: the CRT manager bypasses the botocore
     # client proxy, so it cannot expose the completed upload's ETag here.
     with TransferManager(cast(Any, capture), config or TransferConfig()) as manager:
@@ -283,7 +431,7 @@ class _RetiredClient(NamedTuple):
 class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     """Interface for reading/writing files that uses different interfaces depending on context
 
-    1. Use aioboto3 when accessing s3 under the asyncio backend
+    1. Use aiobotocore when accessing s3 under the asyncio backend
     2. Use boto3 with anyio.to_thread when using s3 under the trio backend
     3. Use fsspec when using any other filesystem
 
@@ -441,6 +589,58 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             await stream.aclose()
         return b"".join(chunks)
 
+    async def read_file_into(
+        self, filename: str, dest: BinaryIO, chunk_size: int = _READ_INTO_CHUNK_SIZE
+    ) -> None:
+        """Copy a file's full contents into an open binary file object.
+
+        The download counterpart of :meth:`write_file_streaming`, for a
+        destination that is a file object rather than a path (an anonymous
+        temp file). A local source is copied in one worker thread
+        (a thread hop per chunk through an async file would cost more than
+        the copy), with cancellation checks between chunks. An S3 source
+        streams into ``dest`` chunk by chunk: under
+        trio the synchronous response is copied in a worker thread, with
+        cancellation checks between chunks; under asyncio a byte stream
+        from :meth:`read_file_bytes` is written inline (a buffered
+        write of one chunk lands in the page cache faster than a thread hop
+        would). Any other remote filesystem (``gs://``, ``az://``, ...) has
+        no async client and, per the fsspec rule in AGENTS.md, cannot be read
+        in a worker thread either, so it is read synchronously on the event
+        loop one chunk at a time with a checkpoint between chunks: each
+        stall is bounded by one chunk's fetch rather than the whole download.
+
+        Raises ``FileNotFoundError`` for a missing file on every backend.
+        Cancellation waits for an active worker to close its response before
+        returning, so the caller can safely close or reuse ``dest``.
+        """
+        if is_s3_filename(filename) and current_async_backend() != "asyncio":
+            bucket, key = s3_bucket_and_key(filename)
+            with _map_missing_s3_object(filename):
+                await anyio.to_thread.run_sync(
+                    s3_read_file_into, self.s3_client(), bucket, key, dest, chunk_size
+                )
+        elif is_s3_filename(filename):
+            stream = await self.read_file_bytes(filename, 0, None)
+            try:
+                while True:
+                    try:
+                        chunk = await stream.receive(chunk_size)
+                    except EndOfStream:
+                        break
+                    dest.write(chunk)
+            finally:
+                await stream.aclose()
+        elif filesystem(filename).is_local():
+            await anyio.to_thread.run_sync(
+                _copy_local_file_into, local_path(filename), dest, chunk_size
+            )
+        else:
+            with file(filename, "rb") as src:
+                while chunk := src.read(chunk_size):
+                    dest.write(chunk)
+                    await anyio.lowlevel.checkpoint()
+
     async def read_file_suffix(self, filename: str, suffix_length: int) -> SuffixResult:
         """Read the last suffix_length bytes of a file.
 
@@ -565,7 +765,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         place, so a partial download never masquerades as the file and an
         existing read-only target (restic writes repo files ``0400``) is
         replaced rather than opened for writing. boto3's ``download_file``
-        does this itself; aioboto3's opens the target in place. The
+        does this itself; the asyncio path streams into the temp file. The
         non-S3 branch copies in place.
         """
         if is_s3_filename(remote):
@@ -575,8 +775,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     client = await self.s3_client_async()
                     partial_path = f"{local}.{uuid.uuid4().hex}.part"
                     try:
-                        await client.download_file(
-                            Bucket=bucket, Key=key, Filename=partial_path
+                        await _s3_download_file_async(
+                            client, bucket, key, partial_path, _s3_transfer_config()
                         )
                         os.replace(partial_path, local)
                     finally:
@@ -826,6 +1026,69 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         if fnmatchcase(dirname, pattern):
                             yield f"{dirpath.rstrip('/')}/{dirname}/"
 
+    async def list_dir(self, base: str) -> DirListing:
+        """List the files and subdirectories directly under ``base``.
+
+        One delimited listing: on S3 a single ``list_objects_v2`` sweep with
+        ``Delimiter="/"``, taking ``Contents`` and ``CommonPrefixes`` from the
+        same pages (``iter_files`` and ``iter_dirs`` would each sweep). Local
+        directories use ``os.scandir`` without following directory symlinks,
+        so a symlink loop cannot recurse; other fsspec backends use ``ls``.
+
+        Paths keep the form ``base`` was given in (plain path, ``file://`` or
+        ``s3://``); a ``file://`` child is built from its local path with
+        ``to_uri``, so reserved characters in names are percent-encoded. Local
+        ``mtime`` is in milliseconds, as on the other backends.
+
+        Raises ``FileNotFoundError`` when a local ``base`` does not exist; an
+        S3 prefix with no objects lists as empty.
+        """
+        prefix_path = base.rstrip("/")
+        if is_s3_filename(base):
+            bucket, prefix = s3_bucket_and_key(base)
+            prefix = prefix.rstrip("/") + "/" if prefix else ""
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                paginator = client.get_paginator("list_objects_v2")
+                pages = [
+                    page
+                    async for page in paginator.paginate(
+                        Bucket=bucket, Prefix=prefix, Delimiter="/"
+                    )
+                ]
+            else:
+                pages = await anyio.to_thread.run_sync(
+                    _s3_list_pages, self.s3_client(), bucket, prefix
+                )
+            files: list[FileInfo] = []
+            dirs: list[str] = []
+            for page in pages:
+                for obj in page.get("Contents", []):
+                    if _is_s3_file_key(obj["Key"], "*"):
+                        files.append(_s3_obj_to_file_info(bucket, obj))
+                for cp in page.get("CommonPrefixes", []):
+                    dirs.append(f"s3://{bucket}/{cp['Prefix'].rstrip('/')}")
+            return DirListing(files=files, dirs=dirs)
+
+        fsw = filesystem(base)
+        if fsw.is_local():
+            return await anyio.to_thread.run_sync(
+                _scandir_listing,
+                local_path(base),
+                prefix_path,
+                base.startswith("file://"),
+            )
+        files = []
+        dirs = []
+        for entry in fsw.fs.ls(base, detail=True):
+            name = entry["name"].rstrip("/").rsplit("/", 1)[-1]
+            if entry["type"] == "directory":
+                dirs.append(f"{prefix_path}/{name}")
+            elif entry["type"] == "file":
+                info = fsw._file_info(entry)
+                files.append(info.model_copy(update={"name": f"{prefix_path}/{name}"}))
+        return DirListing(files=files, dirs=dirs)
+
     @override
     async def __aenter__(self) -> "AsyncFilesystem":
         existing = _current_async_fs.get()
@@ -943,11 +1206,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def _create_s3_client_async(
         anonymous: bool = False, region_name: str | None = None
     ) -> Any:
-        import aioboto3
         from aiobotocore.config import AioConfig
+        from aiobotocore.session import get_session
         from botocore import UNSIGNED
 
-        session = aioboto3.Session()
+        session = get_session()
         config = AioConfig(
             max_pool_connections=50,
             retries={"max_attempts": 10, "mode": "adaptive"},
@@ -959,7 +1222,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             response_checksum_validation="when_required",
             **({"signature_version": UNSIGNED} if anonymous else {}),
         )
-        return await session.client(
+        return await session.create_client(
             "s3", config=config, region_name=region_name
         ).__aenter__()
 
@@ -1014,6 +1277,27 @@ def s3_read_file_bytes(
     return cast(bytes, response["Body"].read())
 
 
+def s3_read_file_into(
+    s3: Any, bucket: str, key: str, dest: BinaryIO, chunk_size: int
+) -> None:
+    """Stream an S3 response into a caller-owned file from an AnyIO worker.
+
+    Memory is bounded by ``chunk_size``. Close the response on success,
+    failure or cancellation, leaving the destination's lifecycle to its owner.
+    """
+    response = s3.get_object(Bucket=bucket, Key=key)
+    body = response["Body"]
+    try:
+        while True:
+            anyio.from_thread.check_cancelled()
+            chunk = body.read(chunk_size)
+            if not chunk:
+                break
+            dest.write(chunk)
+    finally:
+        body.close()
+
+
 def s3_read_file_suffix(
     s3: Any, bucket: str, key: str, suffix_length: int
 ) -> SuffixResult:
@@ -1038,8 +1322,8 @@ class _CloseShieldedReader:
     sync streaming write own the stream's lifecycle and reuse it after the
     upload — ``EvalRecorder.flush()`` reopens its temp-file zip after every
     flush — so the upload must not close it. (The multipart path reads parts
-    into memory and never closes the source; the async path uses aioboto3's
-    own ``upload_fileobj``, which doesn't close either.)
+    into memory and never closes the source; the async path reads parts into
+    memory and doesn't close either.)
 
     Everything except ``close`` is delegated via ``__getattr__`` so the proxy
     presents exactly the source's interface — s3transfer routes uploads by
@@ -1183,6 +1467,37 @@ def s3_iter_files(
     return results
 
 
+def _s3_list_pages(s3: Any, bucket: str, prefix: str) -> list[dict[str, Any]]:
+    paginator = s3.get_paginator("list_objects_v2")
+    return list(paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"))
+
+
+def _scandir_listing(directory: str, prefix_path: str, as_uri: bool) -> DirListing:
+    """A local directory's children (see :meth:`AsyncFilesystem.list_dir`)."""
+    files: list[FileInfo] = []
+    dirs: list[str] = []
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            path = (
+                to_uri(os.path.join(directory, entry.name))
+                if as_uri
+                else f"{prefix_path}/{entry.name}"
+            )
+            if entry.is_dir(follow_symlinks=False):
+                dirs.append(path)
+            elif entry.is_file():
+                stat = entry.stat()
+                files.append(
+                    FileInfo(
+                        name=path,
+                        type="file",
+                        size=stat.st_size,
+                        mtime=stat.st_mtime * 1000,
+                    )
+                )
+    return DirListing(files=files, dirs=dirs)
+
+
 def s3_iter_dirs(
     s3: Any, bucket: str, prefix: str, pattern: str, recursive: bool
 ) -> list[str]:
@@ -1324,3 +1639,16 @@ _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
 # Granularity for `read_file_bytes_fully`: one read hop per chunk while
 # accumulating a range into memory.
 _READ_FULLY_CHUNK_SIZE = 1024 * 1024  # 1 MB
+
+_S3_ABORT_TIMEOUT = 30
+
+
+def _copy_local_file_into(path: str, dest: BinaryIO, chunk_size: int) -> None:
+    """Blocking local copy for ``read_file_into`` — run in a worker thread."""
+    with open(path, "rb") as src:
+        while True:
+            anyio.from_thread.check_cancelled()
+            chunk = src.read(chunk_size)
+            if not chunk:
+                break
+            dest.write(chunk)

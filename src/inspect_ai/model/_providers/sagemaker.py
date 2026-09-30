@@ -3,7 +3,6 @@ import json
 from logging import getLogger
 from typing import Any
 
-from botocore.config import Config  # type: ignore[import-untyped]
 from botocore.exceptions import (  # type: ignore[import-untyped]
     ClientError,
     ConnectionClosedError,
@@ -139,17 +138,17 @@ class SagemakerAPI(ModelAPI):
                 merged_args[key] = int(str(merged_args[key]))
         self.model_args = merged_args
 
-        # import aioboto3 on demand
+        # import aiobotocore on demand
         try:
-            import aioboto3  # type: ignore[import-untyped]
+            from aiobotocore.session import get_session
 
-            verify_required_version("Sagemaker API", "aioboto3", "13.0.0")
+            verify_required_version("Sagemaker API", "aiobotocore", "2.18.0")
 
             # Create a shared session to be used when generating
-            self.session = aioboto3.Session()
+            self.session = get_session()
 
         except ImportError:
-            raise pip_dependency_error("Sagemaker API", ["aioboto3"])
+            raise pip_dependency_error("Sagemaker API", ["aiobotocore"])
 
         self.request_content_type = "application/json"
         self.request_accept_type = "application/json"
@@ -432,11 +431,13 @@ class SagemakerAPI(ModelAPI):
 
     def _create_client(self) -> Any:
         """Create SageMaker runtime client with proper configuration."""
-        return self.session.client(  # type: ignore[call-overload]
+        from aiobotocore.config import AioConfig
+
+        return self.session.create_client(
             service_name="sagemaker-runtime",
             region_name=str(self.model_args["region_name"]),
             endpoint_url=self.model_args.get("endpoint_url"),
-            config=Config(
+            config=AioConfig(
                 read_timeout=int(str(self.model_args["read_timeout"])),
                 connect_timeout=int(str(self.model_args["connect_timeout"])),
                 retries={"total_max_attempts": 1, "mode": "standard"},

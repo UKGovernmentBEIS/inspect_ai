@@ -11,7 +11,7 @@ import pytest
 
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import TOOL_CALLS_FAIL_FAST, execute_tools
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool import ToolError, tool
 from inspect_ai.tool._tool_call import ToolCall
@@ -744,3 +744,236 @@ async def test_parallel_pending_events_coexist_with_distinct_uuids() -> None:
     tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
     assert [m.tool_call_id for m in tool_msgs] == ["coexist-a", "coexist-b"]
     assert [m.content for m in tool_msgs] == ["a", "b"]
+
+
+# -- fail-fast batches -------------------------------------------------------
+# A provider can mark an assistant message's tool calls as an ordered batch
+# that stops at the first failure (TOOL_CALLS_FAIL_FAST metadata, set by the
+# Anthropic provider for computer toolset batches): once a call to a named
+# tool fails with a tool error, its remaining calls in the same message are
+# not executed.
+
+
+@tool
+def batch_action():
+    async def batch_action(label: str, fail: bool = False) -> str:
+        """Return the label, or fail with a ToolError.
+
+        Args:
+            label: The label to echo back.
+            fail: Whether to raise a ToolError instead of returning.
+        """
+        if fail:
+            raise ToolError(f"{label} failed")
+        return label
+
+    return batch_action
+
+
+NOT_EXECUTED = "Not executed: an earlier batch_action action in this turn failed."
+
+
+def fail_fast_assistant(*calls: ToolCall, tools: list[str] | None = None):
+    return ChatMessageAssistant(
+        content=[],
+        tool_calls=list(calls),
+        metadata={TOOL_CALLS_FAIL_FAST: tools or ["batch_action"]},
+    )
+
+
+def _tool_events(call_ids: list[str]) -> dict[str, ToolEvent]:
+    from inspect_ai.log._transcript import transcript
+
+    events = [
+        e for e in transcript().events if isinstance(e, ToolEvent) and e.id in call_ids
+    ]
+    # exactly one event per call, recorded in declared order
+    assert [e.id for e in events] == call_ids
+    return {e.id: e for e in events}
+
+
+async def test_fail_fast_skips_remaining_calls_to_the_tool():
+    """After a tool error, later calls to the tool are reported as not executed."""
+    tdef = ToolDef(batch_action())
+    ids = ["halt-c0", "halt-c1", "halt-c2", "halt-c3"]
+    calls = [
+        call("batch_action", ids[0], label="L0"),
+        call("batch_action", ids[1], label="L1", fail=True),
+        call("batch_action", ids[2], label="L2"),
+        call("batch_action", ids[3], label="L3"),
+    ]
+    messages, _ = await execute_tools([fail_fast_assistant(*calls)], [tdef])
+
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert [m.tool_call_id for m in tool_msgs] == ids
+    assert tool_msgs[0].error is None and tool_msgs[0].content == "L0"
+    assert tool_msgs[1].error is not None
+    assert tool_msgs[1].error.message == "L1 failed"
+    for skipped in tool_msgs[2:]:
+        assert skipped.error is not None
+        assert skipped.error.type == "cancelled"
+        assert skipped.error.message == NOT_EXECUTED
+
+    events = _tool_events(ids)
+    for call_id in ids[2:]:
+        event = events[call_id]
+        assert event.pending is None or event.pending is False
+        assert event.error is not None and event.error.message == NOT_EXECUTED
+        assert event.failed is None
+
+
+async def test_fail_fast_without_marker_runs_every_call():
+    """The same failing batch runs to completion when the message is not marked."""
+    tdef = ToolDef(batch_action())
+    calls = [
+        call("batch_action", "nm-c0", label="L0", fail=True),
+        call("batch_action", "nm-c1", label="L1"),
+    ]
+    messages, _ = await execute_tools([assistant(*calls)], [tdef])
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert tool_msgs[0].error is not None
+    assert tool_msgs[1].error is None and tool_msgs[1].content == "L1"
+
+
+async def test_fail_fast_leaves_other_tools_running():
+    """Only the named tool's later calls are skipped; other tools still run."""
+    calls = [
+        call("batch_action", "mix-c0", label="L0", fail=True),
+        call("serial_echo", "mix-c1", label="echo"),
+        call("batch_action", "mix-c2", label="L2"),
+    ]
+    messages, _ = await execute_tools(
+        [fail_fast_assistant(*calls)], [ToolDef(batch_action()), ToolDef(serial_echo())]
+    )
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert [m.tool_call_id for m in tool_msgs] == ["mix-c0", "mix-c1", "mix-c2"]
+    assert tool_msgs[0].error is not None
+    assert tool_msgs[1].error is None and tool_msgs[1].content == "echo"
+    assert tool_msgs[2].error is not None
+    assert tool_msgs[2].error.message == NOT_EXECUTED
+
+
+async def test_fail_fast_not_triggered_without_error():
+    calls = [call("batch_action", f"ok-c{i}", label=f"L{i}") for i in range(3)]
+    messages, _ = await execute_tools(
+        [fail_fast_assistant(*calls)], [ToolDef(batch_action())]
+    )
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert [m.content for m in tool_msgs] == ["L0", "L1", "L2"]
+    assert all(m.error is None for m in tool_msgs)
+
+
+async def test_fail_fast_triggered_by_parsing_error():
+    """A tool call that fails argument parsing counts as a failed action."""
+    calls = [
+        call("batch_action", "parse-c0"),  # missing required `label`
+        call("batch_action", "parse-c1", label="L1"),
+    ]
+    messages, _ = await execute_tools(
+        [fail_fast_assistant(*calls)], [ToolDef(batch_action())]
+    )
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert tool_msgs[0].error is not None and tool_msgs[0].error.type == "parsing"
+    assert tool_msgs[1].error is not None
+    assert tool_msgs[1].error.message == NOT_EXECUTED
+
+
+async def test_fail_fast_not_triggered_by_other_tools_errors():
+    """A failure in a tool not named in the marker does not halt anything."""
+
+    @tool
+    def other_raise_tool_error():
+        async def other_raise_tool_error() -> str:
+            """Raise a ToolError."""
+            raise ToolError("boom")
+
+        return other_raise_tool_error
+
+    calls = [
+        call("other_raise_tool_error", "other-c0"),
+        call("batch_action", "other-c1", label="L1"),
+    ]
+    messages, _ = await execute_tools(
+        [fail_fast_assistant(*calls)],
+        [ToolDef(other_raise_tool_error()), ToolDef(batch_action())],
+    )
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert tool_msgs[0].error is not None
+    assert tool_msgs[1].error is None and tool_msgs[1].content == "L1"
+
+
+@tool(parallel=True)
+def parallel_batch_action():
+    async def parallel_batch_action(label: str, fail: bool = False) -> str:
+        """Return the label, or fail with a ToolError.
+
+        Args:
+            label: The label to echo back.
+            fail: Whether to raise a ToolError instead of returning.
+        """
+        if fail:
+            raise ToolError(f"{label} failed")
+        return label
+
+    return parallel_batch_action
+
+
+async def test_fail_fast_implies_serial_execution():
+    """The marker wins over parallel=True: later calls never start after a failure."""
+    calls = [
+        call("parallel_batch_action", "ph-c0", label="L0", fail=True),
+        call("parallel_batch_action", "ph-c1", label="L1"),
+    ]
+    messages, _ = await execute_tools(
+        [fail_fast_assistant(*calls, tools=["parallel_batch_action"])],
+        [ToolDef(parallel_batch_action())],
+    )
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert tool_msgs[0].error is not None
+    assert tool_msgs[1].error is not None
+    assert (
+        tool_msgs[1].error.message
+        == "Not executed: an earlier parallel_batch_action action in this turn failed."
+    )
+
+
+async def test_fail_fast_triggered_by_approval_rejection():
+    """A rejected approval is a failed call: later calls to the tool are skipped."""
+    from inspect_ai.approval._apply import _tool_approver
+    from inspect_ai.approval._approval import Approval
+
+    async def reject_first(message, call, view, history):
+        return Approval(decision="reject" if call.id == "appr-c0" else "approve")
+
+    calls = [
+        call("batch_action", "appr-c0", label="L0"),
+        call("batch_action", "appr-c1", label="L1"),
+    ]
+    token = _tool_approver.set(reject_first)
+    try:
+        messages, _ = await execute_tools(
+            [fail_fast_assistant(*calls)], [ToolDef(batch_action())]
+        )
+    finally:
+        _tool_approver.reset(token)
+
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert tool_msgs[0].error is not None and tool_msgs[0].error.type == "approval"
+    assert tool_msgs[1].error is not None
+    assert tool_msgs[1].error.message == NOT_EXECUTED
+
+
+async def test_fail_fast_marker_ignores_malformed_values():
+    """A marker that is not a list of names is ignored rather than raising."""
+    calls = [
+        call("batch_action", "bad-c0", label="L0", fail=True),
+        call("batch_action", "bad-c1", label="L1"),
+    ]
+    message = ChatMessageAssistant(
+        content=[],
+        tool_calls=list(calls),
+        metadata={TOOL_CALLS_FAIL_FAST: "batch_action"},
+    )
+    messages, _ = await execute_tools([message], [ToolDef(batch_action())])
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert tool_msgs[1].error is None and tool_msgs[1].content == "L1"

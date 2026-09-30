@@ -28,6 +28,10 @@ def normalise_sample_id(id: str | int | None) -> str:
     return id if isinstance(id, str) else str(id).zfill(20)
 
 
+SampleIdEpoch = tuple[str | int, int]
+"""A sample's dataset-typed ``(id, epoch)``."""
+
+
 # determine how we will go from file records to samples. if there is
 # no field spec, we assume the column names "input" and "target",
 # otherwise use the provided field spec or custom converter function

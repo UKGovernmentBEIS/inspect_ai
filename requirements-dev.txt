@@ -15,7 +15,7 @@ jsonpath-ng
 latex2sympy2-extended==1.11.0
 markdown
 mcp>=1.10.0
-mistralai>=2.4.5
+mistralai>=3.0.0
 moto[server]>=5.1.5
 mypy>=2.3.0 # older mypy emits a `misc` error at a site where the ignore was removed as unused
 nbformat
@@ -43,7 +43,7 @@ textual-dev>=0.86.2
 together>=2.0.0
 trio
 trustme
-types-aioboto3
+types-aiobotocore
 types-beautifulsoup4
 types-boto3
 types-botocore
