@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Anthropic: Client-supplied `fallbacks` directives, as a model list or `"default"`, now reach the API verbatim; they are not sent to other providers or with batch, Bedrock, Vertex, and Azure requests.
+- Anthropic: Client-supplied `fallbacks` directives now reach Anthropic models verbatim (a model list only for the model the client named); they are not sent to other providers or with batch, Bedrock, Vertex, and Azure requests.
 
 ## 0.3.273 (29 September 2026)
 

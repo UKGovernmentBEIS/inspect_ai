@@ -209,15 +209,7 @@ def test_anthropic_adaptive_thinking_effort_forwarded():
 
 
 def test_anthropic_fallbacks_forwarded_verbatim():
-    """A client `fallbacks` directive must survive the bridge untouched.
-
-    Claude Code sends `fallbacks` so the API can serve a safety-refused request
-    with another model.
-
-    Forwarded VERBATIM into extra_body -- not reinterpreted into
-    `fallback_models`, which would re-serialize to `[{"model": ...}]` and drop
-    any other field the client sent.
-    """
+    """A client `fallbacks` directive must survive the bridge untouched."""
     fallbacks = [{"model": "claude-opus-4-8"}]
     json_data = {
         "model": "inspect",
@@ -225,7 +217,7 @@ def test_anthropic_fallbacks_forwarded_verbatim():
         "fallbacks": fallbacks,
     }
 
-    config = generate_config_from_anthropic(json_data, forward_fallbacks=True)
+    config = generate_config_from_anthropic(json_data, anthropic_model=True)
     assert config.extra_body is not None
     # byte-for-byte the client's structure, not a remapping
     assert config.extra_body["fallbacks"] == fallbacks
@@ -241,7 +233,7 @@ def test_anthropic_fallbacks_forwarded_verbatim():
 def test_anthropic_no_fallbacks_key_when_client_sends_none():
     """Absent `fallbacks` must not synthesize the key."""
     config = generate_config_from_anthropic(
-        {"model": "inspect", "max_tokens": 100}, forward_fallbacks=True
+        {"model": "inspect", "max_tokens": 100}, anthropic_model=True
     )
     assert config.extra_body is None or "fallbacks" not in config.extra_body
 
@@ -257,11 +249,16 @@ async def _capture_sdk_request(**request: Any) -> Any:
     raise _ProviderRequest(request)
 
 
-async def _bridged_provider_request(model: Model, fallbacks: Any) -> dict[str, Any]:
-    """Send a client `fallbacks` directive through the Anthropic bridge to `model`.
+async def _bridged_provider_request(
+    model: Model,
+    fallbacks: Any,
+    messages: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Send a client `fallbacks` directive for `claude-fable-5` through the bridge.
 
-    The provider's SDK create call must be patched with `_capture_sdk_request`;
-    the returned dict is what the provider would have sent.
+    The client's model name is aliased to `model`. The provider's SDK create
+    call must be patched with `_capture_sdk_request`; the returned dict is what
+    the provider would have sent.
     """
     from inspect_ai.agent._agent import AgentState
     from inspect_ai.agent._bridge.anthropic_api_impl import (
@@ -276,7 +273,7 @@ async def _bridged_provider_request(model: Model, fallbacks: Any) -> dict[str, A
             json_data={
                 "model": "claude-fable-5",
                 "max_tokens": 64,
-                "messages": [{"role": "user", "content": "hi"}],
+                "messages": messages or [{"role": "user", "content": "hi"}],
                 "fallbacks": fallbacks,
             },
             headers=None,
@@ -285,6 +282,20 @@ async def _bridged_provider_request(model: Model, fallbacks: Any) -> dict[str, A
             bridge=bridge,
         )
     return exc_info.value.request
+
+
+def _anthropic_model(monkeypatch: pytest.MonkeyPatch, name: str) -> Model:
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    model = get_model(name, api_key="test-key", streaming=False, memoize=False)
+    assert isinstance(model.api, AnthropicAPI)
+    monkeypatch.setattr(model.api.client.messages, "create", _capture_sdk_request)
+    return model
+
+
+def _fallback_betas(request: dict[str, Any]) -> list[str]:
+    header: str = request["extra_headers"].get("anthropic-beta", "")
+    return [b for b in header.split(",") if b.startswith("server-side-fallback-")]
 
 
 @pytest.mark.anyio
@@ -312,39 +323,84 @@ async def test_bridged_fallbacks_withheld_from_non_anthropic_model(
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    ("fallbacks", "beta"),
-    [
-        pytest.param(
-            [{"model": "claude-opus-4-8"}],
-            "server-side-fallback-2026-06-01",
-            id="explicit-list",
-        ),
-        pytest.param("default", "server-side-fallback-2026-07-01", id="default"),
-    ],
+    "fallbacks",
+    [pytest.param([{"model": "claude-opus-4-8"}], id="explicit-list"), "default"],
 )
-async def test_bridged_fallbacks_reach_anthropic_model_under_accepting_beta(
-    monkeypatch: pytest.MonkeyPatch, fallbacks: Any, beta: str
+async def test_bridged_fallbacks_reach_named_anthropic_model_under_2026_07_01(
+    monkeypatch: pytest.MonkeyPatch, fallbacks: Any
 ) -> None:
-    """Both documented `fallbacks` forms reach Anthropic under a beta that takes them.
+    """Both documented `fallbacks` forms reach the model the client named.
 
-    `server-side-fallback-2026-06-01` accepts only the explicit-list form;
-    `"default"` routing requires `server-side-fallback-2026-07-01`.
+    Each goes under `server-side-fallback-2026-07-01`, the beta that accepts
+    both; `2026-06-01` rejects `"default"`.
     """
-    from inspect_ai.model._providers.anthropic import AnthropicAPI
-
-    model = get_model(
-        "anthropic/claude-fable-5", api_key="test-key", streaming=False, memoize=False
-    )
-    assert isinstance(model.api, AnthropicAPI)
-    monkeypatch.setattr(model.api.client.messages, "create", _capture_sdk_request)
-
+    model = _anthropic_model(monkeypatch, "anthropic/claude-fable-5")
     request = await _bridged_provider_request(model, fallbacks)
     assert request["extra_body"]["fallbacks"] == fallbacks
-    header: str = request["extra_headers"]["anthropic-beta"]
-    fallback_betas = [
-        b for b in header.split(",") if b.startswith("server-side-fallback-")
-    ]
-    assert fallback_betas == [beta]
+    assert _fallback_betas(request) == ["server-side-fallback-2026-07-01"]
+
+
+@pytest.mark.anyio
+async def test_bridged_fallback_list_withheld_from_another_anthropic_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A client's fallback list is written for the model it named.
+
+    Served by another model (here via an alias), the API rejects the list with
+    a 400, so it is withheld with a warning. `"default"` routing is valid on any
+    Anthropic model and is still forwarded.
+    """
+    from inspect_ai._util import logger as logger_mod
+    from inspect_ai.agent._bridge import anthropic_api_impl
+
+    warnings: list[str] = []
+    logger_mod._warned.clear()
+    monkeypatch.setattr(
+        anthropic_api_impl.logger, "warning", lambda msg: warnings.append(msg)
+    )
+    model = _anthropic_model(monkeypatch, "anthropic/claude-opus-4-8")
+
+    request = await _bridged_provider_request(model, [{"model": "claude-opus-4-8"}])
+    assert request["model"] == "claude-opus-4-8"
+    assert "fallbacks" not in request.get("extra_body", {})
+    assert _fallback_betas(request) == []
+    assert any("claude-fable-5" in w and "claude-opus-4-8" in w for w in warnings)
+
+    request = await _bridged_provider_request(model, "default")
+    assert request["extra_body"]["fallbacks"] == "default"
+    assert _fallback_betas(request) == ["server-side-fallback-2026-07-01"]
+
+
+@pytest.mark.anyio
+async def test_bridged_turn_after_fallback_handoff_sends_one_fallback_beta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A replayed `fallback` block needs a fallback beta; the directive's suffices."""
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    handoff = {
+        "type": "fallback",
+        "from": {"model": "claude-fable-5"},
+        "to": {"model": "claude-opus-4-8"},
+    }
+    request = await _bridged_provider_request(
+        _anthropic_model(monkeypatch, "anthropic/claude-fable-5"),
+        "default",
+        messages=[
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": [handoff, {"type": "text", "text": "hi"}]},
+            {"role": "user", "content": "again"},
+        ],
+    )
+    assert any(
+        isinstance(block, dict) and block.get("type") == "fallback"
+        for message in request["messages"]
+        for block in message["content"]
+    )
+    assert _fallback_betas(request) == ["server-side-fallback-2026-07-01"]
 
 
 def test_google_forward_then_clear():

@@ -856,8 +856,13 @@ class AnthropicAPI(ModelAPI):
 
             # add fallback beta header if the input contains fallback blocks
             # (so replayed blocks are accepted even if fallback_models is no
-            # longer configured, e.g. on a resumed eval with changed config)
-            if FALLBACK_BETA not in betas and _input_has_fallback(input):
+            # longer configured, e.g. on a resumed eval with changed config);
+            # either fallback beta accepts them
+            if (
+                FALLBACK_BETA not in betas
+                and FALLBACK_DEFAULT_BETA not in betas
+                and _input_has_fallback(input)
+            ):
                 betas.append(FALLBACK_BETA)
 
             # resolve betas and extra headers
@@ -1374,25 +1379,36 @@ class AnthropicAPI(ModelAPI):
 
         # server-side refusal fallback (first-party Claude API only). routed
         # via extra_body as the SDK only exposes `fallbacks` on
-        # client.beta.messages.create but inspect calls client.messages.create
+        # client.beta.messages.create but inspect calls client.messages.create.
+        # `fallback_models` takes precedence over a caller's verbatim `fallbacks`
+        # directive, which goes under FALLBACK_DEFAULT_BETA (it accepts both
+        # directive forms).
         if config.fallback_models:
+            fallbacks: Any = [{"model": model} for model in config.fallback_models]
+            fallback_source, fallback_beta = "fallback_models", FALLBACK_BETA
+        else:
+            fallbacks = (config.extra_body or {}).get(FALLBACKS_FIELD)
+            fallback_source, fallback_beta = (
+                "A `fallbacks` directive",
+                FALLBACK_DEFAULT_BETA,
+            )
+        if fallbacks is not None:
             if self.is_bedrock() or self.is_vertex() or self.is_azure():
                 warn_once(
                     logger,
-                    "fallback_models is only supported on the first-party "
+                    f"{fallback_source} is only supported on the first-party "
                     "Anthropic API (not bedrock/vertex/azure) and will be ignored.",
                 )
             elif normalized_batch_config(config.batch):
                 warn_once(
                     logger,
-                    "fallback_models is not supported with the Anthropic "
+                    f"{fallback_source} is not supported with the Anthropic "
                     "Batches API and will be ignored.",
                 )
             else:
-                betas.append(FALLBACK_BETA)
-                extra_body[FALLBACKS_FIELD] = [
-                    {"model": model} for model in config.fallback_models
-                ]
+                if fallback_beta not in betas:
+                    betas.append(fallback_beta)
+                extra_body[FALLBACKS_FIELD] = fallbacks
 
         # look for any of our native fields not in GenerateConfig in extra_body
         if config.extra_body is not None:
@@ -1402,29 +1418,6 @@ class AnthropicAPI(ModelAPI):
             # pass through context_management for compaction
             if CONTEXT_MANAGEMENT in config.extra_body:
                 extra_body[CONTEXT_MANAGEMENT] = config.extra_body[CONTEXT_MANAGEMENT]
-            # Pass through a caller-supplied `fallbacks` directive verbatim.
-            # `config.fallback_models` above already wrote this key, so an
-            # explicit Inspect-level setting wins; otherwise the caller's
-            # directive is honoured untouched. The beta its form requires is
-            # appended here rather than relying on the caller's `anthropic-beta`
-            # header, so the directive cannot be silently ignored by the API.
-            # Skipped on batch requests and bedrock/vertex/azure, which do not
-            # accept the field (the same conditions `fallback_models` guards
-            # above); forwarding it would fail the request rather than degrade
-            # gracefully.
-            if (
-                FALLBACKS_FIELD in config.extra_body
-                and FALLBACKS_FIELD not in extra_body
-                and not normalized_batch_config(config.batch)
-                and not (self.is_bedrock() or self.is_vertex() or self.is_azure())
-            ):
-                fallbacks = config.extra_body[FALLBACKS_FIELD]
-                extra_body[FALLBACKS_FIELD] = fallbacks
-                beta = (
-                    FALLBACK_DEFAULT_BETA if fallbacks == "default" else FALLBACK_BETA
-                )
-                if beta not in betas:
-                    betas.append(beta)
 
         # return config
         return params, extra_body, headers, betas
@@ -4847,8 +4840,7 @@ FALLBACK_BETA = "server-side-fallback-2026-06-01"
 # The only fallback beta accepting `fallbacks: "default"` (server-defined
 # routing); FALLBACK_BETA accepts only the explicit-list form.
 FALLBACK_DEFAULT_BETA = "server-side-fallback-2026-07-01"
-# Request-body field carrying a server-side refusal fallback directive. Routed
-# via extra_body because the SDK only exposes it on client.beta.messages.create.
+# Request-body field carrying a server-side refusal fallback directive.
 FALLBACKS_FIELD = "fallbacks"
 
 

@@ -34,6 +34,7 @@ from shortuuid import uuid
 
 from inspect_ai._util.content import Content, ContentDocument, ContentImage, ContentText
 from inspect_ai._util.images import as_data_uri
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -46,7 +47,7 @@ from inspect_ai.model._generate_config import (
     ResponseSchema,
 )
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
-from inspect_ai.model._model import ModelName
+from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
@@ -120,6 +121,7 @@ async def inspect_anthropic_api_request_impl(
         model_resolver=bridge.model_resolver,
         provider="anthropic",
     )
+    anthropic_model = ModelName(model).api == "anthropic"
 
     # tools
     anthropic_tools: list[ToolParamDef] | None = json_data.get("tools", None)
@@ -128,7 +130,7 @@ async def inspect_anthropic_api_request_impl(
     )
     # validate computer use compatibility
     has_computer_use = any(is_computer_tool(tool) for tool in anthropic_tools or [])
-    if has_computer_use and ModelName(model).api != "anthropic":
+    if has_computer_use and not anthropic_model:
         raise RuntimeError(
             f"computer use with the Anthropic agent bridge requires an "
             f"Anthropic model, got '{ModelName(model)}'"
@@ -157,9 +159,8 @@ async def inspect_anthropic_api_request_impl(
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system messages)
-    config = generate_config_from_anthropic(
-        json_data, forward_fallbacks=ModelName(model).api == "anthropic"
-    )
+    config = generate_config_from_anthropic(json_data, anthropic_model=anthropic_model)
+    withhold_fallback_list_for_other_model(config, bridge_model_name, model)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
     validate_client_config(config)
@@ -247,9 +248,42 @@ def anthropic_system_to_texts(value: Any) -> list[str]:
     return texts
 
 
+def withhold_fallback_list_for_other_model(
+    config: GenerateConfig, requested_model: str, model: Model
+) -> None:
+    """Withhold a client's `fallbacks` list when another model serves the request.
+
+    The list names fallback targets permitted for the model the client asked
+    for, and the API rejects it (400) on a model it was not written for.
+    `"default"` routing is valid on any Anthropic model and is kept.
+    """
+    extra_body = config.extra_body
+    if extra_body is None or extra_body.get(FALLBACKS_FIELD) in (None, "default"):
+        return
+    served_model = ModelName(model)
+    if served_model.name != requested_model.removeprefix("inspect/").removeprefix(
+        "anthropic/"
+    ):
+        warn_once(
+            logger,
+            f"The bridged agent sent a `fallbacks` list for '{requested_model}', "
+            f"but '{served_model}' is serving the request; the list has been "
+            "withheld because the API accepts only fallback targets permitted "
+            "for the served model.",
+        )
+        del extra_body[FALLBACKS_FIELD]
+
+
 def generate_config_from_anthropic(
-    json_data: dict[str, Any], *, forward_fallbacks: bool = False
+    json_data: dict[str, Any], *, anthropic_model: bool = False
 ) -> GenerateConfig:
+    """Build the `GenerateConfig` for a bridged Anthropic Messages API request.
+
+    Args:
+        json_data: The client's request body.
+        anthropic_model: Whether an Anthropic model serves the request; the
+            client's `fallbacks` directive is forwarded only then.
+    """
     config = GenerateConfig()
     config.max_tokens = json_data.get("max_tokens", None)
     config.stop_seqs = json_data.get("stop_sequences", None) or None
@@ -329,17 +363,10 @@ def generate_config_from_anthropic(
         if field in json_data:
             extra_body[field] = json_data[field]
 
-    # Forward a client-supplied server-side fallback directive VERBATIM. Claude
-    # Code sends `fallbacks` (plus the matching `server-side-fallback` beta) so
-    # the API can serve a refused request with another model. We do not
-    # reinterpret it into `fallback_models` -- that would re-serialize to
-    # `[{"model": ...}]` and drop any other field the client sent, and it is
-    # subject to Inspect's own warn-and-ignore gating. The response side records
-    # the handoff regardless (see `serving_model` / `ModelFallback` in the
-    # anthropic provider).
-    # Only when `forward_fallbacks` (the resolved model is an Anthropic one):
-    # other providers would send it on as an unsupported request field.
-    if forward_fallbacks and (fallbacks := json_data.get(FALLBACKS_FIELD)) is not None:
+    # Forward a client `fallbacks` directive verbatim (not via the lossy
+    # `fallback_models`), and only to Anthropic models: other providers would
+    # send it on as an unknown request field.
+    if anthropic_model and (fallbacks := json_data.get(FALLBACKS_FIELD)) is not None:
         extra_body[FALLBACKS_FIELD] = fallbacks
     if len(extra_body) > 0:
         config.extra_body = extra_body
