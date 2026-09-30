@@ -29,7 +29,7 @@ class SentinelEvent(BaseEvent):
     event: Literal["sentinel"] = Field(default="sentinel")
     """Event type"""
 
-    name: str
+    factory: str
     """Registry name of the factory: a monitor or a protocol."""
 
     path: str
@@ -53,7 +53,7 @@ class SentinelEvent(BaseEvent):
     suspicion: SentinelSuspicion | None = Field(default=None)
     """How suspicious the step is: one score, or scores for several dimensions."""
 
-    decision: SentinelAction | None = Field(default=None)
+    action: SentinelAction | None = Field(default=None)
     """What this layer decided."""
 
     audit: bool = Field(default=False)
@@ -62,15 +62,18 @@ class SentinelEvent(BaseEvent):
     modified: ToolCall | None = Field(default=None)
     """The replacement call, for a `modify` decision."""
 
+    message: str | None = Field(default=None)
+    """What the agent was told, for a `reject` decision."""
+
     explanation: str | None = Field(default=None)
-    """Explanation for the report."""
+    """Explanation for the report, recorded in the log only (the agent never sees it)."""
 
     @model_validator(mode="after")
     def _check_kind_fields(self) -> Self:
         if self.kind in ("cancelled", "bypassed"):
             unexpected = [
                 field
-                for field in ("function", "suspicion", "decision")
+                for field in ("function", "suspicion", "action")
                 if getattr(self, field) is not None
             ]
             if unexpected:
@@ -79,22 +82,25 @@ class SentinelEvent(BaseEvent):
                     f"{', '.join(unexpected)} must be None."
                 )
         elif self.kind == "observation":
-            if self.suspicion is None or self.decision is not None:
+            if self.suspicion is None or self.action is not None:
                 raise ValueError(
-                    "An 'observation' SentinelEvent requires suspicion and no decision."
+                    "An 'observation' SentinelEvent requires suspicion and no action."
                 )
-        elif self.decision is None or self.suspicion is not None:
+        elif self.action is None or self.suspicion is not None:
             raise ValueError(
-                f"A '{self.kind}' SentinelEvent requires decision and no suspicion."
+                f"A '{self.kind}' SentinelEvent requires action and no suspicion."
             )
-        is_modify = (
-            self.kind in ("decision", "superseded") and self.decision == "modify"
-        )
+        is_decision = self.kind in ("decision", "superseded")
+        is_modify = is_decision and self.action == "modify"
         if is_modify and self.modified is None:
             raise ValueError(f"A '{self.kind}' modify SentinelEvent requires modified.")
         if not is_modify and self.modified is not None:
             raise ValueError(
                 "modified is set only on a 'decision' or 'superseded' modify SentinelEvent."
+            )
+        if self.message is not None and not (is_decision and self.action == "reject"):
+            raise ValueError(
+                "message is set only on a 'decision' or 'superseded' reject SentinelEvent."
             )
         if self.kind not in ("cancelled", "bypassed") and self.function is None:
             raise ValueError(f"A '{self.kind}' SentinelEvent requires function.")

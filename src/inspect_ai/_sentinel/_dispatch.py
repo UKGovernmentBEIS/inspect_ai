@@ -310,7 +310,7 @@ def _emit_decision(
         step,
         kind,
         function=function,
-        decision=decision.action,
+        action=decision.action,
         audit=decision.audit,
         explanation=decision.explanation,
         metadata=decision.metadata,
@@ -325,7 +325,7 @@ def _emit(
     *,
     function: str | None = None,
     suspicion: SentinelSuspicion | None = None,
-    decision: SentinelAction | None = None,
+    action: SentinelAction | None = None,
     audit: bool = False,
     explanation: str | None = None,
     metadata: dict[str, Any] | None = None,
@@ -333,7 +333,7 @@ def _emit(
 ) -> None:
     transcript()._event(
         SentinelEvent(
-            name=context.factory,
+            factory=context.factory,
             path=context.path,
             function=function,
             step_id=step.call.id,
@@ -341,7 +341,7 @@ def _emit(
             stage=_stage(step),
             kind=kind,
             suspicion=suspicion,
-            decision=decision,
+            action=action,
             audit=audit,
             explanation=explanation,
             metadata=metadata,

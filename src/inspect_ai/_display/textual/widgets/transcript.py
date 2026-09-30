@@ -391,13 +391,15 @@ def render_review_event(event: ReviewEvent) -> EventDisplay:
 
 
 def render_sentinel_event(event: SentinelEvent) -> EventDisplay:
-    summary: str = event.decision or event.kind
+    summary: str = event.action or event.kind
     if event.suspicion is not None:
         summary = f"{summary}, suspicion {event.suspicion}"
     if event.explanation:
         summary = f"{summary} ({event.explanation})"
+    if event.message:
+        summary = f"{summary}, told the agent: {event.message}"
     content: list[RenderableType] = [
-        f"[bold]{escape(event.path or event.name)}[/bold]: {escape(summary)}"
+        f"[bold]{escape(event.path or event.factory)}[/bold]: {escape(summary)}"
     ]
 
     return EventDisplay(f"sentinel: {event.stage}", Group(*content))

@@ -200,7 +200,7 @@ def tool_messages(log: EvalLog) -> list[ChatMessageTool]:
 
 
 def summary(events: list[SentinelEvent]) -> list[tuple[Any, ...]]:
-    return [(e.name, e.path, e.function, e.kind, e.decision) for e in events]
+    return [(e.factory, e.path, e.function, e.kind, e.action) for e in events]
 
 
 def test_reject_reaches_the_model_and_is_recorded() -> None:
@@ -230,7 +230,7 @@ def test_modify_executes_the_modified_call() -> None:
     assert message.error is None
     assert message.text == "30"
     events = sentinel_events(log)
-    assert [e.decision for e in events] == ["modify", "modify"]
+    assert [e.action for e in events] == ["modify", "modify"]
     for event in events:
         assert event.modified is not None
         assert event.modified.arguments == {"x": 10, "y": 20}
@@ -263,7 +263,7 @@ def test_terminate_after_the_call() -> None:
     assert sample.limit.reason == "saw 2"
     events = sentinel_events(log)
     assert {e.stage for e in events} == {"tool_result"}
-    assert [e.decision for e in events] == ["terminate", "terminate"]
+    assert [e.action for e in events] == ["terminate", "terminate"]
 
 
 def test_observe_records_observations_without_effect() -> None:
@@ -274,7 +274,7 @@ def test_observe_records_observations_without_effect() -> None:
     assert message.error is None
     assert message.text == "2"
     [event] = sentinel_events(log)
-    assert (event.name, event.path, event.function, event.kind) == (
+    assert (event.factory, event.path, event.function, event.kind) == (
         "d3_suspicion",
         "d3_suspicion",
         "check",
@@ -282,7 +282,7 @@ def test_observe_records_observations_without_effect() -> None:
     )
     assert event.suspicion == 0.4
     assert event.explanation == "looked"
-    assert event.decision is None
+    assert event.action is None
 
 
 def test_final_from_a_nested_protocol() -> None:

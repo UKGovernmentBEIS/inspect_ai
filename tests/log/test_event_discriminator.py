@@ -80,14 +80,14 @@ def test_no_bare_event_list_typeadapter_in_src() -> None:
 
 def _sentinel_event(**kwargs: Any) -> SentinelEvent:
     fields: dict[str, Any] = dict(
-        name="threshold",
+        factory="threshold",
         path="",
         function="threshold",
         step_id="call_1",
         conversation="conv_1",
         stage="tool_call",
         kind="decision",
-        decision="reject",
+        action="reject",
         explanation="too suspicious",
     )
     fields.update(kwargs)
@@ -98,7 +98,7 @@ _MODIFIED = ToolCall(id="call_1", function="bash", arguments={"cmd": "ls"})
 
 
 def _observation(**kwargs: Any) -> SentinelEvent:
-    fields: dict[str, Any] = dict(kind="observation", decision=None, suspicion=0.5)
+    fields: dict[str, Any] = dict(kind="observation", action=None, suspicion=0.5)
     fields.update(kwargs)
     return _sentinel_event(**fields)
 
@@ -108,11 +108,13 @@ def _observation(**kwargs: Any) -> SentinelEvent:
     [
         _sentinel_event(),
         _sentinel_event(kind="superseded", audit=True, metadata={"k": 1}),
+        _sentinel_event(message="use X instead"),
+        _sentinel_event(kind="superseded", message="use X instead"),
         _observation(),
         _observation(suspicion={"exfiltration": 0.9, "sabotage": 0.1}),
-        _sentinel_event(kind="bypassed", function=None, decision=None),
-        _sentinel_event(decision="modify", modified=_MODIFIED),
-        _sentinel_event(kind="superseded", decision="modify", modified=_MODIFIED),
+        _sentinel_event(kind="bypassed", function=None, action=None),
+        _sentinel_event(action="modify", modified=_MODIFIED),
+        _sentinel_event(kind="superseded", action="modify", modified=_MODIFIED),
     ],
 )
 def test_sentinel_event_round_trips(event: SentinelEvent) -> None:
@@ -134,13 +136,13 @@ def test_sentinel_event_rejects_invalid_suspicion() -> None:
     [
         ("function", "f"),
         ("suspicion", 0.5),
-        ("decision", "continue"),
+        ("action", "continue"),
     ],
 )
 def test_sentinel_event_without_report_rejects_report_fields(
     kind: str, field: str, value: Any
 ) -> None:
-    fields: dict[str, Any] = dict(kind=kind, function=None, decision=None)
+    fields: dict[str, Any] = dict(kind=kind, function=None, action=None)
     _sentinel_event(**fields)
     fields[field] = value
     with pytest.raises(ValidationError, match=field):
@@ -149,7 +151,7 @@ def test_sentinel_event_without_report_rejects_report_fields(
 
 @pytest.mark.parametrize(
     "overrides",
-    [dict(suspicion=None), dict(decision="continue"), dict(function=None)],
+    [dict(suspicion=None), dict(action="continue"), dict(function=None)],
 )
 def test_sentinel_observation_requires_suspicion_only(
     overrides: dict[str, Any],
@@ -161,9 +163,9 @@ def test_sentinel_observation_requires_suspicion_only(
 @pytest.mark.parametrize("kind", ["decision", "superseded"])
 @pytest.mark.parametrize(
     "overrides",
-    [dict(decision=None), dict(suspicion=0.5), dict(function=None)],
+    [dict(action=None), dict(suspicion=0.5), dict(function=None)],
 )
-def test_sentinel_decision_requires_decision_only(
+def test_sentinel_decision_requires_action_only(
     kind: str, overrides: dict[str, Any]
 ) -> None:
     with pytest.raises(ValidationError):
@@ -173,21 +175,35 @@ def test_sentinel_decision_requires_decision_only(
 @pytest.mark.parametrize("kind", ["decision", "superseded"])
 def test_sentinel_modify_requires_modified(kind: str) -> None:
     with pytest.raises(ValidationError, match="requires modified"):
-        _sentinel_event(kind=kind, decision="modify")
+        _sentinel_event(kind=kind, action="modify")
 
 
 @pytest.mark.parametrize(
     "event",
     [
-        dict(decision="reject"),
-        dict(kind="superseded", decision="continue"),
-        dict(kind="observation", decision=None, suspicion=0.5),
-        dict(kind="cancelled", function=None, decision=None),
+        dict(action="reject"),
+        dict(kind="superseded", action="continue"),
+        dict(kind="observation", action=None, suspicion=0.5),
+        dict(kind="cancelled", function=None, action=None),
     ],
 )
 def test_sentinel_modified_is_only_for_modify(event: dict[str, Any]) -> None:
     with pytest.raises(ValidationError, match="modified is set only"):
         _sentinel_event(modified=_MODIFIED, **event)
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        dict(action="continue"),
+        dict(action="terminate"),
+        dict(kind="observation", action=None, suspicion=0.5),
+        dict(kind="bypassed", function=None, action=None),
+    ],
+)
+def test_sentinel_message_is_only_for_reject(event: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError, match="message is set only"):
+        _sentinel_event(message="use X instead", **event)
 
 
 def test_sentinel_event_renders_in_tui() -> None:
@@ -196,7 +212,9 @@ def test_sentinel_event_renders_in_tui() -> None:
     from inspect_ai._display.textual.widgets.transcript import render_event
 
     event = _sentinel_event(
-        path="[bold]attempt [/red]", explanation="matched [/red] in output"
+        path="[bold]attempt [/red]",
+        explanation="matched [/red] in output",
+        message="use [/red] instead",
     )
     displays = render_event(event)
     assert displays is not None and len(displays) == 1
@@ -206,6 +224,7 @@ def test_sentinel_event_renders_in_tui() -> None:
     output = buffer.getvalue()
     assert "[bold]attempt [/red]" in output
     assert "matched [/red] in output" in output
+    assert "use [/red] instead" in output
 
 
 def test_sentinel_types_match_inspect_sentinel() -> None:
