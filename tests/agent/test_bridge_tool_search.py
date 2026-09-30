@@ -1018,6 +1018,7 @@ def test_client_tool_search_keeps_schema_for_generic_provider() -> None:
         WEB_SEARCH_PROVIDERS,
         CODE_EXECUTION_PROVIDERS,
         allow_remote_mcp=True,
+        non_openai=True,
     )
     assert isinstance(tool, ToolInfo)
 
@@ -1038,14 +1039,22 @@ def test_client_tool_search_keeps_schema_for_generic_provider() -> None:
         cast(ToolParam, {"type": "tool_search", "execution": "server"}),
         cast(ToolParam, {"type": "tool_search", "parameters": None}),
         cast(ToolParam, {"type": "tool_search", "execution": "client"}),
+        cast(
+            ToolParam,
+            {
+                "type": "tool_search",
+                "execution": "client",
+                "parameters": {"type": "string"},
+            },
+        ),
     ],
-    ids=["omitted", "server", "null-schema", "client-omitted"],
+    ids=["omitted", "server", "null-schema", "client-omitted", "client-non-object"],
 )
 async def test_native_tool_search_allows_optional_parameters(
     tool_param: ToolParam,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """OpenAI-native tool search preserves an omitted or null schema."""
+    """OpenAI-native tool search accepts an omitted, null or non-object schema."""
     model = get_model("openai/gpt-4o", api_key="test-key", memoize=False)
 
     async def generate(*_args: Any, **_kwargs: Any) -> ModelOutput:
@@ -1066,6 +1075,67 @@ async def test_native_tool_search_allows_optional_parameters(
     )
 
     assert response.output_text == "done"
+
+
+@pytest.mark.parametrize("discovered", [False, True], ids=["top-level", "discovered"])
+async def test_openai_path_keeps_last_namespace_for_shared_inner_name(
+    discovered: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """On OpenAI, an inner name shared by two namespaces maps to the later one."""
+    init_sample_openai_assistant_internal()
+    namespaces = [
+        {
+            "type": "namespace",
+            "name": name,
+            "description": f"{name} tools",
+            "tools": [_discoverable_function_tool() | {"name": "read"}],
+        }
+        for name in ("first", "second")
+    ]
+    input_items: list[dict[str, Any]] = [{"role": "user", "content": "Read."}]
+    tools: list[Any] = [_tool_search_tool_param()]
+    if discovered:
+        input_items += [
+            {
+                "type": "tool_search_call",
+                "id": "ts_1",
+                "call_id": "tool_search_1",
+                "arguments": {"query": "read"},
+                "execution": "client",
+                "status": "completed",
+            },
+            {
+                "type": "tool_search_output",
+                "call_id": "tool_search_1",
+                "tools": namespaces,
+                "execution": "client",
+                "status": "completed",
+            },
+        ]
+    else:
+        tools += namespaces
+    model = get_model("openai/gpt-4o", api_key="test-key", memoize=False)
+
+    async def generate(*_args: Any, **_kwargs: Any) -> ModelOutput:
+        return ModelOutput.for_tool_call(
+            "openai/gpt-4o", "read", {"path": "a.txt"}, tool_call_id="c1"
+        )
+
+    monkeypatch.setattr(model, "generate", generate)
+    bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+    response = await inspect_responses_api_request(
+        {"model": "inspect", "input": input_items, "tools": tools},
+        None,
+        None,
+        None,
+        bridge,
+    )
+
+    calls = [
+        item for item in response.output if isinstance(item, ResponseFunctionToolCall)
+    ]
+    assert [(call.name, call.namespace) for call in calls] == [("read", "second")]
 
 
 # 2. ToolInfo -> native ToolSearchToolParam (and None for ordinary tools)

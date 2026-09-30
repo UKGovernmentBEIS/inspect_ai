@@ -370,7 +370,11 @@ async def inspect_responses_api_request_impl(
             _harvest_tool_namespaces(tool, tool_namespaces)
         tools.extend(
             tools_from_responses_tool(
-                tool, web_search, code_execution, bridge.allow_remote_mcp
+                tool,
+                web_search,
+                code_execution,
+                bridge.allow_remote_mcp,
+                non_openai=not is_openai,
             )
         )
     tool_names: dict[str, tuple[str, str | None, ToolParams] | None] = {
@@ -630,14 +634,14 @@ def _discovered_tool_names(
 def _harvest_tool_namespaces(
     namespace_tool: Any, tool_namespaces: dict[str, tuple[str, str]]
 ) -> None:
-    """Map each exposed name to its original namespace and inner name."""
+    """Map each inner name to its original namespace and name; a later namespace wins."""
     ns_name = namespace_tool.get("name")
     if not isinstance(ns_name, str):
         return
     for inner in namespace_tool.get("tools", []) or []:
         inner_name = cast(dict[str, Any], inner).get("name")
         if isinstance(inner_name, str):
-            _record_tool_namespace(tool_namespaces, inner_name, inner_name, ns_name)
+            tool_namespaces[inner_name] = (inner_name, ns_name)
 
 
 def _seed_function_call_namespace(param: ResponseFunctionToolCallParam) -> None:
@@ -753,6 +757,8 @@ def tool_from_responses_tool(
     web_search_providers: WebSearchProviders | None,
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
+    *,
+    non_openai: bool = False,
 ) -> ToolInfo | Tool | None:
     if is_function_tool_param(tool_param):
         # stash the original param so the OpenAI Responses provider can re-emit
@@ -821,10 +827,13 @@ def tool_from_responses_tool(
         # client-resolved tool discovery (e.g. codex-cli). Preserve the native
         # tool fields in options so the OpenAI Responses provider can re-emit the
         # ToolSearchToolParam verbatim; the scaffold resolves the calls locally.
+        # Only a non-OpenAI provider presents the declared schema itself.
         schema = tool_param.get("parameters")
         parameters = (
             ToolParams.model_validate(schema)
-            if tool_param.get("execution") == "client" and schema is not None
+            if non_openai
+            and tool_param.get("execution") == "client"
+            and schema is not None
             else ToolParams()
         )
         return ToolInfo(
@@ -854,6 +863,8 @@ def tools_from_responses_tool(
     web_search_providers: WebSearchProviders | None,
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
+    *,
+    non_openai: bool = False,
 ) -> list[ToolInfo | Tool]:
     """Convert a responses ToolParam into zero or more inspect tools.
 
@@ -862,7 +873,8 @@ def tools_from_responses_tool(
     enclosing namespace name is tracked separately by the caller and
     restored on outgoing ResponseFunctionToolCall.namespace so that
     scaffolds (e.g. codex-cli) which dispatch by (namespace, name) can
-    locate the tool on the return trip.
+    locate the tool on the return trip. `non_openai` converts for a
+    non-OpenAI provider, which presents a client tool_search's own schema.
     """
     if is_namespace_tool_param(tool_param):
         ns_name = tool_param.get("name")
@@ -875,6 +887,7 @@ def tools_from_responses_tool(
                 web_search_providers,
                 code_execution_providers,
                 allow_remote_mcp,
+                non_openai=non_openai,
             )
             if inner_tool is not None:
                 # Stash the namespace so openai_responses_tools can re-group
@@ -890,7 +903,11 @@ def tools_from_responses_tool(
                 flattened.append(inner_tool)
         return flattened
     tool = tool_from_responses_tool(
-        tool_param, web_search_providers, code_execution_providers, allow_remote_mcp
+        tool_param,
+        web_search_providers,
+        code_execution_providers,
+        allow_remote_mcp,
+        non_openai=non_openai,
     )
     return [tool] if tool is not None else []
 
@@ -922,6 +939,7 @@ def tools_from_client_tool_search_output(
             web_search_providers,
             code_execution_providers,
             allow_remote_mcp,
+            non_openai=True,
         )
         unique_client_tools: list[ToolInfo | Tool] = []
         for client_tool in client_tools:
@@ -951,6 +969,7 @@ def tools_from_client_tool_search_output(
             web_search_providers,
             code_execution_providers,
             allow_remote_mcp,
+            non_openai=True,
         ):
             if isinstance(inner_tool, ToolInfo):
                 name = inner_tool.name
