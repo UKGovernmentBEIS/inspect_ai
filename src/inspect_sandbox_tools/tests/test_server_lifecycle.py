@@ -250,13 +250,18 @@ def test_prepare_socket_parent_rejects_unsafe_long_path_fallback(
 
 
 def test_directory_creation_is_confined_to_server_dir() -> None:
-    """Catch direct directory creation that bypasses the verified helper.
+    """Guard against security regressions from unchecked directory adoption.
 
-    Walk the AST of every Python module in ``inspect_sandbox_tools`` to find
-    ``mkdir`` and ``makedirs`` calls outside ``_util/server_dir.py``. Keeping
-    these calls in the module that defines ``ensure_private_server_dir`` helps
-    prevent new code from adopting an existing directory without checking its
-    ownership and permissions.
+    Reusing an unverified directory can make Inspect trust state controlled by
+    another sandbox user. Walk the AST of every Python module in
+    ``inspect_sandbox_tools`` (the code injected into and run inside sandboxes)
+    to flag direct ``mkdir`` and ``makedirs`` calls outside ``_util/server_dir.py``,
+    the module that defines ``ensure_private_server_dir``.
+
+    See the ownership, ancestor and verification-before-use requirements in
+    ``src/inspect_ai/util/_sandbox/_framework_directory.py`` (host contract) and
+    ``src/inspect_sandbox_tools/src/inspect_sandbox_tools/_util/server_dir.py``
+    (injected tools contract).
 
     This checks call names and placement, not safety. Renamed functions, shell
     commands and directory creation inside libraries are not detected.
