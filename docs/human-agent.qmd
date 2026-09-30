@@ -17,7 +17,7 @@ Human baselining terminal sessions are [recorded](#recording) by default so that
 
 ## Example
 
-Here, we run a human baseline on an [Intercode CTF](https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/) sample. We use the `--solver` option to use the `human_cli` agent rather than the task's default solver:
+Here, we run a human baseline on an [Intercode CTF](https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_intercode_ctf/) sample. We use the `--solver` option to use the `human_cli` agent rather than the task's default solver:
 
 ``` bash
 inspect eval inspect_evals/gdm_intercode_ctf \

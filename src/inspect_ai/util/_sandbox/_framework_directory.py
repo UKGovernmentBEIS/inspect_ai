@@ -575,9 +575,8 @@ async def try_ensure_framework_directory_as_root(
     Runs :func:`ensure_framework_directory` as ``root`` with ``expected_uid=0`` and
     returns ``True`` once the directory is verified root-owned. Returns ``False``
     when the sandbox cannot exec as root, which includes a provider that accepts
-    ``user="root"`` but runs the command as someone else
-    (``LocalSandboxEnvironment`` ignores ``user``): the helper reports the uid
-    mismatch before creating anything. Providers that refuse root signal it with
+    ``user="root"`` but runs the command as someone else: the helper reports the uid
+    mismatch before creating anything. Providers that refuse root may signal it with
     provider-specific exceptions or a failing exit status, so any other exception
     from the exec is also read as "no root" (the trade-off is that an unrelated
     probe failure selects the rootless path too). Each fallback is traced under
@@ -641,9 +640,8 @@ async def try_ensure_framework_directory_as_root(
         )
         return False
     except Exception as ex:
-        # Broad catch is deliberate: providers signal "cannot exec as root" by
-        # raising provider-specific exception types (or a failing exit status), so
-        # no narrower type is available (see the docstring).
+        # Providers that have not adopted SandboxUserUnsupportedError may still
+        # signal "cannot exec as root" with provider-specific exceptions.
         trace_message(
             logger,
             trace_tag,

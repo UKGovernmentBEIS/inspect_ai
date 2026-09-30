@@ -15,6 +15,7 @@ from typing import Callable, Literal, NamedTuple, overload
 from uuid import uuid4
 
 import pytest
+from test_helpers.local_shell_sandbox import LocalShellSandbox
 from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import skip_if_no_docker
 
@@ -674,7 +675,7 @@ async def test_bashrc_append_refuses_the_wrong_uid_with_the_shipped_script(
 ) -> None:
     """The unmodified script, with the real ``getent``, refuses a uid mismatch.
 
-    ``LocalSandboxEnvironment`` ignores ``user`` and runs as the test process, which
+    ``LocalShellSandbox`` ignores ``user`` and runs as the test process, which
     is exactly the provider behavior the check exists for. The shim tests above
     replace the script's ``PATH`` line; this one runs the shipped text.
     """
@@ -684,16 +685,11 @@ async def test_bashrc_append_refuses_the_wrong_uid_with_the_shipped_script(
         pytest.skip("login user root matches the running uid")
     own_bashrc = Path.home() / BASHRC
     own_before = own_bashrc.read_text() if own_bashrc.is_file() else None
-    local = LocalSandboxEnvironment()
-    try:
-        with pytest.warns(UserWarning, match="'user' parameter is ignored"):
-            with pytest.raises(
-                RuntimeError,
-                match=f"refusing to append as uid {os.getuid()}: login user root is uid 0",
-            ):
-                await append_bashrc(local, "root", "payload\n")
-    finally:
-        local.directory.cleanup()
+    with pytest.raises(
+        RuntimeError,
+        match=f"refusing to append as uid {os.getuid()}: login user root is uid 0",
+    ):
+        await append_bashrc(LocalShellSandbox(), "root", "payload\n")
     own_after = own_bashrc.read_text() if own_bashrc.is_file() else None
     assert own_after == own_before
 
@@ -776,8 +772,6 @@ async def test_task_py_detection_against_a_real_directory(
     parent.mkdir(mode=0o755)
     target = parent / "human_agent"
     monkeypatch.setattr(human_install, "HUMAN_AGENT_DIR", str(target))
-    # The local sandbox ignores `user`, so the root probe succeeds exactly when the
-    # test process itself is root.
     owner = "root" if os.getuid() == 0 else None
     local = LocalSandboxEnvironment()
     try:
