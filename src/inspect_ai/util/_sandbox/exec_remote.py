@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import shlex
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar, Literal, TypeVar, Union, cast
 
 import anyio
@@ -113,22 +113,39 @@ class ExecRemoteCommonOptions:
     poll_timeout: float | None = None
     """Timeout for individual RPC poll requests in seconds. Defaults to 120 seconds.
 
-    A poll that times out is re-issued for up to 15 minutes before its timeout is
-    raised. While the command is running, the sandbox replays any output the lost
-    response carried; if the command ended during the stall, its final output and
-    exit status are lost and `RuntimeError` is raised. Each attempt may itself be
-    retried by the sandbox before it times out (see `poll_timeout_retry`). Set
-    `timeout` (awaitable mode) or cancel the caller to bound the total wait.
-    """
+    A poll that times out raises `TimeoutError` unless `poll_timeout_recovery` is
+    set."""
 
     poll_timeout_retry: bool | None = None
     """Retry individual RPC requests (start, poll, stdin, kill) when they time out.
     Requests will be retried up to twice, with a timeout of no greater
-    than 60 seconds for the first retry and 30 for the second."""
+    than 60 seconds for the first retry and 30 for the second. `False` cannot be
+    combined with `poll_timeout_recovery`."""
 
     concurrency: bool = True
     """For sandboxes that run locally, request that the `concurrency()`
     function be used to throttle concurrent subprocesses."""
+
+    poll_timeout_recovery: float | None = field(default=None, kw_only=True)
+    """Seconds to keep re-issuing a poll after it times out. Defaults to `None`.
+
+    Unset, a poll that times out raises `TimeoutError`. When set, a
+    timed-out poll is re-issued every 5 seconds until the sandbox answers or this
+    many seconds have passed since the first timeout, when the last timeout is
+    raised. While the command is running, a re-issued poll replays any output the
+    lost response carried; if the command ended during the stall, its exit status
+    is lost and `RuntimeError` is raised. Starts, stdin writes and kills are never
+    re-issued, and a caller's `timeout` (awaitable mode) or cancellation still ends
+    the wait at once. Raises `ValueError` with `poll_timeout_retry=False`, which
+    asks for timed-out requests not to be retried.
+    """
+
+    def __post_init__(self) -> None:
+        if self.poll_timeout_recovery is not None and self.poll_timeout_retry is False:
+            raise ValueError(
+                "poll_timeout_recovery re-issues timed-out polls, which "
+                "poll_timeout_retry=False asks not to retry; set only one of them."
+            )
 
 
 @dataclass
@@ -204,22 +221,8 @@ MIN_POLL_INTERVAL = 5
 RPC_TIMEOUT = 120
 """Timeout for individual JSON-RPC calls in seconds."""
 
-POLL_TIMEOUT_RIDE_THROUGH_SECONDS: float = 900.0
-"""Seconds to keep re-polling after a poll RPC first times out.
-
-While the command is running, a poll that times out has lost a response, not
-the process: the sandbox server holds every output chunk until the host
-acknowledges it (``ack_seq``), so re-issuing the same poll replays whatever the
-lost response carried. (A command that ended during the stall has been retired
-with its final output; see ``_poll``.) The budget is counted from the first
-timeout, so a long first attempt cannot use it up, and a re-poll already in
-flight when it runs out is allowed to finish; then the last timeout is raised
-unchanged. Only polls ride through -- ``exec_remote_start`` and ``write_stdin``
-are not safe to repeat.
-"""
-
-POLL_TIMEOUT_RIDE_THROUGH_WAIT_SECONDS: float = 5.0
-"""Pause between re-polls while riding through a timeout."""
+POLL_TIMEOUT_RECOVERY_WAIT_SECONDS: float = 5.0
+"""Pause before re-issuing a timed-out poll (see `poll_timeout_recovery`)."""
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -458,17 +461,22 @@ class ExecRemoteProcess:
             self._last_seq = result.seq
             return result
 
-        # Each poll() call above is a fresh RuntimeError retry sequence; this loop
-        # governs only the sandbox's own exec timeout (see the module constants).
-        ride_through_deadline: float | None = None
+        # A timed-out poll lost a response, not the process: the server keeps each
+        # output chunk until the host acknowledges it (ack_seq), so re-issuing the
+        # poll replays what the lost response carried. Each poll() call above is a
+        # fresh RuntimeError retry sequence.
+        recovery_deadline: float | None = None
         while True:
             try:
                 return await poll()
             except TimeoutError as ex:
+                recovery = self._options.poll_timeout_recovery
+                if recovery is None:
+                    raise
                 now = time.monotonic()
-                if ride_through_deadline is None:
-                    ride_through_deadline = now + POLL_TIMEOUT_RIDE_THROUGH_SECONDS
-                if now >= ride_through_deadline:
+                if recovery_deadline is None:
+                    recovery_deadline = now + recovery
+                if now >= recovery_deadline:
                     raise
                 logger.warning(
                     "exec_remote poll for pid %s timed out (%s); re-polling with "
@@ -476,12 +484,12 @@ class ExecRemoteProcess:
                     self._pid,
                     ex,
                     self._last_seq,
-                    ride_through_deadline - now,
+                    recovery_deadline - now,
                 )
-                await anyio.sleep(POLL_TIMEOUT_RIDE_THROUGH_WAIT_SECONDS)
+                await anyio.sleep(POLL_TIMEOUT_RECOVERY_WAIT_SECONDS)
             except RuntimeError as ex:
                 if (
-                    ride_through_deadline is not None
+                    recovery_deadline is not None
                     and not self._killed
                     and f"No job found with pid {self._pid}" in str(ex)
                 ):

@@ -58,6 +58,7 @@ async def sandbox_agent_bridge(
     compaction: CompactionStrategy | None = None,
     sandbox: str | None = None,
     port: int = 13131,
+    poll_timeout_recovery: float | None = None,
     web_search: WebSearchProviders | bool | None = None,
     code_execution: CodeExecutionProviders | bool | None = None,
     client_mcp_servers: bool | None = None,
@@ -97,6 +98,10 @@ async def sandbox_agent_bridge(
             the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
+        poll_timeout_recovery: Seconds to keep re-polling the proxy server's
+            process after a poll of it times out (see
+            `ExecRemoteCommonOptions.poll_timeout_recovery`). Defaults to `None`,
+            where a proxy poll that times out fails the sample.
         web_search: Configuration for mapping model internal web_search tools to
             Inspect. Withheld by default: a sandboxed agent that names the native
             tool in a request would otherwise reach the web through the model
@@ -229,6 +234,7 @@ async def sandbox_agent_bridge(
                         f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
                     },
                     poll_timeout=600,
+                    poll_timeout_recovery=poll_timeout_recovery,
                 ),
             )
 

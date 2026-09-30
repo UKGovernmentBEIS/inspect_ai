@@ -10,6 +10,7 @@ import anyio
 import pytest
 
 import inspect_ai.agent._bridge.sandbox.bridge as bridge_module
+import inspect_ai.util._sandbox.exec_remote as exec_remote_module
 from inspect_ai.agent._bridge.sandbox.bridge import _monitor_proxy, sandbox_agent_bridge
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._sandbox.exec_remote import (
@@ -146,4 +147,45 @@ async def test_proxy_poll_the_sandbox_answers_within_600s_succeeds(
 
     with anyio.fail_after(20):
         async with sandbox_agent_bridge():
+            await answered.wait()
+
+
+def _time_out_first_poll(answered: anyio.Event) -> Callable[[float], str]:
+    """The sandbox stalls for the first proxy poll, then answers."""
+    polls = 0
+
+    def answer_poll(timeout: float) -> str:
+        nonlocal polls
+        polls += 1
+        if polls == 1:
+            raise SandboxTimeoutError(f"exec timed out after {timeout}s")
+        answered.set()
+        return _running_poll()
+
+    return answer_poll
+
+
+async def test_timed_out_proxy_poll_fails_the_sample_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    answered = anyio.Event()
+    _use_proxy_sandbox(monkeypatch, _time_out_first_poll(answered))
+
+    with pytest.raises(SandboxTimeoutError):
+        with anyio.fail_after(20):
+            async with sandbox_agent_bridge():
+                await answered.wait()
+
+    assert not answered.is_set()
+
+
+async def test_bridge_user_can_opt_in_to_proxy_poll_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.0)
+    answered = anyio.Event()
+    _use_proxy_sandbox(monkeypatch, _time_out_first_poll(answered))
+
+    with anyio.fail_after(20):
+        async with sandbox_agent_bridge(poll_timeout_recovery=60):
             await answered.wait()

@@ -236,16 +236,50 @@ class TestPollRetryExhaustion:
 
 
 # ============================================================================
-# Poll ride-through on sandbox exec timeouts
+# Poll timeout recovery (opt-in re-polling after a poll times out)
 # ============================================================================
 
 
-class TestPollRideThrough:
-    async def test_poll_rides_through_sandbox_timeouts_without_losing_output(
+def _polls(sandbox: AsyncMock) -> list[dict[str, Any]]:
+    """The params of every exec_remote_poll request a scripted sandbox received."""
+    return [
+        params for method, params in sandbox.requests if method == "exec_remote_poll"
+    ]
+
+
+class TestPollTimeoutRecovery:
+    @pytest.mark.parametrize(
+        "options",
+        [ExecRemoteCommonOptions(), ExecRemoteCommonOptions(poll_timeout_retry=False)],
+        ids=["default", "poll_timeout_retry_false"],
+    )
+    async def test_poll_timeout_is_raised_without_recovery(
+        self, options: ExecRemoteCommonOptions
+    ) -> None:
+        """Unless recovery is requested, a timed-out poll raises and is not re-issued."""
+        sandbox = _make_scripted_sandbox(
+            [
+                _start_response(42),
+                SandboxTimeoutError("the pod is not answering."),
+                _poll_response(state="completed", exit_code=0, seq=0),
+            ]
+        )
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5, options)
+
+        with pytest.raises(SandboxTimeoutError, match="the pod is not answering"):
+            _ = [event async for event in proc]
+
+        assert len(_polls(sandbox)) == 1
+
+    def test_recovery_cannot_override_poll_timeout_retry_false(self) -> None:
+        with pytest.raises(ValueError, match="poll_timeout_retry=False"):
+            ExecRemoteCommonOptions(poll_timeout_retry=False, poll_timeout_recovery=60)
+
+    async def test_recovery_rides_through_sandbox_timeouts_without_losing_output(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            exec_remote_module, "POLL_TIMEOUT_RIDE_THROUGH_WAIT_SECONDS", 0.0
+            exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.0
         )
         stall = SandboxTimeoutError(
             "Command exceeded its 90s timeout and the pod did not report completion "
@@ -261,7 +295,9 @@ class TestPollRideThrough:
                 _poll_response(state="completed", exit_code=0, seq=2),
             ]
         )
-        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
+        )
 
         events = [event async for event in proc]
 
@@ -270,70 +306,69 @@ class TestPollRideThrough:
             ExecStdout(data="B"),
             ExecCompleted(exit_code=0),
         ]
-        acks = [
-            params["ack_seq"]
-            for method, params in sandbox.requests
-            if method == "exec_remote_poll"
-        ]
         # The two timed-out polls and the poll that finally answered all asked the
         # server to replay from seq 1: nothing after "A" was acknowledged until "B"
         # arrived.
-        assert acks == [0, 1, 1, 1, 2]
+        assert [params["ack_seq"] for params in _polls(sandbox)] == [0, 1, 1, 1, 2]
 
-    async def test_poll_ride_through_budget_exhausted_reraises_the_timeout(
+    async def test_recovery_time_exhausted_reraises_the_timeout(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            exec_remote_module, "POLL_TIMEOUT_RIDE_THROUGH_SECONDS", 0.3
-        )
-        monkeypatch.setattr(
-            exec_remote_module, "POLL_TIMEOUT_RIDE_THROUGH_WAIT_SECONDS", 0.05
+            exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.05
         )
         sandbox = _make_scripted_sandbox(
             [_start_response(42), SandboxTimeoutError("the pod is not answering.")]
         )
-        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=0.3)
+        )
 
         with pytest.raises(TimeoutError, match="the pod is not answering") as raised:
             await proc._poll()
 
         assert isinstance(raised.value, SandboxTimeoutError)
+        assert 2 <= len(_polls(sandbox)) <= 10
 
-        polls = [m for m, _ in sandbox.requests if m == "exec_remote_poll"]
-        assert 2 <= len(polls) <= 10
-
-    async def test_callers_own_timeout_is_never_ridden_through(self) -> None:
-        """An outer deadline cancels a ride-through at once and still kills the process."""
+    async def test_cancellation_during_recovery_ends_it_and_kills_the_process(
+        self,
+    ) -> None:
+        """A caller's own deadline cancels recovery at once and still kills the process."""
         sandbox = _make_scripted_sandbox(
             [_start_response(42), SandboxTimeoutError("the pod is not answering.")]
         )
 
         with pytest.raises(TimeoutError) as raised:
             await exec_remote_awaitable(
-                sandbox, ["cmd"], 5, ExecRemoteAwaitableOptions(timeout=0.5)
+                sandbox,
+                ["cmd"],
+                5,
+                ExecRemoteAwaitableOptions(timeout=0.5, poll_timeout_recovery=60),
             )
 
         # The caller's own deadline, not the sandbox's timeout re-raised once the
-        # ride-through budget ran out.
+        # recovery time ran out.
         assert not isinstance(raised.value, SandboxTimeoutError)
         assert [method for method, _ in sandbox.requests][-1] == "exec_remote_kill"
 
-    async def test_exec_remote_does_not_reissue_a_timed_out_start(self) -> None:
-        """Only polls ride through; a sandbox's own timeout retry is outside this mock."""
+    async def test_recovery_does_not_reissue_a_timed_out_start(self) -> None:
+        """Only polls are re-issued; a sandbox's own timeout retry is outside this mock."""
         sandbox = _make_scripted_sandbox(
             [SandboxTimeoutError("the pod is not answering.")]
         )
 
         with pytest.raises(TimeoutError):
-            await exec_remote_streaming(sandbox, ["cmd"], 5)
+            await exec_remote_streaming(
+                sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
+            )
 
         assert sandbox.exec.call_count == 1
 
-    async def test_poll_after_ride_through_names_a_lost_terminal_state(
+    async def test_poll_after_recovery_names_a_lost_terminal_state(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            exec_remote_module, "POLL_TIMEOUT_RIDE_THROUGH_WAIT_SECONDS", 0.0
+            exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.0
         )
         sandbox = _make_scripted_sandbox(
             [
@@ -342,7 +377,9 @@ class TestPollRideThrough:
                 _rpc_error("No job found with pid 42"),
             ]
         )
-        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
+        )
 
         # The inner RuntimeError retry would otherwise back off for ~30s.
         with patch(
@@ -361,14 +398,16 @@ class TestPollRideThrough:
     ) -> None:
         """Without a timed-out poll, or once the caller killed the process, nothing was lost."""
         monkeypatch.setattr(
-            exec_remote_module, "POLL_TIMEOUT_RIDE_THROUGH_WAIT_SECONDS", 0.0
+            exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.0
         )
         script: list[str | Exception] = [_start_response(42)]
         if stalled:
             script.append(SandboxTimeoutError("the pod is not answering."))
         script.append(_rpc_error("No job found with pid 42"))
         sandbox = _make_scripted_sandbox(script)
-        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
+        )
         proc._killed = killed
 
         with patch(
@@ -824,6 +863,7 @@ class TestOptionsPositionalOrder:
         )
 
         assert _base_fields(options) == _BASE_POSITIONAL
+        assert options.poll_timeout_recovery is None
 
     def test_streaming_options(self) -> None:
         options = ExecRemoteStreamingOptions(
@@ -832,6 +872,7 @@ class TestOptionsPositionalOrder:
 
         assert _base_fields(options) == _BASE_POSITIONAL
         assert options.stdin_open is True
+        assert options.poll_timeout_recovery is None
 
     def test_awaitable_options(self) -> None:
         options = ExecRemoteAwaitableOptions(
@@ -840,6 +881,7 @@ class TestOptionsPositionalOrder:
 
         assert _base_fields(options) == _BASE_POSITIONAL
         assert options.timeout == 12.0
+        assert options.poll_timeout_recovery is None
 
 
 # ============================================================================
