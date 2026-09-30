@@ -1,6 +1,7 @@
 """Tests for ComposeConfig support in Docker sandbox."""
 
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -184,8 +185,43 @@ async def test_compose_config_with_extensions(request) -> None:
             os.unlink(project.config)
 
 
+async def test_retained_project_table_shows_project_name_for_cleanup(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Retained environments list their full project name, the cleanup argument."""
+    # Longest name task_project_name() generates, beside a long container name,
+    # in an 80-column console: the row cannot fit without shrinking a column.
+    project_name = "inspect-abcdefghijkl-iabcdef"
+    project = ComposeProject(
+        name=project_name, config=None, sample_id=1, epoch=1, env=None
+    )
+
+    async def fake_compose_ps(
+        project: ComposeProject,
+        status: str | None = None,
+        all: bool = False,
+        timeout: int = 300,
+    ) -> list[dict[str, str]]:
+        return [{"Name": f"{project.name}-long-running-service-1"}]
+
+    monkeypatch.setenv("COLUMNS", "80")
+    monkeypatch.setattr(cleanup_module, "compose_ps", fake_compose_ps)
+
+    cleanup_module.project_cleanup_startup()
+    cleanup_module.project_startup(project)
+    await cleanup_module.project_cleanup_shutdown(cleanup=False)
+
+    output = capsys.readouterr().out
+    # Container names start with the project name, so match it as a whole value.
+    assert re.search(rf"(?<![\w-]){re.escape(project_name)}(?![\w…-])", output)
+    assert "Cleanup all environments  : inspect sandbox cleanup docker\n" in output
+    assert (
+        "Cleanup single environment: inspect sandbox cleanup docker <project>" in output
+    )
+
+
 async def test_retained_project_preserves_config_until_exact_cleanup(
-    capsys, monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A retained project keeps its network config for later project-scoped cleanup."""
     project_name = "inspect-retained-iabcdef"
@@ -208,7 +244,10 @@ async def test_retained_project_preserves_config_until_exact_cleanup(
     compose_down_configs: list[str] = []
 
     async def fake_compose_ps(
-        _project: ComposeProject, *, all: bool = False
+        project: ComposeProject,
+        status: str | None = None,
+        all: bool = False,
+        timeout: int = 300,
     ) -> list[dict[str, str]]:
         return []
 
@@ -226,11 +265,9 @@ async def test_retained_project_preserves_config_until_exact_cleanup(
             ),
         ]
 
-    async def fake_compose_down(cleanup_project: ComposeProject, _quiet: bool) -> None:
-        assert cleanup_project.config is not None
-        compose_down_configs.append(
-            Path(cleanup_project.config).read_text(encoding="utf-8")
-        )
+    async def fake_compose_down(project: ComposeProject, quiet: bool = True) -> None:
+        assert project.config is not None
+        compose_down_configs.append(Path(project.config).read_text(encoding="utf-8"))
 
     monkeypatch.setattr(cleanup_module, "auto_compose_dir", lambda: tmp_path)
     monkeypatch.setattr(docker_config, "auto_compose_dir", lambda: tmp_path)
@@ -244,10 +281,6 @@ async def test_retained_project_preserves_config_until_exact_cleanup(
 
     assert config_path.exists()
     assert "retained-network" in config_path.read_text(encoding="utf-8")
-    assert (
-        "Cleanup single environment: inspect sandbox cleanup docker <project-name>"
-        in capsys.readouterr().out
-    )
 
     await cleanup_module.cli_cleanup(project_name)
 
@@ -260,9 +293,9 @@ async def test_retained_project_preserves_config_until_exact_cleanup(
 
 
 async def test_full_cleanup_removes_auto_compose_config(
-    monkeypatch, tmp_path: Path
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Full cleanup removes the auto-compose config after bringing the project down."""
+    """Full cleanup brings the project down with its config, then removes the config."""
     project_name = "inspect-cleanup-iabcdef"
     config_path = tmp_path / f"{project_name}.yaml"
     config_path.write_text("services: {}\n", encoding="utf-8")
@@ -273,9 +306,14 @@ async def test_full_cleanup_removes_auto_compose_config(
         epoch=0,
         env=None,
     )
+    # (project name, config present) per call; recorded rather than asserted in
+    # the fake because cleanup reports and swallows exceptions from compose_down.
+    compose_down_calls: list[tuple[str, bool]] = []
 
-    async def fake_compose_down(cleanup_project: ComposeProject, _quiet: bool) -> None:
-        assert cleanup_project == project
+    async def fake_compose_down(project: ComposeProject, quiet: bool = True) -> None:
+        compose_down_calls.append(
+            (project.name, project.config is not None and Path(project.config).exists())
+        )
 
     monkeypatch.setattr(cleanup_module, "auto_compose_dir", lambda: tmp_path)
     monkeypatch.setattr(docker_config, "auto_compose_dir", lambda: tmp_path)
@@ -285,11 +323,13 @@ async def test_full_cleanup_removes_auto_compose_config(
     cleanup_module.project_startup(project)
     await cleanup_module.project_cleanup_shutdown(cleanup=True)
 
+    assert "Error cleaning up Docker environment" not in capsys.readouterr().out
+    assert compose_down_calls == [(project_name, True)]
     assert not config_path.exists()
 
 
 async def test_cli_cleanup_removes_orphaned_auto_compose_config(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """CLI cleanup removes a config whose inspect project is no longer running."""
     config_path = tmp_path / "inspect-orphan-iabcdef.yaml"

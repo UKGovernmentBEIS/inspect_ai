@@ -91,20 +91,21 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
                 )
                 table.add_column("Sample ID")
                 table.add_column("Epoch")
-                table.add_column("Container(s)", no_wrap=True)
+                table.add_column("Project", no_wrap=True)
+                table.add_column("Container(s)", overflow="fold")
                 for project in shutdown_projects:
                     containers = await compose_ps(project, all=True)
                     table.add_row(
                         str(project.sample_id) if project.sample_id is not None else "",
                         str(project.epoch if project.epoch is not None else ""),
+                        project.name,
                         "\n".join(container["Name"] for container in containers),
                     )
                 print(table)
                 print(
                     "\n"
-                    "Cleanup all containers  : [blue]inspect sandbox cleanup docker[/blue]\n"
-                    "Cleanup single environment: "
-                    "[blue]inspect sandbox cleanup docker <project-name>[/blue]",
+                    "Cleanup all environments  : [blue]inspect sandbox cleanup docker[/blue]\n"
+                    "Cleanup single environment: [blue]inspect sandbox cleanup docker <project>[/blue]",
                     "\n",
                 )
 
