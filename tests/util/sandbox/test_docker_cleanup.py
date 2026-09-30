@@ -329,7 +329,7 @@ async def test_shutdown_releases_the_registry(
     way the registry releases it and its compose files, so nothing is
     retained for a later batch to clean twice or report again. A reported
     project's generated compose file stays on disk, through the repeat
-    `task_cleanup` too, for that later project-scoped cleanup to use.
+    `task_cleanup` too, for `inspect sandbox cleanup docker <project>` to use.
     """
     with sandbox_lifecycle_scope():
         await run_lifecycle(fake_docker, None, cleanup=cleanup, interrupted=True)
@@ -546,47 +546,44 @@ async def test_direct_provider_lifecycles_in_child_tasks_are_independent(
     assert fake_docker.generated_files() == []
 
 
-# -- retained environments and CLI cleanup -------------------------------------
+# -- reported environments and CLI cleanup -------------------------------------
 
 
-async def test_retained_projects_print_their_cleanup_commands(
+async def test_reported_projects_print_their_cleanup_commands(
     fake_docker: FakeDocker,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Each retained project gets a complete cleanup command of its own.
+    """Each reported project gets a complete cleanup command of its own.
 
-    At 80 columns, Rich's width when output is not a terminal, the container
-    names of a 12-character task name still print whole on one line.
+    The task name is longer than `task_project_name` keeps, so the project and
+    container names are as long as they get. At 80 columns, Rich's width when
+    output is not a terminal, the container names still print whole.
     """
-    project_names = ["inspect-gpqa_diamond-ib4tutw", "inspect-gpqa_diamond-ic5vuvx"]
-
     # Print through a console of the test's own: the global one takes its width
     # from the environment, and an earlier `display="none"` eval in this process
     # leaves it quiet.
     monkeypatch.setattr(cleanup_module, "print", Console(width=80).print)
 
-    cleanup_module.project_cleanup_startup()
-    for sample_id, project_name in enumerate(project_names, start=1):
-        fake_docker.running.add(project_name)
-        cleanup_module.project_startup(
-            ComposeProject(
-                name=project_name, config=None, sample_id=sample_id, epoch=1, env=None
-            )
-        )
-    await cleanup_module.project_cleanup_shutdown(cleanup=False)
+    task_name = "gpqa_diamond_long"
+    with sandbox_lifecycle_scope():
+        await DockerSandboxEnvironment.task_init(task_name, None)
+        for _ in range(2):
+            await DockerSandboxEnvironment.sample_init(task_name, None, {})
+        await DockerSandboxEnvironment.task_cleanup("shutdown", None, False)
 
+    assert len(fake_docker.running) == 2
     lines = [line.rstrip() for line in capsys.readouterr().out.splitlines()]
     assert "Cleanup all environments: inspect sandbox cleanup docker" in lines
-    for project_name in project_names:
+    for project_name in fake_docker.running:
         assert f"  inspect sandbox cleanup docker {project_name}" in lines
         assert any(f" {project_name}-default-1 " in line for line in lines)
 
 
-async def test_retained_compose_config_project_is_cleaned_up_by_name(
+async def test_reported_compose_config_project_is_cleaned_up_by_name(
     fake_docker: FakeDocker, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A retained project keeps its generated config for project-scoped cleanup.
+    """A reported project keeps its generated config for project-scoped cleanup.
 
     `inspect sandbox cleanup docker <project>` then brings the project down
     with the network its `ComposeConfig` declares, and only that project: a
@@ -632,7 +629,7 @@ async def test_retained_compose_config_project_is_cleaned_up_by_name(
     monkeypatch.setattr(cleanup_module, "compose_ls", fake_compose_ls)
     monkeypatch.setattr(cleanup_module, "compose_down", fake_compose_down)
 
-    await cleanup_module.cli_cleanup(project_name)
+    await DockerSandboxEnvironment.cli_cleanup(project_name)
 
     ((downed_name, downed_config),) = compose_down_configs
     assert downed_name == project_name
@@ -641,22 +638,28 @@ async def test_retained_compose_config_project_is_cleaned_up_by_name(
     assert fake_docker.generated_files() == [f"{other_name}.yaml"]
 
 
-@pytest.mark.usefixtures("fake_docker")
 async def test_cli_cleanup_removes_orphaned_auto_compose_config(
-    monkeypatch: pytest.MonkeyPatch,
+    fake_docker: FakeDocker, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """CLI cleanup removes a config whose inspect project is no longer running."""
-    config_path = auto_compose_dir() / "inspect-orphan-iabcdef.yaml"
-    config_path.write_text("services: {}\n", encoding="utf-8")
+    """CLI cleanup removes a reported project's kept config once the project is gone.
+
+    For example, after the user removes its containers outside Inspect.
+    """
+    with sandbox_lifecycle_scope():
+        await run_lifecycle(
+            fake_docker, compose_config(), cleanup=False, interrupted=True
+        )
+    assert len(fake_docker.generated_files()) == 1
+    fake_docker.running.clear()
 
     async def fake_compose_ls() -> list[Project]:
         return []
 
     monkeypatch.setattr(cleanup_module, "compose_ls", fake_compose_ls)
 
-    await cleanup_module.cli_cleanup(None)
+    await DockerSandboxEnvironment.cli_cleanup(None)
 
-    assert not config_path.exists()
+    assert fake_docker.generated_files() == []
 
 
 # -- eval level -----------------------------------------------------------------
