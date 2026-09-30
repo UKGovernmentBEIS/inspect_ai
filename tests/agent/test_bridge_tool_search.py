@@ -308,8 +308,8 @@ async def _non_openai_tools_after_discovery(
     *results: list[Any],
     request_tools: list[dict[str, Any]] | None = None,
     declare_tool_search: Literal["tools", "additional_tools"] | None = "tools",
-    calls: Literal["client", "without_call_id", "absent"] = "client",
-    output_execution: Literal["client", "server"] | None = None,
+    calls: Literal["with_call_id", "without_call_id", "absent"] = "with_call_id",
+    server_output: bool = False,
     web_search: Any = None,
     code_execution: Any = None,
 ) -> list[ToolInfo]:
@@ -318,8 +318,8 @@ async def _non_openai_tools_after_discovery(
     Each result answers its own client ``tool_search_call``, which ``calls`` can
     leave without a ``call_id`` (the result then names the call's ``id``) or
     leave out. The client ``tool_search`` is declared where
-    ``declare_tool_search`` says, beside ``request_tools``; ``output_execution``
-    marks every result.
+    ``declare_tool_search`` says, beside ``request_tools``; ``server_output``
+    marks every result as executed by the server.
     """
     tools_seen: list[list[ToolInfo]] = []
 
@@ -357,7 +357,7 @@ async def _non_openai_tools_after_discovery(
                 "execution": "client",
                 "status": "completed",
             }
-            if calls == "client":
+            if calls == "with_call_id":
                 call["call_id"] = call_id
             else:
                 call_id = call["id"]
@@ -368,8 +368,8 @@ async def _non_openai_tools_after_discovery(
             "tools": result,
             "status": "completed",
         }
-        if output_execution is not None:
-            output["execution"] = output_execution
+        if server_output:
+            output["execution"] = "server"
         input_items.append(output)
     declared = [_tool_search_tool_param()] if declare_tool_search == "tools" else []
     response = await inspect_responses_api_request(
@@ -392,7 +392,7 @@ async def _non_openai_tools_after_discovery(
 async def test_client_tool_search_rejects_explicit_server_discovery_output() -> None:
     """An explicit server result cannot override client discovery metadata."""
     tools = await _non_openai_tools_after_discovery(
-        [_discoverable_function_tool()], output_execution="server"
+        [_discoverable_function_tool()], server_output=True
     )
 
     assert {tool.name for tool in tools} == {TOOL_SEARCH_NAME}

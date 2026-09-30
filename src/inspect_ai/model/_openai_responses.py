@@ -455,13 +455,16 @@ def tool_search_output_tools(message: ChatMessageTool) -> list[Any]:
 def validated_tool_search_tools(tools_json: str) -> list[Any]:
     """The tools a `tool_search` result lists, validated as the wire carries them.
 
-    Validates the whole JSON list as `list[ToolParam]`. Validation is
-    all-or-nothing: if any entry is invalid (content cleared by compaction, a
-    rewrite, a malformed entry) the result is an empty list, and that is what the
-    `tool_search_output` item replayed to the model carries. Anything else that
-    reasons about what the model was told by a tool-search result (the agent
-    bridge's grant resolution and its client discovery) must go through this same
-    function so it cannot disagree with the wire.
+    Validates the whole JSON list as `list[ToolParam]`. If any top-level entry is
+    invalid (content cleared by compaction, a rewrite, a malformed entry) the
+    result is an empty list. A namespace member that is not a valid function or
+    custom tool is not rejected that way: pydantic validates namespace members
+    lazily, so that namespace is returned with ``tools: []`` and a serializer
+    warning. Either way, this is what the `tool_search_output` item replayed to
+    the model carries. Anything else that reasons about what the model was told
+    by a tool-search result (the agent bridge's grant resolution and its client
+    discovery) must go through this same function so it cannot disagree with the
+    wire.
     """
     try:
         validated = tool_search_tools_adapter.validate_json(tools_json)

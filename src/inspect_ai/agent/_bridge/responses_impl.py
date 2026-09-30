@@ -243,10 +243,11 @@ def _non_openai_accepts(tool_param: ToolParam, client_tool_search: bool) -> bool
     client-executed search is resolved by the scaffold, so with
     ``client_tool_search`` it is sent to the provider like any other tool.
     """
-    return tool_param["type"] != "custom" and not (
-        is_tool_search_tool_param(tool_param)
-        and not (client_tool_search and tool_param.get("execution") == "client")
-    )
+    if tool_param["type"] == "custom":
+        return False
+    if is_tool_search_tool_param(tool_param):
+        return client_tool_search and tool_param.get("execution") == "client"
+    return True
 
 
 def _client_discovered_tools(
@@ -311,18 +312,23 @@ def _is_client_tool_search_output(
     )
 
 
+def _tool_search_output_content(item: ResponseToolSearchOutputItemParamParam) -> str:
+    """The tool message content a `tool_search_output` item is replayed with."""
+    return to_json_str_safe(item.get("tools", []))
+
+
 def _client_discovery_tools(
     item: ResponseToolSearchOutputItemParamParam,
 ) -> list[ToolParam]:
     """The tools one client tool_search result declares.
 
     The result is read as its replayed message carries it
-    (`validated_tool_search_tools`). Functions are then reduced as the
-    execution-grant declarations are (`_declared_discovery_entry`); built-in
-    tools pass on.
+    (`_tool_search_output_content`, `validated_tool_search_tools`). Functions are
+    then reduced as the execution-grant declarations are
+    (`_declared_discovery_entry`); built-in tools pass on.
     """
     tools: list[ToolParam] = []
-    for tool in validated_tool_search_tools(to_json_str_safe(item.get("tools", []))):
+    for tool in validated_tool_search_tools(_tool_search_output_content(item)):
         declared = _declared_discovery_entry(tool)
         if declared is not None:
             tools.append(declared)
@@ -374,10 +380,16 @@ def _register_client_discovery(
     namespaced identity, under which the scaffold's replayed calls are shown
     to the model.
     """
+    if not discovered:
+        return {}
     exposed: dict[str, _ToolIdentity] = {}
     declared: set[_ToolIdentity] = set()
-    for tool in tools:
-        info = tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+    for declared_tool in tools:
+        info = (
+            declared_tool
+            if isinstance(declared_tool, ToolInfo)
+            else tool_to_tool_info(declared_tool)
+        )
         declared_namespace = (info.options or {}).get(RESPONSES_NAMESPACE)
         identity = _ToolIdentity(
             info.name, declared_namespace[0] if declared_namespace else None
@@ -396,25 +408,27 @@ def _register_client_discovery(
         for member in members:
             if not _non_openai_accepts(member, client_tool_search=True):
                 continue
-            for tool in tools_from_responses_tool(
+            tool = tool_from_responses_tool(
                 member, web_search, code_execution, allow_remote_mcp, non_openai=True
-            ):
-                info = tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
-                identity = _ToolIdentity(info.name, namespace)
-                if identity in declared:
-                    continue
-                name = f"{namespace}__{info.name}" if namespace else info.name
-                if exposed.setdefault(name, identity) != identity:
-                    raise RuntimeError(
-                        f"Ambiguous client tool catalog: discovered tool "
-                        f"'{name}' conflicts with a tool that is already available."
-                    )
-                if isinstance(tool, ToolInfo):
-                    tool.name = name
-                discovered_tools[name] = tool
-                if namespace is not None:
-                    tool_namespaces[name] = identity
-                    generic_names[identity] = name
+            )
+            if tool is None:
+                continue
+            info = tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+            identity = _ToolIdentity(info.name, namespace)
+            if identity in declared:
+                continue
+            name = f"{namespace}__{info.name}" if namespace else info.name
+            if exposed.setdefault(name, identity) != identity:
+                raise RuntimeError(
+                    f"Ambiguous client tool catalog: discovered tool "
+                    f"'{name}' conflicts with a tool that is already available."
+                )
+            if isinstance(tool, ToolInfo):
+                tool.name = name
+            discovered_tools[name] = tool
+            if namespace is not None:
+                tool_namespaces[name] = identity
+                generic_names[identity] = name
     tools.extend(discovered_tools.values())
     return generic_names
 
@@ -498,17 +512,13 @@ async def inspect_responses_api_request_impl(
                 non_openai=client_discovery,
             )
         )
-    discovered_tool_names = (
-        _register_client_discovery(
-            client_discovered_tools,
-            tools,
-            tool_namespaces,
-            web_search,
-            code_execution,
-            bridge.allow_remote_mcp,
-        )
-        if client_discovery
-        else None
+    discovered_tool_names = _register_client_discovery(
+        client_discovered_tools,
+        tools,
+        tool_namespaces,
+        web_search,
+        code_execution,
+        bridge.allow_remote_mcp,
     )
     tools = [tool for tool in tools if tool]
     # client-controlled; validated by tool_choice_from_responses_tool_choice below
@@ -1455,7 +1465,7 @@ def messages_from_responses_input(
                 ChatMessageTool(
                     tool_call_id=item.get("call_id"),
                     function=TOOL_SEARCH_NAME,
-                    content=to_json_str_safe(item.get("tools", [])),
+                    content=_tool_search_output_content(item),
                 )
             )
         elif is_additional_tools(item):
