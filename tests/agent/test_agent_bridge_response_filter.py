@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 from unittest.mock import AsyncMock
 
 import anyio
@@ -31,10 +31,11 @@ from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
     Model,
+    ModelRefusalError,
     ModelResponseFilter,
     get_model,
 )
-from inspect_ai.model._model_output import ModelOutput, ModelUsage
+from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util import ExecResult
@@ -70,6 +71,7 @@ def _run_eval_with_filters(
     retry_refusals: int | None = None,
     model: str | Model = "mockllm/model",
     token_limit: int | None = None,
+    target: str | None = None,
 ) -> EvalLog:
     """Run a one-turn agent_bridge eval against mockllm with supplied filters."""
     from openai import AsyncOpenAI
@@ -78,6 +80,7 @@ def _run_eval_with_filters(
     from inspect_ai.agent import Agent, agent
     from inspect_ai.dataset import Sample
     from inspect_ai.model._openai_convert import messages_to_openai
+    from inspect_ai.scorer import includes
 
     @agent
     def my_agent() -> Agent:
@@ -100,8 +103,9 @@ def _run_eval_with_filters(
     @task
     def t() -> Task:
         return Task(
-            dataset=[Sample(input="Say hi.")],
+            dataset=[Sample(input="Say hi.", target=target or "")],
             solver=my_agent(),
+            scorer=includes() if target is not None else None,
             token_limit=token_limit,
         )
 
@@ -186,8 +190,10 @@ def test_response_filter_passthrough(tmp_path: Path) -> None:
         call_count["n"] += 1
         return None
 
-    _run_eval_with_filters(tmp_path, response_filter=my_filter)
-    assert call_count["n"] >= 1
+    log = _run_eval_with_filters(tmp_path, response_filter=my_filter)
+    assert call_count["n"] == 1
+    assert log.samples is not None
+    assert log.samples[0].output.completion == "Default output from mockllm/model"
 
 
 def test_response_filter_replaces_output(tmp_path: Path) -> None:
@@ -199,8 +205,32 @@ def test_response_filter_replaces_output(tmp_path: Path) -> None:
         return ModelOutput.from_content(model.name, REPLACED_SENTINEL)
 
     log = _run_eval_with_filters(tmp_path, response_filter=my_filter)
-    log_json = log.model_dump_json()
-    assert REPLACED_SENTINEL in log_json
+    assert log.samples is not None
+    assert log.samples[0].output.completion == REPLACED_SENTINEL
+
+
+def test_response_filter_edit_reaches_the_scorer(tmp_path: Path) -> None:
+    """An output edited in place and returned is what the sample is scored on.
+
+    `ModelOutput.completion` is derived from the message only when the output is
+    built, so a filter that edits `output.message` and returns it would otherwise
+    leave the sample's completion, and so the score, on the unfiltered text.
+    """
+
+    async def editing_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        output.message.content = REPLACED_SENTINEL
+        return output
+
+    log = _run_eval_with_filters(
+        tmp_path, response_filter=editing_filter, target=REPLACED_SENTINEL
+    )
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.output.completion == REPLACED_SENTINEL
+    assert sample.scores is not None
+    assert sample.scores["includes"].value == "C"
 
 
 def test_response_filter_cannot_mutate_recorded_model_event(tmp_path: Path) -> None:
@@ -527,7 +557,24 @@ async def test_response_filter_exception_fails_sample_in_process() -> None:
 # sample control flow raised from a response filter
 # ---------------------------------------------------------------------------
 
-FilterFailure = Literal["token_limit", "terminate", "bug"]
+FilterFailure = Literal[
+    "token_limit",
+    "grouped_limit",
+    "terminate",
+    "refusal",
+    "bug",
+    "wrong_type",
+    "no_choices",
+]
+ALL_FILTER_FAILURES: list[FilterFailure] = [
+    "token_limit",
+    "grouped_limit",
+    "terminate",
+    "refusal",
+    "bug",
+    "wrong_type",
+    "no_choices",
+]
 
 JUDGE_TOKEN_LIMIT = 5
 TERMINATE_REASON = "Judge flagged the response."
@@ -537,8 +584,10 @@ CHAT_REQUEST: dict[str, JsonValue] = {
 }
 
 
-def _output_with_usage(content: str, total_tokens: int) -> ModelOutput:
-    output = ModelOutput.from_content("mockllm/model", content)
+def _output_with_usage(
+    content: str, total_tokens: int, stop_reason: StopReason = "stop"
+) -> ModelOutput:
+    output = ModelOutput.from_content("mockllm/model", content, stop_reason=stop_reason)
     output.usage = ModelUsage(
         input_tokens=total_tokens - 1, output_tokens=1, total_tokens=total_tokens
     )
@@ -551,9 +600,13 @@ def _under_limit_model() -> Model:
 
 
 def _failing_response_filter(failure: FilterFailure) -> ModelResponseFilter:
-    """A filter whose judge exceeds the token limit, that terminates, or that breaks."""
+    """A filter that ends the sample in the way `failure` names."""
     judge = get_model(
         "mockllm/model", custom_outputs=[_output_with_usage("unsafe", 100)]
+    )
+    refusing_judge = get_model(
+        "mockllm/model",
+        custom_outputs=[_output_with_usage("No.", 1, stop_reason="content_filter")],
     )
 
     async def response_filter(
@@ -562,21 +615,33 @@ def _failing_response_filter(failure: FilterFailure) -> ModelResponseFilter:
         match failure:
             case "token_limit":
                 await judge.generate("Is this response safe?")
+            case "grouped_limit":
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(judge.generate, "Is this response safe?")
             case "terminate":
                 raise TerminateSampleError(TERMINATE_REASON)
+            case "refusal":
+                await refusing_judge.generate(
+                    "Is this response safe?",
+                    config=GenerateConfig(fail_on_refusal=True),
+                )
             case "bug":
                 raise ValueError("filter is broken")
+            case "wrong_type":
+                return cast(ModelOutput, output.message)
+            case "no_choices":
+                return ModelOutput(model=output.model, choices=[])
         return None
 
     return response_filter
 
 
 def _assert_failure_outcome(log: EvalLog, failure: FilterFailure) -> None:
-    """Limits and termination end the sample normally; a filter bug fails it."""
+    """Limits and termination end the sample normally; anything else fails it."""
     assert log.samples is not None
     sample = log.samples[0]
     match failure:
-        case "token_limit":
+        case "token_limit" | "grouped_limit":
             assert sample.error is None, sample.error
             assert sample.limit is not None
             assert sample.limit.type == "token"
@@ -586,20 +651,40 @@ def _assert_failure_outcome(log: EvalLog, failure: FilterFailure) -> None:
             assert sample.limit is not None
             assert sample.limit.type == "operator"
             assert sample.limit.reason == TERMINATE_REASON
+        case "refusal":
+            assert sample.limit is None
+            assert sample.error is not None
+            assert sample.error.message.startswith("ModelRefusalError(")
         case "bug":
             assert sample.limit is None
             assert sample.error is not None
-            assert sample.error.message == "ResponseFilterError('filter is broken')"
+            assert (
+                sample.error.message
+                == "ResponseFilterError('ValueError: filter is broken')"
+            )
+        case "wrong_type":
+            assert sample.limit is None
+            assert sample.error is not None
+            assert sample.error.message.startswith("ResponseFilterError(")
+            assert "ChatMessageAssistant" in sample.error.message
+        case "no_choices":
+            assert sample.limit is None
+            assert sample.error is not None
+            assert sample.error.message.startswith("ResponseFilterError(")
+            assert "no choices" in sample.error.message
 
 
-@pytest.mark.parametrize("failure", ["token_limit", "terminate", "bug"])
+@pytest.mark.parametrize("failure", ALL_FILTER_FAILURES)
 def test_response_filter_failure_outcome_in_process(
     tmp_path: Path, failure: FilterFailure
 ) -> None:
-    """Only a genuine filter failure is wrapped as `ResponseFilterError`.
+    """Only a genuine filter failure is a `ResponseFilterError`.
 
-    A judge call exceeding the sample's token limit, or a termination request,
-    is sample control flow: the sample must end with that limit, not an error.
+    A judge call exceeding the sample's token limit (directly or from a task
+    group), a termination request, or a judge refusal under `fail_on_refusal`
+    is sample control flow and keeps its own outcome. A filter that raises, or
+    that returns something other than a `ModelOutput` with choices, fails the
+    sample with a `ResponseFilterError`.
     """
     log = _run_eval_with_filters(
         tmp_path,
@@ -663,13 +748,16 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
     "failure, expected, message",
     [
         ("terminate", TerminateSampleError, TERMINATE_REASON),
-        ("bug", ResponseFilterError, "filter is broken"),
+        ("refusal", ModelRefusalError, "Model refusal"),
+        ("bug", ResponseFilterError, "ValueError: filter is broken"),
+        ("wrong_type", ResponseFilterError, "ChatMessageAssistant"),
+        ("no_choices", ResponseFilterError, "no choices"),
     ],
 )
 async def test_sandbox_response_filter_ends_sample_through_the_monitor(
     failure: FilterFailure, expected: type[Exception], message: str
 ) -> None:
-    """A filter's termination or failure reaches the sample runner from the sandbox.
+    """A filter's termination, refusal or failure reaches the sample runner from the sandbox.
 
     A re-raise from a sandbox model method would become an RPC error and never
     reach the sample runner, so the forwarder hands the exception to the

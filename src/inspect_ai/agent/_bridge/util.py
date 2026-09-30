@@ -45,6 +45,7 @@ from inspect_ai.model._model import (
     ModelName,
     ModelRefusalError,
     ModelResolver,
+    ModelResponseFilter,
     active_model,
     get_model,
     model_roles,
@@ -60,6 +61,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     _normalize_config,
 )
+from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._json import JSONSchema
 from inspect_ai.util._limit import LimitExceededError
 
@@ -408,6 +410,45 @@ def _is_model_filter(fn: GenerateFilter) -> TypeIs[ModelGenerateFilter]:
     return result
 
 
+async def _apply_response_filter(
+    response_filter: ModelResponseFilter,
+    model: Model,
+    output: ModelOutput,
+    generate_input: GenerateInput,
+) -> ModelOutput:
+    """Run `response_filter` on a deep copy of `output`; return the output to use.
+
+    A limit, termination or refusal raised in the filter (also when a task group
+    raises it alone) is sample control flow and propagates unchanged. Any other
+    exception, or a return that is neither `None` nor a `ModelOutput` with
+    choices, is a `ResponseFilterError`. A returned output's `completion` is
+    re-derived from its message, which a filter editing it in place leaves stale.
+    """
+    candidate = output.model_copy(deep=True)
+    try:
+        filtered = await response_filter(model, candidate, generate_input)
+    except Exception as ex:
+        inner = inner_exception(ex)
+        if isinstance(
+            inner, (LimitExceededError, TerminateSampleError, ModelRefusalError)
+        ):
+            raise inner
+        raise ResponseFilterError(f"{type(inner).__name__}: {inner}") from ex
+    if filtered is None:
+        return output
+    if not isinstance(filtered, ModelOutput):
+        raise ResponseFilterError(
+            f"response_filter returned {type(filtered).__name__}, "
+            "expected a ModelOutput or None"
+        )
+    if not filtered.choices:
+        raise ResponseFilterError(
+            "response_filter returned a ModelOutput with no choices"
+        )
+    filtered.completion = filtered.message.text
+    return filtered
+
+
 def _operator_message_key(message: ChatMessageUser) -> str:
     """Content key for an operator user message (identity- and source-independent).
 
@@ -595,23 +636,16 @@ async def bridge_generate(
         if compact is not None:
             await compact.record_output(input_messages, output)
 
-        # Inside the refusal-retry loop so a content_filter replacement is
-        # retried. Limits and termination are sample control flow, not filter
-        # failures; see `ResponseFilterError`.
+        # Inside the refusal-retry loop so a content_filter replacement is retried.
         if bridge.response_filter is not None:
-            generate_input = GenerateInput(
-                input_messages, get_tools_info(tools), tool_choice, config
+            output = await _apply_response_filter(
+                bridge.response_filter,
+                model,
+                output,
+                GenerateInput(
+                    input_messages, get_tools_info(tools), tool_choice, config
+                ),
             )
-            try:
-                filtered = await bridge.response_filter(
-                    model, output.model_copy(deep=True), generate_input
-                )
-            except (LimitExceededError, TerminateSampleError):
-                raise
-            except Exception as ex:
-                raise ResponseFilterError(str(ex)) from ex
-            if filtered is not None:
-                output = filtered
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":
