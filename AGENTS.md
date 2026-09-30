@@ -49,7 +49,7 @@ changes, run at least one code review pass in a fresh context on a strong
 agent involvement in the PR description; one issue per PR — no bundled
 drive-by changes.
 
-As part of disclosing agent involvement, include an `### Agent review`
+As part of disclosing agent involvement, fill in the `### Agent review`
 section in the PR description. What to disclose, and how it's read:
 
 - **Disclose**: what model/tool reviewed, whether the review ran in a fresh
@@ -64,6 +64,11 @@ section in the PR description. What to disclose, and how it's read:
   not a substitute for running one where required above). Never report a
   review that didn't happen — a fabricated or content-free review claim
   ("reviewed, looks good") is worse than disclosing none.
+
+Keep the disclosure focused on outcomes. For multiple passes, use a short
+bullet per round with its focus, findings, and disposition; give a one-line
+reason for each dismissed finding. Link detailed review notes if needed, and
+do not repeat validation results or re-explain earlier findings in each round.
 
 Example:
 
@@ -106,6 +111,16 @@ Example:
 - **File Paths**: All code that handles file paths must support `s3://` URLs, `file://` URIs, and plain local paths. Use `filesystem()` from `inspect_ai._util.file` for filesystem operations and `local_path()` to resolve `file://` URIs to local paths before passing to APIs that only accept local paths (e.g. `ZipFile`).
 
 - **Respect existing patterns**: Respect existing code patterns when modifying files. Run linting before committing changes.
+
+## Writing for users and reviewers
+
+Use concise, direct language in PR descriptions, documentation, changelog
+entries, review notes, error messages, and code comments. State the behavior,
+evidence, and any action a reader must take plainly. Use established project
+terms; do not invent a term when an existing one is accurate, and define a
+new term when it is needed. Avoid metaphors, slogans, rhetorical questions,
+and decorative prose. Keep the details needed to assess compatibility,
+limitations, and validation.
 
 ## Suppression gate
 
@@ -166,21 +181,22 @@ tests, flaky tests, and trio variants. PR CI runs only the slow tests under
 provider tests, because they need API keys. So a PR that changes model
 providers, sandbox or tool code, agents, or async plumbing must run the gated
 tests that cover the change locally, and the PR description must report the
-run. The `slow-tests` skill (`.claude/skills/slow-tests/SKILL.md`) says which
+run. The `slow-tests` skill (`.agents/skills/slow-tests/SKILL.md`) says which
 flags and directories go with which change and what each class needs.
 
-Report the run under "Other information" in the PR description, in a
-`### Slow tests` section with:
-
-- the exact command(s) run
-- what ran, per class or provider, with the passed and skipped counts from
-  the summary
-- what you could not run, and why (no key, no Docker, no model access,
-  needs a local server)
+Report the run in a `### Slow tests` section after `### Validation`. Use one
+short bullet per run: test class/provider, version when relevant, exact
+command, and passed, failed, and skipped counts. End with a "Not run" bullet
+naming each relevant class or provider you could not run and why (for
+example, no API key, Docker daemon, model access, or local server).
 
 A test that skipped did not run. Say so rather than counting it. If you ran
 nothing, say that, so a maintainer with the keys or Docker runs the tests
 before merge.
+
+Link detailed logs instead of narrating individual requests, models, or test
+assertions. In `### Validation`, give only the conclusion from these runs;
+keep their commands and counts here.
 
 ## Subsystem Documentation
 
@@ -196,7 +212,42 @@ Additional files provide context when working in specific areas:
 
 These conventions apply to every PR, whoever authors it. External contributions must also satisfy the contribution policy above.
 
-Write the PR description using the template at `.github/pull_request_template.md` (fill in its sections — the "This PR contains" checklist, current vs. new behavior, breaking changes, other info). Include the `### Agent review` section described in the contribution policy above (put it under "Other information"). Please include a sufficiently detailed description of the PR, including briefly noting the user facing experience that triggered the fix or change.
+Write the PR description using the template at `.github/pull_request_template.md`.
+Lead with the user-facing problem and outcome; for a long description, keep
+those first two sections short and put detailed design or review notes below
+the required sections. Link the issue or give a reproduction when applicable.
+Fill in compatibility and migration before validation, so reviewers can assess
+whether the tests cover the risks. Lead with the action required of existing
+users or downstream packages, or say "No migration required." Then describe
+only material effects on existing behavior, public APIs, CLI behavior,
+configuration, provider and extension interfaces, events, logs, or persisted
+formats, grouped by affected user or integration. Include behavior changes
+without signature or schema changes. Explain the compatibility boundary and,
+for a public contract, name the affected producers and consumers. Summarize
+unchanged behavior briefly rather than listing every unaffected path. Move
+implementation-only protocol mechanics, test names, project sequencing, and
+unrelated out-of-scope work to the result, validation, or a linked design
+document. Keep limitations that affect existing users in this section.
+A bare "No" is insufficient when a public contract or persisted data changes.
+
+For code changes, run focused tests for the changed behavior and relevant
+neighboring paths, as well as `make check` and `make test`. Follow "Gated
+tests" above and the `slow-tests` skill for applicable slow, live-provider,
+Docker, and Trio runs. Write `### Validation` as a short decision summary:
+lead with the evidence that proves the change or checks compatibility beyond
+routine CI, such as a before/after reproduction, another SDK version, or a
+live provider run. For non-gated local runs CI cannot show, give the command,
+environment, and passed, failed, and skipped counts. Routine green CI is
+visible on the PR; omit it from the description. Report CI failures and local
+failures that differ from CI, with a brief cause and baseline comparison.
+State what remains untested and why. Keep exact gated commands and counts in
+`### Slow tests`; give only their conclusion in `### Validation`. Use a table
+only when its entries are short; put long commands in bullets or linked notes.
+Report results for the current PR head; when the branch changes, refresh
+results affected by the change rather than leaving historical runs to appear
+current. If an agent worked on the PR, fill in `### Agent review` as described
+above. Human-only PRs may omit that section. Keep the `### Slow tests` section
+for changes in gated-test areas, as described above.
 
 Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
 
@@ -206,7 +257,7 @@ When asked to open a PR, don't stop at creation — monitor it afterward: watch 
 
 For changes to product functionality (not test-only or build-only changes), add a CHANGELOG entry: a single-line, single-sentence item in the `## Unreleased` section at the top of `CHANGELOG.md` (create that section if it doesn't exist), grouped with similar existing items when there are any, otherwise appended to the list. Keep it short (~25 words): state only the user-visible behavior change — what a user can now do or observe — not the mechanism, internal names, or design rationale (those belong in the PR description and `design/` docs). For example: "Fixed sample buffer database growing unboundedly during long evals", not "Add periodic vacuum to buffer SQLite db". Don't reference issue numbers in the entry (e.g. `(#123)` or `(owner/repo#123)`) — the PR description carries the issue link. A merge from the base can silently relocate the entry under a released heading — the merge resolves cleanly (the entry rides along with neighboring lines that the release commit moved), so nothing flags it. Verify placement mechanically after updating a branch against its base, and again before merging any PR — even when someone else updated the branch (e.g. via GitHub's "Update branch" button): run `git diff "$(git merge-base origin/main HEAD)" HEAD -- CHANGELOG.md` and confirm every added entry line sits under `## Unreleased`; move back any that don't.
 
-Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless the task is about that submodule. After any merge/rebase, check `git status`; if it shows the submodule modified, reset the pointer to the base and commit: `git checkout origin/main -- src/inspect_ai/_view/ts-mono`. (`git submodule update` will NOT fix this — it syncs the working tree to the already-recorded pointer, not the reverse.) When a change legitimately requires a coordinated ts-mono update (e.g. regenerated types), follow `.claude/skills/land-ts-mono/SKILL.md`.
+Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless the task is about that submodule. After any merge/rebase, check `git status`; if it shows the submodule modified, reset the pointer to the base and commit: `git checkout origin/main -- src/inspect_ai/_view/ts-mono`. (`git submodule update` will NOT fix this — it syncs the working tree to the already-recorded pointer, not the reverse.) When a change legitimately requires a coordinated ts-mono update (e.g. regenerated types), follow `.agents/skills/land-ts-mono/SKILL.md`.
 
 ### Opening an upstream PR from an org fork
 
@@ -236,3 +287,7 @@ gh api repos/UKGovernmentBEIS/inspect_ai/pulls -X POST \
 ```
 
 Once the upstream PR is open it's the system of record: close the corresponding org-fork PR, with a close comment linking to the upstream PR.
+
+## Repository skills
+
+Shared skills live in `.agents/skills`. `.claude/skills` links to that directory. Use `$skill-name` in Codex or `/skill-name` in Claude Code.

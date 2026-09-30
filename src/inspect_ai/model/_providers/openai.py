@@ -10,7 +10,6 @@ from openai import (
     AsyncOpenAI,
     BadRequestError,
     DefaultAsyncHttpxClient,
-    NotFoundError,
     NotGiven,
     RateLimitError,
     omit,
@@ -38,9 +37,9 @@ from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
+    always_reasons_model,
     is_gpt_5_model,
     is_gpt_5_plus_model,
-    is_gpt_6_model,
     is_latest_model,
     is_o_series_model,
     openai_classify_retry,
@@ -56,6 +55,7 @@ from .._openai_responses import (
     pad_tool_messages_for_token_counting,
 )
 from .._stream import model_stream_requested
+from ._first_party import FRONTIER_MODELS
 from ._openai_batch import OpenAIBatcher
 from .util import (
     check_azure_deployment_mismatch,
@@ -377,8 +377,8 @@ class OpenAIAPI(ModelAPI):
         """Count tokens using native API for messages, tiktoken for text.
 
         For messages, uses OpenAI's input_tokens endpoint which can accurately
-        count encrypted reasoning blocks. Raises an exception if native
-        counting fails.
+        count encrypted reasoning blocks. Falls back to tiktoken if the native
+        endpoint is unavailable. All other failures propagate unchanged.
         """
         if isinstance(input, str):
             return await self.count_text_tokens(input)
@@ -387,8 +387,14 @@ class OpenAIAPI(ModelAPI):
         if self.responses_api:
             try:
                 return await self._count_tokens_native(input, config)
-            except NotFoundError:
-                pass  # endpoint not available (e.g. Azure); fall through to tiktoken
+            except APIStatusError as ex:
+                # 404 means the endpoint has no route. 405 can mean the real
+                # GET /responses/{response_id} route matched "input_tokens"
+                # when the POST /responses/input_tokens route is unavailable.
+                if ex.status_code not in (404, 405):
+                    raise
+                # Endpoint unavailable (e.g. Azure); fall through to tiktoken.
+                pass
 
         # For non-responses API, use tiktoken-based counting
         from .._tokens import count_tokens
@@ -449,6 +455,12 @@ class OpenAIAPI(ModelAPI):
     def reasoning_only_fallback(self) -> bool:
         return False
 
+    def replays_reasoning_text(self) -> bool:
+        return False
+
+    def omits_empty_tool_call_text(self) -> bool:
+        return False
+
     def is_o_series(self) -> bool:
         return is_o_series_model(self.model_family())
 
@@ -470,10 +482,8 @@ class OpenAIAPI(ModelAPI):
     def is_gpt_5_plus(self) -> bool:
         return is_gpt_5_plus_model(self.model_family()) or self.is_latest()
 
-    def is_gpt_6(self) -> bool:
-        # strict version check: whether a codename rejects sampling params is
-        # unknown, so codenames keep the gpt-5.x behavior here
-        return is_gpt_6_model(self.model_family())
+    def always_reasons(self) -> bool:
+        return always_reasons_model(self.model_family())
 
     def is_gpt_5_pro(self) -> bool:
         name = self.model_family()
@@ -485,8 +495,8 @@ class OpenAIAPI(ModelAPI):
         )
 
     def reasons_by_default(self) -> bool:
-        # strict version check (like is_gpt_6): whether a codename reasons by
-        # default is unknown, and is_latest() also matches computer-use-preview
+        # strict version check, no codename fold-in: whether a codename reasons
+        # by default is unknown, and is_latest() also matches computer-use-preview
         return (
             reasons_by_default_model(self.model_family()) and not self.is_gpt_5_chat()
         )
@@ -558,6 +568,17 @@ class OpenAIAPI(ModelAPI):
 
         streaming = self._resolve_streaming(use_responses)
 
+        # explicit prompt caching is only verified against the unconfigured,
+        # direct OpenAI endpoint; Azure, Bedrock, and any custom base URL
+        # (explicit base_url, OPENAI_BASE_URL, or INSPECT_EVAL_MODEL_BASE_URL)
+        # are unverified — a resolved base_url means the request is going
+        # somewhere other than api.openai.com
+        supports_explicit_prompt_cache = (
+            not self.is_azure()
+            and not self.is_bedrock()
+            and model_base_url(self.base_url, "OPENAI_BASE_URL") is None
+        )
+
         async def generate_once(
             streaming: bool,
         ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
@@ -581,6 +602,7 @@ class OpenAIAPI(ModelAPI):
                     model_info=self,
                     batcher=self._responses_batcher,
                     streaming=streaming,
+                    supports_explicit_prompt_cache=supports_explicit_prompt_cache,
                 )
                 if use_responses
                 else generate_completions(
@@ -597,6 +619,7 @@ class OpenAIAPI(ModelAPI):
                     openai_api=self,
                     batcher=self._completions_batcher,
                     streaming=streaming,
+                    supports_explicit_prompt_cache=supports_explicit_prompt_cache,
                 )
             )
 
@@ -670,7 +693,7 @@ class OpenAIAPI(ModelAPI):
         # context window / token accounting match (bump when a newer frontier
         # ships). Mirrors Anthropic's is_claude_latest() aliasing.
         if self.is_latest():
-            return "openai/gpt-6-astra"
+            return FRONTIER_MODELS["openai"]
         return super().input_tokens_name()
 
     @override
@@ -803,7 +826,8 @@ class OpenAIAPI(ModelAPI):
             A tuple of (compacted messages, usage info).
 
         Raises:
-            NotImplementedError: If the model is not using the Responses API.
+            NotImplementedError: If the model is not using the Responses API or
+                the native compaction endpoint is unavailable.
         """
         if not self.responses_api:
             raise NotImplementedError(
@@ -822,7 +846,12 @@ class OpenAIAPI(ModelAPI):
                 input=input_params,
                 instructions=instructions if instructions is not None else omit,
             )
-        except NotFoundError:
+        except APIStatusError as ex:
+            # 404 means the endpoint has no route. 405 can mean the real
+            # GET /responses/{response_id} route matched "compact" when the
+            # POST /responses/compact route is unavailable.
+            if ex.status_code not in (404, 405):
+                raise
             raise NotImplementedError(
                 f"Native compaction endpoint not available for {self.service_model_name()}"
             ) from None

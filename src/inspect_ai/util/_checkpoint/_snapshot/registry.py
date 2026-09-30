@@ -8,6 +8,7 @@ files and the per-sample strategy pin (§4.7 of the design).
 
 from __future__ import annotations
 
+from .._layout._paths import contained_component
 from ..config import ArchiveSnapshots, ResticSnapshots, SnapshotStrategyConfig
 from .archive import ArchiveStrategy
 from .restic import ResticIncrementalStrategy
@@ -41,7 +42,22 @@ def strategy_storage_subpath(strategy_name: str, sandbox_name: str) -> str:
     strategy keeps ``restic/sandboxes/<name>`` verbatim so existing
     checkpoint dirs resume unchanged; other strategies use
     ``sandboxes/<name>/<strategy>``.
+
+    The sandbox name is a live sandbox environment's name (a compose
+    service name, or the provider's default), which the eval user
+    controls; it is required to be a single path component, and a name
+    that would escape the sample root raises ``ValueError``. Only live
+    environment names reach here: ``resolve_sandbox_backup_paths``
+    iterates the running sandboxes, so a ``sandbox_paths`` key with no
+    matching environment is dropped before this point, not validated.
     """
+    try:
+        contained_component(sandbox_name)
+    except ValueError as exc:
+        raise ValueError(
+            f"sandbox name {sandbox_name!r} cannot be used as a checkpoint "
+            f"storage path component: {exc}"
+        ) from exc
     if strategy_name == STRATEGY_RESTIC:
         return f"restic/sandboxes/{sandbox_name}"
     return f"sandboxes/{sandbox_name}/{strategy_name}"

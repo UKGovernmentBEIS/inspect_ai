@@ -330,6 +330,12 @@ If a task is run over more than one `epoch`, multiple scores will be generated f
 
 By default, the reduced view is built with `mean`. You may specify other strategies by passing an `Epochs`, which includes both a count and one or more reducers to combine sample scores with. For example:
 
+::: callout-note
+An integer epoch override changes the count and preserves the reducer defined by the task. This applies to `eval(..., epochs=n)`, `eval_set(..., epochs=n)`, and `--epochs n`. To replace the task reducer, pass `Epochs(n, reducer)` or combine `--epochs n` with `--epochs-reducer reducer`. Combine `--epochs n` with `--no-epochs-reducer` to disable epoch reduction.
+
+A task with a fixed custom reducer can define its count directly in `Task`; the reducer remains active when users override the count. An `epochs` task parameter is useful when changing the count should also change the reducer configuration.
+:::
+
 ``` python
 @task
 def gpqa():

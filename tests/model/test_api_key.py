@@ -77,4 +77,4 @@ async def test_moonshot_api_key():
 @pytest.mark.anyio
 @skip_if_no_deepseek
 async def test_deepseek_api_key():
-    await check_explicit_api_key("deepseek/deepseek-v4-flash", "DEEPSEEK_API_KEY")
+    await check_explicit_api_key("deepseek/deepseek-flash", "DEEPSEEK_API_KEY")

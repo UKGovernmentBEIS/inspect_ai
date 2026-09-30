@@ -13,7 +13,7 @@ from inspect_ai.agent._bridge._errors import ResponseFilterError
 from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.sandbox import bridge as sandbox_bridge_module
 from inspect_ai.agent._bridge.sandbox.bridge import (
-    _monitor_terminate,
+    _monitor_failure,
     sandbox_agent_bridge,
 )
 from inspect_ai.agent._bridge.sandbox.service import (
@@ -603,7 +603,7 @@ async def test_forward_provider_errors_excludes_response_filter_error() -> None:
     async def failing_generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         raise ResponseFilterError("filter is broken") from ValueError("boom")
 
-    wrapped = _forward_provider_errors(failing_generate)
+    wrapped = _forward_provider_errors(failing_generate, _sandbox_bridge())
     with pytest.raises(ResponseFilterError):
         await wrapped({})
 
@@ -716,7 +716,9 @@ def test_sandbox_response_filter_failure_outcome(
     _assert_failure_outcome(log, failure)
 
 
-def _sandbox_bridge(response_filter: ModelResponseFilter) -> SandboxAgentBridge:
+def _sandbox_bridge(
+    response_filter: ModelResponseFilter | None = None,
+) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
         filter=None,
@@ -747,9 +749,8 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
     ) -> ModelOutput | None:
         raise limit_error
 
-    generate = _forward_provider_errors(
-        generate_completions(_sandbox_bridge(over_limit_filter))
-    )
+    bridge = _sandbox_bridge(over_limit_filter)
+    generate = _forward_provider_errors(generate_completions(bridge), bridge)
     with pytest.raises(LimitExceededError) as exc_info:
         await generate(CHAT_REQUEST)
     assert exc_info.value is limit_error
@@ -771,7 +772,7 @@ async def test_sandbox_response_filter_ends_sample_through_the_monitor(
     with pytest.raises(expected) as raised:
         await generate_completions(bridge)(CHAT_REQUEST)
 
-    assert bridge._terminate_requested.is_set()
+    assert bridge._failure_requested.is_set()
     with pytest.raises(expected) as monitored:
-        await _monitor_terminate(bridge)
+        await _monitor_failure(bridge)
     assert monitored.value is raised.value

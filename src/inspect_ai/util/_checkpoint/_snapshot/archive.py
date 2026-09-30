@@ -14,8 +14,10 @@ Capture mechanics (design §7.2/§8, first implementation):
 
 - The archive is produced complete inside the sandbox's root-only
   staging area, then copied out in fixed-size chunks (``dd`` per chunk
-  + ``read_file``), so host RAM is bounded by one chunk regardless of
-  archive size. Transient sandbox disk equals the archive size plus
+  + ``read_file``; the shared ``_copy.copy_out`` primitive). Chunking
+  limits buffering when the sandbox follows the protocol; it does not
+  bound staging inside ``read_file``. The transfer is capped by ``SnapshotContext.max_snapshot_bytes`` against the bytes
+  actually read. Transient sandbox disk equals the archive size plus
   one chunk; the §8 detached-producer pipeline that bounds sandbox
   disk to ~two chunks is a compatible follow-up (same storage layout
   and recorded details).
@@ -24,13 +26,32 @@ Capture mechanics (design §7.2/§8, first implementation):
   an interrupted fire can never corrupt the next one (§4.2). There is
   no detached producer in this implementation, so cleanup is a plain
   delete.
-- The archive's sha256 is minted in-sandbox at capture time and
-  cross-checked against the digest of the bytes the host actually
-  read, so transport corruption cannot produce a "verified" archive
-  whose recorded hash matches corrupt bytes. ``restore`` re-verifies
-  the recorded digest in-sandbox after staging, before any byte is
-  extracted to a final path (verify-then-extract costs transient
-  sandbox disk equal to the archive size).
+- The host compares the received bytes' SHA-256 digest with the digest
+  reported by the sandbox. This detects mismatches, such as accidental
+  corruption during copying. A compromised sandbox can supply matching
+  bytes and a matching digest; agreement does not authenticate the
+  archive. On restore the host walks the archive's member headers
+  first (``_check_archive``): every member must lie at or under one of
+  this attempt's capture roots, be a regular file, directory, symlink
+  or in-scope hard link, carry no PAX records, and (a regular file) no
+  setuid/setgid/sticky bit; the raw header stream may hold no PAX,
+  sparse, device or fifo header and at most one GNU long-name and one
+  long-link header per member; the compressed payload is decoded the way
+  the sandbox decodes it (every gzip member, every zstd frame); nothing
+  but zero padding may follow the last member ``tarfile`` parsed; and
+  the bytes must hash to the recorded digest — all before any of it is
+  copied in. Every symlink the image left under a root is already gone
+  (the core runs ``_restore_scope.remove_existing_symlinks`` before
+  ``setup``), so no member is written, or hard-linked, through one into
+  a path outside the root. Extraction names the roots as tar member
+  arguments so only they are written, and a ``find`` over the roots
+  afterwards fails the restore if the sandbox's tar nonetheless produced
+  a special file or device node
+  (``_restore_scope.find_special_nodes_command``) — the layer that does
+  not depend on ``tarfile`` and the image's tar agreeing on member
+  boundaries. A second digest check runs inside the sandbox before
+  extraction; it detects corruption in transit when that sandbox
+  follows the protocol and cannot constrain one controlled by the agent.
 - Compression is zstd when available in the sandbox, else gzip
   (present in effectively every image, busybox included) — the
   archive is always compressed. ``setup`` probes and records the
@@ -40,21 +61,43 @@ Capture mechanics (design §7.2/§8, first implementation):
 
 from __future__ import annotations
 
+import gzip
 import hashlib
-import os
+import io
 import re
 import shlex
+import tarfile
 import time
+import zlib
+from collections.abc import Callable, Sequence
+from functools import partial
 from logging import getLogger
 from pathlib import Path
+from typing import Protocol
 
+import anyio
+import zstandard
+from typing_extensions import Buffer
+
+from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
-from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
+from .._copy import DD_FULLBLOCK_PROBE, DEFAULT_COPY_CHUNK_SIZE, copy_out
 from .._layout.schemas import SnapshotDetails
 from .._repo_ops import checkpoint_tag
+from .._restore_scope import (
+    RestoreRoots,
+    RestoreScopeError,
+    TarHeaderScan,
+    check_recorded_roots,
+    find_special_nodes_command,
+    tar_member_argument,
+    tar_member_node,
+)
+from .._sandbox_dir import ensure_root_sandbox_dir
 from ..sandbox_paths import SandboxBackupPaths
 from .types import (
+    CommittedSnapshot,
     SandboxSnapshotStrategy,
     SnapshotContext,
 )
@@ -66,7 +109,10 @@ _DEFAULT_SANDBOX_DIR = "/root/.cache/inspect"
 parent is unlistable by the agent and ``.cache`` falls inside the
 always-on capture exclude, so staging never captures itself."""
 
-_DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
+_DEFAULT_CHUNK_SIZE = DEFAULT_COPY_CHUNK_SIZE
+
+_TAIL_READ_SIZE = 1024 * 1024
+"""Chunk size for reading past the last tar member (padding check, digest)."""
 
 _ARCHIVE_NAME_RE = re.compile(r"ckpt-\d{5,}\.tar\.(?:zst|gz)")
 """The exact archive filename form ``snapshot()`` generates — also the
@@ -93,27 +139,28 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
     async def setup(self, env: SandboxEnvironment, ctx: SnapshotContext) -> None:
         """Probe required tools and pick the compressor.
 
-        Verifies ``tar``, ``sha256sum``, and ``dd`` up front (so a
-        missing tool fails at provisioning rather than at first fire or
-        restore), and records zstd vs. the gzip fallback for this
-        sandbox. Also probes ``dd iflag=fullblock`` (GNU/busybox), which
+        Prepares the root-only work area first (which needs ``stat`` and
+        ``id`` in the image; see :func:`ensure_root_sandbox_dir`), then
+        verifies ``tar``, ``sha256sum``, and ``dd`` (so a missing tool
+        fails at provisioning rather than at first fire or restore), and
+        records zstd vs. the gzip fallback for this sandbox. Also probes
+        ``dd iflag=fullblock`` (GNU/busybox), which
         copy-out uses when available to defeat short reads — BSD ``dd``
         lacks it, and the copy-out digest check still catches any
         short-read desync loudly. Nothing is injected.
         """
+        await ensure_root_sandbox_dir(env, self._sandbox_dir)
         script = (
             "set -e; "
-            f"install -d -m 0700 {self._sandbox_dir}; "
             "for tool in tar sha256sum dd; do "
             'command -v "$tool" >/dev/null 2>&1 || '
             '{ echo "missing required tool: $tool" >&2; exit 1; }; done; '
-            "if dd if=/dev/null of=/dev/null bs=1 count=0 iflag=fullblock "
-            ">/dev/null 2>&1; then echo fullblock; fi; "
+            f"if {DD_FULLBLOCK_PROBE}; then echo fullblock; fi; "
             "if command -v zstd >/dev/null 2>&1; then echo zstd; "
             "elif command -v gzip >/dev/null 2>&1; then echo gzip; "
             'else echo "missing required tool: zstd or gzip" >&2; exit 1; fi'
         )
-        result = await env.exec(["sh", "-c", script], user="root")
+        result = await privileged_shell(env, script, user="root")
         if not result.success:
             raise RuntimeError(
                 f"archive snapshot setup failed for sandbox "
@@ -145,20 +192,23 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         )
         local_path = Path(ctx.storage_dir) / archive_name
         try:
-            await self._copy_out(
+            await copy_out(
                 env,
-                ctx,
-                staging=staging,
-                archive=archive,
+                src=archive,
+                chunk_path=f"{staging}/chunk",
                 size=size,
                 dest=local_path,
+                max_bytes=ctx.max_snapshot_bytes,
+                label=f"archive snapshot copy-out for sandbox {ctx.sandbox_name!r}",
+                chunk_size=self._chunk_size,
+                dd_fullblock=self._dd_fullblock,
                 expected_sha256=sandbox_digest,
             )
         finally:
             await self._clean_staging(env)
 
-        # `strategy` and the archive metadata ride as extra fields (see
-        # `snapshot_strategy_name`).
+        # `strategy`, `roots` and the archive metadata ride as extra fields
+        # (see `snapshot_strategy_name` and `_restore_scope.recorded_roots`).
         return SnapshotDetails.model_validate(
             dict(
                 snapshot_id=tag,
@@ -167,6 +217,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                 strategy=self.name,
                 archive=archive_name,
                 content_sha256=sandbox_digest,
+                roots=list(paths.include),
             )
         )
 
@@ -212,7 +263,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             f"wc -c < {archive}\n"
             f"sha256sum {archive}\n"
         )
-        result = await env.exec(["sh", "-c", script], user="root")
+        result = await privileged_shell(env, script, user="root")
         if not result.success:
             raise RuntimeError(
                 f"archive snapshot failed for sandbox {ctx.sandbox_name!r}: "
@@ -229,137 +280,57 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             ) from exc
         return size, digest
 
-    async def _copy_out(
-        self,
-        env: SandboxEnvironment,
-        ctx: SnapshotContext,
-        *,
-        staging: str,
-        archive: str,
-        size: int,
-        dest: Path,
-        expected_sha256: str,
-    ) -> None:
-        """Chunked sandbox → host copy, digest-verified before it lands.
-
-        Written to a dot-prefixed partial file and renamed into place
-        only after the digest of the bytes actually read matches the
-        in-sandbox one, so an interrupted or corrupted copy never
-        leaves a plausible-looking archive in the storage area.
-        """
-        chunk_path = f"{staging}/chunk"
-        digest = hashlib.sha256()
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        partial = dest.with_name(f".{dest.name}.partial")
-        try:
-            with open(partial, "wb") as out:
-                index = 0
-                copied = 0
-                while copied < size:
-                    script = (
-                        # fullblock (when dd supports it): without it a short
-                        # read (fuse/9p-backed filesystems) desyncs the
-                        # block-indexed `skip` from the bytes actually copied,
-                        # dropping data — which the digest check then rejects.
-                        f"rm -f {chunk_path} && dd if={archive} of={chunk_path} "
-                        f"bs={self._chunk_size} skip={index} count=1 "
-                        f"{'iflag=fullblock ' if self._dd_fullblock else ''}"
-                        f"2>/dev/null"
-                    )
-                    result = await env.exec(["sh", "-c", script], user="root")
-                    if not result.success:
-                        raise RuntimeError(
-                            f"archive snapshot copy-out failed for sandbox "
-                            f"{ctx.sandbox_name!r}: {result.stderr}"
-                        )
-                    with override_max_read_file_size(self._chunk_size * 2):
-                        data = await env.read_file(chunk_path, text=False)
-                    if not data:
-                        raise RuntimeError(
-                            f"archive snapshot copy-out for sandbox "
-                            f"{ctx.sandbox_name!r}: unexpected EOF at chunk "
-                            f"{index} ({copied}/{size} bytes)"
-                        )
-                    out.write(data)
-                    digest.update(data)
-                    copied += len(data)
-                    index += 1
-            if digest.hexdigest() != expected_sha256:
-                raise RuntimeError(
-                    f"archive snapshot for sandbox {ctx.sandbox_name!r} "
-                    f"corrupted in transit: in-sandbox sha256 "
-                    f"{expected_sha256} != host-read sha256 {digest.hexdigest()}"
-                )
-        except BaseException:
-            partial.unlink(missing_ok=True)
-            raise
-        os.replace(partial, dest)
-
     async def restore(
         self,
         env: SandboxEnvironment,
-        ref: SnapshotDetails | None,
+        paths: SandboxBackupPaths,
+        ref: SnapshotDetails,
         ctx: SnapshotContext,
     ) -> None:
-        expected_digest: str | None
-        if ref is None:
-            # No committed checkpoint records a snapshot for this sandbox —
-            # e.g. the kill tore the only checkpoint file mid-write. Restic
-            # parity (see ``ResticStrategy.restore``): orphan discard is
-            # skipped in exactly this case, so restore the newest inherited
-            # archive — the best available capture, digest-verified when it
-            # was copied out. Transit into the sandbox is still verified
-            # below, against a digest computed during copy-in.
-            archive_name = self._latest_archive_name(ctx)
-            expected_digest = None
-        else:
-            extra = ref.model_extra or {}
-            archive_name_extra = extra.get("archive")
-            digest_extra = extra.get("content_sha256")
-            if not isinstance(archive_name_extra, str) or not isinstance(
-                digest_extra, str
-            ):
-                raise RuntimeError(
-                    f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                    f"checkpoint record for {ref.snapshot_id} lacks archive "
-                    f"metadata (archive/content_sha256)"
-                )
-            # `archive_name` is joined into a host path and interpolated into
-            # root shell scripts below. Checkpoint records are host-written
-            # and trusted, but `snapshot()` only ever generates this exact
-            # form, so a corrupted record fails here instead of becoming a
-            # path-traversal or shell-injection surface (or a confusing
-            # shell error).
-            if not _ARCHIVE_NAME_RE.fullmatch(archive_name_extra):
-                raise RuntimeError(
-                    f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                    f"checkpoint record for {ref.snapshot_id} has malformed "
-                    f"archive name {archive_name_extra!r}"
-                )
-            if not re.fullmatch(r"[0-9a-f]{64}", digest_extra):
-                raise RuntimeError(
-                    f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                    f"checkpoint record for {ref.snapshot_id} has malformed "
-                    f"content_sha256 {digest_extra!r}"
-                )
-            archive_name = archive_name_extra
-            expected_digest = digest_extra
+        label = f"archive snapshot restore for sandbox {ctx.sandbox_name!r}"
+        roots = RestoreRoots.from_include(paths.include, label=label)
+        check_recorded_roots(ref, roots, label=label)
+        extra = ref.model_extra or {}
+        archive_name = extra.get("archive")
+        expected_digest = extra.get("content_sha256")
+        if not isinstance(archive_name, str) or not isinstance(expected_digest, str):
+            raise RuntimeError(
+                f"{label}: checkpoint record for {ref.snapshot_id} lacks archive "
+                f"metadata (archive/content_sha256)"
+            )
+        # `archive_name` is joined into a host path and interpolated into
+        # root shell scripts below. Require the filename form generated
+        # by `snapshot()` so a malformed record fails before becoming a
+        # path-traversal or shell-injection surface (or a confusing
+        # shell error).
+        if not _ARCHIVE_NAME_RE.fullmatch(archive_name):
+            raise RuntimeError(
+                f"{label}: checkpoint record for {ref.snapshot_id} has malformed "
+                f"archive name {archive_name!r}"
+            )
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
+            raise RuntimeError(
+                f"{label}: checkpoint record for {ref.snapshot_id} has malformed "
+                f"content_sha256 {expected_digest!r}"
+            )
         local_path = Path(ctx.storage_dir) / archive_name
         if not local_path.is_file():
             raise RuntimeError(
-                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                f"expected archive at {local_path}, but it doesn't exist"
+                f"{label}: expected archive at {local_path}, but it doesn't exist"
             )
+        # Threaded: this decompresses and walks the whole archive on the
+        # host. Nothing has been sent to the sandbox yet, so a refused
+        # archive leaves it untouched.
+        await anyio.to_thread.run_sync(
+            partial(_check_archive, local_path, roots, expected_digest, label=label)
+        )
 
         staging = f"{self._staging_root}/restore"
         staged = f"{staging}/{archive_name}"
-        init = await env.exec(
-            [
-                "sh",
-                "-c",
-                f"set -e; install -d -m 0700 {self._sandbox_dir}; "
-                f"rm -rf {self._staging_root}; mkdir -p {staging}",
-            ],
+        await ensure_root_sandbox_dir(env, self._sandbox_dir)
+        init = await privileged_shell(
+            env,
+            f"set -e; rm -rf {self._staging_root}; mkdir -p {staging}",
             user="root",
         )
         if not init.success:
@@ -372,17 +343,15 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         # input bytes, so streaming the whole archive through one exec
         # would buffer it entirely in host RAM (and can exceed per-call
         # provider limits) — the copy-out problem in reverse.
-        digest = hashlib.sha256()
         with open(local_path, "rb") as f:
             first = True
             while True:
                 data = f.read(self._chunk_size)
                 if not data:
                     break
-                digest.update(data)
                 redirect = ">" if first else ">>"
-                result = await env.exec(
-                    ["sh", "-c", f"cat {redirect} {staged}"], input=data, user="root"
+                result = await privileged_shell(
+                    env, f"cat {redirect} {staged}", input=data, user="root"
                 )
                 if not result.success:
                     raise RuntimeError(
@@ -390,15 +359,22 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                         f"{ctx.sandbox_name!r}: {result.stderr}"
                     )
                 first = False
-        if expected_digest is None:
-            expected_digest = digest.hexdigest()
 
         # Verify-then-extract: a corrupt archive is rejected before any
-        # byte reaches a final path.
+        # byte reaches a final path. Extraction names each capture root
+        # as a member argument, so
+        # tar writes only members at or under a root — the second layer
+        # behind the host-side listing check. The find afterwards is the
+        # third: whatever this tar made of the member boundaries, a
+        # special file or device node under a root fails the restore
+        # (the sandbox is discarded on failure).
+        members = " ".join(
+            shlex.quote(tar_member_argument(root)) for root in roots.roots
+        )
         extract = (
-            f"zstd -dc {staged} | tar -xf - -C /"
+            f"zstd -dc {staged} | tar -xf - -C / -- {members}"
             if archive_name.endswith(".tar.zst")
-            else f"tar -xzf {staged} -C /"
+            else f"tar -xzf {staged} -C / -- {members}"
         )
         script = (
             "set -e\n"
@@ -407,39 +383,38 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             f'{{ echo "archive digest mismatch: $digest != {expected_digest}" >&2; '
             f"exit 1; }}\n"
             f"{extract}\n"
+            f"bad=$({find_special_nodes_command(roots.roots)})\n"
+            f'[ -z "$bad" ] || {{ echo "extraction produced $bad: a setuid, setgid '
+            f'or sticky regular file, or a fifo or device node" >&2; exit 1; }}\n'
             f"rm -rf {self._staging_root}\n"
         )
-        result = await env.exec(["sh", "-c", script], user="root")
+        result = await privileged_shell(env, script, user="root")
         if not result.success:
             raise RuntimeError(
                 f"archive snapshot restore failed for sandbox "
                 f"{ctx.sandbox_name!r}: {result.stderr}"
             )
 
-    def _latest_archive_name(self, ctx: SnapshotContext) -> str:
-        """Newest inherited archive, for restores with no committed record."""
-        candidates = [
-            entry.name
-            for entry in Path(ctx.storage_dir).glob("ckpt-*")
-            if _ARCHIVE_NAME_RE.fullmatch(entry.name)
-        ]
-        if not candidates:
-            raise RuntimeError(
-                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                f"no committed checkpoint records a snapshot and no inherited "
-                f"archives exist in {ctx.storage_dir}"
-            )
-        return max(candidates, key=lambda name: _archive_checkpoint_id(name) or 0)
-
     async def discard_orphans(
-        self, latest_committed_id: int, ctx: SnapshotContext
+        self, committed: Sequence[CommittedSnapshot], ctx: SnapshotContext
     ) -> None:
         storage = Path(ctx.storage_dir)
-        if not storage.is_dir():
-            return
+        recorded = {c.checkpoint_id for c in committed}
+        latest = max(committed, key=lambda c: c.checkpoint_id)
+        extra = latest.details.model_extra or {}
+        latest_archive = extra.get("archive")
+        if (
+            not isinstance(latest_archive, str)
+            or not (storage / latest_archive).is_file()
+        ):
+            raise RuntimeError(
+                f"archive snapshot discard for sandbox {ctx.sandbox_name!r}: the "
+                f"latest committed checkpoint's archive {latest_archive!r} is "
+                f"absent from {ctx.storage_dir}"
+            )
         for entry in storage.iterdir():
             checkpoint_id = _archive_checkpoint_id(entry.name)
-            if checkpoint_id is None or checkpoint_id > latest_committed_id:
+            if checkpoint_id is None or checkpoint_id not in recorded:
                 entry.unlink(missing_ok=True)
 
     async def _clean_staging(self, env: SandboxEnvironment) -> None:
@@ -453,8 +428,8 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         always-excluded ``sandbox_dir`` so it is never captured.
         """
         try:
-            result = await env.exec(
-                ["sh", "-c", f"rm -rf {self._staging_root}"], user="root"
+            result = await privileged_shell(
+                env, f"rm -rf {self._staging_root}", user="root"
             )
         except Exception as exc:
             logger.warning(
@@ -466,6 +441,113 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                 "archive snapshot: failed to clean in-sandbox staging: %s",
                 result.stderr,
             )
+
+
+class _Readable(Protocol):
+    def read(self, size: int, /) -> bytes: ...
+
+
+class _TeeRaw(io.RawIOBase):
+    """Raw binary reader that passes every byte read to ``sink``, in order."""
+
+    def __init__(self, raw: _Readable, sink: Callable[[bytes], object]) -> None:
+        super().__init__()
+        self._raw = raw
+        self._sink = sink
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: Buffer) -> int:
+        view = memoryview(buffer).cast("B")
+        data = self._raw.read(len(view))
+        view[: len(data)] = data
+        self._sink(data)
+        return len(data)
+
+
+def _check_archive(
+    path: Path, roots: RestoreRoots, expected_digest: str, *, label: str
+) -> None:
+    """Host-side check of a stored archive before any of it enters the sandbox.
+
+    Walks the member headers in stream mode so nothing is extracted on
+    the host and memory stays bounded by one header; every member must
+    pass the :class:`RestoreWalk` and every root must be present. The
+    bytes are hashed as they stream by and compared with the recorded
+    digest, so a corrupt or substituted archive is refused here, before
+    the copy-in (the in-sandbox digest check before extraction remains
+    as the guard against corruption in transit).
+
+    The decompressor must see the payload the way the sandbox's will:
+    ``gzip -d`` and busybox gunzip decode every concatenated gzip member
+    and ``zstd -d`` every frame, so gzip goes through ``GzipFile`` (which
+    reads across members; ``tarfile``'s own ``r|gz`` stops at the first)
+    and zstd is read across frames. Members hidden in a second gzip
+    member thereby reach the walk instead of only the extracting tar.
+
+    The decompressed bytes also pass through a :class:`TarHeaderScan`
+    on their way into ``tarfile``, for what the yielded members cannot
+    show: a repeated long header, or a PAX header ``tarfile`` consumes
+    without yielding.
+
+    ``tarfile`` ends its listing quietly at the first header it cannot
+    parse past offset 0 (a bad checksum, a malformed PAX record), where
+    busybox and GNU tar skip the block and keep extracting — the members
+    behind it would never reach the walk. So after the loop the rest of
+    the decompressed stream must be zero padding; anything else is
+    refused. Read through ``tar.fileobj`` (tarfile's stream wrapper),
+    not ``stream``: the wrapper reads ahead of what tarfile consumed.
+    """
+    digest = hashlib.sha256()
+    walk = roots.walker(label=label)
+    scan = TarHeaderScan(label=label)
+    with open(path, "rb") as raw:
+        hashed = io.BufferedReader(_TeeRaw(raw, digest.update))
+        decompressed: zstandard.ZstdDecompressionReader | gzip.GzipFile
+        if path.name.endswith(".tar.zst"):
+            decompressed = zstandard.ZstdDecompressor().stream_reader(
+                hashed, read_across_frames=True
+            )
+        else:
+            decompressed = gzip.GzipFile(fileobj=hashed, mode="rb")
+        stream = io.BufferedReader(_TeeRaw(decompressed, scan.feed))
+        try:
+            with tarfile.open(fileobj=stream, mode="r|") as tar:
+                for member in tar:
+                    walk.visit(tar_member_node(member, label=label))
+                if tar.fileobj is None:
+                    raise RuntimeError(f"{label}: tarfile closed its stream early")
+                while chunk := tar.fileobj.read(_TAIL_READ_SIZE):
+                    if chunk.strip(b"\0"):
+                        raise RestoreScopeError(
+                            f"{label}: archive {path.name} holds data after the last "
+                            f"member the host could parse; the extracting tar could "
+                            f"read it as further members, so the archive is refused"
+                        )
+        except (
+            tarfile.TarError,
+            zstandard.ZstdError,
+            gzip.BadGzipFile,
+            EOFError,
+            zlib.error,
+        ) as exc:
+            # GzipFile reports a bad header or trailing non-gzip bytes as
+            # BadGzipFile, a truncated member as EOFError and a corrupt
+            # deflate body as zlib.error; none is a TarError.
+            raise RestoreScopeError(
+                f"{label}: archive {path.name} is unreadable (corrupt or "
+                f"truncated): {exc}"
+            ) from exc
+        # tar stops at the end-of-archive marker; hash whatever trails it.
+        while hashed.read(_TAIL_READ_SIZE):
+            pass
+    if digest.hexdigest() != expected_digest:
+        raise RestoreScopeError(
+            f"{label}: archive digest mismatch: {digest.hexdigest()} != recorded "
+            f"{expected_digest}"
+        )
+    walk.finish()
 
 
 def _archive_checkpoint_id(filename: str) -> int | None:
