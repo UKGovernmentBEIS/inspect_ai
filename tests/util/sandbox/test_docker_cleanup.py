@@ -634,8 +634,9 @@ async def test_retained_compose_config_project_is_cleaned_up_by_name(
 
     await cleanup_module.cli_cleanup(project_name)
 
-    assert [name for name, _ in compose_down_configs] == [project_name]
-    assert "retained-network" in compose_down_configs[0][1]
+    ((downed_name, downed_config),) = compose_down_configs
+    assert downed_name == project_name
+    assert "retained-network" in downed_config
     # the project's own config is removed; the other running project's is kept
     assert fake_docker.generated_files() == [f"{other_name}.yaml"]
 

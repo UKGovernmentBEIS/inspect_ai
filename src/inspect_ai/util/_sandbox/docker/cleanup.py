@@ -129,10 +129,6 @@ def project_startup(project: ComposeProject) -> None:
 def project_record_auto_compose(project: ComposeProject) -> bool:
     """Register a project's generated compose file for removal at shutdown.
 
-    A reported project's config is released instead and kept for
-    ``inspect sandbox cleanup docker <project>``; see
-    ``project_cleanup_shutdown``.
-
     Returns whether this call registered it: ``False`` for an explicit compose
     file, and for a generated file already registered by an earlier
     initialization or a live sample (a legacy ``.compose.yaml``, or a path
