@@ -2,15 +2,17 @@
 
 The walk's ``.eval`` files are grouped into logical tasks (every attempt of a
 ``task_id``, the newest current), whose rows carry every key of a live
-``/tasks`` row plus the additive log-dir keys. See "Logical tasks", "Task
-rows" and "Sample rows" in ``design/ctl/log-dir-mode.md``.
+``/tasks`` row plus the additive log-dir keys. A running member's shared
+buffer (``--log-shared``) supplies its running and completed-but-unflushed
+samples. See "Logical tasks", "Reading a member consistently", "Task rows"
+and "Sample rows" in ``design/ctl/log-dir-mode.md``.
 """
 
 from __future__ import annotations
 
 import functools
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal, NamedTuple
 
 import anyio
@@ -39,13 +41,21 @@ from inspect_ai.log._recorders.eval import (
     _read_member_json,
 )
 
-from .consistency import LogChangedError, LogUnparseableError, read_consistently
+from .buffer import read_manifest
+from .consistency import (
+    LogChangedError,
+    LogUnparseableError,
+    log_version,
+    read_consistently,
+    read_version,
+)
 from .select import (
     LogPlan,
     MemberSnapshot,
     SampleKey,
     authoritative_total,
     known_keys,
+    member_candidate,
     select_source,
     totals,
 )
@@ -251,13 +261,26 @@ async def read_plan(fs: AsyncFilesystem, file: LogFile) -> LogPlan:
     """Read one log's central directory and header (or journal start record)."""
 
     async def read(reader: AsyncZipReader, fresh: bool) -> LogPlan:
-        return await _plan_from(reader, file)
+        return await _plan_from(fs, reader, file)
 
     return await read_consistently(fs, file.location, read)
 
 
-async def _plan_from(reader: AsyncZipReader, file: LogFile) -> LogPlan:
-    cd = await reader.entries()
+async def _plan_from(
+    fs: AsyncFilesystem,
+    reader: AsyncZipReader,
+    file: LogFile,
+    prior: LogPlan | None = None,
+) -> LogPlan:
+    """Read the plan through ``reader``'s (fresh) central directory.
+
+    A ``prior`` plan of the same log that is still running supplies the
+    header while the log has no ``header.json``: ``_journal/start.json`` is
+    written once, at the start, so it is not read again.
+    """
+    cd, version = await read_version(fs, file.location, reader.entries)
+    if cd.entry(HEADER_JSON) is None and prior is not None and not prior.finished:
+        return replace(prior, central_directory=cd, version=version)
     if cd.entry(HEADER_JSON) is not None:
         header = EvalLog.model_validate(
             await _read_member_json(reader, HEADER_JSON),
@@ -277,25 +300,60 @@ async def _plan_from(reader: AsyncZipReader, file: LogFile) -> LogPlan:
             f"it has neither {HEADER_JSON} nor {_journal_path(START_JSON)}",
         )
     header.location = file.location
-    return LogPlan(file=file, central_directory=cd, header=header, finished=finished)
+    return LogPlan(
+        file=file,
+        central_directory=cd,
+        header=header,
+        finished=finished,
+        version=version,
+    )
 
 
-async def read_snapshot(fs: AsyncFilesystem, plan: LogPlan) -> MemberSnapshot:
+async def read_snapshot(
+    fs: AsyncFilesystem, plan: LogPlan, *, fresh: bool = False
+) -> MemberSnapshot:
     """Read a member's sample summaries through the central directory its plan used.
 
-    A re-read (after a torn read) takes a fresh central directory and so also
-    re-reads the header: the log may have finished in between.
+    With ``fresh``, or on a re-read after a torn read, the central directory
+    is read again, and so is ``header.json`` when the log now has one: it may
+    have finished in between.
     """
 
     async def read(reader: AsyncZipReader, fresh: bool) -> MemberSnapshot:
-        current = await _plan_from(reader, plan.file) if fresh else plan
+        current = await _plan_from(fs, reader, plan.file, plan) if fresh else plan
         return MemberSnapshot(
             plan=current, summaries=await read_summaries(reader, plan.file)
         )
 
     return await read_consistently(
-        fs, plan.file.location, read, central_directory=plan.central_directory
+        fs,
+        plan.file.location,
+        read,
+        central_directory=None if fresh else plan.central_directory,
     )
+
+
+async def read_member(fs: AsyncFilesystem, plan: LogPlan) -> MemberSnapshot:
+    """Read a member's view: its manifest (when it may have one), then its log.
+
+    The worker writes a sample to the log before dropping it from the
+    manifest, so a log observed after the manifest holds every key the
+    manifest no longer lists. For a running member with a shared buffer the
+    manifest is read first, then the log's current version is checked with
+    one metadata request: the plan's central directory is reused only when
+    it came from that version, and is re-read otherwise. A key the worker had
+    admitted when the manifest was read is therefore reported from the
+    manifest, the log, or both, never as pending or missing.
+
+    Members that cannot have a shared buffer have no second object to order
+    against and are read through the plan's central directory as before.
+    """
+    if not plan.shared_buffer:
+        return await read_snapshot(fs, plan)
+    buffer = await read_manifest(fs, plan.file)
+    version = await log_version(fs, plan.file.location)
+    fresh = version is None or version != plan.version
+    return replace(await read_snapshot(fs, plan, fresh=fresh), buffer=buffer)
 
 
 async def read_summaries(
@@ -328,9 +386,9 @@ class TaskView(NamedTuple):
 
 
 async def read_task_view(fs: AsyncFilesystem, task: LogicalTask) -> TaskView:
-    """Read the current attempt's summaries, recording a failure rather than raising."""
+    """Read the current attempt's member view, recording a failure rather than raising."""
     try:
-        member = await read_snapshot(fs, task.current)
+        member = await read_member(fs, task.current)
     except READ_FAILURES as ex:
         failure = Unreadable(task.current.file.location, _reason(ex), ex)
         return TaskView(task, None, [*task.unreadable, failure])
@@ -410,7 +468,7 @@ def task_row(view: TaskView) -> dict[str, Any]:
     spec = plan.header.eval
     members = [member] if member is not None else []
     keys = known_keys(members)
-    counts = {"completed": 0, "error": 0, "cancelled": 0}
+    counts = {"completed": 0, "error": 0, "cancelled": 0, "running": 0}
     conflicted = 0
     total_tokens = 0
     total_messages = 0
@@ -435,6 +493,10 @@ def task_row(view: TaskView) -> dict[str, Any]:
         authoritative_total(plan) if member is not None else None, len(keys)
     )
     running = _task_status(plan) == "running"
+    live = [m.live_samples for m in members if m.live_samples is not None]
+    # a running member whose log could not be read has unknown running samples
+    if member is None and running:
+        live.append(False)
     started_at = min(sample_starts, default=None)
     if started_at is None:
         started_at = _iso_to_timestamp(spec.created)
@@ -464,9 +526,8 @@ def task_row(view: TaskView) -> dict[str, Any]:
             "completed": counts["completed"],
             "errored": counts["error"],
             "cancelled": counts["cancelled"],
-            # running samples are visible only in shared sample buffers,
-            # which this mode does not read yet
-            "in_flight": None if running else 0,
+            # running samples are visible only in shared sample buffers
+            "in_flight": counts["running"] if all(live) else None,
             "queued": None,
             "conflicted": conflicted,
             "unfinished": sample_totals.total - terminal - conflicted,
@@ -483,7 +544,8 @@ def task_row(view: TaskView) -> dict[str, Any]:
         "process_paused_now": None,
         "paused_models": [],
         "api_version": None,
-        "updated_at": plan.file.mtime,
+        "updated_at": _updated_at(plan, members),
+        "live_samples": _live_samples(live),
         "incomplete": bool(view.unreadable),
         "unreadable": [u.as_dict() for u in view.unreadable],
     }
@@ -524,10 +586,10 @@ def sample_listing(
         if choice.kind == "conflict":
             conflicted += 1
             for holder in choice.holders:
-                rows.append(
-                    _sample_row(holder.summaries[key.key], holder, conflict=True)
-                )
-        elif choice.kind == "log":
+                candidate = member_candidate(holder, key.key)
+                assert candidate is not None
+                rows.append(_sample_row(candidate.summary, holder, conflict=True))
+        elif choice.kind in ("log", "buffer"):
             assert choice.summary is not None and choice.member is not None
             rows.append(_sample_row(choice.summary, choice.member))
         elif sample_filter != "errors":
@@ -567,6 +629,25 @@ def sample_listing(
     return SampleListing(
         counts=counts, samples=rows, truncated=truncated, conflicted=conflicted
     )
+
+
+def _updated_at(plan: LogPlan, members: list[MemberSnapshot]) -> float | None:
+    """The latest of the members' log mtimes and their manifests' Last-Modified."""
+    times = [plan.file.mtime] + [
+        m.buffer.mtime for m in members if m.buffer is not None
+    ]
+    return max((t for t in times if t is not None), default=None)
+
+
+def _live_samples(live: list[bool]) -> Literal["buffer", "none", "partial"]:
+    """Whether running samples are visible: every, no or some running member has a manifest.
+
+    ``buffer`` when no member is running: there are no running samples to
+    miss, and ``in_flight`` is 0.
+    """
+    if all(live):
+        return "buffer"
+    return "none" if not any(live) else "partial"
 
 
 def _sample_row(
