@@ -108287,7 +108287,7 @@ var explanationOf = (node) => node?.event.explanation?.trim() || void 0;
 };
 /**
 * The decision the runner returned for the step: the root's, or, when a
-* `final()` bypassed the root, the one recorded after the bypassed layers.
+* `decide_final()` bypassed the root, the one recorded after the bypassed layers.
 */ var outcomeOf = (nodes) => {
 	const root = nodes.find((n) => n.event.path === "" && n.event.kind === "decision");
 	if (root) return root;
