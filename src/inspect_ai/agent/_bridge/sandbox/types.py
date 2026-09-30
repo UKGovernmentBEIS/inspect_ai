@@ -78,6 +78,7 @@ class SandboxAgentBridge(AgentBridge):
         )
         self._terminate_requested = anyio.Event()
         self._terminate_reason: str | None = None
+        self._end_error: Exception | None = None
 
     port: int
     """Model proxy server port."""
@@ -182,6 +183,18 @@ class SandboxAgentBridge(AgentBridge):
         self._terminate_reason = reason
         self._terminate_requested.set()
         raise TerminateSampleError(reason)
+
+    def _end_sample(self, error: Exception) -> NoReturn:
+        """End the sample by raising `error` to the sample runner from a bridged generation.
+
+        As in `request_terminate`, a raise here can't reach the sample runner, so hand
+        `error` to the monitor task, which raises it on the agent's side. The first
+        error wins. The raise below still unwinds the current RPC.
+        """
+        if self._end_error is None:
+            self._end_error = error
+        self._terminate_requested.set()
+        raise error
 
 
 class _ToolExecutionGrant(NamedTuple):

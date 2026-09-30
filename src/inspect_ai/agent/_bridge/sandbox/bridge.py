@@ -231,7 +231,7 @@ async def sandbox_agent_bridge(
             # monitor proxy for unexpected death
             tg.start_soon(_monitor_proxy, proxy)
 
-            # monitor for a termination requested by a tool call approver
+            # monitor for a bridged generation ending the sample
             tg.start_soon(_monitor_terminate, bridge)
 
             # main agent
@@ -279,7 +279,10 @@ def _register_bridged_tools(
 
 
 async def _monitor_terminate(bridge: SandboxAgentBridge) -> None:
-    """Raise `TerminateSampleError` when a tool call approver requests termination.
+    """Raise to end the sample when a bridged generation asks to.
+
+    Raises the error handed to `SandboxAgentBridge._end_sample` if there is one,
+    otherwise `TerminateSampleError` for a tool call approver's termination.
 
     Bridged generations run in the sandbox service task, whose exceptions never
     propagate (see `SandboxAgentBridge.request_terminate`). Raising here instead puts
@@ -287,6 +290,8 @@ async def _monitor_terminate(bridge: SandboxAgentBridge) -> None:
     sample runner.
     """
     await bridge._terminate_requested.wait()
+    if bridge._end_error is not None:
+        raise bridge._end_error
     raise TerminateSampleError(
         bridge._terminate_reason or "Sample terminated by tool call approver."
     )

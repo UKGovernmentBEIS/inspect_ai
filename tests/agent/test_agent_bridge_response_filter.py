@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 from unittest.mock import AsyncMock
 
 import anyio
@@ -6,12 +7,20 @@ import pytest
 from pydantic import JsonValue
 from test_helpers.utils import skip_if_no_docker
 
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import AgentState
 from inspect_ai.agent._bridge._errors import ResponseFilterError
 from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.sandbox import bridge as sandbox_bridge_module
-from inspect_ai.agent._bridge.sandbox.bridge import sandbox_agent_bridge
-from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
+from inspect_ai.agent._bridge.sandbox.bridge import (
+    _monitor_terminate,
+    sandbox_agent_bridge,
+)
+from inspect_ai.agent._bridge.sandbox.service import (
+    _forward_provider_errors,
+    generate_completions,
+)
+from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.event import ModelEvent
@@ -25,9 +34,11 @@ from inspect_ai.model._model import (
     ModelResponseFilter,
     get_model,
 )
-from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util import ExecResult
+from inspect_ai.util._limit import LimitExceededError
 
 
 class _FakeProxy:
@@ -57,6 +68,8 @@ def _run_eval_with_filters(
     filter: GenerateFilter | None = None,
     response_filter: ModelResponseFilter | None = None,
     retry_refusals: int | None = None,
+    model: str | Model = "mockllm/model",
+    token_limit: int | None = None,
 ) -> EvalLog:
     """Run a one-turn agent_bridge eval against mockllm with supplied filters."""
     from openai import AsyncOpenAI
@@ -86,9 +99,13 @@ def _run_eval_with_filters(
 
     @task
     def t() -> Task:
-        return Task(dataset=[Sample(input="Say hi.")], solver=my_agent())
+        return Task(
+            dataset=[Sample(input="Say hi.")],
+            solver=my_agent(),
+            token_limit=token_limit,
+        )
 
-    log = eval(t(), model="mockllm/model", log_dir=str(tmp_path), display="plain")
+    log = eval(t(), model=model, log_dir=str(tmp_path), display="plain")
     return log[0]
 
 
@@ -363,16 +380,93 @@ def test_request_and_response_filter_compose(tmp_path: Path) -> None:
     )
 
 
-@skip_if_no_docker
-@pytest.mark.slow
-def test_sandbox_response_filter_replaces_output(tmp_path: Path) -> None:
-    """The response_filter hook fires through the sandbox bridge."""
+_SANDBOX_SCAFFOLD_SCRIPT = (
+    "import os\n"
+    "import time\n"
+    "import urllib.error\n"
+    "import urllib.request\n"
+    "\n"
+    "for attempt in range(30):\n"
+    "    request = urllib.request.Request(\n"
+    "        os.environ['OPENAI_BASE_URL'] + '/chat/completions',\n"
+    "        data=os.environ['PAYLOAD'].encode(),\n"
+    "        headers={'Content-Type': 'application/json'},\n"
+    "    )\n"
+    "    try:\n"
+    "        print(urllib.request.urlopen(request).read().decode())\n"
+    "        break\n"
+    "    except urllib.error.URLError:\n"
+    "        if attempt == 29:\n"
+    "            raise\n"
+    "        time.sleep(0.5)\n"
+)
+"""Scaffold run in the container: one chat completion through the model proxy."""
+
+
+def _run_sandbox_eval_with_response_filter(
+    tmp_path: Path,
+    response_filter: ModelResponseFilter,
+    *,
+    model: str | Model = "mockllm/model",
+    token_limit: int | None = None,
+) -> tuple[EvalLog, list[ExecResult[str]]]:
+    """Run a one-turn sandbox_agent_bridge eval in docker with a response filter.
+
+    Returns the log and the scaffold's exec result (absent if the sample ended
+    before the scaffold finished).
+    """
     import json
 
     from inspect_ai import Task, eval, task
     from inspect_ai.agent import Agent, agent
     from inspect_ai.dataset import Sample
     from inspect_ai.util import sandbox
+
+    results: list[ExecResult[str]] = []
+
+    @agent
+    def my_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with sandbox_agent_bridge(
+                state,
+                response_filter=response_filter,
+            ) as bridge:
+                payload = json.dumps(
+                    {
+                        "model": "inspect",
+                        "messages": [{"role": "user", "content": "Say hi."}],
+                    }
+                )
+                result = await sandbox().exec(
+                    cmd=["python3", "-c", _SANDBOX_SCAFFOLD_SCRIPT],
+                    env={
+                        "OPENAI_BASE_URL": "http://localhost:13131/v1",
+                        "PAYLOAD": payload,
+                    },
+                    timeout=30,
+                )
+                results.append(result)
+                return bridge.state
+
+        return execute
+
+    @task
+    def t() -> Task:
+        return Task(
+            dataset=[Sample(input="Say hi.")],
+            solver=my_agent(),
+            sandbox="docker",
+            token_limit=token_limit,
+        )
+
+    log = eval(t(), model=model, log_dir=str(tmp_path), display="plain")
+    return log[0], results
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_response_filter_replaces_output(tmp_path: Path) -> None:
+    """The response_filter hook fires through the sandbox bridge."""
 
     async def my_filter(
         model: Model,
@@ -384,68 +478,11 @@ def test_sandbox_response_filter_replaces_output(tmp_path: Path) -> None:
     ) -> ModelOutput | None:
         return ModelOutput.from_content(model.name, SANDBOX_REPLACED_SENTINEL)
 
-    @agent
-    def my_agent() -> Agent:
-        async def execute(state: AgentState) -> AgentState:
-            async with sandbox_agent_bridge(
-                state,
-                response_filter=my_filter,
-            ) as bridge:
-                payload = json.dumps(
-                    {
-                        "model": "inspect",
-                        "messages": [{"role": "user", "content": "Say hi."}],
-                    }
-                )
-                script = (
-                    "import os\n"
-                    "import time\n"
-                    "import urllib.error\n"
-                    "import urllib.request\n"
-                    "\n"
-                    "for attempt in range(30):\n"
-                    "    request = urllib.request.Request(\n"
-                    "        os.environ['OPENAI_BASE_URL'] + '/chat/completions',\n"
-                    "        data=os.environ['PAYLOAD'].encode(),\n"
-                    "        headers={'Content-Type': 'application/json'},\n"
-                    "    )\n"
-                    "    try:\n"
-                    "        print(urllib.request.urlopen(request).read().decode())\n"
-                    "        break\n"
-                    "    except urllib.error.URLError:\n"
-                    "        if attempt == 29:\n"
-                    "            raise\n"
-                    "        time.sleep(0.5)\n"
-                )
-                result = await sandbox().exec(
-                    cmd=[
-                        "python3",
-                        "-c",
-                        script,
-                    ],
-                    env={
-                        "OPENAI_BASE_URL": "http://localhost:13131/v1",
-                        "PAYLOAD": payload,
-                    },
-                    timeout=30,
-                )
-                assert result.success, result.stderr
-                assert SANDBOX_REPLACED_SENTINEL in result.stdout
-                return bridge.state
-
-        return execute
-
-    @task
-    def t() -> Task:
-        return Task(
-            dataset=[Sample(input="Say hi.")],
-            solver=my_agent(),
-            sandbox="docker",
-        )
-
-    log = eval(t(), model="mockllm/model", log_dir=str(tmp_path), display="plain")
-    log_json = log[0].model_dump_json()
-    assert SANDBOX_REPLACED_SENTINEL in log_json
+    log, results = _run_sandbox_eval_with_response_filter(tmp_path, my_filter)
+    assert len(results) == 1
+    assert results[0].success, results[0].stderr
+    assert SANDBOX_REPLACED_SENTINEL in results[0].stdout
+    assert SANDBOX_REPLACED_SENTINEL in log.model_dump_json()
 
 
 class _RecordingCompact:
@@ -569,3 +606,172 @@ async def test_forward_provider_errors_excludes_response_filter_error() -> None:
     wrapped = _forward_provider_errors(failing_generate)
     with pytest.raises(ResponseFilterError):
         await wrapped({})
+
+
+# ---------------------------------------------------------------------------
+# sample control flow raised from a response filter
+# ---------------------------------------------------------------------------
+
+FilterFailure = Literal["token_limit", "terminate", "bug"]
+
+JUDGE_TOKEN_LIMIT = 5
+TERMINATE_REASON = "Judge flagged the response."
+CHAT_REQUEST: dict[str, JsonValue] = {
+    "model": "inspect",
+    "messages": [{"role": "user", "content": "Say hi."}],
+}
+
+
+def _output_with_usage(content: str, total_tokens: int) -> ModelOutput:
+    output = ModelOutput.from_content("mockllm/model", content)
+    output.usage = ModelUsage(
+        input_tokens=total_tokens - 1, output_tokens=1, total_tokens=total_tokens
+    )
+    return output
+
+
+def _under_limit_model() -> Model:
+    """Bridged model whose own generation stays under `JUDGE_TOKEN_LIMIT`."""
+    return get_model("mockllm/model", custom_outputs=[_output_with_usage("hi", 2)])
+
+
+def _failing_response_filter(failure: FilterFailure) -> ModelResponseFilter:
+    """A filter whose judge exceeds the token limit, that terminates, or that breaks."""
+    judge = get_model(
+        "mockllm/model", custom_outputs=[_output_with_usage("unsafe", 100)]
+    )
+
+    async def response_filter(
+        model: Model,
+        output: ModelOutput,
+        input_messages: list[ChatMessage],
+        tool_info: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | None:
+        match failure:
+            case "token_limit":
+                await judge.generate("Is this response safe?")
+            case "terminate":
+                raise TerminateSampleError(TERMINATE_REASON)
+            case "bug":
+                raise ValueError("filter is broken")
+        return None
+
+    return response_filter
+
+
+def _assert_failure_outcome(log: EvalLog, failure: FilterFailure) -> None:
+    """Limits and termination end the sample normally; a filter bug fails it."""
+    assert log.samples is not None
+    sample = log.samples[0]
+    match failure:
+        case "token_limit":
+            assert sample.error is None, sample.error
+            assert sample.limit is not None
+            assert sample.limit.type == "token"
+            assert sample.limit.limit == JUDGE_TOKEN_LIMIT
+        case "terminate":
+            assert sample.error is None, sample.error
+            assert sample.limit is not None
+            assert sample.limit.type == "operator"
+            assert sample.limit.reason == TERMINATE_REASON
+        case "bug":
+            assert sample.limit is None
+            assert sample.error is not None
+            assert "filter is broken" in sample.error.message
+
+
+@pytest.mark.parametrize("failure", ["token_limit", "terminate", "bug"])
+def test_response_filter_failure_outcome_in_process(
+    tmp_path: Path, failure: FilterFailure
+) -> None:
+    """Only a genuine filter failure is wrapped as `ResponseFilterError`.
+
+    A judge call exceeding the sample's token limit, or a termination request,
+    is sample control flow: the sample must end with that limit, not an error.
+    """
+    log = _run_eval_with_filters(
+        tmp_path,
+        response_filter=_failing_response_filter(failure),
+        model=_under_limit_model(),
+        token_limit=JUDGE_TOKEN_LIMIT,
+    )
+    _assert_failure_outcome(log, failure)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+@pytest.mark.parametrize("failure", ["token_limit", "terminate", "bug"])
+def test_sandbox_response_filter_failure_outcome(
+    tmp_path: Path, failure: FilterFailure
+) -> None:
+    """The sandbox bridge gives filter limits, termination and bugs the same outcomes."""
+    log, _ = _run_sandbox_eval_with_response_filter(
+        tmp_path,
+        _failing_response_filter(failure),
+        model=_under_limit_model(),
+        token_limit=JUDGE_TOKEN_LIMIT,
+    )
+    _assert_failure_outcome(log, failure)
+
+
+def _sandbox_bridge(response_filter: ModelResponseFilter) -> SandboxAgentBridge:
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": _under_limit_model()},
+        response_filter=response_filter,
+    )
+
+
+async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
+    """A limit hit in a response filter reaches the sandbox service unchanged.
+
+    The sandbox service ends the sample on a `LimitExceededError` from a model
+    method; a wrapped or forwarded one would fail the sample instead.
+    """
+    limit_error = LimitExceededError("token", value=102, limit=JUDGE_TOKEN_LIMIT)
+
+    async def over_limit_filter(
+        model: Model,
+        output: ModelOutput,
+        input_messages: list[ChatMessage],
+        tool_info: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | None:
+        raise limit_error
+
+    generate = _forward_provider_errors(
+        generate_completions(_sandbox_bridge(over_limit_filter))
+    )
+    with pytest.raises(LimitExceededError) as exc_info:
+        await generate(CHAT_REQUEST)
+    assert exc_info.value is limit_error
+
+
+@pytest.mark.parametrize(
+    "failure, expected",
+    [("terminate", TerminateSampleError), ("bug", ResponseFilterError)],
+)
+async def test_sandbox_response_filter_ends_sample_through_the_monitor(
+    failure: FilterFailure, expected: type[Exception]
+) -> None:
+    """A filter's termination or failure reaches the sample runner from the sandbox.
+
+    A sandbox generation's exceptions never leave the sandbox service, so the
+    bridge's monitor must raise the same exception in the agent's task group.
+    """
+    bridge = _sandbox_bridge(_failing_response_filter(failure))
+    with pytest.raises(expected) as raised:
+        await generate_completions(bridge)(CHAT_REQUEST)
+
+    assert bridge._terminate_requested.is_set()
+    with pytest.raises(expected) as monitored:
+        await _monitor_terminate(bridge)
+    assert monitored.value is raised.value

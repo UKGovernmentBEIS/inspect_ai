@@ -2096,7 +2096,11 @@ the substitution.
 A filter is eval logic, not a passive observer of the model response: an
 exception raised from it propagates and fails the sample (attributed to the
 filter), on both the in-process and sandboxed bridge paths, rather than
-being reported to the scaffold as a model or provider error.
+being reported to the scaffold as a model or provider error. Sample limits
+and termination are the exception: a ``LimitExceededError`` (e.g. a judge
+model call made by the filter exceeding the sample's token limit) or a
+``TerminateSampleError`` raised from the filter ends the sample with that
+limit or termination rather than with an error.
 """
 
 

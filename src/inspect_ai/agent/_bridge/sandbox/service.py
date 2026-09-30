@@ -39,9 +39,10 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
 
     `LimitExceededError` is deliberately excluded so message/token/cost limit
     hit during generation properly end the sample. `ResponseFilterError` is
-    excluded for the same reason: a `response_filter` is eval logic, not a
-    passive observer, so its failures fail the sample rather than reaching
-    the scaffold as a model API error it might retry against forever.
+    excluded too: a `response_filter` is eval logic, not a passive observer, so
+    the bridge fails the sample with it (see `SandboxAgentBridge._end_sample`)
+    and it must not reach the scaffold as a model API error it might retry
+    against.
     """
 
     async def generate_forwarding_errors(

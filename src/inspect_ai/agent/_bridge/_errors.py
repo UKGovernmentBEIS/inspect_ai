@@ -41,9 +41,14 @@ class ResponseFilterError(Exception):
     (attributed to the filter) rather than being reported to the scaffold as
     a model/provider error. Wrapping the original exception gives both the
     sandbox path (`_forward_provider_errors` excludes this type the way it
-    excludes `LimitExceededError`) and the in-process path one exception
-    type to raise, instead of each path handling filter failures
-    differently. The original exception is preserved as `__cause__`.
+    excludes `LimitExceededError`, and the bridge's monitor raises it to the
+    sample runner) and the in-process path one exception type to raise,
+    instead of each path handling filter failures differently. The original
+    exception is preserved as `__cause__`.
+
+    `LimitExceededError` and `TerminateSampleError` are never wrapped: they
+    are sample control flow rather than filter failures, so a limit hit or
+    termination requested inside a filter keeps its normal outcome.
     """
 
 

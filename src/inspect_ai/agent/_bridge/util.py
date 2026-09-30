@@ -17,6 +17,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.images import materialize_media
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -57,6 +58,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     _normalize_config,
 )
 from inspect_ai.util._json import JSONSchema
+from inspect_ai.util._limit import LimitExceededError
 
 # Generation-tuning fields a scaffold may set on a bridged request that describe
 # *how* the underlying model generates. These are the Inspect model's province
@@ -582,7 +584,9 @@ async def bridge_generate(
         # mutation if applicable). A response_filter is eval logic, not a
         # passive observer, so a failure in it fails the sample (attributed
         # to the filter) instead of being reported to the scaffold as a
-        # model/provider error; see `ResponseFilterError`.
+        # model/provider error; see `ResponseFilterError`. Limits (e.g. a judge
+        # call exceeding the sample's token limit) and termination are sample
+        # control flow, not filter failures, so they keep their normal outcome.
         if bridge.response_filter is not None:
             tool_info_for_response = [
                 tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
@@ -597,8 +601,15 @@ async def bridge_generate(
                     tool_choice,
                     config,
                 )
+            except LimitExceededError:
+                # the sandbox service itself ends the sample on a limit error
+                raise
+            except TerminateSampleError as ex:
+                bridge._end_sample(ex)
             except Exception as ex:
-                raise ResponseFilterError(str(ex)) from ex
+                error = ResponseFilterError(str(ex))
+                error.__cause__ = ex
+                bridge._end_sample(error)
             if filtered is not None:
                 output = filtered
 
