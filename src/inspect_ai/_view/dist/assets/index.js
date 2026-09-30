@@ -108267,28 +108267,22 @@ var guidesFor = (entry) => {
 	return prefix;
 };
 var explanationOf = (node) => node?.event.explanation?.trim() || void 0;
-/** Whether a child's decision is the one its parent passed up. */ var passesUp = (child, parent, explanation) => {
-	const event = child.event;
-	if (event.kind !== "decision" || event.decision !== parent.event.decision) return false;
-	const own = explanationOf(child);
-	if (own && explanation && own !== explanation) return false;
-	const [mine, theirs] = [event.modified, parent.event.modified];
-	return !mine || !theirs || mine.function === theirs.function && JSON.stringify(mine.arguments) === JSON.stringify(theirs.arguments);
-};
 /**
-* The decision that took effect, inferred from the step's outcome: a parent
-* passes up its children's decision, so descend from the outcome through
-* children that made the same decision and, where both explain themselves,
-* gave the same explanation. A child whose explanation matches wins a tie.
-*/ var effectiveDecision = (tree, outcome) => {
+* The check that made the step's decision: from the outcome, descend to the
+* first child (in tree order, as `concurrent` picks) that made the same
+* decision, to the lowest such descendant. Explanations and replacements may
+* differ, since combinators reword what they pass up.
+*/ var creditDecision = (tree, outcome) => {
 	let current = tree.find((e) => e.node === outcome);
-	let explanation = explanationOf(outcome);
+	let reason = explanationOf(outcome);
 	for (;;) {
-		const matching = current.children.filter((c) => passesUp(c.node, current.node, explanation));
-		const next = (explanation ? matching.find((c) => explanationOf(c.node) === explanation) : void 0) ?? matching[0];
-		if (!next) return current.node;
+		const next = current.children.find((c) => c.node.event.kind === "decision" && c.node.event.decision === outcome.event.decision);
+		if (!next) return {
+			node: current.node,
+			reason
+		};
 		current = next;
-		explanation ??= explanationOf(next.node);
+		reason = explanationOf(next.node) ?? reason;
 	}
 };
 /**
@@ -108333,7 +108327,8 @@ var isInactiveKind = (kind) => kind === "bypassed" || kind === "cancelled" || ki
 	})).sort((a, b) => compareKeys(keys.get(a.node), keys.get(b.node)) || a.index - b.index).map(({ node }) => node));
 	const outcome = outcomeOf(checks);
 	const acted = !!outcome && outcome.event.decision !== "continue";
-	const effective = acted ? effectiveDecision(tree, outcome) : void 0;
+	const credit = acted ? creditDecision(tree, outcome) : void 0;
+	const effective = credit?.node;
 	const single = checks.length === 1 ? checks[0] : void 0;
 	const observations = checks.filter((n) => n.event.kind === "observation" && n.event.suspicion != null);
 	const scores = acted ? [] : single?.event.suspicion != null ? [formatSuspicion(single.event.suspicion)].filter(Boolean) : observations.flatMap((n) => {
@@ -108355,7 +108350,7 @@ var isInactiveKind = (kind) => kind === "bypassed" || kind === "cancelled" || ki
 		outcome,
 		decider: effective ?? outcome,
 		effective,
-		reason: acted ? explanationOf(effective) ?? explanationOf(outcome) : explanationOf(single),
+		reason: credit ? credit.reason : explanationOf(single),
 		scores,
 		audit: nodes.some((n) => n.event.audit),
 		modelCalls
