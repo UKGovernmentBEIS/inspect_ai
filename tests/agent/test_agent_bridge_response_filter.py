@@ -662,7 +662,7 @@ def _assert_failure_outcome(log: EvalLog, failure: FilterFailure) -> None:
         case "bug":
             assert sample.limit is None
             assert sample.error is not None
-            assert "filter is broken" in sample.error.message
+            assert sample.error.message == "ResponseFilterError('filter is broken')"
 
 
 @pytest.mark.parametrize("failure", ["token_limit", "terminate", "bug"])

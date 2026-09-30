@@ -600,16 +600,9 @@ async def bridge_generate(
         if compact is not None:
             await compact.record_output(input_messages, output)
 
-        # Apply response filter if configured.
-        # Runs inside the refusal-retry loop so a filter that returns a
-        # content_filter ModelOutput triggers a retry; the input arguments
-        # passed are the same ones sent to model.generate() (post-request-filter
-        # mutation if applicable). A response_filter is eval logic, not a
-        # passive observer, so a failure in it fails the sample (attributed
-        # to the filter) instead of being reported to the scaffold as a
-        # model/provider error; see `ResponseFilterError`. Limits (e.g. a judge
-        # call exceeding the sample's token limit) and termination are sample
-        # control flow, not filter failures, so they keep their normal outcome.
+        # Inside the refusal-retry loop so a content_filter replacement is
+        # retried. Limits and termination are sample control flow, not filter
+        # failures; see `ResponseFilterError`.
         if bridge.response_filter is not None:
             tool_info_for_response = [
                 tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
