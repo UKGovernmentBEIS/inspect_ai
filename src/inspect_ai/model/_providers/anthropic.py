@@ -1406,8 +1406,7 @@ class AnthropicAPI(ModelAPI):
                     "Batches API and will be ignored.",
                 )
             else:
-                if fallback_beta not in betas:
-                    betas.append(fallback_beta)
+                betas.append(fallback_beta)
                 extra_body[FALLBACKS_FIELD] = fallbacks
 
         # look for any of our native fields not in GenerateConfig in extra_body

@@ -349,7 +349,7 @@ async def test_bridged_fallbacks_reach_named_anthropic_model_under_2026_07_01(
 
 @pytest.mark.anyio
 async def test_bridged_fallback_list_withheld_from_another_anthropic_model(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, _warn_once_messages: list[str]
 ) -> None:
     """A client's fallback list names targets chosen for the model it named.
 
@@ -358,21 +358,15 @@ async def test_bridged_fallback_list_withheld_from_another_anthropic_model(
     warning. `"default"` routing is valid on any Anthropic model and is still
     forwarded.
     """
-    from inspect_ai._util import logger as logger_mod
-    from inspect_ai.agent._bridge import anthropic_api_impl
-
-    warnings: list[str] = []
-    logger_mod._warned.clear()
-    monkeypatch.setattr(
-        anthropic_api_impl.logger, "warning", lambda msg: warnings.append(msg)
-    )
     model = _anthropic_model(monkeypatch, "anthropic/claude-opus-4-8")
 
     request = await _bridged_provider_request(model, [{"model": "claude-opus-4-8"}])
     assert request["model"] == "claude-opus-4-8"
     assert "fallbacks" not in request.get("extra_body", {})
     assert _fallback_betas(request) == []
-    assert any("claude-fable-5" in w and "claude-opus-4-8" in w for w in warnings)
+    assert any(
+        "claude-fable-5" in w and "claude-opus-4-8" in w for w in _warn_once_messages
+    )
 
     request = await _bridged_provider_request(model, "default")
     assert request["extra_body"]["fallbacks"] == "default"

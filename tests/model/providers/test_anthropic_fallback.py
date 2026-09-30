@@ -192,7 +192,7 @@ def test_fallback_models_take_precedence_over_client_directive() -> None:
 
 
 def test_client_fallback_keeps_callers_fallback_beta() -> None:
-    """A caller's `anthropic-beta` that already carries `2026-07-01` is not doubled."""
+    """A caller's `anthropic-beta` carrying `2026-07-01` is sent with it once."""
     api = AnthropicAPI(model_name=REQUESTED_MODEL, api_key="test-key")
     config = GenerateConfig(
         max_tokens=64,
@@ -201,7 +201,8 @@ def test_client_fallback_keeps_callers_fallback_beta() -> None:
     )
     _params, extra_body, _headers, betas = api.completion_config(config)
     assert extra_body["fallbacks"] == [{"model": FALLBACK_MODEL}]
-    assert _fallback_betas(betas) == ["server-side-fallback-2026-07-01"]
+    sent = api._beta_header_value(betas).split(",")
+    assert _fallback_betas(sent) == ["server-side-fallback-2026-07-01"]
 
 
 def test_null_client_fallback_directive_not_sent() -> None:

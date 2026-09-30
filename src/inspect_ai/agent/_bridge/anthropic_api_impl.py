@@ -261,14 +261,13 @@ def withhold_fallback_list_for_other_model(
     extra_body = config.extra_body
     if extra_body is None or extra_body.get(FALLBACKS_FIELD) in (None, "default"):
         return
-    served_model = ModelName(model)
-    if served_model.name != requested_model.removeprefix("inspect/").removeprefix(
+    if model.name != requested_model.removeprefix("inspect/").removeprefix(
         "anthropic/"
     ):
         warn_once(
             logger,
             f"The bridged agent sent a `fallbacks` list for '{requested_model}', "
-            f"but '{served_model}' is serving the request; the list has been "
+            f"but '{ModelName(model)}' is serving the request; the list has been "
             "withheld because its targets were chosen for the requested model "
             "and may not be permitted for the served one.",
         )
