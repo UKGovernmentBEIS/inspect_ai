@@ -378,23 +378,6 @@ class TestPollRideThrough:
             with pytest.raises(RuntimeError, match=r"^No job found with pid 42$"):
                 await proc._poll()
 
-    async def test_start_timeout_is_independent_of_poll_timeout(self) -> None:
-        """exec_remote never re-issues a start, so a caller may give it longer than a poll."""
-        sandbox = _make_scripted_sandbox(
-            [_start_response(42), _poll_response(state="completed", exit_code=0, seq=0)]
-        )
-        proc = await exec_remote_streaming(
-            sandbox,
-            ["cmd"],
-            5,
-            ExecRemoteCommonOptions(poll_timeout=90, start_timeout=600),
-        )
-
-        _ = [event async for event in proc]
-
-        timeouts = [call.kwargs["timeout"] for call in sandbox.exec.call_args_list]
-        assert timeouts == [600, 90]
-
 
 class TestKill:
     async def test_kill_calls_rpc(self) -> None:
@@ -841,7 +824,6 @@ class TestOptionsPositionalOrder:
         )
 
         assert _base_fields(options) == _BASE_POSITIONAL
-        assert options.start_timeout is None
 
     def test_streaming_options(self) -> None:
         options = ExecRemoteStreamingOptions(
@@ -850,7 +832,6 @@ class TestOptionsPositionalOrder:
 
         assert _base_fields(options) == _BASE_POSITIONAL
         assert options.stdin_open is True
-        assert options.start_timeout is None
 
     def test_awaitable_options(self) -> None:
         options = ExecRemoteAwaitableOptions(
@@ -859,7 +840,6 @@ class TestOptionsPositionalOrder:
 
         assert _base_fields(options) == _BASE_POSITIONAL
         assert options.timeout == 12.0
-        assert options.start_timeout is None
 
 
 # ============================================================================

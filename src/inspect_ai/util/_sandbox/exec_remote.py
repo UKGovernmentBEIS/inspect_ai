@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import shlex
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, Literal, TypeVar, Union, cast
 
 import anyio
@@ -129,18 +129,6 @@ class ExecRemoteCommonOptions:
     concurrency: bool = True
     """For sandboxes that run locally, request that the `concurrency()`
     function be used to throttle concurrent subprocesses."""
-
-    start_timeout: float | None = field(default=None, kw_only=True)
-    """Timeout for the initial start request in seconds.
-
-    Defaults to `poll_timeout` (120 seconds if that is unset). Set this above
-    `poll_timeout` when a stalled poll should be noticed and re-issued quickly but
-    launching the command should tolerate a slow sandbox. exec_remote re-issues a
-    poll that times out but never a start, since a second start would launch a
-    second process. Unless `poll_timeout_retry` is False, a sandbox that retries
-    timed-out commands (Docker does by default) can still re-run a start that
-    times out.
-    """
 
 
 @dataclass
@@ -313,25 +301,14 @@ class ExecRemoteProcess:
     # RPC helpers
     # -------------------------------------------------------------------------
 
-    def _timeout_for(self, override: float | None) -> float:
-        if override is not None:
-            return override
-        return (
-            RPC_TIMEOUT
-            if self._options.poll_timeout is None
-            else self._options.poll_timeout
-        )
-
     async def _rpc(
-        self,
-        method: str,
-        params: dict[str, object],
-        result_type: type[T],
-        timeout: float | None = None,
+        self, method: str, params: dict[str, object], result_type: type[T]
     ) -> T:
         """Make an RPC call to the sandbox."""
         extra_args: dict[str, object] = dict(
-            timeout=self._timeout_for(timeout),
+            timeout=RPC_TIMEOUT
+            if self._options.poll_timeout is None
+            else self._options.poll_timeout,
             # Run the CLI wrapper as the same user that started the server.
             # When root is available, this is "root" (needed to access the
             # server's private state directory inside the 0700 tools tree).
@@ -371,12 +348,7 @@ class ExecRemoteProcess:
         if (user := tools_user_param(self._sandbox, self._options.user)) is not None:
             params["user"] = user
 
-        result = await self._rpc(
-            "exec_remote_start",
-            params,
-            _StartResult,
-            timeout=self._options.start_timeout,
-        )
+        result = await self._rpc("exec_remote_start", params, _StartResult)
         self._pid = result.pid
 
     # -------------------------------------------------------------------------

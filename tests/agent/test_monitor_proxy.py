@@ -1,15 +1,26 @@
-"""Tests for _monitor_proxy proxy death detection."""
+"""Tests for the sandbox agent bridge's monitoring of its model proxy process."""
 
-from typing import AsyncIterator
+import contextlib
+import json
+from collections.abc import Callable, Iterator
+from typing import Any, AsyncIterator
+from unittest.mock import AsyncMock
 
+import anyio
 import pytest
 
-from inspect_ai.agent._bridge.sandbox.bridge import _monitor_proxy
+import inspect_ai.agent._bridge.sandbox.bridge as bridge_module
+from inspect_ai.agent._bridge.sandbox.bridge import _monitor_proxy, sandbox_agent_bridge
+from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
     ExecOutput,
+    ExecRemoteProcess,
+    ExecRemoteStreamingOptions,
     ExecStderr,
+    exec_remote_streaming,
 )
+from inspect_ai.util._subprocess import ExecResult
 
 
 class FakeProcess:
@@ -50,3 +61,89 @@ async def test_monitor_proxy_success() -> None:
     )
 
     await _monitor_proxy(proc)  # type: ignore[arg-type]
+
+
+# ============================================================================
+# The bridge's polls of its proxy, against a sandbox that answers them
+# ============================================================================
+
+
+def _rpc(result: dict[str, object]) -> str:
+    return json.dumps({"jsonrpc": "2.0", "result": result, "id": 1})
+
+
+def _running_poll() -> str:
+    return _rpc(
+        {"state": "running", "exit_code": None, "seq": 0, "stdout": "", "stderr": ""}
+    )
+
+
+@contextlib.contextmanager
+def _no_events() -> Iterator[None]:
+    yield
+
+
+def _use_proxy_sandbox(
+    monkeypatch: pytest.MonkeyPatch, answer_poll: Callable[[float], str]
+) -> None:
+    """Run `sandbox_agent_bridge` against a sandbox that answers its proxy's RPCs.
+
+    Each poll of the proxy is answered by `answer_poll`, given the poll's exec
+    timeout; it returns the JSON-RPC response or raises. The model service is
+    replaced by a task that only reports that it started.
+    """
+    sandbox = AsyncMock()
+    sandbox._tools_user = None
+    sandbox._tools_default_user = None
+    sandbox.no_events = _no_events
+
+    async def exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
+        method = json.loads(kwargs["input"])["method"]
+        if method == "exec_remote_start":
+            stdout = _rpc({"pid": 42})
+        elif method == "exec_remote_poll":
+            stdout = answer_poll(kwargs["timeout"])
+        else:
+            stdout = _rpc({"seq": 0, "stdout": "", "stderr": ""})
+        return ExecResult(success=True, returncode=0, stdout=stdout, stderr="")
+
+    async def exec_remote(
+        cmd: list[str], options: ExecRemoteStreamingOptions
+    ) -> ExecRemoteProcess:
+        return await exec_remote_streaming(sandbox, cmd, 5, options)
+
+    sandbox.exec = AsyncMock(side_effect=exec)
+    sandbox.exec_remote = exec_remote
+
+    async def sandbox_with_injected_tools(*, sandbox_name: str | None = None) -> Any:
+        return sandbox
+
+    async def run_model_service(*args: Any) -> None:
+        started: anyio.Event = args[-1]
+        started.set()
+        await anyio.sleep_forever()
+
+    monkeypatch.setattr(
+        bridge_module, "sandbox_with_injected_tools", sandbox_with_injected_tools
+    )
+    monkeypatch.setattr(bridge_module, "run_model_service", run_model_service)
+
+
+async def test_proxy_poll_the_sandbox_answers_within_600s_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A proxy poll that takes the sandbox longer than 90s but under 600s still succeeds."""
+    answered = anyio.Event()
+
+    def answer_poll(timeout: float) -> str:
+        # the sandbox takes 590s to answer, so a shorter exec timeout expires first
+        if timeout < 590:
+            raise SandboxTimeoutError(f"exec timed out after {timeout}s")
+        answered.set()
+        return _running_poll()
+
+    _use_proxy_sandbox(monkeypatch, answer_poll)
+
+    with anyio.fail_after(20):
+        async with sandbox_agent_bridge():
+            await answered.wait()

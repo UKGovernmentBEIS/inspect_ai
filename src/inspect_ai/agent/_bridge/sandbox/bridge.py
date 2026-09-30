@@ -45,21 +45,6 @@ if TYPE_CHECKING:
 
 logger = getLogger(__name__)
 
-# How long one poll of the in-sandbox proxy's exec stream may take. Small, so a
-# stalled exec path is noticed and re-polled (exec_remote rides the timeout
-# through) rather than after ten minutes or more. A sandbox that honours
-# `timeout_retry` (on by default) re-runs a timed-out exec up to twice more, for
-# at most 60s and then 30s, so a stall is reported after up to about 180s (190s
-# on Docker, which adds 10s to the first attempt); one that ignores it reports
-# after 90s plus any grace it adds. kill() at unwind shares this timeout.
-PROXY_POLL_TIMEOUT_SECONDS = 90
-
-# exec_remote never re-issues a start (a second start would launch a second
-# proxy), so the start keeps the 600s tolerance the poll timeout used to give it:
-# a sandbox that is merely slow to launch the proxy still launches it. The
-# sandbox's own `timeout_retry` can still re-run a start that times out.
-PROXY_START_TIMEOUT_SECONDS = 600
-
 
 @contextlib.asynccontextmanager
 async def sandbox_agent_bridge(
@@ -243,8 +228,7 @@ async def sandbox_agent_bridge(
                         f"{MODEL_SERVICE.upper()}_PORT": str(port),
                         f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
                     },
-                    poll_timeout=PROXY_POLL_TIMEOUT_SECONDS,
-                    start_timeout=PROXY_START_TIMEOUT_SECONDS,
+                    poll_timeout=600,
                 ),
             )
 
