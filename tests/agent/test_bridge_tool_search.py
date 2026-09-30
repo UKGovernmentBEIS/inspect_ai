@@ -639,13 +639,11 @@ async def test_client_tool_search_rejects_discovered_computer_use() -> None:
         )
 
 
-async def test_client_tool_search_drops_computer_inside_namespace() -> None:
-    """A namespace cannot carry computer use; the entry declares no tool for it.
-
-    Responses namespaces hold only function and custom tools, and the replayed
-    discovery result drops any other member, so the model is never told about it.
-    """
-    tool_names_seen: list[set[str]] = []
+async def _generic_tools_after_discovery(
+    discovered: list[dict[str, Any]],
+) -> list[ToolInfo]:
+    """The tools a generic provider is given after one client tool_search result."""
+    tools_seen: list[list[ToolInfo]] = []
 
     def custom_outputs(
         _input: list[ChatMessage],
@@ -653,7 +651,7 @@ async def test_client_tool_search_drops_computer_inside_namespace() -> None:
         _tool_choice: ToolChoice,
         _config: GenerateConfig,
     ) -> ModelOutput:
-        tool_names_seen.append({tool.name for tool in tools})
+        tools_seen.append(tools)
         return ModelOutput.from_content("mockllm/model", "done")
 
     bridge = AgentBridge(
@@ -670,21 +668,14 @@ async def test_client_tool_search_drops_computer_inside_namespace() -> None:
                     "type": "tool_search_call",
                     "id": "ts_1",
                     "call_id": "tool_search_1",
-                    "arguments": {"query": "browser tools"},
+                    "arguments": {"query": "tools"},
                     "execution": "client",
                     "status": "completed",
                 },
                 {
                     "type": "tool_search_output",
                     "call_id": "tool_search_1",
-                    "tools": [
-                        {
-                            "type": "namespace",
-                            "name": "deferred",
-                            "description": "Deferred tools.",
-                            "tools": [{"type": "computer"}],
-                        }
-                    ],
+                    "tools": discovered,
                     "status": "completed",
                 },
             ],
@@ -697,7 +688,75 @@ async def test_client_tool_search_drops_computer_inside_namespace() -> None:
     )
 
     assert response.output_text == "done"
-    assert tool_names_seen == [{TOOL_SEARCH_NAME}]
+    assert len(tools_seen) == 1
+    return tools_seen[0]
+
+
+async def test_client_tool_search_namespace_with_computer_declares_nothing() -> None:
+    """A namespace holding computer use declares none of its tools.
+
+    Responses namespaces hold only function and custom tools. A namespace with
+    any other member is replayed with an empty tool list, valid siblings
+    included, so the model is told about none of them.
+    """
+    read = {
+        "type": "function",
+        "name": "read",
+        "description": "Read a file.",
+        "parameters": {"type": "object", "properties": {"path": {"type": "string"}}},
+    }
+    namespace: dict[str, Any] = {
+        "type": "namespace",
+        "name": "deferred",
+        "description": "Deferred tools.",
+        "tools": [read],
+    }
+
+    tools = await _generic_tools_after_discovery([namespace])
+    assert {tool.name for tool in tools} == {TOOL_SEARCH_NAME, "deferred__read"}
+
+    namespace["tools"] = [read, {"type": "computer"}]
+    tools = await _generic_tools_after_discovery([namespace])
+    assert {tool.name for tool in tools} == {TOOL_SEARCH_NAME}
+
+
+async def test_client_tool_search_skips_schema_less_discovered_functions() -> None:
+    """Functions listed without a schema are skipped; a missing description is not.
+
+    Codex lists its deferred ``multi_agent`` tools by name only, which gives a
+    generic provider nothing to call; a function with a schema but no
+    description is described by its name.
+    """
+    tools = await _generic_tools_after_discovery(
+        [
+            {
+                "type": "namespace",
+                "name": "multi_agent_v1",
+                "description": "Tools for spawning and managing sub-agents.",
+                "tools": [
+                    {"type": "function", "name": "spawn_agent"},
+                    {
+                        "type": "function",
+                        "name": "wait_agent",
+                        "parameters": {"type": "object", "properties": {}},
+                    },
+                ],
+            },
+            {
+                "type": "function",
+                "name": "read_notes",
+                "parameters": {"type": "object", "properties": {}},
+                "strict": False,
+            },
+        ]
+    )
+
+    descriptions = {tool.name: tool.description for tool in tools}
+    assert descriptions == {
+        TOOL_SEARCH_NAME: "Search for available tools",
+        "multi_agent_v1__wait_agent": "wait_agent",
+        "read_notes": "read_notes",
+    }
 
 
 async def test_client_tool_search_rejects_ambiguous_flattened_name() -> None:

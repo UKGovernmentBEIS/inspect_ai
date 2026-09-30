@@ -233,17 +233,25 @@ def _client_discovery_tools(
     """The tools a client tool_search result declares to a generic provider.
 
     Validated as a whole, exactly as `tool_search_output_tools` validates the
-    replayed result: one invalid entry means the result declares nothing, so the
-    tools a generic provider is given agree with the declarations execution
-    grants are resolved against.
+    replayed result: one invalid entry means the result declares nothing.
+    Functions are then reduced as the execution-grant declarations are
+    (`_declared_discovery_entry`), so the tools a generic provider is given agree
+    with the declarations grants are resolved against; built-in tools pass on.
     """
     try:
-        tools: list[ToolParam] = tool_search_tools_adapter.dump_python(
+        validated: list[ToolParam] = tool_search_tools_adapter.dump_python(
             tool_search_tools_adapter.validate_python(item.get("tools") or []),
             mode="json",
         )
     except (ValidationError, ValueError):
-        tools = []
+        return []
+    tools: list[ToolParam] = []
+    for tool in validated:
+        declared = _declared_discovery_entry(tool)
+        if declared is not None:
+            tools.append(declared)
+        elif not is_namespace_tool_param(tool) and not is_function_tool_param(tool):
+            tools.append(tool)
     return tools
 
 
@@ -530,6 +538,27 @@ def _discovered_tool_declarations(
     be matched to and are skipped. Nothing here reaches the model or changes
     what the scaffold receives.
     """
+    declared = _declared_discovery_entry(discovered)
+    if declared is None:
+        return []
+    return [
+        tool
+        for tool in tools_from_responses_tool(
+            declared,
+            web_search,
+            code_execution,
+            bridge.allow_remote_mcp,
+        )
+        if isinstance(tool, ToolInfo)
+    ]
+
+
+def _declared_discovery_entry(discovered: Any) -> ToolParam | None:
+    """A `tool_search_output` entry reduced to the tools it declares with a schema.
+
+    Functions listed by name only are dropped, and so is a namespace left with no
+    members; a missing description is defaulted so conversion uses the name.
+    """
 
     def declarable(entry: Any) -> bool:
         return isinstance(entry, dict) and "parameters" in entry
@@ -540,23 +569,12 @@ def _discovered_tool_declarations(
             for entry in discovered.get("tools", []) or []
             if declarable(entry)
         ]
-        if not inner:
-            return []
-        discovered = {**discovered, "tools": inner}
-    elif declarable(discovered):
-        discovered = {**discovered, "description": discovered.get("description")}
-    else:
-        return []
-    return [
-        tool
-        for tool in tools_from_responses_tool(
-            cast(ToolParam, discovered),
-            web_search,
-            code_execution,
-            bridge.allow_remote_mcp,
+        return cast(ToolParam, {**discovered, "tools": inner}) if inner else None
+    if declarable(discovered):
+        return cast(
+            ToolParam, {**discovered, "description": discovered.get("description")}
         )
-        if isinstance(tool, ToolInfo)
-    ]
+    return None
 
 
 def _record_tool_namespace(
