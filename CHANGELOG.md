@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Agent Bridge: Client-executed tool search can now expose discovered tools to non-OpenAI model providers.
+- Agent Bridge: Client-executed tool search can now expose discovered tools to model providers that do not use the OpenAI Responses API.
 
 ## 0.3.273 (29 September 2026)
 

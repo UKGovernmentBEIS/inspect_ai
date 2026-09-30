@@ -1,3 +1,4 @@
+import hashlib
 import json
 from logging import getLogger
 from time import time
@@ -72,7 +73,7 @@ from openai.types.responses.response_tool_search_output_item_param_param import 
     ResponseToolSearchOutputItemParamParam,
 )
 from openai.types.responses.tool_param import CodeInterpreter
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from shortuuid import uuid
 
 from inspect_ai._util.content import (
@@ -417,20 +418,40 @@ def _register_client_discovery(
             identity = _ToolIdentity(info.name, namespace)
             if identity in declared:
                 continue
-            name = f"{namespace}__{info.name}" if namespace else info.name
+            name = _generic_tool_name(namespace, info.name) if namespace else info.name
             if exposed.setdefault(name, identity) != identity:
                 raise RuntimeError(
                     f"Ambiguous client tool catalog: discovered tool "
                     f"'{name}' conflicts with a tool that is already available."
                 )
-            if isinstance(tool, ToolInfo):
+            if isinstance(tool, ToolInfo) and tool.name != name:
+                # the verbatim declaration names the raw member, so nothing may
+                # re-emit it for the renamed tool
                 tool.name = name
+                tool.options = {
+                    key: value
+                    for key, value in (tool.options or {}).items()
+                    if key != RESPONSES_VERBATIM
+                }
             discovered_tools[name] = tool
             if namespace is not None:
                 tool_namespaces[name] = identity
                 generic_names[identity] = name
     tools.extend(discovered_tools.values())
     return generic_names
+
+
+MAX_TOOL_NAME = 64
+"""Longest tool name every provider accepts (Bedrock and OpenAI chat enforce it)."""
+
+
+def _generic_tool_name(namespace: str, name: str) -> str:
+    """``<namespace>__<name>``, shortened with a stable hash to `MAX_TOOL_NAME`."""
+    generic_name = f"{namespace}__{name}"
+    if len(generic_name) <= MAX_TOOL_NAME:
+        return generic_name
+    digest = hashlib.sha256(generic_name.encode()).hexdigest()[:8]
+    return f"{generic_name[: MAX_TOOL_NAME - len(digest) - 1]}_{digest}"
 
 
 async def inspect_responses_api_request_impl(
@@ -583,6 +604,9 @@ async def inspect_responses_api_request_impl(
         declared_in_input=lambda messages: _declarations_in_input(
             messages, web_search, code_execution, bridge
         ),
+        review_names={
+            name: identity.name for identity, name in discovered_tool_names.items()
+        },
     )
     if c_message is not None:
         messages.append(c_message)
@@ -884,15 +908,22 @@ def tool_from_responses_tool(
         # client-resolved tool discovery (e.g. codex-cli). Preserve the native
         # tool fields in options so the OpenAI Responses provider can re-emit the
         # ToolSearchToolParam verbatim; the scaffold resolves the calls locally.
-        # Only a non-OpenAI provider presents the declared schema itself.
+        # Only a non-OpenAI provider presents the declared schema itself; one that
+        # a tool's parameters cannot represent drops the search, as it is dropped
+        # for providers that cannot call it at all.
         schema = tool_param.get("parameters")
-        parameters = (
-            ToolParams.model_validate(schema)
-            if non_openai
-            and tool_param.get("execution") == "client"
-            and schema is not None
-            else ToolParams()
-        )
+        parameters = ToolParams()
+        if non_openai and tool_param.get("execution") == "client" and schema:
+            try:
+                parameters = ToolParams.model_validate(schema)
+            except ValidationError:
+                warn_once(
+                    logger,
+                    "The bridged agent declared a client tool_search whose "
+                    "`tools[].parameters` schema is not a tool parameters object; "
+                    "the tool_search has been withheld from the model.",
+                )
+                return None
         return ToolInfo(
             name=TOOL_SEARCH_NAME,
             description=tool_param.get("description") or TOOL_SEARCH_NAME,

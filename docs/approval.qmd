@@ -170,6 +170,8 @@ async with sandbox_agent_bridge(
 
 For a sandbox bridge this parameter is the only reliable way to set policy from inside the agent: bridged generations run in the sandbox service task, which doesn't see an `approval()` [context manager](#approval-context) entered within the agent body.
 
+Policies match a tool by the name the agent declared it under. A model that does not use the OpenAI Responses API is shown a tool discovered through the agent's client-side `tool_search` as `<namespace>__<name>` (see [Tool Search](agent-bridge.qmd#tool-search)). Its calls are still reviewed under `<name>`, the name an OpenAI model calls it by, so a policy for `read_file` covers `read_file` whichever model the agent runs on.
+
 Decisions behave as follows:
 
 | Decision | Behavior for a bridged agent |

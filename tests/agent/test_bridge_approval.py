@@ -2163,6 +2163,41 @@ async def test_tool_discovered_through_tool_search_is_granted() -> None:
     tool.assert_awaited_once_with(path="notes.txt")
 
 
+async def test_policy_naming_a_discovered_tool_reviews_its_generic_name() -> None:
+    """A policy for `read_file` covers the call the model makes as `mcp__host__read_file`.
+
+    A provider without the Responses API is shown the discovered tool under its
+    generic name, but its calls are reviewed under the name the scaffold declared,
+    as they are on OpenAI, so the rejecting policy applies before the catch-all
+    and no execution is granted.
+    """
+    tool = AsyncMock(return_value="contents")
+    call = ToolCall(
+        id="c1", function="mcp__host__read_file", arguments={"path": "notes.txt"}
+    )
+    bridge = sandbox_responses_bridge(
+        tool,
+        [tool_calls_output(call), ModelOutput.from_content("mockllm/model", "stopped")],
+    )
+    bridge.approval = [
+        ApprovalPolicy(auto_approver("reject"), "read_file"),
+        ApprovalPolicy(auto_approver(), "*"),
+    ]
+
+    response = await inspect_responses_api_request(
+        responses_request_with_tool_search([discovered_read_file_namespace()]),
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    assert response.output_text == "stopped"
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
 def tool_search_result(messages: list[ChatMessage]) -> ChatMessageTool:
     """The `tool_search_output` item as the model sees it: a tool result carrying JSON."""
     (message,) = [
@@ -2206,8 +2241,9 @@ async def request_with_rewritten_discovery(
     tool: AsyncMock,
     discovered: list[dict[str, Any]],
     rewrite: Callable[[list[ChatMessage], list[ToolInfo]], GenerateInput],
+    function: str = "read_file",
 ) -> SandboxAgentBridge:
-    call = ToolCall(id="c1", function="read_file", arguments={"path": "notes.txt"})
+    call = ToolCall(id="c1", function=function, arguments={"path": "notes.txt"})
     bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
     bridge.filter = discovery_rewriting_filter(rewrite)
     await inspect_responses_api_request(
@@ -2264,6 +2300,66 @@ async def test_discovery_description_rewritten_by_a_filter_does_not_grant() -> N
     with pytest.raises(PermissionError, match="was not proposed by the model"):
         await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
     tool.assert_not_awaited()
+
+
+async def test_discovery_removed_by_a_filter_does_not_grant_its_generic_name() -> None:
+    """A filter that also replaces `tools` withdraws the generic declaration.
+
+    For a provider without the Responses API the discovered tool is declared in
+    `tools` as `mcp__host__read_file` as well as in the discovery result, so a
+    filter that drops both leaves nothing a call to that name can match.
+    """
+    tool = AsyncMock(return_value="contents")
+
+    def remove_discovery(
+        input: list[ChatMessage], tools: list[ToolInfo]
+    ) -> GenerateInput:
+        without = [m for m in input if m is not tool_search_result(input)]
+        local = declare("read_file", description="Read a file inside the sandbox.")
+        return GenerateInput(without, local, None, GenerateConfig())
+
+    bridge = await request_with_rewritten_discovery(
+        tool,
+        [discovered_read_file_namespace()],
+        remove_discovery,
+        function="mcp__host__read_file",
+    )
+
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+    tool.assert_not_awaited()
+
+
+async def test_discovery_rewritten_only_in_its_result_still_grants_its_generic_name() -> (
+    None
+):
+    """A filter that leaves `tools` alone leaves the generic declaration in force.
+
+    The model was still given `mcp__host__read_file` with its served description in
+    `tools`, so its call to that name is granted even though the filter rewrote the
+    discovery result; withdrawing the tool takes removing it from `tools` too.
+    """
+    tool = AsyncMock(return_value="contents")
+
+    def rewrite_description(
+        input: list[ChatMessage], tools: list[ToolInfo]
+    ) -> GenerateInput:
+        namespace = discovered_read_file_namespace()
+        namespace["tools"][0]["description"] = "Read a file inside the sandbox."
+        return GenerateInput(
+            with_tool_search_result(input, [namespace]), tools, None, GenerateConfig()
+        )
+
+    bridge = await request_with_rewritten_discovery(
+        tool,
+        [discovered_read_file_namespace()],
+        rewrite_description,
+        function="mcp__host__read_file",
+    )
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    tool.assert_awaited_once_with(path="notes.txt")
 
 
 async def test_discovery_added_by_a_filter_grants_once() -> None:

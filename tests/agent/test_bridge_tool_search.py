@@ -654,6 +654,128 @@ async def test_client_discovery_keeps_a_declared_namespace_tool_name() -> None:
     assert {tool.name for tool in tools} == {TOOL_SEARCH_NAME, "browser"}
 
 
+async def test_client_discovery_bounds_long_generic_names() -> None:
+    """A generic name over 64 characters is shortened and still maps back.
+
+    `mcp__chrome_devtools_protocol__performance_analyze_insight_for_trace` is 68
+    characters, past the tool-name limit some providers enforce. The shortened
+    name is the same on every request, so the call the model makes returns under
+    its Responses name and namespace, and the scaffold's replay of that call is
+    shown to the model under the shortened name again.
+    """
+    init_sample_openai_assistant_internal()
+    namespace = {
+        "type": "namespace",
+        "name": "mcp__chrome_devtools_protocol",
+        "description": "Chrome DevTools tools.",
+        "tools": [
+            _discoverable_function_tool()
+            | {"name": "performance_analyze_insight_for_trace"}
+        ],
+    }
+    generations: list[tuple[list[str], list[ChatMessage]]] = []
+
+    def custom_outputs(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        _tool_choice: ToolChoice,
+        _config: GenerateConfig,
+    ) -> ModelOutput:
+        names = [tool.name for tool in tools]
+        generations.append((names, input))
+        if len(generations) > 1:
+            return ModelOutput.from_content("mockllm/model", "done")
+        (name,) = [name for name in names if name.startswith("mcp__chrome")]
+        return ModelOutput.for_tool_call(
+            "mockllm/model", name, {"path": "trace.json"}, tool_call_id="c1"
+        )
+
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        model_aliases={
+            "inspect": get_model("mockllm/model", custom_outputs=custom_outputs)
+        },
+    )
+    discovery: list[dict[str, Any]] = [
+        {"role": "user", "content": "Profile the page."},
+        {
+            "type": "tool_search_call",
+            "id": "ts_1",
+            "call_id": "tool_search_1",
+            "arguments": {"query": "performance"},
+            "execution": "client",
+            "status": "completed",
+        },
+        {
+            "type": "tool_search_output",
+            "call_id": "tool_search_1",
+            "tools": [namespace],
+            "status": "completed",
+        },
+    ]
+    first = await inspect_responses_api_request(
+        {"model": "inspect", "input": discovery, "tools": [_tool_search_tool_param()]},
+        None,
+        None,
+        None,
+        bridge,
+    )
+    calls = [
+        item for item in first.output if isinstance(item, ResponseFunctionToolCall)
+    ]
+    assert [(call.name, call.namespace) for call in calls] == [
+        ("performance_analyze_insight_for_trace", "mcp__chrome_devtools_protocol")
+    ]
+
+    await inspect_responses_api_request(
+        {
+            "model": "inspect",
+            "input": [
+                *discovery,
+                calls[0].model_dump(exclude_none=True),
+                {"type": "function_call_output", "call_id": "c1", "output": "{}"},
+            ],
+            "tools": [_tool_search_tool_param()],
+        },
+        None,
+        None,
+        None,
+        bridge,
+    )
+
+    (first_names, _), (second_names, replayed) = generations
+    (bounded,) = [name for name in first_names if name.startswith("mcp__chrome")]
+    assert len(bounded) <= 64
+    assert second_names == first_names
+    replayed_calls = [
+        call.function
+        for message in replayed
+        if isinstance(message, ChatMessageAssistant)
+        for call in message.tool_calls or []
+    ]
+    assert replayed_calls == [TOOL_SEARCH_NAME, bounded]
+
+
+async def test_client_tool_search_with_an_unusable_schema_is_withheld() -> None:
+    """A client tool_search whose schema is not a parameters object is withheld.
+
+    The request still reaches the model, as it did when non-OpenAI providers
+    were never sent a tool_search.
+    """
+    tools = await _non_openai_tools_after_discovery(
+        declare_tool_search=None,
+        request_tools=[
+            {
+                "type": "tool_search",
+                "execution": "client",
+                "parameters": {"type": "string"},
+            }
+        ],
+    )
+
+    assert tools == []
+
+
 async def test_responses_protocol_provider_keeps_native_discovery() -> None:
     """An OpenAI-compatible Responses provider gets discovery as OpenAI does.
 

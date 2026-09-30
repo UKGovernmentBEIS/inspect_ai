@@ -3,7 +3,7 @@ import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Callable, Iterator, Sequence, cast
+from typing import Any, Callable, Iterator, Mapping, Sequence, cast
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
@@ -487,6 +487,7 @@ async def bridge_generate(
     tool_choice: ToolChoice | None,
     config: GenerateConfig,
     declared_in_input: Callable[[list[ChatMessage]], Sequence[ToolInfo]] | None = None,
+    review_names: Mapping[str, str] | None = None,
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Generate model output through the agent bridge.
 
@@ -497,7 +498,12 @@ async def bridge_generate(
     generated from on each attempt, after compaction and any filter rewrite, so a
     declaration the filter removed cannot authorize a host call and one it added
     can; the result takes part only in resolving execution grants and is never
-    sent to the model.
+    sent to the model. For a provider without the Responses API, tools discovered
+    through a client `tool_search` are declared in `tools` as well, under
+    `<namespace>__<name>`, so a filter withdraws one by removing it from `tools`.
+
+    `review_names` maps a tool name the model was shown to the name its calls are
+    approved under (see `_approval.apply_bridge_tool_approval`).
 
     If a filter is configured, it will be called on each attempt (including retries).
     The filter can either return a ModelOutput directly or modify the generation inputs.
@@ -610,7 +616,9 @@ async def bridge_generate(
         # are the only ones the scaffold may run as host tools, once each; they
         # resolve against the declarations this attempt generated with (tools and
         # in-input declarations alike), which a filter may have rewritten.
-        reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
+        reviewed = await apply_bridge_tool_approval(
+            bridge, output, input_messages, review_names
+        )
         if reviewed.rejection is None:
             declarations: list[ToolInfo | Tool] = list(tools)
             if declared_in_input is not None:
