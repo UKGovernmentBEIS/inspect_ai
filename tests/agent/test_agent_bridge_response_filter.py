@@ -113,12 +113,7 @@ def test_agent_bridge_constructor_accepts_response_filter() -> None:
     """AgentBridge construction must accept response_filter."""
 
     async def my_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         return output
 
@@ -134,12 +129,7 @@ async def test_agent_bridge_entry_point_accepts_response_filter() -> None:
     """The agent_bridge() async context manager must accept response_filter."""
 
     async def my_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         return None
 
@@ -155,12 +145,7 @@ async def test_sandbox_agent_bridge_entry_point_accepts_response_filter(
     """The sandbox_agent_bridge() async context manager must accept response_filter."""
 
     async def my_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         return output
 
@@ -196,12 +181,7 @@ def test_response_filter_passthrough(tmp_path: Path) -> None:
     call_count = {"n": 0}
 
     async def my_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         call_count["n"] += 1
         return None
@@ -214,12 +194,7 @@ def test_response_filter_replaces_output(tmp_path: Path) -> None:
     """When response_filter returns a ModelOutput, that output is used."""
 
     async def my_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         return ModelOutput.from_content(model.name, REPLACED_SENTINEL)
 
@@ -233,12 +208,7 @@ def test_response_filter_cannot_mutate_recorded_model_event(tmp_path: Path) -> N
     provider_output: ModelOutput | None = None
 
     async def mutating_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         nonlocal provider_output
         provider_output = output.model_copy(deep=True)
@@ -261,12 +231,7 @@ def test_response_filter_refusal_triggers_retry(tmp_path: Path) -> None:
     call_log: list[str] = []
 
     async def my_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         call_log.append(output.stop_reason)
         return ModelOutput.from_content(
@@ -286,12 +251,7 @@ def test_response_filter_can_suppress_refusal(tmp_path: Path) -> None:
     call_count = {"n": 0}
 
     async def my_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         call_count["n"] += 1
         return ModelOutput.from_content(
@@ -309,12 +269,7 @@ def test_response_filter_no_retry_budget(tmp_path: Path) -> None:
     call_count = {"n": 0}
 
     async def my_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         call_count["n"] += 1
         return ModelOutput.from_content(
@@ -357,15 +312,10 @@ def test_request_and_response_filter_compose(tmp_path: Path) -> None:
         return GenerateInput(input_messages, [sentinel_tool], tool_choice, config)
 
     async def resp_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         call_order.append("response_filter")
-        response_seen_tools.append([t.name for t in tool_info])
+        response_seen_tools.append([t.name for t in generate_input.tools])
         return None
 
     _run_eval_with_filters(tmp_path, filter=req_filter, response_filter=resp_filter)
@@ -467,12 +417,7 @@ def test_sandbox_response_filter_replaces_output(tmp_path: Path) -> None:
     """The response_filter hook fires through the sandbox bridge."""
 
     async def my_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         return ModelOutput.from_content(model.name, SANDBOX_REPLACED_SENTINEL)
 
@@ -519,12 +464,7 @@ async def test_response_filter_runs_after_compaction_baseline_update() -> None:
     bridge._compact = compact
 
     async def replacing_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         return ModelOutput.from_content(model.name, REPLACED_SENTINEL)
 
@@ -564,12 +504,7 @@ async def test_response_filter_exception_fails_sample_in_process() -> None:
     bridge = AgentBridge(AgentState(messages=[]))
 
     async def raising_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         raise ValueError("filter is broken")
 
@@ -622,12 +557,7 @@ def _failing_response_filter(failure: FilterFailure) -> ModelResponseFilter:
     )
 
     async def response_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         match failure:
             case "token_limit":
@@ -718,12 +648,7 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
     limit_error = LimitExceededError("token", value=102, limit=JUDGE_TOKEN_LIMIT)
 
     async def over_limit_filter(
-        model: Model,
-        output: ModelOutput,
-        input_messages: list[ChatMessage],
-        tool_info: list[ToolInfo],
-        tool_choice: ToolChoice | None,
-        config: GenerateConfig,
+        model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
         raise limit_error
 

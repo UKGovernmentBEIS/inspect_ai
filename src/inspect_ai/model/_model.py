@@ -2075,23 +2075,16 @@ or return ``None`` to allow default processing to continue.
 
 
 ModelResponseFilter: TypeAlias = Callable[
-    [
-        Model,
-        ModelOutput,
-        list[ChatMessage],
-        list[ToolInfo],
-        ToolChoice | None,
-        GenerateConfig,
-    ],
-    Awaitable[ModelOutput | None],
+    [Model, ModelOutput, GenerateInput], Awaitable[ModelOutput | None]
 ]
 """Filter that can replace a model's output after generation.
 
 Called inside the bridge's refusal-retry loop, after ``model.generate()``
 returns and after the compaction baseline is updated from that call's
 actual usage. Receives the resolved ``Model``, a deep copy of the
-``ModelOutput`` returned by ``model.generate()``, and the same input arguments
-that were sent to the model.
+``ModelOutput`` returned by ``model.generate()``, and a ``GenerateInput``
+holding the input messages, tools, tool choice and config that were sent to
+the model (what a request ``filter`` can return).
 
 Return a ``ModelOutput`` to replace the response, or ``None`` to pass
 through the provider output unchanged. Mutations to the callback argument have

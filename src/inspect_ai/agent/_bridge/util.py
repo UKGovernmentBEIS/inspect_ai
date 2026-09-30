@@ -599,15 +599,12 @@ async def bridge_generate(
         # retried. Limits and termination are sample control flow, not filter
         # failures; see `ResponseFilterError`.
         if bridge.response_filter is not None:
-            tool_info = get_tools_info(tools)
+            generate_input = GenerateInput(
+                input_messages, get_tools_info(tools), tool_choice, config
+            )
             try:
                 filtered = await bridge.response_filter(
-                    model,
-                    output.model_copy(deep=True),
-                    input_messages,
-                    tool_info,
-                    tool_choice,
-                    config,
+                    model, output.model_copy(deep=True), generate_input
                 )
             except (LimitExceededError, TerminateSampleError):
                 raise
