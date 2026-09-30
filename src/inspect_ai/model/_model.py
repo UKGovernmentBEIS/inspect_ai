@@ -2102,7 +2102,9 @@ first; one mixing them with any other exception is a ``ResponseFilterError``. A
 replacement is also a ``ResponseFilterError`` if it fails ``ModelOutput``
 validation, has no choices, or has tool-call ``arguments`` the filter changed that
 are not JSON-serializable. Other failures to render a replacement for the agent
-reach it as retryable error replies, as they would without a filter.
+behave as they would without a filter: on the sandbox bridge they reach the agent
+as an error reply it may retry, and in-process they raise from the agent's model
+call.
 """
 
 
