@@ -147,10 +147,9 @@ async def sandbox_agent_bridge(
             state (messages, output, compaction prefix) for checkpoint backup
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
-        response_filter: Filter that mutates model output after generation.
-            Called inside the refusal-retry loop, after ``model.generate()``
-            and after the compaction baseline update. Return ``None`` to pass
-            through; return a ``ModelOutput`` to replace the response.
+        response_filter: Filter that can replace model output after generation
+            (see ``ModelResponseFilter``). Return ``None`` to pass through;
+            return a ``ModelOutput`` to replace the response.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"

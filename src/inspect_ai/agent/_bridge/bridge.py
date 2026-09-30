@@ -167,10 +167,9 @@ async def agent_bridge(
           each approval. Eval-level and task-level policies already apply without
           this. A rejected tool call is never handed to the agent: the model is
           told it was rejected and generation is retried.
-       response_filter: Filter that mutates model output after generation.
-          Called inside the refusal-retry loop, after ``model.generate()``
-          and after the compaction baseline update. Return ``None`` to pass
-          through; return a ``ModelOutput`` to replace the response.
+       response_filter: Filter that can replace model output after generation
+          (see ``ModelResponseFilter``). Return ``None`` to pass through; return
+          a ``ModelOutput`` to replace the response.
     """
     # ensure one time init
     init_bridge_request_patch()

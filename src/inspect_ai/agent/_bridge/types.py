@@ -153,17 +153,9 @@ class AgentBridge:
     """
 
     response_filter: ModelResponseFilter | None
-    """Filter that mutates the model's output after generation.
+    """Filter that can replace model output after generation (see ``ModelResponseFilter``).
 
-    Runs inside the refusal-retry loop, after ``model.generate()`` returns
-    and after the compaction baseline is updated from that call's actual
-    usage. Returning ``None`` passes the output through unchanged; returning
-    a ``ModelOutput`` replaces it. Returning an output with
-    ``stop_reason="content_filter"`` triggers a retry (subject to
-    ``retry_refusals``).
-
-    See ``ModelResponseFilter`` for guidance on cross-turn consistency when
-    mutating tool_use arguments.
+    Return ``None`` to pass through; return a ``ModelOutput`` to replace the response.
     """
 
     model: str | None

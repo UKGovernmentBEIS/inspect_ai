@@ -36,15 +36,7 @@ class BridgePolicyError(Exception):
 class ResponseFilterError(Exception):
     """A `response_filter` raised while transforming a model's output.
 
-    A response filter is eval logic, not a passive observer of the model
-    response, so a failure in it should propagate and fail the sample
-    (attributed to the filter) rather than being reported to the scaffold as
-    a model/provider error. Wrapping the original exception gives both the
-    sandbox path (`_forward_provider_errors` fails the sample with this type
-    through `SandboxAgentBridge.request_fail`, as it does a refusal) and the
-    in-process path one exception type to raise, instead of each path handling
-    filter failures differently. The original exception is preserved as
-    `__cause__`.
+    The original exception is preserved as `__cause__`.
 
     `LimitExceededError` and `TerminateSampleError` are never wrapped: they
     are sample control flow rather than filter failures, so a limit hit or

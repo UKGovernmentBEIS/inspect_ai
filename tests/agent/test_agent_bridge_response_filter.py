@@ -337,9 +337,7 @@ def test_request_and_response_filter_compose(tmp_path: Path) -> None:
 
     Also locks the contract that the response_filter observes the request_filter's
     mutations: the request filter INJECTS a sentinel tool, and the response filter
-    must see that tool in its tool_info argument. The underlying request carries 0
-    tools, so asserting `len(tool_info) == 0` would be vacuous — asserting that the
-    sentinel is present is the only way to prove post-request-filter visibility.
+    must see that tool in its tool_info argument.
     """
     call_order: list[str] = []
     response_seen_tools: list[list[str]] = []
@@ -557,8 +555,7 @@ async def test_response_filter_exception_fails_sample_in_process() -> None:
     """A raising response_filter must fail the sample, not be swallowed.
 
     In-process, this means the exception propagates out of `bridge_generate`
-    as a `ResponseFilterError` attributing the failure to the filter, rather
-    than the raw exception escaping undocumented and untested.
+    as a `ResponseFilterError` attributing the failure to the filter.
     """
     model = get_model(
         "mockllm/model",

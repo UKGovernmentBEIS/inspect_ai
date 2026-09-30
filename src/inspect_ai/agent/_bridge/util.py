@@ -30,6 +30,7 @@ from inspect_ai.agent._bridge._approval import (
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
+from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import (
     GenerateConfig,
@@ -544,14 +545,11 @@ async def bridge_generate(
         # Apply filter if we have it (can either return output or alternate inputs)
         output: ModelOutput | None = None
         if bridge.filter:
-            # tool_to_tool_info (via ToolDef) preserves `options` — including
-            # the INTERNAL_TOOL_TYPE marker — so the filter sees the same
-            # ToolInfo the model provider would. parse_tool_info re-derives
-            # from the function signature and drops options.
-            tool_info = [
-                tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
-                for tool in tools
-            ]
+            # get_tools_info (via ToolDef) preserves `options` — including the
+            # INTERNAL_TOOL_TYPE marker — so both filters see the same ToolInfo
+            # the model provider would. parse_tool_info re-derives from the
+            # function signature and drops options.
+            tool_info = get_tools_info(tools)
             if _is_model_filter(bridge.filter):
                 result = await bridge.filter(
                     model, input_messages, tool_info, tool_choice, config
@@ -591,12 +589,9 @@ async def bridge_generate(
                     raise
 
         # Update the compaction baseline with the actual input token count
-        # from the generate call (most accurate source of truth). This must
-        # happen before the response filter runs: a replacing filter changes
-        # what the scaffold sees, not what the call actually consumed, and a
-        # synthetic replacement (e.g. `ModelOutput.from_content()`) carries no
-        # usage at all, which would silently stall calibration on the
-        # count_tokens estimate for the rest of the run.
+        # from the generate call (most accurate source of truth). Record it
+        # before the response filter: a replacement (e.g.
+        # `ModelOutput.from_content()`) may carry no usage.
         if compact is not None:
             await compact.record_output(input_messages, output)
 
@@ -604,16 +599,13 @@ async def bridge_generate(
         # retried. Limits and termination are sample control flow, not filter
         # failures; see `ResponseFilterError`.
         if bridge.response_filter is not None:
-            tool_info_for_response = [
-                tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
-                for tool in tools
-            ]
+            tool_info = get_tools_info(tools)
             try:
                 filtered = await bridge.response_filter(
                     model,
                     output.model_copy(deep=True),
                     input_messages,
-                    tool_info_for_response,
+                    tool_info,
                     tool_choice,
                     config,
                 )
