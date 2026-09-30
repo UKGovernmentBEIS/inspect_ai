@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Docker: Sandboxes with healthchecks now get 60 extra seconds to start, so container startup or dependencies that outlast the healthcheck estimate no longer fail sandbox creation.
+- Docker: Sandboxes with healthchecks now allow 60 s of startup beyond the healthcheck estimate; a service that never becomes healthy can take up to about 150 s longer to fail.
 
 ## 0.3.273 (29 September 2026)
 

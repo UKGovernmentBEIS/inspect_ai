@@ -36,7 +36,7 @@ COMPOSE_WAIT = 600
 
 # Allowance for the work `compose up` does before its health wait starts (creating
 # and starting containers, waiting on their dependencies), which Docker does not
-# count against `--wait-timeout` but which does count against our deadline
+# count against `--wait-timeout` but which does count against our timeout
 COMPOSE_STARTUP_TIMEOUT = 60
 
 
