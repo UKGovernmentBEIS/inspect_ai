@@ -35,6 +35,21 @@ _BACKPRESSURE_BUFFER_SIZE = 100 * 1024 * 1024  # 100 MiB
 _MAX_POLL_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MiB per poll response
 
 
+def _leader_handle(process: AsyncIOProcess) -> psutil.Process | None:
+    """Identity-checked handle for the job's group leader, taken at spawn.
+
+    psutil records the creation time on construction, so the handle later
+    distinguishes the process we started from another one that reused its PID.
+    Returns None when the process has already exited and been reaped.
+    """
+    if process.pid is None:
+        return None
+    try:
+        return psutil.Process(process.pid)
+    except psutil.NoSuchProcess:
+        return None
+
+
 class Job:
     """Manages an async subprocess with separate stdout/stderr streams.
 
@@ -109,6 +124,7 @@ class Job:
 
     def __init__(self, process: AsyncIOProcess) -> None:
         self._process = process
+        self._leader = _leader_handle(process)
         self._stdout_buffer = BoundedByteBuffer(_BACKPRESSURE_BUFFER_SIZE)
         self._stderr_buffer = BoundedByteBuffer(_BACKPRESSURE_BUFFER_SIZE)
         self._stdout_output = DecodingBuffer(self._stdout_buffer)
@@ -181,6 +197,13 @@ class Job:
         Since the subprocess was started with start_new_session=True, it is the
         leader of its own process group. We use os.killpg() to send signals to
         the entire group, ensuring child processes are also terminated.
+
+        The group is signalled only while the leader is verifiably still the
+        process we started. Once it has exited and been reaped, its PID, and so
+        the group id, may already belong to an unrelated process, and a server
+        running as root would kill that process's group instead. A job whose
+        leader exited on its own is therefore treated as finished: its buffered
+        output is returned and any children that outlived it are left running.
         """
         if self._state != "running":
             self._acked_buffer.push(("", ""))
@@ -188,17 +211,16 @@ class Job:
             return OutputChunk(seq, *self._combine_chunks(chunks))
 
         self._state = "killed"
-        pgid = self._process.pid
-        assert pgid is not None, "Process was created without a pid"
-
-        try:
-            os.killpg(pgid, signal.SIGTERM)
-            await asyncio.wait_for(self._process.wait(), timeout=timeout)
-        except asyncio.TimeoutError:
-            os.killpg(pgid, signal.SIGKILL)
-            await self._process.wait()
-        except ProcessLookupError:
-            pass
+        if self._leader_running():
+            pgid = self.pid
+            try:
+                os.killpg(pgid, signal.SIGTERM)
+                await asyncio.wait_for(self._process.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                os.killpg(pgid, signal.SIGKILL)
+                await self._process.wait()
+            except ProcessLookupError:
+                pass
 
         await self._wait_for_readers()
 
@@ -221,6 +243,20 @@ class Job:
         finally:
             self._known_descendants.clear()
             await self._wait_for_readers()
+
+    def _leader_running(self) -> bool:
+        """Whether the group leader is still the process this job started.
+
+        ``returncode`` alone is not enough: asyncio's child watcher reaps the
+        child in a thread before the event loop records the exit, and the PID
+        is reusable from the reap onward. The handle taken at spawn compares
+        creation time, so a reused PID reads as not running.
+        """
+        return (
+            self._process.returncode is None
+            and self._leader is not None
+            and self._leader.is_running()
+        )
 
     def retire(self) -> None:
         """Snapshot remaining group members before retaining a completed job."""

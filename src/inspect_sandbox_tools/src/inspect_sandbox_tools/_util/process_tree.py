@@ -15,7 +15,16 @@ async def terminate_process_tree(
     process_group: bool = False,
     known_descendants: Iterable[psutil.Process] = (),
 ) -> None:
-    """Terminate a subprocess, known/discoverable descendants, and optional group members."""
+    """Terminate a subprocess, known/discoverable descendants, and optional group members.
+
+    With ``process_group=True`` the group is signalled by id even after the
+    leader has exited, so orphaned members still die. Once every member has
+    gone, though, the id can be reused by an unrelated process. This is only
+    reached from server shutdown, which only the local sandbox's graceful stop
+    triggers; a graceful stop for container sandboxes, where the server runs
+    as root, would need the live-leader check exec_remote's ``Job.kill``
+    applies before signalling by id.
+    """
     pid = getattr(process, "pid", None)
     if pid is None:
         await _terminate_without_pid(process, timeout)

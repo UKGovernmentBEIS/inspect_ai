@@ -315,6 +315,38 @@ class TestExecRemoteKill:
         assert "hello_from_kill" in kill_response["result"]["stdout"]
         assert "err_from_kill" in kill_response["result"]["stderr"]
 
+    def test_kill_after_exit_before_poll_returns_output(
+        self, rpc_client: RpcClient
+    ) -> None:
+        """A job that exited before it was ever polled still returns its output on kill."""
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {"command": "echo exited_before_poll"},
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        pid = response["result"]["pid"]
+
+        # Let the job exit on its own without polling, so the server has not
+        # yet observed the exit when the kill arrives.
+        time.sleep(0.5)
+
+        kill_response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_kill",
+                "params": {"pid": pid, "ack_seq": 0},
+                "id": 2,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+
+        assert "result" in kill_response
+        assert "exited_before_poll" in kill_response["result"]["stdout"]
+
 
 class TestNonexistentJobErrors:
     """Tests for error handling when operating on nonexistent jobs."""

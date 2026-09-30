@@ -5,6 +5,8 @@ spawning real subprocesses.
 """
 
 import asyncio
+import os
+import signal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -132,3 +134,70 @@ async def test_retired_job_shutdown_uses_only_its_captured_processes(
         process_group=False,
         known_descendants=[captured_child],
     )
+
+
+async def _stop_job(job: Job) -> None:
+    if job._process.returncode is None:
+        job._process.kill()
+        await job._process.wait()
+    await job.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_kill_signals_group_while_leader_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = await Job.create("sleep 30")
+    signalled: list[tuple[int, int]] = []
+    real_killpg = os.killpg
+
+    def record_killpg(pgid: int, sig: int) -> None:
+        signalled.append((pgid, sig))
+        real_killpg(pgid, sig)
+
+    monkeypatch.setattr(os, "killpg", record_killpg)
+    try:
+        await job.kill(ack_seq=0)
+    finally:
+        await _stop_job(job)
+
+    assert signalled == [(job.pid, signal.SIGTERM)]
+    assert job._process.returncode is not None
+
+
+@pytest.mark.asyncio
+async def test_kill_after_leader_exited_returns_output_without_signalling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = await Job.create("echo done")
+    await job._process.wait()
+    killpg = MagicMock(side_effect=AssertionError("signalled a stale process group"))
+    monkeypatch.setattr(os, "killpg", killpg)
+
+    try:
+        seq, stdout, stderr = await job.kill(ack_seq=0)
+    finally:
+        await _stop_job(job)
+
+    killpg.assert_not_called()
+    assert seq == 1
+    assert stdout == "done\n"
+    assert stderr == ""
+
+
+@pytest.mark.asyncio
+async def test_kill_treats_reused_pid_as_exited(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A leader handle whose identity no longer matches means the PID was reused."""
+    job = await Job.create("sleep 30")
+    job._leader = MagicMock(is_running=MagicMock(return_value=False))
+    killpg = MagicMock()
+    monkeypatch.setattr(os, "killpg", killpg)
+
+    try:
+        await job.kill(ack_seq=0)
+    finally:
+        await _stop_job(job)
+
+    killpg.assert_not_called()
