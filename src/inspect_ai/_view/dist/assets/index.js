@@ -108276,7 +108276,7 @@ var explanationOf = (node) => node?.event.explanation?.trim() || void 0;
 	let current = tree.find((e) => e.node === outcome);
 	let reason = explanationOf(outcome);
 	for (;;) {
-		const next = current.children.find((c) => c.node.event.kind === "decision" && c.node.event.decision === outcome.event.decision);
+		const next = current.children.find((c) => c.node.event.kind === "decision" && c.node.event.action === outcome.event.action);
 		if (!next) return {
 			node: current.node,
 			reason
@@ -108326,7 +108326,7 @@ var isInactiveKind = (kind) => kind === "bypassed" || kind === "cancelled" || ki
 		index
 	})).sort((a, b) => compareKeys(keys.get(a.node), keys.get(b.node)) || a.index - b.index).map(({ node }) => node));
 	const outcome = outcomeOf(checks);
-	const acted = !!outcome && outcome.event.decision !== "continue";
+	const acted = !!outcome && outcome.event.action !== "continue";
 	const credit = acted ? creditDecision(tree, outcome) : void 0;
 	const effective = credit?.node;
 	const single = checks.length === 1 ? checks[0] : void 0;
@@ -108334,7 +108334,7 @@ var isInactiveKind = (kind) => kind === "bypassed" || kind === "cancelled" || ki
 	const scores = acted ? [] : single?.event.suspicion != null ? [formatSuspicion(single.event.suspicion)].filter(Boolean) : observations.flatMap((n) => {
 		const top = topScore(n.event.suspicion);
 		if (!top.value) return [];
-		return [`${top.dimension ?? n.event.name.split("/").at(-1)} ${top.value}`];
+		return [`${top.dimension ?? n.event.factory.split("/").at(-1)} ${top.value}`];
 	});
 	return {
 		id: first?.id ?? "",
@@ -108346,7 +108346,7 @@ var isInactiveKind = (kind) => kind === "bypassed" || kind === "cancelled" || ki
 			guides: guidesFor(entry),
 			tookEffect: entry.node === effective
 		})),
-		verdict: outcome ? outcome.event.decision ?? "continue" : quietVerdict(checks),
+		verdict: outcome ? outcome.event.action ?? "continue" : quietVerdict(checks),
 		outcome,
 		decider: effective ?? outcome,
 		effective,
@@ -108363,7 +108363,7 @@ var isInactiveKind = (kind) => kind === "bypassed" || kind === "cancelled" || ki
 	const step = buildSentinelStep([node]);
 	const event = node.event;
 	if (event.kind !== "decision" || step.outcome) return step;
-	const verdict = event.decision ?? "continue";
+	const verdict = event.action ?? "continue";
 	const acted = verdict !== "continue";
 	return {
 		...step,
@@ -108445,7 +108445,7 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 		sentinelScrollRedirects
 	};
 }
-/** The instance path, or the factory's registry name at the root. */ var instanceLabel = (event) => event.path || event.name;
+/** The instance path, or the factory's registry name at the root. */ var instanceLabel = (event) => event.path || event.factory;
 var formatSuspicion = (suspicion) => {
 	if (typeof suspicion === "number") return formatScore(suspicion);
 	return Object.entries(suspicion).map(([dimension, value]) => `${dimension} ${formatScore(value)}`).join(", ");
@@ -114160,35 +114160,35 @@ var ScoreEventView = (t0) => {
 	return t25;
 };
 var SentinelEventView_module_default = {
-	tree: "_tree_1au8o_1",
-	reject: "_reject_1au8o_15",
-	modify: "_modify_1au8o_19",
-	row: "_row_1au8o_23",
-	open: "_open_1au8o_42",
-	inactive: "_inactive_1au8o_46",
-	rowLabel: "_rowLabel_1au8o_50",
-	guides: "_guides_1au8o_56",
-	name: "_name_1au8o_60",
-	result: "_result_1au8o_68",
-	"continue": "_continue_1au8o_74",
-	kindIcon: "_kindIcon_1au8o_82",
-	rowChevron: "_rowChevron_1au8o_92",
-	flag: "_flag_1au8o_97",
-	moreScores: "_moreScores_1au8o_102",
-	detailWrap: "_detailWrap_1au8o_113",
-	detail: "_detail_1au8o_113",
-	afterDetail: "_afterDetail_1au8o_129",
-	rejectDetail: "_rejectDetail_1au8o_133",
-	modifyDetail: "_modifyDetail_1au8o_137",
-	meta: "_meta_1au8o_141",
-	scoreGrid: "_scoreGrid_1au8o_146",
-	scoreName: "_scoreName_1au8o_155",
-	explanation: "_explanation_1au8o_159",
-	noExplanation: "_noExplanation_1au8o_169",
-	modified: "_modified_1au8o_174",
-	foldedToggle: "_foldedToggle_1au8o_187",
-	chevron: "_chevron_1au8o_202",
-	modelCalls: "_modelCalls_1au8o_206"
+	tree: "_tree_qohkz_1",
+	reject: "_reject_qohkz_15",
+	modify: "_modify_qohkz_19",
+	row: "_row_qohkz_23",
+	open: "_open_qohkz_42",
+	inactive: "_inactive_qohkz_46",
+	rowLabel: "_rowLabel_qohkz_50",
+	guides: "_guides_qohkz_56",
+	name: "_name_qohkz_60",
+	result: "_result_qohkz_68",
+	"continue": "_continue_qohkz_74",
+	kindIcon: "_kindIcon_qohkz_82",
+	rowChevron: "_rowChevron_qohkz_92",
+	flag: "_flag_qohkz_97",
+	moreScores: "_moreScores_qohkz_102",
+	detailWrap: "_detailWrap_qohkz_113",
+	detail: "_detail_qohkz_113",
+	afterDetail: "_afterDetail_qohkz_129",
+	rejectDetail: "_rejectDetail_qohkz_133",
+	modifyDetail: "_modifyDetail_qohkz_137",
+	meta: "_meta_qohkz_141",
+	scoreGrid: "_scoreGrid_qohkz_146",
+	scoreName: "_scoreName_qohkz_155",
+	explanation: "_explanation_qohkz_159",
+	noExplanation: "_noExplanation_qohkz_169",
+	labelled: "_labelled_qohkz_174",
+	foldedToggle: "_foldedToggle_qohkz_187",
+	chevron: "_chevron_qohkz_202",
+	modelCalls: "_modelCalls_qohkz_206"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SentinelEventView.tsx
@@ -114386,12 +114386,12 @@ var CheckRowView = (t0) => {
 		$[10] = t8;
 	} else t8 = $[10];
 	let t9;
-	if ($[11] !== event.name) {
+	if ($[11] !== event.factory) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: SentinelEventView_module_default.name,
-			children: event.name
+			children: event.factory
 		});
-		$[11] = event.name;
+		$[11] = event.factory;
 		$[12] = t9;
 	} else t9 = $[12];
 	let t10;
@@ -114485,9 +114485,9 @@ var CheckResult = (t0) => {
 	}
 	if (event.kind === "superseded") {
 		let t2;
-		if ($[4] !== event.decision) {
-			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("s", { children: event.decision }), " · superseded"] });
-			$[4] = event.decision;
+		if ($[4] !== event.action) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("s", { children: event.action }), " · superseded"] });
+			$[4] = event.action;
 			$[5] = t2;
 		} else t2 = $[5];
 		return t2;
@@ -114531,20 +114531,20 @@ var CheckResult = (t0) => {
 		} else t6 = $[16];
 		return t6;
 	}
-	if (!event.decision) return flag;
+	if (!event.action) return flag;
 	let t2;
-	if ($[17] !== event.decision) {
-		t2 = decisionClass(event.decision);
-		$[17] = event.decision;
+	if ($[17] !== event.action) {
+		t2 = decisionClass(event.action);
+		$[17] = event.action;
 		$[18] = t2;
 	} else t2 = $[18];
 	let t3;
-	if ($[19] !== event.decision || $[20] !== t2) {
+	if ($[19] !== event.action || $[20] !== t2) {
 		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: t2,
-			children: event.decision
+			children: event.action
 		});
-		$[19] = event.decision;
+		$[19] = event.action;
 		$[20] = t2;
 		$[21] = t3;
 	} else t3 = $[21];
@@ -114558,7 +114558,7 @@ var CheckResult = (t0) => {
 	return t4;
 };
 var CheckDetail = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(45);
+	const $ = (0, import_compiler_runtime.c)(48);
 	const { row, showFunction } = t0;
 	const event = row.node.event;
 	let t1;
@@ -114569,9 +114569,9 @@ var CheckDetail = (t0) => {
 	} else t1 = $[1];
 	const explanation = t1;
 	let t2;
-	if ($[2] !== event.decision || $[3] !== row.tookEffect) {
-		t2 = row.tookEffect ? toneOfDecision(event.decision) : null;
-		$[2] = event.decision;
+	if ($[2] !== event.action || $[3] !== row.tookEffect) {
+		t2 = row.tookEffect ? toneOfDecision(event.action) : null;
+		$[2] = event.action;
 		$[3] = row.tookEffect;
 		$[4] = t2;
 	} else t2 = $[4];
@@ -114669,9 +114669,21 @@ var CheckDetail = (t0) => {
 		$[32] = t11;
 	} else t11 = $[32];
 	let t12;
-	if ($[33] !== event.modified) {
-		t12 = event.modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: SentinelEventView_module_default.modified,
+	if ($[33] !== event.message) {
+		t12 = event.message ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.labelled,
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: clsx(checkClasses.label, checkClasses.rejectText),
+				children: "told the agent"
+			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.message })]
+		}) : null;
+		$[33] = event.message;
+		$[34] = t12;
+	} else t12 = $[34];
+	let t13;
+	if ($[35] !== event.modified) {
+		t13 = event.modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SentinelEventView_module_default.labelled,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 				className: clsx(checkClasses.label, checkClasses.modifyText),
 				children: "modified"
@@ -114680,40 +114692,42 @@ var CheckDetail = (t0) => {
 				children: replacementText(event.modified)
 			})]
 		}) : null;
-		$[33] = event.modified;
-		$[34] = t12;
-	} else t12 = $[34];
-	let t13;
-	if ($[35] !== t11 || $[36] !== t12 || $[37] !== t6 || $[38] !== t7 || $[39] !== t8) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[35] = event.modified;
+		$[36] = t13;
+	} else t13 = $[36];
+	let t14;
+	if ($[37] !== t11 || $[38] !== t12 || $[39] !== t13 || $[40] !== t6 || $[41] !== t7 || $[42] !== t8) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t6,
 			children: [
 				t7,
 				t8,
 				t11,
-				t12
+				t12,
+				t13
 			]
 		});
-		$[35] = t11;
-		$[36] = t12;
-		$[37] = t6;
-		$[38] = t7;
-		$[39] = t8;
-		$[40] = t13;
-	} else t13 = $[40];
-	let t14;
-	if ($[41] !== t10 || $[42] !== t13 || $[43] !== t9) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[37] = t11;
+		$[38] = t12;
+		$[39] = t13;
+		$[40] = t6;
+		$[41] = t7;
+		$[42] = t8;
+		$[43] = t14;
+	} else t14 = $[43];
+	let t15;
+	if ($[44] !== t10 || $[45] !== t14 || $[46] !== t9) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: t9,
 			style: t10,
-			children: t13
+			children: t14
 		});
-		$[41] = t10;
-		$[42] = t13;
-		$[43] = t9;
-		$[44] = t14;
-	} else t14 = $[44];
-	return t14;
+		$[44] = t10;
+		$[45] = t14;
+		$[46] = t9;
+		$[47] = t15;
+	} else t15 = $[47];
+	return t15;
 };
 /** Paths of the instances that reported from more than one function on this step. */ var groupedPaths = (rows) => {
 	const functions = /* @__PURE__ */ new Map();
@@ -117476,12 +117490,12 @@ var ToolEventView_module_default = {
 /** The check that stopped the call: the final approval, else the sentinel outcome. */ var blockerOf = (approval, before) => {
 	if (approval?.decision === "reject" || approval?.decision === "terminate") return {
 		decision: approval.decision,
-		explanation: approval.explanation
+		message: approval.explanation
 	};
 	const verdict = before?.verdict;
 	if (before?.outcome && (verdict === "reject" || verdict === "terminate")) return {
 		decision: verdict,
-		explanation: before.outcome.event.explanation
+		message: before.outcome.event.message
 	};
 };
 var hasResult = (result) => Array.isArray(result) ? result.length > 0 : result !== "";
@@ -117517,7 +117531,7 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 			context
 		})
 	}) : void 0;
-	const notRun = ran ? void 0 : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NotRunWell, { message: event.error?.type === "approval" ? event.error.message : blocker?.decision === "reject" ? blocker.explanation?.trim() || "Tool call not approved." : void 0 });
+	const notRun = ran ? void 0 : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NotRunWell, { message: event.error?.type === "approval" ? event.error.message : blocker?.decision === "reject" ? blocker.message?.trim() || "Tool call not approved." : void 0 });
 	const lastModelNode = (0, import_react.useMemo)(() => {
 		const lastModel = childNodes.findLast((e) => e.event.event === "model");
 		return lastModel ? eventNodeOf(lastModel, "model") : void 0;
@@ -117792,13 +117806,14 @@ var sanitizeStringify = (v) => {
 			const sentinelEvent = event;
 			fields.push(["kind", sentinelEvent.kind]);
 			if (sentinelEvent.path) fields.push(["path", sentinelEvent.path]);
-			fields.push(["name", sentinelEvent.name]);
+			fields.push(["factory", sentinelEvent.factory]);
 			if (sentinelEvent.function) fields.push(["function", sentinelEvent.function]);
 			fields.push(["stage", sentinelEvent.stage]);
 			if (sentinelEvent.suspicion !== void 0 && sentinelEvent.suspicion !== null) fields.push(["suspicion", formatSuspicion(sentinelEvent.suspicion)]);
-			if (sentinelEvent.decision) fields.push(["decision", sentinelEvent.decision]);
+			if (sentinelEvent.action) fields.push(["action", sentinelEvent.action]);
 			if (sentinelEvent.modified) fields.push(["modified", formatModifiedCall(sentinelEvent.modified)]);
 			if (sentinelEvent.audit) fields.push(["audit", "true"]);
+			if (sentinelEvent.message) fields.push(["message", sentinelEvent.message]);
 			if (sentinelEvent.explanation) fields.push(["explanation", sentinelEvent.explanation]);
 			break;
 		}
@@ -126137,7 +126152,7 @@ var labelForNode = (node) => {
 			escalate: "escalated",
 			terminate: "terminated"
 		}[node.event.decision];
-		case "sentinel": return `sentinel ${node.event.decision ?? node.event.kind}`;
+		case "sentinel": return `sentinel ${node.event.action ?? node.event.kind}`;
 		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
 		case "score": return "scoring";
 		case "step":

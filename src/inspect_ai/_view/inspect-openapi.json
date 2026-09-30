@@ -9800,16 +9800,7 @@
       "SentinelEvent": {
         "description": "Report from a sentinel monitor or protocol about one step.",
         "properties": {
-          "audit": {
-            "default": false,
-            "title": "Audit",
-            "type": "boolean"
-          },
-          "conversation": {
-            "title": "Conversation",
-            "type": "string"
-          },
-          "decision": {
+          "action": {
             "anyOf": [
               {
                 "enum": [
@@ -9825,7 +9816,16 @@
                 "type": "null"
               }
             ],
-            "title": "Decision"
+            "title": "Action"
+          },
+          "audit": {
+            "default": false,
+            "title": "Audit",
+            "type": "boolean"
+          },
+          "conversation": {
+            "title": "Conversation",
+            "type": "string"
           },
           "event": {
             "const": "sentinel",
@@ -9843,6 +9843,10 @@
               }
             ],
             "title": "Explanation"
+          },
+          "factory": {
+            "title": "Factory",
+            "type": "string"
           },
           "function": {
             "anyOf": [
@@ -9866,6 +9870,17 @@
             "title": "Kind",
             "type": "string"
           },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
           "metadata": {
             "anyOf": [
               {
@@ -9887,10 +9902,6 @@
                 "type": "null"
               }
             ]
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
           },
           "path": {
             "title": "Path",
@@ -9974,7 +9985,7 @@
           "timestamp",
           "working_start",
           "event",
-          "name",
+          "factory",
           "path",
           "step_id",
           "conversation",
