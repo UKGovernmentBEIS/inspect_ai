@@ -15,7 +15,10 @@ from inspect_ai.agent._bridge._errors import (
     BridgePolicyError,
     provider_error_payload,
 )
-from inspect_ai.agent._bridge.anthropic_api_impl import generate_config_from_anthropic
+from inspect_ai.agent._bridge.anthropic_api_impl import (
+    forward_client_fallbacks,
+    generate_config_from_anthropic,
+)
 from inspect_ai.agent._bridge.completions import (
     generate_config_from_openai_completions,
 )
@@ -30,7 +33,7 @@ from inspect_ai.agent._bridge.util import (
     client_json_schema,
     validate_client_config,
 )
-from inspect_ai.model import GenerateConfig
+from inspect_ai.model import GenerateConfig, Model, get_model
 from inspect_ai.tool._tool_choice import ToolFunction
 
 # generation-tuning fields that must be dropped when not forwarding.
@@ -206,6 +209,207 @@ def test_anthropic_adaptive_thinking_effort_forwarded():
     assert config.reasoning_tokens is None
     # but the effort knob is preserved
     assert config.effort == "high"
+
+
+def test_anthropic_fallbacks_forwarded_verbatim():
+    """A client `fallbacks` directive must survive the bridge untouched."""
+    fallbacks = [{"model": "claude-opus-4-8"}]
+    json_data = {
+        "model": "claude-fable-5",
+        "max_tokens": 64000,
+        "fallbacks": fallbacks,
+    }
+
+    config = generate_config_from_anthropic(json_data)
+    forward_client_fallbacks(
+        config,
+        json_data,
+        get_model("anthropic/claude-fable-5", api_key="test-key", memoize=False),
+    )
+    assert config.extra_body is not None
+    # byte-for-byte the client's structure, not a remapping
+    assert config.extra_body["fallbacks"] == fallbacks
+    # and NOT laundered through Inspect's own knob (which is gated/lossy)
+    assert config.fallback_models is None
+
+    # a fallback directive is not a generation-tuning param, so declining to
+    # forward client generation params must not strip it
+    clear_generation_params(config)
+    assert config.extra_body["fallbacks"] == fallbacks
+
+
+def test_anthropic_no_fallbacks_key_when_client_sends_none():
+    """Absent `fallbacks` must not synthesize the key."""
+    json_data = {"model": "claude-fable-5", "max_tokens": 100}
+    config = generate_config_from_anthropic(json_data)
+    forward_client_fallbacks(
+        config,
+        json_data,
+        get_model("anthropic/claude-fable-5", api_key="test-key", memoize=False),
+    )
+    assert config.extra_body is None
+
+
+class _ProviderRequest(Exception):
+    """Sentinel carrying the request a provider handed to its SDK client."""
+
+    def __init__(self, request: dict[str, Any]) -> None:
+        self.request = request
+
+
+async def _capture_sdk_request(**request: Any) -> Any:
+    raise _ProviderRequest(request)
+
+
+async def _bridged_provider_request(
+    model: Model,
+    fallbacks: Any,
+    messages: list[dict[str, Any]] | None = None,
+    client_model: str = "claude-fable-5",
+) -> dict[str, Any]:
+    """Send a client `fallbacks` directive for `client_model` through the bridge.
+
+    The client's model name is aliased to `model`. The provider's SDK create
+    call must be patched with `_capture_sdk_request`; the returned dict is what
+    the provider would have sent.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        inspect_anthropic_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+
+    bridge = AgentBridge(state=AgentState(messages=[]))
+    bridge.model_aliases = {client_model: model}
+    with pytest.raises(_ProviderRequest) as exc_info:
+        await inspect_anthropic_api_request_impl(
+            json_data={
+                "model": client_model,
+                "max_tokens": 64,
+                "messages": messages or [{"role": "user", "content": "hi"}],
+                "fallbacks": fallbacks,
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+    return exc_info.value.request
+
+
+def _anthropic_model(monkeypatch: pytest.MonkeyPatch, name: str) -> Model:
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    model = get_model(name, api_key="test-key", streaming=False, memoize=False)
+    assert isinstance(model.api, AnthropicAPI)
+    monkeypatch.setattr(model.api.client.messages, "create", _capture_sdk_request)
+    return model
+
+
+def _fallback_betas(request: dict[str, Any]) -> list[str]:
+    header: str = request["extra_headers"].get("anthropic-beta", "")
+    return [b for b in header.split(",") if b.startswith("server-side-fallback-")]
+
+
+# Both documented forms of a client `fallbacks` directive.
+FALLBACK_DIRECTIVES = [
+    pytest.param([{"model": "claude-opus-4-8"}], id="explicit-list"),
+    "default",
+]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("fallbacks", FALLBACK_DIRECTIVES)
+async def test_bridged_fallbacks_withheld_from_non_anthropic_model(
+    monkeypatch: pytest.MonkeyPatch, fallbacks: Any, _warn_once_messages: list[str]
+) -> None:
+    """`fallbacks` is an Anthropic request field; other providers must not get it.
+
+    The client names the served model, so only the provider gate can drop it.
+    """
+    from inspect_ai.model._providers.openai import OpenAIAPI
+
+    model = get_model(
+        "openai/gpt-4.1", api_key="test-key", responses_api=False, memoize=False
+    )
+    assert isinstance(model.api, OpenAIAPI)
+    monkeypatch.setattr(
+        model.api.client.chat.completions, "create", _capture_sdk_request
+    )
+
+    request = await _bridged_provider_request(model, fallbacks, client_model="gpt-4.1")
+    assert "fallbacks" not in request.get("extra_body", {})
+    assert not any("fallbacks" in w for w in _warn_once_messages)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "client_model",
+    ["claude-fable-5", "anthropic/claude-fable-5", "inspect/anthropic/claude-fable-5"],
+)
+@pytest.mark.parametrize("fallbacks", FALLBACK_DIRECTIVES)
+async def test_bridged_fallbacks_reach_named_anthropic_model_under_2026_07_01(
+    monkeypatch: pytest.MonkeyPatch, fallbacks: Any, client_model: str
+) -> None:
+    """Both forms reach the named model, however spelled, under 2026-07-01."""
+    model = _anthropic_model(monkeypatch, "anthropic/claude-fable-5")
+    request = await _bridged_provider_request(
+        model, fallbacks, client_model=client_model
+    )
+    assert request["extra_body"]["fallbacks"] == fallbacks
+    assert _fallback_betas(request) == ["server-side-fallback-2026-07-01"]
+
+
+@pytest.mark.anyio
+async def test_bridged_fallback_list_withheld_from_another_anthropic_model(
+    monkeypatch: pytest.MonkeyPatch, _warn_once_messages: list[str]
+) -> None:
+    """An aliased model gets `"default"`, but not the list (which warns)."""
+    model = _anthropic_model(monkeypatch, "anthropic/claude-opus-4-8")
+
+    request = await _bridged_provider_request(model, [{"model": "claude-opus-4-8"}])
+    assert request["model"] == "claude-opus-4-8"
+    assert "fallbacks" not in request.get("extra_body", {})
+    assert _fallback_betas(request) == []
+    assert any(
+        "claude-fable-5" in w and "claude-opus-4-8" in w for w in _warn_once_messages
+    )
+
+    request = await _bridged_provider_request(model, "default")
+    assert request["extra_body"]["fallbacks"] == "default"
+    assert _fallback_betas(request) == ["server-side-fallback-2026-07-01"]
+
+
+@pytest.mark.anyio
+async def test_bridged_turn_after_fallback_handoff_sends_one_fallback_beta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A replayed `fallback` block needs a fallback beta; the directive's suffices."""
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    handoff = {
+        "type": "fallback",
+        "from": {"model": "claude-fable-5"},
+        "to": {"model": "claude-opus-4-8"},
+    }
+    request = await _bridged_provider_request(
+        _anthropic_model(monkeypatch, "anthropic/claude-fable-5"),
+        "default",
+        messages=[
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": [handoff, {"type": "text", "text": "hi"}]},
+            {"role": "user", "content": "again"},
+        ],
+    )
+    assert any(
+        isinstance(block, dict) and block.get("type") == "fallback"
+        for message in request["messages"]
+        for block in message["content"]
+    )
+    assert _fallback_betas(request) == ["server-side-fallback-2026-07-01"]
 
 
 def test_google_forward_then_clear():

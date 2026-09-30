@@ -856,8 +856,13 @@ class AnthropicAPI(ModelAPI):
 
             # add fallback beta header if the input contains fallback blocks
             # (so replayed blocks are accepted even if fallback_models is no
-            # longer configured, e.g. on a resumed eval with changed config)
-            if FALLBACK_BETA not in betas and _input_has_fallback(input):
+            # longer configured, e.g. on a resumed eval with changed config);
+            # either fallback beta accepts them
+            if (
+                FALLBACK_BETA not in betas
+                and FALLBACK_DEFAULT_BETA not in betas
+                and _input_has_fallback(input)
+            ):
                 betas.append(FALLBACK_BETA)
 
             # resolve betas and extra headers
@@ -1374,25 +1379,34 @@ class AnthropicAPI(ModelAPI):
 
         # server-side refusal fallback (first-party Claude API only). routed
         # via extra_body as the SDK only exposes `fallbacks` on
-        # client.beta.messages.create but inspect calls client.messages.create
+        # client.beta.messages.create but inspect calls client.messages.create.
+        # `fallback_models` takes precedence over a caller's verbatim `fallbacks`
+        # directive.
         if config.fallback_models:
+            fallbacks: Any = [{"model": model} for model in config.fallback_models]
+            fallback_source, fallback_beta = "fallback_models", FALLBACK_BETA
+        else:
+            fallbacks = (config.extra_body or {}).get(FALLBACKS_FIELD)
+            fallback_source, fallback_beta = (
+                "A `fallbacks` directive",
+                FALLBACK_DEFAULT_BETA,
+            )
+        if fallbacks is not None:
             if self.is_bedrock() or self.is_vertex() or self.is_azure():
                 warn_once(
                     logger,
-                    "fallback_models is only supported on the first-party "
+                    f"{fallback_source} is only supported on the first-party "
                     "Anthropic API (not bedrock/vertex/azure) and will be ignored.",
                 )
             elif normalized_batch_config(config.batch):
                 warn_once(
                     logger,
-                    "fallback_models is not supported with the Anthropic "
+                    f"{fallback_source} is not supported with the Anthropic "
                     "Batches API and will be ignored.",
                 )
             else:
-                betas.append(FALLBACK_BETA)
-                extra_body["fallbacks"] = [
-                    {"model": model} for model in config.fallback_models
-                ]
+                betas.append(fallback_beta)
+                extra_body[FALLBACKS_FIELD] = fallbacks
 
         # look for any of our native fields not in GenerateConfig in extra_body
         if config.extra_body is not None:
@@ -4821,6 +4835,11 @@ EXTRA_BODY = "extra_body"
 CONTEXT_MANAGEMENT = "context_management"
 MIN_COMPACTION_TOKENS = 50000  # Anthropic API minimum trigger value
 FALLBACK_BETA = "server-side-fallback-2026-06-01"
+# The only fallback beta accepting `fallbacks: "default"` (server-defined
+# routing); FALLBACK_BETA accepts only the explicit-list form.
+FALLBACK_DEFAULT_BETA = "server-side-fallback-2026-07-01"
+# Request-body field carrying a server-side refusal fallback directive.
+FALLBACKS_FIELD = "fallbacks"
 
 
 def _add_edit_compaction(
@@ -5003,13 +5022,15 @@ def _warn_refusal_without_fallback(
 ) -> None:
     """Suggest fallback_models when a rescuable classifier refusal occurs.
 
-    Fires only when fallback could actually have been used: fallback_models
-    not configured, first-party non-batch API, and a Claude 5+ requested model
-    (the `fallbacks` param is only accepted for models publishing
-    allowed_fallback_models -- Opus 4.7/4.8 emit the same refusal stop_details
-    but cannot fall back).
+    Fires only when fallback could actually have been used: neither
+    fallback_models nor a caller's `fallbacks` directive configured, first-party
+    non-batch API, and a Claude 5+ requested model (the `fallbacks` param is
+    only accepted for models publishing allowed_fallback_models -- Opus 4.7/4.8
+    emit the same refusal stop_details but cannot fall back).
     """
     if config.fallback_models:
+        return
+    if (config.extra_body or {}).get(FALLBACKS_FIELD) is not None:
         return
     if api.is_bedrock() or api.is_vertex() or api.is_azure():
         return

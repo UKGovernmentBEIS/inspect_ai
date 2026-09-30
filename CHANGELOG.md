@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent bridge: `fallbacks` directives from bridged agents now reach Anthropic models (a model list only when the agent's named model serves it), never other providers.
+
 ## 0.3.273 (29 September 2026)
 
 - Anthropic: Prompts can mark a stable prefix for caching while allowing the remaining text to change.

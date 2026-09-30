@@ -34,6 +34,7 @@ from shortuuid import uuid
 
 from inspect_ai._util.content import Content, ContentDocument, ContentImage, ContentText
 from inspect_ai._util.images import as_data_uri
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -46,10 +47,11 @@ from inspect_ai.model._generate_config import (
     ResponseSchema,
 )
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
-from inspect_ai.model._model import ModelName
+from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
+    FALLBACKS_FIELD,
     ToolParamDef,
     anthropic_extra_body_fields,
     assistant_message_blocks,
@@ -157,6 +159,7 @@ async def inspect_anthropic_api_request_impl(
 
     # extract generate config (hoist instructions into system messages)
     config = generate_config_from_anthropic(json_data)
+    forward_client_fallbacks(config, json_data, model)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
     validate_client_config(config)
@@ -242,6 +245,36 @@ def anthropic_system_to_texts(value: Any) -> list[str]:
         if text:
             texts.append(text)
     return texts
+
+
+def forward_client_fallbacks(
+    config: GenerateConfig, json_data: dict[str, Any], model: Model
+) -> None:
+    """Forward the client's `fallbacks` directive verbatim when `model` accepts it.
+
+    `fallbacks` is an Anthropic request field, so it goes only to Anthropic
+    models; other providers would send it on as an unknown field. It is sent
+    verbatim rather than via the lossy `fallback_models`. An explicit list names
+    targets the client chose for the model it asked for, and a different served
+    model may not permit some of them, which fails the request, so the list goes
+    only to the model it names. `"default"` routing is valid on any Anthropic
+    model.
+    """
+    fallbacks = json_data.get(FALLBACKS_FIELD)
+    if fallbacks is None or ModelName(model).api != "anthropic":
+        return
+    requested_model = str(json_data["model"])
+    named_model = requested_model.removeprefix("inspect/").removeprefix("anthropic/")
+    if fallbacks != "default" and model.name != named_model:
+        warn_once(
+            logger,
+            f"The bridged agent sent a `fallbacks` list for '{requested_model}', "
+            f"but '{ModelName(model)}' is serving the request; the list has been "
+            "withheld because its targets were chosen for the requested model "
+            "and may not be permitted for the served one.",
+        )
+        return
+    config.extra_body = (config.extra_body or {}) | {FALLBACKS_FIELD: fallbacks}
 
 
 def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:

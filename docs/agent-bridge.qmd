@@ -238,6 +238,8 @@ For this reason, by default the bridge does not forward client generation parame
 
 The generation parameters dropped by default are: `max_tokens`, `temperature`, `top_p`, `top_k`, `frequency_penalty`, `presence_penalty`, `n`/`num_choices`, `logprobs`, `top_logprobs`, `logit_bias`, and reasoning effort/tokens/summary.
 
+A bridged agent's server-side `fallbacks` directive is not a generation parameter: it is forwarded regardless of `forward_generation_config`, to Anthropic models only (see [Bridged Agents](fallbacks.qmd#bridged-agents)). To stop forwarding it, pass a bridge `filter` that removes `fallbacks` from the `extra_body` of the generate config it receives.
+
 If you want the bridge to act as a faithful proxy where the agent's generation parameters are authoritative, pass `forward_generation_config=True`:
 
 ``` python
