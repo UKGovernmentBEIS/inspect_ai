@@ -8,7 +8,6 @@ from typing import (
     Mapping,
     NamedTuple,
     Set,
-    TypeGuard,
     cast,
 )
 
@@ -237,17 +236,17 @@ def _speaks_responses(model: Model) -> bool:
     return bool(getattr(model.api, "responses_api", False))
 
 
-def _non_openai_accepts(tool_param: ToolParam, client_tool_search: bool) -> bool:
+def _non_openai_accepts(tool_param: ToolParam, client_discovery: bool) -> bool:
     """Whether a non-OpenAI provider can take this Responses tool.
 
     Custom tools and tool_search are native to OpenAI Responses. A
     client-executed search is resolved by the scaffold, so with
-    ``client_tool_search`` it is sent to the provider like any other tool.
+    ``client_discovery`` it is sent to the provider like any other tool.
     """
     if tool_param["type"] == "custom":
         return False
     if is_tool_search_tool_param(tool_param):
-        return client_tool_search and tool_param.get("execution") == "client"
+        return client_discovery and tool_param.get("execution") == "client"
     return True
 
 
@@ -267,11 +266,14 @@ def _client_discovered_tools(
         is_tool_search_tool_param(tool) and tool.get("execution") == "client"
         for tool in declared
     )
-    call_ids = set() if client_search_declared else _client_tool_search_call_ids(input)
+    call_ids = _client_tool_search_call_ids(input)
     discovered: list[ToolParam] = []
     for item in input:
-        if isinstance(item, dict) and _is_client_tool_search_output(
-            item, client_search_declared, call_ids
+        if (
+            isinstance(item, dict)
+            and is_tool_search_output(item)
+            and item.get("execution") != "server"
+            and (client_search_declared or item.get("call_id") in call_ids)
         ):
             discovered.extend(_client_discovery_tools(item))
     return discovered
@@ -297,22 +299,6 @@ def _client_tool_search_call_ids(input: list[ResponseInputItemParam]) -> set[str
     return call_ids
 
 
-def _is_client_tool_search_output(
-    item: ResponseInputItemParam,
-    client_tool_search_declared: bool,
-    client_tool_search_call_ids: set[str],
-) -> TypeGuard[ResponseToolSearchOutputItemParamParam]:
-    """Whether a tool_search output is authorized by client-side discovery."""
-    return (
-        is_tool_search_output(item)
-        and item.get("execution") != "server"
-        and (
-            item.get("call_id") in client_tool_search_call_ids
-            or client_tool_search_declared
-        )
-    )
-
-
 def _tool_search_output_content(item: ResponseToolSearchOutputItemParamParam) -> str:
     """The tool message content a `tool_search_output` item is replayed with."""
     return to_json_str_safe(item.get("tools", []))
@@ -321,19 +307,24 @@ def _tool_search_output_content(item: ResponseToolSearchOutputItemParamParam) ->
 def _client_discovery_tools(
     item: ResponseToolSearchOutputItemParamParam,
 ) -> list[ToolParam]:
-    """The tools one client tool_search result declares.
+    """The tools one client tool_search result declares to the model.
 
     The result is read as its replayed message carries it
     (`_tool_search_output_content`, `validated_tool_search_tools`). Functions are
     then reduced as the execution-grant declarations are
-    (`_declared_discovery_entry`); built-in tools pass on.
+    (`_declared_discovery_entry`); built-in tools pass on when the provider can
+    take them (`_non_openai_accepts`).
     """
     tools: list[ToolParam] = []
     for tool in validated_tool_search_tools(_tool_search_output_content(item)):
         declared = _declared_discovery_entry(tool)
         if declared is not None:
             tools.append(declared)
-        elif not is_namespace_tool_param(tool) and not is_function_tool_param(tool):
+        elif (
+            not is_namespace_tool_param(tool)
+            and not is_function_tool_param(tool)
+            and _non_openai_accepts(tool, client_discovery=True)
+        ):
             tools.append(tool)
     return tools
 
@@ -370,7 +361,7 @@ def _register_client_discovery(
     code_execution: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
 ) -> dict[_ToolIdentity, str]:
-    """Add client-discovered tools to `tools` for a non-OpenAI provider.
+    """Add client-discovered tools to `tools` for a provider without Responses.
 
     A discovered namespace member is exposed as ``<namespace>__<name>`` and a
     plain tool under its own name, and `tool_namespaces` maps each generic name
@@ -407,10 +398,12 @@ def _register_client_discovery(
             namespace = entry["name"]
             members = [cast(ToolParam, member) for member in entry.get("tools", [])]
         for member in members:
-            if not _non_openai_accepts(member, client_tool_search=True):
-                continue
             tool = tool_from_responses_tool(
-                member, web_search, code_execution, allow_remote_mcp, non_openai=True
+                member,
+                web_search,
+                code_execution,
+                allow_remote_mcp,
+                present_tool_search_schema=True,
             )
             if tool is None:
                 continue
@@ -530,7 +523,7 @@ async def inspect_responses_api_request_impl(
                 web_search,
                 code_execution,
                 bridge.allow_remote_mcp,
-                non_openai=client_discovery,
+                present_tool_search_schema=client_discovery,
             )
         )
     discovered_tool_names = _register_client_discovery(
@@ -839,7 +832,7 @@ def tool_from_responses_tool(
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
     *,
-    non_openai: bool = False,
+    present_tool_search_schema: bool = False,
 ) -> ToolInfo | Tool | None:
     if is_function_tool_param(tool_param):
         # stash the original param so the OpenAI Responses provider can re-emit
@@ -908,12 +901,17 @@ def tool_from_responses_tool(
         # client-resolved tool discovery (e.g. codex-cli). Preserve the native
         # tool fields in options so the OpenAI Responses provider can re-emit the
         # ToolSearchToolParam verbatim; the scaffold resolves the calls locally.
-        # Only a non-OpenAI provider presents the declared schema itself; one that
-        # a tool's parameters cannot represent drops the search, as it is dropped
-        # for providers that cannot call it at all.
+        # With `present_tool_search_schema` (client discovery, for a provider
+        # without the Responses API) the model is given the declared schema
+        # itself; a schema a tool's parameters cannot represent withholds the
+        # search, as providers that cannot call it at all never get it.
         schema = tool_param.get("parameters")
         parameters = ToolParams()
-        if non_openai and tool_param.get("execution") == "client" and schema:
+        if (
+            present_tool_search_schema
+            and tool_param.get("execution") == "client"
+            and schema
+        ):
             try:
                 parameters = ToolParams.model_validate(schema)
             except ValidationError:
@@ -952,7 +950,7 @@ def tools_from_responses_tool(
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
     *,
-    non_openai: bool = False,
+    present_tool_search_schema: bool = False,
 ) -> list[ToolInfo | Tool]:
     """Convert a responses ToolParam into zero or more inspect tools.
 
@@ -961,8 +959,8 @@ def tools_from_responses_tool(
     enclosing namespace name is tracked separately by the caller and
     restored on outgoing ResponseFunctionToolCall.namespace so that
     scaffolds (e.g. codex-cli) which dispatch by (namespace, name) can
-    locate the tool on the return trip. `non_openai` converts for a
-    non-OpenAI provider, which presents a client tool_search's own schema.
+    locate the tool on the return trip. `present_tool_search_schema` gives a
+    client tool_search the schema it declares (see `tool_from_responses_tool`).
     """
     if is_namespace_tool_param(tool_param):
         ns_name = tool_param.get("name")
@@ -975,7 +973,7 @@ def tools_from_responses_tool(
                 web_search_providers,
                 code_execution_providers,
                 allow_remote_mcp,
-                non_openai=non_openai,
+                present_tool_search_schema=present_tool_search_schema,
             )
             if inner_tool is not None:
                 # Stash the namespace so openai_responses_tools can re-group
@@ -995,7 +993,7 @@ def tools_from_responses_tool(
         web_search_providers,
         code_execution_providers,
         allow_remote_mcp,
-        non_openai=non_openai,
+        present_tool_search_schema=present_tool_search_schema,
     )
     return [tool] if tool is not None else []
 
@@ -1691,7 +1689,9 @@ def responses_output_items_from_assistant_message(
                 )
             )
         elif tool_call.type == "custom":
-            custom_identity = (tool_namespaces or {}).get(tool_call.function)
+            custom_identity = (tool_namespaces or {}).get(
+                tool_call.function, _ToolIdentity(tool_call.function, None)
+            )
             output.append(
                 ResponseCustomToolCall(
                     # See note on `id` for function_call below: Responses output
@@ -1701,16 +1701,14 @@ def responses_output_items_from_assistant_message(
                     call_id=tool_call.id,
                     name=tool_call.function,
                     input=next(iter(tool_call.arguments.values())),
-                    namespace=custom_identity.namespace if custom_identity else None,
+                    namespace=custom_identity.namespace,
                 )
             )
         else:
-            tool_identity = (tool_namespaces or {}).get(tool_call.function)
-            if tool_identity is None:
-                name = tool_call.function
-                namespace = None
-            else:
-                name, namespace = tool_identity.name, tool_identity.namespace
+            tool_identity = (tool_namespaces or {}).get(
+                tool_call.function, _ToolIdentity(tool_call.function, None)
+            )
+            name, namespace = tool_identity.name, tool_identity.namespace
             output.append(
                 ResponseFunctionToolCall(
                     # A Responses output item must carry a non-null `id` (the

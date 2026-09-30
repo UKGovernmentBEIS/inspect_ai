@@ -61,6 +61,11 @@ WEB_SEARCH_PROVIDERS: Any = {}
 CODE_EXECUTION_PROVIDERS: Any = {}
 
 
+# 0. client tool_search for providers without the Responses API: discovered tools
+# are declared to the model under generic names, then approved, granted and
+# replayed under their Responses identities
+
+
 def _tool_search_tool_param() -> ToolSearchToolParam:
     return {
         "type": "tool_search",
@@ -166,21 +171,7 @@ async def test_client_tool_search_reaches_non_openai_with_discovered_mcp_tools()
         _tool_choice: ToolChoice,
         _config: GenerateConfig,
     ) -> ModelOutput:
-        names = {tool.name for tool in tools}
-        tool_names_seen.append(names)
-        if len(tool_names_seen) == 1:
-            assert names == {TOOL_SEARCH_NAME}, (
-                "client tool_search missing from the first non-OpenAI bridge generation"
-            )
-        else:
-            assert names == {
-                TOOL_SEARCH_NAME,
-                browser_tool_name,
-                f"{discovered_mcp_namespace['name']}__javascript_exec",
-            }, (
-                "client-discovered MCP namespace missing from the non-OpenAI "
-                "bridge continuation"
-            )
+        tool_names_seen.append({tool.name for tool in tools})
         if len(tool_names_seen) == 3:
             replayed_calls = [
                 call
@@ -312,6 +303,7 @@ async def _non_openai_tools_after_discovery(
     server_output: bool = False,
     web_search: Any = None,
     code_execution: Any = None,
+    allow_remote_mcp: bool = True,
 ) -> list[ToolInfo]:
     """The tools a non-OpenAI provider is given after client tool_search results.
 
@@ -319,7 +311,8 @@ async def _non_openai_tools_after_discovery(
     leave without a ``call_id`` (the result then names the call's ``id``) or
     leave out. The client ``tool_search`` is declared where
     ``declare_tool_search`` says, beside ``request_tools``; ``server_output``
-    marks every result as executed by the server.
+    marks every result as executed by the server. The remaining arguments are the
+    bridge's grants for hosted tools.
     """
     tools_seen: list[list[ToolInfo]] = []
 
@@ -337,6 +330,7 @@ async def _non_openai_tools_after_discovery(
         model_aliases={
             "inspect": get_model("mockllm/model", custom_outputs=custom_outputs)
         },
+        allow_remote_mcp=allow_remote_mcp,
     )
     input_items: list[dict[str, Any]] = [{"role": "user", "content": "Find tools."}]
     if declare_tool_search == "additional_tools":
@@ -637,6 +631,36 @@ async def test_client_discovery_does_not_repeat_builtin_names(
     assert sorted(tool.name for tool in tools) == names
 
 
+REMOTE_MCP = {
+    "type": "mcp",
+    "server_label": "elsewhere",
+    "server_url": "https://example.invalid/mcp",
+    "allowed_tools": None,
+    "headers": None,
+}
+
+
+@pytest.mark.parametrize(
+    "discovered,allow_remote_mcp",
+    [({"type": "web_search"}, True), (REMOTE_MCP, False)],
+    ids=["web-search", "remote-mcp"],
+)
+async def test_client_discovery_withholds_ungranted_hosted_tools(
+    discovered: dict[str, Any],
+    allow_remote_mcp: bool,
+) -> None:
+    """A discovered hosted tool the bridge does not grant is withheld.
+
+    Web search has no providers here and remote MCP is not allowed, so, as for a
+    declared one, the model is not given the tool.
+    """
+    tools = await _non_openai_tools_after_discovery(
+        [discovered], allow_remote_mcp=allow_remote_mcp
+    )
+
+    assert [tool.name for tool in tools] == [TOOL_SEARCH_NAME]
+
+
 async def test_client_discovery_keeps_a_declared_namespace_tool_name() -> None:
     """A tool the request declares in a namespace is not exposed again when discovered.
 
@@ -849,7 +873,7 @@ async def test_responses_protocol_provider_keeps_native_discovery() -> None:
 
 
 @pytest.mark.parametrize(
-    "model_name", ["mockllm/model", "openai/gpt-4o"], ids=["generic", "openai"]
+    "model_name", ["mockllm/model", "openai/gpt-4o"], ids=["non-openai", "openai"]
 )
 async def test_replayed_namespace_call_keeps_identity_beside_plain_generic_name(
     model_name: str,
@@ -997,14 +1021,14 @@ def test_tool_from_responses_tool_tool_search() -> None:
     assert tool.options["parameters"] == _tool_search_tool_param()["parameters"]
 
 
-def test_client_tool_search_keeps_schema_for_generic_provider() -> None:
-    """Non-OpenAI serialization keeps the client discovery schema."""
+def test_client_tool_search_keeps_schema_for_non_openai_provider() -> None:
+    """Serialization for a provider without Responses keeps the discovery schema."""
     tool = tool_from_responses_tool(
         _tool_search_tool_param(),
         WEB_SEARCH_PROVIDERS,
         CODE_EXECUTION_PROVIDERS,
         allow_remote_mcp=True,
-        non_openai=True,
+        present_tool_search_schema=True,
     )
     assert isinstance(tool, ToolInfo)
 
@@ -1038,16 +1062,25 @@ def test_client_tool_search_keeps_schema_for_generic_provider() -> None:
 )
 async def test_native_tool_search_allows_optional_parameters(
     tool_param: ToolParam,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """OpenAI-native tool search accepts an omitted, null or non-object schema."""
-    model = get_model("openai/gpt-4o", api_key="test-key", memoize=False)
 
-    async def generate(*_args: Any, **_kwargs: Any) -> ModelOutput:
+    async def reply(
+        _model: Model,
+        _messages: list[ChatMessage],
+        _tools: list[ToolInfo],
+        _tool_choice: ToolChoice | None,
+        _config: GenerateConfig,
+    ) -> ModelOutput:
         return ModelOutput.from_content("openai/gpt-4o", "done")
 
-    monkeypatch.setattr(model, "generate", generate)
-    bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        filter=reply,
+        model_aliases={
+            "inspect": get_model("openai/gpt-4o", api_key="test-key", memoize=False)
+        },
+    )
     response = await inspect_responses_api_request(
         {
             "model": "inspect",
@@ -1066,7 +1099,6 @@ async def test_native_tool_search_allows_optional_parameters(
 @pytest.mark.parametrize("discovered", [False, True], ids=["top-level", "discovered"])
 async def test_openai_path_keeps_last_namespace_for_shared_inner_name(
     discovered: bool,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """On OpenAI, an inner name shared by two namespaces maps to the later one."""
     init_sample_openai_assistant_internal()
@@ -1101,15 +1133,25 @@ async def test_openai_path_keeps_last_namespace_for_shared_inner_name(
         ]
     else:
         tools += namespaces
-    model = get_model("openai/gpt-4o", api_key="test-key", memoize=False)
 
-    async def generate(*_args: Any, **_kwargs: Any) -> ModelOutput:
+    async def reply(
+        _model: Model,
+        _messages: list[ChatMessage],
+        _tools: list[ToolInfo],
+        _tool_choice: ToolChoice | None,
+        _config: GenerateConfig,
+    ) -> ModelOutput:
         return ModelOutput.for_tool_call(
             "openai/gpt-4o", "read", {"path": "a.txt"}, tool_call_id="c1"
         )
 
-    monkeypatch.setattr(model, "generate", generate)
-    bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        filter=reply,
+        model_aliases={
+            "inspect": get_model("openai/gpt-4o", api_key="test-key", memoize=False)
+        },
+    )
     response = await inspect_responses_api_request(
         {"model": "inspect", "input": input_items, "tools": tools},
         None,
