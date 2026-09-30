@@ -13,7 +13,7 @@ Model tool calls are executed within the main process running the evaluation tas
 
 - You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
 
-To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers in which tools, agents and scorers can execute commands and code. Several of Inspect's [standard tools](tools-standard.qmd) require a sandbox, including `bash()`, `python()`, `text_editor()`, and `web_browser()`. Support for Docker sandboxes is built in, and the [Extension API](extensions-sandboxes.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
+To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers in which tools, agents and scorers can execute commands and code. Several of Inspect's [standard tools](tools-standard.qmd) require a sandbox, including `bash()`, `python()`, and `text_editor()`. Support for Docker sandboxes is built in, and the [Extension API](extensions-sandboxes.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
 
 ## Example: File Listing
 
@@ -104,6 +104,7 @@ There are two sandbox environments built in to Inspect and six available as exte
 | `ec2` | [inspect_ec2_sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) | No | [AWS EC2](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) virtual machine. |
 | `proxmox` | [inspect_proxmox_sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) | No | [Proxmox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) with virtual machines. |
 | `vagrant` | [inspect_vagrant_sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) | No | [Vagrant](https://github.com/jasongwartz/inspect_vagrant_sandbox) virtual machines on any Vagrant-supported hypervisor. |
+| `openshell` | [inspect-openshell-sandbox](https://pypi.org/project/inspect-openshell-sandbox/) | Yes | [NVIDIA OpenShell](https://github.com/32bitsret/inspect-openshell-sandbox) sandboxes with Landlock filesystem and network policies. |
 | `local` | Built-in | No | Local file system (no sandbox). |
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.

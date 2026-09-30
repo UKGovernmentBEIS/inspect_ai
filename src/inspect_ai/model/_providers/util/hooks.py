@@ -19,6 +19,8 @@ from inspect_ai._util.http import parse_retry_after
 from inspect_ai._util.retry import report_http_retry
 
 if TYPE_CHECKING:
+    from aiobotocore.session import AioSession
+
     from inspect_ai.model._model import ModelAPI
 
 logger = getLogger(__name__)
@@ -191,9 +193,7 @@ class ConverseHooks(HttpHooks):
     # context dict so the response-received handler can look it up.
     _CTX_REQUEST_ID = "_inspect_request_id"
 
-    def __init__(self, session: Any, api: "ModelAPI | None" = None) -> None:
-        from aiobotocore.session import AioSession
-
+    def __init__(self, session: "AioSession", api: "ModelAPI | None" = None) -> None:
         super().__init__(api)
 
         # register hooks. We use:
@@ -207,7 +207,6 @@ class ConverseHooks(HttpHooks):
         #     the *next* retry's classification. (after-call fires only once
         #     at the end of all SDK-internal retries, so it would miss the
         #     per-attempt 429s that botocore swallows via adaptive retry.)
-        session = cast(AioSession, session._session)
         session.register(
             "request-created.bedrock-runtime.Converse",
             self.converse_request_created,
@@ -303,8 +302,8 @@ class ConverseHooks(HttpHooks):
 
 
 # Structural stand-ins for httpx types, covering only what the hooks touch.
-# The openai (>= 3) and anthropic (>= 1) SDKs are built on `httpx2` while
-# other SDKs (google, mistral, groq) hand us legacy `httpx` clients; both
+# The openai (>= 3), anthropic (>= 1) and mistralai (>= 3) SDKs are built on
+# `httpx2` while other SDKs (google, groq) hand us legacy `httpx` clients; both
 # flavors satisfy these protocols.
 class HttpxRequestLike(Protocol):
     @property

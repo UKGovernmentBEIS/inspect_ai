@@ -14,6 +14,8 @@ def browser():
             )
         ],
         solver=[
+            # web_browser() is deprecated and will be removed in a future release,
+            # together with this example (see inspect_ai issue #5497)
             use_tools(web_browser()),
             generate(),
         ],

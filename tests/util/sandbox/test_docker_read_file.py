@@ -19,7 +19,7 @@ from inspect_ai.util._sandbox.docker.docker import (
     _validate_staged_read_file,
 )
 from inspect_ai.util._sandbox.docker.util import ComposeProject
-from inspect_ai.util._subprocess import ExecResult
+from inspect_ai.util._subprocess import ExecResult, SubprocessRun
 
 
 def _environment() -> DockerSandboxEnvironment:
@@ -246,7 +246,9 @@ async def test_read_file_does_not_retry_mutated_staging_path(
     outside.write_text("safe")
     attempts = 0
 
-    async def copy_attempt(args: str | list[str], **kwargs: object) -> ExecResult[str]:
+    async def copy_attempt(
+        args: str | list[str], **kwargs: object
+    ) -> SubprocessRun[str]:
         nonlocal attempts
         attempts += 1
         assert isinstance(args, list)
@@ -263,9 +265,12 @@ async def test_read_file_does_not_retry_mutated_staging_path(
 
         # Docker Compose resolves an existing destination symlink before copying.
         staged_path.write_text("overwritten")
-        return ExecResult(success=True, returncode=0, stdout="", stderr="")
+        return SubprocessRun(
+            result=ExecResult(success=True, returncode=0, stdout="", stderr=""),
+            stdin_written=True,
+        )
 
-    monkeypatch.setattr(compose_module, "subprocess", copy_attempt)
+    monkeypatch.setattr(compose_module, "run_subprocess", copy_attempt)
 
     with pytest.raises(TimeoutError):
         await environment.read_file("source.txt")
