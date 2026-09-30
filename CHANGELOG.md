@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Bugfix: `sandbox.exec_remote()` (and so bridged agents) no longer fails when the sandbox stops answering for up to 15 minutes while the command runs; a new `start_timeout` option bounds the launch separately.
+- Sandbox: `exec_remote()` and `sandbox_agent_bridge()` take a new opt-in `poll_timeout_recovery` that keeps polling a running command through a temporary sandbox stall instead of failing.
 
 ## 0.3.272 (28 September 2026)
 
