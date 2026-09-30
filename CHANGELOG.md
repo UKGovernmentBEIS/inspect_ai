@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Sandbox tools: the root check now runs once at sample start, before solver/agent execution begins; an inconclusive check warns before falling back to the sandbox's default user, and a check that could not run, or a later root failure, is an error.
+- Local sandbox: `exec(user=...)` now rejects unsupported users instead of ignoring them; the current effective user's name or UID is accepted on POSIX.
 - Agent Bridge: `agent_bridge()` and `sandbox_agent_bridge()` now accept a `response_filter` for transforming model output before it is returned.
 - Agent Bridge: On sandbox bridges, a request `filter` that terminates the sample now ends it; before, the agent received an error response and the sample continued.
 
