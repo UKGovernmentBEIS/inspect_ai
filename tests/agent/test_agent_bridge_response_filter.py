@@ -851,6 +851,7 @@ async def test_response_filter_error_keeps_the_filter_exception_as_cause() -> No
     "failure",
     [
         "token_limit",
+        "concurrent_limit",
         "terminate",
         "bug",
         "message_not_assistant",
