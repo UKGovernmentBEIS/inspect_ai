@@ -238,7 +238,7 @@ For this reason, by default the bridge does not forward client generation parame
 
 The generation parameters dropped by default are: `max_tokens`, `temperature`, `top_p`, `top_k`, `frequency_penalty`, `presence_penalty`, `n`/`num_choices`, `logprobs`, `top_logprobs`, `logit_bias`, and reasoning effort/tokens/summary.
 
-A bridged agent's server-side [fallback](fallbacks.qmd) directive (the `fallbacks` request field) is not a generation parameter and is forwarded regardless of `forward_generation_config`, but only to Anthropic models. `fallbacks: "default"` is forwarded to any Anthropic model, while an explicit list of fallback models is forwarded only when the model the agent named is the one serving the request; otherwise it is withheld with a warning. The directive is never sent to other providers, or with batch, Bedrock, Vertex, or Azure requests. An Inspect-level `fallback_models` takes precedence over it, and an Inspect-level `extra_body` replaces the agent's, including its `fallbacks` directive. To stop forwarding the directive, pass a bridge `filter` that removes `fallbacks` from the `extra_body` of the generate config it receives.
+A bridged agent's server-side `fallbacks` directive is not a generation parameter: it is forwarded regardless of `forward_generation_config`, to Anthropic models only (see [Bridged Agents](fallbacks.qmd#bridged-agents)). To stop forwarding it, pass a bridge `filter` that removes `fallbacks` from the `extra_body` of the generate config it receives.
 
 If you want the bridge to act as a faithful proxy where the agent's generation parameters are authoritative, pass `forward_generation_config=True`:
 
