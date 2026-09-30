@@ -134,7 +134,7 @@ def cloudflare() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "2.0.1"
+    MIN_VERSION = "3.0.0"
 
     # verify we have the package
     try:
