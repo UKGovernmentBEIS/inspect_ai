@@ -1,10 +1,13 @@
+## Unreleased
+
+- Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
+
 ## 0.3.273 (29 September 2026)
 
 - Anthropic: Prompts can mark a stable prefix for caching while allowing the remaining text to change.
 - OpenAI: GPT-5.6 and later support explicit prompt-cache boundaries; other models retain automatic caching.
 - OpenAI: Support for GPT-6.1 Sol (`gpt-6.1-sol`), including its context window and output limits.
 - Mistral: Support for mistralai 3.0, which is now the minimum required version.
-- Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
 - Logs: Reading samples with `resolve_attachments` is much faster for long conversations; in full mode, deeply nested model API call content may keep two more nesting levels.
 - Bugfix: `self_critique()`, and `model_graded_qa()`/`model_graded_fact()` with `model_role=None`, now critique or grade with the correct model when one task is evaluated against several models.
 - Reading a remote `.eval` log from a non-S3 filesystem (e.g. `gs://`, `az://`) no longer stalls other running work for the whole download.
