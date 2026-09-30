@@ -23,6 +23,8 @@ from openai.types.responses import (
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.responses import inspect_responses_api_request
 from inspect_ai.agent._bridge.responses_impl import (
+    _ToolIdentity,
+    _ToolNames,
     messages_from_responses_input,
     responses_output_items_from_assistant_message,
     tool_from_responses_tool,
@@ -51,7 +53,6 @@ from inspect_ai.model._providers.anthropic import AnthropicAPI
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.tool._tool_params import ToolParams
 
 WEB_SEARCH_PROVIDERS: Any = {}
 CODE_EXECUTION_PROVIDERS: Any = {}
@@ -390,259 +391,15 @@ async def test_client_tool_search_call_allows_missing_call_id() -> None:
     assert response.output_text == "done"
 
 
-async def test_client_tool_search_accumulates_namespace_discoveries() -> None:
-    """Later results from one namespace add their newly discovered tools."""
-    requested_tool_search = _tool_search_tool_param()
-    first_discovery = _deferred_mcp_namespace()
-    second_discovery = _deferred_mcp_namespace()
-    first_discovery["tools"] = [first_discovery["tools"][0]]
-    second_discovery["tools"] = [second_discovery["tools"][1]]
-    expected_names = {
-        TOOL_SEARCH_NAME,
-        f"{first_discovery['name']}__browser",
-        f"{second_discovery['name']}__javascript_exec",
-    }
-
-    def custom_outputs(
-        _input: list[ChatMessage],
-        tools: list[ToolInfo],
-        _tool_choice: ToolChoice,
-        _config: GenerateConfig,
-    ) -> ModelOutput:
-        assert {tool.name for tool in tools} == expected_names
-        return ModelOutput.from_content("mockllm/model", "done")
-
-    bridge = AgentBridge(
-        AgentState(messages=[]),
-        model_aliases={
-            "inspect": get_model("mockllm/model", custom_outputs=custom_outputs)
-        },
-    )
-    response = await inspect_responses_api_request(
-        {
-            "model": "inspect",
-            "input": [
-                {"role": "user", "content": "Find browser tools."},
-                {
-                    "type": "tool_search_call",
-                    "id": "ts_1",
-                    "call_id": "tool_search_1",
-                    "arguments": {"query": "browser tools"},
-                    "execution": "client",
-                    "status": "completed",
-                },
-                {
-                    "type": "tool_search_output",
-                    "call_id": "tool_search_1",
-                    "tools": [first_discovery],
-                    "status": "completed",
-                },
-                {
-                    "type": "tool_search_call",
-                    "id": "ts_2",
-                    "call_id": "tool_search_2",
-                    "arguments": {"query": "browser tools"},
-                    "execution": "client",
-                    "status": "completed",
-                },
-                {
-                    "type": "tool_search_output",
-                    "call_id": "tool_search_2",
-                    "tools": [second_discovery],
-                    "status": "completed",
-                },
-            ],
-            "tools": [requested_tool_search],
-        },
-        None,
-        None,
-        None,
-        bridge,
-    )
-
-    assert response.output_text == "done"
-
-
-async def test_client_tool_search_deduplicates_repeated_plain_discoveries() -> None:
-    """Repeated identical plain discoveries do not make the tool catalog ambiguous."""
-    requested_tool_search = _tool_search_tool_param()
-    discovered_tool = _discoverable_function_tool()
-
-    def custom_outputs(
-        _input: list[ChatMessage],
-        tools: list[ToolInfo],
-        _tool_choice: ToolChoice,
-        _config: GenerateConfig,
-    ) -> ModelOutput:
-        assert {tool.name for tool in tools} == {TOOL_SEARCH_NAME, "read_file"}
-        return ModelOutput.from_content("mockllm/model", "done")
-
-    bridge = AgentBridge(
-        AgentState(messages=[]),
-        model_aliases={
-            "inspect": get_model("mockllm/model", custom_outputs=custom_outputs)
-        },
-    )
-    response = await inspect_responses_api_request(
-        {
-            "model": "inspect",
-            "input": [
-                {"role": "user", "content": "Find a file tool."},
-                {
-                    "type": "tool_search_call",
-                    "id": "ts_1",
-                    "call_id": "tool_search_1",
-                    "arguments": {"query": "file tools"},
-                    "execution": "client",
-                    "status": "completed",
-                },
-                {
-                    "type": "tool_search_output",
-                    "call_id": "tool_search_1",
-                    "tools": [discovered_tool],
-                    "status": "completed",
-                },
-                {
-                    "type": "tool_search_call",
-                    "id": "ts_2",
-                    "call_id": "tool_search_2",
-                    "arguments": {"query": "file tools"},
-                    "execution": "client",
-                    "status": "completed",
-                },
-                {
-                    "type": "tool_search_output",
-                    "call_id": "tool_search_2",
-                    "tools": [discovered_tool],
-                    "status": "completed",
-                },
-            ],
-            "tools": [requested_tool_search],
-        },
-        None,
-        None,
-        None,
-        bridge,
-    )
-
-    assert response.output_text == "done"
-
-
-async def test_client_tool_search_accumulates_overlapping_namespace_discoveries() -> (
-    None
-):
-    """Overlapping namespace results retain the newly discovered tool."""
-    requested_tool_search = _tool_search_tool_param()
-    first_discovery = _deferred_mcp_namespace()
-    overlapping_discovery = _deferred_mcp_namespace()
-    first_discovery["tools"] = [first_discovery["tools"][0]]
-    expected_names = {
-        TOOL_SEARCH_NAME,
-        f"{first_discovery['name']}__browser",
-        f"{overlapping_discovery['name']}__javascript_exec",
-    }
-
-    def custom_outputs(
-        _input: list[ChatMessage],
-        tools: list[ToolInfo],
-        _tool_choice: ToolChoice,
-        _config: GenerateConfig,
-    ) -> ModelOutput:
-        assert {tool.name for tool in tools} == expected_names
-        return ModelOutput.from_content("mockllm/model", "done")
-
-    bridge = AgentBridge(
-        AgentState(messages=[]),
-        model_aliases={
-            "inspect": get_model("mockllm/model", custom_outputs=custom_outputs)
-        },
-    )
-    response = await inspect_responses_api_request(
-        {
-            "model": "inspect",
-            "input": [
-                {"role": "user", "content": "Find browser tools."},
-                {
-                    "type": "tool_search_call",
-                    "id": "ts_1",
-                    "call_id": "tool_search_1",
-                    "arguments": {"query": "browser tools"},
-                    "execution": "client",
-                    "status": "completed",
-                },
-                {
-                    "type": "tool_search_output",
-                    "call_id": "tool_search_1",
-                    "tools": [first_discovery],
-                    "status": "completed",
-                },
-                {
-                    "type": "tool_search_call",
-                    "id": "ts_2",
-                    "call_id": "tool_search_2",
-                    "arguments": {"query": "browser tools"},
-                    "execution": "client",
-                    "status": "completed",
-                },
-                {
-                    "type": "tool_search_output",
-                    "call_id": "tool_search_2",
-                    "tools": [overlapping_discovery],
-                    "status": "completed",
-                },
-            ],
-            "tools": [requested_tool_search],
-        },
-        None,
-        None,
-        None,
-        bridge,
-    )
-
-    assert response.output_text == "done"
-
-
-async def test_client_tool_search_rejects_discovered_computer_use() -> None:
-    """Client discovery cannot add computer use to a non-OpenAI bridge."""
-    model = get_model("mockllm/model")
-    bridge = AgentBridge(
-        AgentState(messages=[]),
-        model_aliases={"inspect": model},
-    )
-
-    with pytest.raises(RuntimeError, match="computer use with the OpenAI Responses"):
-        await inspect_responses_api_request(
-            {
-                "model": "inspect",
-                "input": [
-                    {
-                        "type": "tool_search_call",
-                        "id": "ts_1",
-                        "call_id": "tool_search_1",
-                        "arguments": {"query": "browser tools"},
-                        "execution": "client",
-                        "status": "completed",
-                    },
-                    {
-                        "type": "tool_search_output",
-                        "call_id": "tool_search_1",
-                        "tools": [{"type": "computer"}],
-                        "status": "completed",
-                    },
-                ],
-                "tools": [_tool_search_tool_param()],
-            },
-            None,
-            None,
-            None,
-            bridge,
-        )
-
-
-async def _generic_tools_after_discovery(
-    discovered: list[dict[str, Any]],
+async def _non_openai_tools_after_discovery(
+    *results: list[dict[str, Any]],
+    request_tools: list[dict[str, Any]] | None = None,
 ) -> list[ToolInfo]:
-    """The tools a generic provider is given after one client tool_search result."""
+    """The tools a non-OpenAI provider is given after client tool_search results.
+
+    Each result answers its own client ``tool_search_call``; ``request_tools``
+    are declared in the request beside the client ``tool_search``.
+    """
     tools_seen: list[list[ToolInfo]] = []
 
     def custom_outputs(
@@ -660,26 +417,29 @@ async def _generic_tools_after_discovery(
             "inspect": get_model("mockllm/model", custom_outputs=custom_outputs)
         },
     )
+    input_items: list[dict[str, Any]] = [{"role": "user", "content": "Find tools."}]
+    for index, result in enumerate(results, start=1):
+        input_items += [
+            {
+                "type": "tool_search_call",
+                "id": f"ts_{index}",
+                "call_id": f"tool_search_{index}",
+                "arguments": {"query": "tools"},
+                "execution": "client",
+                "status": "completed",
+            },
+            {
+                "type": "tool_search_output",
+                "call_id": f"tool_search_{index}",
+                "tools": result,
+                "status": "completed",
+            },
+        ]
     response = await inspect_responses_api_request(
         {
             "model": "inspect",
-            "input": [
-                {
-                    "type": "tool_search_call",
-                    "id": "ts_1",
-                    "call_id": "tool_search_1",
-                    "arguments": {"query": "tools"},
-                    "execution": "client",
-                    "status": "completed",
-                },
-                {
-                    "type": "tool_search_output",
-                    "call_id": "tool_search_1",
-                    "tools": discovered,
-                    "status": "completed",
-                },
-            ],
-            "tools": [_tool_search_tool_param()],
+            "input": input_items,
+            "tools": [_tool_search_tool_param(), *(request_tools or [])],
         },
         None,
         None,
@@ -690,6 +450,48 @@ async def _generic_tools_after_discovery(
     assert response.output_text == "done"
     assert len(tools_seen) == 1
     return tools_seen[0]
+
+
+@pytest.mark.parametrize("overlapping", [False, True], ids=["disjoint", "overlapping"])
+async def test_client_tool_search_accumulates_namespace_discoveries(
+    overlapping: bool,
+) -> None:
+    """Later results from one namespace add their newly discovered tools.
+
+    A later result that repeats an earlier tool still adds the new one.
+    """
+    first_discovery = _deferred_mcp_namespace()
+    second_discovery = _deferred_mcp_namespace()
+    first_discovery["tools"] = [first_discovery["tools"][0]]
+    if not overlapping:
+        second_discovery["tools"] = [second_discovery["tools"][1]]
+
+    tools = await _non_openai_tools_after_discovery(
+        [first_discovery], [second_discovery]
+    )
+
+    assert {tool.name for tool in tools} == {
+        TOOL_SEARCH_NAME,
+        f"{first_discovery['name']}__browser",
+        f"{second_discovery['name']}__javascript_exec",
+    }
+
+
+async def test_client_tool_search_deduplicates_repeated_plain_discoveries() -> None:
+    """Repeated identical plain discoveries do not make the tool catalog ambiguous."""
+    discovered_tool = _discoverable_function_tool()
+
+    tools = await _non_openai_tools_after_discovery(
+        [discovered_tool], [discovered_tool]
+    )
+
+    assert {tool.name for tool in tools} == {TOOL_SEARCH_NAME, "read_file"}
+
+
+async def test_client_tool_search_rejects_discovered_computer_use() -> None:
+    """Client discovery cannot add computer use to a non-OpenAI bridge."""
+    with pytest.raises(RuntimeError, match="computer use with the OpenAI Responses"):
+        await _non_openai_tools_after_discovery([{"type": "computer"}])
 
 
 async def test_client_tool_search_namespace_with_computer_declares_nothing() -> None:
@@ -712,11 +514,11 @@ async def test_client_tool_search_namespace_with_computer_declares_nothing() -> 
         "tools": [read],
     }
 
-    tools = await _generic_tools_after_discovery([namespace])
+    tools = await _non_openai_tools_after_discovery([namespace])
     assert {tool.name for tool in tools} == {TOOL_SEARCH_NAME, "deferred__read"}
 
     namespace["tools"] = [read, {"type": "computer"}]
-    tools = await _generic_tools_after_discovery([namespace])
+    tools = await _non_openai_tools_after_discovery([namespace])
     assert {tool.name for tool in tools} == {TOOL_SEARCH_NAME}
 
 
@@ -724,10 +526,10 @@ async def test_client_tool_search_skips_schema_less_discovered_functions() -> No
     """Functions listed without a schema are skipped; a missing description is not.
 
     Codex lists its deferred ``multi_agent`` tools by name only, which gives a
-    generic provider nothing to call; a function with a schema but no
+    non-OpenAI provider nothing to call; a function with a schema but no
     description is described by its name.
     """
-    tools = await _generic_tools_after_discovery(
+    tools = await _non_openai_tools_after_discovery(
         [
             {
                 "type": "namespace",
@@ -764,38 +566,10 @@ async def test_client_tool_search_rejects_ambiguous_flattened_name() -> None:
     discovered_mcp_namespace = _deferred_mcp_namespace()
     existing_tool = _discoverable_function_tool()
     existing_tool["name"] = f"{discovered_mcp_namespace['name']}__browser"
-    model = get_model("mockllm/model")
-    bridge = AgentBridge(
-        AgentState(messages=[]),
-        model_aliases={"inspect": model},
-    )
 
     with pytest.raises(RuntimeError, match="Ambiguous client tool catalog"):
-        await inspect_responses_api_request(
-            {
-                "model": "inspect",
-                "input": [
-                    {
-                        "type": "tool_search_call",
-                        "id": "ts_1",
-                        "call_id": "tool_search_1",
-                        "arguments": {"query": "browser tools"},
-                        "execution": "client",
-                        "status": "completed",
-                    },
-                    {
-                        "type": "tool_search_output",
-                        "call_id": "tool_search_1",
-                        "tools": [discovered_mcp_namespace],
-                        "status": "completed",
-                    },
-                ],
-                "tools": [_tool_search_tool_param(), existing_tool],
-            },
-            None,
-            None,
-            None,
-            bridge,
+        await _non_openai_tools_after_discovery(
+            [discovered_mcp_namespace], request_tools=[existing_tool]
         )
 
 
@@ -810,38 +584,9 @@ async def test_client_discovery_rejects_plain_namespace_name_collisions(
     discovered_tools = (
         [plain_tool, namespace_tool] if plain_first else [namespace_tool, plain_tool]
     )
-    bridge = AgentBridge(
-        AgentState(messages=[]),
-        model_aliases={"inspect": get_model("mockllm/model")},
-    )
 
     with pytest.raises(RuntimeError, match="Ambiguous client tool catalog"):
-        await inspect_responses_api_request(
-            {
-                "model": "inspect",
-                "input": [
-                    {
-                        "type": "tool_search_call",
-                        "id": "ts_1",
-                        "call_id": "tool_search_1",
-                        "arguments": {"query": "browser tools"},
-                        "execution": "client",
-                        "status": "completed",
-                    },
-                    {
-                        "type": "tool_search_output",
-                        "call_id": "tool_search_1",
-                        "tools": discovered_tools,
-                        "status": "completed",
-                    },
-                ],
-                "tools": [_tool_search_tool_param()],
-            },
-            None,
-            None,
-            None,
-            bridge,
-        )
+        await _non_openai_tools_after_discovery(discovered_tools)
 
 
 @pytest.mark.parametrize(
@@ -957,9 +702,9 @@ async def test_replayed_namespace_call_keeps_identity_beside_plain_generic_name(
 
 
 def test_client_discovery_skips_custom_and_server_builtins() -> None:
-    """Custom and server-resolved built-ins never reach generic providers."""
-    tool_namespaces: dict[str, tuple[str, str]] = {}
-    tool_names: dict[str, tuple[str, str | None, ToolParams] | None] = {}
+    """Custom and server-resolved built-ins never reach non-OpenAI providers."""
+    tool_namespaces: dict[str, _ToolIdentity] = {}
+    tool_names: _ToolNames = {}
     discovered_tools = [
         cast(ToolParam, {"type": "custom", "name": "custom_tool"}),
         cast(ToolParam, {"type": "tool_search", "execution": "server"}),
@@ -1012,7 +757,7 @@ def test_tool_from_responses_tool_tool_search() -> None:
 
 
 def test_client_tool_search_keeps_schema_for_generic_provider() -> None:
-    """Generic-provider serialization keeps the client discovery schema."""
+    """Non-OpenAI serialization keeps the client discovery schema."""
     tool = tool_from_responses_tool(
         _tool_search_tool_param(),
         WEB_SEARCH_PROVIDERS,
@@ -1218,7 +963,7 @@ def test_harvest_tool_namespaces_from_tool_search_output() -> None:
             {"type": "function", "name": "wait_agent"},
         ],
     }
-    tool_namespaces: dict[str, tuple[str, str]] = {}
+    tool_namespaces: dict[str, _ToolIdentity] = {}
     _harvest_tool_namespaces(namespace_tool, tool_namespaces)
     assert tool_namespaces == {
         "spawn_agent": ("spawn_agent", "multi_agent_v1"),
@@ -1230,7 +975,7 @@ def test_output_items_restore_namespace_for_deferred_tool() -> None:
     from inspect_ai.agent._bridge.responses_impl import _harvest_tool_namespaces
 
     # mapping as harvested from a tool_search_output namespace entry
-    tool_namespaces: dict[str, tuple[str, str]] = {}
+    tool_namespaces: dict[str, _ToolIdentity] = {}
     _harvest_tool_namespaces(
         {"name": "multi_agent_v1", "tools": [{"name": "spawn_agent"}]},
         tool_namespaces,
@@ -1254,7 +999,7 @@ def test_output_items_restore_namespace_for_deferred_tool() -> None:
 
 
 def test_output_items_restore_stored_raw_name_for_generic_tool() -> None:
-    """A generic provider name maps back to the original Responses identity."""
+    """A generic tool name maps back to the original Responses identity."""
     message = ChatMessageAssistant(
         content="",
         tool_calls=[
@@ -1267,7 +1012,7 @@ def test_output_items_restore_stored_raw_name_for_generic_tool() -> None:
     )
     items = responses_output_items_from_assistant_message(
         message,
-        {"generic_browser": ("browser", "mcp__browser_tools")},
+        {"generic_browser": _ToolIdentity("browser", "mcp__browser_tools")},
     )
     calls = [item for item in items if item.type == "function_call"]
 
