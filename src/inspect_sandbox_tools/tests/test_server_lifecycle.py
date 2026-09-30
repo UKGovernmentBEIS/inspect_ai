@@ -250,11 +250,16 @@ def test_prepare_socket_parent_rejects_unsafe_long_path_fallback(
 
 
 def test_directory_creation_is_confined_to_server_dir() -> None:
-    """Keep direct Python directory creation in the verified helper module.
+    """Catch direct directory creation that bypasses the verified helper.
 
-    This checks calls named mkdir or makedirs, not renamed functions, shell
-    commands or directory creation inside libraries. It checks placement, not
-    whether an operation is safe.
+    Walk the AST of every Python module in ``inspect_sandbox_tools`` to find
+    ``mkdir`` and ``makedirs`` calls outside ``_util/server_dir.py``. Keeping
+    these calls in the module that defines ``ensure_private_server_dir`` helps
+    prevent new code from adopting an existing directory without checking its
+    ownership and permissions.
+
+    This checks call names and placement, not safety. Renamed functions, shell
+    commands and directory creation inside libraries are not detected.
     """
     package_dir = Path(__file__).parents[1] / "src" / "inspect_sandbox_tools"
     assert package_dir.is_dir(), package_dir
