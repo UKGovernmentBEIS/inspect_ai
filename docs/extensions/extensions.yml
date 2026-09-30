@@ -191,6 +191,12 @@
   author: "[Vector Institute](https://github.com/VectorInstitute/inspect-podman)"
   categories: ["Sandboxes"]
 
+- name: "[OpenShell Sandbox](https://github.com/32bitsret/inspect-openshell-sandbox)"
+  description: |
+    NVIDIA OpenShell sandbox environment for Inspect, with kernel-enforced filesystem and network policies per task.
+  author: "[Retnan Daser](https://github.com/32bitsret)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Policy Sandbox](https://github.com/Dedulus/inspect-policy-sandbox)"
   description: |

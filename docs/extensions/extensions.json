@@ -77,6 +77,17 @@
     ]
   },
   {
+    "id": "openshell-sandbox",
+    "name": "OpenShell Sandbox",
+    "url": "https://github.com/32bitsret/inspect-openshell-sandbox",
+    "desc": "NVIDIA OpenShell sandbox environment for Inspect, with kernel-enforced filesystem and network policies per task.",
+    "author": "Retnan Daser",
+    "author_url": "https://github.com/32bitsret",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
     "id": "policy-sandbox",
     "name": "Policy Sandbox",
     "url": "https://github.com/Dedulus/inspect-policy-sandbox",
