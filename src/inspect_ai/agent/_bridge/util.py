@@ -1,4 +1,5 @@
 import inspect
+import json
 import sys
 import warnings
 from contextlib import contextmanager
@@ -463,7 +464,18 @@ async def _apply_response_filter(
         )
     except ValidationError as ex:
         raise ResponseFilterError(
-            f"response_filter returned an invalid ModelOutput: {ex}"
+            "response_filter returned an invalid ModelOutput: "
+            f"{_validation_error_details(ex)}"
+        ) from ex
+    try:
+        # the one Any-typed field the dialect converters json.dumps
+        for choice in filtered.choices:
+            for call in choice.message.tool_calls or []:
+                json.dumps(call.arguments)
+    except (TypeError, ValueError) as ex:
+        raise ResponseFilterError(
+            "response_filter returned tool call arguments that are not "
+            f"JSON-serializable: {ex}"
         ) from ex
     if not filtered.choices:
         raise ResponseFilterError(

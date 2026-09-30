@@ -624,6 +624,7 @@ FilterFailure = Literal[
     "bug",
     "wrong_type",
     "no_choices",
+    "non_json_tool_arguments",
     InvalidOutput,
 ]
 
@@ -693,6 +694,11 @@ def _failing_response_filter(failure: FilterFailure) -> ModelResponseFilter:
                 return cast(ModelOutput, output.message)
             case "no_choices":
                 return ModelOutput(model=output.model, choices=[])
+            case "non_json_tool_arguments":
+                output.message.tool_calls = [
+                    ToolCall(id="call_1", function="bash", arguments={"x": {1, 2}})
+                ]
+                return output
             case "message_not_assistant":
                 output.choices[0].message = cast(ChatMessageAssistant, "edited")
                 return output
@@ -752,6 +758,8 @@ def _expected_error(failure: FilterFailure) -> ExpectedError | None:
             return ExpectedError(ResponseFilterError, "ChatMessageAssistant")
         case "no_choices":
             return ExpectedError(ResponseFilterError, "no choices")
+        case "non_json_tool_arguments":
+            return ExpectedError(ResponseFilterError, "not JSON-serializable")
         case (
             "message_not_assistant"
             | "user_message"
@@ -840,7 +848,14 @@ async def test_response_filter_error_keeps_the_filter_exception_as_cause() -> No
 @skip_if_no_docker
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    "failure", ["token_limit", "terminate", "bug", "message_not_assistant"]
+    "failure",
+    [
+        "token_limit",
+        "terminate",
+        "bug",
+        "message_not_assistant",
+        "non_json_tool_arguments",
+    ],
 )
 def test_sandbox_response_filter_failure_outcome(
     tmp_path: Path, failure: FilterFailure
