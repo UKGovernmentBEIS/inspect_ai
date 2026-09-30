@@ -18,10 +18,9 @@ async def terminate_process_tree(
     """Terminate a subprocess, known/discoverable descendants, and optional group members.
 
     With ``process_group=True`` the group is signalled by id even after the
-    leader has exited, so orphaned members still die. Once the group is empty
-    that id can be reused by an unrelated process, so this must not be reached
-    from a per-sample path; Inspect's container providers destroy the container
-    rather than stopping the server.
+    leader has exited, so orphaned members still die. Once every member has
+    gone that id can be reused by an unrelated process, so callers must reach
+    this only at server shutdown, never from a per-sample path.
     """
     pid = getattr(process, "pid", None)
     if pid is None:

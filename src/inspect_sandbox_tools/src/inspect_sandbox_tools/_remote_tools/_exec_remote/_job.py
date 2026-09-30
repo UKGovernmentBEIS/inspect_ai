@@ -39,8 +39,8 @@ def _leader_handle(process: AsyncIOProcess) -> psutil.Process | None:
     """Identity-checked handle for the job's group leader, taken at spawn.
 
     psutil records the creation time on construction, so the handle later
-    distinguishes the process we started from another one that reused its PID.
-    Returns None when the process has already exited and been reaped.
+    distinguishes the process we started from another that reused its PID.
+    None if the process was reaped before the handle could be taken.
     """
     if process.pid is None:
         return None
@@ -198,12 +198,12 @@ class Job:
         leader of its own process group. We use os.killpg() to send signals to
         the entire group, ensuring child processes are also terminated.
 
-        The group is signalled only while the leader is verifiably still the
+        The group is signalled only after checking that the leader is still the
         process we started. Once it has exited and been reaped, its PID, and so
-        the group id, may already belong to an unrelated process, and a server
-        running as root would kill that process's group instead. A job whose
-        leader exited on its own is therefore treated as finished: its buffered
-        output is returned and any children that outlived it may be left running.
+        the group id, may belong to an unrelated process, which a server running
+        as root would then signal. A job whose leader exited on its own is
+        treated as finished: its buffered output is returned and any children
+        that outlived it may be left running.
         """
         if self._state != "running":
             self._acked_buffer.push(("", ""))
@@ -211,6 +211,9 @@ class Job:
             return OutputChunk(seq, *self._combine_chunks(chunks))
 
         self._state = "killed"
+        # Check and signal are not atomic. Likelihood that leader could exit, be
+        # reaped and have its PID reused between is unlikely, as the PID space must
+        # wrap inside that gap.
         if self._leader_running():
             pgid = self.pid
             try:
@@ -248,9 +251,9 @@ class Job:
         """Whether the group leader is still the process this job started.
 
         ``returncode`` alone is not enough: asyncio's child watcher reaps the
-        child in a thread before the event loop records the exit, and the PID
-        is reusable from the reap onward. The handle taken at spawn compares
-        creation time, so a reused PID reads as not running.
+        child before the event loop records the exit, and the PID is reusable
+        from the reap onward. The handle taken at spawn compares creation time,
+        so a reused PID reads as not running.
         """
         return (
             self._process.returncode is None
