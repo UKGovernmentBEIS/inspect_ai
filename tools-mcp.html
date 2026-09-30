@@ -838,7 +838,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="server-command" class="level3">
 <h3 class="anchored" data-anchor-id="server-command">Server Command</h3>
 <p>For stdio servers, you need to provide the command to start the server along with potentially some command line arguments and environment variables. For sse servers you’ll generally provide a host name and headers with credentials.</p>
-<p>Servers typically provide their documentation in the JSON format required by the <code>claude_desktop_config.json</code> file in Claude Desktop. For example, here is the documentation for configuring the <a href="https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#npx">Google Maps</a> server:</p>
+<p>Servers typically provide their documentation in the JSON format required by the <code>claude_desktop_config.json</code> file in Claude Desktop. For example, here is the documentation for configuring the <a href="https://github.com/modelcontextprotocol/servers-archived/tree/main/src/google-maps#npx">Google Maps</a> server:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"mcpServers"</span><span class="fu">:</span> <span class="fu">{</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"google-maps"</span><span class="fu">:</span> <span class="fu">{</span></span>
@@ -876,7 +876,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="server-tools" class="level3">
 <h3 class="anchored" data-anchor-id="server-tools">Server Tools</h3>
-<p>Each MCP server makes available a set of tools. For example, the Google Maps server includes <a href="https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#tools">7 tools</a> (e.g.&nbsp;<code>maps_search_places()</code> , <code>maps_place_details()</code>, etc.). You can make these tools available to Inspect by passing the server interface alongside other standard <code>tools</code>. For example:</p>
+<p>Each MCP server makes available a set of tools. For example, the Google Maps server includes <a href="https://github.com/modelcontextprotocol/servers-archived/tree/main/src/google-maps#tools">7 tools</a> (e.g.&nbsp;<code>maps_search_places()</code> , <code>maps_place_details()</code>, etc.). You can make these tools available to Inspect by passing the server interface alongside other standard <code>tools</code>. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> map_task():</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    maps_server <span class="op">=</span> mcp_server_stdio(</span>
@@ -936,7 +936,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="connections" class="level2">
 <h2 class="anchored" data-anchor-id="connections">Connections</h2>
-<p>MCP Servers can be either stateless or stateful. Stateful servers may retain context in memory whereas stateless servers either have no state or operate on external state. For example the <a href="https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search">Brave Search</a> server is stateless (it just processes one search at a time) whereas the <a href="https://github.com/modelcontextprotocol/servers/tree/main/src/memory">Knowledge Graph Memory</a> server is stateful (it maintains a knowledge graph in memory).</p>
+<p>MCP Servers can be either stateless or stateful. Stateful servers may retain context in memory whereas stateless servers either have no state or operate on external state. For example the <a href="https://github.com/modelcontextprotocol/servers-archived/tree/main/src/brave-search">Brave Search</a> server is stateless (it just processes one search at a time) whereas the <a href="https://github.com/modelcontextprotocol/servers/tree/main/src/memory">Knowledge Graph Memory</a> server is stateful (it maintains a knowledge graph in memory).</p>
 <p>In the case that you using stateful servers, you will want to establish a longer running connection to the server so that it’s state is maintained across calls. You can do this using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcp_connection">mcp_connection()</a></span> context manager.</p>
 <section id="react-agent" class="level4">
 <h4 class="anchored" data-anchor-id="react-agent">ReAct Agent</h4>

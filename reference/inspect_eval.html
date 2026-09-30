@@ -4322,7 +4322,7 @@ ul.task-list li input[type="checkbox"] {
 <tr class="even">
 <td><code>--cache-prompt</code></td>
 <td>choice (<code>auto</code> | <code>true</code> | <code>false</code>)</td>
-<td>Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only.</td>
+<td>Whether to cache the prompt prefix. Enabled by default. Set to False to disable: on OpenAI this only disables explicit ContentText.cache_breakpoint marks — the model’s own implicit caching stays in effect.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">

@@ -18,7 +18,7 @@ $ inspect view
 
 [![The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples.](images/inspect-view-main.png)](images/inspect-view-main.png)
 
-This section won’t cover using `inspect view` though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the [Log Viewer](#sec-log-viewer) section for details on interactively exploring logs.
+This section won’t cover using `inspect view` though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the [Log Viewer](./log-viewer.html.md) section for details on interactively exploring logs.
 
 ## Log Analysis
 

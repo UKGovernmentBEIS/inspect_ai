@@ -32,7 +32,7 @@ The Inspect [Agent](./reference/inspect_ai.agent.html.md#agent) protocol enables
 
 4.  Provided as a standard [Tool](./reference/inspect_ai.tool.html.md#tool) to a model
 
-The agents module includes a flexible, general-purpose [react agent](./react-agent.html.md), which can be used standalone or to orchestrate a [multi agent](#multi-agent) system.
+The agents module includes a flexible, general-purpose [react agent](./react-agent.html.md), which can be used standalone or to orchestrate a [multi agent](./multi-agent.html.md) system.
 
 ### Example
 

@@ -43,13 +43,13 @@ inspect eval simpleqa.py --model openai/gpt-4o
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval simpleqa.py --model anthropic/claude-sonnet-4-0
+inspect eval simpleqa.py --model anthropic/claude-sonnet-4-6
 ```
 
 ``` bash
 pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
-inspect eval simpleqa.py --model google/gemini-2.5-pro
+inspect eval simpleqa.py --model google/gemini-3.5-flash-lite
 ```
 
 ``` bash
@@ -941,7 +941,7 @@ Inspect View provides a convenient way to visualize evaluation logs, including d
 
 Below we’ll describe how to get the most out of using Inspect View.
 
-Note that this section covers *interactively* exploring log files. You can also use the [EvalLog](./reference/inspect_ai.log.html.md#evallog) API to compute on log files (e.g. to compare across runs or to more systematically traverse results). See the sections on [Eval Logs](#sec-eval-logs) and [Data Frames](./dataframe.html.md) to learn more about how to process log files with code.
+Note that this section covers *interactively* exploring log files. You can also use the [EvalLog](./reference/inspect_ai.log.html.md#evallog) API to compute on log files (e.g. to compare across runs or to more systematically traverse results). See the sections on [Eval Logs](./eval-logs.html.md) and [Data Frames](./dataframe.html.md) to learn more about how to process log files with code.
 
 ## VS Code Extension
 
@@ -4897,7 +4897,7 @@ pip install "sglang[all]>=0.4.4.post2" --find-links https://flashinfer.ai/whl/cu
 inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
-For the `sglang` provider, custom model args (-M) are forwarded to the sglang [CLI](https://docs.sglang.ai/backend/server_arguments.html).
+For the `sglang` provider, custom model args (-M) are forwarded to the sglang [CLI](https://docs.sglang.ai/advanced_features/server_arguments.html).
 
 The following environment variables are supported by the SGLang provider:
 
@@ -4923,7 +4923,7 @@ $ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct --model
 
 ### Tool Use and Reasoning
 
-SGLang supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
+SGLang supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/advanced_features/tool_parser.html) and [Reasoning](https://docs.sglang.ai/advanced_features/separate_reasoning.html) sections of the SGLang documentation for details.
 
 ### Batching
 
@@ -5445,6 +5445,25 @@ eval("ctf.py", cache_prompt=False)
 ### Cache Scope
 
 Providers will typically provide various means of customising the scope of cache usage. The Inspect `cache-prompt` option will by default attempt to make maximum use of provider caches (in the Anthropic implementation system messages, tool definitions, and all messages up to the last user message are included in the cache).
+
+The Anthropic implementation places cache breakpoints at the end of the system prompt, on the last tool definition, on the second-to-last message block, and (automatically) at the end of the prompt. The automatic breakpoint cache-writes whatever the final block is, which is wasted when that block changes on every call and is never read back (e.g. an LLM judge with a fixed rubric and a varying item).
+
+`ContentText(text=..., cache_breakpoint=True)` places an explicit breakpoint on a specific block instead. When any block carries one — a message block or a system-prompt block — Inspect adds no automatic message breakpoints (no lookback marker, no end-of-prompt marker); the system-prompt and tool-definition breakpoints are kept alongside your marks only if the budget allows. Anthropic allows 4 breakpoints per request, so you can mark up to 4 blocks yourself; if your marks and the automatic system/tools breakpoints would together exceed 4, Inspect drops the automatic ones first to make room. Marking more than 4 blocks yourself raises a `ValueError` naming the count and the limit rather than silently falling back to normal automatic caching — resuming automatic caching would reintroduce exactly the varying-tail write the marks were meant to avoid.
+
+``` python
+from inspect_ai.model import ChatMessageUser, ContentText
+
+judge_prompt = ChatMessageUser(
+    content=[
+        ContentText(text=rubric, cache_breakpoint=True),
+        ContentText(text=item),
+    ]
+)
+```
+
+Explicit marks are supported on the leading system message and on ordinary user/assistant message blocks. A mark on a tool result, or on a mid-conversation system message, is not supported — Anthropic has no way to mark a boundary inside either without relocating or widening it, so those placements conservatively fall back rather than being honored. If any mark is in an unsupported placement, Inspect silently discards every mark and falls back to the normal automatic caching behavior for the whole request, rather than relocating, widening, or partially honoring the marked layout. Supplying more than 4 marks is different: rather than falling back, Inspect raises a `ValueError`, since silently resuming automatic caching would reintroduce the varying-tail write the marks exist to prevent.
+
+OpenAI’s `gpt-5.6` and later models support the same `ContentText(cache_breakpoint=True)` marker on user and system/developer message text blocks. Unmarked requests use OpenAI’s automatic (implicit) caching as they always have; marking a block switches the request to explicit mode for that call, so only the marked boundaries are cache points. OpenAI’s guide distinguishes a 4-write-per-request budget from a much larger lookup history (the first two and latest fifty explicit markers) and documents no cap on the number of markers a request may supply, so Inspect applies none — unlike Anthropic’s genuine 4-breakpoint request limit. Earlier OpenAI models silently keep the model’s normal implicit caching instead of sending the (rejected) explicit fields. When an otherwise-supported explicit request leaves its leading system/developer block unmarked, Inspect also retains a checkpoint at the end of that block (cumulatively covering any preceding tool definitions), so the stable prefix has a boundary to reuse when a later marked block changes; a caller’s own mark on that block takes priority and suppresses this automatic one.
 
 ### Usage Reporting
 
@@ -6417,7 +6436,7 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 
 GPT-5.5 and later reason at the server default effort when `reasoning_effort` is not set, and in that state the API rejects `temperature`, `top_p`, and `logprobs`. Inspect drops those options with a warning; pass `reasoning_effort="none"` to disable reasoning and have them sent.
 
-GPT-6 Sol and GPT-6 Luna accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra always reasons: it accepts `low` through `max` only, and the API rejects `none` and `minimal` with an error. It also rejects `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for Astra.
+GPT-6 Sol and GPT-6 Luna accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra and GPT-6.1 Sol always reason: they accept `low` through `max` only, and the API rejects `none` and `minimal` with an error. They also reject `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for these models.
 
 Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
@@ -6646,6 +6665,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | openai/gpt-6-astra                   | medium          |
 | openai/gpt-6-luna                    | medium          |
 | openai/gpt-6-sol                     | medium          |
+| openai/gpt-6.1-sol                   | medium          |
 | z-ai/glm-5.3                         | max             |
 | z-ai/glm-5.3-flash                   | max             |
 | zai-org/GLM-5.3-FP8                  | max             |
@@ -6695,7 +6715,7 @@ The following reasoning options are available from the CLI and within [GenerateC
 
 ## vLLM / SGLang
 
-vLLM and SGLang both support reasoning outputs, but the configuration is model-specific. See the [vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [SGLang](https://docs.sglang.ai/backend/separate_reasoning.html) docs for details.
+vLLM and SGLang both support reasoning outputs, but the configuration is model-specific. See the [vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [SGLang](https://docs.sglang.ai/advanced_features/separate_reasoning.html) docs for details.
 
 For vLLM, configure the model’s reasoning parser using `-M` model arguments. For example, Qwen3:
 
@@ -6858,7 +6878,7 @@ You should therefore never assume that specifying `strict` gets your scorer off 
 
 ## vLLM/SGLang API
 
-The vLLM and SGLang providers support structured output from JSON schemas as above, as well as in the choice, regex, and context free grammar formats. This is currently implemented through the `extra_body` field in the [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) object. See the docs for [vLLM](https://docs.vllm.ai/en/stable/features/structured_outputs.html) and [SGLang](https://docs.sglang.ai/backend/structured_outputs.html) for more details.
+The vLLM and SGLang providers support structured output from JSON schemas as above, as well as in the choice, regex, and context free grammar formats. This is currently implemented through the `extra_body` field in the [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) object. See the docs for [vLLM](https://docs.vllm.ai/en/stable/features/structured_outputs.html) and [SGLang](https://docs.sglang.ai/advanced_features/structured_outputs.html) for more details.
 
 The key names for each guided decoding format differ between vLLM and SGLang:
 
@@ -8691,7 +8711,7 @@ The Inspect [Agent](./reference/inspect_ai.agent.html.md#agent) protocol enables
 
 4.  Provided as a standard [Tool](./reference/inspect_ai.tool.html.md#tool) to a model
 
-The agents module includes a flexible, general-purpose [react agent](./react-agent.html.md), which can be used standalone or to orchestrate a [multi agent](#multi-agent) system.
+The agents module includes a flexible, general-purpose [react agent](./react-agent.html.md), which can be used standalone or to orchestrate a [multi agent](./multi-agent.html.md) system.
 
 ### Example
 
@@ -11316,7 +11336,7 @@ Human baselining terminal sessions are [recorded](#recording) by default so that
 
 ## Example
 
-Here, we run a human baseline on an [Intercode CTF](https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/) sample. We use the `--solver` option to use the `human_cli` agent rather than the task’s default solver:
+Here, we run a human baseline on an [Intercode CTF](https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_intercode_ctf/) sample. We use the `--solver` option to use the `human_cli` agent rather than the task’s default solver:
 
 ``` bash
 inspect eval inspect_evals/gdm_intercode_ctf \
@@ -11804,7 +11824,7 @@ def intercode_ctf():
 
 We specify a 3-minute timeout for execution of the bash and python tools to ensure that they don’t perform extremely long running operations.
 
-See the [Agents](#sec-agents) section for more details on how to build evaluations that allow models to take arbitrary actions over a longer time horizon.
+See the [Agents](./agents.html.md) section for more details on how to build evaluations that allow models to take arbitrary actions over a longer time horizon.
 
 ### Background Tasks
 
@@ -12683,7 +12703,7 @@ We’ll cover using stdio and http based servers in the section below. Sandbox s
 
 For stdio servers, you need to provide the command to start the server along with potentially some command line arguments and environment variables. For sse servers you’ll generally provide a host name and headers with credentials.
 
-Servers typically provide their documentation in the JSON format required by the `claude_desktop_config.json` file in Claude Desktop. For example, here is the documentation for configuring the [Google Maps](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#npx) server:
+Servers typically provide their documentation in the JSON format required by the `claude_desktop_config.json` file in Claude Desktop. For example, here is the documentation for configuring the [Google Maps](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/google-maps#npx) server:
 
 ``` json
 {
@@ -12719,7 +12739,7 @@ maps_server = mcp_server_stdio(
 
 ### Server Tools
 
-Each MCP server makes available a set of tools. For example, the Google Maps server includes [7 tools](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#tools) (e.g. `maps_search_places()` , `maps_place_details()`, etc.). You can make these tools available to Inspect by passing the server interface alongside other standard `tools`. For example:
+Each MCP server makes available a set of tools. For example, the Google Maps server includes [7 tools](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/google-maps#tools) (e.g. `maps_search_places()` , `maps_place_details()`, etc.). You can make these tools available to Inspect by passing the server interface alongside other standard `tools`. For example:
 
 ``` python
 @task
@@ -12792,7 +12812,7 @@ return Task(
 
 ## Connections
 
-MCP Servers can be either stateless or stateful. Stateful servers may retain context in memory whereas stateless servers either have no state or operate on external state. For example the [Brave Search](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) server is stateless (it just processes one search at a time) whereas the [Knowledge Graph Memory](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) server is stateful (it maintains a knowledge graph in memory).
+MCP Servers can be either stateless or stateful. Stateful servers may retain context in memory whereas stateless servers either have no state or operate on external state. For example the [Brave Search](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/brave-search) server is stateless (it just processes one search at a time) whereas the [Knowledge Graph Memory](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) server is stateful (it maintains a knowledge graph in memory).
 
 In the case that you using stateful servers, you will want to establish a longer running connection to the server so that it’s state is maintained across calls. You can do this using the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) context manager.
 
@@ -17180,7 +17200,7 @@ $ inspect view
 
 [![The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples.](images/inspect-view-main.png)](images/inspect-view-main.png)
 
-This section won’t cover using `inspect view` though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the [Log Viewer](#sec-log-viewer) section for details on interactively exploring logs.
+This section won’t cover using `inspect view` though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the [Log Viewer](./log-viewer.html.md) section for details on interactively exploring logs.
 
 ## Log Analysis
 

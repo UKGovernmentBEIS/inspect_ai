@@ -132,7 +132,7 @@ You should therefore never assume that specifying `strict` gets your scorer off 
 
 ## vLLM/SGLang API
 
-The vLLM and SGLang providers support structured output from JSON schemas as above, as well as in the choice, regex, and context free grammar formats. This is currently implemented through the `extra_body` field in the [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) object. See the docs for [vLLM](https://docs.vllm.ai/en/stable/features/structured_outputs.html) and [SGLang](https://docs.sglang.ai/backend/structured_outputs.html) for more details.
+The vLLM and SGLang providers support structured output from JSON schemas as above, as well as in the choice, regex, and context free grammar formats. This is currently implemented through the `extra_body` field in the [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) object. See the docs for [vLLM](https://docs.vllm.ai/en/stable/features/structured_outputs.html) and [SGLang](https://docs.sglang.ai/advanced_features/structured_outputs.html) for more details.
 
 The key names for each guided decoding format differ between vLLM and SGLang:
 

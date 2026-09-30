@@ -805,7 +805,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>GPT-5.5 and later reason at the server default effort when <code>reasoning_effort</code> is not set, and in that state the API rejects <code>temperature</code>, <code>top_p</code>, and <code>logprobs</code>. Inspect drops those options with a warning; pass <code>reasoning_effort="none"</code> to disable reasoning and have them sent.</p>
-<p>GPT-6 Sol and GPT-6 Luna accept <code>none</code> and <code>low</code> through <code>max</code> (the API rejects <code>minimal</code>) and follow the GPT-5.5+ rules above (they reason at <code>medium</code> unless <code>reasoning_effort</code> is set). GPT-6 Astra always reasons: it accepts <code>low</code> through <code>max</code> only, and the API rejects <code>none</code> and <code>minimal</code> with an error. It also rejects <code>temperature</code>, <code>top_p</code>, and <code>logprobs</code> regardless of effort, so Inspect drops those options with a warning for Astra.</p>
+<p>GPT-6 Sol and GPT-6 Luna accept <code>none</code> and <code>low</code> through <code>max</code> (the API rejects <code>minimal</code>) and follow the GPT-5.5+ rules above (they reason at <code>medium</code> unless <code>reasoning_effort</code> is set). GPT-6 Astra and GPT-6.1 Sol always reason: they accept <code>low</code> through <code>max</code> only, and the API rejects <code>none</code> and <code>minimal</code> with an error. They also reject <code>temperature</code>, <code>top_p</code>, and <code>logprobs</code> regardless of effort, so Inspect drops those options with a warning for these models.</p>
 <p>Note that GPT-5.6 models treat <code>reasoning_effort</code> as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.</p>
 </section>
 <section id="anthropic-claude-4.6-and-claude-5" class="level4">
@@ -1505,26 +1505,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>medium</td>
 </tr>
 <tr class="odd">
+<td>openai/gpt-6.1-sol</td>
+<td>medium</td>
+</tr>
+<tr class="even">
 <td>z-ai/glm-5.3</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>z-ai/glm-5.3-flash</td>
 <td>max</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>zai-org/GLM-5.3-FP8</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>zai-org/GLM-5.3-FP8-Lora</td>
 <td>max</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>zai-org/glm-5.3</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>zai-org/glm-5.3-flash</td>
 <td>max</td>
 </tr>
@@ -1584,7 +1588,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="vllm-sglang" class="level2">
 <h2 class="anchored" data-anchor-id="vllm-sglang">vLLM / SGLang</h2>
-<p>vLLM and SGLang both support reasoning outputs, but the configuration is model-specific. See the <a href="https://docs.vllm.ai/en/stable/features/reasoning_outputs.html">vLLM</a> and <a href="https://docs.sglang.ai/backend/separate_reasoning.html">SGLang</a> docs for details.</p>
+<p>vLLM and SGLang both support reasoning outputs, but the configuration is model-specific. See the <a href="https://docs.vllm.ai/en/stable/features/reasoning_outputs.html">vLLM</a> and <a href="https://docs.sglang.ai/advanced_features/separate_reasoning.html">SGLang</a> docs for details.</p>
 <p>For vLLM, configure the model’s reasoning parser using <code>-M</code> model arguments. For example, Qwen3:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> vllm/Qwen/Qwen3-8B <span class="at">-M</span> reasoning_parser=qwen3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Thinking mode is model-specific and controlled separately from <code>--reasoning-effort</code>. For models where vLLM exposes template switches such as <code>enable_thinking</code> or <code>thinking</code>, pass them as chat-template kwargs:</p>

@@ -8,7 +8,7 @@ Inspect View provides a convenient way to visualize evaluation logs, including d
 
 Below we’ll describe how to get the most out of using Inspect View.
 
-Note that this section covers *interactively* exploring log files. You can also use the [EvalLog](./reference/inspect_ai.log.html.md#evallog) API to compute on log files (e.g. to compare across runs or to more systematically traverse results). See the sections on [Eval Logs](#sec-eval-logs) and [Data Frames](./dataframe.html.md) to learn more about how to process log files with code.
+Note that this section covers *interactively* exploring log files. You can also use the [EvalLog](./reference/inspect_ai.log.html.md#evallog) API to compute on log files (e.g. to compare across runs or to more systematically traverse results). See the sections on [Eval Logs](./eval-logs.html.md) and [Data Frames](./dataframe.html.md) to learn more about how to process log files with code.
 
 ## VS Code Extension
 
