@@ -34,7 +34,7 @@ class BridgePolicyError(Exception):
 
 
 class ResponseFilterError(Exception):
-    """A `response_filter` raised, or returned something other than `None` or a `ModelOutput` with choices.
+    """A `response_filter` raised or returned an invalid output (see `ModelResponseFilter`).
 
     When the filter raised, what it raised is `__cause__` and the message starts
     with the underlying exception's type.

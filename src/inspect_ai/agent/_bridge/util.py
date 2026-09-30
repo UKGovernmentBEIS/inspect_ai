@@ -66,7 +66,7 @@ from inspect_ai.util._json import JSONSchema
 from inspect_ai.util._limit import LimitExceededError
 
 if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup
+    from exceptiongroup import ExceptionGroup
 
 # Generation-tuning fields a scaffold may set on a bridged request that describe
 # *how* the underlying model generates. These are the Inspect model's province
@@ -424,19 +424,29 @@ async def _apply_response_filter(
     The copy is taken before the `try`, so a failure copying the output is not
     blamed on the filter. A returned output is re-validated because its models do
     not validate assignment, so values edited in place are otherwise unchecked.
-    Exceptions are classified after unwrapping single-exception groups, since a
-    task group inside the filter wraps a lone limit or termination.
+
+    Exceptions are classified after unwrapping by hand, not with `inner_exception`,
+    which follows `__context__` and can pick the exception already being handled.
+    A single-exception group is unwrapped, since a task group inside the filter
+    wraps a lone limit or termination. A group of only limits, terminations and
+    refusals (e.g. concurrent judges through `collect()`) counts as its first. A
+    group mixing them with any other exception is a filter failure.
     """
     candidate = output.model_copy(deep=True)
     try:
         filtered = await response_filter(model, candidate, generate_input)
     except Exception as ex:
-        inner: BaseException = ex
-        while isinstance(inner, BaseExceptionGroup) and len(inner.exceptions) == 1:
+        control_flow = (LimitExceededError, TerminateSampleError, ModelRefusalError)
+        inner: Exception = ex
+        while isinstance(inner, ExceptionGroup) and len(inner.exceptions) == 1:
             inner = inner.exceptions[0]
-        if isinstance(
-            inner, (LimitExceededError, TerminateSampleError, ModelRefusalError)
-        ):
+        if isinstance(inner, ExceptionGroup):
+            control, rest = inner.split(control_flow)
+            if control is not None and rest is None:
+                inner = control
+                while isinstance(inner, ExceptionGroup):
+                    inner = inner.exceptions[0]
+        if isinstance(inner, control_flow):
             raise inner
         raise ResponseFilterError(f"{type(inner).__name__}: {inner}") from ex
     if filtered is None:

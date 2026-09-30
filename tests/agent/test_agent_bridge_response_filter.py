@@ -1,5 +1,6 @@
+import re
 from pathlib import Path
-from typing import Any, Literal, cast, get_args
+from typing import Literal, NamedTuple, cast, get_args
 from unittest.mock import AsyncMock
 
 import anyio
@@ -50,7 +51,7 @@ from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util import ExecResult
+from inspect_ai.util import ExecResult, collect
 from inspect_ai.util._limit import LimitExceededError
 
 
@@ -215,6 +216,60 @@ def test_response_filter_edit_reaches_the_scorer(tmp_path: Path) -> None:
     assert sample.output.completion == REPLACED_SENTINEL
     assert sample.scores is not None
     assert sample.scores["includes"].value == "C"
+
+
+DictValuedShape = Literal["tool_call_dicts", "choice_dicts"]
+
+
+def _dict_valued_filter(shape: DictValuedShape) -> ModelResponseFilter:
+    """A filter that puts valid plain dicts where models belong."""
+
+    async def response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        match shape:
+            case "tool_call_dicts":
+                output.message.tool_calls = cast(
+                    list[ToolCall],
+                    [{"id": "call_1", "function": "bash", "arguments": {"cmd": "ls"}}],
+                )
+                return output
+            case "choice_dicts":
+                return ModelOutput.model_construct(
+                    model=output.model,
+                    choices=[
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": REPLACED_SENTINEL,
+                            },
+                            "stop_reason": "stop",
+                        }
+                    ],
+                )
+            case _:
+                assert_never(shape)
+
+    return response_filter
+
+
+@pytest.mark.parametrize("shape", get_args(DictValuedShape))
+def test_response_filter_dict_values_are_validated_into_models(
+    tmp_path: Path, shape: DictValuedShape
+) -> None:
+    """A returned output is validated, so valid dicts in it become models."""
+    log = _run_eval_with_filters(tmp_path, response_filter=_dict_valued_filter(shape))
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None, sample.error
+    match shape:
+        case "tool_call_dicts":
+            assert sample.output.message.tool_calls is not None
+            assert sample.output.message.tool_calls[0].function == "bash"
+        case "choice_dicts":
+            assert sample.output.completion == REPLACED_SENTINEL
+        case _:
+            assert_never(shape)
 
 
 def test_response_filter_cannot_mutate_recorded_model_event(tmp_path: Path) -> None:
@@ -563,6 +618,7 @@ FilterFailure = Literal[
     "token_limit",
     "grouped_limit",
     "grouped_limit_in_except",
+    "concurrent_limit",
     "terminate",
     "refusal",
     "bug",
@@ -597,7 +653,7 @@ def _under_limit_model() -> Model:
 def _failing_response_filter(failure: FilterFailure) -> ModelResponseFilter:
     """A filter that ends the sample in the way `failure` names."""
     judge = get_model(
-        "mockllm/model", custom_outputs=[_output_with_usage("unsafe", 100)]
+        "mockllm/model", custom_outputs=[_output_with_usage("unsafe", 100)] * 2
     )
     refusing_judge = get_model(
         "mockllm/model",
@@ -613,6 +669,11 @@ def _failing_response_filter(failure: FilterFailure) -> ModelResponseFilter:
             case "grouped_limit":
                 async with anyio.create_task_group() as tg:
                     tg.start_soon(judge.generate, "Is this response safe?")
+            case "concurrent_limit":
+                await collect(
+                    judge.generate("Is this response safe?"),
+                    judge.generate("Is this response on topic?"),
+                )
             case "grouped_limit_in_except":
                 try:
                     raise KeyError("parse failed")
@@ -664,42 +725,33 @@ def _failing_response_filter(failure: FilterFailure) -> ModelResponseFilter:
     return response_filter
 
 
-def _assert_failure_outcome(log: EvalLog, failure: FilterFailure) -> None:
-    """Limits and termination end the sample normally; anything else fails it."""
-    assert log.samples is not None
-    sample = log.samples[0]
+class ExpectedError(NamedTuple):
+    """The exception a failure ends the sample with, and a fragment of its message."""
+
+    error_type: type[Exception]
+    fragment: str
+
+
+def _expected_error(failure: FilterFailure) -> ExpectedError | None:
+    """What `failure` ends the sample with, or `None` for the token limit."""
     match failure:
-        case "token_limit" | "grouped_limit" | "grouped_limit_in_except":
-            assert sample.error is None, sample.error
-            assert sample.limit is not None
-            assert sample.limit.type == "token"
-            assert sample.limit.limit == JUDGE_TOKEN_LIMIT
+        case (
+            "token_limit"
+            | "grouped_limit"
+            | "grouped_limit_in_except"
+            | "concurrent_limit"
+        ):
+            return None
         case "terminate":
-            assert sample.error is None, sample.error
-            assert sample.limit is not None
-            assert sample.limit.type == "operator"
-            assert sample.limit.reason == TERMINATE_REASON
+            return ExpectedError(TerminateSampleError, TERMINATE_REASON)
         case "refusal":
-            assert sample.limit is None
-            assert sample.error is not None
-            assert sample.error.message.startswith("ModelRefusalError(")
+            return ExpectedError(ModelRefusalError, "Model refusal")
         case "bug":
-            assert sample.limit is None
-            assert sample.error is not None
-            assert (
-                sample.error.message
-                == "ResponseFilterError('ValueError: filter is broken')"
-            )
+            return ExpectedError(ResponseFilterError, "ValueError: filter is broken")
         case "wrong_type":
-            assert sample.limit is None
-            assert sample.error is not None
-            assert sample.error.message.startswith("ResponseFilterError(")
-            assert "ChatMessageAssistant" in sample.error.message
+            return ExpectedError(ResponseFilterError, "ChatMessageAssistant")
         case "no_choices":
-            assert sample.limit is None
-            assert sample.error is not None
-            assert sample.error.message.startswith("ResponseFilterError(")
-            assert "no choices" in sample.error.message
+            return ExpectedError(ResponseFilterError, "no choices")
         case (
             "message_not_assistant"
             | "user_message"
@@ -709,12 +761,31 @@ def _assert_failure_outcome(log: EvalLog, failure: FilterFailure) -> None:
             | "constructed_choices_str"
             | "constructed_invalid_choice"
         ):
-            assert sample.limit is None
-            assert sample.error is not None
-            assert sample.error.message.startswith("ResponseFilterError(")
-            assert "invalid ModelOutput" in sample.error.message
+            return ExpectedError(ResponseFilterError, "invalid ModelOutput")
         case _:
             assert_never(failure)
+
+
+def _assert_failure_outcome(log: EvalLog, failure: FilterFailure) -> None:
+    """Limits and termination end the sample normally; anything else fails it."""
+    assert log.samples is not None
+    sample = log.samples[0]
+    expected = _expected_error(failure)
+    if expected is None:
+        assert sample.error is None, sample.error
+        assert sample.limit is not None
+        assert sample.limit.type == "token"
+        assert sample.limit.limit == JUDGE_TOKEN_LIMIT
+    elif expected.error_type is TerminateSampleError:
+        assert sample.error is None, sample.error
+        assert sample.limit is not None
+        assert sample.limit.type == "operator"
+        assert sample.limit.reason == expected.fragment
+    else:
+        assert sample.limit is None
+        assert sample.error is not None
+        assert sample.error.message.startswith(f"{expected.error_type.__name__}(")
+        assert expected.fragment in sample.error.message
 
 
 @pytest.mark.parametrize("failure", get_args(FilterFailure))
@@ -764,60 +835,6 @@ async def test_response_filter_error_keeps_the_filter_exception_as_cause() -> No
             GenerateConfig(),
         )
     assert isinstance(exc_info.value.__cause__, ValueError)
-
-
-DictValuedShape = Literal["tool_call_dicts", "choice_dicts"]
-
-
-def _dict_valued_filter(shape: DictValuedShape) -> ModelResponseFilter:
-    """A filter that puts valid plain dicts where models belong."""
-
-    async def response_filter(
-        model: Model, output: ModelOutput, generate_input: GenerateInput
-    ) -> ModelOutput | None:
-        match shape:
-            case "tool_call_dicts":
-                output.message.tool_calls = cast(
-                    list[ToolCall],
-                    [{"id": "call_1", "function": "bash", "arguments": {"cmd": "ls"}}],
-                )
-                return output
-            case "choice_dicts":
-                return ModelOutput.model_construct(
-                    model=output.model,
-                    choices=[
-                        {
-                            "message": {
-                                "role": "assistant",
-                                "content": REPLACED_SENTINEL,
-                            },
-                            "stop_reason": "stop",
-                        }
-                    ],
-                )
-            case _:
-                assert_never(shape)
-
-    return response_filter
-
-
-@pytest.mark.parametrize("shape", get_args(DictValuedShape))
-def test_response_filter_dict_values_are_validated_into_models(
-    tmp_path: Path, shape: DictValuedShape
-) -> None:
-    """A returned output is validated, so valid dicts in it become models."""
-    log = _run_eval_with_filters(tmp_path, response_filter=_dict_valued_filter(shape))
-    assert log.samples is not None
-    sample = log.samples[0]
-    assert sample.error is None, sample.error
-    match shape:
-        case "tool_call_dicts":
-            assert sample.output.message.tool_calls is not None
-            assert sample.output.message.tool_calls[0].function == "bash"
-        case "choice_dicts":
-            assert sample.output.completion == REPLACED_SENTINEL
-        case _:
-            assert_never(shape)
 
 
 @skip_if_no_docker
@@ -874,21 +891,10 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
 
 
 @pytest.mark.parametrize(
-    "failure, expected, message",
-    [
-        ("terminate", TerminateSampleError, TERMINATE_REASON),
-        ("refusal", ModelRefusalError, "Model refusal"),
-        ("bug", ResponseFilterError, "ValueError: filter is broken"),
-        ("wrong_type", ResponseFilterError, "ChatMessageAssistant"),
-        ("no_choices", ResponseFilterError, "no choices"),
-        *[
-            (invalid, ResponseFilterError, "invalid ModelOutput")
-            for invalid in get_args(InvalidOutput)
-        ],
-    ],
+    "failure", [f for f in get_args(FilterFailure) if _expected_error(f) is not None]
 )
 async def test_sandbox_response_filter_ends_sample_through_the_monitor(
-    failure: FilterFailure, expected: type[Exception], message: str
+    failure: FilterFailure,
 ) -> None:
     """A filter's termination, refusal or failure reaches the sample runner from the sandbox.
 
@@ -897,6 +903,8 @@ async def test_sandbox_response_filter_ends_sample_through_the_monitor(
     bridge's monitor, which raises it in the agent's task group, while the
     scaffold gets an error reply.
     """
+    expected = _expected_error(failure)
+    assert expected is not None
     bridge = _sandbox_bridge(_failing_response_filter(failure))
     reply = await _forward_provider_errors(generate_completions(bridge), bridge)(
         CHAT_REQUEST
@@ -904,27 +912,5 @@ async def test_sandbox_response_filter_ends_sample_through_the_monitor(
 
     assert PROVIDER_ERROR_KEY in reply
     assert bridge._failure_requested.is_set()
-    with pytest.raises(expected, match=message):
+    with pytest.raises(expected.error_type, match=re.escape(expected.fragment)):
         await _monitor_failure(bridge)
-
-
-@pytest.mark.parametrize("shape", get_args(DictValuedShape))
-async def test_sandbox_response_filter_dict_values_are_validated_into_models(
-    shape: DictValuedShape,
-) -> None:
-    """On the sandbox path, a validated dict-valued output is an ordinary reply."""
-    bridge = _sandbox_bridge(_dict_valued_filter(shape))
-    reply = await _forward_provider_errors(generate_completions(bridge), bridge)(
-        CHAT_REQUEST
-    )
-
-    assert PROVIDER_ERROR_KEY not in reply
-    assert not bridge._failure_requested.is_set()
-    message = cast(dict[str, Any], cast(list[Any], reply["choices"])[0])["message"]
-    match shape:
-        case "tool_call_dicts":
-            assert message["tool_calls"][0]["function"]["name"] == "bash"
-        case "choice_dicts":
-            assert message["content"] == REPLACED_SENTINEL
-        case _:
-            assert_never(shape)
