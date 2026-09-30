@@ -583,105 +583,61 @@ async def test_retained_projects_print_their_cleanup_commands(
         assert any(f" {project_name}-default-1 " in line for line in lines)
 
 
-@pytest.mark.usefixtures("fake_docker")
-async def test_retained_project_preserves_config_until_exact_cleanup(
-    monkeypatch: pytest.MonkeyPatch,
+async def test_retained_compose_config_project_is_cleaned_up_by_name(
+    fake_docker: FakeDocker, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A retained project keeps its network config for later project-scoped cleanup."""
-    project_name = "inspect-retained-iabcdef"
-    other_project_name = "inspect-other-ighijkl"
+    """A retained project keeps its generated config for project-scoped cleanup.
+
+    `inspect sandbox cleanup docker <project>` then brings the project down
+    with the network its `ComposeConfig` declares, and only that project: a
+    running project whose name extends it is left alone.
+    """
+    config = ComposeConfig(
+        services={
+            "default": ComposeService(
+                image=GENERIC_IMAGE,
+                command="tail -f /dev/null",
+                networks=["retained-network"],
+            )
+        },
+        networks={"retained-network": {"internal": True}},
+    )
+    with sandbox_lifecycle_scope():
+        await run_lifecycle(fake_docker, config, cleanup=False, interrupted=True)
+        # the batch runs shutdown once per Docker config; a repeat keeps the config
+        await DockerSandboxEnvironment.task_cleanup("shutdown", config, False)
+
+    (project_name,) = fake_docker.running
     config_path = auto_compose_dir() / f"{project_name}.yaml"
-    other_config_path = auto_compose_dir() / f"{other_project_name}.yaml"
-    config_path.write_text(
-        "services:\n  default:\n    image: python:3.12-bookworm\n"
-        "networks:\n  retained-network:\n    internal: true\n",
-        encoding="utf-8",
-    )
-    other_config_path.write_text("services: {}\n", encoding="utf-8")
-    project = ComposeProject(
-        name=project_name,
-        config=config_path.as_posix(),
-        sample_id=0,
-        epoch=0,
-        env=None,
-    )
-    compose_down_configs: list[str] = []
+    assert fake_docker.generated_files() == [config_path.name]
+
+    other_name = f"{project_name}0"
+    other_config = write_compose_file(auto_compose_dir() / f"{other_name}.yaml")
+    compose_down_configs: list[tuple[str, str]] = []
 
     async def fake_compose_ls() -> list[Project]:
         return [
             Project(
-                Name=project_name,
-                Status="running",
-                ConfigFiles=config_path.as_posix(),
+                Name=project_name, Status="running", ConfigFiles=config_path.as_posix()
             ),
-            Project(
-                Name=other_project_name,
-                Status="running",
-                ConfigFiles=other_config_path.as_posix(),
-            ),
+            Project(Name=other_name, Status="running", ConfigFiles=other_config),
         ]
 
     async def fake_compose_down(project: ComposeProject, quiet: bool = True) -> None:
         assert project.config is not None
-        compose_down_configs.append(Path(project.config).read_text(encoding="utf-8"))
+        compose_down_configs.append(
+            (project.name, Path(project.config).read_text(encoding="utf-8"))
+        )
 
     monkeypatch.setattr(cleanup_module, "compose_ls", fake_compose_ls)
     monkeypatch.setattr(cleanup_module, "compose_down", fake_compose_down)
 
-    cleanup_module.project_cleanup_startup()
-    cleanup_module.project_startup(project)
-    await cleanup_module.project_cleanup_shutdown(cleanup=False)
-
-    assert config_path.exists()
-    assert "retained-network" in config_path.read_text(encoding="utf-8")
-
-    # the batch calls shutdown once per Docker config; a repeat keeps the config
-    await cleanup_module.project_cleanup_shutdown(cleanup=False)
-    assert config_path.exists()
-
     await cleanup_module.cli_cleanup(project_name)
 
-    assert compose_down_configs == [
-        "services:\n  default:\n    image: python:3.12-bookworm\n"
-        "networks:\n  retained-network:\n    internal: true\n"
-    ]
-    assert not config_path.exists()
-    assert other_config_path.exists()
-
-
-@pytest.mark.usefixtures("fake_docker")
-async def test_full_cleanup_removes_auto_compose_config(
-    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Full cleanup brings the project down with its config, then removes the config."""
-    project_name = "inspect-cleanup-iabcdef"
-    config_path = auto_compose_dir() / f"{project_name}.yaml"
-    config_path.write_text("services: {}\n", encoding="utf-8")
-    project = ComposeProject(
-        name=project_name,
-        config=config_path.as_posix(),
-        sample_id=0,
-        epoch=0,
-        env=None,
-    )
-    # (project name, config present) per call; recorded rather than asserted in
-    # the fake because cleanup reports and swallows exceptions from compose_down.
-    compose_down_calls: list[tuple[str, bool]] = []
-
-    async def fake_compose_down(project: ComposeProject, quiet: bool = True) -> None:
-        compose_down_calls.append(
-            (project.name, project.config is not None and Path(project.config).exists())
-        )
-
-    monkeypatch.setattr(cleanup_module, "compose_down", fake_compose_down)
-
-    cleanup_module.project_cleanup_startup()
-    cleanup_module.project_startup(project)
-    await cleanup_module.project_cleanup_shutdown(cleanup=True)
-
-    assert "Error cleaning up Docker environment" not in capsys.readouterr().out
-    assert compose_down_calls == [(project_name, True)]
-    assert not config_path.exists()
+    assert [name for name, _ in compose_down_configs] == [project_name]
+    assert "retained-network" in compose_down_configs[0][1]
+    # the project's own config is removed; the other running project's is kept
+    assert fake_docker.generated_files() == [f"{other_name}.yaml"]
 
 
 @pytest.mark.usefixtures("fake_docker")
