@@ -275,7 +275,7 @@ def _client_discovered_tools(
             and item.get("execution") != "server"
             and (client_search_declared or item.get("call_id") in call_ids)
         ):
-            discovered.extend(_client_discovery_tools(item))
+            discovered.extend(_tools_in_client_search_result(item))
     return discovered
 
 
@@ -304,16 +304,18 @@ def _tool_search_output_content(item: ResponseToolSearchOutputItemParamParam) ->
     return to_json_str_safe(item.get("tools", []))
 
 
-def _client_discovery_tools(
+def _tools_in_client_search_result(
     item: ResponseToolSearchOutputItemParamParam,
 ) -> list[ToolParam]:
     """The tools one client tool_search result declares to the model.
 
     The result is read as its replayed message carries it
     (`_tool_search_output_content`, `validated_tool_search_tools`). Tools the
-    provider cannot take (`_non_openai_accepts`) are dropped first; functions are
-    then reduced as the execution-grant declarations are
-    (`_declared_discovery_entry`), and built-in tools pass on.
+    provider cannot take (`_non_openai_accepts`) are dropped first. Then every
+    namespace, and every entry that carries a schema, is reduced as the
+    execution-grant declarations are (`_declared_discovery_entry`): that is
+    functions, and a client tool_search that declares its parameters. Other
+    built-in tools pass on unchanged.
     """
     tools: list[ToolParam] = []
     for tool in validated_tool_search_tools(_tool_search_output_content(item)):

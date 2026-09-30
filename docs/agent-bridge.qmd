@@ -149,10 +149,11 @@ makes this grant explicitly.
 
 Agents that use the OpenAI Responses API (such as Codex CLI) can defer tools behind a client-executed `tool_search`. The agent runs the search itself and returns the matching tools in a `tool_search_output` item. OpenAI models, and other models served over the Responses API, receive these items natively. For any other model, the search is sent as an ordinary tool and the discovered tools are added to the model's tool list:
 
--   A tool in a namespace the request declares keeps its own name. A tool in a discovered namespace is named `<namespace>__<name>`, shortened to 64 characters with a hash suffix when longer. Calls to it are returned to the agent under the original name and namespace.
--   Discovered hosted tools (`web_search`, `code_execution` and remote MCP servers) are granted or withheld exactly like declared ones.
+-   A tool the request declares in a namespace keeps its own name. A discovered tool in a namespace, including a new member of a declared namespace, is named `<namespace>__<name>`, shortened to 64 characters with a hash suffix when longer. Calls to it are returned to the agent under the original name and namespace.
+-   A call to a discovered tool's raw inner name, which the model can read in the discovery result, is returned to the agent without a namespace.
+-   Discovered hosted tools (`web_search`, `code_interpreter` and remote MCP servers) are granted or withheld exactly like declared ones.
 -   Approval policies review a discovered tool's calls under its own name, not `<namespace>__<name>` (see [Bridged Agents](approval.qmd#bridged-agents)).
--   A bridge `filter` receives the discovered tools in `tools` as well as in the discovery result, so a filter withdraws a discovered tool by removing it from `tools`.
+-   A bridge `filter` receives the discovered tools in `tools` as well as in the discovery result. To withdraw a discovered tool, a filter removes it from `tools` and from the discovery result: the result is itself a declaration (see [Matching a Proposal](#bridged-tools-matching)).
 -   Computer use is not available on these models, whether it is declared or discovered.
 
 ## Bridged Tools

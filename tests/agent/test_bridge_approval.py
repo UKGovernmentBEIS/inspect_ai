@@ -2134,16 +2134,25 @@ def responses_request_with_tool_search(
     }
 
 
-async def test_tool_discovered_through_tool_search_is_granted() -> None:
+@pytest.mark.parametrize(
+    "function,namespace",
+    [("mcp__host__read_file", "mcp__host"), ("read_file", None)],
+    ids=["generic-name", "raw-name"],
+)
+async def test_tool_discovered_through_tool_search_is_granted(
+    function: str, namespace: str | None
+) -> None:
     """A Codex tool declared only inside a `tool_search_output` item is a declaration.
 
-    The call comes back under its namespace as before, and the host service
-    executes it once against the grant it minted.
+    The model is a provider without the Responses API, so it is shown the tool as
+    `mcp__host__read_file`, and that call comes back under its namespace. A call
+    to the raw inner name it reads in the result is not a tool it was given: it
+    comes back without a namespace, but the result still declares it, so it is
+    granted too. Either way the host service executes the call once against the
+    grant it minted.
     """
     tool = AsyncMock(return_value="contents")
-    call = ToolCall(
-        id="c1", function="mcp__host__read_file", arguments={"path": "notes.txt"}
-    )
+    call = ToolCall(id="c1", function=function, arguments={"path": "notes.txt"})
     bridge = sandbox_responses_bridge(tool, [tool_calls_output(call)])
 
     response = await inspect_responses_api_request(
@@ -2155,7 +2164,7 @@ async def test_tool_discovered_through_tool_search_is_granted() -> None:
     )
 
     calls = [item for item in response.output if item.type == "function_call"]
-    assert [(c.name, c.namespace) for c in calls] == [("read_file", "mcp__host")]
+    assert [(c.name, c.namespace) for c in calls] == [("read_file", namespace)]
     execute = call_host_tool(bridge)
     assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
     with pytest.raises(PermissionError, match="was not proposed by the model"):
@@ -2296,6 +2305,13 @@ def rewrite_discovered_description(
 
 
 async def test_discovery_description_rewritten_by_a_filter_does_not_grant() -> None:
+    """The raw-name call: the rewritten result's description matches no host tool.
+
+    The model calls `read_file`, the name it reads in the result, so the only
+    declaration that call can match is the rewritten one. (A call to the generic
+    name matches the declaration left in `tools`; see
+    `test_discovery_rewritten_only_in_its_result_still_grants_its_generic_name`.)
+    """
     tool = AsyncMock(return_value="contents")
 
     bridge = await request_with_rewritten_discovery(
@@ -2323,6 +2339,30 @@ async def test_discovery_rewritten_only_in_its_result_still_grants_its_generic_n
         [discovered_read_file_namespace()],
         rewrite_discovered_description,
         function="mcp__host__read_file",
+    )
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+async def test_discovery_removed_only_from_tools_still_grants_its_raw_name() -> None:
+    """Removing a discovered tool from `tools` alone does not withdraw it.
+
+    The discovery result is itself a declaration, so a call to the raw inner name
+    the model reads there is still granted and the host tool runs: a filter must
+    also remove the tool from the discovery result.
+    """
+    tool = AsyncMock(return_value="contents")
+
+    def remove_from_tools(
+        input: list[ChatMessage], tools: list[ToolInfo]
+    ) -> GenerateInput:
+        kept = [t for t in tools if t.name != "mcp__host__read_file"]
+        return GenerateInput(input, kept, None, GenerateConfig())
+
+    bridge = await request_with_rewritten_discovery(
+        tool, [discovered_read_file_namespace()], remove_from_tools
     )
 
     execute = call_host_tool(bridge)

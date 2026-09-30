@@ -18,9 +18,8 @@ A call made through a scaffold's dispatcher function (`AgentBridge.dispatched_ca
 is reviewed as the bridged tool call it stands for, so policies match the tool's own
 name and approvers see its own arguments; the decision is mapped back onto the
 dispatcher call the scaffold receives. Likewise a call to a tool the model was shown
-under another name than the scaffold declared it (`review_names`: a tool discovered
-through client `tool_search`, flattened to `<namespace>__<name>` for a provider
-without the Responses API) is reviewed under the scaffold's name.
+under another name than the scaffold declared it (`review_names`, from the Responses
+bridge's client tool discovery) is reviewed under the scaffold's name.
 """
 
 import dataclasses

@@ -498,9 +498,10 @@ async def bridge_generate(
     generated from on each attempt, after compaction and any filter rewrite, so a
     declaration the filter removed cannot authorize a host call and one it added
     can; the result takes part only in resolving execution grants and is never
-    sent to the model. For a provider without the Responses API, tools discovered
-    through a client `tool_search` are declared in `tools` as well, under
-    `<namespace>__<name>`, so a filter withdraws one by removing it from `tools`.
+    sent to the model. For a provider without the Responses API, the Responses
+    bridge's client tool discovery also declares discovered tools in `tools`, under
+    the names the model is shown, so a filter withdraws one by removing it from
+    `tools` and from the discovery result (the result is itself a declaration).
 
     `review_names` maps a tool name the model was shown to the name its calls are
     approved under (see `_approval.apply_bridge_tool_approval`).
