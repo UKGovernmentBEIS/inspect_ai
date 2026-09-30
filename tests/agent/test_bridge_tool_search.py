@@ -61,11 +61,6 @@ WEB_SEARCH_PROVIDERS: Any = {}
 CODE_EXECUTION_PROVIDERS: Any = {}
 
 
-# 0. client tool_search for providers without the Responses API: discovered tools
-# are declared to the model under generic names, then approved, granted and
-# replayed under their Responses identities
-
-
 def _tool_search_tool_param() -> ToolSearchToolParam:
     return {
         "type": "tool_search",
@@ -137,6 +132,11 @@ def _deferred_mcp_namespace() -> dict[str, Any]:
             },
         ],
     }
+
+
+# 0. client tool_search for providers without the Responses API: discovered tools
+# are declared to the model under generic names, then approved, granted and
+# replayed under their Responses identities
 
 
 async def test_client_tool_search_reaches_non_openai_with_discovered_mcp_tools() -> (
@@ -783,8 +783,7 @@ async def test_client_discovery_bounds_long_generic_names() -> None:
 async def test_client_tool_search_with_an_unusable_schema_is_withheld() -> None:
     """A client tool_search whose schema is not a parameters object is withheld.
 
-    The request still reaches the model, as it did when non-OpenAI providers
-    were never sent a tool_search.
+    The request still reaches the model, without the search.
     """
     tools = await _non_openai_tools_after_discovery(
         declare_tool_search=None,
@@ -795,6 +794,29 @@ async def test_client_tool_search_with_an_unusable_schema_is_withheld() -> None:
                 "parameters": {"type": "string"},
             }
         ],
+    )
+
+    assert tools == []
+
+
+async def test_client_discovery_drops_a_discovered_server_tool_search() -> None:
+    """A discovered server-executed tool_search never reaches the provider.
+
+    It carries a schema, so it is the kind of entry the function reduction
+    keeps; admission comes first and drops it, as it drops a declared one.
+    """
+    tools = await _non_openai_tools_after_discovery(
+        [
+            {
+                "type": "tool_search",
+                "execution": "server",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                },
+            }
+        ],
+        declare_tool_search=None,
     )
 
     assert tools == []

@@ -266,7 +266,7 @@ def _client_discovered_tools(
         is_tool_search_tool_param(tool) and tool.get("execution") == "client"
         for tool in declared
     )
-    call_ids = _client_tool_search_call_ids(input)
+    call_ids = set() if client_search_declared else _client_tool_search_call_ids(input)
     discovered: list[ToolParam] = []
     for item in input:
         if (
@@ -310,21 +310,19 @@ def _client_discovery_tools(
     """The tools one client tool_search result declares to the model.
 
     The result is read as its replayed message carries it
-    (`_tool_search_output_content`, `validated_tool_search_tools`). Functions are
+    (`_tool_search_output_content`, `validated_tool_search_tools`). Tools the
+    provider cannot take (`_non_openai_accepts`) are dropped first; functions are
     then reduced as the execution-grant declarations are
-    (`_declared_discovery_entry`); built-in tools pass on when the provider can
-    take them (`_non_openai_accepts`).
+    (`_declared_discovery_entry`), and built-in tools pass on.
     """
     tools: list[ToolParam] = []
     for tool in validated_tool_search_tools(_tool_search_output_content(item)):
+        if not _non_openai_accepts(tool, client_discovery=True):
+            continue
         declared = _declared_discovery_entry(tool)
         if declared is not None:
             tools.append(declared)
-        elif (
-            not is_namespace_tool_param(tool)
-            and not is_function_tool_param(tool)
-            and _non_openai_accepts(tool, client_discovery=True)
-        ):
+        elif not is_namespace_tool_param(tool) and not is_function_tool_param(tool):
             tools.append(tool)
     return tools
 
@@ -1665,6 +1663,9 @@ def responses_output_items_from_assistant_message(
                 output.append(McpCall.model_validate(mcp_call))
 
     for tool_call in message.tool_calls or []:
+        tool_identity = (tool_namespaces or {}).get(
+            tool_call.function, _ToolIdentity(tool_call.function, None)
+        )
         if tool_call.function == "computer":
             output.append(
                 ResponseComputerToolCall(
@@ -1689,9 +1690,6 @@ def responses_output_items_from_assistant_message(
                 )
             )
         elif tool_call.type == "custom":
-            custom_identity = (tool_namespaces or {}).get(
-                tool_call.function, _ToolIdentity(tool_call.function, None)
-            )
             output.append(
                 ResponseCustomToolCall(
                     # See note on `id` for function_call below: Responses output
@@ -1701,14 +1699,10 @@ def responses_output_items_from_assistant_message(
                     call_id=tool_call.id,
                     name=tool_call.function,
                     input=next(iter(tool_call.arguments.values())),
-                    namespace=custom_identity.namespace,
+                    namespace=tool_identity.namespace,
                 )
             )
         else:
-            tool_identity = (tool_namespaces or {}).get(
-                tool_call.function, _ToolIdentity(tool_call.function, None)
-            )
-            name, namespace = tool_identity.name, tool_identity.namespace
             output.append(
                 ResponseFunctionToolCall(
                     # A Responses output item must carry a non-null `id` (the
@@ -1721,9 +1715,9 @@ def responses_output_items_from_assistant_message(
                     id=uuid(),
                     type="function_call",
                     call_id=tool_call.id,
-                    name=name,
+                    name=tool_identity.name,
                     arguments=json.dumps(tool_call.arguments),
-                    namespace=namespace,
+                    namespace=tool_identity.namespace,
                 )
             )
 

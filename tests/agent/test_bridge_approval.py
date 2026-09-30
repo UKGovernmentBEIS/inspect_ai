@@ -2256,12 +2256,15 @@ async def request_with_rewritten_discovery(
     return bridge
 
 
-async def test_discovery_removed_by_a_filter_does_not_grant() -> None:
+@pytest.mark.parametrize("function", ["read_file", "mcp__host__read_file"])
+async def test_discovery_removed_by_a_filter_does_not_grant(function: str) -> None:
     """The declarations are the ones the model saw, not the request's.
 
     The filter drops the discovery result and declares a local `read_file`
     instead; the model's call names that local tool, so `host/read_file` is not
-    proposed.
+    proposed. A call under the name a provider without the Responses API is
+    shown for the discovered tool, `mcp__host__read_file`, matches nothing either,
+    because the filter replaced `tools` as well.
     """
     tool = AsyncMock(return_value="contents")
 
@@ -2273,56 +2276,30 @@ async def test_discovery_removed_by_a_filter_does_not_grant() -> None:
         return GenerateInput(without, local, None, GenerateConfig())
 
     bridge = await request_with_rewritten_discovery(
-        tool, [discovered_read_file_namespace()], remove_discovery
+        tool, [discovered_read_file_namespace()], remove_discovery, function=function
     )
 
     with pytest.raises(PermissionError, match="was not proposed by the model"):
         await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
     tool.assert_not_awaited()
+
+
+def rewrite_discovered_description(
+    input: list[ChatMessage], tools: list[ToolInfo]
+) -> GenerateInput:
+    """A filter rewrite: the discovery result lists the tool with another description."""
+    namespace = discovered_read_file_namespace()
+    namespace["tools"][0]["description"] = "Read a file inside the sandbox."
+    return GenerateInput(
+        with_tool_search_result(input, [namespace]), tools, None, GenerateConfig()
+    )
 
 
 async def test_discovery_description_rewritten_by_a_filter_does_not_grant() -> None:
     tool = AsyncMock(return_value="contents")
 
-    def rewrite_description(
-        input: list[ChatMessage], tools: list[ToolInfo]
-    ) -> GenerateInput:
-        namespace = discovered_read_file_namespace()
-        namespace["tools"][0]["description"] = "Read a file inside the sandbox."
-        return GenerateInput(
-            with_tool_search_result(input, [namespace]), tools, None, GenerateConfig()
-        )
-
     bridge = await request_with_rewritten_discovery(
-        tool, [discovered_read_file_namespace()], rewrite_description
-    )
-
-    with pytest.raises(PermissionError, match="was not proposed by the model"):
-        await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
-    tool.assert_not_awaited()
-
-
-async def test_discovery_removed_by_a_filter_does_not_grant_its_generic_name() -> None:
-    """A filter that also replaces `tools` withdraws the generic declaration.
-
-    For a provider without the Responses API the discovered tool is declared in
-    `tools` as `mcp__host__read_file` as well as in the discovery result, so a
-    filter that drops both leaves nothing a call to that name can match.
-    """
-    tool = AsyncMock(return_value="contents")
-
-    def remove_discovery(
-        input: list[ChatMessage], tools: list[ToolInfo]
-    ) -> GenerateInput:
-        without = [m for m in input if m is not tool_search_result(input)]
-        local = declare("read_file", description="Read a file inside the sandbox.")
-        return GenerateInput(without, local, None, GenerateConfig())
-
-    bridge = await request_with_rewritten_discovery(
-        tool,
-        [discovered_read_file_namespace()],
-        remove_discovery,
-        function="mcp__host__read_file",
+        tool, [discovered_read_file_namespace()], rewrite_discovered_description
     )
 
     with pytest.raises(PermissionError, match="was not proposed by the model"):
@@ -2341,19 +2318,10 @@ async def test_discovery_rewritten_only_in_its_result_still_grants_its_generic_n
     """
     tool = AsyncMock(return_value="contents")
 
-    def rewrite_description(
-        input: list[ChatMessage], tools: list[ToolInfo]
-    ) -> GenerateInput:
-        namespace = discovered_read_file_namespace()
-        namespace["tools"][0]["description"] = "Read a file inside the sandbox."
-        return GenerateInput(
-            with_tool_search_result(input, [namespace]), tools, None, GenerateConfig()
-        )
-
     bridge = await request_with_rewritten_discovery(
         tool,
         [discovered_read_file_namespace()],
-        rewrite_description,
+        rewrite_discovered_description,
         function="mcp__host__read_file",
     )
 
