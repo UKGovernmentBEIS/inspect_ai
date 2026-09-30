@@ -557,8 +557,8 @@ async def test_reported_projects_print_their_cleanup_commands(
     """Each reported project gets a complete cleanup command of its own.
 
     The task name is longer than `task_project_name` keeps, so the project and
-    container names are as long as they get. At 80 columns, Rich's width when
-    output is not a terminal, the container names still print whole.
+    container names are as long as they get. At 80 columns, Rich's default when
+    it finds no terminal, the container names still print whole.
     """
     # Print through a console of the test's own: the global one takes its width
     # from the environment, and an earlier `display="none"` eval in this process
