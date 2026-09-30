@@ -43,10 +43,10 @@ try:
         AfterToolCall,
         BeforeToolCall,
         Context,
-        ControlProtocol,
         Decision,
         Monitor,
         Observation,
+        Protocol,
         Reported,
         concurrent,
         decide_final,
@@ -74,7 +74,7 @@ def addition() -> Tool:
 @protocol
 def d3_reject(
     reason: str = "not allowed", message: str | None = "no adding"
-) -> ControlProtocol:
+) -> Protocol:
     async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
         return Decision.reject(reason, message=message)
 
@@ -82,7 +82,7 @@ def d3_reject(
 
 
 @protocol
-def d3_modify() -> ControlProtocol:
+def d3_modify() -> Protocol:
     async def rewrite(context: Context, step: BeforeToolCall) -> Decision | None:
         modified = replace(step.call, arguments={"x": 10, "y": 20})
         return Decision(action="modify", modified=modified, explanation="bigger")
@@ -91,7 +91,7 @@ def d3_modify() -> ControlProtocol:
 
 
 @protocol
-def d3_terminate() -> ControlProtocol:
+def d3_terminate() -> Protocol:
     async def stop(context: Context, step: BeforeToolCall) -> Decision | None:
         return Decision.terminate("too risky")
 
@@ -99,7 +99,7 @@ def d3_terminate() -> ControlProtocol:
 
 
 @protocol
-def d3_terminate_after() -> ControlProtocol:
+def d3_terminate_after() -> Protocol:
     async def stop(context: Context, step: AfterToolCall) -> Decision | None:
         return Decision.terminate(f"saw {step.result.text}")
 
@@ -107,7 +107,7 @@ def d3_terminate_after() -> ControlProtocol:
 
 
 @protocol
-def d3_final() -> ControlProtocol:
+def d3_final() -> Protocol:
     async def veto(context: Context, step: BeforeToolCall) -> Decision | None:
         decide_final(Decision.reject(message="vetoed"))
         return None

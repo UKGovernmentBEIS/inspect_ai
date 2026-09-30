@@ -21,10 +21,10 @@ try:
     from inspect_sentinel import (
         BeforeToolCall,
         Context,
-        ControlProtocol,
         Decision,
         Monitor,
         Observation,
+        Protocol,
         monitor,
         protocol,
     )
@@ -41,7 +41,7 @@ def d2_suspicion(score: float = 0.5) -> Monitor:
 
 
 @protocol
-def d2_rule(reason: str = "no") -> ControlProtocol:
+def d2_rule(reason: str = "no") -> Protocol:
     async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
         return Decision.reject(reason)
 
@@ -328,11 +328,11 @@ from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import solver
-from inspect_sentinel import BeforeToolCall, ControlProtocol, Decision, protocol
+from inspect_sentinel import BeforeToolCall, Decision, Protocol, protocol
 
 
 @protocol
-def cli_rule(reason: str = "no") -> ControlProtocol:
+def cli_rule(reason: str = "no") -> Protocol:
     async def decide(context, step: BeforeToolCall) -> Decision | None:
         return Decision.reject(reason)
 

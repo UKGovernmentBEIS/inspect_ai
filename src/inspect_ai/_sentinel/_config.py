@@ -6,10 +6,10 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import is_registry_object
 
 if TYPE_CHECKING:
-    from inspect_sentinel import ControlProtocol
+    from inspect_sentinel import Protocol
     from inspect_sentinel._integration import SentinelConfig, Sentinels
 
-SentinelRoot: TypeAlias = "ControlProtocol"
+SentinelRoot: TypeAlias = "Protocol"
 
 SentinelSpec: TypeAlias = Union[
     str,
