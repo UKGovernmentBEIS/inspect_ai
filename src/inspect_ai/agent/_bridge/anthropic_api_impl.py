@@ -150,7 +150,9 @@ async def inspect_anthropic_api_request_impl(
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system messages)
-    config = generate_config_from_anthropic(json_data)
+    config = generate_config_from_anthropic(
+        json_data, forward_fallbacks=ModelName(model).api == "anthropic"
+    )
     if not bridge.forward_generation_config:
         clear_generation_params(config)
     validate_client_config(config)
@@ -238,7 +240,9 @@ def anthropic_system_to_texts(value: Any) -> list[str]:
     return texts
 
 
-def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
+def generate_config_from_anthropic(
+    json_data: dict[str, Any], *, forward_fallbacks: bool = False
+) -> GenerateConfig:
     config = GenerateConfig()
     config.max_tokens = json_data.get("max_tokens", None)
     config.stop_seqs = json_data.get("stop_sequences", None) or None
@@ -328,7 +332,9 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     # drop any other field the client sent, and it is subject to Inspect's own
     # warn-and-ignore gating. The response side records the handoff regardless
     # (see `serving_model` / `ModelFallback` in the anthropic provider).
-    if (fallbacks := json_data.get("fallbacks")) is not None:
+    # Only when `forward_fallbacks` (the resolved model is an Anthropic one):
+    # other providers would send it on as an unsupported request field.
+    if forward_fallbacks and (fallbacks := json_data.get("fallbacks")) is not None:
         extra_body["fallbacks"] = fallbacks
     if len(extra_body) > 0:
         config.extra_body = extra_body

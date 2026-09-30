@@ -30,7 +30,7 @@ from inspect_ai.agent._bridge.util import (
     client_json_schema,
     validate_client_config,
 )
-from inspect_ai.model import GenerateConfig
+from inspect_ai.model import GenerateConfig, Model, get_model
 from inspect_ai.tool._tool_choice import ToolFunction
 
 # generation-tuning fields that must be dropped when not forwarding.
@@ -227,7 +227,7 @@ def test_anthropic_fallbacks_forwarded_verbatim():
         "fallbacks": fallbacks,
     }
 
-    config = generate_config_from_anthropic(json_data)
+    config = generate_config_from_anthropic(json_data, forward_fallbacks=True)
     assert config.extra_body is not None
     # byte-for-byte the client's structure, not a remapping
     assert config.extra_body["fallbacks"] == fallbacks
@@ -242,8 +242,111 @@ def test_anthropic_fallbacks_forwarded_verbatim():
 
 def test_anthropic_no_fallbacks_key_when_client_sends_none():
     """Absent `fallbacks` must not synthesize the key (no behavior change)."""
-    config = generate_config_from_anthropic({"model": "inspect", "max_tokens": 100})
+    config = generate_config_from_anthropic(
+        {"model": "inspect", "max_tokens": 100}, forward_fallbacks=True
+    )
     assert config.extra_body is None or "fallbacks" not in config.extra_body
+
+
+class _ProviderRequest(Exception):
+    """Sentinel carrying the request a provider handed to its SDK client."""
+
+    def __init__(self, request: dict[str, Any]) -> None:
+        self.request = request
+
+
+async def _capture_sdk_request(**request: Any) -> Any:
+    raise _ProviderRequest(request)
+
+
+async def _bridged_provider_request(model: Model, fallbacks: Any) -> dict[str, Any]:
+    """Send a client `fallbacks` directive through the Anthropic bridge to `model`.
+
+    The provider's SDK create call must be patched with `_capture_sdk_request`;
+    the returned dict is what the provider would have sent.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        inspect_anthropic_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+
+    bridge = AgentBridge(state=AgentState(messages=[]))
+    bridge.model_aliases = {"claude-fable-5": model}
+    with pytest.raises(_ProviderRequest) as exc_info:
+        await inspect_anthropic_api_request_impl(
+            json_data={
+                "model": "claude-fable-5",
+                "max_tokens": 64,
+                "messages": [{"role": "user", "content": "hi"}],
+                "fallbacks": fallbacks,
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+    return exc_info.value.request
+
+
+@pytest.mark.anyio
+async def test_bridged_fallbacks_withheld_from_non_anthropic_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`fallbacks` is an Anthropic request field; other providers must not get it.
+
+    Left in generic extra_body it survives `clear_generation_params`, and the
+    OpenAI request builder sends it on as an unsupported body field.
+    """
+    from inspect_ai.model._providers.openai import OpenAIAPI
+
+    model = get_model(
+        "openai/gpt-4.1", api_key="test-key", responses_api=False, memoize=False
+    )
+    assert isinstance(model.api, OpenAIAPI)
+    monkeypatch.setattr(
+        model.api.client.chat.completions, "create", _capture_sdk_request
+    )
+
+    request = await _bridged_provider_request(model, [{"model": "claude-opus-4-8"}])
+    assert "fallbacks" not in request.get("extra_body", {})
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("fallbacks", "beta"),
+    [
+        pytest.param(
+            [{"model": "claude-opus-4-8"}],
+            "server-side-fallback-2026-06-01",
+            id="explicit-list",
+        ),
+        pytest.param("default", "server-side-fallback-2026-07-01", id="default"),
+    ],
+)
+async def test_bridged_fallbacks_reach_anthropic_model_under_accepting_beta(
+    monkeypatch: pytest.MonkeyPatch, fallbacks: Any, beta: str
+) -> None:
+    """Both documented `fallbacks` forms reach Anthropic under a beta that takes them.
+
+    `server-side-fallback-2026-06-01` accepts only the explicit-list form;
+    `"default"` routing requires `server-side-fallback-2026-07-01`.
+    """
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    model = get_model(
+        "anthropic/claude-fable-5", api_key="test-key", streaming=False, memoize=False
+    )
+    assert isinstance(model.api, AnthropicAPI)
+    monkeypatch.setattr(model.api.client.messages, "create", _capture_sdk_request)
+
+    request = await _bridged_provider_request(model, fallbacks)
+    assert request["extra_body"]["fallbacks"] == fallbacks
+    header: str = request["extra_headers"]["anthropic-beta"]
+    fallback_betas = [
+        b for b in header.split(",") if b.startswith("server-side-fallback-")
+    ]
+    assert fallback_betas == [beta]
 
 
 def test_google_forward_then_clear():
