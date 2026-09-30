@@ -22,6 +22,7 @@ import os
 from pathlib import Path
 from typing import NamedTuple
 
+from inspect_ai.util._sandbox._privileged import privileged_shell
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
@@ -64,7 +65,7 @@ async def probe_dd_fullblock(env: SandboxEnvironment) -> bool:
     so the flag is an optimization for robustness, not a correctness
     requirement.
     """
-    result = await env.exec(["sh", "-c", DD_FULLBLOCK_PROBE], user="root")
+    result = await privileged_shell(env, DD_FULLBLOCK_PROBE, user="root")
     return result.success
 
 
@@ -124,7 +125,7 @@ async def copy_out(
                     f"{'iflag=fullblock ' if dd_fullblock else ''}"
                     f"2>/dev/null"
                 )
-                result = await env.exec(["sh", "-c", script], user="root")
+                result = await privileged_shell(env, script, user="root")
                 if not result.success:
                     raise RuntimeError(f"{label}: chunk copy failed: {result.stderr}")
                 with override_max_read_file_size(chunk_size * 2):

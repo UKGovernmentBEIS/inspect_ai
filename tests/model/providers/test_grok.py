@@ -1,9 +1,16 @@
+import asyncio
+import importlib
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
+import anyio
 import grpc
 import pytest
+import tenacity
+from pydantic import BaseModel
 from test_helpers.utils import skip_if_no_grok, skip_if_trio
 
 from inspect_ai import Task, eval
@@ -13,12 +20,15 @@ from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
+    ResponseSchema,
     get_model,
 )
+from inspect_ai.model._model import AttemptTimeoutError
 from inspect_ai.model._providers._grok_batch import GrokBatcher
 from inspect_ai.model._providers.util.batch import Batch, BatchRequest
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.scorer import includes
+from inspect_ai.util import json_schema
 
 
 @skip_if_no_grok
@@ -96,6 +106,45 @@ def test_grok_unrelated_bad_request_is_returned_as_error() -> None:
     result = api._handle_grpc_bad_request(ex)
     assert isinstance(result, Exception)
     assert result is ex
+
+
+@pytest.mark.parametrize(
+    "details",
+    [
+        "Request blocked by safety_check",
+        "I can't help with that request.",
+        "Request rejected: I CAN'T HELP WITH THAT REQUEST",
+    ],
+)
+def test_grok_refusal_maps_to_content_filter(details: str) -> None:
+    from inspect_ai.model._providers._grok_batch import _BatchRpcError
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4.3", api_key="test-key")
+    ex = _BatchRpcError(status_code=grpc.StatusCode.PERMISSION_DENIED, message=details)
+
+    output = api._handle_grpc_permission_denied(ex)
+
+    assert output is not None
+    assert output.stop_reason == "content_filter"
+    assert output.completion == details
+    stop_details = output.choices[0].stop_details
+    assert stop_details is not None
+    assert stop_details.type == "refusal"
+    assert stop_details.explanation == details
+
+
+def test_grok_unrelated_permission_denied_is_not_a_refusal() -> None:
+    from inspect_ai.model._providers._grok_batch import _BatchRpcError
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4.3", api_key="test-key")
+    ex = _BatchRpcError(
+        status_code=grpc.StatusCode.PERMISSION_DENIED,
+        message="Permission denied for this model",
+    )
+
+    assert api._handle_grpc_permission_denied(ex) is None
 
 
 def test_grok_service_tier_requires_sdk_support(monkeypatch) -> None:
@@ -735,3 +784,269 @@ def test_grok_prompt_cache_across_turns_live() -> None:
     assert second is not None
     assert second.input_tokens_cache_read is not None
     assert second.input_tokens_cache_read > 0
+
+
+# -- Built-in-typed calls to client function tools ------------------------------
+
+
+def _code_execution_tool_info(native: bool) -> Any:
+    """The `code_execution()` tool as sent to Grok, native or client-side."""
+    from inspect_ai.tool._tool_info import ToolInfo
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    return ToolInfo(
+        name="code_execution",
+        description="Execute Python code.",
+        parameters=ToolParams(
+            properties={"code": ToolParam(type="string")}, required=["code"]
+        ),
+        options={"providers": {"grok": {}} if native else {"python": {}}},
+    )
+
+
+def _code_execution_typed_response() -> Any:
+    """A completion whose one tool call xAI typed as its built-in code_execution."""
+    from xai_sdk.chat import Response, chat_pb2
+
+    proto = chat_pb2.GetChatCompletionResponse(
+        outputs=[
+            chat_pb2.CompletionOutput(
+                index=0,
+                finish_reason="REASON_TOOL_CALLS",
+                message=chat_pb2.CompletionMessage(
+                    role=chat_pb2.MessageRole.ROLE_ASSISTANT,
+                    tool_calls=[
+                        chat_pb2.ToolCall(
+                            id="call-1",
+                            type=chat_pb2.ToolCallType.TOOL_CALL_TYPE_CODE_EXECUTION_TOOL,
+                            function=chat_pb2.FunctionCall(
+                                name="code_execution",
+                                arguments='{"code":"print(435678 + 23457)"}',
+                            ),
+                        )
+                    ],
+                ),
+            )
+        ]
+    )
+    return Response(proto, 0)
+
+
+def test_grok_builtin_typed_call_to_client_function_is_executed() -> None:
+    """A code_execution-typed call to a client `code_execution` function is a tool call."""
+    from inspect_ai._util.content import ContentToolUse
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4-fast", api_key="test-key")
+    output = api._model_output_from_response(
+        _code_execution_typed_response(), [_code_execution_tool_info(native=False)]
+    )
+
+    message = output.message
+    assert message.tool_calls is not None
+    assert [(tc.id, tc.function) for tc in message.tool_calls] == [
+        ("call-1", "code_execution")
+    ]
+    assert message.tool_calls[0].arguments == {"code": "print(435678 + 23457)"}
+    assert not any(isinstance(c, ContentToolUse) for c in message.content)
+    assert output.stop_reason == "tool_calls"
+
+
+def test_grok_native_code_execution_call_stays_server_side() -> None:
+    """With native code execution enabled the same call is a server tool use."""
+    from inspect_ai._util.content import ContentToolUse
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4-fast", api_key="test-key")
+    output = api._model_output_from_response(
+        _code_execution_typed_response(), [_code_execution_tool_info(native=True)]
+    )
+
+    message = output.message
+    assert message.tool_calls is None
+    tool_uses = [c for c in message.content if isinstance(c, ContentToolUse)]
+    assert len(tool_uses) == 1
+    assert tool_uses[0].tool_type == "code_execution"
+    assert tool_uses[0].name == "code_execution"
+
+
+def test_grok_native_web_search_call_named_like_client_function_stays_server_side() -> (
+    None
+):
+    """A native web_search call keeps its type even if a client function shares its name."""
+    from xai_sdk.chat import Response, chat_pb2
+
+    from inspect_ai._util.content import ContentToolUse
+    from inspect_ai.model._providers.grok import GrokAPI
+    from inspect_ai.tool._tool_info import ToolInfo
+
+    native_web_search = ToolInfo(
+        name="web_search", description="Native web search", options={"grok": {}}
+    )
+    client_browse_page = ToolInfo(name="browse_page", description="Local function")
+    proto = chat_pb2.GetChatCompletionResponse(
+        outputs=[
+            chat_pb2.CompletionOutput(
+                index=0,
+                finish_reason="REASON_STOP",
+                message=chat_pb2.CompletionMessage(
+                    role=chat_pb2.MessageRole.ROLE_ASSISTANT,
+                    content="Done",
+                    tool_calls=[
+                        chat_pb2.ToolCall(
+                            id="call-1",
+                            type=chat_pb2.ToolCallType.TOOL_CALL_TYPE_WEB_SEARCH_TOOL,
+                            function=chat_pb2.FunctionCall(
+                                name="browse_page", arguments='{"url":"https://x.ai"}'
+                            ),
+                        )
+                    ],
+                ),
+            )
+        ]
+    )
+
+    api = GrokAPI(model_name="grok-4-fast", api_key="test-key")
+    output = api._model_output_from_response(
+        Response(proto, 0), [native_web_search, client_browse_page]
+    )
+
+    message = output.message
+    assert message.tool_calls is None
+    tool_uses = [c for c in message.content if isinstance(c, ContentToolUse)]
+    assert [(t.tool_type, t.name) for t in tool_uses] == [("web_search", "browse_page")]
+
+
+class _SleepingGrpcHandler(grpc.GenericRpcHandler):
+    """Answers every unary method by sleeping until the client cancels the call."""
+
+    async def _sleep(self, request: bytes, context: grpc.aio.ServicerContext) -> bytes:
+        await asyncio.sleep(60)
+        return b""
+
+    def service(
+        self, handler_call_details: grpc.HandlerCallDetails
+    ) -> grpc.RpcMethodHandler | None:
+        return grpc.unary_unary_rpc_method_handler(self._sleep)
+
+
+@asynccontextmanager
+async def _sleeping_grpc_server() -> AsyncIterator[str]:
+    """A local gRPC server whose unary calls never complete on their own."""
+    server = grpc.aio.server()
+    server.add_generic_rpc_handlers((_SleepingGrpcHandler(),))
+    port = server.add_insecure_port("127.0.0.1:0")
+    await server.start()
+    try:
+        yield f"127.0.0.1:{port}"
+    finally:
+        await server.stop(None)
+
+
+class _Answer(BaseModel):
+    text: str
+
+
+def _track_grok_clients(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Record every real xai_sdk AsyncClient the provider creates, and its close."""
+    import inspect_ai.model._providers.grok as grok_module
+
+    # xai_sdk ships no type stubs; going through import_module keeps mypy out of it
+    real_client: Any = importlib.import_module("xai_sdk").AsyncClient
+    clients: list[Any] = []
+
+    def recording_client(**kwargs: Any) -> Any:
+        client = real_client(**kwargs)
+        real_close = client.close
+
+        async def close() -> None:
+            client.closed = True
+            await real_close()
+
+        client.closed = False
+        client.close = close
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(grok_module, "AsyncClient", recording_client)
+    return clients
+
+
+def _assert_client_closed(clients: list[Any]) -> None:
+    """The cancelled operation's client was closed and its channel shut down."""
+    assert len(clients) == 1
+    (client,) = clients
+    assert client.closed
+    assert client._api_channel.get_state() == grpc.ChannelConnectivity.SHUTDOWN
+
+
+def _sleeping_grok_api(target: str) -> Any:
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    return GrokAPI(
+        model_name="grok-4.5",
+        api_key="test-key",
+        base_url=target,
+        streaming=False,
+        use_insecure_channel=True,
+    )
+
+
+_PARSE_CONFIG = GenerateConfig(
+    response_schema=ResponseSchema(name="answer", json_schema=json_schema(_Answer))
+)
+
+
+@skip_if_trio
+@pytest.mark.parametrize(
+    "operation",
+    [
+        pytest.param(lambda api: _generate_once(api, GenerateConfig()), id="sample"),
+        pytest.param(lambda api: _generate_once(api, _PARSE_CONFIG), id="parse"),
+        pytest.param(lambda api: api.count_text_tokens("hello"), id="tokens"),
+    ],
+)
+async def test_grok_unary_call_cancelled_by_fail_after_raises_timeout(
+    operation: Callable[[Any], Awaitable[Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A unary gRPC call cut off by an anyio deadline reports the timeout.
+
+    grpc.aio answers a cancelled unary call with a fresh, message-less
+    CancelledError that anyio does not recognise as its own, so without the
+    provider's guard the bare cancellation escapes instead of TimeoutError.
+    The provider's client is still closed on the way out.
+    """
+    clients = _track_grok_clients(monkeypatch)
+    async with _sleeping_grpc_server() as target:
+        api = _sleeping_grok_api(target)
+        with pytest.raises(TimeoutError):
+            with anyio.fail_after(1):
+                await operation(api)
+        _assert_client_closed(clients)
+
+
+@skip_if_trio
+async def test_grok_unary_call_attempt_timeout_is_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stalled unary Grok call hit by `attempt_timeout` ends as AttemptTimeoutError.
+
+    That is the retryable outcome; without the guard the attempt ends in a bare
+    cancellation that the retry loop never sees.
+    """
+    clients = _track_grok_clients(monkeypatch)
+    async with _sleeping_grpc_server() as target:
+        model = get_model(
+            "grok/grok-4.5",
+            api_key="test-key",
+            base_url=target,
+            streaming=False,
+            use_insecure_channel=True,
+            memoize=False,
+        )
+        with pytest.raises(tenacity.RetryError) as excinfo:
+            await model.generate(
+                "hello", config=GenerateConfig(attempt_timeout=1, max_retries=0)
+            )
+        assert isinstance(excinfo.value.last_attempt.exception(), AttemptTimeoutError)
+        _assert_client_closed(clients)

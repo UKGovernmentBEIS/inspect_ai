@@ -2,6 +2,7 @@ from pathlib import Path, PurePosixPath
 from typing import Sequence
 
 from inspect_ai.util import sandbox as sandbox_env
+from inspect_ai.util._sandbox._privileged import privileged_exec
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .read import read_skills
@@ -34,11 +35,15 @@ async def install_skills(
     # resolve sandbox
     sbox = sandbox if isinstance(sandbox, SandboxEnvironment) else sandbox_env(sandbox)
 
-    # exec helper
+    # exec helper: these run as `user` (the sandbox default user, root in most
+    # images, when None) or as root, so utilities must not come from the image's
+    # PATH
     async def checked_exec(
         cmd: list[str], *, cwd: str | None = None, as_user: str | None = None
     ) -> str:
-        result = await sbox.exec(cmd, cwd=cwd, user=as_user or user, timeout=60)
+        result = await privileged_exec(
+            sbox, cmd, cwd=cwd, user=as_user or user, timeout=60
+        )
         if not result.success:
             raise RuntimeError(
                 f"Error executing command {' '.join(cmd)}: {result.stderr}"
@@ -68,7 +73,7 @@ async def install_skills(
     # determine skills dir
     skills_dir = PurePosixPath(dir or "skills")
     if not skills_dir.is_absolute():
-        skills_dir = PurePosixPath(await checked_exec(["sh", "-c", "pwd"])) / skills_dir
+        skills_dir = PurePosixPath(await checked_exec(["pwd"])) / skills_dir
 
     # helper to write supporting files
     async def write_supporting_files(

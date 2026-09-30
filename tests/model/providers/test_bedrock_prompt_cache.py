@@ -91,7 +91,7 @@ class _FakeSession:
     def __init__(self, client: _FakeClient) -> None:
         self.client_instance = client
 
-    def client(self, **kwargs: Any) -> _FakeClientContext:
+    def create_client(self, **kwargs: Any) -> _FakeClientContext:
         return _FakeClientContext(self.client_instance)
 
 
