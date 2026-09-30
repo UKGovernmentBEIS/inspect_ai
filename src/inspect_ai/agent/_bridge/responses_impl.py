@@ -7,7 +7,6 @@ from typing import (
     Mapping,
     NamedTuple,
     Set,
-    TypeAlias,
     TypeGuard,
     cast,
 )
@@ -73,7 +72,7 @@ from openai.types.responses.response_tool_search_output_item_param_param import 
     ResponseToolSearchOutputItemParamParam,
 )
 from openai.types.responses.tool_param import CodeInterpreter
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter
 from shortuuid import uuid
 
 from inspect_ai._util.content import (
@@ -150,10 +149,10 @@ from inspect_ai.model._openai_responses import (
     to_inspect_citation,
     tool_call_from_openai_tool_search_call,
     tool_search_output_tools,
-    tool_search_tools_adapter,
     tool_use_to_code_interpreter_param,
     tool_use_to_mcp_call_param,
     tool_use_to_mcp_list_tools_param,
+    validated_tool_search_tools,
     web_search_to_tool_use,
 )
 from inspect_ai.model._providers._openai_computer_use import (
@@ -223,53 +222,76 @@ class _ToolIdentity(NamedTuple):
     """A tool's Responses identity: its name and the namespace declaring it."""
 
     name: str
-    namespace: str
-
-
-class _DiscoveredTool(NamedTuple):
-    """A tool that client discovery exposed to a non-OpenAI provider."""
-
-    name: str
     namespace: str | None
-    parameters: ToolParams
 
 
-_ToolNames: TypeAlias = dict[str, _DiscoveredTool | None]
-"""Tools exposed to a non-OpenAI provider, by exposed name.
+def _speaks_responses(model: Model) -> bool:
+    """Whether a provider other than OpenAI sends its requests over Responses.
 
-`None` marks a tool the request itself declared rather than one discovered.
-"""
+    OpenAI-compatible providers do when ``responses_api`` is on (e.g. Meta, and
+    LiteLLM for OpenAI GPT-5, o-series and Codex models). Like OpenAI, they
+    render tools from their Responses declarations, so client tool discovery is
+    not translated for them.
+    """
+    return bool(getattr(model.api, "responses_api", False))
 
 
-def _non_openai_accepts(tool_param: ToolParam) -> bool:
+def _non_openai_accepts(tool_param: ToolParam, client_tool_search: bool) -> bool:
     """Whether a non-OpenAI provider can take this Responses tool.
 
-    Custom tools and server-executed tool_search are native to OpenAI Responses.
-    A client-executed search is resolved by the scaffold and can be sent to any
-    model provider.
+    Custom tools and tool_search are native to OpenAI Responses. A
+    client-executed search is resolved by the scaffold, so with
+    ``client_tool_search`` it is sent to the provider like any other tool.
     """
     return tool_param["type"] != "custom" and not (
         is_tool_search_tool_param(tool_param)
-        and tool_param.get("execution") != "client"
+        and not (client_tool_search and tool_param.get("execution") == "client")
     )
 
 
-def _client_tool_search_call_ids(
-    input: str | list[ResponseInputItemParam],
-) -> set[str]:
-    """The call ids of the client-executed tool_search calls in the request input."""
+def _client_discovered_tools(
+    input: str | list[ResponseInputItemParam], declared: list[ToolParam]
+) -> list[ToolParam]:
+    """The tools that client tool_search results in `input` declare.
+
+    A result counts unless the server executed its search, provided the request
+    declares a client-executed tool_search (at the top level or through
+    `additional_tools`, both in `declared`) or the result answers a
+    client-executed tool_search call in `input`.
+    """
+    if not isinstance(input, list):
+        return []
+    client_search_declared = any(
+        is_tool_search_tool_param(tool) and tool.get("execution") == "client"
+        for tool in declared
+    )
+    call_ids = set() if client_search_declared else _client_tool_search_call_ids(input)
+    discovered: list[ToolParam] = []
+    for item in input:
+        if isinstance(item, dict) and _is_client_tool_search_output(
+            item, client_search_declared, call_ids
+        ):
+            discovered.extend(_client_discovery_tools(item))
+    return discovered
+
+
+def _client_tool_search_call_ids(input: list[ResponseInputItemParam]) -> set[str]:
+    """The call ids of the client-executed tool_search calls in `input`.
+
+    A call without a ``call_id`` is identified by its item ``id``, as it is when
+    the call is replayed.
+    """
     call_ids: set[str] = set()
-    if isinstance(input, list):
-        for item in input:
-            if (
-                isinstance(item, dict)
-                and item.get("type") == "tool_search_call"
-                and is_response_tool_search_call(item)
-                and item.get("execution") == "client"
-            ):
-                call_id = item.get("call_id")
-                if isinstance(call_id, str):
-                    call_ids.add(call_id)
+    for item in input:
+        if (
+            isinstance(item, dict)
+            and item.get("type") == "tool_search_call"
+            and is_response_tool_search_call(item)
+            and item.get("execution") == "client"
+        ):
+            call_id = item.get("call_id") or item.get("id")
+            if isinstance(call_id, str):
+                call_ids.add(call_id)
     return call_ids
 
 
@@ -292,23 +314,15 @@ def _is_client_tool_search_output(
 def _client_discovery_tools(
     item: ResponseToolSearchOutputItemParamParam,
 ) -> list[ToolParam]:
-    """The tools a client tool_search result declares to a non-OpenAI provider.
+    """The tools one client tool_search result declares.
 
-    Validated as a whole, exactly as `tool_search_output_tools` validates the
-    replayed result: one invalid entry means the result declares nothing.
-    Functions are then reduced as the execution-grant declarations are
-    (`_declared_discovery_entry`), so the tools a non-OpenAI provider is given agree
-    with the declarations grants are resolved against; built-in tools pass on.
+    The result is read as its replayed message carries it
+    (`validated_tool_search_tools`). Functions are then reduced as the
+    execution-grant declarations are (`_declared_discovery_entry`); built-in
+    tools pass on.
     """
-    try:
-        validated: list[ToolParam] = tool_search_tools_adapter.dump_python(
-            tool_search_tools_adapter.validate_python(item.get("tools") or []),
-            mode="json",
-        )
-    except (ValidationError, ValueError):
-        return []
     tools: list[ToolParam] = []
-    for tool in validated:
+    for tool in validated_tool_search_tools(to_json_str_safe(item.get("tools", []))):
         declared = _declared_discovery_entry(tool)
         if declared is not None:
             tools.append(declared)
@@ -317,15 +331,92 @@ def _client_discovery_tools(
     return tools
 
 
-def _contains_computer_tool(tool_param: ToolParam) -> bool:
-    """Whether a tool declaration contains computer use."""
-    return is_computer_tool_param(tool_param) or (
-        is_namespace_tool_param(tool_param)
-        and any(
-            _contains_computer_tool(cast(ToolParam, inner))
-            for inner in tool_param.get("tools", [])
+def _declared_discovery_entry(discovered: Any) -> ToolParam | None:
+    """A `tool_search_output` entry reduced to the tools it declares with a schema.
+
+    Functions listed by name only are dropped, and so is a namespace left with no
+    members; a missing description is defaulted so conversion uses the name.
+    """
+
+    def declarable(entry: Any) -> bool:
+        return isinstance(entry, dict) and "parameters" in entry
+
+    if is_namespace_tool_param(discovered):
+        inner = [
+            {**entry, "description": entry.get("description")}
+            for entry in discovered.get("tools", []) or []
+            if declarable(entry)
+        ]
+        return cast(ToolParam, {**discovered, "tools": inner}) if inner else None
+    if declarable(discovered):
+        return cast(
+            ToolParam, {**discovered, "description": discovered.get("description")}
         )
-    )
+    return None
+
+
+def _register_client_discovery(
+    discovered: list[ToolParam],
+    tools: list[ToolInfo | Tool],
+    tool_namespaces: dict[str, _ToolIdentity],
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
+    allow_remote_mcp: bool,
+) -> dict[_ToolIdentity, str]:
+    """Add client-discovered tools to `tools` for a non-OpenAI provider.
+
+    A discovered namespace member is exposed as ``<namespace>__<name>`` and a
+    plain tool under its own name, and `tool_namespaces` maps each generic name
+    back to its Responses identity. A tool is identified by name and namespace:
+    one the request already declares is not exposed again, a later discovery of
+    the same tool replaces the earlier one, and a different tool under a name
+    already in use raises. Returns the generic name of each discovered
+    namespaced identity, under which the scaffold's replayed calls are shown
+    to the model.
+    """
+    exposed: dict[str, _ToolIdentity] = {}
+    declared: set[_ToolIdentity] = set()
+    for tool in tools:
+        info = tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+        declared_namespace = (info.options or {}).get(RESPONSES_NAMESPACE)
+        identity = _ToolIdentity(
+            info.name, declared_namespace[0] if declared_namespace else None
+        )
+        declared.add(identity)
+        exposed.setdefault(info.name, identity)
+
+    discovered_tools: dict[str, ToolInfo | Tool] = {}
+    generic_names: dict[_ToolIdentity, str] = {}
+    for entry in discovered:
+        namespace: str | None = None
+        members = [entry]
+        if is_namespace_tool_param(entry):
+            namespace = entry["name"]
+            members = [cast(ToolParam, member) for member in entry.get("tools", [])]
+        for member in members:
+            if not _non_openai_accepts(member, client_tool_search=True):
+                continue
+            for tool in tools_from_responses_tool(
+                member, web_search, code_execution, allow_remote_mcp, non_openai=True
+            ):
+                info = tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+                identity = _ToolIdentity(info.name, namespace)
+                if identity in declared:
+                    continue
+                name = f"{namespace}__{info.name}" if namespace else info.name
+                if exposed.setdefault(name, identity) != identity:
+                    raise RuntimeError(
+                        f"Ambiguous client tool catalog: discovered tool "
+                        f"'{name}' conflicts with a tool that is already available."
+                    )
+                if isinstance(tool, ToolInfo):
+                    tool.name = name
+                discovered_tools[name] = tool
+                if namespace is not None:
+                    tool_namespaces[name] = identity
+                    generic_names[identity] = name
+    tools.extend(discovered_tools.values())
+    return generic_names
 
 
 async def inspect_responses_api_request_impl(
@@ -352,16 +443,6 @@ async def inspect_responses_api_request_impl(
 
     # validate computer use compatibility
     responses_tools: list[ToolParam] = list(json_data.get("tools", []))
-    client_discovered_tools: list[ToolParam] = []
-    client_tool_search_declared = not is_openai and any(
-        is_tool_search_tool_param(tool) and tool.get("execution") == "client"
-        for tool in responses_tools
-    )
-    client_tool_search_call_ids = (
-        _client_tool_search_call_ids(json_data["input"])
-        if not is_openai and not client_tool_search_declared
-        else set()
-    )
 
     # some CLI agents (e.g. codex >= 0.144) declare their tools via
     # `additional_tools` input items rather than (or in addition to) the
@@ -380,21 +461,17 @@ async def inspect_responses_api_request_impl(
                     if key not in declared_tool_keys:
                         declared_tool_keys.add(key)
                         responses_tools.append(declared)
-            # a client tool_search result declares tools to a non-OpenAI
-            # provider; OpenAI models replay it natively instead
-            elif (
-                not is_openai
-                and isinstance(item, dict)
-                and _is_client_tool_search_output(
-                    item, client_tool_search_declared, client_tool_search_call_ids
-                )
-            ):
-                client_discovered_tools.extend(_client_discovery_tools(item))
 
-    if not is_openai and (
-        any(_contains_computer_tool(tool) for tool in responses_tools)
-        or any(_contains_computer_tool(tool) for tool in client_discovered_tools)
-    ):
+    client_discovery = not is_openai and not _speaks_responses(model)
+    client_discovered_tools = (
+        _client_discovered_tools(input, responses_tools) if client_discovery else []
+    )
+
+    has_computer_use = any(
+        is_computer_tool_param(tool)
+        for tool in (*responses_tools, *client_discovered_tools)
+    )
+    if has_computer_use and not is_openai:
         raise RuntimeError(
             f"computer use with the OpenAI Responses agent bridge requires an "
             f"OpenAI model, got '{ModelName(model)}'"
@@ -408,7 +485,7 @@ async def inspect_responses_api_request_impl(
     tools: list[ToolInfo | Tool] = []
     tool_namespaces: dict[str, _ToolIdentity] = {}
     for tool in responses_tools:
-        if not is_openai and not _non_openai_accepts(tool):
+        if not is_openai and not _non_openai_accepts(tool, client_discovery):
             continue
         if is_namespace_tool_param(tool):
             _harvest_tool_namespaces(tool, tool_namespaces)
@@ -418,26 +495,21 @@ async def inspect_responses_api_request_impl(
                 web_search,
                 code_execution,
                 bridge.allow_remote_mcp,
-                non_openai=not is_openai,
+                non_openai=client_discovery,
             )
         )
-    discovered_tool_names: dict[_ToolIdentity, str] | None = None
-    if not is_openai:
-        tool_names: _ToolNames = {
-            tool.name: None for tool in tools if isinstance(tool, ToolInfo)
-        }
-        for tool in client_discovered_tools:
-            tools.extend(
-                tools_from_client_tool_search_output(
-                    tool,
-                    web_search,
-                    code_execution,
-                    bridge.allow_remote_mcp,
-                    tool_namespaces,
-                    tool_names,
-                )
-            )
-        discovered_tool_names = _discovered_tool_names(tool_names)
+    discovered_tool_names = (
+        _register_client_discovery(
+            client_discovered_tools,
+            tools,
+            tool_namespaces,
+            web_search,
+            code_execution,
+            bridge.allow_remote_mcp,
+        )
+        if client_discovery
+        else None
+    )
     tools = [tool for tool in tools if tool]
     # client-controlled; validated by tool_choice_from_responses_tool_choice below
     responses_tool_choice: Any = json_data.get("tool_choice", None)
@@ -447,11 +519,14 @@ async def inspect_responses_api_request_impl(
 
     # convert inspect messages (input was read above, before tool merging)
 
-    # OpenAI-native calls use raw inner names; non-OpenAI providers receive the
-    # generic-name mappings registered during client discovery above.
-    # (As declarations for grant resolution, discovered tools are read from the
-    # generation input instead, per attempt: `_declarations_in_input` below.)
-    if is_openai and isinstance(input, list):
+    # deferred namespace tools (e.g. codex multi_agent) are not declared in the
+    # top-level `tools` array; they are discovered via tool_search and appear as
+    # namespace entries inside tool_search_output items in the conversation.
+    # Harvest those too so outgoing function calls carry the right `namespace`.
+    # (As declarations for grant resolution they are read from the generation
+    # input instead, per attempt: `_declarations_in_input` below.) With client
+    # discovery, the mapping was registered above under generic names instead.
+    if not client_discovery and isinstance(input, list):
         for item in input:
             if isinstance(item, dict) and is_tool_search_output(item):
                 for discovered in item.get("tools", []) or []:
@@ -601,82 +676,6 @@ def _discovered_tool_declarations(
         )
         if isinstance(tool, ToolInfo)
     ]
-
-
-def _declared_discovery_entry(discovered: Any) -> ToolParam | None:
-    """A `tool_search_output` entry reduced to the tools it declares with a schema.
-
-    Functions listed by name only are dropped, and so is a namespace left with no
-    members; a missing description is defaulted so conversion uses the name.
-    """
-
-    def declarable(entry: Any) -> bool:
-        return isinstance(entry, dict) and "parameters" in entry
-
-    if is_namespace_tool_param(discovered):
-        inner = [
-            {**entry, "description": entry.get("description")}
-            for entry in discovered.get("tools", []) or []
-            if declarable(entry)
-        ]
-        return cast(ToolParam, {**discovered, "tools": inner}) if inner else None
-    if declarable(discovered):
-        return cast(
-            ToolParam, {**discovered, "description": discovered.get("description")}
-        )
-    return None
-
-
-def _record_tool_namespace(
-    tool_namespaces: dict[str, _ToolIdentity],
-    exposed_name: str,
-    name: str,
-    namespace: str,
-) -> None:
-    identity = _ToolIdentity(name, namespace)
-    existing = tool_namespaces.get(exposed_name)
-    if existing is not None and existing != identity:
-        raise RuntimeError(
-            f"Ambiguous tool catalog: '{exposed_name}' names both "
-            f"'{existing.namespace}::{existing.name}' and '{namespace}::{name}'."
-        )
-    tool_namespaces[exposed_name] = identity
-
-
-def _register_client_tool(
-    tool_names: _ToolNames,
-    exposed_name: str,
-    name: str,
-    namespace: str | None,
-    parameters: ToolParams,
-) -> bool:
-    """Register a tool that client discovery exposes to a non-OpenAI provider.
-
-    Return True when newly registered and False when the same tool is already
-    registered under ``exposed_name``; raise RuntimeError for any other name
-    conflict.
-    """
-    identity = _DiscoveredTool(name, namespace, parameters)
-    if tool_names.get(exposed_name) == identity:
-        return False
-    if exposed_name in tool_names:
-        raise RuntimeError(
-            f"Ambiguous client tool catalog: discovered tool "
-            f"'{exposed_name}' conflicts with a tool that is already available."
-        )
-    tool_names[exposed_name] = identity
-    return True
-
-
-def _discovered_tool_names(
-    tool_names: _ToolNames,
-) -> dict[_ToolIdentity, str]:
-    """Map the identity of each namespaced discovered tool to its generic name."""
-    discovered: dict[_ToolIdentity, str] = {}
-    for exposed_name, tool in tool_names.items():
-        if tool is not None and tool.namespace is not None:
-            discovered[_ToolIdentity(tool.name, tool.namespace)] = exposed_name
-    return discovered
 
 
 def _harvest_tool_namespaces(
@@ -958,72 +957,6 @@ def tools_from_responses_tool(
         non_openai=non_openai,
     )
     return [tool] if tool is not None else []
-
-
-def tools_from_client_tool_search_output(
-    tool_param: ToolParam,
-    web_search_providers: WebSearchProviders | None,
-    code_execution_providers: CodeExecutionProviders | None,
-    allow_remote_mcp: bool,
-    tool_namespaces: dict[str, _ToolIdentity],
-    tool_names: _ToolNames,
-) -> list[ToolInfo | Tool]:
-    """Expose client-discovered tools to a non-OpenAI model API.
-
-    Namespace tools must use the generic ``<namespace>__<name>`` convention for
-    the non-OpenAI provider while Responses calls retain separate namespace and
-    name fields.
-    """
-    if not is_namespace_tool_param(tool_param):
-        if not _non_openai_accepts(tool_param):
-            return []
-        client_tools = tools_from_responses_tool(
-            tool_param,
-            web_search_providers,
-            code_execution_providers,
-            allow_remote_mcp,
-            non_openai=True,
-        )
-        unique_client_tools: list[ToolInfo | Tool] = []
-        for client_tool in client_tools:
-            if not isinstance(client_tool, ToolInfo) or _register_client_tool(
-                tool_names,
-                client_tool.name,
-                client_tool.name,
-                None,
-                client_tool.parameters,
-            ):
-                unique_client_tools.append(client_tool)
-        return unique_client_tools
-
-    namespace = tool_param["name"]
-    flattened: list[ToolInfo | Tool] = []
-    for inner in tool_param.get("tools", []):
-        inner_param = cast(ToolParam, inner)
-        if not _non_openai_accepts(inner_param):
-            continue
-        for inner_tool in tools_from_responses_tool(
-            inner_param,
-            web_search_providers,
-            code_execution_providers,
-            allow_remote_mcp,
-            non_openai=True,
-        ):
-            if isinstance(inner_tool, ToolInfo):
-                name = inner_tool.name
-                generic_name = f"{namespace}__{name}"
-                if not _register_client_tool(
-                    tool_names,
-                    generic_name,
-                    name,
-                    namespace,
-                    inner_tool.parameters,
-                ):
-                    continue
-                inner_tool.name = generic_name
-                _record_tool_namespace(tool_namespaces, generic_name, name, namespace)
-            flattened.append(inner_tool)
-    return flattened
 
 
 def resolve_code_interpreter_providers(

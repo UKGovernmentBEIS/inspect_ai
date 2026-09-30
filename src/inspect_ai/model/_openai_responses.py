@@ -440,13 +440,8 @@ def tool_search_output_tools(message: ChatMessageTool) -> list[Any]:
     """The discovered tools a `tool_search` result message carries, as sent on the wire.
 
     The tools were carried as JSON in the tool message content
-    (`messages_from_responses_input`); this parses them back and validates the
-    whole list as `list[ToolParam]`. Validation is all-or-nothing: if any entry
-    is invalid (content cleared by compaction, a rewrite, a malformed entry) the
-    result is an empty list, and that is what the `tool_search_output` item
-    replayed to the model carries. Anything else that reasons about what the
-    model was told by a tool-search result (the agent bridge's grant resolution)
-    must go through this same function so it cannot disagree with the wire.
+    (`messages_from_responses_input`); this parses them back with
+    `validated_tool_search_tools`.
     """
     content = message.content
     tools_json = (
@@ -454,6 +449,20 @@ def tool_search_output_tools(message: ChatMessageTool) -> list[Any]:
         if isinstance(content, str)
         else "".join(c.text for c in content if isinstance(c, ContentText))
     )
+    return validated_tool_search_tools(tools_json)
+
+
+def validated_tool_search_tools(tools_json: str) -> list[Any]:
+    """The tools a `tool_search` result lists, validated as the wire carries them.
+
+    Validates the whole JSON list as `list[ToolParam]`. Validation is
+    all-or-nothing: if any entry is invalid (content cleared by compaction, a
+    rewrite, a malformed entry) the result is an empty list, and that is what the
+    `tool_search_output` item replayed to the model carries. Anything else that
+    reasons about what the model was told by a tool-search result (the agent
+    bridge's grant resolution and its client discovery) must go through this same
+    function so it cannot disagree with the wire.
+    """
     try:
         validated = tool_search_tools_adapter.validate_json(tools_json)
         # validate_json yields lazy `ValidatorIterator`s for namespace tools
