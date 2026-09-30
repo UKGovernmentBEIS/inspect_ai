@@ -49,7 +49,7 @@ try:
         Observation,
         Reported,
         concurrent,
-        final,
+        decide_final,
         monitor,
         protocol,
     )
@@ -109,7 +109,7 @@ def d3_terminate_after() -> ControlProtocol:
 @protocol
 def d3_final() -> ControlProtocol:
     async def veto(context: Context, step: BeforeToolCall) -> Decision | None:
-        final(Decision.reject(message="vetoed"))
+        decide_final(Decision.reject(message="vetoed"))
         return None
 
     return veto
