@@ -3,7 +3,7 @@ import logging
 import os
 import secrets
 import urllib.parse
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from functools import partial
 from io import BytesIO
 from logging import getLogger
@@ -152,6 +152,7 @@ def view_server_app(
     recursive: bool = True,
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
+    show_shards: bool = False,
 ) -> "FastAPI":
     app = FastAPI()
 
@@ -183,6 +184,16 @@ def view_server_app(
         if access_policy is not None:
             if not await access_policy.can_write(request, file):
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
+    def _read_checker(request: Request) -> Callable[[str], Awaitable[bool]] | None:
+        if access_policy is None:
+            return None
+        policy = access_policy
+
+        async def can_read(name: str) -> bool:
+            return await policy.can_read(request, await _unmap_file(request, name))
+
+        return can_read
 
     async def _validate_list(request: Request, file: str) -> None:
         if access_policy is not None:
@@ -377,6 +388,8 @@ def view_server_app(
             fs_options=fs_options,
             mtime=mtime,
             file_count=file_count,
+            show_shards=show_shards,
+            can_read=_read_checker(request),
         )
         for entry in result.files:
             entry.name = await _unmap_file(request, entry.name)
@@ -396,6 +409,8 @@ def view_server_app(
             await _map_file(request, log_dir),
             recursive=recursive,
             fs_options=fs_options,
+            show_shards=show_shards,
+            can_read=_read_checker(request),
         )
         if listing is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
@@ -664,7 +679,7 @@ class AsyncFilesystemMiddleware:
     Pure-ASGI (not BaseHTTPMiddleware) so the ContextVar set here propagates to
     the route handler and into its `tg_collect` fan-out tasks — BaseHTTPMiddleware
     runs the endpoint in a separate task and would drop it. The single instance
-    keeps one warm aioboto3 client + connection pool across all requests, so S3
+    keeps one warm aiobotocore client + connection pool across all requests, so S3
     reads don't re-pay the credential/connection cold-start on every request.
     """
 
@@ -750,6 +765,7 @@ def standalone_view_app(
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
     dist_dir: Path | None = None,
+    show_shards: bool = False,
 ) -> ASGIApp:
     api = view_server_app(
         mapping_policy=None,
@@ -762,6 +778,7 @@ def standalone_view_app(
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
+        show_shards=show_shards,
     )
 
     resolved_dist_dir = dist_dir or resolve_dist_directory()
@@ -797,6 +814,7 @@ def view_server(
     trusted_hosts: tuple[str, ...] = (),
     unsafe_allow_unauthenticated: bool = False,
     network_policy: ViewerNetworkPolicy | None = None,
+    show_shards: bool = False,
 ) -> None:
     network_policy = network_policy or resolve_viewer_network_policy(
         bind_host=host,
@@ -819,6 +837,7 @@ def view_server(
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
+        show_shards=show_shards,
     )
 
     # one server-lifetime async filesystem (shared client + connection pool)
@@ -842,7 +861,7 @@ def view_server(
             # concurrently with server startup, so the first request doesn't
             # pay the cold-start but slow credential resolution doesn't delay
             # listening. Only relevant for S3; other backends don't use the
-            # aioboto3 client.
+            # aiobotocore client.
             try:
                 await shared_fs.exists(log_dir)
             except Exception:

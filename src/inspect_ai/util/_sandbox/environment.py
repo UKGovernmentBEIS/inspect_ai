@@ -180,6 +180,22 @@ class SandboxEnvironment(abc.ABC):
         such as JSON. For large output, write to a file and use `read_file()`,
         which always raises `OutputLimitExceededError` when the limit is exceeded.
 
+        Provider requirement: `cmd[0]` is resolved through the sandbox's own
+        `PATH` (with `env` applied first, when the provider can), which is what
+        the agent's commands expect. Any command the provider itself inserts
+        ahead of `cmd` (a `timeout`, `runuser`, `su`, or `env` wrapper) runs
+        with `user`'s authority before `cmd` does, so it must be launched by
+        absolute path or resolved through a fixed system `PATH`, never through
+        the image's: an image whose `PATH` puts a directory the default user can
+        write to ahead of the system directories would otherwise let that user
+        supply the wrapper root runs. The same applies to how `env` is applied:
+        a provider must set variables through its exec API (as `docker exec
+        --env` does), not by prefixing a bare `env K=V` resolved through the
+        image's `PATH`. Inspect's own privileged commands go through
+        `inspect_ai.util._sandbox._privileged`, which launches the shell by
+        absolute path, pins `PATH` inside it, and passes the pinned `PATH` in
+        `env` for providers that honour it when resolving their wrapper.
+
         Args:
           cmd: Command or command and arguments to execute.
           input: Standard input (optional).
