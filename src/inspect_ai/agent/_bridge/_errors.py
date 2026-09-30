@@ -36,12 +36,8 @@ class BridgePolicyError(Exception):
 class ResponseFilterError(Exception):
     """A `response_filter` raised, or returned something other than `None` or a `ModelOutput` with choices.
 
-    The original exception is preserved as `__cause__`, and its type leads the
-    message.
-
-    `LimitExceededError`, `TerminateSampleError` and `ModelRefusalError` are never
-    wrapped: they are sample control flow rather than filter failures, so a limit,
-    termination or refusal raised inside a filter keeps its normal outcome.
+    When the filter raised, what it raised is `__cause__` and the message starts
+    with the underlying exception's type.
     """
 
 

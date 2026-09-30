@@ -1,7 +1,7 @@
 ## Unreleased
 
 - Agent Bridge: `agent_bridge()` and `sandbox_agent_bridge()` now accept a `response_filter` for transforming model output before it is returned.
-- Agent Bridge: On sandbox bridges, a `TerminateSampleError` raised during a bridged generation (for example by a request `filter`) now terminates the sample instead of returning an error to the agent.
+- Agent Bridge: On sandbox bridges, a request `filter` that terminates the sample now ends it instead of returning an error to the agent.
 
 ## 0.3.273 (29 September 2026)
 

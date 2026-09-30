@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, cast, get_args
 from unittest.mock import AsyncMock
 
 import anyio
@@ -36,9 +36,11 @@ from inspect_ai.model._model import (
     get_model,
 )
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
+from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util import ExecResult
+from inspect_ai.util._limit import LimitExceededError
 
 
 class _FakeProxy:
@@ -164,7 +166,7 @@ def test_response_filter_passthrough(tmp_path: Path) -> None:
     log = _run_eval_with_filters(tmp_path, response_filter=my_filter)
     assert call_count["n"] == 1
     assert log.samples is not None
-    assert log.samples[0].output.completion == "Default output from mockllm/model"
+    assert log.samples[0].output.completion == MockLLM.default_output
 
 
 def test_response_filter_replaces_output(tmp_path: Path) -> None:
@@ -563,15 +565,6 @@ FilterFailure = Literal[
     "wrong_type",
     "no_choices",
 ]
-ALL_FILTER_FAILURES: list[FilterFailure] = [
-    "token_limit",
-    "grouped_limit",
-    "terminate",
-    "refusal",
-    "bug",
-    "wrong_type",
-    "no_choices",
-]
 
 JUDGE_TOKEN_LIMIT = 5
 TERMINATE_REASON = "Judge flagged the response."
@@ -671,7 +664,7 @@ def _assert_failure_outcome(log: EvalLog, failure: FilterFailure) -> None:
             assert "no choices" in sample.error.message
 
 
-@pytest.mark.parametrize("failure", ALL_FILTER_FAILURES)
+@pytest.mark.parametrize("failure", get_args(FilterFailure))
 def test_response_filter_failure_outcome_in_process(
     tmp_path: Path, failure: FilterFailure
 ) -> None:
@@ -719,6 +712,27 @@ def _sandbox_bridge(response_filter: ModelResponseFilter) -> SandboxAgentBridge:
         model_aliases={"inspect": _under_limit_model()},
         response_filter=response_filter,
     )
+
+
+async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
+    """A limit hit in a response filter reaches the sandbox service unchanged.
+
+    Drives the real generate_completions -> bridge_generate -> forwarder path: the
+    sandbox service ends the sample on a `LimitExceededError` from a model method,
+    whereas a wrapped or forwarded one would fail the sample instead.
+    """
+    limit_error = LimitExceededError("token", value=102, limit=JUDGE_TOKEN_LIMIT)
+
+    async def over_limit_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        raise limit_error
+
+    bridge = _sandbox_bridge(over_limit_filter)
+    generate = _forward_provider_errors(generate_completions(bridge), bridge)
+    with pytest.raises(LimitExceededError) as exc_info:
+        await generate(CHAT_REQUEST)
+    assert exc_info.value is limit_error
 
 
 @pytest.mark.parametrize(
