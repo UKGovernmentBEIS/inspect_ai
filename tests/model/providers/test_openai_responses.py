@@ -446,15 +446,15 @@ async def test_responses_api_terminal_error_block_code_converts() -> None:
         output=[],
         tools=[],
         error=ResponseError.model_construct(
-            code="content_policy_violation",
-            message="Your prompt was blocked by our content policy.",
+            code="bio_policy",
+            message="This content was flagged for possible biological risk.",
         ),
         status="failed",
     )
     output, model_call = await _generate_responses_with_mock(blocked_response)
     assert isinstance(output, ModelOutput)
     assert output.stop_reason == "content_filter"
-    assert "blocked" in output.completion
+    assert "biological risk" in output.completion
     assert model_call.error is True
 
     server_error_response = Response.model_construct(
