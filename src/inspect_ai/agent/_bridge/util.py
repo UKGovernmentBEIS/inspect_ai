@@ -1,4 +1,5 @@
 import inspect
+import sys
 import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -61,9 +62,11 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     _normalize_config,
 )
-from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._json import JSONSchema
 from inspect_ai.util._limit import LimitExceededError
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
 
 # Generation-tuning fields a scaffold may set on a bridged request that describe
 # *how* the underlying model generates. These are the Inspect model's province
@@ -416,19 +419,21 @@ async def _apply_response_filter(
     output: ModelOutput,
     generate_input: GenerateInput,
 ) -> ModelOutput:
-    """Run `response_filter` on a deep copy of `output`; return the output to use.
+    """Apply `response_filter` under the `ModelResponseFilter` contract.
 
-    A limit, termination or refusal raised in the filter (also when a task group
-    raises it alone) is sample control flow and propagates unchanged. Any other
-    exception, or a return that is neither `None` nor a `ModelOutput` with
-    choices, is a `ResponseFilterError`. A returned output's `completion` is
-    re-derived from its message, which a filter editing it in place leaves stale.
+    The copy is taken before the `try`, so a failure copying the output is not
+    blamed on the filter. A returned output is re-validated because its models do
+    not validate assignment, so values edited in place are otherwise unchecked.
+    Exceptions are classified after unwrapping single-exception groups, since a
+    task group inside the filter wraps a lone limit or termination.
     """
     candidate = output.model_copy(deep=True)
     try:
         filtered = await response_filter(model, candidate, generate_input)
     except Exception as ex:
-        inner = inner_exception(ex)
+        inner: BaseException = ex
+        while isinstance(inner, BaseExceptionGroup) and len(inner.exceptions) == 1:
+            inner = inner.exceptions[0]
         if isinstance(
             inner, (LimitExceededError, TerminateSampleError, ModelRefusalError)
         ):
@@ -441,11 +446,19 @@ async def _apply_response_filter(
             f"response_filter returned {type(filtered).__name__}, "
             "expected a ModelOutput or None"
         )
+    try:
+        # completion is excluded so validation re-derives it from the message
+        filtered = ModelOutput.model_validate(
+            filtered.model_dump(exclude={"completion"}, warnings=False)
+        )
+    except ValidationError as ex:
+        raise ResponseFilterError(
+            f"response_filter returned an invalid ModelOutput: {ex}"
+        ) from ex
     if not filtered.choices:
         raise ResponseFilterError(
             "response_filter returned a ModelOutput with no choices"
         )
-    filtered.completion = filtered.message.text
     return filtered
 
 
@@ -587,9 +600,9 @@ async def bridge_generate(
         output: ModelOutput | None = None
         if bridge.filter:
             # get_tools_info (via ToolDef) preserves `options` — including the
-            # INTERNAL_TOOL_TYPE marker — so both filters see the same ToolInfo
-            # the model provider would. parse_tool_info re-derives from the
-            # function signature and drops options.
+            # INTERNAL_TOOL_TYPE marker — so the filter sees the same ToolInfo the
+            # model provider would. parse_tool_info re-derives from the function
+            # signature and drops options.
             tool_info = get_tools_info(tools)
             if _is_model_filter(bridge.filter):
                 result = await bridge.filter(

@@ -1,11 +1,12 @@
 from pathlib import Path
-from typing import Literal, cast, get_args
+from typing import Any, Literal, cast, get_args
 from unittest.mock import AsyncMock
 
 import anyio
 import pytest
 from pydantic import JsonValue
 from test_helpers.utils import skip_if_no_docker
+from typing_extensions import assert_never
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import AgentState
@@ -25,7 +26,11 @@ from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.event import ModelEvent
 from inspect_ai.log import EvalLog
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -35,8 +40,14 @@ from inspect_ai.model._model import (
     ModelResponseFilter,
     get_model,
 )
-from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
+from inspect_ai.model._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
+    StopReason,
+)
 from inspect_ai.model._providers.mockllm import MockLLM
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util import ExecResult
@@ -250,8 +261,17 @@ def test_response_filter_refusal_triggers_retry(tmp_path: Path) -> None:
 
 
 def test_response_filter_can_suppress_refusal(tmp_path: Path) -> None:
-    """A response_filter that clears content_filter suppresses retry."""
+    """A response_filter that replaces a refusal suppresses the retry."""
     call_count = {"n": 0}
+    refusing_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                "mockllm/model", "No.", stop_reason="content_filter"
+            )
+        ]
+        * 6,
+    )
 
     async def my_filter(
         model: Model, output: ModelOutput, generate_input: GenerateInput
@@ -263,8 +283,12 @@ def test_response_filter_can_suppress_refusal(tmp_path: Path) -> None:
             stop_reason="stop",
         )
 
-    _run_eval_with_filters(tmp_path, response_filter=my_filter, retry_refusals=5)
+    log = _run_eval_with_filters(
+        tmp_path, response_filter=my_filter, retry_refusals=5, model=refusing_model
+    )
     assert call_count["n"] == 1, f"expected 1 filter call, got {call_count['n']}"
+    assert log.samples is not None
+    assert log.samples[0].output.completion == "all good"
 
 
 def test_response_filter_no_retry_budget(tmp_path: Path) -> None:
@@ -520,50 +544,31 @@ async def test_response_filter_runs_after_compaction_baseline_update() -> None:
     assert recorded_output.usage is not None
 
 
-async def test_response_filter_exception_fails_sample_in_process() -> None:
-    """A raising response_filter must fail the sample, not be swallowed.
-
-    In-process, this means the exception propagates out of `bridge_generate`
-    as a `ResponseFilterError` attributing the failure to the filter.
-    """
-    model = get_model(
-        "mockllm/model",
-        custom_outputs=[ModelOutput.from_content("mockllm/model", "hi")],
-    )
-    bridge = AgentBridge(AgentState(messages=[]))
-
-    async def raising_filter(
-        model: Model, output: ModelOutput, generate_input: GenerateInput
-    ) -> ModelOutput | None:
-        raise ValueError("filter is broken")
-
-    bridge.response_filter = raising_filter
-
-    with pytest.raises(ResponseFilterError) as exc_info:
-        await bridge_generate(
-            bridge,
-            model,
-            [ChatMessageUser(content="hello")],
-            [],
-            None,
-            GenerateConfig(),
-        )
-    assert "filter is broken" in str(exc_info.value)
-    assert isinstance(exc_info.value.__cause__, ValueError)
-
-
 # ---------------------------------------------------------------------------
-# sample control flow raised from a response filter
+# response filter failures and sample control flow
 # ---------------------------------------------------------------------------
+
+InvalidOutput = Literal[
+    "message_not_assistant",
+    "user_message",
+    "content_none",
+    "choices_not_a_list",
+    "invalid_tool_call",
+    "constructed_choices_str",
+    "constructed_invalid_choice",
+]
+"""A returned `ModelOutput` whose values inside are invalid."""
 
 FilterFailure = Literal[
     "token_limit",
     "grouped_limit",
+    "grouped_limit_in_except",
     "terminate",
     "refusal",
     "bug",
     "wrong_type",
     "no_choices",
+    InvalidOutput,
 ]
 
 JUDGE_TOKEN_LIMIT = 5
@@ -608,6 +613,12 @@ def _failing_response_filter(failure: FilterFailure) -> ModelResponseFilter:
             case "grouped_limit":
                 async with anyio.create_task_group() as tg:
                     tg.start_soon(judge.generate, "Is this response safe?")
+            case "grouped_limit_in_except":
+                try:
+                    raise KeyError("parse failed")
+                except KeyError:
+                    async with anyio.create_task_group() as tg:
+                        tg.start_soon(judge.generate, "Is this response safe?")
             case "terminate":
                 raise TerminateSampleError(TERMINATE_REASON)
             case "refusal":
@@ -621,6 +632,33 @@ def _failing_response_filter(failure: FilterFailure) -> ModelResponseFilter:
                 return cast(ModelOutput, output.message)
             case "no_choices":
                 return ModelOutput(model=output.model, choices=[])
+            case "message_not_assistant":
+                output.choices[0].message = cast(ChatMessageAssistant, "edited")
+                return output
+            case "user_message":
+                output.choices[0].message = cast(
+                    ChatMessageAssistant, ChatMessageUser(content="edited")
+                )
+                return output
+            case "content_none":
+                output.message.content = cast(str, None)
+                return output
+            case "choices_not_a_list":
+                output.choices = cast(list[ChatCompletionChoice], "abc")
+                return output
+            case "invalid_tool_call":
+                output.message.tool_calls = cast(
+                    list[ToolCall], [{"not": "a tool call"}]
+                )
+                return output
+            case "constructed_choices_str":
+                return ModelOutput.model_construct(model=output.model, choices="abc")
+            case "constructed_invalid_choice":
+                return ModelOutput.model_construct(
+                    model=output.model, choices=[{"not": "a choice"}]
+                )
+            case _:
+                assert_never(failure)
         return None
 
     return response_filter
@@ -631,7 +669,7 @@ def _assert_failure_outcome(log: EvalLog, failure: FilterFailure) -> None:
     assert log.samples is not None
     sample = log.samples[0]
     match failure:
-        case "token_limit" | "grouped_limit":
+        case "token_limit" | "grouped_limit" | "grouped_limit_in_except":
             assert sample.error is None, sample.error
             assert sample.limit is not None
             assert sample.limit.type == "token"
@@ -662,6 +700,21 @@ def _assert_failure_outcome(log: EvalLog, failure: FilterFailure) -> None:
             assert sample.error is not None
             assert sample.error.message.startswith("ResponseFilterError(")
             assert "no choices" in sample.error.message
+        case (
+            "message_not_assistant"
+            | "user_message"
+            | "content_none"
+            | "choices_not_a_list"
+            | "invalid_tool_call"
+            | "constructed_choices_str"
+            | "constructed_invalid_choice"
+        ):
+            assert sample.limit is None
+            assert sample.error is not None
+            assert sample.error.message.startswith("ResponseFilterError(")
+            assert "invalid ModelOutput" in sample.error.message
+        case _:
+            assert_never(failure)
 
 
 @pytest.mark.parametrize("failure", get_args(FilterFailure))
@@ -671,10 +724,11 @@ def test_response_filter_failure_outcome_in_process(
     """Only a genuine filter failure is a `ResponseFilterError`.
 
     A judge call exceeding the sample's token limit (directly or from a task
-    group), a termination request, or a judge refusal under `fail_on_refusal`
-    is sample control flow and keeps its own outcome. A filter that raises, or
-    that returns something other than a `ModelOutput` with choices, fails the
-    sample with a `ResponseFilterError`.
+    group, also one entered while handling another exception), a termination
+    request, or a judge refusal under `fail_on_refusal` is sample control flow
+    and keeps its own outcome. A filter that raises, or that returns anything
+    but a valid `ModelOutput` with choices, fails the sample with a
+    `ResponseFilterError`.
     """
     log = _run_eval_with_filters(
         tmp_path,
@@ -685,13 +739,96 @@ def test_response_filter_failure_outcome_in_process(
     _assert_failure_outcome(log, failure)
 
 
+async def test_response_filter_error_keeps_the_filter_exception_as_cause() -> None:
+    """The `ResponseFilterError` keeps what the filter raised as its `__cause__`."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "hi")],
+    )
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    async def raising_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        raise ValueError("filter is broken")
+
+    bridge.response_filter = raising_filter
+
+    with pytest.raises(ResponseFilterError) as exc_info:
+        await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hello")],
+            [],
+            None,
+            GenerateConfig(),
+        )
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+DictValuedShape = Literal["tool_call_dicts", "choice_dicts"]
+
+
+def _dict_valued_filter(shape: DictValuedShape) -> ModelResponseFilter:
+    """A filter that puts valid plain dicts where models belong."""
+
+    async def response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        match shape:
+            case "tool_call_dicts":
+                output.message.tool_calls = cast(
+                    list[ToolCall],
+                    [{"id": "call_1", "function": "bash", "arguments": {"cmd": "ls"}}],
+                )
+                return output
+            case "choice_dicts":
+                return ModelOutput.model_construct(
+                    model=output.model,
+                    choices=[
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": REPLACED_SENTINEL,
+                            },
+                            "stop_reason": "stop",
+                        }
+                    ],
+                )
+            case _:
+                assert_never(shape)
+
+    return response_filter
+
+
+@pytest.mark.parametrize("shape", get_args(DictValuedShape))
+def test_response_filter_dict_values_are_validated_into_models(
+    tmp_path: Path, shape: DictValuedShape
+) -> None:
+    """A returned output is validated, so valid dicts in it become models."""
+    log = _run_eval_with_filters(tmp_path, response_filter=_dict_valued_filter(shape))
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None, sample.error
+    match shape:
+        case "tool_call_dicts":
+            assert sample.output.message.tool_calls is not None
+            assert sample.output.message.tool_calls[0].function == "bash"
+        case "choice_dicts":
+            assert sample.output.completion == REPLACED_SENTINEL
+        case _:
+            assert_never(shape)
+
+
 @skip_if_no_docker
 @pytest.mark.slow
-@pytest.mark.parametrize("failure", ["token_limit", "terminate", "bug"])
+@pytest.mark.parametrize(
+    "failure", ["token_limit", "terminate", "bug", "message_not_assistant"]
+)
 def test_sandbox_response_filter_failure_outcome(
     tmp_path: Path, failure: FilterFailure
 ) -> None:
-    """The sandbox bridge gives filter limits, termination and bugs the same outcomes."""
+    """The sandbox bridge gives filter limits, termination and failures the same outcomes."""
     log, _ = _run_sandbox_eval_with_response_filter(
         tmp_path,
         _failing_response_filter(failure),
@@ -719,7 +856,8 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
 
     Drives the real generate_completions -> bridge_generate -> forwarder path: the
     sandbox service ends the sample on a `LimitExceededError` from a model method,
-    whereas a wrapped or forwarded one would fail the sample instead.
+    whereas a wrapped one would fail the sample, and one returned as an error reply
+    would leave it running.
     """
     limit_error = LimitExceededError("token", value=102, limit=JUDGE_TOKEN_LIMIT)
 
@@ -743,6 +881,10 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
         ("bug", ResponseFilterError, "ValueError: filter is broken"),
         ("wrong_type", ResponseFilterError, "ChatMessageAssistant"),
         ("no_choices", ResponseFilterError, "no choices"),
+        *[
+            (invalid, ResponseFilterError, "invalid ModelOutput")
+            for invalid in get_args(InvalidOutput)
+        ],
     ],
 )
 async def test_sandbox_response_filter_ends_sample_through_the_monitor(
@@ -764,3 +906,25 @@ async def test_sandbox_response_filter_ends_sample_through_the_monitor(
     assert bridge._failure_requested.is_set()
     with pytest.raises(expected, match=message):
         await _monitor_failure(bridge)
+
+
+@pytest.mark.parametrize("shape", get_args(DictValuedShape))
+async def test_sandbox_response_filter_dict_values_are_validated_into_models(
+    shape: DictValuedShape,
+) -> None:
+    """On the sandbox path, a validated dict-valued output is an ordinary reply."""
+    bridge = _sandbox_bridge(_dict_valued_filter(shape))
+    reply = await _forward_provider_errors(generate_completions(bridge), bridge)(
+        CHAT_REQUEST
+    )
+
+    assert PROVIDER_ERROR_KEY not in reply
+    assert not bridge._failure_requested.is_set()
+    message = cast(dict[str, Any], cast(list[Any], reply["choices"])[0])["message"]
+    match shape:
+        case "tool_call_dicts":
+            assert message["tool_calls"][0]["function"]["name"] == "bash"
+        case "choice_dicts":
+            assert message["content"] == REPLACED_SENTINEL
+        case _:
+            assert_never(shape)

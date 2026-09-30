@@ -2087,7 +2087,8 @@ the model. The output comes from ``model.generate()``, or is the one a request
 recorded in the ``ModelEvent`` and bridge state: do not mutate them.
 
 Return ``None`` to keep the output, or a ``ModelOutput`` with at least one choice
-to replace it (its ``completion`` is re-derived from its message). A
+to replace it; it is validated, including values edited in place, and its
+``completion`` is re-derived from its message. A
 ``stop_reason="content_filter"`` replacement is handled like a model refusal
 (``retry_refusals``, ``fail_on_refusal``). The ``ModelEvent`` keeps the model's
 own output; the replacement is what the agent, bridge state and later turns see.
