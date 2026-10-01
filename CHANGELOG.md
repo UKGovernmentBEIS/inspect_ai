@@ -8,7 +8,7 @@
 - Log viewer: Tasks can set `ViewerConfig(trust_content=False)` to have the viewer show all of a log's content as plain text, with no markdown, media, or clickable links.
 - Log viewer: `inspect view --no-trust-content` (or `INSPECT_VIEW_TRUST_CONTENT=false`) shows every log's content as plain text.
 - Bugfix: Model usage now counts every billed request in a generate call (Anthropic pause_turn continuations, Gemini malformed tool call retries, OpenAI's reasoning summary check); Anthropic continues a paused turn at most 10 times.
-- Model output: New `input_context_tokens` field gives the input's size in the context window, which compaction and the ACP context display now use instead of billed usage.
+- Model output: New `input_context_tokens` field gives the input's size in the context window, which compaction, the ACP context display and the viewer's activity view now use instead of billed usage.
 
 ## 0.3.273 (29 September 2026)
 
