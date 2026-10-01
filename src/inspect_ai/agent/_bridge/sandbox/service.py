@@ -9,12 +9,14 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
 from inspect_ai.model._call_tools import (
+    ValidatedToolCall,
     get_tools_info,
     tool_call_error,
-    validate_tool_input,
+    validated_tool_call,
 )
 from inspect_ai.model._model import ModelRefusalError
 from inspect_ai.tool._tool import ToolParsingError
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
@@ -232,9 +234,10 @@ def call_tool(
     per proposal (see `SandboxAgentBridge.register_tool_execution_grants`), unless
     its server was registered with `require_proposal=False`.
 
-    Arguments are validated against the tool's schema as for a native call, so
-    a scaffold's malformed arguments surface as a `ToolParsingError` the model
-    can recover from; they are otherwise forwarded as the scaffold sent them.
+    Arguments are validated, canonicalized and converted as for a native call
+    (`validated_tool_call()`), so a scaffold's malformed arguments surface as a
+    `ToolParsingError` the model can recover from, and the grant is matched on
+    the canonical arguments approval saw.
     Exceptions are classified after unwrapping any task-group
     `ExceptionGroup`, as `execute_tools` does, and with the same
     `tool_call_error` mapping. Those a native call would show the model
@@ -256,9 +259,26 @@ def call_tool(
         if tool not in server_tools:
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
+        # approval and the grant saw the validated, canonical call; the tool runs
+        # with its arguments converted, as for a native call
+        tool_fn = server_tools[tool]
+        tool_def = ToolDef(tool_fn)
+        prepared: ValidatedToolCall | ToolParsingError
+        try:
+            prepared = validated_tool_call(
+                ToolCall(id="", function=tool, arguments=arguments), tool_def
+            )
+        except ToolParsingError as ex:
+            prepared = ex
+        grant_arguments = (
+            arguments
+            if isinstance(prepared, ToolParsingError)
+            else prepared.call.arguments
+        )
+
         if (
             server not in bridge.proposal_exempt_servers
-            and not bridge.consume_tool_execution_grant(server, tool, arguments)
+            and not bridge.consume_tool_execution_grant(server, tool, grant_arguments)
         ):
             warn_once(
                 logger,
@@ -272,14 +292,10 @@ def call_tool(
                 "proposed call)"
             )
 
-        tool_fn = server_tools[tool]
         try:
-            validation_errors = validate_tool_input(
-                arguments, ToolDef(tool_fn).parameters
-            )
-            if validation_errors:
-                raise ToolParsingError(validation_errors)
-            result = await tool_fn(**arguments)
+            if isinstance(prepared, ToolParsingError):
+                raise prepared
+            result = await tool_fn(**prepared.arguments)
         except Exception as ex:
             # classify the unwrapped exception, but let the original propagate:
             # the service dispatcher special-cases a bare LimitExceededError

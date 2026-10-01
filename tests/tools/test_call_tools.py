@@ -11,7 +11,11 @@ from typing_extensions import TypedDict
 from inspect_ai._util.content import ContentDocument, ContentText
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
-from inspect_ai.model._call_tools import MAX_TOOL_CALL_ARGUMENTS_DEPTH, execute_tools
+from inspect_ai.model._call_tools import (
+    MAX_TOOL_CALL_ARGUMENTS_DEPTH,
+    execute_tools,
+    tool_param,
+)
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
@@ -20,6 +24,7 @@ from inspect_ai.tool import tool
 from inspect_ai.tool._tool import tool_result_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util._sandbox import SandboxTimeoutError, SandboxUnavailableError
 
 # --- Helpers ---------------------------------------------------------------
@@ -536,3 +541,117 @@ async def test_tool_event_message_id_for_multiple_calls():
     # ensure each event has a distinct message_id (regression: previously
     # every event pointed at the first ChatMessageTool)
     assert len({e.message_id for e in tool_events}) == 3
+
+
+# --- Exact argument conversion ----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "type_hint,value",
+    [
+        (bool, "false"),
+        (bool, 0),
+        (str, {"a": 1}),
+        (str, ["a"]),
+        (str, 5),
+        (int, 1.5),
+        (int, "5"),
+        (int, True),
+        (float, "1.5"),
+        (float, False),
+        (float, 2**53 + 1),
+        (List[str], "abc"),
+        (Set[str], "abc"),
+        (Tuple[str, ...], {"a": 1}),
+        (Tuple[str, int], ["a", 1, 2]),
+        (Tuple[str, int], ["a", "1"]),
+        (Dict[str, int], ["a"]),
+        (MyTypedDict, "count"),
+        (MyDataClass, ["value"]),
+        (MyPydanticModel, {"name": "a", "id": 1.5}),
+        (MyPydanticModel, "a"),
+        (date, "not-a-date"),
+        (date, 20250101),
+        (MyEnum, "zulu"),
+    ],
+)
+def test_tool_param_rejects_inexact_conversions(type_hint: Any, value: Any) -> None:
+    from inspect_ai.tool._tool import ToolParsingError
+
+    with pytest.raises(ToolParsingError, match="Unable to convert"):
+        tool_param(type_hint, value)
+
+
+@pytest.mark.parametrize(
+    "type_hint,value,expected",
+    [
+        (bool, False, False),
+        (str, "5", "5"),
+        (int, 5, 5),
+        (int, 5.0, 5),
+        (float, 5, 5.0),
+        (float, 0.5, 0.5),
+        (List[int], [1, 2.0], [1, 2]),
+        (Tuple[str, int], ["a", 1], ("a", 1)),
+        (Optional[int], None, None),
+        (MyEnum, "alpha", MyEnum.ALPHA),
+    ],
+)
+def test_tool_param_keeps_exact_conversions(
+    type_hint: Any, value: Any, expected: Any
+) -> None:
+    converted = tool_param(type_hint, value)
+    assert converted == expected
+    assert type(converted) is type(expected)
+
+
+def test_tool_param_omitted_fields_keep_defaults() -> None:
+    @dataclass
+    class WithDefault:
+        name: str
+        label: str = "default"
+
+    class Partial(TypedDict, total=False):
+        label: str
+
+    assert tool_param(WithDefault, {"name": "a"}) == WithDefault("a", "default")
+    assert tool_param(Partial, {}) == {}
+
+
+async def test_inexact_argument_is_a_parsing_error() -> None:
+    # a schema looser than the type hints lets "false" reach conversion, where
+    # bool("false") would have been True
+    @tool
+    def flag():
+        async def execute(enabled: bool) -> str:
+            """Report a flag.
+
+            Args:
+                enabled: The flag.
+            """
+            return f"enabled={enabled}"
+
+        return execute
+
+    tool_def = ToolDef(
+        flag(), parameters=ToolParams(properties={"enabled": ToolParam()})
+    )
+    call = make_call("flag", {"enabled": "false"})
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "parsing"
+    assert "Unable to convert 'false' to bool" in messages[-1].error.message
+
+
+def test_tool_params_passes_extra_arguments_to_var_keyword() -> None:
+    from inspect_ai.model._call_tools import tool_params
+
+    async def execute(count: int, **arguments: str) -> str:
+        return ""
+
+    assert tool_params({"count": 2.0, "a": "x"}, execute) == {"count": 2, "a": "x"}

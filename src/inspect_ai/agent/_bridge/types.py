@@ -24,8 +24,8 @@ from inspect_ai.model._model import (
     ModelResolver,
 )
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.tool._tool import Tool
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool import Tool, ToolParsingError
+from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -49,6 +49,20 @@ class DispatchedCall(NamedTuple):
 
     dispatch: Callable[[dict[str, Any]], dict[str, Any]]
     """Arguments for the dispatcher call that make the target call with the given ones."""
+
+
+class ReviewedCall(NamedTuple):
+    """A call approval decides on for a tool call in a bridged response."""
+
+    call: ToolCall
+    """The call the approver sees: validated, with canonical arguments for a host tool."""
+
+    viewer: ToolCallViewer | None
+    """The host tool's viewer (None for a tool the scaffold runs itself)."""
+
+    dispatch: Callable[[dict[str, Any]], dict[str, Any]] | None
+    """Arguments for the scaffold's call that make `call` with the given ones (None
+    when they are the same)."""
 
 
 class AgentBridge:
@@ -245,6 +259,29 @@ class AgentBridge:
         dispatched; `SandboxAgentBridge` overrides this.
         """
         return None
+
+    def reviewed_calls(
+        self, call: ToolCall, declared: dict[str, list[ToolInfo]]
+    ) -> list[ReviewedCall]:
+        """The calls approval decides on for `call`, a tool call in a bridged response.
+
+        As for a natively executed tool, approval decides only on a valid call: a
+        call to a tool the scaffold declared (`declared`, by name) must match the
+        declared schema. The scaffold runs it, so it is otherwise reviewed as
+        given. `SandboxAgentBridge` reviews a call that denotes bridged host tools
+        as each host tool will run it.
+
+        Raises:
+            ToolParsingError: The arguments do not match the declared schema.
+        """
+        from inspect_ai.model._call_tools import validate_tool_input
+
+        declarations = declared.get(call.function)
+        if declarations and call.type == "function":
+            errors = validate_tool_input(call.arguments, declarations[0].parameters)
+            if errors:
+                raise ToolParsingError(errors)
+        return [ReviewedCall(call, None, None)]
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model

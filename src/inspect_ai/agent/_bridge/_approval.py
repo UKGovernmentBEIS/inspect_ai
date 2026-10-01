@@ -23,14 +23,18 @@ dispatcher call the scaffold receives.
 import sys
 from contextlib import AbstractContextManager, nullcontext
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, NoReturn, Sequence
+
+from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool import Tool, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
+from inspect_ai.tool._tool_info import ToolInfo
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
@@ -88,6 +92,7 @@ async def apply_bridge_tool_approval(
     bridge: AgentBridge,
     output: ModelOutput,
     history: list[ChatMessage],
+    declarations: Sequence[ToolInfo | Tool] = (),
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
@@ -103,10 +108,18 @@ async def apply_bridge_tool_approval(
     calls no approver saw or no grant covers. Text-only alternates pass through,
     as does everything for an in-process bridge without a policy.
 
+    Each call is approved as `AgentBridge.reviewed_calls` resolves it: validated
+    against the declaration or the bridged host tool it denotes, and for a host
+    tool with canonical arguments and the tool's viewer. An invalid call is not
+    shown to the approvers; it is answered like a rejection, with a parsing error.
+    A modified call is validated again.
+
     Args:
         bridge: Bridge whose `approval` policies (if any) apply for this call.
         output: Model output about to be handed to the scaffold.
         history: Conversation that produced `output`.
+        declarations: Tools the scaffold declared to the model for this
+            generation (the request's tools and any declared in its input).
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
@@ -140,34 +153,56 @@ async def apply_bridge_tool_approval(
         # the caller hands to `_track_state` is untouched.
         approval_history = history + [output.message]
         message = output.message.text
+        declared: dict[str, list[ToolInfo]] = {}
+        for declaration in declarations:
+            if isinstance(declaration, ToolInfo):
+                declared.setdefault(declaration.name, []).append(declaration)
         modified: dict[str, dict[str, Any]] = {}
         for call in tool_calls:
-            dispatched = bridge.dispatched_call(call)
-            reviewed = dispatched.target if dispatched else call
-            # no viewer: bridged tools reach us as ToolInfo from the scaffold's
-            # request, not as ToolDef, so there is no registered viewer to resolve.
-            # apply_tool_approval falls back to its default rendering.
-            approved, approval = await apply_tool_approval(
-                message, reviewed, None, approval_history
-            )
-            if not approved:
-                explanation = (approval.explanation if approval else None) or (
-                    f"Tool call '{reviewed.function}' was rejected by the approval "
-                    "policy."
-                )
-                if approval is not None and approval.decision == "terminate":
-                    bridge.request_terminate(
-                        f"Tool call approver requested termination: {explanation}"
-                    )
+            try:
+                reviews = bridge.reviewed_calls(call, declared)
+            except ToolParsingError as ex:
                 return BridgeApproval(
-                    output, rejection_messages(output, call, explanation)
+                    output, rejection_messages(output, call, ex.message, "parsing")
                 )
+            for reviewed in reviews:
+                approved, approval = await apply_tool_approval(
+                    message, reviewed.call, reviewed.viewer, approval_history
+                )
+                if not approved:
+                    explanation = (approval.explanation if approval else None) or (
+                        f"Tool call '{reviewed.call.function}' was rejected by the "
+                        "approval policy."
+                    )
+                    if approval is not None and approval.decision == "terminate":
+                        bridge.request_terminate(
+                            f"Tool call approver requested termination: {explanation}"
+                        )
+                    return BridgeApproval(
+                        output, rejection_messages(output, call, explanation)
+                    )
 
-            if approval is not None and approval.modified is not None:
-                arguments = approval.modified.arguments
-                modified[call.id] = (
-                    dispatched.dispatch(arguments) if dispatched else arguments
-                )
+                if approval is not None and approval.modified is not None:
+                    arguments = approval.modified.arguments
+                    if reviewed.dispatch is not None:
+                        arguments = reviewed.dispatch(arguments)
+                    # validated as the JSON the scaffold will re-send
+                    try:
+                        bridge.reviewed_calls(
+                            ToolCall(
+                                id=call.id,
+                                function=call.function,
+                                arguments=to_jsonable_python(arguments, fallback=str),
+                                type=call.type,
+                            ),
+                            declared,
+                        )
+                    except ToolParsingError as ex:
+                        return BridgeApproval(
+                            output,
+                            rejection_messages(output, call, ex.message, "parsing"),
+                        )
+                    modified[call.id] = arguments
 
     # modifications are adopted only now that the whole response is approved: a later
     # rejection discards every call, and rewriting an earlier one as we went would
@@ -202,7 +237,10 @@ def with_modified_arguments(
 
 
 def rejection_messages(
-    output: ModelOutput, rejected: ToolCall, explanation: str
+    output: ModelOutput,
+    rejected: ToolCall,
+    explanation: str,
+    error_type: Literal["approval", "parsing"] = "approval",
 ) -> list[ChatMessage]:
     """Build the retry input for a rejected response: assistant message + results.
 
@@ -215,6 +253,9 @@ def rejection_messages(
     model whose innocent `read_file` came back rejected may conclude that reading
     files is disallowed and stop attempting it — the opposite of what the policy
     intended.
+
+    `error_type` is the rejected call's error: `parsing` for a call whose
+    arguments were invalid, so it was never shown for approval.
     """
     tool_calls = output.message.tool_calls or []
     others = len(tool_calls) - 1
@@ -222,7 +263,9 @@ def rejection_messages(
 
     messages: list[ChatMessage] = [output.message]
     for call in tool_calls:
+        call_error_type: Literal["approval", "parsing"] = "approval"
         if call.id == rejected.id:
+            call_error_type = error_type
             text = explanation
             if others == 1:
                 text += " The other tool call in this response was not executed as a result."
@@ -243,7 +286,7 @@ def rejection_messages(
                 content="",
                 tool_call_id=call.id,
                 function=call.function,
-                error=ToolCallError("approval", text),
+                error=ToolCallError(call_error_type, text),
             )
         )
     return messages

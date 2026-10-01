@@ -4,7 +4,7 @@ import string
 import types
 import typing
 from copy import copy, deepcopy
-from dataclasses import is_dataclass
+from dataclasses import is_dataclass, replace
 from datetime import date, datetime, time
 from enum import EnumMeta
 from logging import getLogger
@@ -31,6 +31,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
+    from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.approval import ApprovalPolicy
     from inspect_ai.review import ReviewPolicy
 
@@ -66,6 +67,7 @@ from inspect_ai.tool._tool import (
     tool_result_content,
 )
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
+from inspect_ai.tool._tool_canonical import tool_canonical_arguments
 from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
@@ -897,6 +899,13 @@ async def call_tool(
     if tool_def is None:
         raise await record_tool_parsing_error(f"Tool {call.function} not found")
 
+    # approvers and viewers see the validated call, so an invalid call is
+    # never presented for approval
+    try:
+        call, arguments = validated_tool_call(call, tool_def)
+    except ToolParsingError as ex:
+        raise await record_tool_parsing_error(ex.message)
+
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
 
@@ -911,15 +920,10 @@ async def call_tool(
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
-        call = approval.modified
-
-    # validate the schema of the passed object
-    validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
-    if validation_errors:
-        raise await record_tool_parsing_error(validation_errors)
-
-    # get arguments (with creation of dataclasses, pydantic objects, etc.)
-    arguments = tool_params(call.arguments, tool_def.tool)
+        try:
+            call, arguments = validated_tool_call(approval.modified, tool_def)
+        except ToolParsingError as ex:
+            raise await record_tool_parsing_error(ex.message)
 
     # call the tool
     with trace_action(
@@ -929,7 +933,9 @@ async def call_tool(
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
-                    handoff_result = await agent_handoff(tool_def, call, conversation)
+                    handoff_result = await agent_handoff(
+                        tool_def, call, arguments, conversation
+                    )
                     return CalledTool(*handoff_result, None)
 
         # normal tool call
@@ -981,7 +987,10 @@ async def _apply_tool_review(
 
 
 async def agent_handoff(
-    tool_def: ToolDef, call: ToolCall, conversation: list[ChatMessage]
+    tool_def: ToolDef,
+    call: ToolCall,
+    arguments: dict[str, Any],
+    conversation: list[ChatMessage],
 ) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str]:
     from inspect_ai.agent._agent import AgentState, agent_display_name
     from inspect_ai.agent._handoff import AgentTool
@@ -1053,15 +1062,6 @@ async def agent_handoff(
     agent_conversation = [
         m for m in agent_conversation if not isinstance(m, ChatMessageSystem)
     ]
-
-    # inject curried args
-    arguments = {**call.arguments, **agent_tool.kwargs}
-
-    # parse arguments (inject a `state` placeholder so tool_params doesn't
-    # treat the agent's required `state` parameter as missing — the handoff
-    # harness injects the real AgentState below)
-    arguments = tool_params({**arguments, "state": None}, agent_tool.agent)
-    del arguments["state"]
 
     # run the agent with limits
     limit_error: LimitExceededError | None = None
@@ -1290,6 +1290,13 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
     # build params
     params: dict[str, Any] = {}
     for param_name, param in signature.parameters.items():
+        # pass arguments without a named parameter through to **kwargs
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            params.update(
+                {k: v for k, v in input.items() if k not in signature.parameters}
+            )
+            continue
+
         # Parse docstring
         docstring_info = parse_docstring(docstring, param_name)
 
@@ -1323,63 +1330,174 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
     return params
 
 
+class ValidatedToolCall(NamedTuple):
+    """Outcome of `validated_tool_call()`."""
+
+    call: ToolCall
+    """The call to approve (with canonical arguments where the tool defines them)."""
+
+    arguments: dict[str, Any]
+    """The arguments to pass to the tool."""
+
+
+def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
+    """Validate and convert a call's arguments before it is approved.
+
+    The arguments are checked against the tool's schema, canonicalized by the
+    function the tool set with `set_tool_canonical_arguments()` (if any), and
+    converted to the tool's parameter types. The returned call is what approvers
+    and viewers see, and the returned arguments are what the tool receives.
+    Conversions are exact (see `tool_param()`), so both describe the same action.
+
+    Raises:
+        ToolParsingError: The arguments fail the schema or cannot be converted
+            exactly.
+    """
+    validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
+    if validation_errors:
+        raise ToolParsingError(validation_errors)
+
+    canonical_arguments = tool_canonical_arguments(tool_def.tool)
+    if canonical_arguments is not None:
+        arguments = canonical_arguments(call.arguments)
+        if arguments != call.arguments:
+            call = replace(call, arguments=arguments)
+
+    from inspect_ai.agent._handoff import AgentTool
+
+    if isinstance(tool_def.tool, AgentTool):
+        arguments = _handoff_arguments(tool_def.tool, call.arguments)
+    else:
+        arguments = tool_params(call.arguments, tool_def.tool)
+    return ValidatedToolCall(call, arguments)
+
+
+def _handoff_arguments(
+    agent_tool: "AgentTool", arguments: dict[str, Any]
+) -> dict[str, Any]:
+    """Arguments for a handoff's agent: the call's, plus curried ones, converted."""
+    # inject a `state` placeholder so tool_params doesn't treat the agent's
+    # required `state` parameter as missing (agent_handoff passes the real one)
+    arguments = tool_params(
+        {**arguments, **agent_tool.kwargs, "state": None}, agent_tool.agent
+    )
+    del arguments["state"]
+    return arguments
+
+
 def tool_param(type_hint: Type[Any], input: Any) -> Any:
+    """Convert a model-supplied argument value to `type_hint`.
+
+    Only conversions that keep the value's meaning are made: an `int` parameter
+    accepts an int or a float with no fractional part, a `float` parameter
+    accepts a float or an int it can represent exactly, and `str` and `bool`
+    parameters accept only their own type. Lists, sets, tuples and dicts must be
+    given as JSON arrays and objects. Dates and times are parsed from ISO 8601
+    strings, enums are looked up by value, and dataclasses, TypedDicts and
+    Pydantic models are built from objects.
+
+    Raises:
+        ToolParsingError: The value would need a lossy or surprising conversion.
+    """
     origin = get_origin(type_hint)
     args = get_args(type_hint)
+
+    def unable_to_convert(ex: Exception | None = None) -> ToolParsingError:
+        name = getattr(type_hint, "__name__", str(type_hint))
+        reason = f": {ex}" if ex is not None else ""
+        return ToolParsingError(f"Unable to convert '{input}' to {name}{reason}")
 
     if origin is None:
         if type_hint == typing.Any:
             return input
         elif type_hint in [int, str, float, bool]:
+            scalar = _exact_scalar(type_hint, input)
+            if scalar is None:
+                raise unable_to_convert()
+            return scalar
+        elif type_hint in (datetime, date, time):
+            if not isinstance(input, str):
+                raise unable_to_convert()
             try:
-                return type_hint(input)
-            except (ValueError, TypeError):
-                raise ToolParsingError(
-                    f"Unable to convert '{input}' to {type_hint.__name__}"
-                )
-        elif type_hint == datetime:
-            if input.endswith("Z"):
-                # convert trailing Z to +00:00
-                input = input[:-1] + "+00:00"
-            return datetime_from_iso_format_safe(input)
-        elif type_hint == date:
-            return date.fromisoformat(input)
-        elif type_hint == time:
-            return time.fromisoformat(input)
+                if type_hint == datetime:
+                    # convert trailing Z to +00:00
+                    iso = input[:-1] + "+00:00" if input.endswith("Z") else input
+                    return datetime_from_iso_format_safe(iso)
+                elif type_hint == date:
+                    return date.fromisoformat(input)
+                else:
+                    return time.fromisoformat(input)
+            except ValueError as ex:
+                raise unable_to_convert(ex) from ex
         elif is_typeddict(type_hint):
+            if not isinstance(input, dict):
+                raise unable_to_convert()
             typeddict_data: dict[str, Any] = {}
             annotations = get_type_hints(type_hint)
             for name, hint in annotations.items():
-                typeddict_data[name] = tool_param(hint, input.get(name))
+                if name in input:
+                    typeddict_data[name] = tool_param(hint, input[name])
             return typeddict_data
         elif is_dataclass(type_hint):
+            if not isinstance(input, dict):
+                raise unable_to_convert()
             dataclass_data: dict[str, Any] = {}
             fields = type_hint.__dataclass_fields__  # type: ignore
             for name, field in fields.items():
-                dataclass_data[name] = tool_param(field.type, input.get(name))  # type: ignore
-            return type_hint(**dataclass_data)
+                if name in input:
+                    dataclass_data[name] = tool_param(field.type, input[name])  # type: ignore
+            try:
+                return type_hint(**dataclass_data)
+            except (TypeError, ValueError) as ex:
+                raise unable_to_convert(ex) from ex
         elif issubclass(type_hint, BaseModel):
-            return type_hint(**input)
+            if not isinstance(input, dict):
+                raise unable_to_convert()
+            model_data = dict(input)
+            for name, model_field in type_hint.model_fields.items():
+                key = name if name in input else model_field.alias
+                annotation = model_field.annotation
+                if key is not None and key in input and annotation is not None:
+                    model_data[key] = tool_param(annotation, input[key])
+            try:
+                return type_hint(**model_data)
+            except (TypeError, ValueError) as ex:
+                raise unable_to_convert(ex) from ex
         elif isinstance(type_hint, EnumMeta):
-            return type_hint(input)
+            try:
+                return type_hint(input)
+            except ValueError as ex:
+                raise unable_to_convert(ex) from ex
         else:
             return input
     elif origin is list or origin is List:
+        if not isinstance(input, list | tuple):
+            raise unable_to_convert()
         if args:
             return [tool_param(args[0], x) for x in input]
         else:
             return input
     elif origin is set or origin is Set:
+        if not isinstance(input, list | tuple):
+            raise unable_to_convert()
         if args:
             return {tool_param(args[0], x) for x in input}
         else:
             return set(input)
     elif origin is tuple or origin is Tuple:
-        if args:
+        if not isinstance(input, list | tuple):
+            raise unable_to_convert()
+        if len(args) == 2 and args[1] is Ellipsis:
             return tuple([tool_param(args[0], x) for x in input])
+        elif args:
+            if len(args) != len(input):
+                raise unable_to_convert()
+            return tuple([tool_param(arg, x) for arg, x in zip(args, input)])
         else:
             return tuple(input)
     elif origin is dict or origin is Dict:
+        if not isinstance(input, dict):
+            raise unable_to_convert()
         if args and len(args) > 1:
             return {k: tool_param(args[1], v) for k, v in input.items()}
         else:
@@ -1393,11 +1511,37 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
         return input
 
 
+def _exact_scalar(type_hint: Type[Any], value: Any) -> Any:
+    """`value` as `type_hint` (int, str, float or bool), or None if not exact."""
+    is_number = isinstance(value, int | float) and not isinstance(value, bool)
+    if type_hint is bool or type_hint is str:
+        return value if isinstance(value, type_hint) else None
+    elif type_hint is int:
+        if is_number and (isinstance(value, int) or value.is_integer()):
+            return int(value)
+    elif type_hint is float:
+        if isinstance(value, float):
+            return value
+        elif is_number:
+            try:
+                return float(value) if float(value) == value else None
+            except OverflowError:
+                return None
+    return None
+
+
 def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | None:
+    """The tool's own view of `call` for the transcript, if it has a viewer.
+
+    Like approval, the viewer sees only the validated call (`validated_tool_call()`);
+    an invalid call gets the default rendering.
+    """
     tool_def = next((tool for tool in tdefs if tool.name == call.function), None)
-    if tool_def and tool_def.viewer:
+    if tool_def and tool_def.viewer and call.parse_error is None:
         try:
-            return tool_def.viewer(call).call
+            return tool_def.viewer(validated_tool_call(call, tool_def).call).call
+        except ToolParsingError:
+            return None
         except Exception as ex:
             warn_once(
                 logger,

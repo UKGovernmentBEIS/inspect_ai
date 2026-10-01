@@ -1,7 +1,7 @@
 from collections import deque
 from logging import getLogger
 from os.path import commonprefix
-from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
@@ -9,8 +9,8 @@ from pydantic_core import to_jsonable_python
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
-from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
-from inspect_ai.model._call_tools import get_tools_info
+from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall, ReviewedCall
+from inspect_ai.model._call_tools import get_tools_info, validated_tool_call
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -20,7 +20,9 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 
@@ -162,6 +164,9 @@ class SandboxAgentBridge(AgentBridge):
             for target in targets:
                 if target.server in self.proposal_exempt_servers:
                     continue
+                grant_arguments = host_call_arguments(
+                    self.bridged_tools[target.server][target.tool], arguments
+                )
                 if (
                     len(self._tool_execution_grants)
                     == self._tool_execution_grants.maxlen
@@ -177,7 +182,7 @@ class SandboxAgentBridge(AgentBridge):
                     _ToolExecutionGrant(
                         server=target.server,
                         tool=target.tool,
-                        arguments=to_jsonable_python(arguments, fallback=str),
+                        arguments=to_jsonable_python(grant_arguments, fallback=str),
                     )
                 )
 
@@ -225,6 +230,41 @@ class SandboxAgentBridge(AgentBridge):
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
         return _dispatched_call(self.bridged_tools, call)
+
+    def reviewed_calls(
+        self, call: ToolCall, declared: dict[str, list[ToolInfo]]
+    ) -> list[ReviewedCall]:
+        """Review a call denoting bridged host tools as each will run it.
+
+        The host tools are resolved as for execution grants (`_proposed_call`),
+        except that a dispatcher call needs no declaration (as before). Each is
+        reviewed with the host tool's validated, canonical arguments
+        (`validated_tool_call()`) and its viewer, under the scaffold's function
+        name for a call matched by its declaration and under the target's name
+        for a dispatcher call. Any other call is reviewed as the base class does.
+
+        Raises:
+            ToolParsingError: The arguments are not valid for a host tool it
+                denotes, or for the scaffold's declaration.
+        """
+        declarations = declared.get(call.function)
+        targets = (
+            _resolve_by_served_content(self.served_tools, declarations)
+            if declarations
+            else []
+        )
+        if targets:
+            return [
+                _reviewed_host_call(
+                    call, self.bridged_tools[target.server][target.tool], None
+                )
+                for target in targets
+            ]
+        dispatched = self.dispatched_call(call)
+        if dispatched is not None:
+            tool = self.bridged_tools[dispatched.server][dispatched.target.function]
+            return [_reviewed_host_call(dispatched.target, tool, dispatched.dispatch)]
+        return super().reviewed_calls(call, declared)
 
     def request_fail(self, error: Exception) -> None:
         """Fail the sample with `error` from a bridged generation or tool call.
@@ -420,6 +460,32 @@ def _dispatched_call(
             dispatch=lambda modified: {**call.arguments, "Arguments": modified},
         )
     return None
+
+
+def _reviewed_host_call(
+    call: ToolCall,
+    tool: Tool,
+    dispatch: Callable[[dict[str, Any]], dict[str, Any]] | None,
+) -> ReviewedCall:
+    """`call` as `tool` will run it, for approval (raises `ToolParsingError`)."""
+    tool_def = ToolDef(tool)
+    return ReviewedCall(
+        validated_tool_call(call, tool_def).call, tool_def.viewer, dispatch
+    )
+
+
+def host_call_arguments(tool: Tool, arguments: dict[str, Any]) -> dict[str, Any]:
+    """The arguments a host tool call acts on, as approval saw them.
+
+    Valid arguments are canonicalized as `validated_tool_call()` does, so a grant
+    and the call that consumes it match on the canonical form; invalid ones are
+    returned as given, and the service rejects them.
+    """
+    call = ToolCall(id="", function="", arguments=arguments)
+    try:
+        return validated_tool_call(call, ToolDef(tool)).call.arguments
+    except ToolParsingError:
+        return arguments
 
 
 def _json_equal(a: Any, b: Any) -> bool:
