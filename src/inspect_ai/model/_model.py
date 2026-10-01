@@ -1192,7 +1192,9 @@ class Model:
                 adaptive=adaptive,
                 visible=False,
             ) as sem:
-                assert isinstance(sem, AdaptiveConcurrencyController)
+                if not isinstance(sem, AdaptiveConcurrencyController):
+                    with cleared_retry_wait():
+                        return await _count_tokens(input, config)
                 token_c = _active_controller.set(sem)
                 token_r = _request_had_retry.set(False)
                 try:
@@ -1904,7 +1906,12 @@ class Model:
             adaptive_sem = await get_or_create_semaphore(
                 str(model_name), adaptive.start, key, True, adaptive
             )
-            assert isinstance(adaptive_sem, AdaptiveConcurrencyController)
+            if not isinstance(adaptive_sem, AdaptiveConcurrencyController):
+                # Custom registries (e.g. Scout multiprocessing) may provide a
+                # fixed-limit semaphore when adaptive scaling is unsupported.
+                async with _held_connection_slot(adaptive_sem.semaphore) as slot:
+                    yield slot
+                return
             async with _held_connection_slot(adaptive_sem.semaphore) as slot:
                 token_c = _active_controller.set(adaptive_sem)
                 token_r = _request_had_retry.set(False)
