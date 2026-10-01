@@ -269,8 +269,7 @@ class MistralAPI(ModelAPI):
                 )
 
             # build request
-            request_id = http_hooks.start_request()
-            try:
+            with http_hooks.request() as request_id:
                 request: dict[str, Any] = dict(
                     model=self.service_model_name(),
                     messages=await mistral_chat_messages(input),
@@ -357,8 +356,6 @@ class MistralAPI(ModelAPI):
                         http_hooks.end_request(request_id),
                     )
                     raise
-            finally:
-                http_hooks.discard_request(request_id)
 
             # return model output (w/ tool calls if they exist)
             choices = await completion_choices_from_response(completion, tools)

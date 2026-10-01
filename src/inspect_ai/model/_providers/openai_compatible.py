@@ -263,8 +263,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 input = chat_api_messages_for_handler(input, tools, handler)
 
             # allocate request_id (so we can see it from ModelCall)
-            request_id = self._http_hooks.start_request()
-            try:
+            with self._http_hooks.request() as request_id:
                 # get completion params (slice off service from model name)
                 completion_params = self.completion_params(
                     config=config,
@@ -360,8 +359,6 @@ class OpenAICompatibleAPI(ModelAPI):
                         self._http_hooks.end_request(request_id),
                     )
                     return output, model_call
-            finally:
-                self._http_hooks.discard_request(request_id)
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig

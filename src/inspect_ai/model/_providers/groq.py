@@ -264,8 +264,7 @@ class GroqAPI(ModelAPI):
         config: GenerateConfig,
     ) -> tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
-        request_id = self._http_hooks.start_request()
-        try:
+        with self._http_hooks.request() as request_id:
             messages = await as_groq_chat_messages(input)
 
             params = self.completion_params(config)
@@ -381,8 +380,6 @@ class GroqAPI(ModelAPI):
                 if not isinstance(converted, ModelOutput):
                     raise
                 return converted, model_call
-        finally:
-            self._http_hooks.discard_request(request_id)
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:
         params: dict[str, Any] = {}

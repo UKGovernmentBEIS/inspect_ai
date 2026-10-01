@@ -752,8 +752,7 @@ class BedrockAPI(ModelAPI):
         from botocore.exceptions import ClientError
 
         # The bedrock client
-        request_id = self._http_hooks.start_request()
-        try:
+        with self._http_hooks.request() as request_id:
             async with self.session.create_client(
                 service_name="bedrock-runtime",
                 endpoint_url=self.base_url,
@@ -943,8 +942,6 @@ class BedrockAPI(ModelAPI):
                             return ex, model_call
                     else:
                         raise ex
-        finally:
-            self._http_hooks.discard_request(request_id)
 
         # create a model output from the response
         output = model_output_from_response(self.model_name, converse_response, tools)

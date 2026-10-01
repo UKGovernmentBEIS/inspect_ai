@@ -267,3 +267,30 @@ async def test_request_untracked_after_cancellation(
 
     assert tracked == [1]
     assert entries() == 0
+
+
+def test_request_context_tracks_until_exit() -> None:
+    hooks = HttpHooks()
+    with hooks.request() as request_id:
+        assert list(hooks._requests) == [request_id]
+    assert hooks._requests == {}
+
+
+def test_request_context_exit_after_end_request(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    hooks = HttpHooks()
+    with hooks.request() as request_id:
+        assert hooks.end_request(request_id) >= 0
+        assert hooks._requests == {}
+    assert hooks._requests == {}
+    assert not any(record.levelname == "WARNING" for record in caplog.records)
+
+
+def test_request_context_untracks_on_error() -> None:
+    hooks = HttpHooks()
+    with pytest.raises(RuntimeError):
+        with hooks.request():
+            assert len(hooks._requests) == 1
+            raise RuntimeError("request failed")
+    assert hooks._requests == {}

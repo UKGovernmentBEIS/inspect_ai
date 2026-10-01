@@ -75,8 +75,7 @@ async def mistral_conversation_generate(
     handle_bad_request: Callable[[SDKError], ModelOutput | Exception],
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # build request
-    request_id = http_hooks.start_request()
-    try:
+    with http_hooks.request() as request_id:
         instructions, inputs = await mistral_conversation_inputs(input, config)
         completion_args = mistral_conversation_completion_args(
             config, tool_choice if len(tools) > 0 else None
@@ -111,8 +110,6 @@ async def mistral_conversation_generate(
                 return handle_bad_request(ex), model_call
             else:
                 raise ex
-    finally:
-        http_hooks.discard_request(request_id)
 
     # return model output (w/ tool calls if they exist)
     choices = await completion_choices_from_conversation_response(

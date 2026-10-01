@@ -143,8 +143,7 @@ async def generate_raw_completions(
         request_kwargs["extra_body"] = extra_body
 
     # Register ModelCall for eval log visibility.
-    request_id = api._http_hooks.start_request()
-    try:
+    with api._http_hooks.request() as request_id:
         model_call = set_active_model_event_call(request_kwargs)
 
         try:
@@ -162,8 +161,6 @@ async def generate_raw_completions(
         model_call.set_response(
             response.model_dump(), api._http_hooks.end_request(request_id)
         )
-    finally:
-        api._http_hooks.discard_request(request_id)
 
     # Parse response
     if not response.choices:

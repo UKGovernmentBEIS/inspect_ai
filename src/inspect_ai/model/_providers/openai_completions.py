@@ -63,8 +63,7 @@ async def generate_completions(
     streaming = streaming and batcher is None
 
     # allocate request_id (so we can see it from ModelCall)
-    request_id = http_hooks.start_request()
-    try:
+    with http_hooks.request() as request_id:
         # unlike text models, vision models require a max_tokens (and set it to a very low
         # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
         OPENAI_IMAGE_DEFAULT_TOKENS = 4096
@@ -165,8 +164,6 @@ async def generate_completions(
                 as_error_response(e.body), http_hooks.end_request(request_id)
             )
             return output, model_call
-    finally:
-        http_hooks.discard_request(request_id)
 
 
 def completion_params_completions(

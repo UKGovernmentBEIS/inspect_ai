@@ -1,10 +1,12 @@
 import re
 import time
+from contextlib import contextmanager
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Iterator,
     Literal,
     Mapping,
     NamedTuple,
@@ -95,14 +97,20 @@ class HttpHooks:
         # return elapsed time
         return time.monotonic() - request_info.last_request
 
-    def discard_request(self, request_id: str) -> None:
-        """Stop tracking a request without reading its elapsed time.
+    @contextmanager
+    def request(self) -> Iterator[str]:
+        """Track a request for the duration of the block.
 
-        Call this in a `finally` after `start_request()` so the entry is
-        removed when the request raises or is cancelled. It does nothing
-        if `end_request()` already removed the entry.
+        Yields the request id from `start_request()`, and removes the entry
+        when the block exits, including when the request raises or is
+        cancelled. Call `end_request()` inside the block to read the elapsed
+        time; the exit then has nothing left to remove.
         """
-        self._requests.pop(request_id, None)
+        request_id = self.start_request()
+        try:
+            yield request_id
+        finally:
+            self._requests.pop(request_id, None)
 
     def record_response(
         self,

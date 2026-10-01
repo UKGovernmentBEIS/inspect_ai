@@ -142,8 +142,7 @@ async def generate_responses(
         background = None
 
     # allocate request_id (so we can see it from ModelCall)
-    request_id = http_hooks.start_request()
-    try:
+    with http_hooks.request() as request_id:
         # present inspect's todo_write tool to the model under OpenAI's native update_plan
         # name/schema (the model is post-trained on update_plan); todo_write remains the tool
         # that is actually executed. Decided once here and threaded to outbound tools + replay.
@@ -316,8 +315,6 @@ async def generate_responses(
                 as_error_response(error_body), http_hooks.end_request(request_id)
             )
             return output, model_call
-    finally:
-        http_hooks.discard_request(request_id)
 
 
 async def _generate_responses_stream(
