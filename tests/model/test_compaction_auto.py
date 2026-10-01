@@ -12,6 +12,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._compaction.auto import CompactionAuto
 from inspect_ai.model._model import get_model
+from inspect_ai.util._limit import LimitExceededError
 
 
 def _sample_messages() -> list[ChatMessage]:
@@ -170,6 +171,26 @@ async def test_auto_warns_on_native_error(
     assert len(warnings) == 1
     assert "Native compaction failed" in warnings[0]
     assert "Falling back to summary compaction" in warnings[0]
+
+
+async def test_auto_native_limit_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A limit hit by native compaction propagates instead of falling back."""
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+
+    async def limited_compact(m, msgs, t):
+        raise LimitExceededError("token", value=2, limit=1)
+
+    async def summary_compact(m, msgs, t):
+        pytest.fail("summary compaction should not run")
+
+    monkeypatch.setattr(strategy._native, "compact", limited_compact)
+    monkeypatch.setattr(strategy._summary, "compact", summary_compact)
+
+    with pytest.raises(LimitExceededError):
+        await strategy.compact(model, _sample_messages(), [])
 
 
 @skip_if_no_openai

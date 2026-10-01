@@ -21,8 +21,14 @@ from inspect_ai import Task, eval, task
 from inspect_ai._util.environ import environ_var
 from inspect_ai.agent import react
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.model import get_model
-from inspect_ai.solver import solver
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+    get_model,
+)
+from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.solver import solver, use_tools
 from inspect_ai.tool import (
     MCPServer,
     Tool,
@@ -30,10 +36,12 @@ from inspect_ai.tool import (
     mcp_connection,
     mcp_server_stdio,
     mcp_tools,
+    tool,
 )
 from inspect_ai.tool._mcp.tools import MCPToolSourceLocal
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util import sandbox
+from inspect_ai.util import sandbox, token_limit
 
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup
@@ -799,3 +807,93 @@ def test_mcp_server_sandbox_nodejs():
         Task(solver=[run_mcp_server()], sandbox=("docker", dockerfile.as_posix()))
     )[0]
     assert log.status == "success"
+
+
+MCP_SAMPLING_SERVER = str(Path(__file__).parent / "mcp_sampling_server.py")
+
+
+def _sampling_server() -> MCPServer:
+    return mcp_server_stdio(command=sys.executable, args=[MCP_SAMPLING_SERVER])
+
+
+async def _ask_tool(server: MCPServer) -> Tool:
+    return next(t for t in await server.tools() if ToolDef(t).name == "ask")
+
+
+@tool
+def limited_ask() -> Tool:
+    async def execute(question: str) -> str:
+        """Ask the sampling server's `ask` tool under a token limit of 1.
+
+        Args:
+            question: The question.
+        """
+        ask = await _ask_tool(_sampling_server())
+        with token_limit(1):
+            return str(await ask(question=question))
+
+    return execute
+
+
+@solver
+def _call_tool_then_continue(function: str):
+    """Call `function` once, then record that the solver carried on."""
+
+    async def solve(state, generate):
+        state.messages.append(
+            ChatMessageAssistant(
+                content="",
+                tool_calls=[
+                    ToolCall(id="1", function=function, arguments={"question": "Hi?"})
+                ],
+            )
+        )
+        result = await execute_tools(state.messages, state.tools)
+        state.messages.extend(result.messages)
+        state.messages.append(ChatMessageUser(content="continued"))
+        return state
+
+    return solve
+
+
+@skip_if_no_mcp_package
+def test_mcp_sampling_sample_limit_ends_sample() -> None:
+    log = eval(
+        Task(
+            solver=[
+                use_tools(mcp_tools(_sampling_server())),
+                _call_tool_then_continue("ask"),
+            ],
+            token_limit=1,
+        ),
+        model="mockllm/model",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "token"
+    assert sample.limit.limit == 1
+    assert sample.messages[-1].text != "continued"
+
+
+@skip_if_no_mcp_package
+def test_mcp_sampling_tool_limit_returns_tool_error() -> None:
+    log = eval(
+        Task(
+            solver=[use_tools(limited_ask()), _call_tool_then_continue("limited_ask")],
+            token_limit=100_000,
+        ),
+        model="mockllm/model",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is None
+    tool_message = sample.messages[-2]
+    assert isinstance(tool_message, ChatMessageTool)
+    assert tool_message.error is not None
+    assert "Token limit exceeded" in tool_message.error.message
+    assert sample.messages[-1].text == "continued"

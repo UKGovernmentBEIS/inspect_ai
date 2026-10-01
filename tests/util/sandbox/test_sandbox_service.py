@@ -575,28 +575,33 @@ async def test_handle_request_oversized_raise_writes_error_and_removes_file() ->
     _assert_no_shell_interpolation(fake.calls)
 
 
-@pytest.mark.parametrize("grouped", [False, True], ids=["bare", "grouped"])
+@pytest.mark.parametrize("case", ["bare", "grouped", "inner"])
 async def test_handle_request_bridged_tool_limit_keeps_service_handling(
-    grouped: bool,
+    case: str,
 ) -> None:
-    """A bridged host tool's `LimitExceededError` reaches the dispatcher unchanged.
+    """A bridged host tool's `LimitExceededError` reaches the dispatcher.
 
-    The dispatcher ends the sample for a bare `LimitExceededError` (pre-existing
-    behaviour) and treats anything else, including a task-group
-    `ExceptionGroup` wrapping one, as a plain RPC error. The bridge's `call_tool`
-    classifies the unwrapped exception but must re-raise the original, or a
-    grouped limit would newly end the sample.
+    The dispatcher ends the sample for a limit that is still open (here a
+    source-less custom limit), bare or wrapped in a task-group
+    `ExceptionGroup`, and answers with an RPC error either way. A limit the
+    tool opened itself has closed by then, so it only fails the call.
     """
     from inspect_ai.agent._agent import AgentState
     from inspect_ai.agent._bridge.sandbox.service import call_tool
     from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+    from inspect_ai.model._model_output import ModelUsage
     from inspect_ai.tool import tool
-    from inspect_ai.util._limit import LimitExceededError
+    from inspect_ai.util._limit import (
+        LimitExceededError,
+        check_token_limit,
+        record_model_usage,
+        token_limit,
+    )
 
     @tool
     def limited():
         async def execute(text: str) -> str:
-            """Exceed a limit, directly or from a child task.
+            """Exceed a limit, directly, from a child task, or its own.
 
             Args:
                 text: Ignored.
@@ -605,9 +610,13 @@ async def test_handle_request_bridged_tool_limit_keeps_service_handling(
             async def child() -> None:
                 raise LimitExceededError("token", value=2, limit=1)
 
-            if grouped:
+            if case == "grouped":
                 async with anyio.create_task_group() as tg:
                     tg.start_soon(child)
+            elif case == "inner":
+                with token_limit(1):
+                    record_model_usage(ModelUsage(total_tokens=2))
+                    check_token_limit()
             await child()
             return text
 
@@ -652,7 +661,73 @@ async def test_handle_request_bridged_tool_limit_keeps_service_handling(
     assert response["result"] is None
     assert response["error"] is not None
     assert not bridge._failure_requested.is_set()
-    assert active.limit_exceeded.call_count == (0 if grouped else 1)
+    assert active.limit_exceeded.call_count == (0 if case == "inner" else 1)
+
+
+@pytest.mark.parametrize("grouped", [False, True], ids=["bare", "grouped"])
+async def test_handle_request_bridged_generate_limit_ends_sample(
+    grouped: bool,
+) -> None:
+    """A sample limit exceeded by a bridged generate ends the sample.
+
+    This holds when the generate raises the error from a child task, so it
+    arrives wrapped in an `ExceptionGroup`. The sandboxed agent still gets an
+    RPC error reply.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
+    from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+    from inspect_ai.model import get_model
+    from inspect_ai.util._limit import token_limit
+
+    async def model_call() -> None:
+        await get_model("mockllm/model").generate("hi")
+
+    async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        if grouped:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(model_call)
+        else:
+            await model_call()
+        return {}
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+    )
+    request_id = "11111111-2222-3333-4444-555555555555"
+    fake = _RequestReadSandbox(
+        cat_stdout=json.dumps(
+            {
+                "id": request_id,
+                "method": "generate_completions",
+                "params": {"json_data": {}},
+            }
+        )
+    )
+    service = _service_with_dirs(fake)
+    service.add_method(
+        "generate_completions", _forward_provider_errors(generate, bridge)
+    )
+    request_file = f"{service._requests_dir}/{request_id}.json"
+
+    active = MagicMock()
+    with (
+        patch("inspect_ai.log._samples.sample_active", return_value=active),
+        token_limit(1) as sample_limit,
+    ):
+        await service._handle_request(request_file)
+
+    response = json.loads(fake.writes[f"{service._responses_dir}/{request_id}.json"])
+    assert response["result"] is None
+    assert response["error"].startswith("Limit exceeded calling method")
+    assert not bridge._failure_requested.is_set()
+    active.limit_exceeded.assert_called_once()
+    assert active.limit_exceeded.call_args.args[0].source is sample_limit
 
 
 async def test_write_response_goes_through_the_verified_responses_dir() -> None:

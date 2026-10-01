@@ -12,6 +12,7 @@ from inspect_ai.util._limit import (
     apply_limits,
     check_message_limit,
     check_token_limit,
+    limit_error_scope,
     message_limit,
     record_model_usage,
     sample_limits,
@@ -141,6 +142,66 @@ async def test_apply_limits_handles_time_limit() -> None:
         await anyio.sleep(0.5)
 
     assert limit_scope.limit_error is not None
+
+
+def _token_limit_error() -> LimitExceededError:
+    record_model_usage(ModelUsage(total_tokens=11))
+    try:
+        check_token_limit()
+    except LimitExceededError as ex:
+        return ex
+    pytest.fail("Expected LimitExceededError")
+
+
+def test_limit_error_scope_outermost_limit() -> None:
+    with token_limit(10):
+        with message_limit(5):
+            error = _token_limit_error()
+            assert limit_error_scope(error) == "sample"
+
+
+def test_limit_error_scope_enclosing_limit() -> None:
+    with token_limit(1000):
+        with token_limit(10):
+            with token_limit(100):
+                error = _token_limit_error()
+            # the exceeded limit is still open after the inner one closed
+            assert limit_error_scope(error) == "enclosing"
+
+
+def test_limit_error_scope_closed_limit() -> None:
+    with token_limit(1000):
+        with token_limit(10):
+            error = _token_limit_error()
+        assert limit_error_scope(error) == "inner"
+    assert limit_error_scope(error) == "inner"
+
+
+def test_limit_error_scope_without_source() -> None:
+    error = LimitExceededError("custom", value=2, limit=1)
+    assert limit_error_scope(error) == "sample"
+
+
+async def test_limit_error_scope_closed_time_limit() -> None:
+    with token_limit(1000):
+        with pytest.raises(LimitExceededError) as exc_info:
+            with time_limit(0.01):
+                await anyio.sleep(1)
+        assert limit_error_scope(exc_info.value) == "inner"
+
+
+async def test_limit_error_scope_from_child_task() -> None:
+    # a child task sees the limits open where it was started
+    errors: list[LimitExceededError] = []
+
+    async def child() -> None:
+        errors.append(_token_limit_error())
+
+    with token_limit(1000):
+        with token_limit(10):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(child)
+            assert limit_error_scope(errors[0]) == "enclosing"
 
 
 def test_get_sample_limits_when_no_sample_running() -> None:

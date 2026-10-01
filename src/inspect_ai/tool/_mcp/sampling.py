@@ -42,6 +42,7 @@ async def sampling_fn(
     context: Any,
     params: CreateMessageRequestParams,
 ) -> CreateMessageResult | ErrorData:
+    from inspect_ai.log._samples import sample_active
     from inspect_ai.model._chat_message import (
         ChatMessage,
         ChatMessageAssistant,
@@ -50,6 +51,7 @@ async def sampling_fn(
     )
     from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model import get_model
+    from inspect_ai.util._limit import LimitExceededError, limit_error_scope
 
     try:
         # build message list
@@ -110,6 +112,13 @@ async def sampling_fn(
         # This includes LimitExceededError and ModelRefusalError: the mcp
         # dispatcher converts anything raised here into an INTERNAL_ERROR
         # response anyway, so re-raising would not reach the sample runner.
+        # This runs in the session's task, not the tool call's, so the only
+        # scope we can end is the sample. An agent's or a tool body's limit
+        # raises again after that scope's next model call.
+        if isinstance(ex, LimitExceededError) and limit_error_scope(ex) == "sample":
+            active = sample_active()
+            if active is not None:
+                active.limit_exceeded(ex)
         return ErrorData(code=INTERNAL_ERROR, message=exception_message(ex))
 
 

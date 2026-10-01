@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generic,
     Iterator,
@@ -194,6 +195,51 @@ class LimitScope:
 
     def __init__(self) -> None:
         self.limit_error: LimitExceededError | None = None
+
+
+def limit_error_scope(
+    error: LimitExceededError,
+) -> Literal["inner", "enclosing", "sample"]:
+    """Find where the limit that raised `error` is scoped, from the current context.
+
+    Call this where the error is caught, after it has left the call that raised
+    it. A limit opened inside that call (an agent-as-tool's own limits, a scoped
+    limit in a tool body) has closed by then, so it is no longer in its limit
+    tree. A limit that is still open belongs to the caller or one of its
+    enclosing scopes, and the caller must not treat the error as recoverable.
+
+    Args:
+       error: The limit error that was caught.
+
+    Returns:
+       `"inner"` when the source limit is not open in the current context: it
+       belonged to the call, which the caller can treat as failed.
+       `"enclosing"` when the source limit is open but is not the outermost
+       one: it belongs to an enclosing agent or scoped limit, so the error must
+       propagate to it.
+       `"sample"` when the source limit is the outermost open limit (the
+       sample's own limit, inside a sample), or the error has no source (a
+       custom limit, which the sample enforces).
+    """
+    source = error.source
+    if source is None:
+        return "sample"
+    trees: tuple[_Tree[Any], ...] = (
+        token_limit_tree,
+        cost_limit_tree,
+        message_limit_tree,
+        turn_limit_tree,
+        working_limit_tree,
+        time_limit_tree,
+    )
+    for tree in trees:
+        node = tree.get()
+        while node is not None:
+            parent = node.parent
+            if node is source:
+                return "sample" if parent is None else "enclosing"
+            node = parent
+    return "inner"
 
 
 @dataclass

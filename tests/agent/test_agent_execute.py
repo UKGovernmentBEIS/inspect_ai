@@ -12,13 +12,17 @@ from inspect_ai.agent._run import run
 from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import execute_tools
-from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model._chat_message import (
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.solver._use_tools import use_tools
-from inspect_ai.tool import ToolDef
+from inspect_ai.tool import ToolDef, tool
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.util._limit import LimitExceededError, message_limit, token_limit
@@ -249,13 +253,114 @@ def test_agent_as_tool_respects_sample_limits() -> None:
         )
     )[0]
 
+    # the sample's limit ends the sample rather than failing the tool call
     assert log.status == "success"
     assert log.samples
-    tool_message = log.samples[0].messages[-1]
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "message"
+    assert not any(isinstance(m, ChatMessageTool) for m in sample.messages)
+    check_limit_event(log, "message")
+
+
+@tool
+def generating_tool(limit: int | None = None) -> Tool:
+    async def execute() -> str:
+        """Call the model until a limit stops it."""
+        with token_limit(limit):
+            await looping_agent()(AgentState(messages=[ChatMessageUser(content="hi")]))
+        return "done"
+
+    return execute
+
+
+@solver
+def mark_continued() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.messages.append(ChatMessageUser(content="continued"))
+        return state
+
+    return solve
+
+
+def test_tool_model_call_sample_limit_ends_sample() -> None:
+    log = eval(
+        Task(
+            solver=[
+                use_tools(generating_tool()),
+                call_looping_agent("generating_tool", arguments={}),
+                mark_continued(),
+            ],
+            token_limit=5,
+        )
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "token"
+    assert sample.limit.limit == 5
+    assert sample.messages[-1].text != "continued"
+
+
+def test_tool_model_call_tool_limit_returns_tool_error() -> None:
+    log = eval(
+        Task(
+            solver=[
+                use_tools(generating_tool(limit=5)),
+                call_looping_agent("generating_tool", arguments={}),
+                mark_continued(),
+            ],
+            token_limit=1000,
+        )
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is None
+    tool_message = sample.messages[-2]
     assert isinstance(tool_message, ChatMessageTool)
     assert tool_message.error is not None
-    assert tool_message.error.message == "The tool exceeded its message limit of 10."
-    check_limit_event(log, "message")
+    assert tool_message.error.type == "limit"
+    assert sample.messages[-1].text == "continued"
+
+
+@pytest.mark.anyio
+async def test_tool_model_call_agent_limit_ends_agent() -> None:
+    @agent
+    def tool_calling_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            """Call generating_tool, then carry on.
+
+            Args:
+                state: Input state (conversation)
+            """
+            state.messages.append(
+                ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="1", function="generating_tool", arguments={})
+                    ],
+                )
+            )
+            result = await execute_tools(state.messages, [generating_tool()])
+            state.messages.extend(result.messages)
+            state.messages.append(ChatMessageUser(content="continued"))
+            return state
+
+        return execute
+
+    agent_limit = token_limit(5)
+    agent_state, limit_error = await run(
+        tool_calling_agent(), "input", limits=[agent_limit]
+    )
+
+    # the agent's limit ends the agent, not just its tool call
+    assert limit_error is not None
+    assert limit_error.source is agent_limit
+    assert agent_state.messages[-1].text != "continued"
 
 
 def test_agent_handoff():
@@ -337,6 +442,14 @@ def test_agent_handoff_respects_sample_limits():
     )[0]
 
     assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "message"
+    assert not any(
+        m.text == "The looping_agent exceeded its message limit of 10."
+        for m in sample.messages
+    )
     check_limit_event(log, "message")
 
 

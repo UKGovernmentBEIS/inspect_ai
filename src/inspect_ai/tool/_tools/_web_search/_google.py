@@ -17,6 +17,7 @@ from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.util._concurrency import concurrency
+from inspect_ai.util._limit import LimitExceededError
 
 from ._web_search_provider import SearchProvider
 
@@ -89,6 +90,9 @@ def google_search_provider(
                     pages[index] = await page_if_relevant(
                         link.url, query, model, client
                     )
+                # a limit hit by the relevance model call must propagate
+                except LimitExceededError:
+                    raise
                 # exceptions fetching pages are very common!
                 except Exception:
                     pass

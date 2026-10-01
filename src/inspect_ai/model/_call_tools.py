@@ -71,7 +71,7 @@ from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._limit import LimitExceededError, apply_limits
+from inspect_ai.util._limit import LimitExceededError, apply_limits, limit_error_scope
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
@@ -342,6 +342,13 @@ async def _execute_tools_impl(
                     tool_error = mapped.error
                     if mapped.result is not None:
                         result = mapped.result
+                    # a limit that is still open here belongs to the sample or
+                    # an enclosing agent, which must see the error
+                    if (
+                        isinstance(ex, LimitExceededError)
+                        and limit_error_scope(ex) != "inner"
+                    ):
+                        tool_exception = ex
                 elif isinstance(ex, ValueError):
                     # pre-existing: a ValueError other than the null-byte case
                     # escapes the per-call handler rather than being captured
@@ -1073,6 +1080,8 @@ async def agent_handoff(
             async with span(name=agent_name, type=AGENT_SPAN_TYPE):
                 agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
+        if limit_error_scope(ex) != "inner":
+            raise
         limit_error = ex
 
     # find the demaraction line of 'new' messages

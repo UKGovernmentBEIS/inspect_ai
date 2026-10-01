@@ -17,6 +17,7 @@ from inspect_ai.model._compaction import CompactionStrategy
 from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.trim import CompactionTrim
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._limit import LimitExceededError
 
 
 class _AlwaysRaisesCompaction(CompactionStrategy):
@@ -32,6 +33,16 @@ class _AlwaysRaisesCompaction(CompactionStrategy):
         self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         raise RuntimeError("simulated compaction failure")
+
+
+class _LimitExceededCompaction(_AlwaysRaisesCompaction):
+    """Test-only strategy whose compaction exceeds a limit."""
+
+    @override
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        raise LimitExceededError("token", value=2, limit=1)
 
 
 @pytest.mark.parametrize(
@@ -217,6 +228,37 @@ def test_model_length_with_compaction_failure_falls_through_to_filter() -> None:
         "Agent should have recovered via the truncation filter even when "
         f"forced compaction fails. Status: {log.status}"
     )
+
+
+def test_model_length_with_compaction_limit_error_ends_sample() -> None:
+    """A limit hit by forced compaction ends the sample, not the overflow filter."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="Failed turn (overflow)",
+                stop_reason="model_length",
+            ),
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="Recovered after truncation",
+            ),
+        ],
+    )
+
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(compaction=_LimitExceededCompaction(), truncation="auto"),
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "token"
+    assert all(m.text != "Recovered after truncation" for m in sample.messages)
 
 
 def test_model_length_without_recovery_terminates() -> None:

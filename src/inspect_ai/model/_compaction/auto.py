@@ -13,6 +13,7 @@ from inspect_ai._util.error import exception_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._model import Model
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._limit import LimitExceededError
 
 from .native import CompactionNative
 from .summary import CompactionSummary
@@ -104,6 +105,8 @@ class CompactionAuto(CompactionStrategy):
             return await self._native.compact(model, messages, tools)
         except NotImplementedError:
             return await self._summary.compact(model, messages, tools)
+        except LimitExceededError:
+            raise
         except Exception as ex:
             logger.warning(
                 f"Native compaction failed: {exception_message(ex)}. "

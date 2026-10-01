@@ -47,8 +47,9 @@ def _forward_provider_errors(
     channel. This lets the model proxy emit a provider-dialect error response
     and stay up, instead of the RPC `error` channel triggering a fatal exit.
 
-    `LimitExceededError` is deliberately excluded so message/token/cost limit
-    hit during generation properly end the sample.
+    `LimitExceededError` (bare or in an exception group) is deliberately
+    excluded so message/token/cost limit hit during generation properly end the
+    sample.
 
     A `ModelRefusalError` (`fail_on_refusal`) must also end the sample, but the
     sandbox service dispatcher would swallow a re-raise into an RPC error, so it
@@ -61,14 +62,14 @@ def _forward_provider_errors(
     ) -> dict[str, JsonValue]:
         try:
             return await generate(json_data)
-        except LimitExceededError:
-            raise
         except ModelRefusalError as ex:
             bridge.request_fail(ex)
             # no non-provider-error warning: the failure is reported once, by
             # the sample error the monitor task raises
             return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
         except Exception as ex:
+            if isinstance(inner_exception(ex), LimitExceededError):
+                raise
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the
             # failure came from our own request translation rather than the
@@ -282,9 +283,7 @@ def call_tool(
             result = await tool_fn(**arguments)
         except Exception as ex:
             # classify the unwrapped exception, but let the original propagate:
-            # the service dispatcher special-cases a bare LimitExceededError
-            # (ending the sample), and unwrapping a grouped one would newly
-            # route it there
+            # the service dispatcher unwraps a LimitExceededError itself
             inner_ex = inner_exception(ex)
             if tool_call_error(inner_ex, tool) is None:
                 bridge.request_fail(inner_ex)
