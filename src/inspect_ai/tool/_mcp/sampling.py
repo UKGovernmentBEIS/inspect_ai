@@ -1,4 +1,6 @@
-from typing import Any, Literal, Sequence
+import weakref
+from contextlib import contextmanager
+from typing import Any, Iterator, Literal, Sequence
 
 from mcp.types import (
     INTERNAL_ERROR,
@@ -25,6 +27,11 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
+from inspect_ai.util._limit import (
+    LimitExceededError,
+    enclosing_limit_error,
+    limit_error_scope,
+)
 
 from ._compat import (
     content_mime_type,
@@ -34,6 +41,35 @@ from ._compat import (
     params_stop_sequences,
     params_system_prompt,
 )
+
+# A limit exceeded by a sampling request, keyed by the client session that
+# received the request, until the tool call on that session raises it.
+_sampling_limit_errors: "weakref.WeakKeyDictionary[Any, LimitExceededError]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+@contextmanager
+def raise_sampling_limit_error(session: Any) -> Iterator[None]:
+    """Raise a limit exceeded by a sampling request during a tool call.
+
+    Sampling requests run in the session's task, where a limit error cannot
+    reach the scope that owns the limit. The tool call raises it instead, in
+    place of its own result or error, so the tool executor can pass it on.
+
+    Args:
+       session: The client session the tool call is made on.
+    """
+    try:
+        yield
+    except Exception:
+        limit_error = _sampling_limit_errors.pop(session, None)
+        if limit_error is not None:
+            raise limit_error
+        raise
+    limit_error = _sampling_limit_errors.pop(session, None)
+    if limit_error is not None:
+        raise limit_error
 
 
 async def sampling_fn(
@@ -51,7 +87,12 @@ async def sampling_fn(
     )
     from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model import get_model
-    from inspect_ai.util._limit import LimitExceededError, limit_error_scope
+
+    # once a limit is exceeded, refuse further requests from the tool call
+    session = getattr(context, "session", None)
+    pending = _sampling_limit_errors.get(session) if session is not None else None
+    if pending is not None:
+        return ErrorData(code=INTERNAL_ERROR, message=pending.message)
 
     try:
         # build message list
@@ -112,13 +153,16 @@ async def sampling_fn(
         # This includes LimitExceededError and ModelRefusalError: the mcp
         # dispatcher converts anything raised here into an INTERNAL_ERROR
         # response anyway, so re-raising would not reach the sample runner.
-        # This runs in the session's task, not the tool call's, so the only
-        # scope we can end is the sample. An agent's or a tool body's limit
-        # raises again after that scope's next model call.
-        if isinstance(ex, LimitExceededError) and limit_error_scope(ex) == "sample":
-            active = sample_active()
-            if active is not None:
-                active.limit_exceeded(ex)
+        # A sample limit ends the sample now; any limit is also raised by
+        # the tool call (see raise_sampling_limit_error).
+        limit_error = enclosing_limit_error(ex)
+        if limit_error is not None:
+            if limit_error_scope(limit_error) == "sample":
+                active = sample_active()
+                if active is not None:
+                    active.limit_exceeded(limit_error)
+            if session is not None:
+                _sampling_limit_errors[session] = limit_error
         return ErrorData(code=INTERNAL_ERROR, message=exception_message(ex))
 
 

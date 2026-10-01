@@ -1,7 +1,8 @@
 from typing import Callable, TypeAlias
 
+import anyio
 import pytest
-from test_helpers.limits import check_limit_event
+from test_helpers.limits import check_limit_event, exceed_token_limit_in_child_task
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
@@ -302,6 +303,42 @@ def test_tool_model_call_sample_limit_ends_sample() -> None:
     assert sample.limit.type == "token"
     assert sample.limit.limit == 5
     assert sample.messages[-1].text != "continued"
+
+
+@tool
+def failing_and_limited_tool() -> Tool:
+    async def execute() -> str:
+        """Fail in one child task and exceed the sample's limit in another."""
+
+        async def fail() -> None:
+            raise RuntimeError("unrelated failure")
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(fail)
+            tg.start_soon(exceed_token_limit_in_child_task)
+        return "done"
+
+    return execute
+
+
+def test_tool_grouped_sample_limit_with_other_error_ends_sample() -> None:
+    log = eval(
+        Task(
+            solver=[
+                use_tools(failing_and_limited_tool()),
+                call_looping_agent("failing_and_limited_tool", arguments={}),
+                mark_continued(),
+            ],
+            token_limit=5,
+        )
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is not None
+    assert sample.limit.type == "token"
 
 
 def test_tool_model_call_tool_limit_returns_tool_error() -> None:

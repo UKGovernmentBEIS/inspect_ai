@@ -541,7 +541,11 @@ class SandboxService:
         else:
             from inspect_ai.log._samples import sample_active
             from inspect_ai.util._anyio import inner_exception
-            from inspect_ai.util._limit import LimitExceededError, limit_error_scope
+            from inspect_ai.util._limit import (
+                LimitExceededError,
+                enclosing_limit_error,
+                limit_error_scope,
+            )
 
             try:
                 params = cast(dict[str, JsonValue], request_data.get(PARAMS))
@@ -551,7 +555,7 @@ class SandboxService:
                         request_file, request_id, await method(**params)
                     )
                 except Exception as ex:
-                    limit_error = inner_exception(ex)
+                    limit_error = enclosing_limit_error(ex) or inner_exception(ex)
                     if not isinstance(limit_error, LimitExceededError):
                         raise
                     # a limit still open here belongs to the sample or an

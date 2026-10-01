@@ -19,7 +19,7 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import LimitExceededError, enclosing_limit_error
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
@@ -68,7 +68,9 @@ def _forward_provider_errors(
             # the sample error the monitor task raises
             return {PROVIDER_ERROR_KEY: cast(JsonValue, provider_error_payload(ex))}
         except Exception as ex:
-            if isinstance(inner_exception(ex), LimitExceededError):
+            if enclosing_limit_error(ex) is not None or isinstance(
+                inner_exception(ex), LimitExceededError
+            ):
                 raise
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the

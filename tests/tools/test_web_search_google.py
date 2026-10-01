@@ -3,12 +3,17 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+from test_helpers.limits import exceed_token_limit_in_child_task
 
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
 from inspect_ai.tool._tools._web_search._google import google_search_provider
 from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import (
+    LimitExceededError,
+    enclosing_limit_error,
+    token_limit,
+)
 
 # Mock response from Google Custom Search API
 # See https://developers.google.com/custom-search/v1/reference/rest/v1/Search
@@ -148,6 +153,38 @@ class TestGoogleSearchRendering:
                 await search("test query")
 
         assert isinstance(inner_exception(exc_info.value), LimitExceededError)
+
+    async def test_search_relevance_grouped_limit_error_propagates(self) -> None:
+        """A limit raised from a child task of the relevance call ends the search."""
+        mock_client = httpx.AsyncClient(transport=create_mock_transport())
+
+        async def generate(*args, **kwargs):
+            await exceed_token_limit_in_child_task()
+
+        mock_model = AsyncMock()
+        mock_model.generate.side_effect = generate
+
+        with (
+            patch("httpx.AsyncClient") as mock_async_client_cls,
+            patch("inspect_ai.model._model.get_model") as mock_get_model,
+            patch(
+                "inspect_ai.tool._tools._web_search._google.maybe_get_google_api_keys"
+            ) as mock_get_keys,
+            token_limit(1) as limit,
+        ):
+            mock_async_client_cls.return_value = mock_client
+            mock_get_model.return_value = mock_model
+            mock_get_keys.return_value = ("dummy-key", "dummy-cse-id")
+
+            search = google_search_provider()
+
+            with pytest.raises(Exception) as exc_info:
+                await search("test query")
+
+            found = enclosing_limit_error(exc_info.value)
+            assert found is not None and found.source is limit
+        # the first page's two relevance calls, and no further pages
+        assert mock_model.generate.await_count <= 2
 
     async def test_search_url_encodes_non_printable_characters(self):
         """Test that search queries with non-printable characters are properly URL-encoded."""

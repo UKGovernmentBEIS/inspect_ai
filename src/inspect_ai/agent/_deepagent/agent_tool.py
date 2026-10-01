@@ -658,7 +658,11 @@ async def _run_background(
     from inspect_ai._util.exception import TerminateSampleError
     from inspect_ai.event._timeline import timeline_branch
     from inspect_ai.model._model import ModelRefusalError
-    from inspect_ai.util._limit import LimitExceededError, apply_limits
+    from inspect_ai.util._limit import (
+        LimitExceededError,
+        apply_limits,
+        enclosing_limit_error,
+    )
     from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
     assert future.cancel_scope is not None, (
@@ -727,6 +731,11 @@ async def _run_background(
         future.status = "cancelled"
         raise
     except Exception as ex:
+        # an outer limit raised from a child task, as above
+        limit_error = enclosing_limit_error(ex)
+        if limit_error is not None:
+            future.status = "cancelled"
+            raise limit_error
         # A background subagent failure is captured on the future and
         # surfaced via agent_status / agent_wait — it must NOT propagate
         # to sample.tg (that would fail the whole sample). Swallow after

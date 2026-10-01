@@ -7,10 +7,12 @@ import weakref
 from pathlib import Path
 from types import SimpleNamespace, TracebackType
 from typing import Any, AsyncIterator, Callable
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import anyio
 import pytest
+from test_helpers.limits import exceed_token_limit_in_child_task
 from test_helpers.utils import (
     skip_if_no_docker,
     skip_if_no_mcp_package,
@@ -19,7 +21,7 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.environ import environ_var
-from inspect_ai.agent import react
+from inspect_ai.agent import Agent, AgentState, agent, react, run
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -41,7 +43,7 @@ from inspect_ai.tool import (
 from inspect_ai.tool._mcp.tools import MCPToolSourceLocal
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util import sandbox, token_limit
+from inspect_ai.util import LimitExceededError, sandbox, token_limit
 
 if sys.version_info < (3, 11):
     from exceptiongroup import BaseExceptionGroup
@@ -895,5 +897,134 @@ def test_mcp_sampling_tool_limit_returns_tool_error() -> None:
     tool_message = sample.messages[-2]
     assert isinstance(tool_message, ChatMessageTool)
     assert tool_message.error is not None
-    assert "Token limit exceeded" in tool_message.error.message
+    assert tool_message.error.type == "limit"
     assert sample.messages[-1].text == "continued"
+
+
+@solver
+def _run_agent_with_token_limit():
+    """Run an agent that samples through MCP under its own token limit of 1."""
+
+    @agent
+    def sampling_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            """Ask the sampling server three times, then carry on.
+
+            Args:
+                state: Input state (conversation)
+            """
+            state.messages.append(
+                ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="1",
+                            function="ask_repeatedly",
+                            arguments={"question": "Hi?", "times": 3},
+                        )
+                    ],
+                )
+            )
+            result = await execute_tools(
+                state.messages, [mcp_tools(_sampling_server())]
+            )
+            state.messages.extend(result.messages)
+            state.messages.append(ChatMessageUser(content="agent continued"))
+            return state
+
+        return execute
+
+    async def solve(state, generate):
+        agent_limit = token_limit(1)
+        agent_state, limit_error = await run(
+            sampling_agent(), "input", limits=[agent_limit]
+        )
+        state.messages.extend(agent_state.messages)
+        assert limit_error is not None and limit_error.source is agent_limit
+        state.messages.append(ChatMessageUser(content="agent limit reached"))
+        return state
+
+    return solve
+
+
+@skip_if_no_mcp_package
+def test_mcp_sampling_agent_limit_ends_agent() -> None:
+    log = eval(
+        Task(solver=_run_agent_with_token_limit()),
+        model="mockllm/model",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is None
+    texts = [m.text for m in sample.messages]
+    assert texts[-1] == "agent limit reached"
+    assert "agent continued" not in texts
+    # the server's later sampling requests are refused without a model call
+    model_events = [e for e in sample.events if e.event == "model"]
+    assert len(model_events) == 1
+
+
+class _Session:
+    """Stands in for the client session that a sampling request arrives on."""
+
+
+def _sampling_params() -> Any:
+    from mcp.types import CreateMessageRequestParams
+
+    # model_validate: the camelCase spelling validates on mcp 1.x and 2.x
+    return CreateMessageRequestParams.model_validate(
+        {
+            "messages": [{"role": "user", "content": {"type": "text", "text": "Hi?"}}],
+            "maxTokens": 100,
+        }
+    )
+
+
+@skip_if_no_mcp_package
+@pytest.mark.parametrize("scope", ["sample", "enclosing"])
+async def test_mcp_sampling_grouped_limit_raised_by_tool_call(scope: str) -> None:
+    from mcp.types import ErrorData
+
+    from inspect_ai.tool._mcp.sampling import raise_sampling_limit_error, sampling_fn
+
+    async def generate(*args: Any, **kwargs: Any) -> None:
+        await exceed_token_limit_in_child_task()
+
+    model = MagicMock()
+    model.generate = AsyncMock(side_effect=generate)
+    active = MagicMock()
+    session = _Session()
+    context = SimpleNamespace(session=session)
+
+    with (
+        patch("inspect_ai.model._model.get_model", return_value=model),
+        patch("inspect_ai.log._samples.sample_active", return_value=active),
+        # an unlimited outer limit makes the exceeded one an enclosing limit
+        token_limit(None) if scope == "enclosing" else contextlib.nullcontext(),
+        token_limit(1) as limit,
+    ):
+        first = await sampling_fn(context, _sampling_params())
+        second = await sampling_fn(context, _sampling_params())
+
+        assert isinstance(first, ErrorData)
+        assert isinstance(second, ErrorData)
+        # the second request is refused without a model call
+        assert model.generate.await_count == 1
+        # only a sample limit can be ended from the session's task
+        if scope == "sample":
+            active.limit_exceeded.assert_called_once()
+            assert active.limit_exceeded.call_args.args[0].source is limit
+        else:
+            active.limit_exceeded.assert_not_called()
+
+        # the tool call on the session raises the limit to its owner
+        with pytest.raises(LimitExceededError) as exc_info:
+            with raise_sampling_limit_error(session):
+                raise ToolError("sampling failed")
+        assert exc_info.value.source is limit
+
+        # and it is raised only once
+        with raise_sampling_limit_error(session):
+            pass

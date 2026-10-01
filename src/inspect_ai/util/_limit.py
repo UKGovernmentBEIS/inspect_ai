@@ -6,6 +6,7 @@ import logging
 import math
 import operator
 import re
+import sys
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -27,6 +28,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing_extensions import Self, override
 
 from inspect_ai._util.logger import warn_once
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
 
 if TYPE_CHECKING:
     # These imports are used as type hints only - prevent circular imports.
@@ -240,6 +244,30 @@ def limit_error_scope(
                 return "sample" if parent is None else "enclosing"
             node = parent
     return "inner"
+
+
+def enclosing_limit_error(ex: BaseException) -> LimitExceededError | None:
+    """Find a limit error in `ex` that belongs to an enclosing scope.
+
+    Searches `ex` and any exception groups it contains, since a limit raised
+    in a child task arrives wrapped in one, possibly next to other errors.
+
+    Args:
+       ex: The exception that was caught.
+
+    Returns:
+       The first `LimitExceededError` found whose `limit_error_scope()` is
+       not `"inner"`, or `None`. A handler that recovers from errors must
+       raise this instead.
+    """
+    if isinstance(ex, LimitExceededError):
+        return ex if limit_error_scope(ex) != "inner" else None
+    if isinstance(ex, BaseExceptionGroup):
+        for child in ex.exceptions:
+            found = enclosing_limit_error(child)
+            if found is not None:
+                return found
+    return None
 
 
 @dataclass

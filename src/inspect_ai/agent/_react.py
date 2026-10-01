@@ -29,7 +29,7 @@ from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.util._checkpoint import Checkpointer, checkpointer
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import enclosing_limit_error
 
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._channel import (
@@ -626,13 +626,14 @@ async def _handle_overflow(
             ):
                 state.messages.append(c_message)
             return state, True
-        except (ModelRefusalError, LimitExceededError):
+        except ModelRefusalError:
             # a refused summary generation under fail_on_refusal fails the
-            # sample like any other refusal rather than degrading to overflow,
-            # and a limit hit by the summary generation belongs to the sample
-            # or an enclosing agent
+            # sample like any other refusal rather than degrading to overflow
             raise
         except Exception as ex:
+            limit_error = enclosing_limit_error(ex)
+            if limit_error is not None:
+                raise limit_error
             # Falling back from configured compaction to the lossy overflow
             # filter is a real degradation — surface to operator stderr.
             logger.warning(

@@ -71,7 +71,12 @@ from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._limit import LimitExceededError, apply_limits, limit_error_scope
+from inspect_ai.util._limit import (
+    LimitExceededError,
+    apply_limits,
+    enclosing_limit_error,
+    limit_error_scope,
+)
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
@@ -333,7 +338,7 @@ async def _execute_tools_impl(
                         agent_span_id = called.agent_span_id
                 # unwrap exception group
                 except Exception as ex:
-                    inner_ex = inner_exception(ex)
+                    inner_ex = enclosing_limit_error(ex) or inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
             except Exception as ex:

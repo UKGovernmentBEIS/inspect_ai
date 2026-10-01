@@ -26,9 +26,21 @@ async def ask(question: str, ctx: Any) -> str:
     return result.content.text
 
 
+async def ask_repeatedly(question: str, times: int, ctx: Any) -> str:
+    answers: list[str] = []
+    for _ in range(times):
+        try:
+            answers.append(await ask(question, ctx))
+        except Exception as ex:
+            answers.append(f"error: {ex}")
+    return "\n".join(answers)
+
+
 # the server finds the context parameter by its annotation
 ask.__annotations__["ctx"] = _module.Context
+ask_repeatedly.__annotations__["ctx"] = _module.Context
 server.tool(description="Asks the client's model a question")(ask)
+server.tool(description="Asks the client's model, ignoring errors")(ask_repeatedly)
 
 
 if __name__ == "__main__":
