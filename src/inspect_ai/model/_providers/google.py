@@ -119,6 +119,7 @@ from inspect_ai.model._providers._google_reasoning import (
     gemini_3_plus,
     gemini_is_latest,
     gemini_supports_minimal_thinking,
+    gemini_thinking_budget,
     gemini_thinking_level,
     gemini_thinking_only,
     gemini_version,
@@ -129,7 +130,6 @@ from inspect_ai.model._providers._google_reasoning import (
     is_gemini_3,
 )
 from inspect_ai.model._reasoning import (
-    effort_to_reasoning_tokens,
     reasoning_to_think_tag,
 )
 from inspect_ai.model._retry import batch_admin_retry_config
@@ -1162,7 +1162,9 @@ class GoogleGenAIAPI(ModelAPI):
             # by 2.5 itself, but users sweeping across model versions expect
             # --reasoning-effort to do *something* on 2.5).
             elif config.reasoning_effort is not None and self.is_gemini_2_5():
-                budget = effort_to_reasoning_tokens(config.reasoning_effort)
+                budget = gemini_thinking_budget(
+                    config.reasoning_effort, self.model_family()
+                )
                 if budget is not None:
                     return ThinkingConfig(include_thoughts=True, thinking_budget=budget)
                 return ThinkingConfig(include_thoughts=True)

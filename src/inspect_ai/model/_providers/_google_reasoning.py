@@ -9,7 +9,10 @@ frontier.
 import re
 from typing import Literal
 
-from .._reasoning import clamp_reasoning_effort_to_minimal_low_medium_high
+from .._reasoning import (
+    clamp_reasoning_effort_to_minimal_low_medium_high,
+    effort_to_reasoning_tokens,
+)
 
 NON_GENERATIVE_TOKENS = (
     "embedding",
@@ -117,3 +120,16 @@ def gemini_thinking_level(
     if level == "minimal" and not gemini_supports_minimal_thinking(family):
         return "low"
     return level
+
+
+def gemini_thinking_budget(effort: str | None, family: str) -> int | None:
+    """The Gemini 2.5 thinking budget for a `reasoning_effort`.
+
+    Inspect's budget for the effort, capped at the model's maximum (32768
+    for Pro, 24576 for Flash and Flash-Lite). None for no effort or `none`.
+    https://ai.google.dev/gemini-api/docs/thinking#set-budget
+    """
+    budget = effort_to_reasoning_tokens(effort)
+    if budget is None:
+        return None
+    return min(budget, 32768 if "-pro" in family else 24576)

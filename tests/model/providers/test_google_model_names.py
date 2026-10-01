@@ -16,6 +16,7 @@ from inspect_ai.model._providers._google_reasoning import (
     gemini_3_plus,
     gemini_has_thinking_config,
     gemini_is_latest,
+    gemini_thinking_budget,
     gemini_thinking_level,
     gemini_thinking_only,
 )
@@ -257,3 +258,20 @@ def test_gemini_generations(
     assert gemini_has_thinking_config(family, latest) is thinking_config
     assert gemini_3_plus(family, latest) is three_plus
     assert gemini_thinking_only(family, latest) is thinking_only
+
+
+@pytest.mark.parametrize(
+    "family,effort,expected",
+    [
+        ("gemini-2.5-flash", "high", 16000),
+        ("gemini-2.5-flash", "max", 24576),
+        ("gemini-2.5-flash-lite", "xhigh", 24576),
+        ("gemini-2.5-pro", "max", 32000),
+        ("gemini-2.5-pro", "none", None),
+        ("gemini-2.5-pro", None, None),
+    ],
+)
+def test_gemini_thinking_budget(
+    family: str, effort: str | None, expected: int | None
+) -> None:
+    assert gemini_thinking_budget(effort, family) == expected

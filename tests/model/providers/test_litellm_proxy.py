@@ -2514,7 +2514,8 @@ def _budget(tokens: int) -> dict[str, Any]:
         # Gemini 2.5: Inspect's thinking budgets
         ("gemini-2.5-pro", "minimal", None, _budget(2048)),
         ("gemini-2.5-pro", "high", None, _budget(16000)),
-        ("gemini-2.5-flash", "max", None, _budget(32000)),
+        ("gemini-2.5-flash", "max", None, _budget(24576)),
+        ("gemini-2.5-pro", "max", None, _budget(32000)),
         ("gemini-2.5-flash", "none", "none", None),
         # no thinking config
         ("gemini-2.0-flash", "high", None, None),

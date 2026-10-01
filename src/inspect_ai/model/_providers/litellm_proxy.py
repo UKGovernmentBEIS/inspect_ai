@@ -52,7 +52,6 @@ from .._openai_responses import (
 )
 from .._reasoning import (
     clamp_reasoning_effort_to_minimal_low_medium_high,
-    effort_to_reasoning_tokens,
 )
 from ._anthropic_max_tokens import (
     ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
@@ -63,6 +62,7 @@ from ._google_reasoning import (
     gemini_3_plus,
     gemini_has_thinking_config,
     gemini_is_latest,
+    gemini_thinking_budget,
     gemini_thinking_level,
     gemini_thinking_only,
     is_gemini,
@@ -848,8 +848,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
     ) -> int | None:
         """The thinking budget to send to a Gemini 2.5 model, if any.
 
-        Inspect's budget for the effort, as the native provider sends, rather
-        than LiteLLM's smaller ones. None if the proxy rejected the `thinking`
+        Inspect's budget for the effort (see `gemini_thinking_budget`), as
+        the native provider sends, rather than LiteLLM's smaller ones. None if the proxy rejected the `thinking`
         parameter or `extra_body` has one.
         """
         if (
@@ -859,7 +859,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             or not is_gemini_2_5(self._gemini_family())
         ):
             return None
-        return effort_to_reasoning_tokens(requested)
+        return gemini_thinking_budget(requested, self._gemini_family())
 
     def _gemini_family(self) -> str:
         """The model family without a route (e.g. `gemini/` on an alias)."""
