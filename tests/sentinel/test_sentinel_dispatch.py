@@ -11,7 +11,7 @@ from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.agent import as_solver, react
+from inspect_ai.agent import as_solver, handoff, react
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     Event,
@@ -327,6 +327,135 @@ def test_terminate_after_the_call() -> None:
     events = sentinel_events(log)
     assert {e.stage for e in events} == {"tool_result"}
     assert [e.action for e in events] == ["terminate"]
+
+
+@protocol
+def d3_reject_handoff() -> Protocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+        if step.call.function == "transfer_to_helper":
+            return Decision.reject("no handoffs", message="do it yourself")
+        return None
+
+    return decide
+
+
+def run_handoff(sentinel: Any) -> EvalLog:
+    helper_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="addition", tool_arguments={"x": 2, "y": 3}
+            ),
+            ModelOutput.from_content("mockllm/model", content="helper done"),
+        ],
+        memoize=False,
+    )
+    helper = react(
+        name="helper",
+        description="A helper agent.",
+        tools=[addition()],
+        model=helper_model,
+        submit=False,
+    )
+    parent_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="transfer_to_helper", tool_arguments={}
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=[use_tools(handoff(helper)), generate()],
+        sentinel=sentinel,
+    )
+    return eval(task, model=parent_model)[0]
+
+
+def handoff_call_id(log: EvalLog) -> str:
+    assert log.samples
+    [call_id] = [
+        call.id
+        for m in log.samples[0].messages
+        if isinstance(m, ChatMessageAssistant)
+        for call in m.tool_calls or []
+        if call.function == "transfer_to_helper"
+    ]
+    return call_id
+
+
+def test_a_rejected_handoff_does_not_run() -> None:
+    log = run_handoff(d3_reject_handoff())
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+
+    [message] = tool_messages(log)
+    assert message.function == "transfer_to_helper"
+    assert message.error is not None
+    assert message.error.message == "do it yourself"
+
+    assert not any(
+        isinstance(e, SpanBeginEvent) and e.type in ("handoff", "agent")
+        for e in sample.events
+    )
+    assert len([e for e in sample.events if isinstance(e, ModelEvent)]) == 2
+
+    [event] = sentinel_events(log)
+    assert event.stage == "tool_call"
+    assert event.action == "reject"
+    assert event.step_id == handoff_call_id(log)
+    [tool_event] = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert tool_event.pending is None
+
+
+def test_a_handoff_runs_and_its_sub_agent_calls_are_checked() -> None:
+    seen: list[Any] = []
+    log = run_handoff([d3_recording(seen), d3_suspicion()])
+    assert log.status == "success", log.error
+    assert [step.call.function for _, step in seen] == [
+        "transfer_to_helper",
+        "addition",
+    ]
+    assert log.samples
+    assert any("helper done" in m.text for m in log.samples[0].messages)
+
+    events = sentinel_events(log)
+    call_ids = {e.step_id for e in events if e.stage == "tool_call"}
+    assert handoff_call_id(log) in call_ids
+    assert len(call_ids) == 2
+
+
+def test_a_handoff_result_is_checked() -> None:
+    log = run_handoff([d3_trajectory()])
+    assert log.status == "success", log.error
+    after = [e for e in sentinel_events(log) if e.stage == "tool_result"]
+    assert handoff_call_id(log) in {e.step_id for e in after}
+
+
+@protocol
+def d3_terminate_after_handoff() -> Protocol:
+    async def stop(context: Context, step: AfterToolCall) -> Decision | None:
+        if step.call.function == "transfer_to_helper":
+            return Decision.terminate("handoff went badly")
+        return None
+
+    return stop
+
+
+def test_terminate_after_a_handoff_ends_the_sample() -> None:
+    log = run_handoff(d3_terminate_after_handoff())
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "operator"
+    assert sample.limit.reason == "handoff went badly"
+    [event] = [e for e in sentinel_events(log) if e.action == "terminate"]
+    assert event.stage == "tool_result"
+    assert event.step_id == handoff_call_id(log)
 
 
 def test_observe_records_observations_without_effect() -> None:
