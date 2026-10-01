@@ -1,6 +1,7 @@
 """Tests for forced-compaction recovery in the react agent's overflow path."""
 
 import pytest
+from test_helpers.limits import exceed_token_limit_in_child_task
 from typing_extensions import override
 
 from inspect_ai import Task, eval
@@ -17,6 +18,7 @@ from inspect_ai.model._compaction import CompactionStrategy
 from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.trim import CompactionTrim
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._limit import LimitExceededError
 
 
 class _AlwaysRaisesCompaction(CompactionStrategy):
@@ -32,6 +34,34 @@ class _AlwaysRaisesCompaction(CompactionStrategy):
         self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         raise RuntimeError("simulated compaction failure")
+
+
+class _LimitExceededCompaction(_AlwaysRaisesCompaction):
+    """Test-only strategy whose compaction exceeds a limit."""
+
+    @override
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        raise LimitExceededError("token", value=2, limit=1)
+
+
+class _GroupedLimitCompaction(_AlwaysRaisesCompaction):
+    """Test-only strategy whose compaction exceeds a limit from a child task."""
+
+    def __init__(self, own_limit: bool) -> None:
+        super().__init__()
+        self._own_limit = own_limit
+
+    @override
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        # the own limit is 1; stay under the sample's limit when exceeding it
+        await exceed_token_limit_in_child_task(
+            tokens=2 if self._own_limit else 1_000_000, own_limit=self._own_limit
+        )
+        raise RuntimeError("unreachable")
 
 
 @pytest.mark.parametrize(
@@ -217,6 +247,82 @@ def test_model_length_with_compaction_failure_falls_through_to_filter() -> None:
         "Agent should have recovered via the truncation filter even when "
         f"forced compaction fails. Status: {log.status}"
     )
+
+
+def test_model_length_with_compaction_limit_error_ends_sample() -> None:
+    """A limit hit by forced compaction ends the sample, not the overflow filter."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="Failed turn (overflow)",
+                stop_reason="model_length",
+            ),
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="Recovered after truncation",
+            ),
+        ],
+    )
+
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(compaction=_LimitExceededCompaction(), truncation="auto"),
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "token"
+    assert all(m.text != "Recovered after truncation" for m in sample.messages)
+
+
+@pytest.mark.parametrize("own_limit", [False, True], ids=["sample", "own"])
+def test_model_length_with_compaction_grouped_limit_error(own_limit: bool) -> None:
+    """A grouped sample limit from forced compaction ends the sample.
+
+    A limit the compaction opened itself still falls back to the overflow filter.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="Failed turn (overflow)",
+                stop_reason="model_length",
+            ),
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="Recovered after truncation",
+            ),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "done"},
+            ),
+        ],
+    )
+
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(compaction=_GroupedLimitCompaction(own_limit), truncation="auto"),
+        token_limit=100_000,
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    if own_limit:
+        assert sample.limit is None
+    else:
+        assert sample.limit is not None
+        assert sample.limit.type == "token"
+        assert sample.limit.limit == 100_000
 
 
 def test_model_length_without_recovery_terminates() -> None:

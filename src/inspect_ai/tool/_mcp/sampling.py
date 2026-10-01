@@ -1,5 +1,9 @@
-from typing import Any, Literal, Sequence
+import weakref
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import Any, Iterator, Literal, Sequence
 
+import anyio
 from mcp.types import (
     INTERNAL_ERROR,
     AudioContent,
@@ -25,6 +29,11 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
+from inspect_ai.util._limit import (
+    LimitExceededError,
+    enclosing_limit_error,
+    limit_error_scope,
+)
 
 from ._compat import (
     content_mime_type,
@@ -36,12 +45,76 @@ from ._compat import (
 )
 
 
+@dataclass
+class _ToolCall:
+    """A tool call in flight on a client session."""
+
+    scope: anyio.CancelScope
+    limit_error: LimitExceededError | None = None
+
+
+# The tool calls in flight on each client session, so a sampling request on
+# the session can hand them a limit error.
+_session_tool_calls: "weakref.WeakKeyDictionary[Any, list[_ToolCall]]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+@contextmanager
+def raise_sampling_limit_error(session: Any) -> Iterator[None]:
+    """Raise a limit exceeded by a sampling request during a tool call.
+
+    Sampling requests run in the session's task, where a limit error cannot
+    reach the scope that owns the limit. When one exceeds a limit, the tool
+    calls in flight on the session stop waiting for the server and raise the
+    error in place of their own result or error, so the tool executor can
+    pass it on.
+
+    Args:
+       session: The client session the tool call is made on.
+    """
+    call = _ToolCall(scope=anyio.CancelScope())
+    calls = _session_tool_calls.setdefault(session, [])
+    calls.append(call)
+    try:
+        try:
+            with call.scope:
+                yield
+        except Exception:
+            if call.limit_error is not None:
+                raise call.limit_error
+            raise
+        if call.limit_error is not None:
+            raise call.limit_error
+    finally:
+        calls.remove(call)
+        if not calls:
+            _session_tool_calls.pop(session, None)
+
+
+def _record_sampling_limit_error(session: Any, limit_error: LimitExceededError) -> None:
+    """Hand `limit_error` to the tool calls in flight on `session` and stop them."""
+    for call in _session_tool_calls.get(session, []):
+        if call.limit_error is None:
+            call.limit_error = limit_error
+            call.scope.cancel()
+
+
+def _pending_sampling_limit_error(session: Any) -> LimitExceededError | None:
+    for call in _session_tool_calls.get(session, []):
+        if call.limit_error is not None:
+            return call.limit_error
+    return None
+
+
 async def sampling_fn(
     # RequestContext[ClientSession, Any] on mcp 1.x, ClientRequestContext on
-    # 2.x — unused here, so typed as Any to satisfy both SamplingFnT protocols
+    # 2.x — typed as Any to satisfy both SamplingFnT protocols (both carry
+    # the client `session`)
     context: Any,
     params: CreateMessageRequestParams,
 ) -> CreateMessageResult | ErrorData:
+    from inspect_ai.log._samples import sample_active
     from inspect_ai.model._chat_message import (
         ChatMessage,
         ChatMessageAssistant,
@@ -50,6 +123,12 @@ async def sampling_fn(
     )
     from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model import get_model
+
+    # once a limit is exceeded, refuse further requests from the tool call
+    session = getattr(context, "session", None)
+    pending = _pending_sampling_limit_error(session) if session is not None else None
+    if pending is not None:
+        return ErrorData(code=INTERNAL_ERROR, message=pending.message)
 
     try:
         # build message list
@@ -110,6 +189,16 @@ async def sampling_fn(
         # This includes LimitExceededError and ModelRefusalError: the mcp
         # dispatcher converts anything raised here into an INTERNAL_ERROR
         # response anyway, so re-raising would not reach the sample runner.
+        # A sample limit ends the sample now; any limit is also raised by
+        # the tool call (see raise_sampling_limit_error).
+        limit_error = enclosing_limit_error(ex)
+        if limit_error is not None:
+            if limit_error_scope(limit_error) == "sample":
+                active = sample_active()
+                if active is not None:
+                    active.limit_exceeded(limit_error)
+            if session is not None:
+                _record_sampling_limit_error(session, limit_error)
         return ErrorData(code=INTERNAL_ERROR, message=exception_message(ex))
 
 

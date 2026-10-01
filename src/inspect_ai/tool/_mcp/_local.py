@@ -49,7 +49,11 @@ from ._compat import (
 from ._context import MCPServerContext
 from ._sandbox import DEFAULT_SANDBOX_TIMEOUT, sandbox_client
 from ._types import MCPServer
-from .sampling import as_inspect_content_list, sampling_fn
+from .sampling import (
+    as_inspect_content_list,
+    raise_sampling_limit_error,
+    sampling_fn,
+)
 
 logger = getLogger(__name__)
 
@@ -283,8 +287,13 @@ class MCPServerLocalSession(MCPServer):
                     mcp_call = format_function_call(
                         mcp_tool.name, kwargs, width=sys.maxsize
                     )
-                    with trace_action(
-                        logger, "MCPServer", f"call_tool ({self._name}): {mcp_call}"
+                    with (
+                        raise_sampling_limit_error(tool_session),
+                        trace_action(
+                            logger,
+                            "MCPServer",
+                            f"call_tool ({self._name}): {mcp_call}",
+                        ),
                     ):
                         try:
                             # Bound the wait on a tool response with the configured

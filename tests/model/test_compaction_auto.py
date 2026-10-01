@@ -1,6 +1,7 @@
 """Tests for the CompactionAuto strategy."""
 
 import pytest
+from test_helpers.limits import exceed_token_limit_in_child_task
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai.model import (
@@ -12,6 +13,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._compaction.auto import CompactionAuto
 from inspect_ai.model._model import get_model
+from inspect_ai.util._limit import LimitExceededError, token_limit
 
 
 def _sample_messages() -> list[ChatMessage]:
@@ -170,6 +172,57 @@ async def test_auto_warns_on_native_error(
     assert len(warnings) == 1
     assert "Native compaction failed" in warnings[0]
     assert "Falling back to summary compaction" in warnings[0]
+
+
+async def test_auto_native_limit_error_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A limit hit by native compaction propagates instead of falling back."""
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+
+    async def limited_compact(m, msgs, t):
+        raise LimitExceededError("token", value=2, limit=1)
+
+    async def summary_compact(m, msgs, t):
+        pytest.fail("summary compaction should not run")
+
+    monkeypatch.setattr(strategy._native, "compact", limited_compact)
+    monkeypatch.setattr(strategy._summary, "compact", summary_compact)
+
+    with pytest.raises(LimitExceededError):
+        await strategy.compact(model, _sample_messages(), [])
+
+
+@pytest.mark.parametrize("own_limit", [False, True], ids=["enclosing", "own"])
+async def test_auto_native_grouped_limit_error(
+    monkeypatch: pytest.MonkeyPatch, own_limit: bool
+) -> None:
+    """A grouped enclosing limit propagates; a limit native compaction owns falls back."""
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+    summary_calls = 0
+
+    async def limited_compact(m, msgs, t):
+        await exceed_token_limit_in_child_task(own_limit=own_limit)
+
+    async def summary_compact(m, msgs, t):
+        nonlocal summary_calls
+        summary_calls += 1
+        return msgs, None
+
+    monkeypatch.setattr(strategy._native, "compact", limited_compact)
+    monkeypatch.setattr(strategy._summary, "compact", summary_compact)
+
+    if own_limit:
+        await strategy.compact(model, _sample_messages(), [])
+        assert summary_calls == 1
+    else:
+        with token_limit(1) as limit:
+            with pytest.raises(LimitExceededError) as exc_info:
+                await strategy.compact(model, _sample_messages(), [])
+        assert exc_info.value.source is limit
+        assert summary_calls == 0
 
 
 @skip_if_no_openai

@@ -17,6 +17,7 @@ from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.util._concurrency import concurrency
+from inspect_ai.util._limit import enclosing_limit_error
 
 from ._web_search_provider import SearchProvider
 
@@ -90,8 +91,11 @@ def google_search_provider(
                         link.url, query, model, client
                     )
                 # exceptions fetching pages are very common!
-                except Exception:
-                    pass
+                except Exception as ex:
+                    # but a limit hit by the relevance model call is not
+                    limit_error = enclosing_limit_error(ex)
+                    if limit_error is not None:
+                        raise limit_error
 
             async with anyio.create_task_group() as tg:
                 for idx, lk in enumerate(links):

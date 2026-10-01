@@ -71,7 +71,12 @@ from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._limit import LimitExceededError, apply_limits
+from inspect_ai.util._limit import (
+    LimitExceededError,
+    apply_limits,
+    enclosing_limit_error,
+    limit_error_scope,
+)
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
@@ -274,6 +279,11 @@ async def _execute_tools_impl(
         tool_calls = message.tool_calls
         tdefs = await tool_defs(tools)
 
+        # Enclosing limits hit by the current stage's calls. Recorded when
+        # caught, so one is not lost if a sibling's failure cancels its call
+        # before the limit reaches run_one.
+        stage_limit_errors: list[LimitExceededError] = []
+
         async def call_tool_task(
             call: ToolCall,
             event: ToolEvent,
@@ -333,7 +343,7 @@ async def _execute_tools_impl(
                         agent_span_id = called.agent_span_id
                 # unwrap exception group
                 except Exception as ex:
-                    inner_ex = inner_exception(ex)
+                    inner_ex = enclosing_limit_error(ex) or inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
             except Exception as ex:
@@ -342,6 +352,14 @@ async def _execute_tools_impl(
                     tool_error = mapped.error
                     if mapped.result is not None:
                         result = mapped.result
+                    # a limit that is still open here belongs to the sample or
+                    # an enclosing agent, which must see the error
+                    if (
+                        isinstance(ex, LimitExceededError)
+                        and limit_error_scope(ex) != "inner"
+                    ):
+                        tool_exception = ex
+                        stage_limit_errors.append(ex)
                 elif isinstance(ex, ValueError):
                     # pre-existing: a ValueError other than the null-byte case
                     # escapes the per-call handler rather than being captured
@@ -724,6 +742,7 @@ async def _execute_tools_impl(
                     )
 
             stage_exception: Exception | None = None
+            stage_limit_errors.clear()
             try:
                 async with anyio.create_task_group() as outer_tg:
                     for idx in stage:
@@ -738,6 +757,9 @@ async def _execute_tools_impl(
                         )
             except Exception as ex:
                 stage_exception = inner_exception(ex)
+            # an enclosing limit wins over other failures in the stage
+            if stage_limit_errors:
+                stage_exception = stage_limit_errors[0]
 
             # Splice results into `result_messages` in declared order so the
             # message list matches the order of tool_calls (Anthropic and
@@ -1073,6 +1095,8 @@ async def agent_handoff(
             async with span(name=agent_name, type=AGENT_SPAN_TYPE):
                 agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
+        if limit_error_scope(ex) != "inner":
+            raise
         limit_error = ex
 
     # find the demaraction line of 'new' messages

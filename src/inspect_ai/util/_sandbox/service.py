@@ -540,7 +540,12 @@ class SandboxService:
         # all clear, call the method
         else:
             from inspect_ai.log._samples import sample_active
-            from inspect_ai.util._limit import LimitExceededError
+            from inspect_ai.util._anyio import inner_exception
+            from inspect_ai.util._limit import (
+                LimitExceededError,
+                enclosing_limit_error,
+                limit_error_scope,
+            )
 
             try:
                 params = cast(dict[str, JsonValue], request_data.get(PARAMS))
@@ -549,15 +554,21 @@ class SandboxService:
                     await self._write_response(
                         request_file, request_id, await method(**params)
                     )
-                except LimitExceededError as ex:
-                    active = sample_active()
-                    if active is not None:
-                        active.limit_exceeded(ex)
+                except Exception as ex:
+                    limit_error = enclosing_limit_error(ex) or inner_exception(ex)
+                    if not isinstance(limit_error, LimitExceededError):
+                        raise
+                    # a limit still open here belongs to the sample or an
+                    # enclosing agent, which this task cannot raise into
+                    if limit_error_scope(limit_error) != "inner":
+                        active = sample_active()
+                        if active is not None:
+                            active.limit_exceeded(limit_error)
                     await self._write_response(
                         request_file,
                         request_id,
                         None,
-                        f"Limit exceeded calling method {method_name}: {ex.message}",
+                        f"Limit exceeded calling method {method_name}: {limit_error.message}",
                     )
             except Exception as err:
                 # Log the host-side traceback, but do NOT put it in the response.

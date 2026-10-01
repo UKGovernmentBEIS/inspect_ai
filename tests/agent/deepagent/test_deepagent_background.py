@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import anyio
 import pytest
+from test_helpers.limits import exceed_token_limit_in_child_task
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import deepagent, subagent
@@ -30,7 +31,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.tool import Tool, tool
-from inspect_ai.util import message_limit
+from inspect_ai.util import LimitExceededError, message_limit, token_limit
 
 # ---------------------------------------------------------------------------
 # Test-only helper: wait for a specific AgentFuture to complete and report
@@ -1769,6 +1770,42 @@ class TestBackgroundLimits:
         assert "worker" in span_names
         total = sum(u.total_tokens for u in result["log"].stats.model_usage.values())
         assert total > 0
+
+    @pytest.mark.parametrize("own_limit", [False, True], ids=["enclosing", "own"])
+    async def test_grouped_limit_from_background_child(self, own_limit: bool) -> None:
+        # A limit raised from a child task of the subagent arrives in an
+        # exception group. An enclosing limit must still propagate; a limit
+        # the subagent opened itself stays a per-agent error.
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.agent._deepagent.agent_tool import _run_background
+        from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+        async def child_agent(state: AgentState) -> AgentState:
+            await exceed_token_limit_in_child_task(own_limit=own_limit)
+            return state
+
+        sa = subagent_factory(name="worker", description="Worker.", prompt="Work.")
+        future = AgentFuture(
+            agent_id="AGENT-1",
+            span_id="span",
+            subagent_name="worker",
+            cancel_scope=anyio.CancelScope(),
+        )
+
+        async def run_background() -> None:
+            await _run_background(future, child_agent, sa, "go", "span", False, None)
+
+        if own_limit:
+            await run_background()
+            assert future.status == "errored"
+        else:
+            with token_limit(1) as limit:
+                with pytest.raises(LimitExceededError) as exc_info:
+                    await run_background()
+            assert exc_info.value.source is limit
+            assert future.status == "cancelled"
+        # waiters are woken either way
+        assert future.done.is_set()
 
 
 class TestBackgroundErrors:

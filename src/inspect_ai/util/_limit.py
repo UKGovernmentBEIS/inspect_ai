@@ -6,12 +6,14 @@ import logging
 import math
 import operator
 import re
+import sys
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from types import TracebackType
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generic,
     Iterator,
@@ -26,6 +28,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing_extensions import Self, override
 
 from inspect_ai._util.logger import warn_once
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
 
 if TYPE_CHECKING:
     # These imports are used as type hints only - prevent circular imports.
@@ -194,6 +199,75 @@ class LimitScope:
 
     def __init__(self) -> None:
         self.limit_error: LimitExceededError | None = None
+
+
+def limit_error_scope(
+    error: LimitExceededError,
+) -> Literal["inner", "enclosing", "sample"]:
+    """Find where the limit that raised `error` is scoped, from the current context.
+
+    Call this where the error is caught, after it has left the call that raised
+    it. A limit opened inside that call (an agent-as-tool's own limits, a scoped
+    limit in a tool body) has closed by then, so it is no longer in its limit
+    tree. A limit that is still open belongs to the caller or one of its
+    enclosing scopes, and the caller must not treat the error as recoverable.
+
+    Args:
+       error: The limit error that was caught.
+
+    Returns:
+       `"inner"` when the source limit is not open in the current context: it
+       belonged to the call, which the caller can treat as failed.
+       `"enclosing"` when the source limit is open but is not the outermost
+       one: it belongs to an enclosing agent or scoped limit, so the error must
+       propagate to it.
+       `"sample"` when the source limit is the outermost open limit (the
+       sample's own limit, inside a sample), or the error has no source (a
+       custom limit, which the sample enforces).
+    """
+    source = error.source
+    if source is None:
+        return "sample"
+    trees: tuple[_Tree[Any], ...] = (
+        token_limit_tree,
+        cost_limit_tree,
+        message_limit_tree,
+        turn_limit_tree,
+        working_limit_tree,
+        time_limit_tree,
+    )
+    for tree in trees:
+        node = tree.get()
+        while node is not None:
+            parent = node.parent
+            if node is source:
+                return "sample" if parent is None else "enclosing"
+            node = parent
+    return "inner"
+
+
+def enclosing_limit_error(ex: BaseException) -> LimitExceededError | None:
+    """Find a limit error in `ex` that belongs to an enclosing scope.
+
+    Searches `ex` and any exception groups it contains, since a limit raised
+    in a child task arrives wrapped in one, possibly next to other errors.
+
+    Args:
+       ex: The exception that was caught.
+
+    Returns:
+       The first `LimitExceededError` found whose `limit_error_scope()` is
+       not `"inner"`, or `None`. A handler that recovers from errors must
+       raise this instead.
+    """
+    if isinstance(ex, LimitExceededError):
+        return ex if limit_error_scope(ex) != "inner" else None
+    if isinstance(ex, BaseExceptionGroup):
+        for child in ex.exceptions:
+            found = enclosing_limit_error(child)
+            if found is not None:
+                return found
+    return None
 
 
 @dataclass
