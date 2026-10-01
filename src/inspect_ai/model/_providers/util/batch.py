@@ -49,7 +49,7 @@ class BatchRequest(Generic[ResponseT]):
     result_stream: anyio.abc.ObjectSendStream[ResponseT | Exception]
     custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
     headers: dict[str, str] = dataclasses.field(init=False)
-    """The request's `extra_headers` without the request-id header.
+    """The request's `extra_headers` without the request-id header (in any case).
 
     Captured at construction, so a retried batch submission still has them
     after `pop_batch_headers` removes `extra_headers` from `request`.
@@ -59,7 +59,7 @@ class BatchRequest(Generic[ResponseT]):
         self.headers = {
             k: v
             for k, v in (self.request.get("extra_headers") or {}).items()
-            if k != HttpxHooks.REQUEST_ID_HEADER
+            if k.lower() != HttpxHooks.REQUEST_ID_HEADER
         }
 
 
@@ -114,6 +114,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         self._retry_config = retry_config
         self._intake_queue: list[BatchRequest[ResponseT]] = []
         self._next_batches: dict[BatchHeadersKey, PendingBatch[ResponseT]] = {}
+        self._last_sent_at: float | None = None
         self._inflight_batches: dict[str, Batch[ResponseT]] = {}
         self._is_batch_worker_running: bool = False
 
@@ -143,11 +144,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
         init_transcript(Transcript())
 
-        while (
-            self._inflight_batches
-            or self._intake_queue
-            or any(batch.requests for batch in self._next_batches.values())
-        ):
+        while self._inflight_batches or self._intake_queue or self._next_batches:
             await self._check_inflight_batches()
 
             while await self._process_intake_queue():
@@ -226,9 +223,11 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
         A provider batch carries one set of headers, so requests are gathered
         into a separate pending batch for each set of batch-level headers, each
-        with its own send timeout. When several are ready to send, the one
-        with the earliest timeout is sent first, so no header set waits behind
-        another for a batch slot.
+        with its own send timeout. A pending batch exists only while it holds
+        requests. Its timeout runs from when the last batch was sent, or from
+        its creation if no batch has been sent yet. When several are ready to
+        send, the one with the earliest timeout is sent first, so no header
+        set waits behind another for a batch slot.
         """
         intake_by_key: dict[BatchHeadersKey, list[BatchRequest[ResponseT]]] = {}
         for request in self._intake_queue:
@@ -270,14 +269,15 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 id=batch_id,
                 requests={request.custom_id: request for request in batch_requests},
             )
-            self._next_batches[key] = self._new_pending_batch()
+            self._last_sent_at = time.time()
             return True
 
         return False
 
     def _new_pending_batch(self) -> PendingBatch[ResponseT]:
+        start = time.time() if self._last_sent_at is None else self._last_sent_at
         return PendingBatch(
-            time.time() + self._send_delay,
+            start + self._send_delay,
             int(self._max_batch_size_bytes * 0.95),
         )
 
@@ -461,7 +461,7 @@ def pop_batch_headers(batch: list[BatchRequest[ResponseT]]) -> dict[str, str]:
 
     A provider takes headers once for a whole batch. The request-id header
     identifies a single request, so it becomes that request's `custom_id`
-    and is never sent at batch level. `Batcher` only puts requests with the
+    and is never sent at batch level, in any letter case. `Batcher` only puts requests with the
     same remaining headers in one batch.
 
     Args:

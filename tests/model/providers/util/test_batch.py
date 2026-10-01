@@ -1219,6 +1219,47 @@ async def test_batcher_sends_oldest_ready_header_set_first() -> None:
     ]
 
 
+async def test_batcher_drops_header_sets_once_sent() -> None:
+    """Header sets that have been sent leave no pending state behind."""
+
+    async def test_logic() -> None:
+        batcher = HeaderRecordingBatcher(
+            config=BatchConfig(size=1, send_delay=0.01, tick=0.001)
+        )
+        await tg_collect(
+            [
+                functools.partial(
+                    batcher.generate_for_request,
+                    _headers_request(f"p{i}", **{"x-routing": str(i)}),
+                )
+                for i in range(50)
+            ]
+        )
+        assert len(batcher.created) == 50
+        assert batcher._next_batches == {}
+
+    await _run_in_background_group(test_logic)
+
+
+async def test_batcher_send_delay_runs_from_last_batch_sent() -> None:
+    """A request arriving after `send_delay` has passed since the last batch is sent at once."""
+    send_delay = 0.5
+
+    async def test_logic() -> None:
+        batcher = HeaderRecordingBatcher(
+            config=BatchConfig(size=10, send_delay=send_delay, tick=0.001)
+        )
+        await batcher.generate_for_request(_headers_request("first", **{"x-org": "a"}))
+        await anyio.sleep(send_delay)
+
+        start = time.time()
+        await batcher.generate_for_request(_headers_request("second", **{"x-org": "a"}))
+        assert len(batcher.created) == 2
+        assert batcher.created[1][2] - start < send_delay / 2
+
+    await _run_in_background_group(test_logic)
+
+
 def _send_stream() -> anyio.abc.ObjectSendStream[str | Exception]:
     send_stream, _ = anyio.create_memory_object_stream[str | Exception](1)
     return send_stream
@@ -1241,6 +1282,32 @@ def test_pop_batch_headers_moves_request_id_to_custom_id() -> None:
     # a retried submission gets the same headers
     assert pop_batch_headers(batch) == {"x-org": "a"}
     assert [request.custom_id for request in batch] == ["rid-one", "rid-two"]
+
+
+def test_pop_batch_headers_excludes_request_id_in_any_case() -> None:
+    from inspect_ai.model._providers.util.batch import pop_batch_headers
+
+    caller_only = BatchRequest[str](
+        request={"prompt": "one", "extra_headers": {"X-IRID": "caller", "x-org": "a"}},
+        result_stream=_send_stream(),
+    )
+    generated_id = caller_only.custom_id
+    both = BatchRequest[str](
+        request={
+            "prompt": "two",
+            "extra_headers": {
+                HttpxHooks.REQUEST_ID_HEADER: "generated",
+                "X-IRID": "caller",
+                "x-org": "a",
+            },
+        },
+        result_stream=_send_stream(),
+    )
+    assert caller_only.headers == both.headers == {"x-org": "a"}
+
+    assert pop_batch_headers([caller_only, both]) == {"x-org": "a"}
+    assert caller_only.custom_id == generated_id
+    assert both.custom_id == "generated"
 
 
 def test_pop_batch_headers_rejects_mixed_headers() -> None:
