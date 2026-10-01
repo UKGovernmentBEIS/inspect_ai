@@ -14,8 +14,12 @@ from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
+from inspect_ai.event import SentinelEvent
 from inspect_ai.log import EvalConfig, EvalLog, read_eval_log
+from inspect_ai.model import ChatMessageAssistant
+from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.tool import Tool, ToolCall, tool
 
 try:
     from inspect_sentinel import (
@@ -27,6 +31,7 @@ try:
         Protocol,
         monitor,
         protocol,
+        threshold,
     )
 except ImportError:
     pytest.skip("inspect_sentinel is not installed", allow_module_level=True)
@@ -46,6 +51,20 @@ def d2_rule(reason: str = "no") -> Protocol:
         return Decision.reject(reason)
 
     return decide
+
+
+@tool
+def addition() -> Tool:
+    async def execute(x: int, y: int) -> str:
+        """Add two numbers.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+        """
+        return str(x + y)
+
+    return execute
 
 
 @solver
@@ -79,8 +98,8 @@ RULE_CONFIG = [{"name": "d2_rule", "params": {"reason": "no"}}]
 
 def test_task_sentinel_is_recorded_and_active() -> None:
     log = eval(sentinel_task(d2_rule(reason="no")), model="mockllm/model")[0]
-    assert log.eval.config.sentinel == RULE_CONFIG
-    assert active_root(log) == "inspect_sentinel/concurrent"
+    assert log.eval.config.sentinel == {"name": "d2_rule", "params": {"reason": "no"}}
+    assert active_root(log) == "d2_rule"
 
 
 def test_no_sentinel_leaves_the_config_empty() -> None:
@@ -134,7 +153,8 @@ def test_config_file_and_registered_name(tmp_path: Path) -> None:
     }
 
     log = eval(sentinel_task(), model="mockllm/model", sentinel="d2_rule")[0]
-    assert log.eval.config.sentinel == [{"name": "d2_rule", "params": {}}]
+    assert log.eval.config.sentinel == {"name": "d2_rule", "params": {}}
+    assert active_root(log) == "d2_rule"
 
 
 def test_nested_config_round_trips_through_the_log(tmp_path: Path) -> None:
@@ -193,6 +213,60 @@ def test_eval_retry_rebuilds_the_sentinel(tmp_path: Path) -> None:
         "block": {"name": "d2_rule", "params": {"reason": "retry"}}
     }
     assert active_root(retried) == "inspect_sentinel/concurrent"
+
+
+@solver
+def call_addition() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.messages.append(
+            ChatMessageAssistant(
+                content="",
+                tool_calls=[
+                    ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 1})
+                ],
+            )
+        )
+        result = await execute_tools(state.messages, [addition()])
+        state.messages.extend(result.messages)
+        return state
+
+    return solve
+
+
+@task
+def d2_lone_root_task(marker: str) -> Task:
+    return Task(
+        dataset=[Sample(input="x", target="y")],
+        solver=[call_addition(), fail_once(marker)],
+        sentinel=threshold(d2_suspicion(score=0.9), reject_at=0.5),
+    )
+
+
+def sentinel_paths(log: EvalLog) -> list[tuple[str, str]]:
+    assert log.samples
+    return [
+        (e.factory, e.path)
+        for e in log.samples[0].events
+        if isinstance(e, SentinelEvent)
+    ]
+
+
+def test_eval_retry_records_a_lone_roots_paths_as_the_first_run_did(
+    tmp_path: Path,
+) -> None:
+    log = eval(
+        d2_lone_root_task(str(tmp_path / "marker")),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "error"
+    recorded = log.eval.config.sentinel
+    assert isinstance(recorded, dict) and recorded["name"] == "threshold"
+    retried = eval_retry(log, log_dir=str(tmp_path))[0]
+    assert retried.status == "success", retried.error
+    expected = [("d2_suspicion", "d2_suspicion"), ("inspect_sentinel/threshold", "")]
+    assert sentinel_paths(log) == expected
+    assert sentinel_paths(retried) == expected
 
 
 def test_eval_set_sentinel(tmp_path: Path) -> None:

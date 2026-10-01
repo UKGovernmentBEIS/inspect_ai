@@ -98,12 +98,21 @@ async def _run(step: Step) -> Decision | None:
     try:
         async with span(name="sentinel", type="sentinel"):
             with suspend_token_limit(), suspend_turn_limit():
-                return await run_root(root, _context(), step)
+                decision = await run_root(root, _context(), step)
     except TimeoutError as ex:
         # the sample runner treats a bare TimeoutError as benign
         raise RuntimeError(
             f"A sentinel timed out at the {_stage(step)} stage: {ex}"
         ) from ex
+    if decision is not None and decision.action == "escalate":
+        # recorded as the root's decision; with nobody above to take it, the call proceeds
+        warn_once(
+            logger,
+            "A sentinel escalated a tool call with nothing to escalate to, so it proceeded; "
+            "add sequential(..., human()) to send escalations to a person.",
+        )
+        return Decision.proceed()
+    return decision
 
 
 def _stage(step: Step) -> Literal["tool_call", "tool_result"]:

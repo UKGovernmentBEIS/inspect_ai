@@ -110,6 +110,22 @@ def d3_terminate_after() -> Protocol:
 
 
 @protocol
+def d3_escalate() -> Protocol:
+    async def unsure(context: Context, step: BeforeToolCall) -> Decision | None:
+        return Decision.escalate("not sure")
+
+    return unsure
+
+
+@protocol
+def d3_continue() -> Protocol:
+    async def fine(context: Context, step: BeforeToolCall) -> Decision | None:
+        return Decision.proceed()
+
+    return fine
+
+
+@protocol
 def d3_final() -> Protocol:
     async def veto(context: Context, step: BeforeToolCall) -> Decision | None:
         decide_final(Decision.reject(message="vetoed"))
@@ -249,10 +265,7 @@ def test_reject_message_reaches_the_model_and_is_recorded() -> None:
     assert "internal reason" not in message.text
 
     events = sentinel_events(log)
-    assert summary(events) == [
-        ("d3_reject", "d3_reject", "decide", "decision", "reject"),
-        ("inspect_sentinel/concurrent", "", "run", "decision", "reject"),
-    ]
+    assert summary(events) == [("d3_reject", "", "decide", "decision", "reject")]
     assert all(e.stage == "tool_call" for e in events)
     assert all(e.step_id == message.tool_call_id for e in events)
     assert all(e.explanation == "internal reason" for e in events)
@@ -278,7 +291,7 @@ def test_modify_executes_the_modified_call() -> None:
     assert message.error is None
     assert message.text == "30"
     events = sentinel_events(log)
-    assert [e.action for e in events] == ["modify", "modify"]
+    assert [e.action for e in events] == ["modify"]
     for event in events:
         assert event.modified is not None
         assert event.modified.arguments == {"x": 10, "y": 20}
@@ -311,7 +324,7 @@ def test_terminate_after_the_call() -> None:
     assert sample.limit.reason == "saw 2"
     events = sentinel_events(log)
     assert {e.stage for e in events} == {"tool_result"}
-    assert [e.action for e in events] == ["terminate", "terminate"]
+    assert [e.action for e in events] == ["terminate"]
 
 
 def test_observe_records_observations_without_effect() -> None:
@@ -352,11 +365,29 @@ def test_final_from_a_nested_protocol() -> None:
     assert message.error is not None
     assert message.error.message == "vetoed"
     assert summary(sentinel_events(log)) == [
-        ("inspect_sentinel/concurrent", "concurrent", None, "bypassed", None),
         ("inspect_sentinel/concurrent", "", None, "bypassed", None),
-        ("d3_final", "concurrent/inner", "veto", "decision", "reject"),
+        ("d3_final", "inner", "veto", "decision", "reject"),
     ]
     assert all(e.references == [] for e in sentinel_events(log))
+
+
+def test_an_escalate_at_the_root_proceeds_and_warns_once(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._util import logger as logger_module
+
+    monkeypatch.setattr(logger_module, "_warned", [])
+    with caplog.at_level(logging.WARNING):
+        log = run({"unsure": d3_escalate(), "fine": d3_continue()}, turns=2)
+    assert log.status == "success", log.error
+
+    assert [m.text for m in tool_messages(log)] == ["2", "3"]
+    assert all(m.error is None for m in tool_messages(log))
+    root = [e for e in sentinel_events(log) if e.path == ""]
+    assert [e.action for e in root] == ["escalate", "escalate"]
+    warnings = [r for r in caplog.records if "nothing to escalate to" in r.message]
+    assert len(warnings) == 1
+    assert "sequential(..., human())" in warnings[0].message
 
 
 def test_multi_function_monitor_shares_state_across_calls() -> None:
