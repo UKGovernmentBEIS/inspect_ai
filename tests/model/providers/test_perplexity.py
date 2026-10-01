@@ -1,6 +1,8 @@
+from contextlib import nullcontext
 from typing import Any
 
 import anyio
+import anyio.lowlevel
 import httpx2
 import pytest
 from openai import BadRequestError
@@ -20,7 +22,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
-from inspect_ai.model._providers.perplexity import PerplexityAPI
+from inspect_ai.model._providers.perplexity import PerplexityAPI, _response
 from inspect_ai.tool._tool_info import ToolInfo
 
 
@@ -339,3 +341,54 @@ async def test_perplexity_failed_generate_ignores_earlier_response(
     assert _citation_urls(failed) == []
     assert failed.usage is None
     assert not failed.metadata
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("failure", ["error", "cancel"])
+async def test_perplexity_escaped_failure_restores_response(
+    monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    provider = PerplexityAPI(model_name="perplexity/sonar", api_key="sk-test")
+    failed_response = _search_completion("failed", 1).model_dump()
+    enclosing_response = _search_completion("enclosing", 2).model_dump()
+    fail_generate = True
+
+    async def fake_generate(
+        self: OpenAICompatibleAPI,
+        input: list[Any],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        if not fail_generate:
+            return (
+                ModelOutput.from_content("perplexity/sonar", "later"),
+                ModelCall.create({}, {}),
+            )
+        self.on_response(failed_response)
+        if failure == "cancel":
+            scope.cancel()
+            await anyio.sleep_forever()
+        await anyio.lowlevel.checkpoint()
+        raise RuntimeError("request failed")
+
+    monkeypatch.setattr(OpenAICompatibleAPI, "generate", fake_generate)
+
+    token = _response.set(enclosing_response)
+    try:
+        with anyio.CancelScope() as scope:
+            with pytest.raises(RuntimeError) if failure == "error" else nullcontext():
+                await provider.generate([], [], "none", GenerateConfig())
+        assert scope.cancelled_caught == (failure == "cancel")
+        assert _response.get() is enclosing_response
+
+        fail_generate = False
+        later, _ = await provider.generate([], [], "none", GenerateConfig())
+    finally:
+        _response.reset(token)
+        await provider.aclose()
+
+    assert isinstance(later, ModelOutput)
+    assert _citation_urls(later) == []
+    assert later.usage is None
+    assert not later.metadata
