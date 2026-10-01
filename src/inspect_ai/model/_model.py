@@ -705,6 +705,31 @@ def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
     }
 
 
+def _check_remote_mcp_approval(tools: Sequence[ToolInfo]) -> None:
+    """Refuse remote MCP servers while an approval policy is active.
+
+    The provider runs a remote server's tools during generation, so Inspect never
+    sees those calls and cannot approve them. An active policy decides every tool
+    call (one it does not match is rejected), so it covers the server's tools too.
+    Providers can't honour every decision (Anthropic's MCP connector has no
+    approval hook and OpenAI's can't apply `modify`), so the server is refused
+    rather than sent with approval waived.
+    """
+    from inspect_ai.approval._apply import have_tool_approval
+
+    if not have_tool_approval():
+        return
+    for tool in tools:
+        if is_mcp_server_tool(tool):
+            name = tool.name.removeprefix("mcp_server_")
+            raise RuntimeError(
+                f"Remote MCP server '{name}' cannot be used while an approval policy "
+                "is active: the model provider would run its tools without approval. "
+                'Use execution="local" so its tool calls go through the approval '
+                "policy."
+            )
+
+
 def _connection_pool_key(api: ModelAPI) -> str:
     """Provider-namespaced connection-pool key for the model layer.
 
@@ -1357,6 +1382,8 @@ class Model:
                         f"Remote MCP execution is not supported for {self}. "
                         + 'Please use "local" execution instead.'
                     )
+
+        _check_remote_mcp_approval(base_tools)
 
         # if we have a specific tool selected then filter out the others
         if isinstance(tool_choice, ToolFunction):

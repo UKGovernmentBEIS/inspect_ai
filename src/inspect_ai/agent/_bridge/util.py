@@ -24,6 +24,7 @@ from inspect_ai._util.url import data_uri_mime_type, is_data_uri
 from inspect_ai.agent._bridge._approval import (
     MAX_CONSECUTIVE_REJECTIONS,
     apply_bridge_tool_approval,
+    bridge_approval_scope,
     terminate_for_repeated_rejections,
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError
@@ -569,7 +570,12 @@ async def bridge_generate(
         # (instead of going straight to the transcript) so the caller can
         # control when / under which span events appear.
         if output is None:
-            with bridge_model_generate(), use_model_event_sink(bridge.model_event_sink):
+            # under the bridge's approval policies, so remote MCP servers are refused
+            with (
+                bridge_model_generate(),
+                use_model_event_sink(bridge.model_event_sink),
+                bridge_approval_scope(bridge.approval),
+            ):
                 # with fail_on_refusal set a refusal raises rather than
                 # returning; it still gets its retries, the last one propagates
                 try:
