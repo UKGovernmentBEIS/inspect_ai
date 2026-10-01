@@ -50,6 +50,7 @@ from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
+    AnthropicAPI,
     ToolParamDef,
     anthropic_extra_body_fields,
     assistant_message_blocks,
@@ -335,10 +336,13 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
 def _eval_request_settings(model: Model) -> dict[str, Any]:
     """The values the eval's configuration gives the Anthropic fields the bridge withholds.
 
-    The Anthropic provider takes `service_tier` from `GenerateConfig.extra_body`;
-    when that does not set it, the API default (`auto`) applies.
+    The Anthropic provider's `extra_body` model arg is merged over the request
+    last, so its `service_tier` wins over `GenerateConfig.extra_body`. When
+    neither sets it, the API default (`auto`) applies.
     """
     extra_body = resolve_generate_config(model, GenerateConfig()).extra_body or {}
+    if isinstance(model.api, AnthropicAPI):
+        extra_body = extra_body | (model.api.extra_body or {})
     return {"service_tier": extra_body.get("service_tier", "auto")}
 
 

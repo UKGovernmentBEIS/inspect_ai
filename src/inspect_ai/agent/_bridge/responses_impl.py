@@ -388,19 +388,28 @@ def _reject_previous_response_id(json_data: dict[str, Any]) -> None:
 def _eval_request_settings(model: Model) -> dict[str, Any]:
     """The values the eval's configuration gives the Responses fields the bridge withholds.
 
-    Follows the OpenAI provider: its `service_tier` and `responses_store` model
-    args take precedence over `GenerateConfig.extra_body`, and when neither sets
-    a field it sends `store=False` and leaves `service_tier` and `truncation` at
-    the API defaults.
+    Follows the Responses request builder: the `responses_store` model arg of the
+    OpenAI and OpenAI-compatible providers, and the OpenAI provider's
+    `service_tier` model arg, take precedence over `GenerateConfig.extra_body`.
+    When neither sets a field, `store=False` is sent and `service_tier` and
+    `truncation` stay at the API defaults.
     """
     extra_body = resolve_generate_config(model, GenerateConfig()).extra_body or {}
     service_tier = extra_body.get("service_tier", "auto")
     store = extra_body.get("store", False)
-    if _is_openai_responses_provider(model):
-        service_tier = getattr(model.api, "service_tier", None) or service_tier
-        responses_store = getattr(model.api, "responses_store", None)
-        if responses_store is not None:
-            store = responses_store
+    try:
+        from inspect_ai.model._providers.openai import OpenAIAPI
+        from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+    except ImportError:
+        pass
+    else:
+        if isinstance(model.api, OpenAIAPI):
+            service_tier = model.api.service_tier or service_tier
+        if (
+            isinstance(model.api, (OpenAIAPI, OpenAICompatibleAPI))
+            and model.api.responses_store is not None
+        ):
+            store = model.api.responses_store
     return {
         "service_tier": service_tier,
         "store": store is True,

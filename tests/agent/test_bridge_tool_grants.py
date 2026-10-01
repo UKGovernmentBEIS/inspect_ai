@@ -13,7 +13,10 @@ context truncation: on the sandbox bridge the eval's configuration governs them.
 from typing import Any, Awaitable, Callable, cast
 
 import pytest
-from test_helpers.utils import skip_if_no_openai_package
+from test_helpers.utils import (
+    skip_if_no_anthropic_package,
+    skip_if_no_openai_package,
+)
 
 from inspect_ai._util.content import ContentAudio, ContentDocument, ContentImage
 from inspect_ai.agent import agent_bridge
@@ -545,6 +548,69 @@ async def test_sandbox_openai_model_args_govern_withheld_settings(
 
     await inspect_responses_api_request(
         {**request, "service_tier": "priority"}, None, None, None, bridge
+    )
+    assert warned_fields(bridge_warnings) == ["service_tier"]
+    assert all(config.extra_body is None for config in captured)
+
+
+@skip_if_no_openai_package
+async def test_sandbox_compatible_responses_store_arg_governs_store(
+    bridge_warnings: list[str],
+) -> None:
+    model = get_model(
+        "openai-api/compat/model",
+        base_url="http://localhost:9/v1",
+        api_key="test-key",
+        responses_api=True,
+        responses_store=True,
+    )
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(
+        filter=capture_config(captured), model_aliases={"eval-model": model}
+    )
+
+    request = {"model": "eval-model", "input": "hi"}
+    await inspect_responses_api_request(
+        {**request, "store": True}, None, None, None, bridge
+    )
+    assert bridge_warnings == []
+
+    await inspect_responses_api_request(
+        {**request, "store": False}, None, None, None, bridge
+    )
+    assert warned_fields(bridge_warnings) == ["store"]
+    assert all(config.extra_body is None for config in captured)
+
+
+@skip_if_no_anthropic_package
+async def test_sandbox_anthropic_extra_body_arg_governs_service_tier(
+    bridge_warnings: list[str],
+) -> None:
+    model = get_model(
+        "anthropic/claude-sonnet-4-5",
+        api_key="test-key",
+        extra_body={"service_tier": "standard_only"},
+    )
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(
+        filter=capture_config(captured), model_aliases={"eval-model": model}
+    )
+
+    await inspect_anthropic_api_request(
+        {**anthropic_request(service_tier="standard_only"), "model": "eval-model"},
+        None,
+        None,
+        None,
+        bridge,
+    )
+    assert bridge_warnings == []
+
+    await inspect_anthropic_api_request(
+        {**anthropic_request(service_tier="auto"), "model": "eval-model"},
+        None,
+        None,
+        None,
+        bridge,
     )
     assert warned_fields(bridge_warnings) == ["service_tier"]
     assert all(config.extra_body is None for config in captured)
