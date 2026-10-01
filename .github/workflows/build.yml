@@ -110,9 +110,11 @@ jobs:
       # requirements-dev.txt entry replaces it (its git-ref dependency on
       # inspect-ai conflicts with the editable install). --no-deps so the drift
       # test in tests/log/test_event_discriminator.py runs instead of skipping.
+      # Pinned to a commit so a sentinel change cannot break inspect_ai CI
+      # unannounced; bump it deliberately when inspect_ai needs newer sentinel code.
       - name: Install inspect_sentinel (TEMPORARY)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@1f9a1cb8a99abef0c7de96bd2836cc210cd535d9"
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -341,9 +343,11 @@ jobs:
       # requirements-dev.txt entry replaces it (its git-ref dependency on
       # inspect-ai conflicts with the editable install). --no-deps so the drift
       # test in tests/log/test_event_discriminator.py runs instead of skipping.
+      # Pinned to a commit so a sentinel change cannot break inspect_ai CI
+      # unannounced; bump it deliberately when inspect_ai needs newer sentinel code.
       - name: Install inspect_sentinel (TEMPORARY)
         if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@1f9a1cb8a99abef0c7de96bd2836cc210cd535d9"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
