@@ -1,10 +1,12 @@
 import base64
 import json
 
+import anyio
 import httpx2
 import openai
 import pytest
 from openai import DefaultAsyncHttpxClient
+from openai.types.chat import ChatCompletion
 from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 
 from inspect_ai import Task, eval
@@ -18,6 +20,7 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._openai import openai_completion_params
+from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import tool
 
 
@@ -939,3 +942,238 @@ async def test_skip_if_no_openai_model_propagates_other_errors(
         with pytest.raises(type(error)):
             await gated()
     assert [c.closed for c in clients] == [True, True]
+
+
+def _openai_batch_completion(content: str) -> dict:
+    return {
+        "id": "chatcmpl-1",
+        "object": "chat.completion",
+        "created": 0,
+        "model": "gpt-4o",
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": content},
+            }
+        ],
+        "usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10},
+    }
+
+
+def _openai_batch_json(status: str) -> dict:
+    return {
+        "id": "batch_1",
+        "object": "batch",
+        "endpoint": "/v1/chat/completions",
+        "input_file_id": "file-in",
+        "completion_window": "24h",
+        "status": status,
+        "created_at": 0,
+        "output_file_id": "file-out" if status == "completed" else None,
+        "error_file_id": "file-err" if status == "completed" else None,
+        "request_counts": {"total": 2, "completed": 1, "failed": 1},
+    }
+
+
+def _openai_batcher(
+    results: dict[str, list[dict]],
+    batch_status: str,
+    calls: list[str],
+    batch_checked: anyio.Event | None = None,
+) -> OpenAIBatcher[ChatCompletion]:
+    """An OpenAIBatcher whose client talks to a mocked batch API."""
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._retry import model_retry_config
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        calls.append(f"{request.method} {request.url.path}")
+        path = request.url.path
+        if path == "/v1/batches/batch_1" and batch_checked is not None:
+            batch_checked.set()
+        if path == "/v1/files":
+            body: dict = {
+                "id": "file-in",
+                "object": "file",
+                "bytes": 0,
+                "created_at": 0,
+                "filename": "batch.jsonl",
+                "purpose": "batch",
+                "status": "processed",
+            }
+            return httpx2.Response(200, json=body, request=request)
+        if path == "/v1/batches":
+            return httpx2.Response(
+                200, json=_openai_batch_json("validating"), request=request
+            )
+        if path == "/v1/batches/batch_1":
+            return httpx2.Response(
+                200, json=_openai_batch_json(batch_status), request=request
+            )
+        if path == "/v1/batches/batch_1/cancel":
+            return httpx2.Response(
+                200, json=_openai_batch_json("cancelling"), request=request
+            )
+        if path.startswith("/v1/files/") and path.endswith("/content"):
+            lines = results[path.split("/")[3]]
+            content = "\n".join(json.dumps(line) for line in lines)
+            return httpx2.Response(200, text=content, request=request)
+        return httpx2.Response(404, request=request)
+
+    client = openai.AsyncOpenAI(
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler)),
+        max_retries=0,
+    )
+    return OpenAIBatcher(
+        client,
+        BatchConfig(size=2, send_delay=10, tick=0.001),
+        model_retry_config(
+            "test", 1, None, lambda e: False, lambda ex: None, lambda m, s: None
+        ),
+        ChatCompletion,
+    )
+
+
+def _openai_batch_request(request_id: str) -> dict:
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    return {
+        "model": "gpt-4o",
+        "messages": [{"role": "user", "content": "hi"}],
+        "extra_headers": {HttpxHooks.REQUEST_ID_HEADER: request_id},
+    }
+
+
+async def _with_background_task_group(test_func) -> None:
+    from inspect_ai._util.background import set_background_task_group
+
+    with anyio.fail_after(10):
+        async with anyio.create_task_group() as tg:
+            set_background_task_group(tg)
+            try:
+                await test_func()
+            finally:
+                set_background_task_group(None)
+
+
+async def test_openai_batch_symbolic_error_code_fails_only_its_request() -> None:
+    """A result line with a non-numeric error code fails only that request."""
+    from openai import APIError
+
+    from inspect_ai._util._async import tg_collect
+
+    calls: list[str] = []
+    batcher = _openai_batcher(
+        results={
+            "file-out": [
+                {
+                    "id": "batch_req_1",
+                    "custom_id": "req-ok",
+                    "response": {
+                        "status_code": 200,
+                        "body": _openai_batch_completion("hello"),
+                    },
+                    "error": None,
+                }
+            ],
+            "file-err": [
+                {
+                    "id": "batch_req_2",
+                    "custom_id": "req-flagged",
+                    "response": None,
+                    "error": {"code": "invalid_prompt", "message": "flagged"},
+                }
+            ],
+        },
+        batch_status="completed",
+        calls=calls,
+    )
+    outcomes: dict[str, object] = {}
+
+    async def run(request_id: str) -> None:
+        try:
+            outcomes[request_id] = await batcher.generate_for_request(
+                _openai_batch_request(request_id)
+            )
+        except Exception as ex:
+            outcomes[request_id] = ex
+
+    async def test_logic() -> None:
+        await tg_collect([lambda: run("req-ok"), lambda: run("req-flagged")])
+
+    await _with_background_task_group(test_logic)
+
+    completion = outcomes["req-ok"]
+    assert isinstance(completion, ChatCompletion)
+    assert completion.usage is not None and completion.usage.total_tokens == 10
+    error = outcomes["req-flagged"]
+    assert isinstance(error, APIError)
+    assert error.code == "invalid_prompt"
+    assert error.message == "flagged"
+
+
+@pytest.mark.parametrize(
+    "line,expected_status",
+    [
+        pytest.param(
+            {"response": None, "error": {"code": 429, "message": "slow down"}},
+            429,
+            id="numeric-error-code",
+        ),
+        pytest.param(
+            {"response": None, "error": {"code": "500", "message": "oops"}},
+            500,
+            id="numeric-string-error-code",
+        ),
+        pytest.param(
+            {
+                "response": {
+                    "status_code": 400,
+                    "body": {
+                        "error": {
+                            "message": "bad request",
+                            "type": "invalid_request_error",
+                            "code": None,
+                        }
+                    },
+                },
+                "error": None,
+            },
+            400,
+            id="http-error-response",
+        ),
+    ],
+)
+def test_openai_batch_error_lines_map_to_status_errors(
+    line: dict, expected_status: int
+) -> None:
+    from openai import APIStatusError
+
+    batcher = _openai_batcher(results={}, batch_status="completed", calls=[])
+    request_id, result = batcher._parse_jsonl_line({"custom_id": "req-1", **line})
+    assert request_id == "req-1"
+    assert isinstance(result, APIStatusError)
+    assert result.status_code == expected_status
+
+
+async def test_openai_batch_cancelled_when_every_request_is_cancelled() -> None:
+    calls: list[str] = []
+    batch_checked = anyio.Event()
+    batcher = _openai_batcher(
+        results={}, batch_status="in_progress", calls=calls, batch_checked=batch_checked
+    )
+
+    async def test_logic() -> None:
+        async with anyio.create_task_group() as tg:
+            for request_id in ["req-1", "req-2"]:
+                tg.start_soon(
+                    batcher.generate_for_request, _openai_batch_request(request_id)
+                )
+            await batch_checked.wait()
+            tg.cancel_scope.cancel()
+
+    await _with_background_task_group(test_logic)
+
+    assert calls.count("POST /v1/batches/batch_1/cancel") == 1

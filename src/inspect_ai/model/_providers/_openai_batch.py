@@ -2,7 +2,7 @@ from typing import IO, Any, Generic, Literal, TypeVar
 
 import httpx2
 import pydantic
-from openai import AsyncOpenAI
+from openai import APIError, AsyncOpenAI
 from openai._types import NOT_GIVEN
 from openai.types import Batch as OpenAIBatch
 from openai.types.batch import Errors as OpenAIErrors
@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict, override
 
 from inspect_ai.model._generate_config import BatchConfig
+from inspect_ai.model._openai import http_status_from_error_code
 from inspect_ai.model._retry import ModelRetryConfig
 
 from .util.batch import (
@@ -144,17 +145,48 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
                 f"Unable to find custom_id in batched request result. {result}"
             )
 
-        if (error := result.get("error")) is None:
-            response_body = result["response"]["body"]
-            return request_id, self._response_cls.model_validate(response_body)
-        else:
-            return request_id, (
-                self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx2.Response(status_code=error["code"], text=error["message"])
-                )
+        if (error := result.get("error")) is not None:
+            return request_id, self._exception_from_result_error(error)
+
+        response = result["response"]
+        status = http_status_from_error_code(response.get("status_code"))
+        if status is not None and status >= 400:
+            return request_id, self._status_error(status, response.get("body"))
+        return request_id, self._response_cls.model_validate(response["body"])
+
+    def _exception_from_result_error(self, error: dict[str, Any]) -> Exception:
+        """Convert the `error` of a batch result line to an exception.
+
+        A numeric `code` becomes the matching status error. OpenAI uses
+        symbolic codes (e.g. `invalid_prompt`) for failures that have no HTTP
+        status; these become an `APIError` carrying the code, as for an error
+        delivered mid-stream, so that only this request fails.
+        """
+        status = http_status_from_error_code(error.get("code"))
+        if status is not None:
+            return self._status_error(status, {"error": error})
+        return APIError(
+            str(error.get("message") or "Batch request failed"),
+            self._result_request(),
+            body=error,
+        )
+
+    def _status_error(self, status: int, body: Any) -> Exception:
+        return self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+            httpx2.Response(
+                status_code=status, json=body, request=self._result_request()
             )
+        )
+
+    def _result_request(self) -> httpx2.Request:
+        return httpx2.Request("POST", self._openai_client.base_url.join(self.endpoint))
 
     # Batcher overrides
+
+    @override
+    async def _cancel_batch(self, batch: Batch[ResponseT]) -> None:
+        # Together serves the same cancel endpoint, so TogetherBatcher inherits this
+        await self._openai_client.batches.cancel(batch.id)
 
     @override
     async def _check_batch(

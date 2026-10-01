@@ -100,6 +100,10 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
         return cast(str, batch.batch_id)
 
     @override
+    async def _cancel_batch(self, batch: Batch[Response]) -> None:
+        await self._client.batch.cancel(batch.id)
+
+    @override
     async def _check_batch(
         self, batch: Batch[Response]
     ) -> BatchCheckResult[CompletedBatchInfo]:

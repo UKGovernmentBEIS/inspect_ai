@@ -5,6 +5,7 @@ import sys
 import time
 import uuid
 from abc import abstractmethod
+from logging import getLogger
 from typing import Any, Generic, TypeVar
 
 import anyio
@@ -24,6 +25,9 @@ DEFAULT_BATCH_TICK = 15
 DEFAULT_SEND_DELAY = DEFAULT_BATCH_TICK
 DEFAULT_MAX_BATCHES = 50
 DEFAULT_MAX_CONSECUTIVE_CHECK_FAILURES = 1000
+BATCH_CANCEL_TIMEOUT = 10
+
+logger = getLogger(__name__)
 
 ResponseT = TypeVar("ResponseT")
 CompletedBatchInfoT = TypeVar("CompletedBatchInfoT")
@@ -43,6 +47,8 @@ class BatchRequest(Generic[ResponseT]):
     request: dict[str, Any]
     result_stream: anyio.abc.ObjectSendStream[ResponseT | Exception]
     custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
+    cancelled: bool = False
+    """The caller was cancelled and no longer waits for the result."""
 
 
 @dataclasses.dataclass
@@ -115,10 +121,59 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             self._is_batch_worker_running = True
             run_in_background(self._batch_worker)
 
-        result = await receive_stream.receive()
+        try:
+            result = await receive_stream.receive()
+        except anyio.get_cancelled_exc_class():
+            await self._cancel_request(batch_request)
+            raise
         if isinstance(result, Exception):
             raise result
         return result
+
+    async def _cancel_request(self, request: BatchRequest[ResponseT]) -> None:
+        """Withdraw a request whose caller was cancelled.
+
+        A request that has not been submitted yet is dropped before its batch
+        is sent. A submitted batch is cancelled at the provider once every
+        request in it is cancelled; until then it keeps running for the others.
+        """
+        request.cancelled = True
+        batch = next(
+            (
+                batch
+                for batch in self._inflight_batches.values()
+                if batch.requests.get(request.custom_id) is request
+            ),
+            None,
+        )
+        if batch is not None:
+            await self._cancel_batch_if_abandoned(batch)
+
+    async def _cancel_batch_if_abandoned(self, batch: Batch[ResponseT]) -> None:
+        """Cancel a submitted batch at the provider if all its requests are cancelled.
+
+        The batch stops being tracked first, so it is cancelled at most once.
+        Cancellation is best effort: it is shielded from the caller's
+        cancellation, bounded by `BATCH_CANCEL_TIMEOUT`, and a failure is
+        logged rather than raised.
+        """
+        if not all(request.cancelled for request in batch.requests.values()):
+            return
+        self._inflight_batches.pop(batch.id, None)
+        log_batch(
+            f"All {len(batch.requests)} requests in batch {batch.id} were cancelled, cancelling batch"
+        )
+        with anyio.move_on_after(BATCH_CANCEL_TIMEOUT, shield=True) as scope:
+            try:
+                await self._cancel_batch(batch)
+            except Exception as ex:
+                logger.warning(
+                    f"Unable to cancel batch {batch.id}, it may continue to run: {ex!r}"
+                )
+        if scope.cancelled_caught:
+            logger.warning(
+                f"Timed out cancelling batch {batch.id}, it may continue to run."
+            )
 
     async def _batch_worker(self) -> None:
         from inspect_ai.log._transcript import Transcript, init_transcript
@@ -186,7 +241,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             list(batch.requests.values()),
             error,
         )
-        del self._inflight_batches[batch.id]
+        self._inflight_batches.pop(batch.id, None)
 
     async def _fail_all_requests(
         self,
@@ -205,6 +260,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
     async def _process_intake_queue(self) -> bool:
         """Process intake queue and send next batch if conditions are met."""
+        self._intake_queue = [
+            request for request in self._intake_queue if not request.cancelled
+        ]
         if self._next_batch is None:
             self._next_batch = PendingBatch(
                 time.time() + self._send_delay,
@@ -227,15 +285,24 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             self._intake_queue = self._intake_queue[add_count:]
 
         if should_send and len(self._inflight_batches) < self._max_batches:
-            batch_requests = self._next_batch.requests
+            batch_requests = [
+                request
+                for request in self._next_batch.requests
+                if not request.cancelled
+            ]
             self._next_batch = None
+            if not batch_requests:
+                return True
 
             batch_id = await self._wrapped_create_batch(batch_requests)
 
-            self._inflight_batches[batch_id] = Batch(
+            batch = Batch(
                 id=batch_id,
                 requests={request.custom_id: request for request in batch_requests},
             )
+            self._inflight_batches[batch_id] = batch
+            # requests can be cancelled while the batch is being created
+            await self._cancel_batch_if_abandoned(batch)
             return True
 
         return False
@@ -337,11 +404,13 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         # call it, and we need to ensure exceptions do not escape
         try:
             for request_id, response in results.items():
-                await batch.requests[request_id].result_stream.send(response)
+                request = batch.requests[request_id]
+                if not request.cancelled:
+                    await request.result_stream.send(response)
         except Exception as e:
             await self._fail_and_cleanup_inflight_batch("sending results", batch, e)
         finally:
-            del self._inflight_batches[batch.id]
+            self._inflight_batches.pop(batch.id, None)
 
     @abstractmethod
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
@@ -361,6 +430,24 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             Exception: If batch creation fails permanently after all retry attempts.
         """
         pass
+
+    async def _cancel_batch(self, batch: Batch[ResponseT]) -> None:
+        """Cancel a submitted batch at the provider.
+
+        Called once every request in the batch has been cancelled, so the
+        provider stops processing (and billing for) requests nobody is waiting
+        for. Providers that cannot cancel a batch keep this default, which
+        raises `NotImplementedError` (logged by the caller).
+
+        Args:
+            batch: The batch to cancel.
+
+        Raises:
+            Exception: If the provider fails to cancel the batch.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support cancelling batches"
+        )
 
     @abstractmethod
     async def _check_batch(

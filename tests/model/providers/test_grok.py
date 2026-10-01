@@ -314,6 +314,18 @@ async def test_grok_failed_batch_items_preserve_grpc_error_semantics() -> None:
     assert error.code() == grpc.StatusCode.PERMISSION_DENIED
 
 
+async def test_grok_cancel_batch_cancels_job() -> None:
+    batcher, batch = _make_grok_batcher_and_batch(
+        num_pending=1, num_success=0, num_error=0, num_cancelled=0, num_requests=1
+    )
+    client = cast(MagicMock, batcher._client)
+    client.batch.cancel = AsyncMock()
+
+    await batcher._cancel_batch(batch)
+
+    client.batch.cancel.assert_awaited_once_with("batch-123")
+
+
 async def test_grok_create_batch_parses_json_schema_response_format() -> None:
     """Rehydrate dict response_format into protobuf before chat.create."""
     schema = '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}'

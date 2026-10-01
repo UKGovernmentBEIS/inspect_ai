@@ -37,6 +37,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.httpx import log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
@@ -84,6 +85,8 @@ from .._stream import (
 from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
+
+BACKGROUND_CANCEL_TIMEOUT = 5
 
 
 def _fix_function_tool_parameters(response: Response) -> None:
@@ -236,6 +239,8 @@ async def generate_responses(
         model_response: Response
         if batcher:
             model_response = await batcher.generate_for_request(request)
+        elif background:
+            model_response = await create_background_response(client, request)
         elif request.get("stream"):
             model_response = await _generate_responses_stream(client, request)
         else:
@@ -417,18 +422,67 @@ async def wait_for_background_response(
             await anyio.sleep(5)
             model_response = await check_model_response(model_response)
         return model_response
-    except anyio.get_cancelled_exc_class():
-        # if the entire sample is cancelled then let the provider know
-        # so we can stop racking up token costs
-        with anyio.move_on_after(5, shield=True):
-            try:
-                await client.responses.cancel(model_response.id)
-            except BaseException as ex:
-                logger.warning(
-                    f"Error while attempting to cancel background request: {ex}"
-                )
-                pass
+    except BaseException:
+        # whether the sample was cancelled or polling failed (after which the
+        # request is retried as a new response), nobody will read this
+        # response, so stop it racking up token costs
+        await cancel_background_response(client, model_response.id)
         raise
+
+
+async def create_background_response(
+    client: AsyncAzureOpenAI | AsyncOpenAI, request: dict[str, Any]
+) -> Response:
+    """Create a background response, cancelling it if the caller is cancelled.
+
+    Cancelling `responses.create()` while it is in flight would lose the id of
+    a response that may already be running (and billing) on the server. The
+    create therefore runs shielded: once the caller is cancelled it has
+    `BACKGROUND_CANCEL_TIMEOUT` seconds to return, and the response it returns
+    is cancelled.
+    """
+    create_scope = anyio.CancelScope(shield=True)
+    create_done = anyio.Event()
+    created: list[Response] = []
+
+    async def create() -> None:
+        with create_scope:
+            try:
+                created.append(await client.responses.create(**request))
+            finally:
+                create_done.set()
+
+    async def wait_for_create() -> None:
+        try:
+            await create_done.wait()
+        except anyio.get_cancelled_exc_class():
+            create_scope.deadline = anyio.current_time() + BACKGROUND_CANCEL_TIMEOUT
+            raise
+
+    try:
+        await tg_collect([create, wait_for_create])
+    except anyio.get_cancelled_exc_class():
+        if created:
+            await cancel_background_response(client, created[0].id)
+        elif create_scope.cancelled_caught:
+            logger.warning(
+                f"Background request was not created within {BACKGROUND_CANCEL_TIMEOUT} "
+                + "seconds of cancellation; if the server created it, it will run "
+                + "to completion."
+            )
+        raise
+    return created[0]
+
+
+async def cancel_background_response(
+    client: AsyncAzureOpenAI | AsyncOpenAI, response_id: str
+) -> None:
+    """Cancel a background response (best effort, shielded, logged on failure)."""
+    with anyio.move_on_after(BACKGROUND_CANCEL_TIMEOUT, shield=True):
+        try:
+            await client.responses.cancel(response_id)
+        except BaseException as ex:
+            logger.warning(f"Error while attempting to cancel background request: {ex}")
 
 
 def completion_params_responses(

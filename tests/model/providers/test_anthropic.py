@@ -1395,6 +1395,30 @@ async def test_anthropic_batch_merges_extra_body_into_params() -> None:
     assert call.kwargs["extra_headers"] == {"x-header": "y"}
 
 
+@pytest.mark.anyio
+async def test_anthropic_batch_cancel_cancels_message_batch() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._anthropic_batch import AnthropicBatcher
+    from inspect_ai.model._providers.util.batch import Batch
+    from inspect_ai.model._retry import model_retry_config
+
+    client = MagicMock()
+    client.messages.batches.cancel = AsyncMock()
+    batcher = AnthropicBatcher(
+        client,
+        BatchConfig(),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+
+    await batcher._cancel_batch(Batch(id="msgbatch_1", requests={}))
+
+    client.messages.batches.cancel.assert_awaited_once_with("msgbatch_1")
+
+
 @pytest.fixture
 def _warn_once_messages() -> Any:
     # warn_once dedupes via a module-level list; clear it and yield it so the

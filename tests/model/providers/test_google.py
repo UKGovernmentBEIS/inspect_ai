@@ -1384,6 +1384,52 @@ def test_google_batch_result_line_tolerates_unknown_rest_fields() -> None:
     assert result.usage_metadata.total_token_count == 22
 
 
+@pytest.mark.parametrize(
+    "error,expected",
+    [
+        pytest.param(
+            {"code": "INVALID_ARGUMENT", "message": "bad input"},
+            "bad input (code: INVALID_ARGUMENT)",
+            id="symbolic-code",
+        ),
+        pytest.param(
+            {"code": 3, "message": "bad input"},
+            "bad input (code: 3)",
+            id="numeric-code",
+        ),
+    ],
+)
+def test_google_batch_error_line_fails_only_its_request(
+    error: dict[str, Any], expected: str
+) -> None:
+    from inspect_ai.model._providers._google_batch import GoogleBatcher
+    from inspect_ai.model._retry import model_retry_config
+
+    batcher = GoogleBatcher(
+        client=MagicMock(),
+        config=BatchConfig(),
+        retry_config=model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+        model_name="gemini-2.5-flash-lite",
+    )
+
+    key, result = batcher._parse_jsonl_line({"key": "req-1", "error": error})
+
+    assert key == "req-1"
+    assert isinstance(result, RuntimeError)
+    assert str(result) == expected
+
+
+async def test_google_batch_cancel_cancels_job() -> None:
+    batcher, batch = _make_batcher_and_batch(JobState.JOB_STATE_RUNNING)
+    batcher._client.aio.batches.cancel = AsyncMock()
+
+    await batcher._cancel_batch(batch)
+
+    batcher._client.aio.batches.cancel.assert_awaited_once_with(name="batch-123")
+
+
 def test_batch_request_dict_wraps_system_instruction() -> None:
     from google.genai.types import Content, GenerateContentConfig, Part
 

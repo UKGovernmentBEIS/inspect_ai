@@ -11,7 +11,6 @@ from google.genai.types import (
     GenerateContentConfig,
     GenerateContentResponse,
     HttpOptions,
-    JobError,
     JobState,
     UploadFileConfig,
 )
@@ -158,11 +157,15 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
         key = line_data["key"]
         assert isinstance(key, str), "key must be a string"
         if "error" in line_data:
-            error_data = JobError.model_validate(line_data["error"])
-            return (
-                key,
-                RuntimeError(f"{error_data.message} (code: {error_data.code})"),
+            # read the error as plain JSON: JobError types `code` as an int, so
+            # validating a symbolic code would fail the whole batch
+            error = line_data["error"]
+            message, code = (
+                (error.get("message"), error.get("code"))
+                if isinstance(error, dict)
+                else (error, None)
             )
+            return key, RuntimeError(f"{message} (code: {code})")
         else:
             # Route through the SDK's REST->SDK converter (as the live path does)
             # so unknown REST fields (e.g. usageMetadata.serviceTier) are dropped
@@ -201,6 +204,10 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
         return batch_job.name or ""
 
     # Batcher overrides
+
+    @override
+    async def _cancel_batch(self, batch: Batch[GenerateContentResponse]) -> None:
+        await self._client.aio.batches.cancel(name=batch.id)
 
     @override
     async def _check_batch(

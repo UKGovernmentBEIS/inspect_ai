@@ -670,6 +670,7 @@ async def test_background_response_reraises_connection_error_on_exhaustion() -> 
     )
     client = MagicMock()
     client.responses.retrieve = AsyncMock(side_effect=connection_error)
+    client.responses.cancel = AsyncMock()
 
     with (
         patch(
@@ -682,6 +683,86 @@ async def test_background_response_reraises_connection_error_on_exhaustion() -> 
 
     assert exc_info.value is connection_error
     assert client.responses.retrieve.await_count == 5
+    # the request will be retried as a new response, so stop this one
+    client.responses.cancel.assert_awaited_once_with(pending_response.id)
+
+
+async def test_background_response_cancelled_when_caller_cancelled_during_create() -> (
+    None
+):
+    """A response created after the caller was cancelled is cancelled."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    import anyio
+
+    from inspect_ai.model._providers.openai_responses import (
+        create_background_response,
+    )
+
+    queued_response = _completed_mock_response().model_copy(update={"status": "queued"})
+    create_started = anyio.Event()
+    release_create = anyio.Event()
+
+    async def create(**kwargs: object) -> object:
+        create_started.set()
+        await release_create.wait()
+        return queued_response
+
+    client = MagicMock()
+    client.responses.create = create
+    client.responses.cancel = AsyncMock()
+
+    async def caller() -> None:
+        await create_background_response(client, {"model": "gpt-5.6-sol"})
+
+    with anyio.fail_after(10):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(caller)
+            await create_started.wait()
+            tg.cancel_scope.cancel()
+            # the create is shielded, so it is still waiting to be released
+            assert client.responses.cancel.await_count == 0
+            release_create.set()
+
+    client.responses.cancel.assert_awaited_once_with(queued_response.id)
+
+
+async def test_background_response_create_gives_up_after_cancel_timeout() -> None:
+    """A create that hangs after cancellation does not block the caller for long."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import anyio
+
+    from inspect_ai.model._providers.openai_responses import (
+        create_background_response,
+    )
+
+    create_started = anyio.Event()
+
+    async def create(**kwargs: object) -> None:
+        create_started.set()
+        await anyio.sleep_forever()
+
+    client = MagicMock()
+    client.responses.create = create
+    client.responses.cancel = AsyncMock()
+
+    async def caller() -> None:
+        await create_background_response(client, {"model": "gpt-5.6-sol"})
+
+    with (
+        patch(
+            "inspect_ai.model._providers.openai_responses.BACKGROUND_CANCEL_TIMEOUT",
+            0.01,
+        ),
+        anyio.fail_after(10),
+    ):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(caller)
+            await create_started.wait()
+            tg.cancel_scope.cancel()
+
+    assert client.responses.cancel.await_count == 0
 
 
 def test_fix_function_tool_parameters_string_to_dict():

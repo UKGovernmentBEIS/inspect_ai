@@ -91,6 +91,10 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         return batch_info.id
 
     @override
+    async def _cancel_batch(self, batch: Batch[Message]) -> None:
+        await self._client.messages.batches.cancel(batch.id)
+
+    @override
     async def _check_batch(
         self, batch: Batch[Message]
     ) -> BatchCheckResult[CompletedBatchInfo]:

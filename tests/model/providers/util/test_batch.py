@@ -1059,3 +1059,182 @@ class TestBatcher:
             assert elapsed < 0.5  # Should fail within reasonable time
 
         await self._run_with_task_group(test_logic)
+
+
+class GatedFakeBatcher(FakeBatcher):
+    """FakeBatcher whose batches complete only when the test allows it."""
+
+    def __init__(
+        self,
+        *,
+        config: BatchConfig,
+        cancel_error: Exception | None = None,
+        gate_create: bool = False,
+    ):
+        super().__init__(config=config, batch_completion_delay=0)
+        self.batch_inflight = anyio.Event()
+        self.complete = anyio.Event()
+        self.create_started = anyio.Event()
+        self.create_release = anyio.Event()
+        if not gate_create:
+            self.create_release.set()
+        self.cancelled_batch_ids: list[str] = []
+        self.cancel_error = cancel_error
+
+    async def _create_batch(self, batch_requests) -> str:
+        self.create_started.set()
+        await self.create_release.wait()
+        return await super()._create_batch(batch_requests)
+
+    async def _check_batch(self, batch) -> BatchCheckResult[FakeCompletionInfo]:
+        self.batch_inflight.set()
+        if not self.complete.is_set():
+            return BatchCheckResult(
+                completed_count=0,
+                failed_count=0,
+                created_at=int(time.time()),
+                completion_info=None,
+            )
+        return await super()._check_batch(batch)
+
+    async def _cancel_batch(self, batch) -> None:
+        self.cancelled_batch_ids.append(batch.id)
+        if self.cancel_error:
+            raise self.cancel_error
+
+
+class TestBatcherCancellation:
+    """Cancelled callers must not leave provider batches running for nobody."""
+
+    async def _run_with_task_group(self, test_func):
+        from inspect_ai._util.background import set_background_task_group
+
+        with anyio.fail_after(10):
+            async with anyio.create_task_group() as tg:
+                set_background_task_group(tg)
+                try:
+                    await test_func()
+                finally:
+                    set_background_task_group(None)
+
+    async def test_cancelling_every_request_cancels_batch(self):
+        batcher = GatedFakeBatcher(
+            config=BatchConfig(size=2, send_delay=10, tick=0.001)
+        )
+
+        async def test_logic():
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(batcher.generate_for_request, {"prompt": "a"})
+                tg.start_soon(batcher.generate_for_request, {"prompt": "b"})
+                await batcher.batch_inflight.wait()
+                tg.cancel_scope.cancel()
+
+            assert batcher.cancelled_batch_ids == ["batch-0"]
+            assert batcher._inflight_batches == {}
+
+        await self._run_with_task_group(test_logic)
+
+    async def test_cancelling_some_requests_keeps_batch_running(self):
+        batcher = GatedFakeBatcher(
+            config=BatchConfig(size=2, send_delay=10, tick=0.001)
+        )
+        cancel_scope = anyio.CancelScope()
+        cancelled_done = anyio.Event()
+        result: str | None = None
+
+        async def cancelled_request() -> None:
+            with cancel_scope:
+                await batcher.generate_for_request({"prompt": "a"})
+            cancelled_done.set()
+
+        async def kept_request() -> None:
+            nonlocal result
+            result = await batcher.generate_for_request({"prompt": "b"})
+
+        async def test_logic():
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(cancelled_request)
+                tg.start_soon(kept_request)
+                await batcher.batch_inflight.wait()
+                cancel_scope.cancel()
+                await cancelled_done.wait()
+                assert "batch-0" in batcher._inflight_batches
+                batcher.complete.set()
+
+        await self._run_with_task_group(test_logic)
+
+        assert result is not None and result.startswith("result-for-")
+        assert batcher.cancelled_batch_ids == []
+        assert batcher._inflight_batches == {}
+
+    async def test_requests_cancelled_during_creation_cancel_batch(self):
+        batcher = GatedFakeBatcher(
+            config=BatchConfig(size=1, send_delay=10, tick=0.001), gate_create=True
+        )
+
+        async def test_logic():
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(batcher.generate_for_request, {"prompt": "a"})
+                await batcher.create_started.wait()
+                tg.cancel_scope.cancel()
+            batcher.create_release.set()
+
+        await self._run_with_task_group(test_logic)
+
+        assert batcher.cancelled_batch_ids == ["batch-0"]
+        assert batcher._inflight_batches == {}
+
+    async def test_cancel_failure_does_not_raise(self):
+        batcher = GatedFakeBatcher(
+            config=BatchConfig(size=1, send_delay=10, tick=0.001),
+            cancel_error=RuntimeError("provider unavailable"),
+        )
+
+        async def test_logic():
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(batcher.generate_for_request, {"prompt": "a"})
+                await batcher.batch_inflight.wait()
+                tg.cancel_scope.cancel()
+
+        await self._run_with_task_group(test_logic)
+
+        assert batcher.cancelled_batch_ids == ["batch-0"]
+        assert batcher._inflight_batches == {}
+
+    async def test_request_cancelled_before_submission_is_not_sent(self):
+        # size=2 holds the request until send_delay, by which time it is cancelled
+        batcher = GatedFakeBatcher(
+            config=BatchConfig(size=2, send_delay=0.2, tick=0.001)
+        )
+
+        async def test_logic():
+            with anyio.CancelScope() as scope:
+                scope.cancel()
+                await batcher.generate_for_request({"prompt": "a"})
+
+        await self._run_with_task_group(test_logic)
+
+        assert batcher._created_batches == {}
+        assert batcher.cancelled_batch_ids == []
+
+    async def test_cancelled_pending_request_is_left_out_of_batch(self):
+        batcher = GatedFakeBatcher(config=BatchConfig(size=10, send_delay=10, tick=1))
+        send_stream, _receive_stream = anyio.create_memory_object_stream[
+            str | Exception
+        ](1)
+        cancelled = BatchRequest[str](
+            request={"prompt": "a"}, result_stream=send_stream
+        )
+        kept = BatchRequest[str](request={"prompt": "b"}, result_stream=send_stream)
+        batcher._intake_queue = [cancelled, kept]
+
+        # both requests move into the pending batch, which is not due yet
+        assert not await batcher._process_intake_queue()
+        assert batcher._next_batch is not None
+        assert batcher._next_batch.requests == [cancelled, kept]
+
+        cancelled.cancelled = True
+        batcher._next_batch.timeout = 0
+        assert await batcher._process_intake_queue()
+
+        assert batcher._created_batches == {"batch-0": [kept.custom_id]}
