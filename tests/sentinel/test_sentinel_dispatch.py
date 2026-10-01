@@ -929,6 +929,27 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
         _Recorder().record(replace(_context(), factory="p", path="p"), step, reported)
 
 
+def test_apply_sentinel_decision() -> None:
+    from inspect_ai._sentinel._context import SentinelFailure
+    from inspect_ai._sentinel._dispatch import apply_sentinel_decision
+    from inspect_ai.tool._tool import ToolApprovalError
+
+    call = addition_call()
+    modified = replace(call, arguments={"x": 5, "y": 6})
+    assert apply_sentinel_decision(None, call) is call
+    assert apply_sentinel_decision(Decision.proceed(), call) is call
+    assert (
+        apply_sentinel_decision(Decision(action="modify", modified=modified), call)
+        is modified
+    )
+    with pytest.raises(ToolApprovalError, match="use X"):
+        apply_sentinel_decision(Decision.reject("why", message="use X"), call)
+    with pytest.raises(TerminateSampleError, match="too risky"):
+        apply_sentinel_decision(Decision.terminate("too risky"), call)
+    with pytest.raises(SentinelFailure):
+        apply_sentinel_decision(Decision(action="modify"), call)
+
+
 def test_a_modify_decision_without_a_modified_call_fails_the_sample(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

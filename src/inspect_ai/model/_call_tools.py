@@ -337,6 +337,7 @@ async def _execute_tools_impl(
                     inner_ex = inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
+            # a sentinel's own error must fail the sample, not become a tool error the model sees
             except SentinelFailure as ex:
                 tool_exception = ex.error
             except Exception as ex:
@@ -917,31 +918,19 @@ async def call_tool(
         call = approval.modified
 
     if active_sentinel() is not None and not isinstance(tool_def.tool, AgentTool):
-        from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
+        from inspect_ai._sentinel._dispatch import (
+            apply_sentinel_decision,
+            sentinel_before_tool_call,
+        )
 
         try:
             decision = await sentinel_before_tool_call(
                 message, call, tool_def.viewer, conversation
             )
-        except SentinelFailure:
+            call = apply_sentinel_decision(decision, call)
+        except (SentinelFailure, ToolApprovalError, TerminateSampleError):
             await record_pending_tool_event()
             raise
-        if decision is not None:
-            if decision.action == "reject":
-                await record_pending_tool_event()
-                raise ToolApprovalError(decision.message)
-            elif decision.action == "terminate":
-                await record_pending_tool_event()
-                raise TerminateSampleError(
-                    decision.explanation or "Sentinel requested termination."
-                )
-            elif decision.action == "modify":
-                if decision.modified is None:
-                    await record_pending_tool_event()
-                    raise SentinelFailure(
-                        RuntimeError("A sentinel modify decision has no modified call.")
-                    )
-                call = decision.modified
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)

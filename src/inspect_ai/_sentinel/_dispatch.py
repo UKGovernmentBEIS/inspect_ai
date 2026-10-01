@@ -17,7 +17,6 @@ from inspect_sentinel._integration import RunnerContext, run_root
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_lookup
-from inspect_ai.approval._apply import resolve_tool_call_view
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import SentinelAction, SentinelEvent, SentinelSuspicion
@@ -33,8 +32,8 @@ from inspect_ai.model._model import Model, active_model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Reference
 from inspect_ai.solver._task_state import sample_state
-from inspect_ai.tool._tool import ToolResult
-from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
+from inspect_ai.tool._tool import ToolApprovalError, ToolResult
+from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer, resolve_tool_call_view
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 from inspect_ai.util._span import current_agent_span_id, span
@@ -66,6 +65,31 @@ async def sentinel_before_tool_call(
         return await _run(step)
     except Exception as ex:
         raise SentinelFailure(ex) from ex
+
+
+def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
+    """Apply a before-tool-call decision, returning the call to execute.
+
+    Raises:
+        ToolApprovalError: The sentinel rejected the call.
+        TerminateSampleError: The sentinel requested termination.
+        SentinelFailure: A modify decision carried no modified call.
+    """
+    if decision is None:
+        return call
+    if decision.action == "reject":
+        raise ToolApprovalError(decision.message)
+    elif decision.action == "terminate":
+        raise TerminateSampleError(
+            decision.explanation or "Sentinel requested termination."
+        )
+    elif decision.action == "modify":
+        if decision.modified is None:
+            raise SentinelFailure(
+                RuntimeError("A sentinel modify decision has no modified call.")
+            )
+        return decision.modified
+    return call
 
 
 async def sentinel_after_tool_call(

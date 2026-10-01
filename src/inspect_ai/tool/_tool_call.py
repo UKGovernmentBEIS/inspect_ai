@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass, field
+from logging import getLogger
 from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field, JsonValue, field_validator
@@ -7,6 +8,10 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import TypedDict
 
 from inspect_ai._util.content import Content
+from inspect_ai._util.format import format_function_call
+from inspect_ai._util.logger import warn_once
+
+logger = getLogger(__name__)
 
 
 class ToolCallContent(BaseModel):
@@ -93,6 +98,35 @@ class ToolCallError:
 
 ToolCallViewer = Callable[[ToolCall], ToolCallView]
 """Custom view renderer for tool calls."""
+
+
+def resolve_tool_call_view(
+    call: ToolCall, viewer: ToolCallViewer | None
+) -> ToolCallView:
+    if viewer:
+        try:
+            view = viewer(call)
+            if not view.call:
+                view.call = default_tool_call_viewer(call).call
+            return view
+        except Exception as ex:
+            warn_once(
+                logger,
+                f"Error in viewer for tool '{call.function}': {ex}. "
+                "Falling back to default rendering.",
+            )
+    return default_tool_call_viewer(call)
+
+
+def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
+    return ToolCallView(
+        call=ToolCallContent(
+            format="markdown",
+            content="```python\n"
+            + format_function_call(call.function, call.arguments)
+            + "\n```\n",
+        )
+    )
 
 
 def substitute_tool_call_content(
