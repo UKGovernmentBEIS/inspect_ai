@@ -1,4 +1,5 @@
 import pytest
+from test_helpers.limits import generate_with_retry_boundary
 
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, get_model
 from inspect_ai.model._model import Model
@@ -176,6 +177,18 @@ async def test_generate_refused_when_outer_cost_limit_reached() -> None:
 
     assert calls == []
     assert exc_info.value.source is outer
+
+
+async def test_generate_retry_refused_when_cost_limit_reached_in_on_stream() -> None:
+    calls: list[list[ChatMessage]] = []
+
+    with cost_limit(1.0) as limit:
+        with pytest.raises(LimitExceededError) as exc_info:
+            await generate_with_retry_boundary(calls, lambda: record_model_cost(1.0))
+
+    # only the failed first attempt reached the provider
+    assert len(calls) == 1
+    assert exc_info.value.source is limit
 
 
 def _consume_cost(amount: float) -> None:

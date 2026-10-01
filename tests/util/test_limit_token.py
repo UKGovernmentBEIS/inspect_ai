@@ -3,10 +3,13 @@ from typing import Generator
 
 import anyio
 import pytest
+from test_helpers.limits import generate_with_retry_boundary
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util._async import tg_collect
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model import ChatMessage, GenerateConfig
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
@@ -797,6 +800,39 @@ async def test_generate_cache_hit_served_when_token_limit_reached(
         with pytest.raises(LimitExceededError):
             await model.generate("not cached", cache=True)
         assert len(calls) == 1
+
+
+async def test_generate_dispatched_on_retry_when_token_limit_not_reached() -> None:
+    calls: list[list[ChatMessage]] = []
+
+    with token_limit(10) as limit:
+        await generate_with_retry_boundary(calls, lambda: None)
+
+    assert len(calls) == 2
+    assert limit.usage == 1
+
+
+async def test_generate_retry_refused_when_token_limit_reached_in_on_stream() -> None:
+    calls: list[list[ChatMessage]] = []
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    with token_limit(1) as limit:
+        with pytest.raises(LimitExceededError) as exc_info:
+            await generate_with_retry_boundary(
+                calls, lambda: record_model_usage(ModelUsage(total_tokens=1))
+            )
+
+    # only the failed first attempt reached the provider
+    assert len(calls) == 1
+    assert exc_info.value.source is limit
+    assert limit.usage == 1
+
+    # the retry's pending event is completed with the limit error
+    events = [e for e in transcript.events if isinstance(e, ModelEvent)]
+    assert len(events) == 2
+    assert not events[1].pending
+    assert events[1].error is not None and "Token limit reached" in events[1].error
 
 
 def _consume_tokens(total_tokens: int) -> None:

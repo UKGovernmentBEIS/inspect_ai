@@ -1521,12 +1521,9 @@ class Model:
             else:
                 cache_entry = None
 
-            # refuse a dispatch once a token or cost limit has been reached (the
-            # call could only exceed it). checked per attempt, after the cache
-            # lookup: cache hits send nothing, and concurrent calls can reach a
-            # limit while a retry backs off
-            check_token_limit(raise_for_equal=True)
-            check_cost_limit(raise_for_equal=True)
+            # checked before the ModelEvent is recorded so that a call refused
+            # here leaves no event behind
+            _check_limits_before_dispatch()
 
             # verify that model apis are allowed
             self.verify_model_apis()
@@ -1579,6 +1576,9 @@ class Model:
                     )
 
                     await stream_observer.begin_attempt(event)
+                    # begin_attempt may await the on_stream retry boundary,
+                    # during which a concurrent call can reach a limit
+                    _check_limits_before_dispatch()
                     if idle_scope is not None:
                         assert stream_idle_timeout is not None
                         stream_observer.arm_stall_scope(idle_scope, stream_idle_timeout)
@@ -2965,6 +2965,17 @@ def init_role_usage(initial_usage: dict[str, ModelUsage] | None = None) -> None:
 
 def init_sample_role_usage() -> None:
     sample_role_usage_context_var.set({})
+
+
+def _check_limits_before_dispatch() -> None:
+    """Refuse a provider dispatch once a token or cost limit has been reached.
+
+    A further call could only exceed a reached limit. Called on every attempt
+    (a concurrent call can reach a limit while a retry waits), after the
+    cache lookup (a cache hit sends nothing, so it is never refused).
+    """
+    check_token_limit(raise_for_equal=True)
+    check_cost_limit(raise_for_equal=True)
 
 
 def record_and_check_model_usage(
