@@ -196,6 +196,18 @@ class DirListing(NamedTuple):
     """The subdirectories' paths, each without a trailing separator."""
 
 
+class FileContent(NamedTuple):
+    """A file's content and the version it was read from (see :meth:`AsyncFilesystem.read_file_info`)."""
+
+    data: bytes
+
+    etag: str | None
+    """The response's ETag (S3), ``None`` where the backend has none."""
+
+    mtime: float | None
+    """Last modification time in milliseconds, as ``FileInfo.mtime``."""
+
+
 class _S3ETagCapture:
     """Proxy an S3 client and retain the exact completed-upload ETag."""
 
@@ -224,27 +236,31 @@ class _S3ETagCapture:
         return self._capture(self._client.complete_multipart_upload(**kwargs))
 
 
-async def _read_exactly(source: BinaryIO, size: int, io_chunksize: int) -> bytearray:
-    """Read up to ``size`` bytes from ``source`` without blocking the event loop.
-
-    Each chunk is read in a worker thread: ``EvalRecorder.flush()`` and
-    checkpoint egress stream from disk, and a blocking read on the loop stalls
-    every other sample for its duration. ``run_sync`` is left non-abandoning
-    (the default), so a cancelled upload does not unwind while a read is still
-    in flight; callers reuse or close the source right after the upload
-    (``flush()`` reopens its temp-file zip in a ``finally``), and an abandoned
-    read would race that.
-    """
+def _read_exactly_sync(source: BinaryIO, size: int) -> bytearray:
+    """Read up to ``size`` bytes from ``source``, retrying short reads until EOF."""
     data = bytearray()
     while len(data) < size:
-        chunk = await anyio.to_thread.run_sync(
-            source.read, min(io_chunksize, size - len(data))
-        )
+        chunk = source.read(size - len(data))
         if not chunk:
             break
         data += chunk
 
     return data
+
+
+async def _read_exactly(source: BinaryIO, size: int) -> bytearray:
+    """Read up to ``size`` bytes from ``source`` without blocking the event loop.
+
+    The whole part is read in one worker-thread hop: ``EvalRecorder.flush()``
+    and checkpoint egress stream from disk, and a blocking read on the loop
+    stalls every other sample for its duration, while hopping per
+    ``io_chunksize`` slice costs 32 round trips for a default 8 MB part.
+    ``run_sync`` is left non-abandoning (the default), so a cancelled upload
+    does not unwind while a read is still in flight; callers reuse or close
+    the source right after the upload (``flush()`` reopens its temp-file zip
+    in a ``finally``), and an abandoned read would race that.
+    """
+    return await anyio.to_thread.run_sync(_read_exactly_sync, source, size)
 
 
 async def _s3_multipart_upload_async(
@@ -268,9 +284,7 @@ async def _s3_multipart_upload_async(
             await send.send((part_number, first_part))
 
             while True:
-                body = await _read_exactly(
-                    source, config.multipart_chunksize, config.io_chunksize
-                )
+                body = await _read_exactly(source, config.multipart_chunksize)
                 if body:
                     part_number += 1
                     await send.send((part_number, body))
@@ -333,9 +347,7 @@ async def _s3_upload_fileobj_async(
 
     config = config or TransferConfig()
     first_part = await _read_exactly(
-        source,
-        max(config.multipart_threshold, config.multipart_chunksize),
-        config.io_chunksize,
+        source, max(config.multipart_threshold, config.multipart_chunksize)
     )
     if len(first_part) < config.multipart_threshold:
         response = await client.put_object(Bucket=bucket, Key=key, Body=first_part)
@@ -541,6 +553,41 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             with file(filename, "rb") as f:
                 return f.read()
+
+    async def read_file_info(self, filename: str) -> FileContent:
+        """Read a file's full contents with the ETag and Last-Modified they came from.
+
+        One request on S3 (the ``get_object`` response carries both). A local
+        file is opened, ``fstat``-ed and read through the same descriptor, so
+        the time describes the bytes returned; other fsspec backends read, then
+        look the file up. Raises ``FileNotFoundError`` for a missing file on
+        every backend.
+        """
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            with _map_missing_s3_object(filename):
+                if current_async_backend() == "asyncio":
+                    response = await (await self.s3_client_async()).get_object(
+                        Bucket=bucket, Key=key
+                    )
+                    body = response["Body"]
+                    try:
+                        data = cast(bytes, await body.read())
+                    finally:
+                        body.close()
+                    return _s3_file_content(data, response)
+                return await anyio.to_thread.run_sync(
+                    s3_read_file_info, self.s3_client(), bucket, key
+                )
+        fsw = filesystem(filename)
+        if fsw.is_local():
+            return await anyio.to_thread.run_sync(
+                _local_read_file_info, local_path(filename)
+            )
+        with file(filename, "rb") as f:
+            data = f.read()
+        info = fsw.info(filename)
+        return FileContent(data=data, etag=info.etag, mtime=info.mtime)
 
     async def read_file_bytes(
         self, filename: str, start: int, end: int | None
@@ -1263,6 +1310,27 @@ def s3_info(s3: Any, bucket: str, key: str, filename: str) -> FileInfo:
 def s3_read_file(s3: Any, bucket: str, key: str) -> bytes:
     response = s3.get_object(Bucket=bucket, Key=key)
     return cast(bytes, response["Body"].read())
+
+
+def s3_read_file_info(s3: Any, bucket: str, key: str) -> FileContent:
+    response = s3.get_object(Bucket=bucket, Key=key)
+    return _s3_file_content(cast(bytes, response["Body"].read()), response)
+
+
+def _s3_file_content(data: bytes, response: dict[str, Any]) -> FileContent:
+    last_modified = response.get("LastModified")
+    etag_raw = response.get("ETag")
+    return FileContent(
+        data=data,
+        etag=cast(str, etag_raw).strip('"') if etag_raw else None,
+        mtime=last_modified.timestamp() * 1000 if last_modified else None,
+    )
+
+
+def _local_read_file_info(path: str) -> FileContent:
+    with open(path, "rb") as f:
+        mtime = os.fstat(f.fileno()).st_mtime * 1000
+        return FileContent(data=f.read(), etag=None, mtime=mtime)
 
 
 def s3_range_header(start: int, end: int | None) -> str:

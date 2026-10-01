@@ -229,7 +229,10 @@ async def test_assistant_message_reasoning_content_round_trip():
     assert "assistant output" in content
 
 
-async def test_assistant_message_preserves_multiple_internal_text_blocks() -> None:
+@pytest.mark.parametrize("as_parts", [False, True])
+async def test_assistant_message_preserves_multiple_internal_text_blocks(
+    as_parts: bool,
+) -> None:
     serialized = "\n".join(
         [
             "first",
@@ -243,7 +246,12 @@ async def test_assistant_message_preserves_multiple_internal_text_blocks() -> No
         [
             cast(
                 ChatCompletionMessageParam,
-                DummyMessage("assistant", content=serialized),
+                DummyMessage(
+                    "assistant",
+                    content=[{"type": "text", "text": serialized}]
+                    if as_parts
+                    else serialized,
+                ),
             )
         ]
     )
@@ -307,13 +315,17 @@ async def test_assistant_message_preserves_internal_and_plain_text_blocks() -> N
     ] == [("first", {"a": 1}), ("second", None)]
 
 
-async def test_assistant_message_preserves_reasoning_and_internal_block_order() -> None:
+@pytest.mark.parametrize("as_parts", [False, True])
+@pytest.mark.parametrize("second_text", ["second", ""])
+async def test_assistant_message_preserves_reasoning_and_internal_block_order(
+    as_parts: bool, second_text: str
+) -> None:
     serialized = "\n".join(
         [
             '<think signature="sig">reasoning</think>',
             "first",
             content_internal_tag({"a": 1}),
-            "second",
+            second_text,
             content_internal_tag({"b": 2}),
         ]
     )
@@ -322,7 +334,12 @@ async def test_assistant_message_preserves_reasoning_and_internal_block_order() 
         [
             cast(
                 ChatCompletionMessageParam,
-                DummyMessage("assistant", content=serialized),
+                DummyMessage(
+                    "assistant",
+                    content=[{"type": "text", "text": serialized}]
+                    if as_parts
+                    else serialized,
+                ),
             )
         ]
     )
@@ -336,7 +353,7 @@ async def test_assistant_message_preserves_reasoning_and_internal_block_order() 
     assert reasoning.reasoning == "reasoning"
     assert first.text == "first"
     assert first.internal == {"a": 1}
-    assert second.text == "second"
+    assert second.text == second_text
     assert second.internal == {"b": 2}
 
 

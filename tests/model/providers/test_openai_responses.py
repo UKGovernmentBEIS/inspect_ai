@@ -475,6 +475,30 @@ async def test_responses_api_terminal_error_block_code_converts() -> None:
     assert excinfo.value.code == "server_error"
 
 
+async def test_responses_api_terminal_bio_policy_converts() -> None:
+    """A terminal biological-risk policy error becomes a content filter stop."""
+    from openai.types.responses import Response, ResponseError
+
+    blocked_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError.model_construct(
+            code="bio_policy",
+            message="This content was flagged for possible biological risk.",
+        ),
+        status="failed",
+    )
+    output, model_call = await _generate_responses_with_mock(blocked_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert "biological risk" in output.completion
+    assert model_call.error is True
+
+
 async def test_responses_api_metadata_surfaced():
     """Response-level metadata is surfaced as ModelOutput.metadata."""
     from openai.types.responses import Response
@@ -2790,6 +2814,7 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
         ("gpt-6-astra", True),
         ("gpt-6-sol", True),
         ("gpt-6-luna", True),
+        ("gpt-6.1-sol", True),
         ("my-gpt-6-deployment", True),
         ("gpt-35-turbo", False),
         ("gpt-4", False),
