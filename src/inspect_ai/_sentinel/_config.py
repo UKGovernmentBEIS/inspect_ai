@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class SentinelEntry(BaseModel):
     """One configured monitor or protocol.
 
-    Any key besides `name` and `params` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds a list or a mapping of entries, and `nested` returns them.
+    Any key besides `name`, `params`, and `version` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds a list or a mapping of entries, and `nested` returns them.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -25,6 +25,9 @@ class SentinelEntry(BaseModel):
 
     params: dict[str, Any] = Field(default_factory=dict)
     """Arguments passed to the factory, other than the nested ones."""
+
+    version: int | None = Field(default=None, exclude_if=lambda v: v is None)
+    """The factory's version as `@monitor(version=)` or `@protocol(version=)` declared it, recorded when not 0."""
 
     if not TYPE_CHECKING:
         # pydantic validates each extra as a nested layer, so an error carries

@@ -188,6 +188,56 @@ def test_nested_config_round_trips_through_the_log(tmp_path: Path) -> None:
     )
 
 
+@monitor(version=3)
+def d2_versioned(score: float = 0.5) -> Monitor:
+    async def check(context: Context, step: BeforeToolCall) -> Observation | None:
+        return Observation.score(score)
+
+    return check
+
+
+def test_entry_version_is_a_field_not_nested() -> None:
+    entry = SentinelEntry.model_validate(
+        {"name": "threshold", "version": 2, "monitors": [{"name": "d2_suspicion"}]}
+    )
+    assert entry.version == 2
+    assert list(entry.nested) == ["monitors"]
+    assert entry.model_dump() == {
+        "name": "threshold",
+        "params": {},
+        "version": 2,
+        "monitors": [{"name": "d2_suspicion", "params": {}}],
+    }
+
+
+def test_entry_without_version_omits_it() -> None:
+    entry = SentinelEntry.model_validate({"name": "d2_rule"})
+    assert entry.version is None
+    assert "version" not in entry.model_dump()
+    assert "version" not in entry.model_dump_json()
+
+
+def test_log_config_without_version_loads() -> None:
+    config = EvalConfig.model_validate_json(
+        json.dumps({"sentinel": [{"name": "d2_rule", "params": {"reason": "no"}}]})
+    )
+    assert config.sentinel is not None
+    assert config.sentinel.model_dump() == RULE_CONFIG
+
+
+def test_version_round_trips_through_the_log(tmp_path: Path) -> None:
+    log = eval(
+        sentinel_task([d2_versioned(score=0.1)]),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+    )[0]
+    expected = [{"name": "d2_versioned", "params": {"score": 0.1}, "version": 3}]
+    assert config_data(log) == expected
+    read = read_eval_log(log.location)
+    assert read.eval.config.sentinel == log.eval.config.sentinel
+    assert config_data(read) == expected
+
+
 @solver
 def fail_once(marker: str) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
