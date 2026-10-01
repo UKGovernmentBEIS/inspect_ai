@@ -22,27 +22,11 @@ TRUST_CONTENT_HELP = (
 )
 
 
-def trust_content_option(func: Callable[..., Any]) -> Callable[..., click.Context]:
-    @click.option(
-        "--trust-content/--no-trust-content",
-        type=bool,
-        default=None,
-        is_flag=True,
-        help=TRUST_CONTENT_HELP,
-        envvar="INSPECT_VIEW_TRUST_CONTENT",
-    )
-    @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
-        return cast(click.Context, func(*args, **kwargs))
-
-    return wrapper
-
-
 def resolve_trust_content(trust_content: bool | None) -> bool | None:
     """A subcommand's --trust-content, else one given before the subcommand.
 
     `inspect view` itself accepts the start options, so without this
-    `inspect view --no-trust-content bundle` would silently drop the setting.
+    `inspect view --no-trust-content start` would silently drop the setting.
     The subcommand's own command-line value wins; otherwise the environment
     (or default) value it already has applies.
     """
@@ -95,7 +79,14 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help="Acknowledge unauthenticated access when binding beyond loopback.",
     )
-    @trust_content_option
+    @click.option(
+        "--trust-content/--no-trust-content",
+        type=bool,
+        default=None,
+        is_flag=True,
+        help=TRUST_CONTENT_HELP,
+        envvar="INSPECT_VIEW_TRUST_CONTENT",
+    )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
         return cast(click.Context, func(*args, **kwargs))
@@ -115,6 +106,15 @@ def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(start, **kwargs)
+    elif (
+        ctx.invoked_subcommand != "start"
+        and ctx.get_parameter_source("trust_content") == ParameterSource.COMMANDLINE
+    ):
+        raise click.UsageError(
+            f"--trust-content/--no-trust-content does not apply to "
+            f"'inspect view {ctx.invoked_subcommand}'. Set "
+            "ViewerConfig(trust_content=False) in the task so each log records it."
+        )
     else:
         pass
 
@@ -181,11 +181,9 @@ def start(
     default=False,
     help="Overwrite files in the output directory.",
 )
-@trust_content_option
 def bundle_command(
     output_dir: str,
     overwrite: bool,
-    trust_content: bool | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Bundle evaluation logs"""
@@ -193,23 +191,16 @@ def bundle_command(
     process_common_options(common)
 
     bundle_log_dir(
-        output_dir=output_dir,
-        log_dir=common["log_dir"],
-        overwrite=overwrite,
-        trust_content=resolve_trust_content(trust_content),
+        output_dir=output_dir, log_dir=common["log_dir"], overwrite=overwrite
     )
 
 
 @view_command.command("embed")
 @common_options
-@trust_content_option
 def embed_command(
-    trust_content: bool | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Embed a lightweight viewer into a log directory."""
     process_common_options(common)
 
-    embed_log_dir(
-        log_dir=common["log_dir"], trust_content=resolve_trust_content(trust_content)
-    )
+    embed_log_dir(log_dir=common["log_dir"])

@@ -291,7 +291,9 @@ To show every log as untrusted, whatever its own setting (for example, logs writ
 $ inspect view --no-trust-content
 ```
 
-You can also set `INSPECT_VIEW_TRUST_CONTENT=false` in the environment `inspect view` runs in. `inspect view bundle` and `inspect view embed` accept the same option, so a published viewer shows its logs as plain text too. The setting is written into the bundled or embedded viewer, so pass it again whenever you re-bundle or re-embed (`eval_set(embed_viewer=True)` re-embeds the viewer without it). From Python, pass `trust_content=False` to `view()`, `bundle_log_dir()`, or `embed_log_dir()`.
+You can also set `INSPECT_VIEW_TRUST_CONTENT=false` in the environment `inspect view` runs in. From Python, pass `trust_content=False` to `view()`.
+
+This option applies only to the `inspect view` server. Bundled and embedded viewers (`inspect view bundle`, `inspect view embed`, `eval_set(embed_viewer=True)`) rely on each log's own `ViewerConfig(trust_content=False)`.
 
 The viewer option only lowers trust. Leaving it unset, or passing `--trust-content`, defers to each log, and a log that sets `trust_content=False` is never shown richly.
 

@@ -1,4 +1,3 @@
-import json
 import os
 import tempfile
 
@@ -9,7 +8,7 @@ from inspect_ai import Task, eval
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 from inspect_ai.dataset import Sample
-from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir, inject_configuration
+from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 from inspect_ai.scorer import match
 
 
@@ -84,13 +83,6 @@ def test_bundle() -> None:
         ]
         assert len(non_manifest_logs) == 2
 
-        # bundling with trust_content=False records it for the viewer
-        with open(os.path.join(output_dir, "index.html")) as f:
-            assert "trust_content" not in f.read()
-        bundle_log_dir(log_dir, output_dir, overwrite=True, trust_content=False)
-        with open(os.path.join(output_dir, "index.html")) as f:
-            assert '"trust_content": false' in f.read()
-
 
 @skip_if_trio
 def test_s3_embed(mock_s3) -> None:
@@ -159,31 +151,6 @@ def test_embed() -> None:
         with open(os.path.join(log_dir, "index.html")) as f:
             contents = f.read()
         assert '"log_dir": "."' in contents
-        assert "trust_content" not in contents
-
-        # re-embedding with trust_content=False records it for the viewer
-        embed_log_dir(log_dir, trust_content=False)
-        with open(os.path.join(log_dir, "index.html")) as f:
-            assert '"trust_content": false' in f.read()
-
-
-@pytest.mark.parametrize("trust_content", [None, False, True])
-def test_inject_configuration_trust_content(tmp_path, trust_content) -> None:
-    html_file = tmp_path / "index.html"
-    html_file.write_text("<html><head></head><body></body></html>")
-
-    inject_configuration(str(html_file), log_dir="logs", trust_content=trust_content)
-
-    contents = html_file.read_text()
-    context = json.loads(
-        contents.split('<script id="log_dir_context" type="application/json">')[
-            1
-        ].split("</script>")[0]
-    )
-    if trust_content is None:
-        assert "trust_content" not in context
-    else:
-        assert context["trust_content"] is trust_content
 
 
 def test_bundle_output_dir_cannot_be_subdir_of_log_dir(tmp_path) -> None:

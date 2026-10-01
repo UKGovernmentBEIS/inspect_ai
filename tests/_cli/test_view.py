@@ -122,45 +122,53 @@ def test_view_trust_content(
 
 
 @pytest.mark.parametrize(
-    "args, called, expected",
+    "args, expected",
     [
-        (["--no-trust-content", "start"], "view", False),
-        (
-            ["--no-trust-content", "bundle", "--output-dir", "out"],
-            "bundle_log_dir",
-            False,
-        ),
-        (["--no-trust-content", "embed"], "embed_log_dir", False),
+        (["--no-trust-content", "start"], False),
         # The subcommand's own value wins over one given before it.
-        (["--no-trust-content", "embed", "--trust-content"], "embed_log_dir", True),
+        (["--no-trust-content", "start", "--trust-content"], True),
     ],
 )
-def test_view_trust_content_before_subcommand(
-    captured_trust: dict[str, dict[str, Any]],
-    args: list[str],
-    called: str,
-    expected: bool,
+def test_view_trust_content_before_start(
+    captured_trust: dict[str, dict[str, Any]], args: list[str], expected: bool
 ) -> None:
     result = CliRunner().invoke(view_cli.view_command, args)
     assert result.exit_code == 0, result.output
-    assert captured_trust[called]["trust_content"] is expected
+    assert captured_trust["view"]["trust_content"] is expected
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--no-trust-content", "bundle", "--output-dir", "out"],
+        ["--trust-content", "embed"],
+    ],
+)
+def test_view_trust_content_rejected_for_bundle_and_embed(
+    captured_trust: dict[str, dict[str, Any]], args: list[str]
+) -> None:
+    """Static viewers rely on each log's setting, so the option would be a no-op."""
+    result = CliRunner().invoke(view_cli.view_command, args)
+    assert result.exit_code == 2
+    assert "does not apply" in result.output
+    assert captured_trust == {}
 
 
 @pytest.mark.parametrize(
     "args, called",
     [
-        (["bundle", "--output-dir", "out", "--no-trust-content"], "bundle_log_dir"),
-        (["embed", "--no-trust-content"], "embed_log_dir"),
+        (["bundle", "--output-dir", "out"], "bundle_log_dir"),
+        (["embed"], "embed_log_dir"),
     ],
 )
-def test_view_trust_content_bundle_and_embed(
+def test_view_trust_content_environment_allowed_for_bundle_and_embed(
     captured_trust: dict[str, dict[str, Any]], args: list[str], called: str
 ) -> None:
     result = CliRunner().invoke(
-        view_cli.view_command, args, env={"INSPECT_VIEW_TRUST_CONTENT": "true"}
+        view_cli.view_command, args, env={"INSPECT_VIEW_TRUST_CONTENT": "false"}
     )
     assert result.exit_code == 0, result.output
-    assert captured_trust[called]["trust_content"] is False
+    assert called in captured_trust
 
 
 def test_view_trust_content_rejects_invalid_environment(
