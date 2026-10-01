@@ -2,7 +2,15 @@ import uuid
 from logging import Logger
 from typing import Any, Callable, Literal, Type, TypeVar
 
-from pydantic import BaseModel, Field, JsonValue, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    JsonValue,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 
 from inspect_ai._util.content import Content
 from inspect_ai._util.logger import warn_once
@@ -11,6 +19,19 @@ from inspect_ai.tool._tool_call import ToolCall
 from ._chat_message import ChatMessage, ChatMessageAssistant
 
 _T = TypeVar("_T", int, float)
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def _keeps_model_schema(fn: _F) -> _F:
+    """Drop a model serializer's return annotation at runtime.
+
+    Pydantic builds a model's serialization schema (and so the viewer's
+    generated types) from a wrap serializer's return annotation; without one
+    it keeps the model's own schema, which is right for a serializer that only
+    adjusts which keys are written.
+    """
+    fn.__annotations__ = {k: v for k, v in fn.__annotations__.items() if k != "return"}
+    return fn
 
 
 class ModelUsage(BaseModel):
@@ -301,8 +322,9 @@ class ModelOutput(BaseModel):
 
     Counts the system prompt, tools and input messages, cached tokens included.
     For a call that made several requests, this is the size of the request built
-    from the input, not a sum. None when unknown: the request was rejected, or
-    the output comes from a log written before this field existed.
+    from the input, not a sum. None when unknown, e.g. the request was rejected;
+    logs record that as null, while logs written before this field existed omit
+    it.
     """
 
     fallback: ModelFallback | None = Field(default=None)
@@ -338,6 +360,33 @@ class ModelOutput(BaseModel):
                 self.choices[0].message.text if len(self.choices) > 0 else ""
             )
         return self
+
+    @model_serializer(mode="wrap")
+    @_keeps_model_schema
+    def _serialize_unknown_input_context(
+        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
+    ) -> Any:
+        """Write an assigned `input_context_tokens=None` even with `exclude_none`.
+
+        An assigned None means the size is unknown, while a missing key means a
+        log from before the field existed (read with a fallback to usage), so
+        logs and events must keep the two apart.
+        """
+        data = handler(self)
+        if (
+            info.exclude_none
+            and isinstance(data, dict)
+            and self.input_context_tokens is None
+            and "input_context_tokens" in self.model_fields_set
+        ):
+            data["input_context_tokens"] = None
+        return data
+
+    def __setstate__(self, state: dict[Any, Any]) -> None:
+        super().__setstate__(state)
+        # pickles from before input_context_tokens existed (e.g. model cache
+        # entries) restore without it; leave it unset so readers fall back to usage
+        self.__dict__.setdefault("input_context_tokens", None)
 
     @staticmethod
     def from_message(

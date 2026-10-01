@@ -1,5 +1,8 @@
 import math
 from pathlib import Path
+from typing import Literal
+
+import pytest
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -245,3 +248,89 @@ def test_input_context_tokens_defaults_from_usage(tmp_path: Path) -> None:
     assert len(events) == 1
     assert events[0].output.input_context_tokens == 30 + 7 + 3
     assert log.samples[0].output.input_context_tokens == 30 + 7 + 3
+
+
+def _model_event(output: ModelOutput) -> ModelEvent:
+    from inspect_ai.model import GenerateConfig
+
+    return ModelEvent(
+        model="mockllm/model",
+        input=[],
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(),
+        output=output,
+    )
+
+
+@pytest.mark.parametrize(
+    ("input_context_tokens", "expected"),
+    [
+        # known size
+        (10, 10),
+        # unknown (a rejected request that billed only a probe): stays unknown
+        (None, None),
+        # a log from before the field existed: falls back to usage
+        ("absent", 12),
+    ],
+)
+@pytest.mark.parametrize("writer", ["jsonable_python", "json", "acp"])
+def test_input_context_tokens_survives_serialization(
+    input_context_tokens: int | Literal["absent"] | None,
+    expected: int | None,
+    writer: str,
+) -> None:
+    """Writers that drop None keep an unknown context apart from a legacy one."""
+    from inspect_ai._util.json import jsonable_python
+    from inspect_ai.model._model_output import output_input_context_tokens
+
+    output = ModelOutput.from_content("mockllm/model", "hi")
+    output.usage = ModelUsage(input_tokens=12, output_tokens=30, total_tokens=42)
+    if input_context_tokens != "absent":
+        output.input_context_tokens = input_context_tokens
+    event = _model_event(output)
+
+    match writer:
+        case "jsonable_python":
+            restored = ModelEvent.model_validate(jsonable_python(event))
+        case "json":
+            restored = ModelEvent.model_validate_json(
+                event.model_dump_json(exclude_none=True)
+            )
+        case _:
+            restored = ModelEvent.model_validate(
+                event.model_dump(mode="json", by_alias=True, exclude_none=True)
+            )
+    assert output_input_context_tokens(restored.output) == expected
+    assert restored.output.usage == output.usage
+
+
+def test_unknown_input_context_tokens_survives_eval_log(tmp_path: Path) -> None:
+    """An .eval log keeps an unknown context unknown and a known one as written."""
+    from inspect_ai.model._model_output import output_input_context_tokens
+
+    unknown = ModelOutput.from_content("mockllm/model", "rejected")
+    unknown.usage = ModelUsage(input_tokens=12, output_tokens=30, total_tokens=42)
+    unknown.input_context_tokens = None
+    known = ModelOutput.from_content("mockllm/model", "ok")
+    known.usage = ModelUsage(input_tokens=20, output_tokens=2, total_tokens=22)
+
+    log = eval(
+        Task(dataset=[Sample(input="one"), Sample(input="two")]),
+        model=get_model("mockllm/model", custom_outputs=[unknown, known]),
+        log_dir=str(tmp_path),
+        max_samples=1,
+    )[0]
+
+    log = read_eval_log(log.location)
+    assert log.samples
+    outputs = [
+        e.output
+        for sample in log.samples
+        for e in sample.events
+        if isinstance(e, ModelEvent)
+    ]
+    by_text = {o.completion: o for o in outputs}
+    assert by_text["rejected"].input_context_tokens is None
+    assert output_input_context_tokens(by_text["rejected"]) is None
+    assert by_text["ok"].input_context_tokens == 20
