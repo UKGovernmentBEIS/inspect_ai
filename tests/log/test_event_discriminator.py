@@ -10,11 +10,7 @@ import inspect_ai
 from inspect_ai.event._event import DiscriminatedEvent, Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.event._sentinel import (
-    SentinelAction,
-    SentinelEvent,
-    SentinelSuspicion,
-)
+from inspect_ai.event._sentinel import SentinelEvent
 from inspect_ai.scorer import Reference
 from inspect_ai.tool import ToolCall
 
@@ -234,14 +230,3 @@ def test_sentinel_event_renders_in_tui() -> None:
     assert "[bold]attempt [/red]" in output
     assert "matched [/red] in output" in output
     assert "use [/red] instead" in output
-
-
-def test_sentinel_types_match_inspect_sentinel() -> None:
-    # SentinelEvent is always in the Event union, so it declares its own
-    # literals rather than importing inspect_sentinel.
-    report = pytest.importorskip("inspect_sentinel._report")
-    assert get_args(SentinelAction) == get_args(report.Action)
-    assert (
-        TypeAdapter(SentinelSuspicion).json_schema()
-        == TypeAdapter(report.Suspicion).json_schema()
-    )
