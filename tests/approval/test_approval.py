@@ -1,9 +1,14 @@
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any, NamedTuple
+
+import pytest
+from pydantic import BaseModel
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.registry import registry_log_name
+from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.approval import (
     Approval,
     ApprovalDecision,
@@ -792,6 +797,181 @@ def test_policy_argument_pattern_must_be_name_value() -> None:
 
     with pytest.raises(ValueError, match="expected name=value"):
         policy_approver([ApprovalPolicy(auto_approver(), "computer(*'key'*")])
+
+
+class Payload(BaseModel):
+    amount: float
+    note: str = ""
+
+
+@tool
+def typed_inputs(received: list[dict[str, Any]]):
+    async def execute(
+        when: date | None = None,
+        at: datetime | None = None,
+        clock: time | None = None,
+        payload: Payload | None = None,
+        payloads: list[Payload] | None = None,
+    ) -> str:
+        """Record typed inputs.
+
+        Args:
+            when: A date.
+            at: A datetime.
+            clock: A time.
+            payload: A payload.
+            payloads: Payloads.
+        """
+        received.append(
+            {
+                "when": when,
+                "at": at,
+                "clock": clock,
+                "payload": payload,
+                "payloads": payloads,
+            }
+        )
+        return "ok"
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"when": "not-a-date"},
+        {"at": "not-a-datetime"},
+        {"clock": "25:99"},
+        {"payload": {"amount": "x"}},
+        {"payload": {"amount": 2**53 + 1}},
+        {"payloads": [{"amount": 2**53 + 1}]},
+    ],
+    ids=["date", "datetime", "time", "model", "model-lossy", "nested-model-lossy"],
+)
+async def test_inconvertible_call_is_a_parsing_error_before_approval(
+    arguments: dict[str, Any],
+) -> None:
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    init_transcript(Transcript())
+    received: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
+    call = ToolCall(id="1", function="typed_inputs", arguments=arguments)
+
+    # the policy would reject the call, but conversion fails first
+    message = await execute_with_approval(
+        call,
+        [typed_inputs(received)],
+        [ApprovalPolicy(recording_approver(calls, "reject"), "*")],
+    )
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert calls == []
+    assert received == []
+    tool_events = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert len(tool_events) == 1
+    assert tool_events[0].error is not None
+    assert tool_events[0].error.type == "parsing"
+
+
+async def test_converted_values_match_the_approved_call() -> None:
+    received: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
+    arguments: dict[str, Any] = {
+        "when": "2025-01-02",
+        "payload": {"amount": 5},
+        "payloads": [{"amount": 2**52, "note": "n"}],
+    }
+    call = ToolCall(id="1", function="typed_inputs", arguments=arguments)
+
+    message = await execute_with_approval(
+        call, [typed_inputs(received)], [ApprovalPolicy(recording_approver(calls), "*")]
+    )
+
+    assert message.error is None
+    assert [c.arguments for c in calls] == [arguments]
+    (values,) = received
+    assert values["when"] == date(2025, 1, 2)
+    assert values["payload"] == Payload(amount=5.0)
+    assert values["payloads"] == [Payload(amount=float(2**52), note="n")]
+
+
+@agent
+def amount_agent(received: list[dict[str, Any]]) -> Agent:
+    async def execute(
+        state: AgentState,
+        amount: float,
+        payload: Payload | None = None,
+        note: str = "",
+    ) -> AgentState:
+        """Record an amount.
+
+        Args:
+            state: Agent state.
+            amount: An amount.
+            payload: A payload.
+            note: A note.
+        """
+        received.append({"amount": amount, "payload": payload, "note": note})
+        return state
+
+    return execute
+
+
+async def handoff_with_approval(
+    arguments: dict[str, Any],
+) -> tuple[ChatMessageTool, list[ToolCall], list[dict[str, Any]], int]:
+    from inspect_ai.agent import handoff
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
+
+    received: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
+    filtered: list[int] = []
+
+    async def input_filter(messages: list[ChatMessage]) -> list[ChatMessage]:
+        filtered.append(len(messages))
+        return messages
+
+    call = ToolCall(id="1", function="transfer_to_amount_agent", arguments=arguments)
+    messages, _ = await execute_tools(
+        [
+            ChatMessageUser(content="go"),
+            ChatMessageAssistant(content="", tool_calls=[call]),
+        ],
+        [handoff(amount_agent(received), input_filter=input_filter, note="curried")],
+        approval=[ApprovalPolicy(recording_approver(calls), "*")],
+    )
+    tool_messages = [m for m in messages if isinstance(m, ChatMessageTool)]
+    return tool_messages[0], calls, received, len(filtered)
+
+
+async def test_handoff_inexact_argument_never_reaches_approver() -> None:
+    message, calls, received, filtered = await handoff_with_approval(
+        {"amount": 2**53 + 1}
+    )
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert calls == []
+    assert filtered == 0
+    assert received == []
+
+
+async def test_handoff_arguments_are_converted_for_the_agent() -> None:
+    message, calls, received, filtered = await handoff_with_approval(
+        {"amount": 5, "payload": {"amount": 1}}
+    )
+
+    assert message.error is None
+    assert [c.arguments for c in calls] == [{"amount": 5, "payload": {"amount": 1}}]
+    assert filtered == 1
+    assert received == [
+        {"amount": 5.0, "payload": Payload(amount=1.0), "note": "curried"}
+    ]
+    assert isinstance(received[0]["amount"], float)
 
 
 if __name__ == "__main__":

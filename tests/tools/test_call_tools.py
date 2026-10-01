@@ -568,6 +568,11 @@ async def test_tool_event_message_id_for_multiple_calls():
         (Dict[str, int], ["a"]),
         (MyTypedDict, "count"),
         (MyDataClass, ["value"]),
+        (MyPydanticModel, {"name": "a", "id": 1.5}),
+        (MyPydanticModel, "a"),
+        (date, "not-a-date"),
+        (date, 20250101),
+        (MyEnum, "zulu"),
     ],
 )
 def test_tool_param_rejects_inexact_conversions(type_hint: Any, value: Any) -> None:
@@ -641,3 +646,12 @@ async def test_inexact_argument_is_a_parsing_error() -> None:
     assert messages[-1].error is not None
     assert messages[-1].error.type == "parsing"
     assert "Unable to convert 'false' to bool" in messages[-1].error.message
+
+
+def test_tool_params_passes_extra_arguments_to_var_keyword() -> None:
+    from inspect_ai.model._call_tools import tool_params
+
+    async def execute(count: int, **arguments: str) -> str:
+        return ""
+
+    assert tool_params({"count": 2.0, "a": "x"}, execute) == {"count": 2, "a": "x"}

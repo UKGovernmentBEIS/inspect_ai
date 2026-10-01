@@ -791,6 +791,88 @@ def test_sandbox_bridge_executes_proposed_host_tool_call_once(
 
 @skip_if_no_docker
 @pytest.mark.slow
+def test_sandbox_bridge_runs_host_memory_tool_on_the_approved_canonical_path() -> None:
+    """A `..` path is approved as its canonical path, and the scaffold's raw path runs it."""
+    from inspect_ai.approval import ApprovalPolicy, auto_approver
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+    from inspect_ai.tool import memory
+    from inspect_ai.tool._tool_call import ToolCall
+    from inspect_ai.tool._tool_def import ToolDef
+    from inspect_ai.tool._tools._memory import MemoryStore
+    from inspect_ai.util import store_as
+
+    tool_memory = memory()
+    memory_def = ToolDef(tool_memory)
+    raw_path = "/memories/other/../public/note.txt"
+    arguments = {"command": "create", "path": raw_path, "file_text": "x"}
+    responses: list[dict] = []
+    files: list[list[str]] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                approval=[
+                    ApprovalPolicy(
+                        auto_approver(), "*(command='create', path='/memories/public/*"
+                    ),
+                    ApprovalPolicy(auto_approver("reject"), "*"),
+                ],
+                bridged_tools=[BridgedToolsSpec(name="mem", tools=[tool_memory])],
+            ) as bridge:
+                await post_completions(
+                    bridge.port,
+                    {
+                        "model": "inspect",
+                        "messages": [{"role": "user", "content": "Take a note."}],
+                        "tools": [
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": "mcp__mem__memory",
+                                    "description": memory_def.description,
+                                    "parameters": memory_def.parameters.model_dump(
+                                        exclude_none=True
+                                    ),
+                                },
+                            }
+                        ],
+                    },
+                )
+                responses.append(
+                    await call_mcp_tool(
+                        bridge.mcp_server_configs[0], "memory", dict(arguments)
+                    )
+                )
+                files.append(sorted(store_as(MemoryStore).files))
+            return state
+
+        return solve
+
+    proposed = ToolCall(id="proposed", function="mcp__mem__memory", arguments=arguments)
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="", tool_calls=[proposed]),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    log = eval(
+        bridged_tools_task(test_solver()),
+        model=get_model("mockllm/model", custom_outputs=[output]),
+    )[0]
+
+    assert log.status == "success"
+    assert "error" not in responses[0], responses[0]
+    assert files == [["/memories/public/note.txt"]]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
 def test_sandbox_bridge_terminate_ends_the_sample() -> None:
     """`terminate` must reach the sample runner from the sandbox service task.
 

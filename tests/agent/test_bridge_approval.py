@@ -64,6 +64,9 @@ from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
+from inspect_ai.tool._tools._memory import MemoryStore
+from inspect_ai.util import Store, store_as
+from inspect_ai.util._store import init_subtask_store
 
 TASK = "Tidy up the working directory."
 
@@ -2495,3 +2498,209 @@ async def test_rejection_replay_survives_compaction() -> None:
     assert len(results) == 1
     assert results[0].error is not None
     assert "Destructive command." in results[0].error.message
+
+
+# ---------------------------------------------------------------------------
+# approval decides on the validated call each tool will run
+# ---------------------------------------------------------------------------
+
+
+async def test_invalid_host_tool_call_is_a_parsing_error_not_an_approval() -> None:
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(), [ApprovalPolicy(recording_approver(seen), "*")]
+    )
+    invalid = ToolCall(id="1", function="mcp__host__read", arguments={"offset": "x"})
+    valid = ToolCall(id="2", function="mcp__host__read", arguments={"offset": 5})
+
+    run = await run_bridge(
+        [tool_calls_output(invalid), tool_calls_output(valid)],
+        bridge=bridge,
+        tools=declare("mcp__host__read", parameters=("offset",)),
+    )
+
+    # the invalid call was answered with the parsing error, never approved
+    assert run.generations == 2
+    (result,) = run.tool_results(1)
+    assert result.tool_call_id == "1"
+    assert result.error is not None
+    assert result.error.type == "parsing"
+    assert [call for _, call, _ in seen] == [valid]
+
+
+async def test_invalid_dispatched_call_is_a_parsing_error_not_an_approval() -> None:
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(), [ApprovalPolicy(recording_approver(seen), "*")]
+    )
+    safe = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+
+    run = await run_bridge(
+        [
+            tool_calls_output(dispatched("1", {"offset": 1.5})),
+            tool_calls_output(safe),
+        ],
+        bridge=bridge,
+    )
+
+    (result,) = run.tool_results(1)
+    assert result.error is not None
+    assert result.error.type == "parsing"
+    assert [call for _, call, _ in seen] == [safe]
+
+
+async def test_invalid_scaffold_tool_call_is_a_parsing_error_not_an_approval() -> None:
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    invalid = ToolCall(id="1", function="bash", arguments={"command": "ls"})
+    valid = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+
+    run = await run_bridge(
+        [tool_calls_output(invalid), tool_calls_output(valid)],
+        approval=[ApprovalPolicy(recording_approver(seen), "*")],
+        tools=declare("bash", description="Run a command.", parameters=("cmd",)),
+    )
+
+    (result,) = run.tool_results(1)
+    assert result.error is not None
+    assert result.error.type == "parsing"
+    assert [call for _, call, _ in seen] == [valid]
+
+
+async def test_approver_modification_is_validated() -> None:
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(), [ApprovalPolicy(modifying_approver({"offset": "x"}), "*")]
+    )
+    call = ToolCall(id="1", function="read_file", arguments={"offset": 1})
+
+    with pytest.raises(TerminateSampleError):
+        await run_bridge(
+            [tool_calls_output(call)], bridge=bridge, tools=declare("read_file")
+        )
+
+
+@tool
+def viewed_read_file(viewed: list[ToolCall], raises: bool = False) -> Tool:
+    async def execute(path: str) -> str:
+        """Read a file from the host.
+
+        Args:
+            path: Path of the file to read.
+        """
+        return "contents"
+
+    def viewer(call: ToolCall) -> ToolCallView:
+        viewed.append(call)
+        if raises:
+            raise KeyError("view")
+        return ToolCallView()
+
+    return ToolDef(execute, name="read_file", viewer=viewer).as_tool()
+
+
+async def test_host_tool_viewer_sees_the_reviewed_call() -> None:
+    viewed: list[ToolCall] = []
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": viewed_read_file(viewed)}}
+    )
+    bridge.approval = [ApprovalPolicy(auto_approver(), "*")]
+    call = ToolCall(id="1", function="mcp__host__read", arguments={"path": "a.txt"})
+
+    run = await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare("mcp__host__read")
+    )
+
+    assert run.output.message.tool_calls == [call]
+    assert viewed == [call]
+
+
+async def test_host_tool_whose_viewer_raises_is_rejected() -> None:
+    viewed: list[ToolCall] = []
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": viewed_read_file(viewed, raises=True)}}
+    )
+    bridge.approval = [ApprovalPolicy(recording_approver(seen), "*")]
+    call = ToolCall(id="1", function="mcp__host__read", arguments={"path": "a.txt"})
+
+    with pytest.raises(TerminateSampleError):
+        await run_bridge(
+            [tool_calls_output(call)],
+            bridge=bridge,
+            tools=declare("mcp__host__read"),
+        )
+
+    assert len(viewed) == MAX_CONSECUTIVE_REJECTIONS
+    assert seen == []
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "a.txt"})
+
+
+def memory_bridge(
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]],
+) -> tuple[SandboxAgentBridge, str]:
+    from inspect_ai.tool import memory
+
+    init_subtask_store(Store())
+    tool_memory = memory()
+    bridge = sandbox_bridge_with_servers({"host": {"memory": tool_memory}})
+    bridge.approval = [
+        ApprovalPolicy(
+            recording_approver(seen),
+            "*(command='create', path='/memories/public/*",
+        ),
+        ApprovalPolicy(reject_approver(), "*"),
+    ]
+    description = ToolDef(tool_memory).description
+    return bridge, description
+
+
+async def test_host_memory_path_is_approved_as_its_canonical_path() -> None:
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge, description = memory_bridge(seen)
+    tools = declare(
+        "mcp__host__memory",
+        description=description,
+        parameters=("command", "path", "file_text"),
+    )
+    escaping = ToolCall(
+        id="1",
+        function="mcp__host__memory",
+        arguments={
+            "command": "create",
+            "path": "/memories/public/../secret.txt",
+            "file_text": "x",
+        },
+    )
+    inside = ToolCall(
+        id="2",
+        function="mcp__host__memory",
+        arguments={
+            "command": "create",
+            "path": "/memories/other/../public/note.txt",
+            "file_text": "x",
+        },
+    )
+
+    run = await run_bridge(
+        [tool_calls_output(escaping), tool_calls_output(inside)],
+        bridge=bridge,
+        tools=tools,
+    )
+
+    # the escaping path was rejected; the other was approved as its canonical path
+    assert run.generations == 2
+    (rejected,) = run.tool_results(1)
+    assert rejected.tool_call_id == "1"
+    assert rejected.error is not None
+    assert rejected.error.type == "approval"
+    assert [call.arguments["path"] for _, call, _ in seen] == [
+        "/memories/public/note.txt"
+    ]
+
+    # the scaffold re-sends the path as the model wrote it; the grant matches it
+    # canonically, and the escaping call has no grant
+    execute = call_host_tool(bridge)
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "memory", dict(escaping.arguments))
+    await execute("host", "memory", dict(inside.arguments))
+    assert set(store_as(MemoryStore).files) == {"/memories/public/note.txt"}

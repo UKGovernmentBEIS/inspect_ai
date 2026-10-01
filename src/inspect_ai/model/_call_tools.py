@@ -31,6 +31,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
+    from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.approval import ApprovalPolicy
     from inspect_ai.review import ReviewPolicy
 
@@ -932,7 +933,9 @@ async def call_tool(
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
-                    handoff_result = await agent_handoff(tool_def, call, conversation)
+                    handoff_result = await agent_handoff(
+                        tool_def, call, arguments, conversation
+                    )
                     return CalledTool(*handoff_result, None)
 
         # normal tool call
@@ -984,7 +987,10 @@ async def _apply_tool_review(
 
 
 async def agent_handoff(
-    tool_def: ToolDef, call: ToolCall, conversation: list[ChatMessage]
+    tool_def: ToolDef,
+    call: ToolCall,
+    arguments: dict[str, Any],
+    conversation: list[ChatMessage],
 ) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str]:
     from inspect_ai.agent._agent import AgentState, agent_display_name
     from inspect_ai.agent._handoff import AgentTool
@@ -1056,15 +1062,6 @@ async def agent_handoff(
     agent_conversation = [
         m for m in agent_conversation if not isinstance(m, ChatMessageSystem)
     ]
-
-    # inject curried args
-    arguments = {**call.arguments, **agent_tool.kwargs}
-
-    # parse arguments (inject a `state` placeholder so tool_params doesn't
-    # treat the agent's required `state` parameter as missing — the handoff
-    # harness injects the real AgentState below)
-    arguments = tool_params({**arguments, "state": None}, agent_tool.agent)
-    del arguments["state"]
 
     # run the agent with limits
     limit_error: LimitExceededError | None = None
@@ -1293,6 +1290,13 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
     # build params
     params: dict[str, Any] = {}
     for param_name, param in signature.parameters.items():
+        # pass arguments without a named parameter through to **kwargs
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            params.update(
+                {k: v for k, v in input.items() if k not in signature.parameters}
+            )
+            continue
+
         # Parse docstring
         docstring_info = parse_docstring(docstring, param_name)
 
@@ -1359,7 +1363,26 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
         if arguments != call.arguments:
             call = replace(call, arguments=arguments)
 
-    return ValidatedToolCall(call, tool_params(call.arguments, tool_def.tool))
+    from inspect_ai.agent._handoff import AgentTool
+
+    if isinstance(tool_def.tool, AgentTool):
+        arguments = _handoff_arguments(tool_def.tool, call.arguments)
+    else:
+        arguments = tool_params(call.arguments, tool_def.tool)
+    return ValidatedToolCall(call, arguments)
+
+
+def _handoff_arguments(
+    agent_tool: "AgentTool", arguments: dict[str, Any]
+) -> dict[str, Any]:
+    """Arguments for a handoff's agent: the call's, plus curried ones, converted."""
+    # inject a `state` placeholder so tool_params doesn't treat the agent's
+    # required `state` parameter as missing (agent_handoff passes the real one)
+    arguments = tool_params(
+        {**arguments, **agent_tool.kwargs, "state": None}, agent_tool.agent
+    )
+    del arguments["state"]
+    return arguments
 
 
 def tool_param(type_hint: Type[Any], input: Any) -> Any:
@@ -1379,9 +1402,10 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
     origin = get_origin(type_hint)
     args = get_args(type_hint)
 
-    def unable_to_convert() -> ToolParsingError:
+    def unable_to_convert(ex: Exception | None = None) -> ToolParsingError:
         name = getattr(type_hint, "__name__", str(type_hint))
-        return ToolParsingError(f"Unable to convert '{input}' to {name}")
+        reason = f": {ex}" if ex is not None else ""
+        return ToolParsingError(f"Unable to convert '{input}' to {name}{reason}")
 
     if origin is None:
         if type_hint == typing.Any:
@@ -1391,15 +1415,20 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             if scalar is None:
                 raise unable_to_convert()
             return scalar
-        elif type_hint == datetime:
-            if input.endswith("Z"):
-                # convert trailing Z to +00:00
-                input = input[:-1] + "+00:00"
-            return datetime_from_iso_format_safe(input)
-        elif type_hint == date:
-            return date.fromisoformat(input)
-        elif type_hint == time:
-            return time.fromisoformat(input)
+        elif type_hint in (datetime, date, time):
+            if not isinstance(input, str):
+                raise unable_to_convert()
+            try:
+                if type_hint == datetime:
+                    # convert trailing Z to +00:00
+                    iso = input[:-1] + "+00:00" if input.endswith("Z") else input
+                    return datetime_from_iso_format_safe(iso)
+                elif type_hint == date:
+                    return date.fromisoformat(input)
+                else:
+                    return time.fromisoformat(input)
+            except ValueError as ex:
+                raise unable_to_convert(ex) from ex
         elif is_typeddict(type_hint):
             if not isinstance(input, dict):
                 raise unable_to_convert()
@@ -1417,11 +1446,28 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             for name, field in fields.items():
                 if name in input:
                     dataclass_data[name] = tool_param(field.type, input[name])  # type: ignore
-            return type_hint(**dataclass_data)
+            try:
+                return type_hint(**dataclass_data)
+            except (TypeError, ValueError) as ex:
+                raise unable_to_convert(ex) from ex
         elif issubclass(type_hint, BaseModel):
-            return type_hint(**input)
+            if not isinstance(input, dict):
+                raise unable_to_convert()
+            model_data = dict(input)
+            for name, model_field in type_hint.model_fields.items():
+                key = name if name in input else model_field.alias
+                annotation = model_field.annotation
+                if key is not None and key in input and annotation is not None:
+                    model_data[key] = tool_param(annotation, input[key])
+            try:
+                return type_hint(**model_data)
+            except (TypeError, ValueError) as ex:
+                raise unable_to_convert(ex) from ex
         elif isinstance(type_hint, EnumMeta):
-            return type_hint(input)
+            try:
+                return type_hint(input)
+            except ValueError as ex:
+                raise unable_to_convert(ex) from ex
         else:
             return input
     elif origin is list or origin is List:
@@ -1485,10 +1531,17 @@ def _exact_scalar(type_hint: Type[Any], value: Any) -> Any:
 
 
 def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | None:
+    """The tool's own view of `call` for the transcript, if it has a viewer.
+
+    Like approval, the viewer sees only the validated call (`validated_tool_call()`);
+    an invalid call gets the default rendering.
+    """
     tool_def = next((tool for tool in tdefs if tool.name == call.function), None)
-    if tool_def and tool_def.viewer:
+    if tool_def and tool_def.viewer and call.parse_error is None:
         try:
-            return tool_def.viewer(call).call
+            return tool_def.viewer(validated_tool_call(call, tool_def).call).call
+        except ToolParsingError:
+            return None
         except Exception as ex:
             warn_once(
                 logger,
