@@ -82,7 +82,12 @@ class HttpHooks:
         # unattributed in the throughput registry.
         self._api = api
 
-    def start_request(self) -> str:
+    def _start_request(self) -> str:
+        """Register a request and return its id.
+
+        Use `request()` instead, which also removes the entry when the
+        request ends.
+        """
         request_id = uuid()
         self._requests[request_id] = RequestInfo(0, time.monotonic())
         return request_id
@@ -101,12 +106,12 @@ class HttpHooks:
     def request(self) -> Iterator[str]:
         """Track a request for the duration of the block.
 
-        Yields the request id from `start_request()`, and removes the entry
-        when the block exits, including when the request raises or is
-        cancelled. Call `end_request()` inside the block to read the elapsed
-        time; the exit then has nothing left to remove.
+        This is how providers register a request. Yields a new request id,
+        and removes its entry when the block exits, including when the
+        request raises or is cancelled. Call `end_request()` inside the block
+        to read the elapsed time; the exit then has nothing left to remove.
         """
-        request_id = self.start_request()
+        request_id = self._start_request()
         try:
             yield request_id
         finally:
