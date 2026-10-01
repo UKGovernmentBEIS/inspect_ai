@@ -323,6 +323,17 @@ _last_request_start: ContextVar[float | None] = ContextVar(
 
 
 @dataclass
+class _ContinuationChain:
+    """The requests sent so far for one generate call (a head and its continuations)."""
+
+    requests: int = 0
+    """Number of requests that returned a response."""
+
+    usage: ModelUsage | None = None
+    """Usage summed over those requests (each one is billed)."""
+
+
+@dataclass
 class _SampleCacheTtlState:
     last_cached_request_start: float
     """`time.monotonic()` at the start of the last request that read or wrote the prompt cache."""
@@ -732,6 +743,10 @@ class AnthropicAPI(ModelAPI):
 
         model_call: ModelCall | None = None
 
+        # an error converted to an output below still reports the usage of
+        # the requests that succeeded before it
+        chain = _ContinuationChain()
+
         # generate
         try:
             resolved_cache_ttl = self._resolve_cache_ttl(config)
@@ -896,7 +911,7 @@ class AnthropicAPI(ModelAPI):
 
             try:
                 response, output = await self._perform_request_and_continuations(
-                    request, streaming, tools, config
+                    request, streaming, tools, config, chain=chain
                 )
             except (BadRequestError, APIStatusError) as ex:
                 model_call.set_error(
@@ -918,22 +933,28 @@ class AnthropicAPI(ModelAPI):
             return output, model_call
 
         except BadRequestError as ex:
-            return self.handle_bad_request(ex), model_call or ModelCall(request={})
+            handled = self.handle_bad_request(ex)
+            if isinstance(handled, ModelOutput):
+                handled.usage = chain.usage
+            return handled, model_call or ModelCall(request={})
 
         except APIStatusError as ex:
             if ex.status_code == 413:
-                return ModelOutput.from_content(
+                too_large = ModelOutput.from_content(
                     model=self.service_model_name(),
                     content=ex.message,
                     stop_reason="model_length",
                     error=ex.message,
-                ), model_call or ModelCall(request={})
+                )
+                too_large.usage = chain.usage
+                return too_large, model_call or ModelCall(request={})
             # Content-filter errors that arrive mid-stream surface as a plain
             # APIStatusError (the SDK can't infer the 400 subclass once the
             # HTTP response was 200), so route through handle_bad_request to
             # convert them into a content_filter refusal.
             handled = self.handle_bad_request(ex)
             if isinstance(handled, ModelOutput):
+                handled.usage = chain.usage
                 return handled, model_call or ModelCall(request={})
             raise ex
 
@@ -1099,14 +1120,16 @@ class AnthropicAPI(ModelAPI):
         | None = None,
         pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
         span_recorder: "_ServerToolSpanRecorder | None" = None,
-        continuations: int = 0,
+        chain: _ContinuationChain | None = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
 
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail". The returned output's usage is the sum
-        over the head and every continuation, since each one is billed.
+        over the head and every continuation, since each one is billed; `chain`
+        holds that sum as requests complete, so a caller can still report it
+        when a later continuation raises.
 
         After `MAX_PAUSE_TURN_CONTINUATIONS` continuations a further pause_turn
         is not continued: the content generated so far is returned with stop
@@ -1126,6 +1149,8 @@ class AnthropicAPI(ModelAPI):
             # block in the head message, result in the tail) so the recorder
             # is threaded through continuations like pending_tool_uses
             span_recorder = _ServerToolSpanRecorder()
+        if chain is None:
+            chain = _ContinuationChain()
 
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.
@@ -1161,6 +1186,9 @@ class AnthropicAPI(ModelAPI):
             cache_diagnostics=self.cache_diagnostics_enabled(config),
             span_recorder=span_recorder,
         )
+        chain.requests += 1
+        chain.usage = sum_usage(chain.usage, head_model_output.usage)
+        continuations = chain.requests - 1
 
         if continuation_required and continuations >= MAX_PAUSE_TURN_CONTINUATIONS:
             logger.warning(
@@ -1191,11 +1219,7 @@ class AnthropicAPI(ModelAPI):
                 pending_tool_uses=pending_tool_uses,
                 pending_mcp_tool_uses=pending_mcp_tool_uses,
                 span_recorder=span_recorder,
-                continuations=continuations + 1,
-            )
-
-            tail_model_output.usage = sum_usage(
-                head_model_output.usage, tail_model_output.usage
+                chain=chain,
             )
 
             head_content = _content_list(head_model_output.message.content)
@@ -1215,6 +1239,9 @@ class AnthropicAPI(ModelAPI):
             # even when it has needed to recurse. This is because model_call()
             # above doesn't currently support multiple requests
             return head_message.model_dump(warnings="none"), tail_model_output
+
+        # the last request of the chain reports the usage of all of them
+        head_model_output.usage = chain.usage
 
         # NOTE: we do warnings="none" here because we are including beta API message
         # params (for MCP tool use/result) in the payload which causes Message to emit
