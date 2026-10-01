@@ -150,6 +150,17 @@
               }
             ],
             "title": "Scout Version"
+          },
+          "trust_content": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Content"
           }
         },
         "required": [
@@ -9816,7 +9827,7 @@
         "additionalProperties": {
           "$ref": "#/components/schemas/SentinelConfig"
         },
-        "description": "One configured monitor or protocol.\n\nAny key besides `name` and `params` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds a list or a mapping of entries, and `nested` returns them.",
+        "description": "One configured monitor or protocol.\n\nAny key besides `name`, `params`, and `version` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds a list or a mapping of entries, and `nested` returns them.",
         "properties": {
           "name": {
             "title": "Name",
@@ -9826,6 +9837,17 @@
             "additionalProperties": true,
             "title": "Params",
             "type": "object"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
           }
         },
         "required": [
@@ -11947,7 +11969,7 @@
         "type": "object"
       },
       "ViewerConfig": {
-        "description": "Top-level viewer configuration.\n\nThis allows per task customization of the\nTask's sample list and each sample's score and scanner result display.",
+        "description": "Top-level viewer configuration.\n\nThis allows per task customization of the\nTask's sample list, each sample's score and scanner result display,\nand whether log content is trusted enough to render richly.",
         "properties": {
           "sample_score_view": {
             "anyOf": [
@@ -11989,6 +12011,17 @@
               }
             ],
             "title": "Task Samples View"
+          },
+          "trust_content": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Content"
           }
         },
         "required": [
