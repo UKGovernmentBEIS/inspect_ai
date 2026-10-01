@@ -30,14 +30,19 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import same_model
 from .._model_call import ModelCall
-from .._model_data.model_data import ModelCost, ModelInfo
+from .._model_data.model_data import ModelInfo
 from .._model_info import (
     MODEL_INFO_LOOKUP_API_KEY,
     _get_custom_model_info,
     _get_model_info_direct,
     set_model_info,
 )
-from .._model_output import ChatCompletionChoice, ModelOutput, ServedModelUsage
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
+    ServedModelUsage,
+)
 from .._openai import (
     OpenAIResponseError,
     chat_choices_from_openai,
@@ -369,10 +374,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             return [ServedModelUsage(served, output.usage)]
         alias, deployments = serving
         key = self._model_info_key() if alias == called else f"litellm-proxy/{alias}"
-        cost = _deployments_cost(key, alias, deployments)
-        if alias == called and cost is None:
-            return None
-        return [ServedModelUsage(key, output.usage, cost)]
+        return [_deployment_usage(key, alias, deployments, reported, output.usage)]
 
     def _serving_deployments(
         self, reported: str
@@ -1017,21 +1019,51 @@ def _user_model_info(key: str) -> ModelInfo | None:
     return current
 
 
-def _deployments_cost(
-    key: str, alias: str, deployments: list[ProxyDeployment]
-) -> ModelCost | None:
-    """Cost of a call served by these deployments of an alias.
+def _deployment_usage(
+    key: str,
+    alias: str,
+    deployments: list[ProxyDeployment],
+    reported: str,
+    usage: ModelUsage,
+) -> ServedModelUsage:
+    """Usage served by these deployments of an alias, for pricing.
 
-    Same precedence as registered model info: the user's registration for
-    the alias, then Inspect's entry for the resolved model, then the
-    proxy's metadata.
+    The same precedence as registered model info: the user's registration
+    for the alias, then the deployment's own model (its resolved model, the
+    reported snapshot, or its upstream id, as registered or in Inspect's
+    database), then the proxy's metadata. Without a price, the deployment's
+    model is reported so that pricing falls back to the called model and
+    warns, rather than using another deployment's rates.
     """
     user = _user_model_info(key)
     if user is not None and user.cost is not None:
-        return user.cost
-    resolution = resolve_deployments(alias, deployments)
-    db = _db_model_info(resolution.db_key if resolution else None)
-    if db is not None and db.cost is not None:
-        return db.cost
+        return ServedModelUsage(key, usage, user.cost)
+    names = _deployment_names(alias, deployments, reported)
+    for name in names:
+        info = _get_model_info_direct(name)
+        if info is not None and info.cost is not None:
+            return ServedModelUsage(name, usage)
     proxy = proxy_model_info(deployments)
-    return proxy.cost if proxy is not None else None
+    cost = proxy.cost if proxy is not None else None
+    return ServedModelUsage(names[0] if names else reported, usage, cost)
+
+
+def _deployment_names(
+    alias: str, deployments: list[ProxyDeployment], reported: str
+) -> list[str]:
+    """Model info names for deployments, most specific identity first."""
+    resolution = resolve_deployments(alias, deployments)
+    names = [resolution.db_key if resolution else None]
+    reported_upstream = None
+    if reported != alias:
+        reported_resolution = resolve_upstream(reported)
+        names.append(reported_resolution.db_key)
+        reported_upstream = reported_resolution.upstream
+    for deployment in deployments:
+        for upstream in (deployment.model, upstream_model(deployment)):
+            if upstream:
+                names += [upstream, upstream.split("/", 1)[-1]]
+    names.append(resolution.upstream if resolution else None)
+    if reported != alias:
+        names += [reported, reported_upstream]
+    return list(dict.fromkeys(n for n in names if n))

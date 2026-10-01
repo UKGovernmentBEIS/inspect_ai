@@ -3828,3 +3828,73 @@ def test_unlisted_upstream_priced_by_database_name(
     assert provider.served_model_usage(
         ModelOutput(model="claude-opus-4-8", usage=usage)
     ) == [ServedModelUsage("anthropic/claude-opus-4-8", usage)]
+
+
+UNPRICED_ROWS = [
+    _row("primary", "openai/review-primary", **_proxy_price(1000.0)),
+    # a priced first deployment and an unpriced second one
+    _row("review-mixed", "openai/gpt-5", **_proxy_price(2000.0)),
+    _row("review-mixed", "openai/gpt-4o-mini"),
+    # a private upstream with no proxy price
+    _row("private", "openai/review-private", max_input_tokens=100000),
+]
+
+
+@pytest.fixture
+def unpriced_stub(
+    model_info_stub: ModelInfoStub, monkeypatch: pytest.MonkeyPatch
+) -> tuple[ModelInfoStub, list[str]]:
+    from inspect_ai.model import _model as model_module
+
+    _serve(model_info_stub, UNPRICED_ROWS)
+    warnings: list[str] = []
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    monkeypatch.setattr(model_module.logger, "warning", warnings.append)
+    return model_info_stub, warnings
+
+
+@skip_if_no_openai_package
+def test_unpriced_deployment_priced_at_called_rate_with_warning(
+    unpriced_stub: tuple[ModelInfoStub, list[str]],
+) -> None:
+    stub, warnings = unpriced_stub
+    # a fallback to the unpriced deployment: the called alias's $1000/M
+    assert _served_cost(stub, "primary", "gpt-4o-mini-2024-07-18") == pytest.approx(
+        0.02
+    )
+    # unchanged once a model for the fallback alias exists (its registered
+    # info carries the first deployment's $2000/M)
+    get_model("litellm-proxy/review-mixed", base_url=stub.url, api_key="sk-stub")
+    assert _served_cost(stub, "primary", "gpt-4o-mini-2024-07-18") == pytest.approx(
+        0.02
+    )
+    # the called alias, served by its unpriced deployment: the alias's rate
+    assert _served_cost(
+        stub, "review-mixed", "gpt-4o-mini-2024-07-18"
+    ) == pytest.approx(0.04)
+    assert len(warnings) == 2
+    assert all("'openai/gpt-4o-mini'" in warning for warning in warnings)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("alias", ["primary", "review-mixed"])
+def test_priced_snapshot_of_unpriced_deployment(
+    unpriced_stub: tuple[ModelInfoStub, list[str]], alias: str
+) -> None:
+    stub, warnings = unpriced_stub
+    set_model_cost("openai/gpt-4o-mini-2024-07-18", _cost(100.0))
+    assert _served_cost(stub, alias, "gpt-4o-mini-2024-07-18") == pytest.approx(0.002)
+    assert warnings == []
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "reported", ["private", "review-private", "openai/review-private"]
+)
+def test_private_upstream_priced_by_its_registration(
+    unpriced_stub: tuple[ModelInfoStub, list[str]], reported: str
+) -> None:
+    stub, warnings = unpriced_stub
+    set_model_info("openai/review-private", ModelInfo(cost=_cost(100.0)))
+    assert _served_cost(stub, "primary", reported) == pytest.approx(0.002)
+    assert warnings == []
