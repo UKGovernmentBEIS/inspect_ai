@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, patch
 
 import anyio
 import pytest
+import tenacity
 from tenacity.wait import wait_none
 from test_helpers.utils import skip_if_no_docker
 
@@ -418,12 +419,17 @@ class TestPollTimeoutRecovery:
             # the server's own error: the caller killed the process
             ("repoll", True, RuntimeError, r"^No job found with pid 42$"),
             ("repoll", False, SandboxTimeoutError, "not answering"),
+            # the re-poll's own error, not the answer to a poll sent after the kill
+            ("backoff", True, RuntimeError, "exit code 137"),
+            ("backoff", False, RuntimeError, "exit code 137"),
         ],
         ids=[
             "pause-kill_answered",
             "pause-kill_timed_out",
             "repoll-kill_answered",
             "repoll-kill_timed_out",
+            "backoff-kill_answered",
+            "backoff-kill_timed_out",
         ],
     )
     async def test_no_poll_is_issued_after_kill(
@@ -436,16 +442,19 @@ class TestPollTimeoutRecovery:
     ) -> None:
         """kill() during recovery stops it, even when the kill request itself timed out.
 
-        The kill comes either during the pause before a re-poll, or while a re-poll
-        is in flight; that re-poll then gets the server's `No job found` (the kill
-        reached the sandbox) or times out (it did not), and is not retried.
+        The kill comes during the pause before a re-poll, while a re-poll is in
+        flight, or during the backoff after a re-poll failed with a `RuntimeError`.
+        An in-flight re-poll then gets the server's `No job found` (the kill reached
+        the sandbox) or times out (it did not), and is not retried.
         """
         monkeypatch.setattr(
             exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.2
         )
         first_poll_timed_out = anyio.Event()
         repoll_started = anyio.Event()
+        repoll_failed = anyio.Event()
         kill_requested = anyio.Event()
+        kill_returned = anyio.Event()
         polls = 0
         requests: list[str] = []
 
@@ -470,6 +479,9 @@ class TestPollTimeoutRecovery:
             if polls == 2 and kill_during == "repoll":
                 repoll_started.set()
                 await kill_requested.wait()
+            if polls == 2 and kill_during == "backoff":
+                repoll_failed.set()
+                raise RuntimeError("command terminated with exit code 137")
             if kill_requested.is_set() and kill_reaches_sandbox:
                 return answer(_rpc_error("No job found with pid 42"))
             raise SandboxTimeoutError("the pod is not answering.")
@@ -482,16 +494,28 @@ class TestPollTimeoutRecovery:
             sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
         )
 
-        async def kill_at_the_chosen_moment() -> None:
-            await (
-                first_poll_timed_out if kill_during == "pause" else repoll_started
-            ).wait()
-            await proc.kill()
+        kill_after = {
+            "pause": first_poll_timed_out,
+            "repoll": repoll_started,
+            "backoff": repoll_failed,
+        }[kill_during]
 
-        # A retried "No job found" would otherwise back off for ~30s.
+        async def kill_at_the_chosen_moment() -> None:
+            await kill_after.wait()
+            await proc.kill()
+            kill_returned.set()
+
+        async def backoff_until_killed(seconds: float) -> None:
+            await kill_returned.wait()
+
+        def retry_backing_off_until_killed(**kwargs: Any) -> Any:
+            return tenacity.retry(sleep=backoff_until_killed, **kwargs)
+
+        # The backoff between RuntimeError retries of a poll lasts until kill() has
+        # returned, so a kill always lands inside it and no retry waits ~30s.
         with patch(
-            "inspect_ai.util._sandbox.exec_remote.wait_exponential_jitter",
-            new=lambda *a, **k: wait_none(),
+            "inspect_ai.util._sandbox.exec_remote.retry",
+            new=retry_backing_off_until_killed,
         ):
             with anyio.fail_after(10):
                 async with anyio.create_task_group() as tg:

@@ -99,9 +99,11 @@ async def sandbox_agent_bridge(
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
         poll_timeout_recovery: Seconds to keep re-polling the proxy server's
-            process after a poll of it times out (see
-            `ExecRemoteCommonOptions.poll_timeout_recovery`). Defaults to `None`,
-            where a proxy poll that times out fails the sample.
+            process after a poll of it times out. Defaults to `None`, where a
+            proxy poll that times out fails the sample. Each re-issued poll can
+            wait the proxy's full 600-second poll timeout, so recovery can run
+            past this value by about that much (see
+            `ExecRemoteCommonOptions.poll_timeout_recovery`).
         web_search: Configuration for mapping model internal web_search tools to
             Inspect. Withheld by default: a sandboxed agent that names the native
             tool in a request would otherwise reach the web through the model

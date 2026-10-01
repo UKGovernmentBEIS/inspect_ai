@@ -129,17 +129,20 @@ class ExecRemoteCommonOptions:
     poll_timeout_recovery: float | None = field(default=None, kw_only=True)
     """Seconds to keep re-issuing a poll after it times out. Defaults to `None`.
 
-    Unset, a poll that times out raises `TimeoutError`. When set, a
-    timed-out poll is re-issued every 5 seconds until the sandbox answers or this
-    many seconds have passed since the first timeout, when the last timeout is
-    raised. While the command is running, a re-issued poll replays any output the
-    lost response carried; if the command ended during the stall, its exit status
-    is lost and `RuntimeError` is raised. Starts, stdin writes and kills are never
-    re-issued, and no poll is re-issued once `kill()` has been called, even if the
-    kill request itself timed out; the timeout is raised instead. A caller's
-    `timeout` (awaitable mode) or cancellation still ends the wait at once. Raises
-    `ValueError` with `poll_timeout_retry=False`, which asks for timed-out requests
-    not to be retried.
+    Unset, a poll that times out raises `TimeoutError`. When set, a poll that
+    times out is re-issued 5 seconds later, until the sandbox answers or a poll
+    times out this many seconds or more after the first timeout, when that
+    timeout is raised. The deadline is checked only when a poll times out, and a
+    re-issued poll waits its full `poll_timeout` (plus any `poll_timeout_retry`),
+    so recovery can run past this value by the 5-second pause plus one re-issued
+    poll, including that poll's retries. While the command is running, a
+    re-issued poll replays any output the lost response carried; if the command
+    ended during the stall, its exit status is lost and `RuntimeError` is raised.
+    Only polls are re-issued, and none once `kill()` has been called, even if the
+    kill request itself timed out; the error the last poll got is raised instead.
+    A caller's `timeout` (awaitable mode) or cancellation still ends the wait at
+    once. Raises `ValueError` with `poll_timeout_retry=False`, which asks for
+    timed-out requests not to be retried.
     """
 
     def __post_init__(self) -> None:
@@ -442,12 +445,18 @@ class ExecRemoteProcess:
 
     async def _poll(self) -> _PollResult:
         recovery_deadline: float | None = None
+        retried_repoll_error: RuntimeError | None = None
 
         def retryable(ex: BaseException) -> bool:
-            # a re-issued poll is not retried once kill() has been called
-            return isinstance(ex, RuntimeError) and not (
-                recovery_deadline is not None and self._killed
-            )
+            nonlocal retried_repoll_error
+            if not isinstance(ex, RuntimeError):
+                return False
+            if recovery_deadline is not None:
+                # a re-issued poll is not retried once kill() has been called
+                if self._killed:
+                    return False
+                retried_repoll_error = ex
+            return True
 
         @retry(
             wait=wait_exponential_jitter(initial=2),
@@ -460,6 +469,11 @@ class ExecRemoteProcess:
         )
         async def poll() -> _PollResult:
             from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+
+            # tenacity decides to retry before it backs off, so kill() can be
+            # called during the backoff: raise the error again instead of polling
+            if retried_repoll_error is not None and self._killed:
+                raise retried_repoll_error
 
             sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
             with sandbox_proxy.no_events():
