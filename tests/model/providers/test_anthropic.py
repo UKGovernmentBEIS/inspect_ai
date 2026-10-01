@@ -1395,6 +1395,92 @@ async def test_anthropic_batch_merges_extra_body_into_params() -> None:
     assert call.kwargs["extra_headers"] == {"x-header": "y"}
 
 
+@pytest.mark.anyio
+async def test_anthropic_batch_sends_each_header_set_separately() -> None:
+    """Requests with different headers go in separate batches, each with its own headers; the request id is never sent at batch level."""
+    import functools
+    from unittest.mock import MagicMock
+
+    import anyio
+
+    from inspect_ai._util._async import tg_collect
+    from inspect_ai._util.background import set_background_task_group
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._anthropic_batch import AnthropicBatcher
+    from inspect_ai.model._providers.util.batch import BatchCheckResult
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+    from inspect_ai.model._retry import model_retry_config
+
+    class CompletingAnthropicBatcher(AnthropicBatcher):
+        """Completes each batch at once, answering each request with its id."""
+
+        async def _check_batch(self, batch):
+            return BatchCheckResult(
+                completed_count=len(batch.requests),
+                failed_count=0,
+                created_at=0,
+                completion_info=True,
+            )
+
+        async def _handle_batch_result(self, batch, completion_info):
+            return {custom_id: custom_id for custom_id in batch.requests}
+
+    client = MagicMock()
+    client.messages.batches.create = AsyncMock(
+        side_effect=[MagicMock(id="batch_1"), MagicMock(id="batch_2")]
+    )
+    batcher = CompletingAnthropicBatcher(
+        client,
+        BatchConfig(size=10, send_delay=0.02, tick=0.001),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+
+    def request(name: str, beta: str) -> dict[str, Any]:
+        return {
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 64,
+            "messages": [{"role": "user", "content": name}],
+            "extra_headers": {
+                HttpxHooks.REQUEST_ID_HEADER: f"rid-{name}",
+                "anthropic-beta": beta,
+            },
+        }
+
+    async with anyio.create_task_group() as tg:
+        set_background_task_group(tg)
+        try:
+            results = await tg_collect(
+                [
+                    functools.partial(
+                        batcher.generate_for_request, request("a1", "beta-a")
+                    ),
+                    functools.partial(
+                        batcher.generate_for_request, request("b1", "beta-b")
+                    ),
+                    functools.partial(
+                        batcher.generate_for_request, request("a2", "beta-a")
+                    ),
+                ]
+            )
+        finally:
+            set_background_task_group(None)
+
+    assert [str(result) for result in results] == ["rid-a1", "rid-b1", "rid-a2"]
+    batches = sorted(
+        (
+            sorted(r["custom_id"] for r in call.kwargs["requests"]),
+            call.kwargs["extra_headers"],
+        )
+        for call in client.messages.batches.create.call_args_list
+    )
+    assert batches == [
+        (["rid-a1", "rid-a2"], {"anthropic-beta": "beta-a"}),
+        (["rid-b1"], {"anthropic-beta": "beta-b"}),
+    ]
+
+
 @pytest.fixture
 def _warn_once_messages() -> Any:
     # warn_once dedupes via a module-level list; clear it and yield it so the
