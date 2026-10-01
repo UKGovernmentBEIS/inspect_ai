@@ -91,6 +91,9 @@ from .util import (
     client_json_schema,
     client_request_object,
     client_request_string,
+    client_tool_options,
+    eval_tool_options,
+    narrow_max_uses,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
@@ -141,6 +144,7 @@ async def inspect_anthropic_api_request_impl(
         web_search,
         code_execution,
         bridge.allow_remote_mcp,
+        bridge=bridge,
     )
 
     # tool choice
@@ -352,7 +356,15 @@ def tools_from_anthropic_tools(
     web_search_providers: WebSearchProviders | None,
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
+    *,
+    bridge: AgentBridge | None = None,
 ) -> list[ToolInfo | Tool]:
+    """Convert Anthropic tool declarations and MCP servers into inspect tools.
+
+    When `bridge` does not forward client request settings (the sandbox bridge),
+    the options a client sets on a web search tool are ignored, with a warning,
+    and the eval's `web_search` configuration is used as it stands.
+    """
     tools: list[ToolInfo | Tool] = []
 
     for anthropic_tool in anthropic_tools or []:
@@ -373,6 +385,22 @@ def tools_from_anthropic_tools(
         elif is_web_search_tool(anthropic_tool):
             if web_search_providers is None:
                 withheld_bridge_tool("web_search")
+            elif bridge is not None and not bridge.forwards_client_request_settings:
+                anthropic_options = web_search_providers.get("anthropic", None)
+                options = eval_tool_options(
+                    bridge,
+                    "web_search options",
+                    client_tool_options(anthropic_tool, "type", "name"),
+                    anthropic_options if isinstance(anthropic_options, dict) else {},
+                    "set them with the bridge's web_search option",
+                    narrowing={"max_uses": narrow_max_uses},
+                )
+                providers = web_search_providers
+                if isinstance(anthropic_options, dict) and options != anthropic_options:
+                    providers = cast(
+                        WebSearchProviders, {**providers, "anthropic": options}
+                    )
+                tools.append(web_search(providers))
             else:
                 tools.append(
                     web_search(

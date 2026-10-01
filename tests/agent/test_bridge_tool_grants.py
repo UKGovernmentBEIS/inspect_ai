@@ -45,7 +45,15 @@ from inspect_ai.agent._bridge.util import (
 from inspect_ai.model import GenerateConfig, Model, ModelOutput, get_model
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._model import GenerateFilter
-from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo, WebSearchProviders
+from inspect_ai.tool import (
+    CodeExecutionProviders,
+    Tool,
+    ToolChoice,
+    ToolFunction,
+    ToolInfo,
+    WebSearchProviders,
+)
+from inspect_ai.tool._tool_util import tool_to_tool_info
 from inspect_ai.util import media_resolver
 
 WEB_SEARCH_PARAM = cast(Any, {"type": "web_search"})
@@ -686,6 +694,391 @@ async def test_in_process_bridge_forwards_request_settings(
     assert captured[1].extra_body == anthropic_fields
     assert [config.extra_headers for config in captured] == [headers, headers]
     assert bridge_warnings == []
+
+
+# --- provider tool options -------------------------------------------------
+
+
+def tool_options(tools: list[ToolInfo | Tool]) -> dict[str, Any]:
+    assert len(tools) == 1
+    tool = tools[0]
+    info = tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+    return info.options or {}
+
+
+CLIENT_CONTAINER = {"type": "auto", "file_ids": ["file-from-agent"]}
+
+
+def code_interpreter_param(container: Any) -> Any:
+    return cast(Any, {"type": "code_interpreter", "container": container})
+
+
+def test_sandbox_code_interpreter_container_follows_eval(
+    bridge_warnings: list[str],
+) -> None:
+    code_execution = resolve_bridge_code_execution(True, default_grant=False)
+    bridge = sandbox_bridge()
+
+    tools = tools_from_responses_tool(
+        code_interpreter_param(CLIENT_CONTAINER),
+        None,
+        code_execution,
+        allow_remote_mcp=False,
+        bridge=bridge,
+    )
+
+    assert tool_options(tools)["providers"]["openai"] == {}
+    assert code_execution == resolve_bridge_code_execution(True, default_grant=False)
+    assert len(bridge_warnings) == 1
+    assert "agent's code_interpreter container=" in bridge_warnings[0]
+
+
+def test_sandbox_author_container_wins(bridge_warnings: list[str]) -> None:
+    author = {"type": "auto", "memory_limit": "4g"}
+    code_execution = CodeExecutionProviders(openai={"container": author})
+    bridge = sandbox_bridge()
+
+    tools = tools_from_responses_tool(
+        code_interpreter_param(CLIENT_CONTAINER),
+        None,
+        code_execution,
+        allow_remote_mcp=False,
+        bridge=bridge,
+    )
+    assert tool_options(tools)["providers"]["openai"] == {"container": author}
+    assert len(bridge_warnings) == 1
+
+    tools_from_responses_tool(
+        code_interpreter_param(author),
+        None,
+        code_execution,
+        allow_remote_mcp=False,
+        bridge=sandbox_bridge(),
+    )
+    assert len(bridge_warnings) == 1
+
+
+def test_sandbox_default_container_does_not_warn(bridge_warnings: list[str]) -> None:
+    tools_from_responses_tool(
+        code_interpreter_param({"type": "auto"}),
+        None,
+        resolve_bridge_code_execution(True, default_grant=False),
+        allow_remote_mcp=False,
+        bridge=sandbox_bridge(),
+    )
+    assert bridge_warnings == []
+
+
+def test_sandbox_code_interpreter_still_withheld_without_grant() -> None:
+    assert (
+        tools_from_responses_tool(
+            code_interpreter_param(CLIENT_CONTAINER),
+            None,
+            None,
+            allow_remote_mcp=False,
+            bridge=sandbox_bridge(),
+        )
+        == []
+    )
+
+
+def test_in_process_code_interpreter_container_passes_through(
+    bridge_warnings: list[str],
+) -> None:
+    tools = tools_from_responses_tool(
+        code_interpreter_param(CLIENT_CONTAINER),
+        None,
+        resolve_bridge_code_execution(True, default_grant=False),
+        allow_remote_mcp=True,
+        bridge=AgentBridge(AgentState(messages=[])),
+    )
+    assert tool_options(tools)["providers"]["openai"] == {"container": CLIENT_CONTAINER}
+    assert bridge_warnings == []
+
+
+CLIENT_SEARCH_OPTIONS: dict[str, Any] = {
+    "search_context_size": "high",
+    "filters": {"allowed_domains": ["agent.example"]},
+}
+
+
+def test_sandbox_responses_web_search_options_follow_eval(
+    bridge_warnings: list[str],
+) -> None:
+    author = WebSearchProviders(openai={"filters": {"allowed_domains": ["eval.org"]}})
+    bridge = sandbox_bridge()
+
+    tools = tools_from_responses_tool(
+        cast(Any, {"type": "web_search", **CLIENT_SEARCH_OPTIONS}),
+        author,
+        None,
+        allow_remote_mcp=False,
+        bridge=bridge,
+    )
+
+    assert tool_options(tools)["openai"] == {
+        "filters": {"allowed_domains": ["eval.org"]}
+    }
+    assert len(bridge_warnings) == 1
+    assert "agent's web_search options=" in bridge_warnings[0]
+
+
+def test_sandbox_responses_web_search_default_options_follow_eval(
+    bridge_warnings: list[str],
+) -> None:
+    web_search = resolve_bridge_web_search(True, default_grant=False)
+    assert web_search is not None
+
+    tools = tools_from_responses_tool(
+        cast(Any, {"type": "web_search", **CLIENT_SEARCH_OPTIONS}),
+        web_search,
+        None,
+        allow_remote_mcp=False,
+        bridge=sandbox_bridge(),
+    )
+    assert tool_options(tools)["openai"] == {}
+    assert len(bridge_warnings) == 1
+
+    tools_from_responses_tool(
+        WEB_SEARCH_PARAM,
+        web_search,
+        None,
+        allow_remote_mcp=False,
+        bridge=sandbox_bridge(),
+    )
+    assert len(bridge_warnings) == 1
+
+
+def test_in_process_responses_web_search_options_pass_through() -> None:
+    tools = tools_from_responses_tool(
+        cast(Any, {"type": "web_search", "search_context_size": "high"}),
+        resolve_bridge_web_search(None, default_grant=True),
+        None,
+        allow_remote_mcp=True,
+        bridge=AgentBridge(AgentState(messages=[])),
+    )
+    assert tool_options(tools)["openai"] == {"search_context_size": "high"}
+
+
+ANTHROPIC_CLIENT_SEARCH = cast(
+    Any,
+    {**ANTHROPIC_WEB_SEARCH, "max_uses": 50, "allowed_domains": ["agent.example"]},
+)
+
+
+def test_sandbox_anthropic_web_search_options_follow_eval(
+    bridge_warnings: list[str],
+) -> None:
+    author = WebSearchProviders(anthropic={"blocked_domains": ["blocked.example"]})
+
+    tools = tools_from_anthropic_tools(
+        [ANTHROPIC_CLIENT_SEARCH],
+        None,
+        author,
+        None,
+        allow_remote_mcp=False,
+        bridge=sandbox_bridge(),
+    )
+
+    # the client's lower search cap applies; its allowed domains do not
+    assert tool_options(tools)["anthropic"] == {
+        "blocked_domains": ["blocked.example"],
+        "max_uses": 50,
+    }
+    assert len(bridge_warnings) == 1
+    assert "agent's web_search options={'allowed_domains'" in bridge_warnings[0]
+
+    tools_from_anthropic_tools(
+        [ANTHROPIC_WEB_SEARCH],
+        None,
+        author,
+        None,
+        allow_remote_mcp=False,
+        bridge=sandbox_bridge(),
+    )
+    assert len(bridge_warnings) == 1
+
+
+@pytest.mark.parametrize(
+    "eval_cap,client_cap,expected,warned",
+    [(5, 50, 5, True), (5, 3, 3, False), (None, 8, 8, False)],
+)
+def test_sandbox_anthropic_max_uses_may_only_narrow(
+    bridge_warnings: list[str],
+    eval_cap: int | None,
+    client_cap: int,
+    expected: int,
+    warned: bool,
+) -> None:
+    author = WebSearchProviders(
+        anthropic={} if eval_cap is None else {"max_uses": eval_cap}
+    )
+
+    tools = tools_from_anthropic_tools(
+        [cast(Any, {**ANTHROPIC_WEB_SEARCH, "max_uses": client_cap})],
+        None,
+        author,
+        None,
+        allow_remote_mcp=False,
+        bridge=sandbox_bridge(),
+    )
+
+    assert tool_options(tools)["anthropic"] == {"max_uses": expected}
+    assert (len(bridge_warnings) == 1) is warned
+
+
+@pytest.mark.parametrize(
+    "eval_options,client_access,expected,warned",
+    [
+        ({}, False, {"external_web_access": False}, False),
+        ({}, True, {}, False),
+        ({"external_web_access": False}, True, {"external_web_access": False}, True),
+    ],
+)
+def test_sandbox_openai_live_web_access_may_only_narrow(
+    bridge_warnings: list[str],
+    eval_options: dict[str, Any],
+    client_access: bool,
+    expected: dict[str, Any],
+    warned: bool,
+) -> None:
+    tools = tools_from_responses_tool(
+        cast(Any, {"type": "web_search", "external_web_access": client_access}),
+        WebSearchProviders(openai=eval_options),
+        None,
+        allow_remote_mcp=False,
+        bridge=sandbox_bridge(),
+    )
+
+    assert tool_options(tools)["openai"] == expected
+    assert (len(bridge_warnings) == 1) is warned
+
+
+def test_in_process_anthropic_web_search_options_pass_through() -> None:
+    tools = tools_from_anthropic_tools(
+        [ANTHROPIC_CLIENT_SEARCH],
+        None,
+        resolve_bridge_web_search(None, default_grant=True),
+        None,
+        allow_remote_mcp=True,
+        bridge=AgentBridge(AgentState(messages=[])),
+    )
+    assert tool_options(tools)["anthropic"] == {
+        "name": "web_search",
+        "max_uses": 50,
+        "allowed_domains": ["agent.example"],
+    }
+
+
+async def test_sandbox_request_path_applies_eval_tool_options(
+    bridge_warnings: list[str],
+) -> None:
+    captured_tools: list[list[ToolInfo]] = []
+
+    async def capture(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        captured_tools.append(tools)
+        return ModelOutput.from_content(model="mockllm/model", content="ok")
+
+    bridge = sandbox_bridge(filter=capture)
+    await inspect_responses_api_request(
+        responses_request(tools=[code_interpreter_param(CLIENT_CONTAINER)]),
+        None,
+        None,
+        resolve_bridge_code_execution(True, default_grant=False),
+        bridge,
+    )
+    await inspect_anthropic_api_request(
+        anthropic_request(tools=[ANTHROPIC_CLIENT_SEARCH]),
+        None,
+        resolve_bridge_web_search(True, default_grant=False),
+        None,
+        bridge,
+    )
+
+    assert tool_options(list(captured_tools[0]))["providers"]["openai"] == {}
+    assert tool_options(list(captured_tools[1]))["anthropic"] == {"max_uses": 50}
+    assert len(bridge_warnings) == 2
+
+
+COMPUTER_PARAM: dict[str, Any] = {"type": "computer"}
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "model_args,config",
+    [
+        ({"responses_store": False}, GenerateConfig()),
+        ({}, GenerateConfig(extra_body={"store": False})),
+    ],
+    ids=["model-arg", "extra-body"],
+)
+async def test_sandbox_computer_tool_refused_when_eval_turns_storage_off(
+    model_args: dict[str, Any], config: GenerateConfig
+) -> None:
+    model = get_model("openai/gpt-5", api_key="test-key", config=config, **model_args)
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(
+        filter=capture_config(captured), model_aliases={"eval-model": model}
+    )
+    generate = _forward_provider_errors(generate_responses(None, None, bridge), bridge)
+
+    result = await generate(
+        {"model": "eval-model", "input": "hi", "tools": [COMPUTER_PARAM]}
+    )
+
+    error = cast(dict[str, Any], result[PROVIDER_ERROR_KEY])
+    assert error["status"] == 400
+    assert "storage" in error["message"]
+    assert captured == []
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("responses_store", [None, True])
+async def test_sandbox_computer_tool_served_unless_storage_off(
+    responses_store: bool | None,
+) -> None:
+    model = get_model(
+        "openai/gpt-5", api_key="test-key", responses_store=responses_store
+    )
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(
+        filter=capture_config(captured), model_aliases={"eval-model": model}
+    )
+
+    await inspect_responses_api_request(
+        {"model": "eval-model", "input": "hi", "tools": [COMPUTER_PARAM]},
+        None,
+        None,
+        None,
+        bridge,
+    )
+    assert len(captured) == 1
+
+
+@skip_if_no_openai_package
+async def test_in_process_computer_tool_unaffected_by_storage_setting() -> None:
+    model = get_model("openai/gpt-5", api_key="test-key", responses_store=False)
+    captured: list[GenerateConfig] = []
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        filter=capture_config(captured),
+        model_aliases={"eval-model": model},
+    )
+
+    await inspect_responses_api_request(
+        {"model": "eval-model", "input": "hi", "tools": [COMPUTER_PARAM]},
+        None,
+        None,
+        None,
+        bridge,
+    )
+    assert len(captured) == 1
 
 
 # --- headers ----------------------------------------------------------------

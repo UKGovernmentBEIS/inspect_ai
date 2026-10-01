@@ -5,7 +5,7 @@
 - Control Channel: `inspect ctl ... --log-dir` now shows running and completed-but-unflushed samples, with current counts and their events, for evals run with `--log-shared`.
 - OpenAI Compatible: Fixed concurrent sample failures during credential refresh, including OpenRouter evaluations on Hawk, and added an overridable `ModelAPI.refresh_credentials()` for model API extensions.
 - OpenAI: Biological-risk policy responses now produce content-filter stops instead of failing samples.
-- Sandbox Agent Bridge: The eval's configuration now governs `service_tier`, `store` and `truncation`, which the agent's requests no longer override; requests with `previous_response_id` are refused.
+- Sandbox Agent Bridge: The eval's configuration now governs `service_tier`, `store`, `truncation` and provider tool options such as web search domains, which the agent's requests no longer override; requests with `previous_response_id` are refused.
 
 ## 0.3.273 (29 September 2026)
 
