@@ -366,20 +366,18 @@ class ModelOutput(BaseModel):
     def _serialize_unknown_input_context(
         self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
     ) -> Any:
-        """Write an assigned `input_context_tokens=None` even with `exclude_none`.
+        """Write `input_context_tokens=None` only when it was assigned.
 
         An assigned None means the size is unknown, while a missing key means a
         log from before the field existed (read with a fallback to usage), so
-        logs and events must keep the two apart.
+        every dump, with or without `exclude_none`, keeps the two apart.
         """
         data = handler(self)
-        if (
-            info.exclude_none
-            and isinstance(data, dict)
-            and self.input_context_tokens is None
-            and "input_context_tokens" in self.model_fields_set
-        ):
-            data["input_context_tokens"] = None
+        if isinstance(data, dict) and self.input_context_tokens is None:
+            if "input_context_tokens" in self.model_fields_set:
+                data["input_context_tokens"] = None
+            else:
+                data.pop("input_context_tokens", None)
         return data
 
     def __setstate__(self, state: dict[Any, Any]) -> None:

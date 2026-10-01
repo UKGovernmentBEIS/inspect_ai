@@ -1,6 +1,7 @@
+import json
 import math
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 
@@ -263,6 +264,52 @@ def _model_event(output: ModelOutput) -> ModelEvent:
     )
 
 
+_WRITERS = [
+    "jsonable_python",
+    "json_exclude_none",
+    "acp",
+    "python",
+    "python_json",
+    "json",
+    "sample_json",
+]
+
+
+def _round_trip(event: ModelEvent, writer: str) -> tuple[dict[str, Any], ModelOutput]:
+    """Serialize an event (or a sample holding it) and read the output back."""
+    from inspect_ai._util.json import jsonable_python
+    from inspect_ai.log import EvalSample
+
+    match writer:
+        case "jsonable_python":
+            dumped = jsonable_python(event)
+        case "json_exclude_none":
+            dumped = json.loads(event.model_dump_json(exclude_none=True))
+        case "acp":
+            dumped = event.model_dump(mode="json", by_alias=True, exclude_none=True)
+        case "python":
+            dumped = event.model_dump()
+        case "python_json":
+            dumped = event.model_dump(mode="json")
+        case "json":
+            dumped = json.loads(event.model_dump_json())
+        case _:
+            sample = EvalSample(
+                id=1,
+                epoch=1,
+                input="hi",
+                target="",
+                events=[event],
+                output=event.output,
+            )
+            dumped_sample = json.loads(sample.model_dump_json())
+            restored_sample = EvalSample.model_validate(dumped_sample)
+            assert isinstance(restored_sample.events[0], ModelEvent)
+            assert dumped_sample["output"] == dumped_sample["events"][0]["output"]
+            return dumped_sample["events"][0], restored_sample.events[0].output
+    return dumped, ModelEvent.model_validate(dumped).output
+
+
 @pytest.mark.parametrize(
     ("input_context_tokens", "expected"),
     [
@@ -274,35 +321,50 @@ def _model_event(output: ModelOutput) -> ModelEvent:
         ("absent", 12),
     ],
 )
-@pytest.mark.parametrize("writer", ["jsonable_python", "json", "acp"])
+@pytest.mark.parametrize("writer", _WRITERS)
 def test_input_context_tokens_survives_serialization(
     input_context_tokens: int | Literal["absent"] | None,
     expected: int | None,
     writer: str,
 ) -> None:
-    """Writers that drop None keep an unknown context apart from a legacy one."""
-    from inspect_ai._util.json import jsonable_python
+    """Every writer keeps a known, an unknown and a legacy context apart."""
     from inspect_ai.model._model_output import output_input_context_tokens
 
     output = ModelOutput.from_content("mockllm/model", "hi")
     output.usage = ModelUsage(input_tokens=12, output_tokens=30, total_tokens=42)
     if input_context_tokens != "absent":
         output.input_context_tokens = input_context_tokens
-    event = _model_event(output)
 
-    match writer:
-        case "jsonable_python":
-            restored = ModelEvent.model_validate(jsonable_python(event))
-        case "json":
-            restored = ModelEvent.model_validate_json(
-                event.model_dump_json(exclude_none=True)
-            )
-        case _:
-            restored = ModelEvent.model_validate(
-                event.model_dump(mode="json", by_alias=True, exclude_none=True)
-            )
-    assert output_input_context_tokens(restored.output) == expected
-    assert restored.output.usage == output.usage
+    dumped, restored = _round_trip(_model_event(output), writer)
+
+    if input_context_tokens == "absent":
+        assert "input_context_tokens" not in dumped["output"]
+    else:
+        assert dumped["output"]["input_context_tokens"] == input_context_tokens
+    assert output_input_context_tokens(restored) == expected
+    assert restored.usage == output.usage
+
+
+@pytest.mark.parametrize("writer", _WRITERS)
+def test_old_log_context_falls_back_after_round_trip(writer: str) -> None:
+    """An old log's outputs still fall back to usage after being written again."""
+    from inspect_ai.model._model_output import output_input_context_tokens
+
+    log_file = (
+        Path(__file__).parent.parent
+        / "log"
+        / "test_list_logs"
+        / "2024-11-05T13-31-45-05-00_input-task_8zXjbRzCWrL9GXiXo2vus9.json"
+    )
+    log = read_eval_log(log_file)
+    assert log.samples
+    event = next(e for e in log.samples[0].events if isinstance(e, ModelEvent))
+    assert output_input_context_tokens(event.output) == 53
+
+    dumped, restored = _round_trip(event, writer)
+
+    assert "input_context_tokens" not in dumped["output"]
+    assert output_input_context_tokens(restored) == 53
 
 
 def test_unknown_input_context_tokens_survives_eval_log(tmp_path: Path) -> None:
