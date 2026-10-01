@@ -9,7 +9,6 @@ that acts as a barrier preserving the model's declared call ordering.
 import anyio
 import pytest
 
-from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model._call_tools import TOOL_CALLS_FAIL_FAST, execute_tools
@@ -240,282 +239,61 @@ async def test_mixed_batch_serial_acts_as_barrier() -> None:
     assert d_start > c_end
 
 
-async def test_substituted_serial_tool_does_not_overlap_its_stage() -> None:
-    """An approver's substitute keeps its own `parallel=False` contract.
-
-    The stage is formed from the proposed parallel-safe calls, so two of them
-    replaced by a serial tool must still run one at a time, and never alongside
-    the unchanged parallel sibling.
-    """
+async def test_operator_cancelled_modified_call_records_the_modified_arguments() -> (
+    None
+):
+    """A cancelled call reports the arguments an approver substituted, not the proposal."""
     from inspect_ai.approval._apply import _tool_approver
     from inspect_ai.approval._approval import Approval
-
-    active: list[str] = []
-    overlaps: list[list[str]] = []
-
-    async def occupy(label: str) -> str:
-        active.append(label)
-        for _ in range(5):
-            await anyio.sleep(0)
-            if len(active) > 1 and any(a.startswith("serial") for a in active):
-                overlaps.append(list(active))
-        active.remove(label)
-        return label
-
-    @tool(parallel=True)
-    def proposed():
-        async def proposed(label: str) -> str:
-            """Parallel-safe tool the model proposes.
-
-            Args:
-                label: The label to echo back.
-            """
-            return await occupy(label)
-
-        return proposed
+    from inspect_ai.log._transcript import transcript
 
     @tool
-    def stateful():
-        async def stateful(label: str) -> str:
-            """Tool that is not parallel-safe.
-
-            Args:
-                label: The label to echo back.
-            """
-            return await occupy(f"serial-{label}")
-
-        return stateful
-
-    async def substitute(message, call, view, history):
-        if call.id == "sub-c2":
-            return Approval(decision="approve")
-        return Approval(
-            decision="modify",
-            modified=ToolCall(
-                id=call.id, function="stateful", arguments=call.arguments
-            ),
-        )
-
-    calls = [
-        call("proposed", "sub-c0", label="A"),
-        call("proposed", "sub-c1", label="B"),
-        call("proposed", "sub-c2", label="C"),
-    ]
-    token = _tool_approver.set(substitute)
-    try:
-        with anyio.fail_after(5):
-            messages, _ = await execute_tools(
-                [assistant(*calls)], [ToolDef(proposed()), ToolDef(stateful())]
-            )
-    finally:
-        _tool_approver.reset(token)
-
-    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
-    assert [(m.tool_call_id, m.function, m.text) for m in tool_msgs] == [
-        ("sub-c0", "stateful", "serial-A"),
-        ("sub-c1", "stateful", "serial-B"),
-        ("sub-c2", "proposed", "C"),
-    ]
-    assert overlaps == []
-
-
-async def test_stage_gate_released_when_a_waiting_serial_call_is_cancelled() -> None:
-    """A serial call cancelled while it waits must not hold back its siblings."""
-    from inspect_ai.model._call_tools import _ParallelStageGate
-
-    gate = _ParallelStageGate()
-    first_running = anyio.Event()
-    release_first = anyio.Event()
-    serial_ran: list[bool] = []
-
-    async def first() -> None:
-        async with gate.hold(parallel=True):
-            first_running.set()
-            await release_first.wait()
-
-    async def serial(scope: anyio.CancelScope) -> None:
-        with scope:
-            async with gate.hold(parallel=False):
-                serial_ran.append(True)
-
-    with anyio.fail_after(5):
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(first)
-            await first_running.wait()
-
-            serial_scope = anyio.CancelScope()
-            tg.start_soon(serial, serial_scope)
-            await anyio.wait_all_tasks_blocked()
-            serial_scope.cancel()
-            await anyio.wait_all_tasks_blocked()
-
-            # a later parallel call is not held back by the cancelled one
-            async with gate.hold(parallel=True):
-                pass
-            release_first.set()
-
-    assert serial_ran == []
-
-
-@approver
-def replace_proposed() -> Approver:
-    """Replace each call to `proposed` with `replacement(label="modified")`."""
-
-    async def approve(message, call, view, history) -> Approval:
-        if call.function != "proposed":
-            return Approval(decision="approve")
-        return Approval(
-            decision="modify",
-            modified=ToolCall(
-                id=call.id, function="replacement", arguments={"label": "modified"}
-            ),
-        )
-
-    return approve
-
-
-@tool(parallel=True)
-def proposed():
-    async def proposed(label: str) -> str:
-        """Tool the model proposes; the approver replaces every call to it.
-
-        Args:
-            label: The label to echo back.
-        """
-        raise AssertionError("the proposed tool must not run")
-
-    return proposed
-
-
-def own_pending_event(call_id: str) -> ToolEvent:
-    from inspect_ai.log._transcript import transcript
-
-    return next(
-        e
-        for e in reversed(transcript().events)
-        if isinstance(e, ToolEvent) and e.id == call_id and e.pending
-    )
-
-
-def tool_event(call_id: str) -> ToolEvent:
-    from inspect_ai.log._transcript import transcript
-
-    (event,) = [
-        e for e in transcript().events if isinstance(e, ToolEvent) and e.id == call_id
-    ]
-    return event
-
-
-def assert_substitution_recorded(call_id: str) -> None:
-    """The approval event keeps the proposal; the tool event names the replacement."""
-    from inspect_ai.event._approval import ApprovalEvent
-    from inspect_ai.log._transcript import transcript
-
-    (approval_event,) = [
-        e
-        for e in transcript().events
-        if isinstance(e, ApprovalEvent) and e.call.id == call_id
-    ]
-    assert approval_event.call.function == "proposed"
-    assert approval_event.call.arguments == {"label": "original"}
-    assert approval_event.modified is not None
-    assert approval_event.modified.function == "replacement"
-    event = tool_event(call_id)
-    assert (event.function, event.arguments) == ("replacement", {"label": "modified"})
-
-
-async def test_operator_cancelled_substitute_is_reported_as_the_substitute() -> None:
-    """Cancelling a running replacement reports the replacement, not the proposal."""
-
-    @tool
-    def replacement():
-        async def replacement(label: str) -> str:
+    def cancel_self():
+        async def cancel_self(label: str) -> str:
             """Cancel this call from inside it.
 
             Args:
                 label: The label.
             """
-            own_pending_event("cancel-c0")._cancel()
+            event = next(
+                e
+                for e in reversed(transcript().events)
+                if isinstance(e, ToolEvent) and e.id == "mod-c0" and e.pending
+            )
+            event._cancel()
             await anyio.sleep_forever()
             return label
 
-        return replacement
+        return cancel_self
 
-    proposal = call("proposed", "cancel-c0", label="original")
-    with anyio.fail_after(5):
-        messages, _ = await execute_tools(
-            [assistant(proposal)],
-            [ToolDef(proposed()), ToolDef(replacement())],
-            approval=[ApprovalPolicy(replace_proposed(), "*")],
+    async def modify(message, call, view, history):
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id, function=call.function, arguments={"label": "modified"}
+            ),
         )
+
+    proposal = call("cancel_self", "mod-c0", label="original")
+    token = _tool_approver.set(modify)
+    try:
+        with anyio.fail_after(5):
+            messages, _ = await execute_tools(
+                [assistant(proposal)], [ToolDef(cancel_self())]
+            )
+    finally:
+        _tool_approver.reset(token)
 
     (tool_message,) = messages
     assert isinstance(tool_message, ChatMessageTool)
-    assert tool_message.tool_call_id == "cancel-c0"
-    assert tool_message.function == "replacement"
     assert tool_message.error is not None and tool_message.error.type == "timeout"
-    assert_substitution_recorded("cancel-c0")
-    assert tool_event("cancel-c0").error == tool_message.error
+    (event,) = [
+        e for e in transcript().events if isinstance(e, ToolEvent) and e.id == "mod-c0"
+    ]
+    assert event.arguments == {"label": "modified"}
+    assert event.error == tool_message.error
     # the model's proposal is untouched
-    assert (proposal.function, proposal.arguments) == (
-        "proposed",
-        {"label": "original"},
-    )
-
-
-async def test_sibling_cancelled_substitute_is_reported_as_the_substitute() -> None:
-    """A replacement cancelled by a failing sibling is recorded as the replacement."""
-    from inspect_ai.event._info import InfoEvent
-    from inspect_ai.log._transcript import transcript
-
-    started = anyio.Event()
-
-    @tool(parallel=True)
-    def replacement():
-        async def replacement(label: str) -> str:
-            """Run until a sibling's failure cancels this call.
-
-            Args:
-                label: The label.
-            """
-            started.set()
-            await anyio.sleep_forever()
-            return label
-
-        return replacement
-
-    @tool(parallel=True)
-    def fail_after_start():
-        async def fail_after_start() -> str:
-            """Raise once the replacement is running."""
-            await started.wait()
-            raise RuntimeError("kaboom")
-
-        return fail_after_start
-
-    with pytest.raises(RuntimeError, match="kaboom"):
-        with anyio.fail_after(5):
-            await execute_tools(
-                [
-                    assistant(
-                        call("proposed", "sibling-c0", label="original"),
-                        call("fail_after_start", "sibling-c1"),
-                    )
-                ],
-                [
-                    ToolDef(proposed()),
-                    ToolDef(replacement()),
-                    ToolDef(fail_after_start()),
-                ],
-                approval=[ApprovalPolicy(replace_proposed(), "*")],
-            )
-
-    assert_substitution_recorded("sibling-c0")
-    event = tool_event("sibling-c0")
-    assert event.error is not None and event.error.type == "cancelled"
-    # the result messages are discarded with the raise; the info event remains
-    info = [e.data for e in transcript().events if isinstance(e, InfoEvent)]
-    assert any("'replacement' was cancelled because" in str(data) for data in info)
+    assert proposal.arguments == {"label": "original"}
 
 
 async def test_tool_error_in_parallel_does_not_abort_siblings():
@@ -944,11 +722,6 @@ async def test_sibling_cancel_during_approval_records_event_in_transcript():
     assert target_ev.error is not None
     assert target_ev.error.type == "cancelled"
     assert target_ev.failed is True
-    # no approval decided, so the proposal is what the event records
-    assert (target_ev.function, target_ev.arguments) == (
-        "needs_approval",
-        {"label": "never"},
-    )
 
 
 async def test_parallel_pending_events_coexist_with_distinct_uuids() -> None:

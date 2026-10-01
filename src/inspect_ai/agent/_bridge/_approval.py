@@ -33,7 +33,6 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
 if TYPE_CHECKING:
-    from inspect_ai.approval._approval import Approval
     from inspect_ai.approval._policy import ApprovalPolicy
 
 logger = getLogger(__name__)
@@ -94,8 +93,8 @@ async def apply_bridge_tool_approval(
 
     Calls are approved in order and evaluation stops at the first non-approval, so a
     human isn't asked to decide on calls that are about to be discarded anyway.
-    `terminate` doesn't return. A `modify` decision may change only the arguments;
-    one that changes the function is treated as a rejection.
+    `terminate` doesn't return, and neither does a `modify` decision that changes the
+    function called: that is an error in the approver, and fails the sample.
 
     A multi-choice response whose alternate choices carry tool calls is reduced to
     the primary choice (with a warning) when approval is active, since only the
@@ -114,7 +113,11 @@ async def apply_bridge_tool_approval(
         The response for the scaffold, plus the messages to replay to the model when
         the response was rejected.
     """
-    from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
+    from inspect_ai.approval._apply import (
+        apply_tool_approval,
+        have_tool_approval,
+        modified_function_error,
+    )
 
     with bridge_approval_scope(bridge.approval):
         approval_active = have_tool_approval()
@@ -152,16 +155,6 @@ async def apply_bridge_tool_approval(
             approved, approval = await apply_tool_approval(
                 message, reviewed, None, approval_history
             )
-            if (
-                approved
-                and approval is not None
-                and approval.modified is not None
-                and approval.modified.function != reviewed.function
-            ):
-                approval = substituted_function_rejection(
-                    message, reviewed, approval.modified
-                )
-                approved = False
             if not approved:
                 explanation = (approval.explanation if approval else None) or (
                     f"Tool call '{reviewed.function}' was rejected by the approval "
@@ -176,6 +169,11 @@ async def apply_bridge_tool_approval(
                 )
 
             if approval is not None and approval.modified is not None:
+                error = modified_function_error(reviewed, approval.modified)
+                if error is not None:
+                    failure = RuntimeError(error)
+                    bridge.request_fail(failure)
+                    raise failure
                 arguments = approval.modified.arguments
                 modified[call.id] = (
                     dispatched.dispatch(arguments) if dispatched else arguments
@@ -202,39 +200,14 @@ def with_modified_arguments(
     The native path avoids this the same way, by rebinding rather than mutating
     (`call_tool()` in `model/_call_tools.py`).
 
-    Only the arguments are adopted: a modification that changes the function is
-    rejected before this point (see `substituted_function_rejection`).
+    Only the arguments are adopted: a `modify` decision may not change the function
+    (`apply_bridge_tool_approval` fails the sample if it does).
     """
     result = output.model_copy(deep=True)
     for call in result.message.tool_calls or []:
         if call.id in modified:
             call.arguments = modified[call.id]
     return result
-
-
-def substituted_function_rejection(
-    message: str, reviewed: ToolCall, modified: ToolCall
-) -> "Approval":
-    """Reject a `modify` decision that changes the function called.
-
-    The scaffold dispatches on the function name and may have no handler for a
-    substituted one, so the bridge cannot run the call the approver approved, and
-    running the original function with the new arguments would run a call nobody
-    approved. The rejection is recorded so the log shows why the call didn't run.
-    """
-    from inspect_ai.approval._approval import Approval
-    from inspect_ai.approval._call import record_approval
-
-    rejection = Approval(
-        decision="reject",
-        explanation=(
-            f"The approver changed this call from '{reviewed.function}' to "
-            f"'{modified.function}'. A bridged agent cannot substitute a different "
-            "function, so the call was rejected."
-        ),
-    )
-    record_approval("bridge", message, reviewed, None, rejection)
-    return rejection
 
 
 def rejection_messages(
