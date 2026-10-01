@@ -1,6 +1,6 @@
-from typing import Literal, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 
 class ScannerResultField(BaseModel):
@@ -283,6 +283,17 @@ class ViewerConfig(BaseModel):
     viewer show it all as plain text, with media withheld and invisible or
     bidirectional-override characters made visible. `None` (the default) is
     treated as trusted."""
+
+    @field_validator("trust_content", mode="before")
+    @classmethod
+    def _untrusted_unless_bool(cls, value: Any) -> Any:
+        """Read any non-boolean value as untrusted, as the viewer does.
+
+        Lax bool parsing would read `"true"` or `1` as trusted, so a log
+        rewritten or served through Python could come out trusted when the
+        viewer would show it as untrusted.
+        """
+        return value if value is None or isinstance(value, bool) else False
 
     scanner_result_view: ScannerResultView | dict[str, ScannerResultView] = Field(
         default_factory=dict
