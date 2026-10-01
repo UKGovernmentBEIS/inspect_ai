@@ -1,3 +1,4 @@
+from inspect_ai._sentinel._config import SentinelConfig, SentinelEntry
 from inspect_ai._util.deprecation import relocated_module_attribute
 from inspect_ai._util.error import EvalError, WriteConflictError
 
@@ -94,6 +95,8 @@ __all__ = [
     "effective_eval_config",
     "effective_generate_config",
     "EvalConfig",
+    "SentinelConfig",
+    "SentinelEntry",
     "EvalError",
     "EvalDataset",
     "EvalLog",

@@ -15,7 +15,13 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.event import SentinelEvent
-from inspect_ai.log import EvalConfig, EvalLog, read_eval_log
+from inspect_ai.log import (
+    EvalConfig,
+    EvalLog,
+    SentinelConfig,
+    SentinelEntry,
+    read_eval_log,
+)
 from inspect_ai.model import ChatMessageAssistant
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.solver import Generate, Solver, TaskState, solver
@@ -96,9 +102,14 @@ def active_root(log: EvalLog) -> str | None:
 RULE_CONFIG = [{"name": "d2_rule", "params": {"reason": "no"}}]
 
 
+def config_data(log: EvalLog) -> Any:
+    assert log.eval.config.sentinel is not None
+    return log.eval.config.sentinel.model_dump()
+
+
 def test_task_sentinel_is_recorded_and_active() -> None:
     log = eval(sentinel_task(d2_rule(reason="no")), model="mockllm/model")[0]
-    assert log.eval.config.sentinel == {"name": "d2_rule", "params": {"reason": "no"}}
+    assert config_data(log) == {"name": "d2_rule", "params": {"reason": "no"}}
     assert active_root(log) == "d2_rule"
 
 
@@ -112,7 +123,7 @@ def test_monitors_only_resolve_to_observe() -> None:
     log = eval(
         sentinel_task({"watch": d2_suspicion(score=0.2)}), model="mockllm/model"
     )[0]
-    assert log.eval.config.sentinel == {
+    assert config_data(log) == {
         "watch": {"name": "d2_suspicion", "params": {"score": 0.2}}
     }
     assert active_root(log) == "inspect_sentinel/observe"
@@ -122,7 +133,7 @@ def test_task_with_sets_and_clears_the_sentinel() -> None:
     log = eval(task_with(sentinel_task(), sentinel=RULE_CONFIG), model="mockllm/model")[
         0
     ]
-    assert log.eval.config.sentinel == RULE_CONFIG
+    assert config_data(log) == RULE_CONFIG
     log = eval(
         task_with(sentinel_task(d2_rule()), sentinel=None), model="mockllm/model"
     )[0]
@@ -136,9 +147,7 @@ def test_eval_sentinel_overrides_the_task() -> None:
         model="mockllm/model",
         sentinel=[d2_suspicion(score=0.7)],
     )[0]
-    assert log.eval.config.sentinel == [
-        {"name": "d2_suspicion", "params": {"score": 0.7}}
-    ]
+    assert config_data(log) == [{"name": "d2_suspicion", "params": {"score": 0.7}}]
     assert active_root(log) == "inspect_sentinel/observe"
 
 
@@ -148,12 +157,12 @@ def test_config_file_and_registered_name(tmp_path: Path) -> None:
         "sentinel:\n  block:\n    name: d2_rule\n    params:\n      reason: file\n"
     )
     log = eval(sentinel_task(), model="mockllm/model", sentinel=str(config))[0]
-    assert log.eval.config.sentinel == {
+    assert config_data(log) == {
         "block": {"name": "d2_rule", "params": {"reason": "file"}}
     }
 
     log = eval(sentinel_task(), model="mockllm/model", sentinel="d2_rule")[0]
-    assert log.eval.config.sentinel == {"name": "d2_rule", "params": {}}
+    assert config_data(log) == {"name": "d2_rule", "params": {}}
     assert active_root(log) == "d2_rule"
 
 
@@ -169,9 +178,7 @@ def test_nested_config_round_trips_through_the_log(tmp_path: Path) -> None:
         sentinel_task(), model="mockllm/model", sentinel=config, log_dir=str(tmp_path)
     )[0]
     recorded = log.eval.config.sentinel
-    assert isinstance(recorded, list)
-    assert recorded[0]["name"] == "threshold"
-    assert recorded[0]["monitors"] == config[0]["monitors"]
+    assert config_data(log) == config
 
     read = read_eval_log(log.location)
     assert read.eval.config.sentinel == recorded
@@ -209,7 +216,7 @@ def test_eval_retry_rebuilds_the_sentinel(tmp_path: Path) -> None:
     )[0]
     assert log.status == "error"
     retried = eval_retry(log, log_dir=str(tmp_path))[0]
-    assert retried.eval.config.sentinel == {
+    assert config_data(retried) == {
         "block": {"name": "d2_rule", "params": {"reason": "retry"}}
     }
     assert active_root(retried) == "inspect_sentinel/concurrent"
@@ -261,7 +268,9 @@ def test_eval_retry_records_a_lone_roots_paths_as_the_first_run_did(
     )[0]
     assert log.status == "error"
     recorded = log.eval.config.sentinel
-    assert isinstance(recorded, dict) and recorded["name"] == "threshold"
+    assert isinstance(recorded, SentinelConfig)
+    assert isinstance(recorded.root, SentinelEntry)
+    assert recorded.root.name == "threshold"
     retried = eval_retry(log, log_dir=str(tmp_path))[0]
     assert retried.status == "success", retried.error
     expected = [("d2_suspicion", "d2_suspicion"), ("inspect_sentinel/threshold", "")]
@@ -278,7 +287,7 @@ def test_eval_set_sentinel(tmp_path: Path) -> None:
     )
     assert success
     log = read_eval_log(logs[0].location)
-    assert log.eval.config.sentinel == RULE_CONFIG
+    assert config_data(log) == RULE_CONFIG
     assert active_root(log) == "inspect_sentinel/concurrent"
 
 
@@ -318,7 +327,7 @@ def test_capture_applies_and_validates_the_sentinel_override(
         eval_set(sentinel_task(), log_dir=str(tmp_path / "logs"), model="mockllm/model")
     capture = EvalSetCapture.model_validate_json(manifest.read_bytes())
     assert capture.overrides is not None
-    assert capture.overrides.sentinel == RULE_CONFIG
+    assert capture.overrides.sentinel == SentinelConfig.model_validate(RULE_CONFIG)
 
 
 ran = False
@@ -391,7 +400,7 @@ def test_log_with_sentinel_loads_without_the_package(
         sentinel_task(RULE_CONFIG), model="mockllm/model", log_dir=str(tmp_path)
     )[0]
     monkeypatch.setitem(sys.modules, "inspect_sentinel._integration", None)
-    assert read_eval_log(log.location).eval.config.sentinel == RULE_CONFIG
+    assert config_data(read_eval_log(log.location)) == RULE_CONFIG
 
 
 CLI_TASK = """
@@ -461,7 +470,5 @@ def test_cli_sentinel(tmp_path: Path, via: str) -> None:
     assert result.returncode == 0, result.stderr
     [log_file] = list((tmp_path / "logs").glob("*.eval"))
     log = read_eval_log(str(log_file))
-    assert log.eval.config.sentinel == [
-        {"name": "cli_rule", "params": {"reason": "cli"}}
-    ]
+    assert config_data(log) == [{"name": "cli_rule", "params": {"reason": "cli"}}]
     assert active_root(log) == "inspect_sentinel/concurrent"

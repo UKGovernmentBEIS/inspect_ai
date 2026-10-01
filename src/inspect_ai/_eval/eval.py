@@ -48,7 +48,7 @@ from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._sentinel._config import (
     SentinelSpec,
     resolve_sentinel_spec,
-    sentinel_config_data,
+    sentinel_config,
 )
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import parse_cli_args, resolve_args
@@ -952,7 +952,7 @@ async def _eval_async_inner(
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
             review=config_from_review_policies(review) if review else None,
-            sentinel=sentinel_config_data(eval_sentinel)
+            sentinel=sentinel_config(eval_sentinel)
             if eval_sentinel is not None
             else None,
             notification=notification,

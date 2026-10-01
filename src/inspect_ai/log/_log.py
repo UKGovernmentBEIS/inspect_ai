@@ -15,6 +15,7 @@ from pydantic import (
 from shortuuid import uuid
 from typing_extensions import TypedDict
 
+from inspect_ai._sentinel._config import SentinelConfig
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError, exception_message
@@ -117,10 +118,10 @@ class EvalConfig(BaseModel):
     review: ReviewPolicyConfig | None = Field(default=None)
     """Review policy for tool results."""
 
-    sentinel: list[Any] | dict[str, Any] | None = Field(default=None)
+    sentinel: SentinelConfig | None = Field(default=None)
     """Sentinel monitors and protocols, as the configuration that rebuilds them.
 
-    One entry (a lone monitor or protocol, which is the root itself), a list of entries, or a mapping of instance names to entries; each entry has a `name`, `params` and any nested entries. Plain data so that logs load without `inspect_sentinel` installed.
+    One entry (a lone monitor or protocol, which is the root itself), a list of entries, or a mapping of instance names to entries. Logs load without `inspect_sentinel` installed.
     """
 
     notification: bool | str | None = Field(default=None)

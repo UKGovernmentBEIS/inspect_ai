@@ -61,7 +61,7 @@ from inspect_ai._display.core.active import (
 )
 from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
 from inspect_ai._eval.task.scan import Scanners
-from inspect_ai._sentinel._config import resolve_sentinel_root, sentinel_config_data
+from inspect_ai._sentinel._config import resolve_sentinel_root, sentinel_config
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.exception import TaskRetryAbandonedError
 from inspect_ai._util.path import chdir
@@ -403,7 +403,7 @@ async def eval_run(
                 if sentinel is not None:
                     task.sentinel = sentinel
                 elif task.sentinel is not None:
-                    task_eval_config.sentinel = sentinel_config_data(task.sentinel)
+                    task_eval_config.sentinel = sentinel_config(task.sentinel)
                 sentinel_root = (
                     resolve_sentinel_root(task.sentinel)
                     if task.sentinel is not None
