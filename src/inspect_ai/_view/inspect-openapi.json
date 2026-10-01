@@ -9827,8 +9827,22 @@
         "additionalProperties": {
           "$ref": "#/components/schemas/SentinelConfig"
         },
-        "description": "One configured monitor or protocol.\n\nAny key besides `name`, `params`, and `version` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds a list or a mapping of entries, and `nested` returns them.",
+        "description": "One configured monitor or protocol.\n\nAny key besides `name`, `params`, `version` and `meta` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds a list or a mapping of entries, and `nested` returns them.",
         "properties": {
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
           "name": {
             "title": "Name",
             "type": "string"

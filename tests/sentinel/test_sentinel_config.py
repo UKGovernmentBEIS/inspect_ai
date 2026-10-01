@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from inspect_ai import Task, eval, eval_retry, eval_set, task, task_with
 from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSetCapture
@@ -215,6 +216,33 @@ def test_entry_without_version_omits_it() -> None:
     assert entry.version is None
     assert "version" not in entry.model_dump()
     assert "version" not in entry.model_dump_json()
+
+
+@pytest.mark.parametrize("version", [True, "3", 3.0])
+def test_entry_version_must_be_an_int(version: object) -> None:
+    with pytest.raises(ValidationError):
+        SentinelEntry.model_validate({"name": "d2_rule", "version": version})
+
+
+def test_entry_meta_round_trips_and_is_not_nested() -> None:
+    data = {
+        "name": "threshold",
+        "params": {},
+        "meta": {"added": {"later": [1, "two", None]}},
+        "monitors": [{"name": "d2_suspicion", "params": {}}],
+    }
+    entry = SentinelEntry.model_validate(data)
+    assert entry.meta == {"added": {"later": [1, "two", None]}}
+    assert list(entry.nested) == ["monitors"]
+    assert entry.model_dump() == data
+    assert SentinelEntry.model_validate_json(entry.model_dump_json()) == entry
+
+
+def test_entry_without_meta_omits_it() -> None:
+    entry = SentinelEntry.model_validate({"name": "d2_rule"})
+    assert entry.meta is None
+    assert "meta" not in entry.model_dump()
+    assert "meta" not in entry.model_dump_json()
 
 
 def test_log_config_without_version_loads() -> None:
