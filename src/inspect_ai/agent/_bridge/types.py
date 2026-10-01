@@ -267,22 +267,24 @@ class AgentBridge:
 
         As for a natively executed tool, approval decides only on a valid call: a
         call to a tool the scaffold declared (`declared`, by name) must match the
-        JSON Schema it was declared with (`declared_schema()`; a declaration
-        without one, e.g. rebuilt by a filter, is not checked). The scaffold runs
-        it, so it is otherwise reviewed as given. `SandboxAgentBridge` reviews a
-        call that denotes bridged host tools as each host tool will run it.
+        schema the model was sent for it (`effective_schema()`). The scaffold
+        runs it, so it is otherwise reviewed as given. `SandboxAgentBridge`
+        reviews a call that denotes bridged host tools as each host tool will
+        run it.
 
         Raises:
-            ToolParsingError: The arguments do not match the declared schema.
+            ToolParsingError: The arguments do not match the declared schema, or
+                it cannot be used to check them.
         """
         from inspect_ai.model._call_tools import validate_declared_input
 
-        from ._declared import declared_schema
+        from ._declared import effective_schema
 
         declarations = declared.get(call.function)
-        schema = declared_schema(declarations[0]) if declarations else None
-        if schema is not None and call.type == "function":
-            errors = validate_declared_input(call.arguments, schema)
+        if declarations and call.type == "function":
+            errors = validate_declared_input(
+                call.arguments, effective_schema(declarations[0])
+            )
             if errors:
                 raise ToolParsingError(errors)
         return [ReviewedCall(call, None, None)]

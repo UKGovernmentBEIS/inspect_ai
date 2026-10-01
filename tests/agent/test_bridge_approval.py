@@ -2852,6 +2852,77 @@ DECLARED_SCHEMA_CASES: list[tuple[str, dict[str, Any], dict[str, Any], bool]] = 
     ),
 ]
 
+UNUSABLE_SCHEMA_CASES: list[tuple[str, dict[str, Any], dict[str, Any]]] = [
+    (
+        "invalid-constraint",
+        {**CMD_SCHEMA, "minProperties": "x"},
+        {"cmd": 7},
+    ),
+    (
+        "invalid-constraint-valid-call",
+        {**CMD_SCHEMA, "minProperties": "x"},
+        {"cmd": "ls"},
+    ),
+    (
+        "missing-ref",
+        {
+            "type": "object",
+            "properties": {"cmd": {"$ref": "#/$defs/missing"}},
+        },
+        {"cmd": "ls"},
+    ),
+    (
+        "external-http-ref",
+        {
+            "type": "object",
+            "properties": {"cmd": {"$ref": "http://127.0.0.1:9/host-only-schema"}},
+        },
+        {"cmd": "ls"},
+    ),
+    (
+        "external-file-ref",
+        {
+            "type": "object",
+            "properties": {"cmd": {"$ref": "file:///etc/hosts"}},
+        },
+        {"cmd": "ls"},
+    ),
+]
+
+
+@pytest.fixture
+def no_retrieval(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Record (and refuse) any attempt to fetch a schema by URL."""
+    import urllib.request
+
+    attempts: list[str] = []
+
+    def urlopen(url: Any, *args: Any, **kwargs: Any) -> Any:
+        attempts.append(str(url))
+        raise AssertionError(f"schema retrieval attempted: {url}")
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    return attempts
+
+
+@pytest.mark.parametrize(
+    "adapter", ["completions", "responses", "anthropic", "google", "gemini-openapi"]
+)
+@pytest.mark.parametrize(
+    "schema,arguments",
+    [case[1:] for case in UNUSABLE_SCHEMA_CASES],
+    ids=[case[0] for case in UNUSABLE_SCHEMA_CASES],
+)
+async def test_call_under_an_unusable_declared_schema_is_a_parsing_error(
+    adapter: str,
+    schema: dict[str, Any],
+    arguments: dict[str, Any],
+    no_retrieval: list[str],
+) -> None:
+    await check_declared_validation(declared_via(adapter, schema), arguments, False)
+    assert no_retrieval == []
+
+
 GEMINI_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -3020,3 +3091,118 @@ async def test_each_host_target_is_approved_and_granted_its_own_arguments() -> N
     assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "/a.txt"})
     assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "/a.txt"})
     assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "/A.TXT"})
+
+
+# ---------------------------------------------------------------------------
+# validation follows the declarations a filter generated with
+# ---------------------------------------------------------------------------
+
+INT_PARAMS = ToolParams(properties={"cmd": ToolParam(type="integer")}, required=["cmd"])
+
+
+def replacing_filter(
+    replace: Callable[[ToolInfo], ToolInfo],
+) -> Callable[..., Awaitable[GenerateInput]]:
+    async def filter(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> GenerateInput:
+        return GenerateInput(
+            input, [replace(tool) for tool in tools], tool_choice, config
+        )
+
+    return filter
+
+
+async def check_filtered_validation(
+    adapter: str,
+    replace: Callable[[ToolInfo], ToolInfo],
+    arguments: dict[str, Any],
+    valid: bool,
+) -> None:
+    bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content=TASK)]))
+    bridge.filter = replacing_filter(replace)
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    proposed = ToolCall(id="1", function="run", arguments=arguments)
+    retry = ToolCall(id="2", function="other", arguments={})
+
+    run = await run_bridge(
+        [tool_calls_output(proposed), tool_calls_output(retry)],
+        approval=[ApprovalPolicy(recording_approver(seen), "*")],
+        bridge=bridge,
+        tools=declared_via(adapter, CMD_SCHEMA),
+    )
+
+    if valid:
+        assert run.generations == 1
+        assert [call for _, call, _ in seen] == [proposed]
+    else:
+        assert run.generations == 2
+        (result,) = run.tool_results(1)
+        assert result.error is not None
+        assert result.error.type == "parsing"
+        assert [call for _, call, _ in seen] == [retry]
+
+
+def rebuilt(tool: ToolInfo) -> ToolInfo:
+    return ToolInfo.model_validate(tool.model_dump())
+
+
+def created(tool: ToolInfo) -> ToolInfo:
+    return ToolInfo(
+        name=tool.name,
+        description=tool.description,
+        parameters=ToolParams(
+            properties={"cmd": ToolParam(type="string")}, required=["cmd"]
+        ),
+    )
+
+
+def integer_parameters(tool: ToolInfo) -> ToolInfo:
+    return tool.model_copy(update={"parameters": INT_PARAMS})
+
+
+def integer_parameters_without_verbatim(tool: ToolInfo) -> ToolInfo:
+    return tool.model_copy(update={"parameters": INT_PARAMS, "options": None})
+
+
+def integer_verbatim(tool: ToolInfo) -> ToolInfo:
+    from inspect_ai.model._openai_responses import RESPONSES_VERBATIM
+
+    verbatim = dict((tool.options or {})[RESPONSES_VERBATIM])
+    verbatim["parameters"] = INT_PARAMS.model_dump(exclude_none=True)
+    return tool.model_copy(
+        update={"parameters": INT_PARAMS, "options": {RESPONSES_VERBATIM: verbatim}}
+    )
+
+
+@pytest.mark.parametrize("adapter", ["completions", "responses", "anthropic", "google"])
+@pytest.mark.parametrize("replace", [rebuilt, created], ids=["rebuilt", "created"])
+async def test_declaration_rebuilt_or_created_by_a_filter_is_validated(
+    adapter: str, replace: Callable[[ToolInfo], ToolInfo]
+) -> None:
+    await check_filtered_validation(adapter, replace, {"cmd": 7}, False)
+    await check_filtered_validation(adapter, replace, {"cmd": "ls"}, True)
+
+
+@pytest.mark.parametrize("adapter", ["completions", "anthropic", "google"])
+async def test_declaration_whose_schema_a_filter_changed_uses_the_new_schema(
+    adapter: str,
+) -> None:
+    await check_filtered_validation(adapter, integer_parameters, {"cmd": 7}, True)
+    await check_filtered_validation(adapter, integer_parameters, {"cmd": "ls"}, False)
+
+
+@pytest.mark.parametrize(
+    "replace",
+    [integer_verbatim, integer_parameters_without_verbatim],
+    ids=["verbatim-changed", "verbatim-removed"],
+)
+async def test_responses_declaration_a_filter_changed_uses_the_forwarded_schema(
+    replace: Callable[[ToolInfo], ToolInfo],
+) -> None:
+    await check_filtered_validation("responses", replace, {"cmd": 7}, True)
+    await check_filtered_validation("responses", replace, {"cmd": "ls"}, False)

@@ -1,9 +1,9 @@
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Annotated, Any, Literal, NamedTuple
 
 import pytest
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, AliasPath, BaseModel, Field
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
@@ -994,6 +994,30 @@ class OuterPayload(BaseModel):
     items: list[UnionPayload]
 
 
+class LiteralPayload(BaseModel):
+    amount: float | Literal["unlimited"]
+
+
+class AnnotatedPayload(BaseModel):
+    amount: Annotated[float, Field(gt=0)] | str
+
+
+class BytesPayload(BaseModel):
+    amount: float | bytes
+
+
+class AnyPayload(BaseModel):
+    amount: float | Any
+
+
+class PathPayload(BaseModel):
+    amount: float = Field(validation_alias=AliasPath("values", 0))
+
+
+class OuterLiteralPayload(BaseModel):
+    items: list[LiteralPayload]
+
+
 @tool
 def model_inputs(received: list[dict[str, Any]]):
     async def execute(
@@ -1002,6 +1026,11 @@ def model_inputs(received: list[dict[str, Any]]):
         alias: AliasPayload | None = None,
         choices: ChoicesPayload | None = None,
         outer: OuterPayload | None = None,
+        literal: LiteralPayload | None = None,
+        annotated: AnnotatedPayload | None = None,
+        raw: BytesPayload | None = None,
+        anything: AnyPayload | None = None,
+        outer_literal: OuterLiteralPayload | None = None,
     ) -> str:
         """Record model inputs.
 
@@ -1011,6 +1040,11 @@ def model_inputs(received: list[dict[str, Any]]):
             alias: An aliased field.
             choices: A field with alias choices.
             outer: A nested model in a container.
+            literal: A union with a Literal member.
+            annotated: A union with an annotated member.
+            raw: A union with a bytes member.
+            anything: A union with an Any member.
+            outer_literal: Nested models with a Literal union member.
         """
         received.append(
             {
@@ -1019,6 +1053,11 @@ def model_inputs(received: list[dict[str, Any]]):
                 "alias": alias,
                 "choices": choices,
                 "outer": outer,
+                "literal": literal,
+                "annotated": annotated,
+                "raw": raw,
+                "anything": anything,
+                "outer_literal": outer_literal,
             }
         )
         return "ok"
@@ -1032,6 +1071,11 @@ MODEL_INPUT_CASES: list[tuple[str, dict[str, Any]]] = [
     ("alias", {"alias": {"value": 2**53 + 1}}),
     ("alias-choices", {"choices": {"value": 2**53 + 1}}),
     ("nested", {"outer": {"items": [{"amount": 2**53 + 1}]}}),
+    ("literal", {"literal": {"amount": 2**53 + 1}}),
+    ("annotated", {"annotated": {"amount": 2**53 + 1}}),
+    ("bytes", {"raw": {"amount": 2**53 + 1}}),
+    ("any", {"anything": {"amount": 2**53 + 1}}),
+    ("nested-literal", {"outer_literal": {"items": [{"amount": 2**53 + 1}]}}),
 ]
 
 
@@ -1079,6 +1123,11 @@ async def test_exact_model_fields_run_as_approved() -> None:
         "alias": {"value": exact},
         "choices": {"value": exact},
         "outer": {"items": [{"amount": "text"}, {"amount": exact}]},
+        "literal": {"amount": exact},
+        "annotated": {"amount": exact},
+        "raw": {"amount": exact},
+        "anything": {"amount": exact},
+        "outer_literal": {"items": [{"amount": "unlimited"}, {"amount": exact}]},
     }
 
     message, calls, viewed, received = await execute_model_inputs(arguments)
@@ -1094,6 +1143,57 @@ async def test_exact_model_fields_run_as_approved() -> None:
     assert values["outer"] == OuterPayload(
         items=[UnionPayload(amount="text"), UnionPayload(amount=float(exact))]
     )
+    for key in ("literal", "annotated", "raw", "anything"):
+        assert values[key].amount == exact
+    assert values["outer_literal"] == OuterLiteralPayload(
+        items=[LiteralPayload(amount="unlimited"), LiteralPayload(amount=exact)]
+    )
+
+
+@tool
+def path_input(received: list[PathPayload]):
+    async def execute(payload: PathPayload) -> str:
+        """Record a payload read through an alias path.
+
+        Args:
+            payload: The payload.
+        """
+        received.append(payload)
+        return "ok"
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "amount,valid", [(2**53 + 1, False), (2**52, True)], ids=["inexact", "exact"]
+)
+async def test_alias_path_field_converts_exactly(amount: int, valid: bool) -> None:
+    received: list[PathPayload] = []
+    calls: list[ToolCall] = []
+    tool_def = ToolDef(
+        path_input(received),
+        parameters=ToolParams(
+            properties={"payload": ToolParam()}, required=["payload"]
+        ),
+    )
+
+    message = await execute_with_approval(
+        ToolCall(
+            id="1", function="path_input", arguments={"payload": {"values": [amount]}}
+        ),
+        [tool_def],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    if valid:
+        assert message.error is None
+        assert len(calls) == 1
+        assert [payload.amount for payload in received] == [float(amount)]
+    else:
+        assert message.error is not None
+        assert message.error.type == "parsing"
+        assert calls == []
+        assert received == []
 
 
 if __name__ == "__main__":

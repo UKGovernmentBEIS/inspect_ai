@@ -1,5 +1,6 @@
 import inspect
 import json
+import math
 import string
 import types
 import typing
@@ -1465,13 +1466,19 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
                 annotation = model_field.annotation
                 if annotation is None:
                     continue
-                for key in _model_field_input_keys(name, model_field):
-                    if key in input:
+                for path in _model_field_input_paths(name, model_field):
+                    key = path[0]
+                    if len(path) == 1 and isinstance(key, str) and key in input:
                         model_data[key] = tool_param(annotation, input[key])
             try:
-                return type_hint(**model_data)
+                model = type_hint(**model_data)
             except (TypeError, ValueError) as ex:
                 raise unable_to_convert(ex) from ex
+            # the model's own validation (e.g. of a union with a Literal
+            # member, or a nested alias path) can still round a number
+            if not _model_preserves(input, model):
+                raise unable_to_convert(ValueError("a value would change"))
+            return model
         elif isinstance(type_hint, EnumMeta):
             try:
                 return type_hint(input)
@@ -1542,19 +1549,72 @@ def _union_param(
     raise unable_to_convert()
 
 
-def _model_field_input_keys(name: str, field: FieldInfo) -> list[str]:
-    """The input keys a Pydantic model field can be validated from."""
-    keys = [name]
-    if field.alias:
-        keys.append(field.alias)
+def _model_field_input_paths(
+    name: str, field: FieldInfo
+) -> list[tuple[str | int, ...]]:
+    """The input paths a Pydantic model field can be validated from, in order."""
+    paths: list[tuple[str | int, ...]] = []
     aliases = field.validation_alias
     choices = aliases.choices if isinstance(aliases, AliasChoices) else [aliases]
     for choice in choices:
         if isinstance(choice, str):
-            keys.append(choice)
-        elif isinstance(choice, AliasPath) and len(choice.path) == 1:
-            keys.extend(key for key in choice.path if isinstance(key, str))
-    return keys
+            paths.append((choice,))
+        elif isinstance(choice, AliasPath):
+            paths.append(tuple(choice.path))
+    if field.alias:
+        paths.append((field.alias,))
+    paths.append((name,))
+    return paths
+
+
+def _model_preserves(supplied: dict[str, Any], model: BaseModel) -> bool:
+    """Whether each supplied field value is the one `model` holds (numerically)."""
+    for name, field in type(model).model_fields.items():
+        for path in _model_field_input_paths(name, field):
+            found, value = _input_at(supplied, path)
+            if found:
+                if not _value_preserved(value, getattr(model, name)):
+                    return False
+                break
+    return True
+
+
+def _input_at(value: Any, path: tuple[str | int, ...]) -> tuple[bool, Any]:
+    for key in path:
+        if isinstance(key, str) and isinstance(value, dict) and key in value:
+            value = value[key]
+        elif (
+            isinstance(key, int)
+            and isinstance(value, list)
+            and -len(value) <= key < len(value)
+        ):
+            value = value[key]
+        else:
+            return False, None
+    return True, value
+
+
+def _value_preserved(supplied: Any, built: Any) -> bool:
+    """Whether `built` holds `supplied` without a changed number or flag."""
+    if isinstance(built, BaseModel):
+        return not isinstance(supplied, dict) or _model_preserves(supplied, built)
+    if isinstance(supplied, int | float) and isinstance(built, int | float):
+        if isinstance(supplied, bool) != isinstance(built, bool):
+            return False
+        return bool(supplied == built) or (
+            isinstance(supplied, float) and math.isnan(supplied) and math.isnan(built)
+        )
+    if isinstance(supplied, list) and isinstance(built, list | tuple):
+        return len(supplied) == len(built) and all(
+            _value_preserved(s, b) for s, b in zip(supplied, built)
+        )
+    if isinstance(supplied, dict) and isinstance(built, dict):
+        return all(
+            _value_preserved(value, built[key])
+            for key, value in supplied.items()
+            if key in built
+        )
+    return True
 
 
 def _exact_scalar(type_hint: Type[Any], value: Any) -> Any:
@@ -1612,31 +1672,29 @@ def validate_declared_input(
 ) -> str | None:
     """Validate `input` against a JSON Schema as an external client declared it.
 
-    The schema's own `$schema` dialect is used (Draft 7 by default). A schema
-    that is itself invalid, or has a reference that cannot be resolved, cannot
-    say whether the input is valid: that is logged and the input is accepted.
+    The schema's own `$schema` dialect is used (Draft 7 by default). References
+    resolve only within the schema: nothing is retrieved from the network or
+    from files. A schema that is itself invalid, or has a reference that does
+    not resolve within it, fails validation, since it cannot show the input is
+    valid.
     """
     from jsonschema import Draft7Validator
     from jsonschema.exceptions import SchemaError
     from jsonschema.validators import validator_for
-
-    unusable_schema: tuple[type[Exception], ...] = (SchemaError,)
-    try:
-        from referencing.exceptions import Unresolvable
-
-        unusable_schema += (Unresolvable,)
-    except ImportError:  # jsonschema < 4.18
-        from jsonschema.exceptions import RefResolutionError
-
-        unusable_schema += (RefResolutionError,)
+    from referencing import Registry
+    from referencing.exceptions import Unresolvable
 
     try:
         validator_class = validator_for(schema, default=Draft7Validator)
         validator_class.check_schema(schema)
-        errors = list(validator_class(schema).iter_errors(input))
-    except unusable_schema as ex:
-        warn_once(logger, f"Unable to validate tool input against its schema: {ex}")
-        return None
+        # an empty registry retrieves nothing (jsonschema's default fetches URLs)
+        registry: Registry[Any] = Registry()
+        validator = validator_class(schema, registry=registry)
+        errors = list(validator.iter_errors(input))
+    except SchemaError as ex:
+        return f"The tool's declared parameter schema is invalid: {ex.message}"
+    except Unresolvable as ex:
+        return f"The tool's declared parameter schema has a reference that does not resolve within it: {ex}"
     return _validation_message(errors)
 
 

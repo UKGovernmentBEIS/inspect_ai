@@ -59,7 +59,9 @@ class ToolInfo(BaseModel):
 
     _declared_parameters: dict[str, Any] | None = PrivateAttr(default=None)
     # the parameters JSON Schema as an agent bridge's scaffold declared it
-    # (`parameters` is a normalized copy that can lose constraints); not serialized
+    # (`parameters` is a normalized copy that can lose constraints), and the
+    # `parameters` it was declared with; not serialized
+    _declared_for: ToolParams | None = PrivateAttr(default=None)
 
 
 INTERNAL_TOOL_TYPE = "__internal_tool_type__"
