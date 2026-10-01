@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Tool events now record the arguments an approver's `modify` decision substituted, and a `modify` that changes the function now fails the sample instead of running the wrong call.
+
 ## 0.3.274 (01 October 2026)
 
 - Sandbox tools: the root check now runs once at sample start, before solver/agent execution begins; an inconclusive check warns before falling back to the sandbox's default user, and a check that could not run, or a later root failure, is an error.
