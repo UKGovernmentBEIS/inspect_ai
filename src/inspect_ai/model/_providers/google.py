@@ -104,6 +104,7 @@ from inspect_ai.model._model_output import (
     StopCategory,
     StopDetails,
     collect_stop_details,
+    sum_usage,
 )
 from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
 from inspect_ai.model._providers._google_citations import (
@@ -516,6 +517,8 @@ class GoogleGenAIAPI(ModelAPI):
             )
 
             response: GenerateContentResponse | None = None
+            # every attempt of the retry loop below is billed
+            usage: ModelUsage | None = None
 
             try:
                 # google sometimes requires retries for malformed function calls
@@ -541,6 +544,9 @@ class GoogleGenAIAPI(ModelAPI):
                             contents=gemini_contents,  # type: ignore[arg-type]
                             config=parameters,
                         )
+                    usage = sum_usage(
+                        usage, usage_metadata_to_model_usage(response.usage_metadata)
+                    )
                     # retry for MALFORMED_FUNCTION_CALL
                     if (
                         response.candidates
@@ -575,7 +581,10 @@ class GoogleGenAIAPI(ModelAPI):
                     {"error": {"message": str(ex.message), "code": ex.code}},
                     http_hooks.end_request(request_id),
                 )
-                return self.handle_client_error(ex), model_call
+                handled = self.handle_client_error(ex)
+                if isinstance(handled, ModelOutput):
+                    handled.usage = usage
+                return handled, model_call
 
             assert response is not None  # mypy confused by retry loop
 
@@ -591,7 +600,7 @@ class GoogleGenAIAPI(ModelAPI):
                 choices=completion_choices_from_candidates(
                     model_name, response, has_computer_use
                 ),
-                usage=usage_metadata_to_model_usage(response.usage_metadata),
+                usage=usage,
             )
 
             return output, model_call

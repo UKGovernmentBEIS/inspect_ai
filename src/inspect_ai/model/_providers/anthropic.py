@@ -197,6 +197,7 @@ from .._model_output import (
     StopDetails,
     StopReason,
     collect_stop_details,
+    sum_usage,
 )
 from .._providers._anthropic_citations import (
     to_anthropic_citation,
@@ -295,6 +296,11 @@ _REMINDER_SYSTEM_HOISTED_WARNING = (
 # costs only the write premium on tokens already being repaid, and protects the
 # rest of the sample from further expiry.
 CACHE_TTL_ESCALATION_GAP = 300.0  # seconds (= the default 5m cache TTL)
+
+# Most pause_turn continuations sent for one generate call. Each pause_turn ends
+# a server-side tool loop, so this allows a long turn while bounding a chain of
+# billed requests that never finishes.
+MAX_PAUSE_TURN_CONTINUATIONS = 10
 
 # TTL sent on the request whose usage is currently being recorded, read back by
 # cache_write_ttl() for cost accounting: escalation state is sticky and shared,
@@ -1093,12 +1099,20 @@ class AnthropicAPI(ModelAPI):
         | None = None,
         pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
         span_recorder: "_ServerToolSpanRecorder | None" = None,
+        continuations: int = 0,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
 
         It considers the result from the initial request the "head" and the result
-        from the continuation the "tail".
+        from the continuation the "tail". The returned output's usage is the sum
+        over the head and every continuation, since each one is billed.
+
+        After `MAX_PAUSE_TURN_CONTINUATIONS` continuations a further pause_turn
+        is not continued: the content generated so far is returned with stop
+        reason "unknown" and `stop_details.type` "pause_turn". Returning it
+        rather than raising keeps the usage of the billed requests, and matches
+        Anthropic's contract that a paused turn can be resumed by sending it back.
         """
         # each continuation re-sends the same cache_control, so it refreshes the
         # cache entry at its own prefill -- record it as the gap baseline
@@ -1148,7 +1162,19 @@ class AnthropicAPI(ModelAPI):
             span_recorder=span_recorder,
         )
 
-        if continuation_required:
+        if continuation_required and continuations >= MAX_PAUSE_TURN_CONTINUATIONS:
+            logger.warning(
+                f"{self.model_name}: stopped after {continuations} pause_turn "
+                "continuations; returning the paused turn."
+            )
+            head_model_output.choices[0].stop_details = StopDetails(
+                type="pause_turn",
+                explanation=(
+                    f"Turn still paused after {continuations} continuations "
+                    "(the continuation limit)."
+                ),
+            )
+        elif continuation_required:
             tail_request = dict(request)
             tail_request["messages"] = request["messages"] + [
                 MessageParam(role=head_message.role, content=head_message.content)
@@ -1165,6 +1191,11 @@ class AnthropicAPI(ModelAPI):
                 pending_tool_uses=pending_tool_uses,
                 pending_mcp_tool_uses=pending_mcp_tool_uses,
                 span_recorder=span_recorder,
+                continuations=continuations + 1,
+            )
+
+            tail_model_output.usage = sum_usage(
+                head_model_output.usage, tail_model_output.usage
             )
 
             head_content = _content_list(head_model_output.message.content)

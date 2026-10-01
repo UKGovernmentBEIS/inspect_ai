@@ -69,6 +69,20 @@ class ModelUsage(BaseModel):
         )
 
 
+def sum_usage(*usages: ModelUsage | None) -> ModelUsage | None:
+    """Sum the usage of several billed requests, skipping any without usage.
+
+    Returns `None` when no request reported usage.
+    """
+    reported = [usage for usage in usages if usage is not None]
+    if not reported:
+        return None
+    total = reported[0]
+    for usage in reported[1:]:
+        total = total + usage
+    return total
+
+
 class ModelFallback(BaseModel):
     """A model fallback (request served by a different model than requested)."""
 
