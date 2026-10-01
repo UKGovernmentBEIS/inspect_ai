@@ -143,6 +143,8 @@ async def test_reasoning_summaries_probe_usage_reported_once(
             input_tokens_cache_read=2,
             reasoning_tokens=20,
         )
+        # the probe's prompt was never part of the input
+        assert first.input_context_tokens == 100
 
         # the probe runs once per provider instance, so later calls report
         # only their own usage

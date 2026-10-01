@@ -198,6 +198,7 @@ from .._model_output import (
     StopReason,
     collect_stop_details,
     sum_usage,
+    usage_input_tokens,
 )
 from .._providers._anthropic_citations import (
     to_anthropic_citation,
@@ -331,6 +332,12 @@ class _ContinuationChain:
 
     usage: ModelUsage | None = None
     """Usage summed over those requests (each one is billed)."""
+
+    input_context_tokens: int | None = None
+    """Input size of the head request, the one built from the generate input.
+
+    Later requests also carry the partial turn, which the returned message holds.
+    """
 
 
 @dataclass
@@ -936,6 +943,7 @@ class AnthropicAPI(ModelAPI):
             handled = self.handle_bad_request(ex)
             if isinstance(handled, ModelOutput):
                 handled.usage = chain.usage
+                handled.input_context_tokens = chain.input_context_tokens
             return handled, model_call or ModelCall(request={})
 
         except APIStatusError as ex:
@@ -947,6 +955,7 @@ class AnthropicAPI(ModelAPI):
                     error=ex.message,
                 )
                 too_large.usage = chain.usage
+                too_large.input_context_tokens = chain.input_context_tokens
                 return too_large, model_call or ModelCall(request={})
             # Content-filter errors that arrive mid-stream surface as a plain
             # APIStatusError (the SDK can't infer the 400 subclass once the
@@ -955,6 +964,7 @@ class AnthropicAPI(ModelAPI):
             handled = self.handle_bad_request(ex)
             if isinstance(handled, ModelOutput):
                 handled.usage = chain.usage
+                handled.input_context_tokens = chain.input_context_tokens
                 return handled, model_call or ModelCall(request={})
             raise ex
 
@@ -1188,6 +1198,8 @@ class AnthropicAPI(ModelAPI):
         )
         chain.requests += 1
         chain.usage = sum_usage(chain.usage, head_model_output.usage)
+        if chain.requests == 1:
+            chain.input_context_tokens = usage_input_tokens(head_model_output.usage)
         continuations = chain.requests - 1
 
         if continuation_required and continuations >= MAX_PAUSE_TURN_CONTINUATIONS:
@@ -1242,6 +1254,7 @@ class AnthropicAPI(ModelAPI):
 
         # the last request of the chain reports the usage of all of them
         head_model_output.usage = chain.usage
+        head_model_output.input_context_tokens = chain.input_context_tokens
 
         # NOTE: we do warnings="none" here because we are including beta API message
         # params (for MCP tool use/result) in the payload which causes Message to emit

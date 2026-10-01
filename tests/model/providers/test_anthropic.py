@@ -1054,6 +1054,8 @@ async def test_anthropic_pause_turn_chain_sums_usage() -> None:
     assert output.usage.input_tokens_cache_read == 1000 + 2000 + 3000
     assert output.usage.reasoning_tokens == 1 + 2 + 3
     assert output.usage.total_tokens == 1111 * (1 + 2 + 3)
+    # the context size is the head request's input, not the sum
+    assert output.input_context_tokens == 10 + 100 + 1000
 
 
 async def test_anthropic_pause_turn_continuations_are_bounded() -> None:
@@ -1081,6 +1083,7 @@ async def test_anthropic_pause_turn_continuations_are_bounded() -> None:
     assert output.usage is not None
     assert output.usage.input_tokens == sum(10 * i for i in range(1, requests + 1))
     assert output.usage.output_tokens == sum(range(1, requests + 1))
+    assert output.input_context_tokens == 10 + 100 + 1000
 
 
 def _handled_continuation_error(kind: str) -> Exception:
@@ -1153,6 +1156,7 @@ async def test_anthropic_continuation_error_keeps_earlier_usage(kind: str) -> No
     assert output.usage.input_tokens_cache_write == 100 + 200
     assert output.usage.input_tokens_cache_read == 1000 + 2000
     assert output.usage.reasoning_tokens == 1 + 2
+    assert output.input_context_tokens == 10 + 100 + 1000
 
 
 @pytest.mark.parametrize("kind", list(_HANDLED_ERROR_STOP_REASONS))
@@ -1179,6 +1183,7 @@ async def test_anthropic_initial_request_error_reports_no_usage(kind: str) -> No
     assert isinstance(output, ModelOutput)
     assert output.stop_reason == _HANDLED_ERROR_STOP_REASONS[kind]
     assert output.usage is None
+    assert output.input_context_tokens is None
 
 
 @pytest.mark.anyio

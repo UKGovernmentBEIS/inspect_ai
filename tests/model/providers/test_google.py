@@ -1053,6 +1053,8 @@ async def test_malformed_function_call_retry_sums_usage():
     assert output.usage.output_tokens == 5 + 9 + 13
     assert output.usage.reasoning_tokens == 3 + 5 + 7
     assert output.usage.total_tokens == 15 + 29 + 43
+    # the context size is the first attempt's prompt, not the sum
+    assert output.input_context_tokens == 10
 
 
 @pytest.mark.anyio
@@ -1086,6 +1088,7 @@ async def test_malformed_function_call_retry_exhausted_sums_usage():
     assert output.usage.input_tokens == 9 + 19 + 29
     assert output.usage.output_tokens == 2 + 4 + 6
     assert output.usage.total_tokens == 12 + 24 + 36
+    assert output.input_context_tokens == 10
 
 
 @pytest.mark.anyio
@@ -1127,6 +1130,7 @@ async def test_malformed_function_call_retry_error_keeps_earlier_usage():
     assert output.usage is not None
     assert output.usage.input_tokens == 9
     assert output.usage.output_tokens == 2
+    assert output.input_context_tokens == 10
 
 
 # Tests for count_tokens with unpaired tool messages

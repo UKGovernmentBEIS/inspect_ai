@@ -35,7 +35,7 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
-from .._model_output import ModelOutput, ModelUsage, sum_usage
+from .._model_output import ModelOutput, ModelUsage, sum_usage, usage_input_tokens
 from .._openai import (
     always_reasons_model,
     is_gpt_5_model,
@@ -657,9 +657,12 @@ class OpenAIAPI(ModelAPI):
             response = await generate_once(False)
 
         # the probe is billed, so this call's output reports its usage too
+        # (but its prompt was never part of the input)
         if probe_usage is not None:
             output = response[0] if isinstance(response, tuple) else response
             if isinstance(output, ModelOutput):
+                if output.input_context_tokens is None:
+                    output.input_context_tokens = usage_input_tokens(output.usage)
                 output.usage = sum_usage(probe_usage, output.usage)
 
         return response

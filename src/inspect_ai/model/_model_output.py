@@ -69,6 +69,17 @@ class ModelUsage(BaseModel):
         )
 
 
+def usage_input_tokens(usage: ModelUsage | None) -> int | None:
+    """All input tokens of one request's usage: full rate, cache read and cache write."""
+    if usage is None:
+        return None
+    return (
+        usage.input_tokens
+        + (usage.input_tokens_cache_read or 0)
+        + (usage.input_tokens_cache_write or 0)
+    )
+
+
 def sum_usage(*usages: ModelUsage | None) -> ModelUsage | None:
     """Sum the usage of several billed requests, skipping any without usage.
 
@@ -283,7 +294,16 @@ class ModelOutput(BaseModel):
     """Model completion."""
 
     usage: ModelUsage | None = Field(default=None)
-    """Model token usage"""
+    """Token usage billed for this generate call, summed over every request it made."""
+
+    input_context_tokens: int | None = Field(default=None)
+    """Tokens the input occupied in the model's context window.
+
+    Counts the system prompt, tools and input messages, cached tokens included.
+    For a call that made several requests, this is the size of the request built
+    from the input, not a sum. None when unknown (e.g. logs written before this
+    field existed).
+    """
 
     fallback: ModelFallback | None = Field(default=None)
     """Model fallback that served this output (None if served by the requested model)."""

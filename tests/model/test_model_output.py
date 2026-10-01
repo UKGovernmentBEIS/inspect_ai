@@ -1,8 +1,11 @@
 import math
 from pathlib import Path
 
+from inspect_ai import Task, eval
+from inspect_ai.dataset import Sample
+from inspect_ai.event import ModelEvent
 from inspect_ai.log._file import read_eval_log
-from inspect_ai.model import compute_model_cost
+from inspect_ai.model import ModelOutput, compute_model_cost, get_model
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_output import ModelUsage
 
@@ -193,3 +196,52 @@ def test_compute_model_cost_cache_ttl_does_not_affect_other_tokens() -> None:
         compute_model_cost(cost_data, usage, "1h"),
         compute_model_cost(cost_data, usage),
     )
+
+
+def test_input_context_tokens_absent_from_old_log() -> None:
+    log_file = (
+        Path(__file__).parent.parent
+        / "log"
+        / "test_list_logs"
+        / "2024-11-05T13-31-45-05-00_input-task_8zXjbRzCWrL9GXiXo2vus9.json"
+    )
+    log = read_eval_log(log_file)
+    assert log.samples
+    assert log.samples[0].output.input_context_tokens is None
+
+
+def test_input_context_tokens_round_trip() -> None:
+    output = ModelOutput.from_content("mockllm/model", "hi")
+    output.usage = ModelUsage(input_tokens=30, output_tokens=2, total_tokens=32)
+    output.input_context_tokens = 10
+    restored = ModelOutput.model_validate_json(output.model_dump_json())
+    assert restored.input_context_tokens == 10
+    assert restored.usage == output.usage
+
+    dumped = output.model_dump()
+    del dumped["input_context_tokens"]
+    assert ModelOutput.model_validate(dumped).input_context_tokens is None
+
+
+def test_input_context_tokens_defaults_from_usage(tmp_path: Path) -> None:
+    """Generate fills the context size from a single request's usage, and logs keep it."""
+    output = ModelOutput.from_content("mockllm/model", "hi")
+    output.usage = ModelUsage(
+        input_tokens=30,
+        output_tokens=2,
+        total_tokens=42,
+        input_tokens_cache_read=7,
+        input_tokens_cache_write=3,
+    )
+    log = eval(
+        Task(dataset=[Sample(input="hello")]),
+        model=get_model("mockllm/model", custom_outputs=[output]),
+        log_dir=str(tmp_path),
+    )[0]
+
+    log = read_eval_log(log.location)
+    assert log.samples
+    events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert len(events) == 1
+    assert events[0].output.input_context_tokens == 30 + 7 + 3
+    assert log.samples[0].output.input_context_tokens == 30 + 7 + 3
