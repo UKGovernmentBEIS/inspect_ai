@@ -981,7 +981,7 @@ async def completion_content_chunks(content: ContentChunk) -> list[Content]:
         return [ContentText(text=f"file: {content.file_id}")]
     elif isinstance(content, ImageURLChunk):
         if isinstance(content.image_url, str):
-            return [await mistral_output_image(content.image_url, "auto")]
+            return [mistral_output_image(content.image_url, "auto")]
         else:
             detail: Literal["auto", "low", "high"]
             match content.image_url.detail:
@@ -991,7 +991,7 @@ async def completion_content_chunks(content: ContentChunk) -> list[Content]:
                     detail = "high"
                 case _:
                     detail = "auto"
-            return [await mistral_output_image(content.image_url.url, detail)]
+            return [mistral_output_image(content.image_url.url, detail)]
     elif isinstance(content, ThinkChunk):
         return [
             ContentReasoning(

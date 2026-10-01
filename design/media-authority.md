@@ -50,9 +50,8 @@ identity or media authority.
 "Fixed dataset" means Inspect treats the dataset as evaluator-authorized; it
 does not mean Inspect proved the dataset safe. `materialize_media()` can read
 local and remote files, use configured filesystem backends, and fetch HTTP URLs.
-Trusted HTTP fetching follows redirects and does not currently apply the
-private-address, port, or response-size restrictions used for untrusted provider
-output.
+Trusted HTTP fetching follows redirects and does not restrict destination
+addresses, ports, or response sizes.
 
 Selecting a third-party dataset that contains URLs can therefore cause requests
 to destinations reached through those URLs or redirects. Operators should review

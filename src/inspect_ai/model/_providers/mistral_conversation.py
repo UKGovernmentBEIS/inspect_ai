@@ -469,7 +469,7 @@ async def completion_choices_from_conversation_response(
     ]
 
 
-async def mistral_output_image(
+def mistral_output_image(
     image: str, detail: Literal["auto", "low", "high"]
 ) -> ContentImage | ContentText:
     """Convert an image returned in Mistral model output to content.
@@ -488,7 +488,7 @@ async def mistral_output_image(
         downloaded.
     """
     if is_data_uri(image):
-        return ContentImage(image=await provider_image_data_uri(image), detail=detail)
+        return ContentImage(image=provider_image_data_uri(image), detail=detail)
     warn_once(
         logger,
         "Mistral returned an image URL in model output. Inspect does not download "
@@ -508,9 +508,9 @@ async def content_from_mistral_content_chunk(
             return ContentText(text=chunk.text, citations=citations)
         case ImageURLChunk():
             if isinstance(chunk.image_url, str):
-                return await mistral_output_image(chunk.image_url, "auto")
+                return mistral_output_image(chunk.image_url, "auto")
             else:
-                return await mistral_output_image(
+                return mistral_output_image(
                     chunk.image_url.url,
                     chunk.image_url.detail  # type: ignore[arg-type]
                     if isinstance(chunk.image_url.detail, str)

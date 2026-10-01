@@ -1,12 +1,14 @@
 import json
 import logging
-from contextlib import contextmanager
-from typing import Any, Iterator, Literal
-from unittest.mock import AsyncMock, patch
+from typing import Any, Literal
 
 import httpx2
 import pytest
-from test_helpers.utils import skip_if_no_mistral, skip_if_no_mistral_package
+from test_helpers.utils import (
+    no_network,
+    skip_if_no_mistral,
+    skip_if_no_mistral_package,
+)
 
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.model import (
@@ -137,22 +139,6 @@ async def test_completion_content_chunks_image_url_string():
     assert result[0].image == image
 
 
-@contextmanager
-def _no_network() -> Iterator[tuple[AsyncMock, AsyncMock]]:
-    """Fail any DNS lookup or TCP connection made by the provider image fetcher."""
-    with (
-        patch(
-            "inspect_ai._util.images.anyio.getaddrinfo",
-            new=AsyncMock(side_effect=AssertionError("unexpected DNS lookup")),
-        ) as getaddrinfo,
-        patch(
-            "httpcore.AnyIOBackend.connect_tcp",
-            new=AsyncMock(side_effect=AssertionError("unexpected connection")),
-        ) as connect_tcp,
-    ):
-        yield getaddrinfo, connect_tcp
-
-
 def _assert_image_url_placeholder(content: Any, url: str) -> None:
     assert isinstance(content, ContentText)
     assert content.text == f"[Image URL returned by the model, not downloaded: {url}]"
@@ -171,11 +157,11 @@ async def test_completion_content_chunks_image_url_is_not_downloaded(
     chunk = ImageURLChunk(
         image_url=url if detail is None else ImageURL(url=url, detail=detail)
     )
-    with _no_network() as (getaddrinfo, connect_tcp):
+    with no_network() as (getaddrinfo, connect):
         result = await completion_content_chunks(chunk)
 
     getaddrinfo.assert_not_called()
-    connect_tcp.assert_not_called()
+    connect.assert_not_called()
     assert len(result) == 1
     _assert_image_url_placeholder(result[0], url)
 
@@ -188,7 +174,7 @@ async def test_completion_content_chunks_data_uri_object_keeps_detail() -> None:
 
     image = "data:image/png;base64,iVBORw0KGgo="
     chunk = ImageURLChunk(image_url=ImageURL(url=image, detail="high"))
-    with _no_network():
+    with no_network():
         result = await completion_content_chunks(chunk)
 
     assert len(result) == 1
@@ -208,7 +194,7 @@ async def test_mistral_output_url_placeholder_replays_as_text() -> None:
 
     url = "https://example.com/img.png"
     chunk = ImageURLChunk(image_url=ImageURL(url=url, detail="high"))
-    with _no_network():
+    with no_network():
         content = (await completion_content_chunks(chunk))[0]
         replayed = await mistral_content_chunk(content)
 
@@ -233,11 +219,11 @@ async def test_mistral_conversation_output_url_is_not_downloaded(
     chunk = ImageURLChunk(
         image_url=url if detail is None else ImageURL(url=url, detail=detail)
     )
-    with _no_network() as (getaddrinfo, connect_tcp):
+    with no_network() as (getaddrinfo, connect):
         content = await content_from_mistral_content_chunk(chunk)
 
     getaddrinfo.assert_not_called()
-    connect_tcp.assert_not_called()
+    connect.assert_not_called()
     _assert_image_url_placeholder(content, url)
 
 
@@ -256,7 +242,7 @@ async def test_mistral_conversation_output_data_uri_unchanged(
     chunk = ImageURLChunk(
         image_url=image if detail is None else ImageURL(url=image, detail=detail)
     )
-    with _no_network():
+    with no_network():
         content = await content_from_mistral_content_chunk(chunk)
 
     assert isinstance(content, ContentImage)
@@ -276,7 +262,7 @@ async def test_mistral_output_image_url_warns_once(
     )
 
     monkeypatch.setattr("inspect_ai._util.logger._warned", [])
-    with _no_network(), caplog.at_level(logging.WARNING):
+    with no_network(), caplog.at_level(logging.WARNING):
         await completion_content_chunks(
             ImageURLChunk(image_url="https://example.com/a.png")
         )
