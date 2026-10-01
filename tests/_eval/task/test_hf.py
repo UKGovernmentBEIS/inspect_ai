@@ -1,3 +1,8 @@
+import json
+import os
+import subprocess
+import sys
+
 import pytest
 from pydantic import ValidationError
 
@@ -356,3 +361,39 @@ def test_hf_task_epochs_negative():
     config["epochs"] = -1
     with pytest.raises(ValidationError, match="greater than or equal to 1"):
         HFTask.model_validate(config)
+
+
+def test_eval_yaml_read_as_utf8_under_non_utf8_locale(tmp_path):
+    # eval.yaml is UTF-8 by spec. Under a non-UTF-8 default encoding the
+    # pre-fix read crashed (C locale) or silently corrupted (cp1252) on
+    # any non-ASCII task config. U+0181 ("Ɓ") encodes to C6 81: 0x81 is
+    # undefined in cp1252, so the byte sequence hard-fails under both the
+    # C locale and the Windows ANSI code page, and round-trips as UTF-8.
+    yaml_path = tmp_path / "eval.yaml"
+    yaml_path.write_text(
+        "tasks:\n  - id: t\n    dataset:\n      name: 'Ɓorg/data'\n",
+        encoding="utf-8",
+    )
+
+    # Run the read in a subprocess with UTF-8 mode and C-locale coercion
+    # disabled so the default open() encoding is genuinely not UTF-8
+    # (ASCII under LC_ALL=C on POSIX, the ANSI code page on Windows).
+    env = dict(os.environ)
+    env["PYTHONUTF8"] = "0"
+    env["PYTHONCOERCECLOCALE"] = "0"
+    env["LC_ALL"] = "C"
+    env.pop("LANG", None)
+    code = (
+        "import json, sys; "
+        "from inspect_ai._eval.task.hf import _load_eval_yaml; "
+        "print(json.dumps(_load_eval_yaml(sys.argv[1])))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(yaml_path)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    data = json.loads(result.stdout)
+    assert data["tasks"][0]["dataset"]["name"] == "Ɓorg/data"
