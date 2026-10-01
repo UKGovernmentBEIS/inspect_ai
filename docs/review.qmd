@@ -21,7 +21,7 @@ A reviewer returns a `Review` with one of three decisions:
 
 There is no `reject` or `modify`: the call has already run, so there is nothing to reject or rewrite. A result that no policy covers, or that every matching reviewer escalates, continues.
 
-Only calls that executed are reviewed. A call an approver rejected, or that failed before running because its arguments could not be parsed, produced no result and is not reviewed. Handoffs to sub-agents are not reviewed either; the sub-agent's own tool calls are reviewed as they run.
+Only calls that executed are reviewed. A call an approver rejected, or that failed before running because its arguments could not be parsed, produced no result and is not reviewed. A `handoff()` call is reviewed like any other tool once the sub-agent returns: the reviewer sees the handoff call (matched by its tool name, e.g. `transfer_to_helper`) and the transfer result the parent model receives, and the sub-agent's own tool calls are reviewed as they run.
 
 Errors reported by an executed tool are reviewed when they would otherwise be returned to the model, including parsing or approval errors raised from inside the tool.
 

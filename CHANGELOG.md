@@ -6,6 +6,7 @@
 - OpenAI Compatible: Fixed concurrent sample failures during credential refresh, including OpenRouter evaluations on Hawk, and added an overridable `ModelAPI.refresh_credentials()` for model API extensions.
 - OpenAI: Biological-risk policy responses now produce content-filter stops instead of failing samples.
 - Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
+- Tool review now also reviews `handoff()` calls, as approval does.
 
 ## 0.3.273 (29 September 2026)
 

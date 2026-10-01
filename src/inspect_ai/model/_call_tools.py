@@ -976,29 +976,24 @@ async def _apply_tool_review(
 
     Only calls that actually ran are reviewed (the caller checks this): a call
     rejected at the call stage or failed by argument parsing produced no result,
-    and the error the model receives is its feedback. Handoffs are not reviewed
-    either: their "result" is a transfer notice, and the sub-agent's own tool
-    calls are reviewed individually as they execute. The sentinel does see
-    handoff results, as it sees handoff calls before they run.
+    and the error the model receives is its feedback.
 
     Raises:
         TerminateSampleError: A reviewer or the sentinel requested termination.
     """
-    from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.review._apply import apply_tool_review
 
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
-    if tool_def is None or not isinstance(tool_def.tool, AgentTool):
-        review = await apply_tool_review(
-            message,
-            call,
-            result,
-            output,
-            tool_def.viewer if tool_def else None,
-            conversation,
-        )
-        if review is not None and review.decision == "terminate":
-            raise TerminateSampleError("Tool result reviewer requested termination.")
+    review = await apply_tool_review(
+        message,
+        call,
+        result,
+        output,
+        tool_def.viewer if tool_def else None,
+        conversation,
+    )
+    if review is not None and review.decision == "terminate":
+        raise TerminateSampleError("Tool result reviewer requested termination.")
 
     if active_sentinel() is not None:
         from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
