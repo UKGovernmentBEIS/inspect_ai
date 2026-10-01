@@ -84,6 +84,7 @@ def _sentinel_event(**kwargs: Any) -> SentinelEvent:
         conversation="conv_1",
         stage="tool_call",
         kind="decision",
+        status="reported",
         action="reject",
         explanation="too suspicious",
     )
@@ -109,14 +110,15 @@ def _observation(**kwargs: Any) -> SentinelEvent:
     "event",
     [
         _sentinel_event(),
-        _sentinel_event(kind="superseded", audit=True, metadata={"k": 1}),
+        _sentinel_event(status="superseded", audit=True, metadata={"k": 1}),
         _sentinel_event(message="use X instead"),
-        _sentinel_event(kind="superseded", message="use X instead"),
+        _sentinel_event(status="superseded", message="use X instead"),
         _observation(),
         _observation(suspicion={"exfiltration": 0.9, "sabotage": 0.1}),
-        _sentinel_event(kind="bypassed", function=None, action=None),
+        _sentinel_event(status="bypassed", function=None, action=None),
+        _observation(status="cancelled", function=None, suspicion=None),
         _sentinel_event(action="modify", modified=_MODIFIED),
-        _sentinel_event(kind="superseded", action="modify", modified=_MODIFIED),
+        _sentinel_event(status="superseded", action="modify", modified=_MODIFIED),
         _observation(references=_REFERENCES),
         _sentinel_event(references=_REFERENCES),
     ],
@@ -134,7 +136,8 @@ def test_sentinel_event_rejects_invalid_suspicion() -> None:
             _observation(suspicion=suspicion)
 
 
-@pytest.mark.parametrize("kind", ["cancelled", "bypassed"])
+@pytest.mark.parametrize("kind", ["observation", "decision"])
+@pytest.mark.parametrize("status", ["cancelled", "bypassed"])
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -145,9 +148,9 @@ def test_sentinel_event_rejects_invalid_suspicion() -> None:
     ],
 )
 def test_sentinel_event_without_report_rejects_report_fields(
-    kind: str, field: str, value: Any
+    kind: str, status: str, field: str, value: Any
 ) -> None:
-    fields: dict[str, Any] = dict(kind=kind, function=None, action=None)
+    fields: dict[str, Any] = dict(kind=kind, status=status, function=None, action=None)
     _sentinel_event(**fields)
     fields[field] = value
     with pytest.raises(ValidationError, match=field):
@@ -165,31 +168,36 @@ def test_sentinel_observation_requires_suspicion_only(
         _observation(**overrides)
 
 
-@pytest.mark.parametrize("kind", ["decision", "superseded"])
+@pytest.mark.parametrize("status", ["reported", "superseded"])
 @pytest.mark.parametrize(
     "overrides",
     [dict(action=None), dict(suspicion=0.5), dict(function=None)],
 )
 def test_sentinel_decision_requires_action_only(
-    kind: str, overrides: dict[str, Any]
+    status: str, overrides: dict[str, Any]
 ) -> None:
     with pytest.raises(ValidationError):
-        _sentinel_event(kind=kind, **overrides)
+        _sentinel_event(status=status, **overrides)
 
 
-@pytest.mark.parametrize("kind", ["decision", "superseded"])
-def test_sentinel_modify_requires_modified(kind: str) -> None:
+def test_sentinel_superseded_is_only_for_decisions() -> None:
+    with pytest.raises(ValidationError, match="superseded"):
+        _observation(status="superseded")
+
+
+@pytest.mark.parametrize("status", ["reported", "superseded"])
+def test_sentinel_modify_requires_modified(status: str) -> None:
     with pytest.raises(ValidationError, match="requires modified"):
-        _sentinel_event(kind=kind, action="modify")
+        _sentinel_event(status=status, action="modify")
 
 
 @pytest.mark.parametrize(
     "event",
     [
         dict(action="reject"),
-        dict(kind="superseded", action="continue"),
+        dict(status="superseded", action="continue"),
         dict(kind="observation", action=None, suspicion=0.5),
-        dict(kind="cancelled", function=None, action=None),
+        dict(status="cancelled", function=None, action=None),
     ],
 )
 def test_sentinel_modified_is_only_for_modify(event: dict[str, Any]) -> None:
@@ -203,7 +211,7 @@ def test_sentinel_modified_is_only_for_modify(event: dict[str, Any]) -> None:
         dict(action="continue"),
         dict(action="terminate"),
         dict(kind="observation", action=None, suspicion=0.5),
-        dict(kind="bypassed", function=None, action=None),
+        dict(status="bypassed", function=None, action=None),
     ],
 )
 def test_sentinel_message_is_only_for_reject(event: dict[str, Any]) -> None:
@@ -230,3 +238,15 @@ def test_sentinel_event_renders_in_tui() -> None:
     assert "[bold]attempt [/red]" in output
     assert "matched [/red] in output" in output
     assert "use [/red] instead" in output
+
+
+def test_sentinel_event_tui_shows_unreported_status() -> None:
+    from rich.console import Console
+
+    from inspect_ai._display.textual.widgets.transcript import render_event
+
+    displays = render_event(_sentinel_event(status="superseded"))
+    assert displays is not None
+    buffer = io.StringIO()
+    Console(file=buffer, width=200).print(displays[0].content)
+    assert "reject (superseded)" in buffer.getvalue()

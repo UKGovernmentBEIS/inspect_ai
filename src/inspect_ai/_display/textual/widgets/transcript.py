@@ -392,6 +392,8 @@ def render_review_event(event: ReviewEvent) -> EventDisplay:
 
 def render_sentinel_event(event: SentinelEvent) -> EventDisplay:
     summary: str = event.action or event.kind
+    if event.status != "reported":
+        summary = f"{summary} ({event.status})"
     if event.suspicion is not None:
         summary = f"{summary}, suspicion {event.suspicion}"
     if event.explanation:

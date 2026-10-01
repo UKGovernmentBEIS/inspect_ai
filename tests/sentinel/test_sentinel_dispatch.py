@@ -251,7 +251,7 @@ def tool_messages(log: EvalLog) -> list[ChatMessageTool]:
 
 
 def summary(events: list[SentinelEvent]) -> list[tuple[Any, ...]]:
-    return [(e.factory, e.path, e.function, e.kind, e.action) for e in events]
+    return [(e.factory, e.path, e.function, e.kind, e.status, e.action) for e in events]
 
 
 def test_reject_message_reaches_the_model_and_is_recorded() -> None:
@@ -265,7 +265,9 @@ def test_reject_message_reaches_the_model_and_is_recorded() -> None:
     assert "internal reason" not in message.text
 
     events = sentinel_events(log)
-    assert summary(events) == [("d3_reject", "", "decide", "decision", "reject")]
+    assert summary(events) == [
+        ("d3_reject", "", "decide", "decision", "reported", "reject")
+    ]
     assert all(e.stage == "tool_call" for e in events)
     assert all(e.step_id == message.tool_call_id for e in events)
     assert all(e.explanation == "internal reason" for e in events)
@@ -335,12 +337,13 @@ def test_observe_records_observations_without_effect() -> None:
     assert message.error is None
     assert message.text == "2"
     [event] = sentinel_events(log)
-    assert (event.factory, event.path, event.function, event.kind) == (
-        "d3_suspicion",
-        "d3_suspicion",
-        "check",
-        "observation",
-    )
+    assert (
+        event.factory,
+        event.path,
+        event.function,
+        event.kind,
+        event.status,
+    ) == ("d3_suspicion", "d3_suspicion", "check", "observation", "reported")
     assert event.suspicion == 0.4
     assert event.explanation == "looked"
     assert event.action is None
@@ -365,8 +368,8 @@ def test_final_from_a_nested_protocol() -> None:
     assert message.error is not None
     assert message.error.message == "vetoed"
     assert summary(sentinel_events(log)) == [
-        ("inspect_sentinel/concurrent", "", None, "bypassed", None),
-        ("d3_final", "inner", "veto", "decision", "reject"),
+        ("inspect_sentinel/concurrent", "", None, "decision", "bypassed", None),
+        ("d3_final", "inner", "veto", "decision", "reported", "reject"),
     ]
     assert all(e.references == [] for e in sentinel_events(log))
 
@@ -560,9 +563,9 @@ async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
     assert scope.cancelled_caught
     assert cleaned_up.is_set()
     events = [e for e in transcript().events if isinstance(e, SentinelEvent)]
-    assert [(e.path, e.kind) for e in events] == [
-        ("d3_waiting", "cancelled"),
-        ("", "cancelled"),
+    assert [(e.path, e.kind, e.status) for e in events] == [
+        ("d3_waiting", "observation", "cancelled"),
+        ("", "decision", "cancelled"),
     ]
     assert transcript_tool_events() == []
     [span_id] = sentinel_span_ids(transcript().events)
@@ -582,9 +585,9 @@ def test_sample_time_limit_during_the_sentinel_ends_the_sample() -> None:
     assert sample.limit is not None
     assert sample.limit.type == "time"
     assert cleaned_up.is_set()
-    assert [(e.path, e.kind) for e in sentinel_events(log)] == [
-        ("d3_waiting", "cancelled"),
-        ("", "cancelled"),
+    assert [(e.path, e.kind, e.status) for e in sentinel_events(log)] == [
+        ("d3_waiting", "observation", "cancelled"),
+        ("", "decision", "cancelled"),
     ]
     assert tool_messages(log) == []
 

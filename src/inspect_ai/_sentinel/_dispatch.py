@@ -16,6 +16,7 @@ from inspect_sentinel._integration import RunnerContext, run_root
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.registry import registry_lookup
 from inspect_ai.approval._apply import resolve_tool_call_view
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
@@ -43,7 +44,8 @@ from ._context import SentinelFailure, active_sentinel, active_task_metadata
 
 logger = getLogger(__name__)
 
-_Kind = Literal["observation", "decision", "cancelled", "bypassed", "superseded"]
+_Kind = Literal["observation", "decision"]
+_Status = Literal["reported", "cancelled", "bypassed", "superseded"]
 
 
 async def sentinel_before_tool_call(
@@ -300,6 +302,7 @@ class _Recorder:
                 context,
                 step,
                 "observation",
+                "reported",
                 function=reported.function,
                 suspicion=report.suspicion,
                 explanation=report.explanation,
@@ -307,13 +310,13 @@ class _Recorder:
                 metadata=report.metadata,
             )
         else:
-            _emit_decision(context, step, "decision", reported.function, report)
+            _emit_decision(context, step, "reported", reported.function, report)
 
     def cancelled(self, context: RunnerContext, step: Step, name: str) -> None:
-        _emit(context, step, "cancelled")
+        _emit(context, step, _factory_kind(context.factory), "cancelled")
 
     def bypassed(self, context: RunnerContext, step: Step, name: str) -> None:
-        _emit(context, step, "bypassed")
+        _emit(context, step, "decision", "bypassed")
 
     def superseded(
         self, context: RunnerContext, step: Step, reported: Reported[Decision]
@@ -321,17 +324,26 @@ class _Recorder:
         _emit_decision(context, step, "superseded", reported.function, reported.report)
 
 
+def _factory_kind(factory: str) -> _Kind:
+    if registry_lookup("monitor", factory) is not None:
+        return "observation"
+    if registry_lookup("protocol", factory) is not None:
+        return "decision"
+    raise RuntimeError(f"{factory!r} is not a registered monitor or protocol.")
+
+
 def _emit_decision(
     context: RunnerContext,
     step: Step,
-    kind: _Kind,
+    status: _Status,
     function: str,
     decision: Decision,
 ) -> None:
     _emit(
         context,
         step,
-        kind,
+        "decision",
+        status,
         function=function,
         action=decision.action,
         audit=decision.audit,
@@ -347,6 +359,7 @@ def _emit(
     context: RunnerContext,
     step: Step,
     kind: _Kind,
+    status: _Status,
     *,
     function: str | None = None,
     suspicion: SentinelSuspicion | None = None,
@@ -367,6 +380,7 @@ def _emit(
             conversation=step.conversation,
             stage=_stage(step),
             kind=kind,
+            status=status,
             suspicion=suspicion,
             action=action,
             audit=audit,

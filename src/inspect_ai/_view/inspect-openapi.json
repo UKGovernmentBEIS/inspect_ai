@@ -9900,10 +9900,7 @@
           "kind": {
             "enum": [
               "observation",
-              "decision",
-              "cancelled",
-              "bypassed",
-              "superseded"
+              "decision"
             ],
             "title": "Kind",
             "type": "string"
@@ -9984,6 +9981,16 @@
             "title": "Stage",
             "type": "string"
           },
+          "status": {
+            "enum": [
+              "reported",
+              "cancelled",
+              "bypassed",
+              "superseded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
           "step_id": {
             "title": "Step Id",
             "type": "string"
@@ -10036,6 +10043,7 @@
           "conversation",
           "stage",
           "kind",
+          "status",
           "audit",
           "references"
         ],

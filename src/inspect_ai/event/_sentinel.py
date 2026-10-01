@@ -48,8 +48,11 @@ class SentinelEvent(BaseEvent):
     stage: SentinelStage
     """Point in the agent loop the step belongs to."""
 
-    kind: Literal["observation", "decision", "cancelled", "bypassed", "superseded"]
-    """`observation` from a monitor, `decision` from a protocol; `cancelled` and `bypassed` record no report; `superseded` carries a decision that did not take effect."""
+    kind: Literal["observation", "decision"]
+    """The report family: `observation` from a monitor, `decision` from a protocol."""
+
+    status: Literal["reported", "cancelled", "bypassed", "superseded"]
+    """What happened to the report: `reported` carries it; `cancelled` and `bypassed` record no report; `superseded` carries a decision that did not take effect."""
 
     suspicion: SentinelSuspicion | None = Field(default=None)
     """How suspicious the step is: one score, or scores for several dimensions."""
@@ -73,8 +76,8 @@ class SentinelEvent(BaseEvent):
     """Messages and events the report cites, which link cites such as `[M22]` in `explanation`. Empty for `cancelled` and `bypassed` events."""
 
     @model_validator(mode="after")
-    def _check_kind_fields(self) -> Self:
-        if self.kind in ("cancelled", "bypassed"):
+    def _check_report_fields(self) -> Self:
+        if self.status in ("cancelled", "bypassed"):
             unexpected = [
                 field
                 for field in ("function", "suspicion", "action")
@@ -84,30 +87,38 @@ class SentinelEvent(BaseEvent):
                 unexpected.append("references")
             if unexpected:
                 raise ValueError(
-                    f"A '{self.kind}' SentinelEvent records no report, so "
+                    f"A '{self.status}' SentinelEvent records no report, so "
                     f"{', '.join(unexpected)} must be unset."
                 )
-        elif self.kind == "observation":
-            if self.suspicion is None or self.action is not None:
+        else:
+            if self.status == "superseded" and self.kind != "decision":
+                raise ValueError("Only a 'decision' SentinelEvent can be superseded.")
+            if self.kind == "observation":
+                if self.suspicion is None or self.action is not None:
+                    raise ValueError(
+                        "An 'observation' SentinelEvent requires suspicion and no action."
+                    )
+            elif self.action is None or self.suspicion is not None:
                 raise ValueError(
-                    "An 'observation' SentinelEvent requires suspicion and no action."
+                    "A 'decision' SentinelEvent requires action and no suspicion."
                 )
-        elif self.action is None or self.suspicion is not None:
-            raise ValueError(
-                f"A '{self.kind}' SentinelEvent requires action and no suspicion."
-            )
-        is_decision = self.kind in ("decision", "superseded")
-        is_modify = is_decision and self.action == "modify"
+            if self.function is None:
+                raise ValueError(f"A '{self.status}' SentinelEvent requires function.")
+        has_decision = self.kind == "decision" and self.status in (
+            "reported",
+            "superseded",
+        )
+        is_modify = has_decision and self.action == "modify"
         if is_modify and self.modified is None:
-            raise ValueError(f"A '{self.kind}' modify SentinelEvent requires modified.")
+            raise ValueError(
+                f"A '{self.status}' modify SentinelEvent requires modified."
+            )
         if not is_modify and self.modified is not None:
             raise ValueError(
-                "modified is set only on a 'decision' or 'superseded' modify SentinelEvent."
+                "modified is set only on a reported or superseded modify decision."
             )
-        if self.message is not None and not (is_decision and self.action == "reject"):
+        if self.message is not None and not (has_decision and self.action == "reject"):
             raise ValueError(
-                "message is set only on a 'decision' or 'superseded' reject SentinelEvent."
+                "message is set only on a reported or superseded reject decision."
             )
-        if self.kind not in ("cancelled", "bypassed") and self.function is None:
-            raise ValueError(f"A '{self.kind}' SentinelEvent requires function.")
         return self
