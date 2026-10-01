@@ -65,7 +65,7 @@ approvers:
     tools: "*"
 ```
 
-Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
+The function name and the arguments are matched separately: a name glob such as `*_click` matches only function names, and each `name=value` item in a pattern matches the argument of that name wherever it appears in the call. String values are written in single quotes; a `'` or backslash inside a value is preceded by a backslash. The last value is prefix matched, and other arguments are allowed, unless the pattern ends with `)`. Approval sees the call after its arguments pass the tool's schema, so a call with invalid arguments fails before any approver sees it.
 
 ## Approvers in Code
 
