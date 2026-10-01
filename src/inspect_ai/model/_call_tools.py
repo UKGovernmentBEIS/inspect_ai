@@ -4,6 +4,8 @@ import math
 import string
 import types
 import typing
+from collections.abc import Mapping
+from collections.abc import Set as AbstractSet
 from copy import copy, deepcopy
 from dataclasses import fields, is_dataclass, replace
 from datetime import date, datetime, time, timedelta
@@ -1478,7 +1480,12 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             # the model's own validation (e.g. of a union with a Literal
             # member, or a nested alias path) can still round a number
             if not _model_preserves(input, model):
-                raise unable_to_convert(ValueError("a value would change"))
+                raise unable_to_convert(
+                    ValueError(
+                        "a value would change, or could not be checked before "
+                        "the tool runs"
+                    )
+                )
             return model
         elif isinstance(type_hint, EnumMeta):
             try:
@@ -1628,13 +1635,14 @@ def _value_preserved(supplied: Any, built: Any) -> bool:
             return built == supplied
         return not isinstance(built, bool | int | float | Decimal)
     if isinstance(supplied, list):
-        if isinstance(built, list | tuple):
+        if isinstance(built, Sequence) and not isinstance(built, str | bytes):
             return len(supplied) == len(built) and all(
                 _value_preserved(s, b) for s, b in zip(supplied, built)
             )
-        if isinstance(built, set | frozenset):
-            return all(any(_value_preserved(s, b) for b in built) for s in supplied)
-        return True
+        if isinstance(built, AbstractSet):
+            return _set_preserves(supplied, built)
+        # e.g. a lazy iterable, which converts only as the tool consumes it
+        return False
     if isinstance(supplied, dict):
         if isinstance(built, BaseModel):
             return _model_preserves(supplied, built)
@@ -1644,13 +1652,94 @@ def _value_preserved(supplied: Any, built: Any) -> bool:
                 for field in fields(built)
                 if field.name in supplied
             )
-        if isinstance(built, dict):
-            return all(
-                _value_preserved(value, built[key])
-                for key, value in supplied.items()
-                if key in built
-            )
+        if isinstance(built, Mapping):
+            return _mapping_preserves(supplied, built)
         return True
+    return True
+
+
+def _scalar_kind(value: Any) -> str:
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, int | float | Decimal):
+        return "number"
+    if isinstance(value, str):
+        return "str"
+    if value is None:
+        return "none"
+    return "other"
+
+
+def _frozen(value: Any) -> Any:
+    return tuple(_frozen(v) for v in value) if isinstance(value, list) else value
+
+
+def _set_preserves(supplied: list[Any], built: AbstractSet[Any]) -> bool:
+    """Whether each supplied element is in `built` with its kind and value.
+
+    Elements are looked up by (kind, value) rather than compared pairwise, so
+    a set of n elements costs O(n); numbers match exactly (2**53 + 1 is not
+    9007199254740992.0) and a flag never matches a number.
+    """
+    index: set[tuple[str, Any]] = set()
+    for member in built:
+        value = member.value if isinstance(member, Enum) else member
+        try:
+            index.add((_scalar_kind(value), value))
+        except TypeError:
+            index.add(("other", id(value)))
+    parsed = any(kind == "other" for kind, _ in index)
+    for element in supplied:
+        if isinstance(element, dict):
+            if not any(_value_preserved(element, member) for member in built):
+                return False
+        elif isinstance(element, str) and ("str", element) not in index:
+            # only a non-scalar member (a date, bytes) can be parsed from it
+            if not parsed:
+                return False
+        elif (
+            not isinstance(element, str)
+            and (
+                _scalar_kind(element) if not isinstance(element, list) else "other",
+                _frozen(element),
+            )
+            not in index
+        ):
+            return False
+    return True
+
+
+def _mapping_preserves(supplied: dict[Any, Any], built: Mapping[Any, Any]) -> bool:
+    """Whether `built` holds each supplied entry under the key converted from it.
+
+    A JSON key is a string, so a number key must be the canonical text of the
+    number it became (`"1"` for 1), a flag key never matches, and keys that
+    collapse into one are a change.
+    """
+    if len(built) != len(supplied):
+        return False
+    by_text: dict[str, Any] = {}
+    parsed_keys = False
+    for key in built:
+        value = key.value if isinstance(key, Enum) else key
+        kind = _scalar_kind(value)
+        if kind == "str":
+            by_text[value] = key
+        elif kind == "number":
+            by_text.setdefault(str(value), key)
+        elif kind == "other":
+            parsed_keys = True
+    for key, value in supplied.items():
+        if not isinstance(key, str):
+            built_key = key if key in built else None
+        else:
+            built_key = by_text.get(key)
+        if built_key is None:
+            if parsed_keys:
+                continue
+            return False
+        if not _value_preserved(value, built[built_key]):
+            return False
     return True
 
 

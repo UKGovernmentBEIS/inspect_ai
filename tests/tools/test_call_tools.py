@@ -1,8 +1,24 @@
 import datetime
+from collections import OrderedDict, deque
 from dataclasses import dataclass
 from datetime import date, time, timezone
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
+from typing import (
+    Any,
+    DefaultDict,
+    Deque,
+    Dict,
+    FrozenSet,
+    Generator,
+    Iterable,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
 
 import pytest
 from pydantic import BaseModel
@@ -704,3 +720,79 @@ def test_model_conversion_keeps_values_parsed_from_strings() -> None:
         price=Decimal(5),
         ratio=2.0,
     )
+
+
+BIG = 2**53 + 1
+
+
+@pytest.mark.parametrize(
+    "annotation,inexact,exact,expected",
+    [
+        (Deque[float], [BIG], [2, 1.5], deque([2.0, 1.5])),
+        (Tuple[float, ...], [BIG], [2], (2.0,)),
+        (FrozenSet[float], [BIG], [2, 2], frozenset({2.0})),
+        (Dict[int, float], {"1": BIG}, {"1": 2}, {1: 2.0}),
+        (Mapping[int, float], {"1": BIG}, {"1": 2}, {1: 2.0}),
+        (OrderedDict[int, float], {"1": BIG}, {"1": 2}, OrderedDict({1: 2.0})),
+        (DefaultDict[int, float], {"1": BIG}, {"1": 2}, {1: 2.0}),
+        (Dict[int, float], {"1": 1, "01": 2}, {"1": 1, "2": 2}, {1: 1.0, 2: 2.0}),
+        (Dict[bool, float], {"true": 1}, None, None),
+        (
+            List[Dict[int, Deque[float]]],
+            [{"1": [BIG]}],
+            [{"1": [2]}],
+            [{1: deque([2.0])}],
+        ),
+    ],
+)
+def test_model_collections_convert_exactly(
+    annotation: Any, inexact: Any, exact: Any, expected: Any
+) -> None:
+    """Pydantic-built collections keep each supplied value under its own key."""
+    from pydantic import create_model
+
+    from inspect_ai.tool._tool import ToolParsingError
+
+    model = create_model("Collections", value=(annotation, ...))
+    with pytest.raises(ToolParsingError):
+        tool_param(model, {"value": inexact})
+    if exact is not None:
+        assert tool_param(model, {"value": exact}).value == expected
+
+
+@pytest.mark.parametrize("annotation", [Iterable[float], Generator[float, None, None]])
+def test_model_lazy_iterables_are_rejected(annotation: Any) -> None:
+    """A lazy iterable converts only as the tool consumes it, after approval."""
+    from pydantic import create_model
+
+    from inspect_ai.tool._tool import ToolParsingError
+
+    model = create_model("Lazy", value=(annotation, ...))
+    with pytest.raises(ToolParsingError):
+        tool_param(model, {"value": [1.5]})
+
+
+@pytest.mark.parametrize("annotation", [Set[float], FrozenSet[float]])
+@pytest.mark.parametrize("duplicates", [False, True], ids=["distinct", "duplicates"])
+def test_model_set_check_is_linear(
+    annotation: Any, duplicates: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic import create_model
+
+    from inspect_ai.model import _call_tools
+
+    calls = 0
+    preserved = _call_tools._value_preserved
+
+    def counting(supplied: Any, built: Any) -> bool:
+        nonlocal calls
+        calls += 1
+        return preserved(supplied, built)
+
+    monkeypatch.setattr(_call_tools, "_value_preserved", counting)
+    n = 2000
+    values = [i // 2 if duplicates else i for i in range(n)]
+    model = create_model("Values", value=(annotation, ...))
+
+    assert tool_param(model, {"value": values}).value == {float(v) for v in values}
+    assert calls <= 2

@@ -1,3 +1,4 @@
+from collections import deque
 from datetime import date, datetime, time
 from pathlib import Path
 from typing import Annotated, Any, Literal, NamedTuple
@@ -1034,6 +1035,14 @@ class OuterFlagPayload(BaseModel):
     items: list[FlagPayload]
 
 
+class DequePayload(BaseModel):
+    value: Annotated[deque[float], Field(min_length=1)] | Literal["none"]
+
+
+class IntKeyPayload(BaseModel):
+    value: Annotated[dict[int, float], Field(min_length=1)] | Literal["none"]
+
+
 @tool
 def model_inputs(received: list[dict[str, Any]]):
     async def execute(
@@ -1051,6 +1060,8 @@ def model_inputs(received: list[dict[str, Any]]):
         floats: SetPayload | None = None,
         frozen: FrozenSetPayload | None = None,
         outer_flag: OuterFlagPayload | None = None,
+        queue: DequePayload | None = None,
+        int_keys: IntKeyPayload | None = None,
     ) -> str:
         """Record model inputs.
 
@@ -1069,6 +1080,8 @@ def model_inputs(received: list[dict[str, Any]]):
             floats: A union with a set of floats.
             frozen: A union with a frozenset of floats.
             outer_flag: Nested flag models.
+            queue: A union with a deque of floats.
+            int_keys: A union with an int-keyed mapping of floats.
         """
         received.append(
             {
@@ -1086,6 +1099,8 @@ def model_inputs(received: list[dict[str, Any]]):
                 "floats": floats,
                 "frozen": frozen,
                 "outer_flag": outer_flag,
+                "queue": queue,
+                "int_keys": int_keys,
             }
         )
         return "ok"
@@ -1109,6 +1124,8 @@ MODEL_INPUT_CASES: list[tuple[str, dict[str, Any]]] = [
     ("set", {"floats": {"value": [2**53 + 1]}}),
     ("frozenset", {"frozen": {"value": [2**53 + 1]}}),
     ("nested-flag", {"outer_flag": {"items": [{"value": "false"}]}}),
+    ("deque", {"queue": {"value": [2**53 + 1]}}),
+    ("int-keys", {"int_keys": {"value": {"1": 2**53 + 1}}}),
 ]
 
 
@@ -1165,6 +1182,8 @@ async def test_exact_model_fields_run_as_approved() -> None:
         "floats": {"value": [exact, 1.5]},
         "frozen": {"value": [exact]},
         "outer_flag": {"items": [{"value": True}]},
+        "queue": {"value": [exact, 1.5]},
+        "int_keys": {"value": {"1": exact, "2": 1.5}},
     }
 
     message, calls, viewed, received = await execute_model_inputs(arguments)
@@ -1189,6 +1208,8 @@ async def test_exact_model_fields_run_as_approved() -> None:
     assert values["floats"].value == {float(exact), 1.5}
     assert values["frozen"].value == frozenset({float(exact)})
     assert values["outer_flag"] == OuterFlagPayload(items=[FlagPayload(value=True)])
+    assert values["queue"].value == deque([float(exact), 1.5])
+    assert values["int_keys"].value == {1: float(exact), 2: 1.5}
 
 
 @tool
