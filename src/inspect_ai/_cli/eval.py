@@ -392,7 +392,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--sentinel",
         type=str,
         envvar="INSPECT_EVAL_SENTINEL",
-        help="Config file or registered name of the monitors and protocols that watch tool calls (requires inspect_sentinel).",
+        help="Config file or registered name of the monitors and protocols that watch the agent's steps (requires inspect_sentinel).",
     )
     @click.option(
         "--notification",

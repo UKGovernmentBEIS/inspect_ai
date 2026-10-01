@@ -25,7 +25,10 @@ SentinelSuspicion: TypeAlias = (
 
 
 class SentinelEvent(BaseEvent):
-    """Report from a sentinel monitor or protocol about one step."""
+    """Report from a sentinel monitor or protocol about one step.
+
+    A report's metadata is recorded in the event's `metadata` field.
+    """
 
     event: Literal["sentinel"] = Field(default="sentinel")
     """Event type"""

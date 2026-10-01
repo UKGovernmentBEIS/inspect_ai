@@ -244,7 +244,7 @@ def eval(
         review: Tool result review policies.
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
             Defaults to no review policy.
-        sentinel: Monitors and protocols that watch tool calls (requires the `inspect_sentinel` package).
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package).
             A monitor, a protocol, a list or mapping of them, a config file path or registered name, or a parsed configuration.
             Overrides the task's sentinel. Defaults to no sentinel.
         notification: Enable out-of-band notifications when a human-in-the-loop
@@ -533,7 +533,7 @@ async def eval_async(
         review: Tool result review policies.
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
             Defaults to no review policy.
-        sentinel: Monitors and protocols that watch tool calls (requires the `inspect_sentinel` package).
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package).
             A monitor, a protocol, a list or mapping of them, a config file path or registered name, or a parsed configuration.
             Overrides the task's sentinel. Defaults to no sentinel.
         notification: Enable out-of-band notifications when a human-in-the-loop

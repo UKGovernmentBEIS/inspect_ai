@@ -15,6 +15,8 @@ Custom approvers are very flexible, and can implement a wide variety of decision
 
 Approvers can be specified at either the eval level or at the task level. The examples below will demonstrate eval-level approvers, see the [Task Approvers](#task-approvers) section for details on task-level approvers.
 
+See [Approval, Review and Sentinels](review.qmd#approval-review-and-sentinels) for how approvers are ordered with a sentinel.
+
 ## Human Approver
 
 The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the `--approval human` CLI option (or the `approval = "human"`) argument to `eval()`:
