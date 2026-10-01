@@ -95,6 +95,15 @@ class HttpHooks:
         # return elapsed time
         return time.monotonic() - request_info.last_request
 
+    def discard_request(self, request_id: str) -> None:
+        """Stop tracking a request without reading its elapsed time.
+
+        Call this in a `finally` after `start_request()` so the entry is
+        removed when the request raises or is cancelled. It does nothing
+        if `end_request()` already removed the entry.
+        """
+        self._requests.pop(request_id, None)
+
     def record_response(
         self,
         request_id: str | None,

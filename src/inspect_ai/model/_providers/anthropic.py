@@ -931,6 +931,9 @@ class AnthropicAPI(ModelAPI):
                 return handled, model_call or ModelCall(request={})
             raise ex
 
+        finally:
+            self._http_hooks.discard_request(request_id)
+
     @override
     async def count_tokens(
         self,
