@@ -707,7 +707,17 @@ class AnthropicAPI(ModelAPI):
     @override
     def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
         fallback = output.fallback
-        if fallback is None or output.usage is None:
+        if output.usage is None:
+            return None
+        if fallback is None:
+            # a Foundry model name is a deployment name, which need not name
+            # the model the deployment serves
+            if (
+                self.is_azure()
+                and output.model
+                and output.model != self.service_model_name()
+            ):
+                return [ServedModelUsage(f"anthropic/{output.model}", output.usage)]
             return None
         iterations = (fallback.metadata or {}).get("iterations")
         if isinstance(iterations, list) and any(

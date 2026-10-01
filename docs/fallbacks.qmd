@@ -109,7 +109,7 @@ df[df.fallbacks > 0]
 
 ### Costs
 
-Cost estimation (including the `cost_limit` option) prices each attempt at the rates of the model that ran it, as Anthropic bills it. An attempt that declined partway through its response is billed, and so is included. An attempt that declined before any output is billed only for some refusal categories, which a fallback response does not report, so it is left out. The per-attempt billing record is in `ModelFallback.metadata["iterations"]` on each `ModelEvent`'s output.
+Cost estimation (including the `cost_limit` option) prices each attempt at the rates of the model that ran it, as Anthropic bills it. An attempt that declined partway through its response is billed, and so is included. An attempt that declined before any output is billed only for some refusal categories (`bio`, `frontier_llm` and `reasoning_extraction`), which a fallback response does not report, so it is left out. For those categories the estimated cost, and the spend a `cost_limit` sees, is lower than the billed amount. The per-attempt billing record is in `ModelFallback.metadata["iterations"]` on each `ModelEvent`'s output.
 
 Fallback models need cost data too (see [Model Cost](setting-limits.qmd#model-cost)). If a fallback model has none, the request is priced at the requested model's rates and a warning is shown.
 

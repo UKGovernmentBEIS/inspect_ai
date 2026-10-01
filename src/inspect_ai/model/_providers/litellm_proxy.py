@@ -36,7 +36,7 @@ from .._model_info import (
     _get_model_info_direct,
     set_model_info,
 )
-from .._model_output import ChatCompletionChoice, ModelOutput
+from .._model_output import ChatCompletionChoice, ModelOutput, ServedModelUsage
 from .._openai import (
     OpenAIResponseError,
     chat_choices_from_openai,
@@ -67,7 +67,11 @@ from ._litellm_proxy_model_info import (
     proxy_deployments,
     proxy_model_info,
 )
-from ._litellm_proxy_names import ProxyResolution, resolve_deployments
+from ._litellm_proxy_names import (
+    ProxyResolution,
+    resolve_deployments,
+    resolve_upstream,
+)
 from ._litellm_proxy_reasoning import (
     ThinkingBlocksAccumulator,
     choice_with_litellm_reasoning,
@@ -332,6 +336,24 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         _registrations[key] = _Registration(
             user=user, registered=info, base_url=self.base_url
         )
+
+    @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        """The upstream model a router fallback served the request with.
+
+        The proxy reports the requested alias as the model, unless a router
+        fallback to another alias served the request: then it reports that
+        deployment's upstream model id.
+        """
+        if (
+            output.usage is None
+            or not output.model
+            or output.model in (self.service_model_name(), self._routed_name())
+        ):
+            return None
+        resolution = resolve_upstream(output.model)
+        served = resolution.db_key or resolution.upstream or output.model
+        return [ServedModelUsage(served, output.usage)]
 
     def _routed_name(self) -> str:
         """The model name requests are routed to (the alias target, if any)."""

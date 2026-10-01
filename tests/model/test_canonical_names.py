@@ -932,6 +932,49 @@ class TestServedModelNames:
         ]
         assert api.served_model_usage(self._output("my-deployment")) is None
 
+    def test_anthropic_foundry_deployment(self, monkeypatch):
+        from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+        monkeypatch.setenv(
+            "AZUREAI_ANTHROPIC_BASE_URL", "https://test.services.ai.azure.com"
+        )
+        api = AnthropicAPI(model_name="azure/my-claude", api_key="test-key")
+        output = self._output("claude-opus-5-5")
+        assert api.served_model_usage(output) == [
+            ("anthropic/claude-opus-5-5", output.usage)
+        ]
+        assert api.served_model_usage(self._output("my-claude")) is None
+
+        # first-party names are model ids
+        first_party = AnthropicAPI(model_name="claude-opus-5-5", api_key="test-key")
+        assert (
+            first_party.served_model_usage(self._output("claude-opus-5-5-20261001"))
+            is None
+        )
+
+    def test_fireworks_router(self):
+        from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+        api = FireworksAIAPI(
+            model_name="accounts/fireworks/routers/kimi-fast-latest", api_key="test-key"
+        )
+        output = self._output("accounts/fireworks/models/kimi-k3-fast")
+        assert api.served_model_usage(output) == [
+            ("fireworks/kimi-k3-fast", output.usage)
+        ]
+        assert (
+            api.served_model_usage(
+                self._output("accounts/fireworks/routers/kimi-fast-latest")
+            )
+            is None
+        )
+
+        # the same model in either name form
+        model = FireworksAIAPI(
+            model_name="accounts/fireworks/models/kimi-k3", api_key="test-key"
+        )
+        assert model.served_model_usage(self._output("kimi-k3")) is None
+
     def test_openrouter_router(self):
         from inspect_ai.model._providers.openrouter import OpenRouterAPI
 
@@ -975,11 +1018,17 @@ class TestServedModelNames:
         )
         output = model_output_from_response(router, response, [])
         assert output.model == invoked
+        assert output.message.model == invoked
+        assert ModelOutput.from_message(output.message).model == invoked
 
         api = BedrockAPI(model_name=router, base_url=None)
         assert api.served_model_usage(output) == [
             ("anthropic/claude-3-haiku-20240307", output.usage)
         ]
+
+        # routers invoke cross-region inference profiles
+        output.model = "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.amazon.nova-lite-v1:0"
+        assert api.served_model_usage(output) == [("amazon/nova-lite", output.usage)]
 
         # without a prompt router the output model is the called model
         response.trace = None

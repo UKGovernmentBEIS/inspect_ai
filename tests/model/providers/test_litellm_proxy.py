@@ -3604,3 +3604,157 @@ async def test_litellm_proxy_claude_cache_prompt_false(
         claude_proxy, "claude-metis", GenerateConfig(cache_prompt=False)
     )
     assert _anthropic_breakpoints(call.upstream) == []
+
+
+# ---------------------------------------------------------------------------
+# cost: a router fallback is priced by the model that served it
+# ---------------------------------------------------------------------------
+
+# what the fake upstream reports as the model for each upstream id (None fails)
+FALLBACK_SERVED = {
+    "fallback-primary": None,
+    "fallback-backup": "gpt-4o-mini-2024-07-18",
+    "fallback-same": "gpt-4o-2024-08-06",
+}
+
+
+def _fallback_route(request: StubRequest) -> Any:
+    path = request.path.split("?")[0]
+    served = FALLBACK_SERVED[request.body["model"]]
+    if served is None:
+        return Reply(500, {"error": {"message": "unavailable", "type": "server_error"}})
+    if path.endswith("/chat/completions"):
+        return {
+            "id": "chatcmpl-fallback",
+            "object": "chat.completion",
+            "created": 0,
+            "model": served,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": MOCK_RESPONSE},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7},
+        }
+    if path.endswith("/responses"):
+        return {
+            "id": "resp_fallback",
+            "object": "response",
+            "created_at": 0,
+            "model": served,
+            "status": "completed",
+            "output": [
+                {
+                    "type": "message",
+                    "id": "msg_fallback",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": MOCK_RESPONSE,
+                            "annotations": [],
+                        }
+                    ],
+                }
+            ],
+            "usage": {
+                "input_tokens": 3,
+                "output_tokens": 4,
+                "total_tokens": 7,
+                "input_tokens_details": {"cached_tokens": 0},
+                "output_tokens_details": {"reasoning_tokens": 0},
+            },
+            "parallel_tool_calls": True,
+            "tool_choice": "auto",
+            "tools": [],
+        }
+    return None
+
+
+@pytest.fixture(scope="module")
+def fallback_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLMProxy]:
+    with fake_upstream(_fallback_route) as upstream:
+
+        def deployment(name: str, model: str, base_model: str) -> dict[str, Any]:
+            return {
+                "model_name": name,
+                "litellm_params": {
+                    "model": f"openai/{model}",
+                    "api_base": f"{upstream.docker_url}/v1",
+                    "api_key": "fake",
+                },
+                "model_info": {"base_model": base_model},
+            }
+
+        config = {
+            "model_list": [
+                deployment("primary", "fallback-primary", "openai/gpt-4o"),
+                deployment("backup", "fallback-backup", "openai/gpt-4o-mini"),
+                deployment("same", "fallback-same", "openai/gpt-4o"),
+            ],
+            "router_settings": {
+                "num_retries": 0,
+                "fallbacks": [{"primary": ["backup"]}],
+            },
+        }
+        with run_litellm_proxy(
+            tmp_path_factory.mktemp("litellm-fallback"), config
+        ) as proxy:
+            yield proxy
+
+
+def _cost(rate: float) -> ModelCost:
+    return ModelCost(
+        input=rate, output=rate, input_cache_write=rate, input_cache_read=rate
+    )
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("responses_api", [False, True])
+async def test_litellm_proxy_fallback_priced_by_served_model(
+    fallback_proxy: LiteLLMProxy, responses_api: bool
+) -> None:
+    set_model_cost("openai/gpt-4o", _cost(1000.0))
+    set_model_cost("openai/gpt-4o-mini-2024-07-18", _cost(100.0))
+    model = get_model(
+        "litellm-proxy/primary",
+        base_url=fallback_proxy.base_url,
+        api_key=fallback_proxy.api_key,
+        config=GenerateConfig(max_retries=0),
+        responses_api=responses_api,
+        stream=False,
+        memoize=False,
+    )
+    output = await model.generate("Hello")
+    # the proxy reports the fallback deployment's upstream model
+    assert output.model == "gpt-4o-mini-2024-07-18"
+    assert output.usage is not None
+    # 7 tokens at the served model's $100/M, not the alias's $1000/M
+    assert output.usage.total_cost == pytest.approx(0.0007)
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("responses_api", [False, True])
+async def test_litellm_proxy_without_fallback_priced_by_alias(
+    fallback_proxy: LiteLLMProxy, responses_api: bool
+) -> None:
+    set_model_cost("openai/gpt-4o", _cost(1000.0))
+    model = get_model(
+        "litellm-proxy/same",
+        base_url=fallback_proxy.base_url,
+        api_key=fallback_proxy.api_key,
+        config=GenerateConfig(max_retries=0),
+        responses_api=responses_api,
+        stream=False,
+        memoize=False,
+    )
+    output = await model.generate("Hello")
+    # the proxy reports the requested alias, not the upstream's dated name
+    assert output.model == "same"
+    assert output.usage is not None
+    assert output.usage.total_cost == pytest.approx(0.007)

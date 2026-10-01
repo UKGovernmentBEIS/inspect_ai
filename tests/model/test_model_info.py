@@ -977,11 +977,8 @@ class TestDoesNotReinstantiateProvider:
 @modelapi("servedtest")
 def servedtest() -> type[ModelAPI]:
     """A provider that reports the models in `output.metadata["served"]`."""
-    from inspect_ai.model._model_output import (
-        ModelOutput,
-        ModelUsage,
-        ServedModelUsage,
-    )
+    # an extension implements the hook from the public API
+    from inspect_ai.model import ModelOutput, ModelUsage, ServedModelUsage
 
     class ServedModelAPI(ModelAPI):
         async def generate(self, *args: Any, **kwargs: Any) -> Any:
@@ -1078,13 +1075,39 @@ class TestServedModelPricing:
         assert warnings == [
             "No cost data for model 'served/unpriced', which served a request to "
             "'servedtest/called'. Pricing the request at the rates of "
-            "'servedtest/called'. Use set_model_cost() or --model-cost-config to "
-            "add pricing for 'served/unpriced'."
+            "'servedtest/called'. It is not in the model database, so use "
+            "set_model_info() with a ModelInfo that includes cost to add pricing "
+            "for 'served/unpriced'."
         ]
 
         # warned once
         self._record([("served/unpriced", self._usage(3, 4))])
         assert len(warnings) == 1
+
+        # the advertised fix prices the served model
+        with pytest.raises(ValueError, match="not found"):
+            set_model_cost("served/unpriced", self._cost(100.0))
+        set_model_info("served/unpriced", ModelInfo(cost=self._cost(100.0)))
+        usage = self._record([("served/unpriced", self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.0007)
+
+    def test_unpriced_database_model_warns_to_set_cost(self, monkeypatch):
+        warnings = self._warnings(monkeypatch)
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        served = "openai/gpt-4o-mini-2024-07-18"
+        usage = self._record([(served, self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.007)
+        assert warnings == [
+            f"No cost data for model '{served}', which served a request to "
+            "'servedtest/called'. Pricing the request at the rates of "
+            "'servedtest/called'. Use set_model_cost() or --model-cost-config to "
+            f"add pricing for '{served}'."
+        ]
+
+        # the advertised fix prices the served model
+        set_model_cost(served, self._cost(100.0))
+        usage = self._record([(served, self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.0007)
 
     def test_unknown_served_cost_without_called_cost_does_not_warn(self, monkeypatch):
         warnings = self._warnings(monkeypatch)

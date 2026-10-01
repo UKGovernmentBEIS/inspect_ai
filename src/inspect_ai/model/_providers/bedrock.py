@@ -535,13 +535,17 @@ class BedrockAPI(ModelAPI):
     def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
         # a prompt router serves a request with one of its models, reported
         # as the output model (see model_output_from_response)
+        from ._litellm_proxy_names import BEDROCK_CROSS_REGIONS
+
         if output.usage is None or output.model == self.model_name:
             return None
-        return [
-            ServedModelUsage(
-                _bedrock_canonical_name(output.model.split("/")[-1]), output.usage
-            )
-        ]
+        # routers invoke cross-region inference profiles (e.g.
+        # `.../inference-profile/us.amazon.nova-lite-v1:0`)
+        model_id = output.model.split("/")[-1]
+        region, dot, rest = model_id.partition(".")
+        if dot and region in BEDROCK_CROSS_REGIONS:
+            model_id = rest
+        return [ServedModelUsage(_bedrock_canonical_name(model_id), output.usage)]
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -1419,6 +1423,11 @@ def model_output_from_response(
         else:
             raise ValueError("Unexpected message response in Bedrock provider")
 
+    # a prompt router reports the model it invoked (an ARN)
+    prompt_router = (response.trace or {}).get("promptRouter")
+    if isinstance(prompt_router, dict) and prompt_router.get("invokedModelId"):
+        model = prompt_router["invokedModelId"]
+
     # resolve choice
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
@@ -1444,15 +1453,9 @@ def model_output_from_response(
         + output_tokens
     )
 
-    # a prompt router reports the model it invoked (an ARN)
-    prompt_router = (response.trace or {}).get("promptRouter")
-    invoked_model = (
-        prompt_router.get("invokedModelId") if isinstance(prompt_router, dict) else None
-    )
-
     # return ModelOutput
     return ModelOutput(
-        model=invoked_model or model,
+        model=model,
         choices=[choice],
         usage=ModelUsage(
             input_tokens=input_tokens,

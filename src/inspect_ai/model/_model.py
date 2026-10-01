@@ -3068,12 +3068,19 @@ def model_usage_cost(
                 part_cost = called_cost
             if part_cost is None:
                 if called_cost is not None:
+                    # set_model_cost() (and so --model-cost-config) only
+                    # accepts models the database knows
+                    how = (
+                        "Use set_model_cost() or --model-cost-config"
+                        if part_info is not None
+                        else "It is not in the model database, so use "
+                        "set_model_info() with a ModelInfo that includes cost"
+                    )
                     warn_once(
                         logger,
                         f"No cost data for model '{part.model}', which served a "
                         f"request to '{model}'. Pricing the request at the rates "
-                        f"of '{model}'. Use set_model_cost() or --model-cost-config "
-                        f"to add pricing for '{part.model}'.",
+                        f"of '{model}'. {how} to add pricing for '{part.model}'.",
                     )
                 break
             served_cost += compute_model_cost(part_cost, part.usage, cache_ttl)
