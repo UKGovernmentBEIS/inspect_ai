@@ -1,5 +1,6 @@
 import json
 import time
+from contextlib import AbstractAsyncContextManager
 from typing import cast
 
 import grpc
@@ -86,19 +87,21 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
             request["batch_request_id"] = batch_request.custom_id
             requests.append(self._client.chat.create(**request))
 
-        batch = await self._client.batch.create(
-            batch_name=f"inspect_batch_{int(time.time())}"
-        )
+        async with _unary_call():
+            batch = await self._client.batch.create(
+                batch_name=f"inspect_batch_{int(time.time())}"
+            )
         # Add requests one-by-one to avoid large gRPC payloads in a single add call.
         # Observed gRPC transport caps (~4MB decode / ~20MB send on packed add)
         # are empirical, not documented API contract.
         batch_id = cast(str, batch.batch_id)
         try:
             for request in requests:
-                await self._client.batch.add(
-                    batch_id=batch_id,
-                    batch_requests=[request],
-                )
+                async with _unary_call():
+                    await self._client.batch.add(
+                        batch_id=batch_id,
+                        batch_requests=[request],
+                    )
         except BaseException:
             # the batch is not returned to the caller, so nothing will poll it:
             # cancel the requests already added
@@ -108,13 +111,15 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
 
     @override
     async def _cancel_batch(self, batch: Batch[Response]) -> None:
-        await self._client.batch.cancel(batch.id)
+        async with _unary_call():
+            await self._client.batch.cancel(batch.id)
 
     @override
     async def _check_batch(
         self, batch: Batch[Response]
     ) -> BatchCheckResult[CompletedBatchInfo]:
-        info = await self._client.batch.get(batch.id)
+        async with _unary_call():
+            info = await self._client.batch.get(batch.id)
         state = info.state
         created_at = (
             int(info.create_time.seconds) if info.create_time else int(time.time())
@@ -151,10 +156,11 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
         pagination_token: str | None = None
 
         while True:
-            result_page = await self._client.batch.list_batch_results(
-                batch_id=batch.id,
-                pagination_token=pagination_token,
-            )
+            async with _unary_call():
+                result_page = await self._client.batch.list_batch_results(
+                    batch_id=batch.id,
+                    pagination_token=pagination_token,
+                )
 
             for result in result_page.results:
                 if result.batch_request_id not in batch.requests:
@@ -175,6 +181,18 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
                 )
 
         return results
+
+
+def _unary_call() -> AbstractAsyncContextManager[None]:
+    """Let anyio cancel scopes own the cancellation of a unary batch RPC.
+
+    Without this, a cancel scope's deadline (e.g. the bounded cleanup in
+    `Batcher._cancel_provider_batch`) surfaces as grpc's own bare
+    `CancelledError`, which escapes the scope instead of ending it.
+    """
+    from .grok import _scope_cancellation_restored
+
+    return _scope_cancellation_restored()
 
 
 def _batch_result_error(result: BatchResult) -> grpc.RpcError:

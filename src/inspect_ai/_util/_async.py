@@ -20,6 +20,8 @@ else:
 
 PosArgsT = TypeVarTuple("PosArgsT")
 
+logger = getLogger(__name__)
+
 
 def is_callable_coroutine(func_or_cls: Any) -> bool:
     if inspect.iscoroutinefunction(func_or_cls):
@@ -175,11 +177,14 @@ async def run_past_cancellation(
         if results:
             await on_cancelled(results[0])
         elif scope.cancelled_caught:
-            getLogger(__name__).warning(
+            logger.warning(
                 f"{description} did not finish within {grace} seconds of "
                 + "cancellation; work it started may continue to run."
             )
         raise
+    if not results:
+        # func ended with a cancellation that was not the caller's
+        raise RuntimeError(f"{description} was cancelled without a result")
     return results[0]
 
 

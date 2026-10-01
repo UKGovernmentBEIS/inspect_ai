@@ -1,3 +1,4 @@
+import contextlib
 import json
 from types import SimpleNamespace
 from typing import Any
@@ -815,6 +816,13 @@ async def _live_response_status(client: Any, response_id: str) -> str:
             await anyio.sleep(2)
 
 
+async def _cancel_live_responses(client: Any, response_ids: list[str]) -> None:
+    """Cancel live responses a failed test may have left running."""
+    for response_id in response_ids:
+        with contextlib.suppress(Exception):
+            await client.responses.cancel(response_id)
+
+
 @skip_if_no_openai
 @pytest.mark.slow
 async def test_background_response_cancelled_live_when_create_interrupted() -> None:
@@ -842,14 +850,19 @@ async def test_background_response_cancelled_live_when_create_interrupted() -> N
 
     setattr(client.responses, "create", create)
 
-    with anyio.fail_after(60):
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(create_background_response, client, _LIVE_BACKGROUND_REQUEST)
-            await create_returned.wait()
-            tg.cancel_scope.cancel()
-            release_create.set()
+    try:
+        with anyio.fail_after(60):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(
+                    create_background_response, client, _LIVE_BACKGROUND_REQUEST
+                )
+                await create_returned.wait()
+                tg.cancel_scope.cancel()
+                release_create.set()
 
-    assert await _live_response_status(client, created[0].id) == "cancelled"
+        assert await _live_response_status(client, created[0].id) == "cancelled"
+    finally:
+        await _cancel_live_responses(client, [r.id for r in created])
 
 
 @skip_if_no_openai
@@ -878,17 +891,20 @@ async def test_background_response_cancelled_live_when_polling_fails() -> None:
         ),
     )
 
-    with (
-        patch(
-            "inspect_ai.model._providers.openai_responses.anyio.sleep",
-            new=AsyncMock(),
-        ),
-        pytest.raises(APIConnectionError),
-    ):
-        await wait_for_background_response(client, response)
+    try:
+        with (
+            patch(
+                "inspect_ai.model._providers.openai_responses.anyio.sleep",
+                new=AsyncMock(),
+            ),
+            pytest.raises(APIConnectionError),
+        ):
+            await wait_for_background_response(client, response)
 
-    setattr(client.responses, "retrieve", real_retrieve)
-    assert await _live_response_status(client, response.id) == "cancelled"
+        setattr(client.responses, "retrieve", real_retrieve)
+        assert await _live_response_status(client, response.id) == "cancelled"
+    finally:
+        await _cancel_live_responses(client, [response.id])
 
 
 def test_fix_function_tool_parameters_string_to_dict():

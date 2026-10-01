@@ -7,6 +7,7 @@ import weakref
 
 import anyio.to_thread
 import pytest
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util._async import run_coroutine
 
@@ -92,3 +93,20 @@ def test_run_coroutine_releases_result() -> None:
     del result
     gc.collect()
     assert ref() is None, "result still referenced after release"
+
+
+@skip_if_trio
+async def test_run_past_cancellation_reports_foreign_cancellation() -> None:
+    """A call ended by a cancellation that is not the caller's raises clearly."""
+    import asyncio
+
+    from inspect_ai._util._async import run_past_cancellation
+
+    async def func() -> str:
+        raise asyncio.CancelledError()
+
+    async def on_cancelled(result: str) -> None:
+        pass
+
+    with pytest.raises(RuntimeError, match="was cancelled without a result"):
+        await run_past_cancellation(func, on_cancelled, 1, "Test call")

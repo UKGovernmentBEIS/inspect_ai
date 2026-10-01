@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import importlib
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -392,6 +393,140 @@ async def test_grok_add_failure_cancels_batch() -> None:
     client.batch.cancel.assert_awaited_once_with("batch-123")
 
 
+@asynccontextmanager
+async def _local_batch_service(
+    *,
+    stall_create: bool = False,
+    fail_add: bool = False,
+    stall_cancel: bool = False,
+) -> AsyncIterator[tuple[GrokBatcher, asyncio.Event]]:
+    """A GrokBatcher whose real xAI SDK client talks to a local gRPC batch service.
+
+    Stalled RPCs never answer, so a cancel scope's deadline is what ends them.
+    Yields the batcher and an event set when CreateBatch is called.
+    """
+    import grpc.aio
+
+    batch_pb2: Any = importlib.import_module("xai_sdk.proto.v6.batch_pb2")
+    batch_pb2_grpc: Any = importlib.import_module("xai_sdk.proto.v6.batch_pb2_grpc")
+    xai_sdk: Any = importlib.import_module("xai_sdk")
+    create_called = asyncio.Event()
+
+    class BatchService(batch_pb2_grpc.BatchMgmtServicer):
+        async def CreateBatch(self, request: Any, context: Any) -> Any:
+            create_called.set()
+            if stall_create:
+                await asyncio.Event().wait()
+            return batch_pb2.Batch(batch_id="known-job")
+
+        async def AddBatchRequests(self, request: Any, context: Any) -> Any:
+            if fail_add:
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "bad request")
+            return batch_pb2.AddBatchRequestsResponse()
+
+        async def CancelBatch(self, request: Any, context: Any) -> Any:
+            if stall_cancel:
+                await asyncio.Event().wait()
+            return batch_pb2.Batch(batch_id=request.batch_id)
+
+    server = grpc.aio.server()
+    batch_pb2_grpc.add_BatchMgmtServicer_to_server(BatchService(), server)
+    port = server.add_insecure_port("localhost:0")
+    await server.start()
+    client = xai_sdk.AsyncClient(
+        api_key="test", api_host=f"localhost:{port}", use_insecure_channel=True
+    )
+    try:
+        yield (
+            GrokBatcher(
+                client=client,
+                config=BatchConfig(size=1, send_delay=0, tick=0.001),
+                retry_config=model_retry_config(
+                    "test", 1, None, lambda e: False, lambda ex: None, lambda m, s: None
+                ),
+            ),
+            create_called,
+        )
+    finally:
+        await server.stop(None)
+
+
+_GROK_REQUEST = {"model": "grok-3-mini", "messages": [], "tools": []}
+
+
+@skip_if_trio
+async def test_grok_stalled_cancel_after_add_failure_keeps_add_error() -> None:
+    """A cancel RPC that times out is logged and the add error is still raised."""
+    from unittest.mock import patch
+
+    async with _local_batch_service(fail_add=True, stall_cancel=True) as (batcher, _):
+        request: BatchRequest[object] = BatchRequest(
+            request=dict(_GROK_REQUEST), result_stream=MagicMock(), custom_id="req-1"
+        )
+        with (
+            patch("inspect_ai.model._providers.util.batch.BATCH_CANCEL_TIMEOUT", 0.05),
+            patch("inspect_ai.model._providers.util.batch.logger") as logger,
+            anyio.fail_after(10),
+            pytest.raises(grpc.aio.AioRpcError) as exc_info,
+        ):
+            await batcher._create_batch([request])
+
+    assert exc_info.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+    logger.warning.assert_called_once()
+    assert "Timed out cancelling batch known-job" in logger.warning.call_args.args[0]
+
+
+@skip_if_trio
+async def test_grok_stalled_cancel_of_abandoned_batch_is_logged() -> None:
+    """Cancelling an abandoned batch whose cancel RPC times out logs and returns."""
+    from unittest.mock import patch
+
+    async with _local_batch_service(stall_cancel=True) as (batcher, _):
+        request: BatchRequest[object] = BatchRequest(
+            request=dict(_GROK_REQUEST), result_stream=MagicMock(), cancelled=True
+        )
+        batch = Batch(id="known-job", requests={request.custom_id: request})
+        batcher._inflight_batches[batch.id] = batch
+        with (
+            patch("inspect_ai.model._providers.util.batch.BATCH_CANCEL_TIMEOUT", 0.05),
+            patch("inspect_ai.model._providers.util.batch.logger") as logger,
+            anyio.fail_after(10),
+        ):
+            await batcher._cancel_batch_if_abandoned(batch)
+
+    assert batcher._inflight_batches == {}
+    logger.warning.assert_called_once()
+    assert "Timed out cancelling batch known-job" in logger.warning.call_args.args[0]
+
+
+@skip_if_trio
+async def test_grok_stalled_create_at_shutdown_is_logged() -> None:
+    """A batch create that outlasts the shutdown grace period is logged."""
+    from unittest.mock import patch
+
+    from inspect_ai._util.background import set_background_task_group
+
+    async with _local_batch_service(stall_create=True) as (batcher, create_called):
+        with (
+            patch("inspect_ai.model._providers.util.batch.BATCH_CANCEL_TIMEOUT", 0.05),
+            patch("inspect_ai._util._async.logger") as logger,
+            anyio.fail_after(10),
+        ):
+            async with anyio.create_task_group() as worker_tg:
+                set_background_task_group(worker_tg)
+                try:
+                    async with anyio.create_task_group() as tg:
+                        tg.start_soon(batcher.generate_for_request, dict(_GROK_REQUEST))
+                        await create_called.wait()
+                        tg.cancel_scope.cancel()
+                    worker_tg.cancel_scope.cancel()
+                finally:
+                    set_background_task_group(None)
+
+    logger.warning.assert_called_once()
+    assert "Creating batch did not finish" in logger.warning.call_args.args[0]
+
+
 @skip_if_no_grok
 @pytest.mark.slow
 async def test_grok_batch_cancelled_live_when_its_request_is_cancelled() -> None:
@@ -416,13 +551,19 @@ async def test_grok_batch_cancelled_live_when_its_request_is_cancelled() -> None
     # the first status check means the batch has been submitted
     batch_ids: list[str] = []
     submitted = anyio.Event()
+    real_create = client.batch.create
     real_get = client.batch.get
 
+    async def create(**kwargs: Any) -> Any:
+        batch = await real_create(**kwargs)
+        batch_ids.append(batch.batch_id)
+        return batch
+
     async def get(batch_id: str) -> Any:
-        batch_ids.append(batch_id)
         submitted.set()
         return await real_get(batch_id)
 
+    client.batch.create = create
     client.batch.get = get
     prompt = "Write a 3000 word history of the printing press."
     request = {
@@ -431,25 +572,31 @@ async def test_grok_batch_cancelled_live_when_its_request_is_cancelled() -> None
         "tools": [],
     }
 
-    with anyio.fail_after(120):
-        async with anyio.create_task_group() as worker_tg:
-            set_background_task_group(worker_tg)
-            try:
-                async with anyio.create_task_group() as tg:
-                    tg.start_soon(batcher.generate_for_request, request)
-                    await submitted.wait()
-                    tg.cancel_scope.cancel()
-            finally:
-                set_background_task_group(None)
+    try:
+        with anyio.fail_after(120):
+            async with anyio.create_task_group() as worker_tg:
+                set_background_task_group(worker_tg)
+                try:
+                    async with anyio.create_task_group() as tg:
+                        tg.start_soon(batcher.generate_for_request, request)
+                        await submitted.wait()
+                        tg.cancel_scope.cancel()
+                finally:
+                    set_background_task_group(None)
 
-        # cancellation of pending requests is asynchronous at xAI
-        state = (await real_get(batch_ids[0])).state
-        while state.num_pending > 0:
-            await anyio.sleep(2)
+            # cancellation of pending requests is asynchronous at xAI
             state = (await real_get(batch_ids[0])).state
+            while state.num_pending > 0:
+                await anyio.sleep(2)
+                state = (await real_get(batch_ids[0])).state
 
-    assert state.num_cancelled == 1
-    assert state.num_success == 0
+        assert state.num_cancelled == 1
+        assert state.num_success == 0
+    finally:
+        # don't leave the batch running if the test failed
+        for batch_id in batch_ids:
+            with contextlib.suppress(Exception):
+                await client.batch.cancel(batch_id)
 
 
 async def test_grok_create_batch_parses_json_schema_response_format() -> None:
