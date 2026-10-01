@@ -326,6 +326,132 @@ async def test_grok_cancel_batch_cancels_job() -> None:
     client.batch.cancel.assert_awaited_once_with("batch-123")
 
 
+def _grok_batcher_with_hanging_add() -> tuple[GrokBatcher, MagicMock, anyio.Event]:
+    """A GrokBatcher whose client creates a batch and then hangs adding to it."""
+    client = MagicMock()
+    client.chat.create = MagicMock(return_value=MagicMock())
+    client.batch.create = AsyncMock(return_value=SimpleNamespace(batch_id="batch-123"))
+    client.batch.cancel = AsyncMock()
+    add_started = anyio.Event()
+
+    async def add(**kwargs: object) -> None:
+        add_started.set()
+        await anyio.sleep_forever()
+
+    client.batch.add = add
+    batcher = GrokBatcher(
+        client=client,
+        config=BatchConfig(size=1, send_delay=0, tick=0.001),
+        retry_config=model_retry_config(
+            "test", 1, None, lambda e: False, lambda ex: None, lambda m, s: None
+        ),
+    )
+    return batcher, client, add_started
+
+
+async def test_grok_add_interrupted_by_shutdown_cancels_batch() -> None:
+    """A batch whose requests were still being added at shutdown is cancelled."""
+    from unittest.mock import patch
+
+    from inspect_ai._util.background import set_background_task_group
+
+    batcher, client, add_started = _grok_batcher_with_hanging_add()
+    request = {"model": "grok-3-mini", "messages": [], "tools": []}
+
+    with (
+        patch("inspect_ai.model._providers.util.batch.BATCH_CANCEL_TIMEOUT", 0.05),
+        anyio.fail_after(10),
+    ):
+        async with anyio.create_task_group() as worker_tg:
+            set_background_task_group(worker_tg)
+            try:
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(batcher.generate_for_request, request)
+                    await add_started.wait()
+                    tg.cancel_scope.cancel()
+                worker_tg.cancel_scope.cancel()
+            finally:
+                set_background_task_group(None)
+
+    client.batch.cancel.assert_awaited_once_with("batch-123")
+
+
+async def test_grok_add_failure_cancels_batch() -> None:
+    """A batch that could not be fully populated is cancelled before retrying."""
+    batcher, client, _add_started = _grok_batcher_with_hanging_add()
+    client.batch.add = AsyncMock(side_effect=RuntimeError("add failed"))
+    request: BatchRequest[object] = BatchRequest(
+        request={"model": "grok-3-mini", "messages": [], "tools": []},
+        result_stream=MagicMock(),
+        custom_id="req-1",
+    )
+
+    with pytest.raises(RuntimeError, match="add failed"):
+        await batcher._create_batch([request])
+
+    client.batch.cancel.assert_awaited_once_with("batch-123")
+
+
+@skip_if_no_grok
+@pytest.mark.slow
+async def test_grok_batch_cancelled_live_when_its_request_is_cancelled() -> None:
+    """Cancelling the only request in a submitted batch cancels it at xAI."""
+    import os
+
+    from google.protobuf.json_format import MessageToDict
+
+    from inspect_ai._util.background import set_background_task_group
+
+    xai_sdk: Any = importlib.import_module("xai_sdk")
+    chat: Any = importlib.import_module("xai_sdk.chat")
+    client = xai_sdk.AsyncClient(api_key=os.environ["GROK_API_KEY"])
+    batcher = GrokBatcher(
+        client=client,
+        config=BatchConfig(size=1, send_delay=0, tick=0.05),
+        retry_config=model_retry_config(
+            "test", 1, None, lambda e: False, lambda ex: None, lambda m, s: None
+        ),
+    )
+
+    # the first status check means the batch has been submitted
+    batch_ids: list[str] = []
+    submitted = anyio.Event()
+    real_get = client.batch.get
+
+    async def get(batch_id: str) -> Any:
+        batch_ids.append(batch_id)
+        submitted.set()
+        return await real_get(batch_id)
+
+    client.batch.get = get
+    prompt = "Write a 3000 word history of the printing press."
+    request = {
+        "model": "grok-4-1-fast-reasoning",
+        "messages": [MessageToDict(chat.user(prompt))],
+        "tools": [],
+    }
+
+    with anyio.fail_after(120):
+        async with anyio.create_task_group() as worker_tg:
+            set_background_task_group(worker_tg)
+            try:
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(batcher.generate_for_request, request)
+                    await submitted.wait()
+                    tg.cancel_scope.cancel()
+            finally:
+                set_background_task_group(None)
+
+        # cancellation of pending requests is asynchronous at xAI
+        state = (await real_get(batch_ids[0])).state
+        while state.num_pending > 0:
+            await anyio.sleep(2)
+            state = (await real_get(batch_ids[0])).state
+
+    assert state.num_cancelled == 1
+    assert state.num_success == 0
+
+
 async def test_grok_create_batch_parses_json_schema_response_format() -> None:
     """Rehydrate dict response_format into protobuf before chat.create."""
     schema = '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}'

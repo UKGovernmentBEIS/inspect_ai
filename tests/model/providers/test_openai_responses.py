@@ -727,6 +727,36 @@ async def test_background_response_cancelled_when_caller_cancelled_during_create
     client.responses.cancel.assert_awaited_once_with(queued_response.id)
 
 
+async def test_background_response_not_created_when_caller_already_cancelled() -> None:
+    """No background work is started for a caller that is already cancelled."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    import anyio
+    import anyio.lowlevel
+
+    from inspect_ai.model._providers.openai_responses import (
+        create_background_response,
+    )
+
+    submitted: list[dict] = []
+
+    async def create(**kwargs: object) -> object:
+        await anyio.lowlevel.checkpoint()
+        submitted.append(dict(kwargs))
+        return _completed_mock_response()
+
+    client = MagicMock()
+    client.responses.create = create
+    client.responses.cancel = AsyncMock()
+
+    with anyio.CancelScope() as scope:
+        scope.cancel()
+        await create_background_response(client, {"model": "gpt-5.6-sol"})
+
+    assert submitted == []
+    assert client.responses.cancel.await_count == 0
+
+
 async def test_background_response_create_gives_up_after_cancel_timeout() -> None:
     """A create that hangs after cancellation does not block the caller for long."""
     from unittest.mock import AsyncMock, MagicMock, patch
@@ -763,6 +793,102 @@ async def test_background_response_create_gives_up_after_cancel_timeout() -> Non
             tg.cancel_scope.cancel()
 
     assert client.responses.cancel.await_count == 0
+
+
+_LIVE_BACKGROUND_REQUEST: dict[str, Any] = {
+    "model": "gpt-5-mini",
+    "input": "Write a 3000 word history of the printing press.",
+    "reasoning": {"effort": "high"},
+    "background": True,
+}
+
+
+async def _live_response_status(client: Any, response_id: str) -> str:
+    """Status of a response once it has left `queued`/`in_progress`."""
+    import anyio
+
+    with anyio.fail_after(60):
+        while True:
+            response = await client.responses.retrieve(response_id)
+            if response.status not in {"queued", "in_progress"}:
+                return str(response.status)
+            await anyio.sleep(2)
+
+
+@skip_if_no_openai
+@pytest.mark.slow
+async def test_background_response_cancelled_live_when_create_interrupted() -> None:
+    """A response created after its caller was cancelled is cancelled at OpenAI."""
+    import anyio
+    from openai import AsyncOpenAI
+
+    from inspect_ai.model._providers.openai_responses import (
+        create_background_response,
+    )
+
+    client = AsyncOpenAI()
+    real_create = client.responses.create
+    created: list[Any] = []
+    create_returned = anyio.Event()
+    release_create = anyio.Event()
+
+    async def create(**kwargs: Any) -> Any:
+        response = await real_create(**kwargs)
+        created.append(response)
+        create_returned.set()
+        # the response is created, but has not reached the caller yet
+        await release_create.wait()
+        return response
+
+    setattr(client.responses, "create", create)
+
+    with anyio.fail_after(60):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(create_background_response, client, _LIVE_BACKGROUND_REQUEST)
+            await create_returned.wait()
+            tg.cancel_scope.cancel()
+            release_create.set()
+
+    assert await _live_response_status(client, created[0].id) == "cancelled"
+
+
+@skip_if_no_openai
+@pytest.mark.slow
+async def test_background_response_cancelled_live_when_polling_fails() -> None:
+    """A response whose polling fails is cancelled at OpenAI before the retry."""
+    from unittest.mock import AsyncMock, patch
+
+    import httpx2
+    from openai import APIConnectionError, AsyncOpenAI
+
+    from inspect_ai.model._providers.openai_responses import (
+        wait_for_background_response,
+    )
+
+    client = AsyncOpenAI()
+    response = await client.responses.create(**_LIVE_BACKGROUND_REQUEST)
+    real_retrieve = client.responses.retrieve
+    setattr(
+        client.responses,
+        "retrieve",
+        AsyncMock(
+            side_effect=APIConnectionError(
+                request=httpx2.Request("GET", "https://api.openai.com/v1/responses")
+            )
+        ),
+    )
+
+    with (
+        patch(
+            "inspect_ai.model._providers.openai_responses.anyio.sleep",
+            new=AsyncMock(),
+        ),
+        pytest.raises(APIConnectionError),
+    ):
+        await wait_for_background_response(client, response)
+
+    setattr(client.responses, "retrieve", real_retrieve)
+    assert await _live_response_status(client, response.id) == "cancelled"
 
 
 def test_fix_function_tool_parameters_string_to_dict():

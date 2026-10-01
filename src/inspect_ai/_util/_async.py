@@ -3,10 +3,11 @@ import contextlib
 import inspect
 import os
 import sys
-from logging import Logger
+from logging import Logger, getLogger
 from typing import Any, Awaitable, Callable, Coroutine, Iterable, Literal, TypeVar, cast
 
 import anyio
+import anyio.lowlevel
 import nest_asyncio2 as nest_asyncio  # type: ignore
 import sniffio
 
@@ -120,6 +121,66 @@ class aexit_shielded_when(contextlib.AbstractAsyncContextManager[Any]):
     async def __aexit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> Any:
         with anyio.CancelScope(shield=self._shield()):
             return await self._inner.__aexit__(exc_type, exc_value, traceback)
+
+
+async def run_past_cancellation(
+    func: Callable[[], Awaitable[T]],
+    on_cancelled: Callable[[T], Awaitable[None]],
+    grace: float,
+    description: str,
+) -> T:
+    """Run `func` so that cancelling the caller does not lose its result.
+
+    For calls that start remote work and return its id (e.g. submitting a
+    provider batch): cancelling such a call mid-request loses the id while the
+    work keeps running. `func` is not started if the caller is already
+    cancelled. Once started it runs shielded; if the caller is then cancelled
+    it has `grace` seconds to finish, its result is passed to `on_cancelled`
+    (e.g. to cancel the remote work), and the cancellation is re-raised. If it
+    does not finish in time a warning is logged.
+
+    Args:
+       func: Async function to run.
+       on_cancelled: Called with the result of `func` when the caller was
+          cancelled. It runs in the cancelled caller, so it must shield its
+          own awaits (e.g. `anyio.move_on_after(..., shield=True)`).
+       grace: Seconds `func` may continue after the caller is cancelled.
+       description: What `func` does, for the warning.
+
+    Returns:
+       The result of `func`.
+    """
+    scope = anyio.CancelScope(shield=True)
+    done = anyio.Event()
+    results: list[T] = []
+
+    async def run() -> None:
+        try:
+            await anyio.lowlevel.checkpoint_if_cancelled()
+            with scope:
+                results.append(await func())
+        finally:
+            done.set()
+
+    async def wait() -> None:
+        try:
+            await done.wait()
+        except anyio.get_cancelled_exc_class():
+            scope.deadline = anyio.current_time() + grace
+            raise
+
+    try:
+        await tg_collect([run, wait])
+    except anyio.get_cancelled_exc_class():
+        if results:
+            await on_cancelled(results[0])
+        elif scope.cancelled_caught:
+            getLogger(__name__).warning(
+                f"{description} did not finish within {grace} seconds of "
+                + "cancellation; work it started may continue to run."
+            )
+        raise
+    return results[0]
 
 
 async def coro_print_exceptions(

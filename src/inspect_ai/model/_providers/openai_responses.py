@@ -1,7 +1,7 @@
 import json
 from collections.abc import Callable
 from logging import getLogger
-from typing import Any
+from typing import Any, cast
 
 import anyio
 from openai import (
@@ -37,7 +37,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from inspect_ai._util._async import tg_collect
+from inspect_ai._util._async import run_past_cancellation
 from inspect_ai._util.httpx import log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
@@ -436,42 +436,21 @@ async def create_background_response(
     """Create a background response, cancelling it if the caller is cancelled.
 
     Cancelling `responses.create()` while it is in flight would lose the id of
-    a response that may already be running (and billing) on the server. The
-    create therefore runs shielded: once the caller is cancelled it has
-    `BACKGROUND_CANCEL_TIMEOUT` seconds to return, and the response it returns
-    is cancelled.
+    a response that may already be running (and billing) on the server, so the
+    create is run with `run_past_cancellation()` and the response it returns
+    after the caller is cancelled is cancelled.
     """
-    create_scope = anyio.CancelScope(shield=True)
-    create_done = anyio.Event()
-    created: list[Response] = []
 
-    async def create() -> None:
-        with create_scope:
-            try:
-                created.append(await client.responses.create(**request))
-            finally:
-                create_done.set()
+    async def create() -> Response:
+        # `**request` defeats the SDK's overloads, so the result is untyped
+        return cast(Response, await client.responses.create(**request))
 
-    async def wait_for_create() -> None:
-        try:
-            await create_done.wait()
-        except anyio.get_cancelled_exc_class():
-            create_scope.deadline = anyio.current_time() + BACKGROUND_CANCEL_TIMEOUT
-            raise
+    async def cancel(response: Response) -> None:
+        await cancel_background_response(client, response.id)
 
-    try:
-        await tg_collect([create, wait_for_create])
-    except anyio.get_cancelled_exc_class():
-        if created:
-            await cancel_background_response(client, created[0].id)
-        elif create_scope.cancelled_caught:
-            logger.warning(
-                f"Background request was not created within {BACKGROUND_CANCEL_TIMEOUT} "
-                + "seconds of cancellation; if the server created it, it will run "
-                + "to completion."
-            )
-        raise
-    return created[0]
+    return await run_past_cancellation(
+        create, cancel, BACKGROUND_CANCEL_TIMEOUT, "Creating background request"
+    )
 
 
 async def cancel_background_response(

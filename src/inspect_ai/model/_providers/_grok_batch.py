@@ -92,12 +92,19 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
         # Add requests one-by-one to avoid large gRPC payloads in a single add call.
         # Observed gRPC transport caps (~4MB decode / ~20MB send on packed add)
         # are empirical, not documented API contract.
-        for request in requests:
-            await self._client.batch.add(
-                batch_id=batch.batch_id,
-                batch_requests=[request],
-            )
-        return cast(str, batch.batch_id)
+        batch_id = cast(str, batch.batch_id)
+        try:
+            for request in requests:
+                await self._client.batch.add(
+                    batch_id=batch_id,
+                    batch_requests=[request],
+                )
+        except BaseException:
+            # the batch is not returned to the caller, so nothing will poll it:
+            # cancel the requests already added
+            await self._cancel_provider_batch(Batch(id=batch_id, requests={}))
+            raise
+        return batch_id
 
     @override
     async def _cancel_batch(self, batch: Batch[Response]) -> None:

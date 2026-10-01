@@ -12,7 +12,7 @@ import anyio
 import anyio.abc
 from tenacity import RetryCallState, retry
 
-from inspect_ai._util._async import tg_collect
+from inspect_ai._util._async import run_past_cancellation, tg_collect
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.notgiven import sanitize_notgiven
@@ -163,6 +163,15 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         log_batch(
             f"All {len(batch.requests)} requests in batch {batch.id} were cancelled, cancelling batch"
         )
+        await self._cancel_provider_batch(batch)
+
+    async def _cancel_provider_batch(self, batch: Batch[ResponseT]) -> None:
+        """Cancel a batch at the provider, best effort.
+
+        Shielded from the caller's cancellation, bounded by
+        `BATCH_CANCEL_TIMEOUT`, and logged rather than raised on failure, so
+        it is safe to call from cleanup code.
+        """
         with anyio.move_on_after(BATCH_CANCEL_TIMEOUT, shield=True) as scope:
             try:
                 await self._cancel_batch(batch)
@@ -294,7 +303,22 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             if not batch_requests:
                 return True
 
-            batch_id = await self._wrapped_create_batch(batch_requests)
+            async def create() -> str:
+                return await self._wrapped_create_batch(batch_requests)
+
+            async def cancel_created(batch_id: str) -> None:
+                # the worker is being cancelled, so nothing will poll this batch
+                log_batch(f"Batch {batch_id} created during shutdown, cancelling it")
+                await self._cancel_provider_batch(
+                    Batch(
+                        id=batch_id,
+                        requests={r.custom_id: r for r in batch_requests},
+                    )
+                )
+
+            batch_id = await run_past_cancellation(
+                create, cancel_created, BATCH_CANCEL_TIMEOUT, "Creating batch"
+            )
 
             batch = Batch(
                 id=batch_id,

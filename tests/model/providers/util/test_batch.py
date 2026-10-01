@@ -1184,6 +1184,51 @@ class TestBatcherCancellation:
         assert batcher.cancelled_batch_ids == ["batch-0"]
         assert batcher._inflight_batches == {}
 
+    async def _shutdown_during_creation(self, batcher: GatedFakeBatcher) -> None:
+        """Cancel the request, then the worker's task group, while creating."""
+        from inspect_ai._util.background import set_background_task_group
+
+        with anyio.fail_after(10):
+            async with anyio.create_task_group() as worker_tg:
+                set_background_task_group(worker_tg)
+                try:
+                    async with anyio.create_task_group() as tg:
+                        tg.start_soon(batcher.generate_for_request, {"prompt": "a"})
+                        await batcher.create_started.wait()
+                        tg.cancel_scope.cancel()
+                    # eval shutdown cancels the background task group
+                    worker_tg.cancel_scope.cancel()
+                    batcher.create_release.set()
+                finally:
+                    set_background_task_group(None)
+
+    async def test_worker_cancelled_during_creation_cancels_created_batch(self):
+        batcher = GatedFakeBatcher(
+            config=BatchConfig(size=1, send_delay=10, tick=0.001), gate_create=True
+        )
+
+        await self._shutdown_during_creation(batcher)
+
+        assert batcher.cancelled_batch_ids == ["batch-0"]
+
+    async def test_worker_cancelled_during_hung_creation_gives_up(self):
+        from unittest.mock import patch
+
+        batcher = GatedFakeBatcher(
+            config=BatchConfig(size=1, send_delay=10, tick=0.001), gate_create=True
+        )
+
+        async def hang(batch_requests) -> str:
+            batcher.create_started.set()
+            await anyio.sleep_forever()
+            raise AssertionError("unreachable")
+
+        batcher._create_batch = hang
+        with patch("inspect_ai.model._providers.util.batch.BATCH_CANCEL_TIMEOUT", 0.05):
+            await self._shutdown_during_creation(batcher)
+
+        assert batcher.cancelled_batch_ids == []
+
     async def test_cancel_failure_does_not_raise(self):
         batcher = GatedFakeBatcher(
             config=BatchConfig(size=1, send_delay=10, tick=0.001),
