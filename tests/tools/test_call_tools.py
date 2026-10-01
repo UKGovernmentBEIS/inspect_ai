@@ -1,9 +1,13 @@
 import datetime
+import uuid
 from collections import OrderedDict, deque
 from dataclasses import dataclass
 from datetime import date, time, timezone
 from enum import Enum
+from ipaddress import IPv4Address
+from pathlib import Path
 from typing import (
+    Annotated,
     Any,
     DefaultDict,
     Deque,
@@ -14,6 +18,7 @@ from typing import (
     List,
     Literal,
     Mapping,
+    MutableMapping,
     Optional,
     Set,
     Tuple,
@@ -796,3 +801,156 @@ def test_model_set_check_is_linear(
 
     assert tool_param(model, {"value": values}).value == {float(v) for v in values}
     assert calls <= 2
+
+
+PARSED_KEYS: list[tuple[Any, str]] = [
+    (date, "2025-01-02"),
+    (datetime.datetime, "2025-01-02T03:04:05"),
+    (time, "03:04:05"),
+    (datetime.timedelta, "PT5S"),
+    (uuid.UUID, "12345678-1234-5678-1234-567812345678"),
+    (bytes, "abc"),
+    (Path, "a/b"),
+    (IPv4Address, "10.0.0.1"),
+]
+
+
+@pytest.mark.parametrize(
+    "key_type,key", PARSED_KEYS, ids=[str(k.__name__) for k, _ in PARSED_KEYS]
+)
+@pytest.mark.parametrize(
+    "mapping",
+    [Mapping, MutableMapping, OrderedDict, DefaultDict],
+    ids=["Mapping", "MutableMapping", "OrderedDict", "defaultdict"],
+)
+def test_model_mapping_with_parsed_keys_converts_exactly(
+    key_type: Any, key: str, mapping: Any
+) -> None:
+    from pydantic import create_model
+
+    from inspect_ai.tool._tool import ToolParsingError
+
+    model = create_model("Keys", value=(mapping[key_type, float], ...))
+    with pytest.raises(ToolParsingError):
+        tool_param(model, {"value": {key: BIG}})
+    (converted,) = tool_param(model, {"value": {key: 2}}).value.values()
+    assert converted == 2.0
+
+
+def test_model_mapping_with_parsed_keys_nested_and_wrapped() -> None:
+    from pydantic import Field, create_model
+
+    from inspect_ai.tool._tool import ToolParsingError
+
+    wrapped = create_model(
+        "Wrapped",
+        value=(
+            Annotated[Dict[date, float], Field(min_length=1)] | Literal["none"],
+            ...,
+        ),
+    )
+    nested = create_model("Nested", value=(List[Dict[date, List[float]]], ...))
+    for model, inexact, exact, expected in [
+        (wrapped, {"2025-01-02": BIG}, {"2025-01-02": 2}, {date(2025, 1, 2): 2.0}),
+        (
+            nested,
+            [{"2025-01-02": [BIG]}],
+            [{"2025-01-02": [2]}],
+            [{date(2025, 1, 2): [2.0]}],
+        ),
+    ]:
+        with pytest.raises(ToolParsingError):
+            tool_param(model, {"value": inexact})
+        assert tool_param(model, {"value": exact}).value == expected
+
+
+TUPLE_MEMBERS: list[tuple[Any, str, Any]] = [
+    (date, "2025-01-02", date(2025, 1, 2)),
+    (bytes, "abc", b"abc"),
+    (MyEnum, "alpha", MyEnum.ALPHA),
+    (
+        uuid.UUID,
+        "12345678-1234-5678-1234-567812345678",
+        uuid.UUID("12345678-1234-5678-1234-567812345678"),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "member,text,expected",
+    TUPLE_MEMBERS,
+    ids=[str(m.__name__) for m, _, _ in TUPLE_MEMBERS],
+)
+@pytest.mark.parametrize("collection", [Set, FrozenSet], ids=["set", "frozenset"])
+def test_model_set_of_tuples_keeps_parsed_members(
+    member: Any, text: str, expected: Any, collection: Any
+) -> None:
+    from pydantic import create_model
+
+    model = create_model("Members", value=(collection[Tuple[member, float]], ...))
+    assert tool_param(model, {"value": [[text, 2], [text, 2]]}).value == {
+        (expected, 2.0)
+    }
+
+
+def test_model_set_of_nested_composites_converts_exactly() -> None:
+    from pydantic import create_model
+
+    from inspect_ai.tool._tool import ToolParsingError
+
+    model = create_model(
+        "Composite", value=(Set[Tuple[date, Tuple[MyEnum, float]]], ...)
+    )
+    assert tool_param(model, {"value": [["2025-01-02", ["alpha", 1]]]}).value == {
+        (date(2025, 1, 2), (MyEnum.ALPHA, 1.0))
+    }
+    with pytest.raises(ToolParsingError):
+        tool_param(model, {"value": [["2025-01-02", ["alpha", BIG]]]})
+
+
+class FrozenItem(BaseModel):
+    model_config = {"frozen": True}
+    n: int
+    note: str = ""
+
+
+@dataclass(frozen=True)
+class FrozenRecord:
+    n: int
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        Set[FrozenItem],
+        FrozenSet[FrozenItem],
+        Set[FrozenRecord],
+        FrozenSet[FrozenRecord],
+    ],
+    ids=["set-model", "frozenset-model", "set-dataclass", "frozenset-dataclass"],
+)
+@pytest.mark.parametrize("duplicates", [False, True], ids=["distinct", "duplicates"])
+def test_model_set_of_structured_members_check_is_linear(
+    annotation: Any, duplicates: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic import create_model
+
+    from inspect_ai.model import _call_tools
+
+    calls = 0
+    canonical = _call_tools._canonical_built
+
+    def counting(value: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return canonical(value)
+
+    monkeypatch.setattr(_call_tools, "_canonical_built", counting)
+    n = 1000
+    items = [{"n": i // 2 if duplicates else i} for i in range(n)]
+    model = create_model("Items", value=(annotation, ...))
+
+    built = tool_param(model, {"value": items}).value
+    assert len(built) == (n // 2 if duplicates else n)
+    # one call per member and per field, not per pair of members
+    assert calls <= 3 * n + 1

@@ -1,16 +1,16 @@
 import inspect
 import json
-import math
 import string
 import types
 import typing
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from collections.abc import Set as AbstractSet
 from copy import copy, deepcopy
 from dataclasses import fields, is_dataclass, replace
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum, EnumMeta
+from fractions import Fraction
 from logging import getLogger
 from textwrap import dedent
 from types import UnionType
@@ -44,6 +44,7 @@ import yaml
 from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import AliasChoices, AliasPath, BaseModel
 from pydantic.fields import FieldInfo
+from pydantic_core import PydanticSerializationError, to_jsonable_python
 from typing_extensions import is_typeddict
 
 from inspect_ai._util.content import (
@@ -1605,142 +1606,173 @@ def _input_at(value: Any, path: tuple[str | int, ...]) -> tuple[bool, Any]:
 def _value_preserved(supplied: Any, built: Any) -> bool:
     """Whether `built` holds the JSON value `supplied` with the same meaning.
 
-    Numbers and flags must survive exactly, and keep their kind: a string
-    never becomes a number or flag, nor a number or flag a string. Arrays and
-    objects are compared element by element against the sequence, set,
-    mapping, model or dataclass built from them. Other types parsed from a
-    string (dates, enums, bytes, UUIDs) are accepted.
+    Both are reduced to a canonical form and compared (each element once, so a
+    collection of n values costs O(n)). Numbers compare exactly and keep their
+    kind: a string never becomes a number or flag, nor the reverse. Arrays
+    match sequences in order and sets as sets; objects match mappings, models
+    (their supplied fields) and dataclasses. Other values built from a string
+    (dates, enums, bytes, UUIDs) match any string; inside a set, and as a
+    mapping key, they must be written as the text they serialize to. A value that
+    cannot be reduced, such as a lazy iterable the tool would consume after
+    approval, does not match.
     """
-    if isinstance(built, Enum) and not isinstance(supplied, list | dict):
-        return _value_preserved(supplied, built.value)
-    if supplied is None:
-        return built is None
-    if isinstance(supplied, bool):
-        return isinstance(built, bool) and built == supplied
-    if isinstance(supplied, int | float):
-        if isinstance(built, bool | str):
-            return False
-        if isinstance(built, int | float | Decimal):
-            return bool(supplied == built) or (
-                isinstance(supplied, float)
-                and math.isnan(supplied)
-                and isinstance(built, float)
-                and math.isnan(built)
-            )
-        if isinstance(built, timedelta):
-            return bool(built.total_seconds() == supplied)
+    try:
+        built_form = _canonical_built(built)
+    except _Unchecked:
         return False
-    if isinstance(supplied, str):
-        if isinstance(built, str):
-            return built == supplied
-        return not isinstance(built, bool | int | float | Decimal)
-    if isinstance(supplied, list):
-        if isinstance(built, Sequence) and not isinstance(built, str | bytes):
-            return len(supplied) == len(built) and all(
-                _value_preserved(s, b) for s, b in zip(supplied, built)
-            )
-        if isinstance(built, AbstractSet):
-            return _set_preserves(supplied, built)
-        # e.g. a lazy iterable, which converts only as the tool consumes it
-        return False
-    if isinstance(supplied, dict):
-        if isinstance(built, BaseModel):
-            return _model_preserves(supplied, built)
-        if is_dataclass(built) and not isinstance(built, type):
-            return all(
-                _value_preserved(supplied[field.name], getattr(built, field.name))
-                for field in fields(built)
-                if field.name in supplied
-            )
-        if isinstance(built, Mapping):
-            return _mapping_preserves(supplied, built)
-        return True
-    return True
+    return bool(_canonical_supplied(supplied, built_form) == built_form)
 
 
-def _scalar_kind(value: Any) -> str:
+class _Unchecked(Exception):
+    """A built value whose content cannot be checked before the tool runs."""
+
+
+def _canonical_number(value: int | float | Decimal) -> tuple[str, Any]:
+    try:
+        return ("n", Fraction(value))
+    except (ValueError, OverflowError):  # nan, inf
+        return ("n", str(float(value)))
+
+
+def _canonical_json(value: Any) -> Any:
+    """The canonical form of a JSON value supplied by the model."""
     if isinstance(value, bool):
-        return "bool"
-    if isinstance(value, int | float | Decimal):
-        return "number"
+        return ("b", value)
+    if isinstance(value, int | float):
+        return _canonical_number(value)
     if isinstance(value, str):
-        return "str"
+        return ("s", value)
     if value is None:
-        return "none"
-    return "other"
+        return ("z",)
+    if isinstance(value, list | tuple):
+        return ("l", tuple(_canonical_json(v) for v in value))
+    if isinstance(value, dict):
+        return ("d", frozenset((str(k), _canonical_json(v)) for k, v in value.items()))
+    return ("?", id(value))
 
 
-def _frozen(value: Any) -> Any:
-    return tuple(_frozen(v) for v in value) if isinstance(value, list) else value
+def _canonical_supplied(value: Any, shape: Any) -> Any:
+    """The canonical form of `value`, read as the built form `shape` was (sets)."""
+    tag = shape[0] if isinstance(shape, tuple) and shape else None
+    if tag == "ps" and isinstance(value, str):
+        # parsed from a string (any spelling the type accepts)
+        return shape
+    if tag == "set" and isinstance(value, list):
+        return ("set", frozenset(_canonical_json(v) for v in value))
+    if tag == "l" and isinstance(value, list) and len(value) == len(shape[1]):
+        return (
+            "l",
+            tuple(_canonical_supplied(v, s) for v, s in zip(value, shape[1])),
+        )
+    if tag == "d" and isinstance(value, dict):
+        shapes = dict(shape[1])
+        return (
+            "d",
+            frozenset(
+                (str(k), _canonical_supplied(v, shapes.get(str(k))))
+                for k, v in value.items()
+            ),
+        )
+    return _canonical_json(value)
 
 
-def _set_preserves(supplied: list[Any], built: AbstractSet[Any]) -> bool:
-    """Whether each supplied element is in `built` with its kind and value.
+def _canonical_built(value: Any) -> Any:
+    """The canonical form of a value built from a model's JSON input."""
+    if isinstance(value, Enum):
+        value = value.value
+    if isinstance(value, bool):
+        return ("b", value)
+    if isinstance(value, int | float | Decimal):
+        return _canonical_number(value)
+    if isinstance(value, str):
+        return ("s", value)
+    if value is None:
+        return ("z",)
+    if isinstance(value, BaseModel):
+        model_fields = type(value).model_fields
+        return (
+            "d",
+            frozenset(
+                (
+                    _model_field_input_key(name, model_fields[name]),
+                    _canonical_built(getattr(value, name)),
+                )
+                for name in value.model_fields_set
+                if name in model_fields
+            ),
+        )
+    if is_dataclass(value) and not isinstance(value, type):
+        return (
+            "d",
+            frozenset(
+                (field.name, _canonical_built(getattr(value, field.name)))
+                for field in fields(value)
+            ),
+        )
+    if isinstance(value, Mapping):
+        return (
+            "d",
+            frozenset(
+                (_canonical_key(k), _canonical_built(v)) for k, v in value.items()
+            ),
+        )
+    if isinstance(value, AbstractSet):
+        # members are matched by lookup, so a parsed member must have been
+        # written as the text it serializes to
+        return ("set", frozenset(_spelled(_canonical_built(v)) for v in value))
+    if isinstance(value, Sequence) and not isinstance(value, bytes | bytearray):
+        return ("l", tuple(_canonical_built(v) for v in value))
+    if isinstance(value, Iterable) and not isinstance(value, bytes | bytearray):
+        raise _Unchecked()
+    try:
+        serialized = to_jsonable_python(value)
+    except PydanticSerializationError as ex:
+        raise _Unchecked() from ex
+    if isinstance(serialized, str):
+        return ("ps", serialized)
+    return _canonical_json(serialized)
 
-    Elements are looked up by (kind, value) rather than compared pairwise, so
-    a set of n elements costs O(n); numbers match exactly (2**53 + 1 is not
-    9007199254740992.0) and a flag never matches a number.
+
+def _spelled(form: Any) -> Any:
+    """`form` with each value parsed from a string matched as its own text."""
+    tag = form[0]
+    if tag == "ps":
+        return ("s", form[1])
+    if tag == "l":
+        return ("l", tuple(_spelled(f) for f in form[1]))
+    if tag == "d":
+        return ("d", frozenset((k, _spelled(f)) for k, f in form[1]))
+    if tag == "set":
+        return form
+    return form
+
+
+def _canonical_key(key: Any) -> str:
+    """A mapping key as the JSON text it was built from.
+
+    A number key must have been written as the number's own text (`"1"` for 1),
+    and a flag key matches no text.
     """
-    index: set[tuple[str, Any]] = set()
-    for member in built:
-        value = member.value if isinstance(member, Enum) else member
-        try:
-            index.add((_scalar_kind(value), value))
-        except TypeError:
-            index.add(("other", id(value)))
-    parsed = any(kind == "other" for kind, _ in index)
-    for element in supplied:
-        if isinstance(element, dict):
-            if not any(_value_preserved(element, member) for member in built):
-                return False
-        elif isinstance(element, str) and ("str", element) not in index:
-            # only a non-scalar member (a date, bytes) can be parsed from it
-            if not parsed:
-                return False
-        elif (
-            not isinstance(element, str)
-            and (
-                _scalar_kind(element) if not isinstance(element, list) else "other",
-                _frozen(element),
-            )
-            not in index
-        ):
-            return False
-    return True
+    if isinstance(key, Enum):
+        key = key.value
+    if isinstance(key, bool):
+        return "\0flag"
+    if isinstance(key, str):
+        return key
+    if isinstance(key, int | float | Decimal):
+        return str(key)
+    try:
+        return str(to_jsonable_python(key))
+    except PydanticSerializationError as ex:
+        raise _Unchecked() from ex
 
 
-def _mapping_preserves(supplied: dict[Any, Any], built: Mapping[Any, Any]) -> bool:
-    """Whether `built` holds each supplied entry under the key converted from it.
-
-    A JSON key is a string, so a number key must be the canonical text of the
-    number it became (`"1"` for 1), a flag key never matches, and keys that
-    collapse into one are a change.
-    """
-    if len(built) != len(supplied):
-        return False
-    by_text: dict[str, Any] = {}
-    parsed_keys = False
-    for key in built:
-        value = key.value if isinstance(key, Enum) else key
-        kind = _scalar_kind(value)
-        if kind == "str":
-            by_text[value] = key
-        elif kind == "number":
-            by_text.setdefault(str(value), key)
-        elif kind == "other":
-            parsed_keys = True
-    for key, value in supplied.items():
-        if not isinstance(key, str):
-            built_key = key if key in built else None
-        else:
-            built_key = by_text.get(key)
-        if built_key is None:
-            if parsed_keys:
-                continue
-            return False
-        if not _value_preserved(value, built[built_key]):
-            return False
-    return True
+def _model_field_input_key(name: str, field: FieldInfo) -> str:
+    """The input key a nested model field is matched under."""
+    for path in _model_field_input_paths(name, field):
+        if len(path) == 1 and isinstance(path[0], str):
+            return path[0]
+    return "\0path"
 
 
 def _exact_scalar(type_hint: Type[Any], value: Any) -> Any:

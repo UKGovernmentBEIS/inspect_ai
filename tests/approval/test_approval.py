@@ -1,7 +1,7 @@
 from collections import deque
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import Annotated, Any, Literal, NamedTuple
+from typing import Annotated, Any, Literal, Mapping, NamedTuple
 
 import pytest
 from pydantic import AliasChoices, AliasPath, BaseModel, Field
@@ -1043,6 +1043,14 @@ class IntKeyPayload(BaseModel):
     value: Annotated[dict[int, float], Field(min_length=1)] | Literal["none"]
 
 
+class DateKeyPayload(BaseModel):
+    value: Mapping[date, float]
+
+
+class TupleSetPayload(BaseModel):
+    value: frozenset[tuple[date, float]]
+
+
 @tool
 def model_inputs(received: list[dict[str, Any]]):
     async def execute(
@@ -1062,6 +1070,8 @@ def model_inputs(received: list[dict[str, Any]]):
         outer_flag: OuterFlagPayload | None = None,
         queue: DequePayload | None = None,
         int_keys: IntKeyPayload | None = None,
+        date_keys: DateKeyPayload | None = None,
+        tuples: TupleSetPayload | None = None,
     ) -> str:
         """Record model inputs.
 
@@ -1082,6 +1092,8 @@ def model_inputs(received: list[dict[str, Any]]):
             outer_flag: Nested flag models.
             queue: A union with a deque of floats.
             int_keys: A union with an int-keyed mapping of floats.
+            date_keys: A date-keyed mapping of floats.
+            tuples: A frozenset of (date, float) tuples.
         """
         received.append(
             {
@@ -1101,6 +1113,8 @@ def model_inputs(received: list[dict[str, Any]]):
                 "outer_flag": outer_flag,
                 "queue": queue,
                 "int_keys": int_keys,
+                "date_keys": date_keys,
+                "tuples": tuples,
             }
         )
         return "ok"
@@ -1126,6 +1140,8 @@ MODEL_INPUT_CASES: list[tuple[str, dict[str, Any]]] = [
     ("nested-flag", {"outer_flag": {"items": [{"value": "false"}]}}),
     ("deque", {"queue": {"value": [2**53 + 1]}}),
     ("int-keys", {"int_keys": {"value": {"1": 2**53 + 1}}}),
+    ("date-keys", {"date_keys": {"value": {"2025-01-02": 2**53 + 1}}}),
+    ("tuples", {"tuples": {"value": [["2025-01-02", 2**53 + 1]]}}),
 ]
 
 
@@ -1184,6 +1200,8 @@ async def test_exact_model_fields_run_as_approved() -> None:
         "outer_flag": {"items": [{"value": True}]},
         "queue": {"value": [exact, 1.5]},
         "int_keys": {"value": {"1": exact, "2": 1.5}},
+        "date_keys": {"value": {"2025-01-02": exact}},
+        "tuples": {"value": [["2025-01-02", exact], ["2025-01-02", exact]]},
     }
 
     message, calls, viewed, received = await execute_model_inputs(arguments)
@@ -1210,6 +1228,8 @@ async def test_exact_model_fields_run_as_approved() -> None:
     assert values["outer_flag"] == OuterFlagPayload(items=[FlagPayload(value=True)])
     assert values["queue"].value == deque([float(exact), 1.5])
     assert values["int_keys"].value == {1: float(exact), 2: 1.5}
+    assert dict(values["date_keys"].value) == {date(2025, 1, 2): float(exact)}
+    assert values["tuples"].value == frozenset({(date(2025, 1, 2), float(exact))})
 
 
 @tool
