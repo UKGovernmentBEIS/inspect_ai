@@ -239,6 +239,123 @@ async def test_mixed_batch_serial_acts_as_barrier() -> None:
     assert d_start > c_end
 
 
+async def test_substituted_serial_tool_does_not_overlap_its_stage() -> None:
+    """An approver's substitute keeps its own `parallel=False` contract.
+
+    The stage is formed from the proposed parallel-safe calls, so two of them
+    replaced by a serial tool must still run one at a time, and never alongside
+    the unchanged parallel sibling.
+    """
+    from inspect_ai.approval._apply import _tool_approver
+    from inspect_ai.approval._approval import Approval
+
+    active: list[str] = []
+    overlaps: list[list[str]] = []
+
+    async def occupy(label: str) -> str:
+        active.append(label)
+        for _ in range(5):
+            await anyio.sleep(0)
+            if len(active) > 1 and any(a.startswith("serial") for a in active):
+                overlaps.append(list(active))
+        active.remove(label)
+        return label
+
+    @tool(parallel=True)
+    def proposed():
+        async def proposed(label: str) -> str:
+            """Parallel-safe tool the model proposes.
+
+            Args:
+                label: The label to echo back.
+            """
+            return await occupy(label)
+
+        return proposed
+
+    @tool
+    def stateful():
+        async def stateful(label: str) -> str:
+            """Tool that is not parallel-safe.
+
+            Args:
+                label: The label to echo back.
+            """
+            return await occupy(f"serial-{label}")
+
+        return stateful
+
+    async def substitute(message, call, view, history):
+        if call.id == "sub-c2":
+            return Approval(decision="approve")
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id, function="stateful", arguments=call.arguments
+            ),
+        )
+
+    calls = [
+        call("proposed", "sub-c0", label="A"),
+        call("proposed", "sub-c1", label="B"),
+        call("proposed", "sub-c2", label="C"),
+    ]
+    token = _tool_approver.set(substitute)
+    try:
+        with anyio.fail_after(5):
+            messages, _ = await execute_tools(
+                [assistant(*calls)], [ToolDef(proposed()), ToolDef(stateful())]
+            )
+    finally:
+        _tool_approver.reset(token)
+
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert [(m.tool_call_id, m.function, m.text) for m in tool_msgs] == [
+        ("sub-c0", "stateful", "serial-A"),
+        ("sub-c1", "stateful", "serial-B"),
+        ("sub-c2", "proposed", "C"),
+    ]
+    assert overlaps == []
+
+
+async def test_stage_gate_released_when_a_waiting_serial_call_is_cancelled() -> None:
+    """A serial call cancelled while it waits must not hold back its siblings."""
+    from inspect_ai.model._call_tools import _ParallelStageGate
+
+    gate = _ParallelStageGate()
+    first_running = anyio.Event()
+    release_first = anyio.Event()
+    serial_ran: list[bool] = []
+
+    async def first() -> None:
+        async with gate.hold(parallel=True):
+            first_running.set()
+            await release_first.wait()
+
+    async def serial(scope: anyio.CancelScope) -> None:
+        with scope:
+            async with gate.hold(parallel=False):
+                serial_ran.append(True)
+
+    with anyio.fail_after(5):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(first)
+            await first_running.wait()
+
+            serial_scope = anyio.CancelScope()
+            tg.start_soon(serial, serial_scope)
+            await anyio.wait_all_tasks_blocked()
+            serial_scope.cancel()
+            await anyio.wait_all_tasks_blocked()
+
+            # a later parallel call is not held back by the cancelled one
+            async with gate.hold(parallel=True):
+                pass
+            release_first.set()
+
+    assert serial_ran == []
+
+
 async def test_tool_error_in_parallel_does_not_abort_siblings():
     """ToolError becomes tool-result content; sibling completes normally."""
     err_def = ToolDef(parallel_raise_tool_error())

@@ -3,6 +3,7 @@ import json
 import string
 import types
 import typing
+from contextlib import asynccontextmanager, nullcontext
 from copy import copy, deepcopy
 from dataclasses import is_dataclass
 from datetime import date, datetime, time
@@ -13,6 +14,7 @@ from types import UnionType
 from typing import (
     TYPE_CHECKING,
     Any,
+    AsyncIterator,
     Callable,
     Dict,
     List,
@@ -282,6 +284,7 @@ async def _execute_tools_impl(
                 tuple[ExecuteToolsResult, ToolEvent, Exception | None]
             ],
             on_review_cancelled: Callable[[ExecuteToolsResult, ToolEvent], None],
+            stage_gate: _ParallelStageGate | None,
         ) -> None:
             result: ToolResult = ""
             messages: list[ChatMessage] = []
@@ -325,6 +328,7 @@ async def _execute_tools_impl(
                             event,
                             conversation,
                             on_execute=note_executed_call,
+                            stage_gate=stage_gate,
                         )
                         result = called.result
                         messages = called.messages
@@ -564,6 +568,7 @@ async def _execute_tools_impl(
                 events: dict[int, ToolEvent],
                 results: dict[int, StreamItem | None],
                 waiting_starts: dict[int, float],
+                stage_gate: _ParallelStageGate | None,
             ) -> None:
                 call = tool_calls[idx]
                 event = events[idx]
@@ -617,6 +622,7 @@ async def _execute_tools_impl(
                             messages,
                             send_stream,
                             record_review_cancellation,
+                            stage_gate,
                         )
                         event._set_cancel_fn(tg.cancel_scope.cancel)
                         async with receive_stream:
@@ -724,6 +730,7 @@ async def _execute_tools_impl(
                         f"Tool call '{call.function}' was cancelled by operator."
                     )
 
+            stage_gate = _ParallelStageGate() if len(stage) > 1 else None
             stage_exception: Exception | None = None
             try:
                 async with anyio.create_task_group() as outer_tg:
@@ -736,6 +743,7 @@ async def _execute_tools_impl(
                             stage_events,
                             stage_results,
                             waiting_starts,
+                            stage_gate,
                         )
             except Exception as ex:
                 stage_exception = inner_exception(ex)
@@ -845,6 +853,50 @@ async def _execute_tools_impl(
         return ExecuteToolsResult([])
 
 
+class _ParallelStageGate:
+    """Keeps a tool that is not parallel-safe from overlapping its stage's siblings.
+
+    A parallel stage is formed from the proposed calls, but an approver can
+    substitute a tool that is not parallel-safe. Such a call waits for running
+    siblings to finish and holds back the ones that have not started until it is
+    done. Calls whose tools are parallel-safe run concurrently as before.
+    """
+
+    def __init__(self) -> None:
+        self._condition = anyio.Condition()
+        self._running = 0
+        self._exclusive = False
+
+    @asynccontextmanager
+    async def hold(self, parallel: bool) -> AsyncIterator[None]:
+        async with self._condition:
+            while self._exclusive:
+                await self._condition.wait()
+            if parallel:
+                self._running += 1
+            else:
+                self._exclusive = True
+                try:
+                    while self._running:
+                        await self._condition.wait()
+                except BaseException:
+                    # cancelled before running: let the held-back siblings go
+                    self._exclusive = False
+                    self._condition.notify_all()
+                    raise
+        try:
+            yield
+        finally:
+            # shielded so a cancelled call still releases its siblings
+            with anyio.CancelScope(shield=True):
+                async with self._condition:
+                    if parallel:
+                        self._running -= 1
+                    else:
+                        self._exclusive = False
+                    self._condition.notify_all()
+
+
 class CalledTool(NamedTuple):
     """Outcome of `call_tool()`."""
 
@@ -863,6 +915,7 @@ async def call_tool(
     event: BaseModel,
     conversation: list[ChatMessage],
     on_execute: Callable[[ToolCall], None] | None = None,
+    stage_gate: _ParallelStageGate | None = None,
 ) -> CalledTool:
     from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.event._tool import ToolEvent
@@ -934,25 +987,30 @@ async def call_tool(
     arguments = tool_params(call.arguments, tool_def.tool)
 
     # call the tool
-    with trace_action(
-        logger, "Tool Call", format_function_call(tool_def.name, arguments, width=1000)
-    ):
-        if isinstance(tool_def.tool, AgentTool):
-            async with span(tool_def.tool.name, type="handoff"):
+    async with stage_gate.hold(tool_def.parallel) if stage_gate else nullcontext():
+        with trace_action(
+            logger,
+            "Tool Call",
+            format_function_call(tool_def.name, arguments, width=1000),
+        ):
+            if isinstance(tool_def.tool, AgentTool):
+                async with span(tool_def.tool.name, type="handoff"):
+                    async with span(name=call.function, type="tool"):
+                        transcript()._event(event)
+                        handoff_result = await agent_handoff(
+                            tool_def, call, conversation
+                        )
+                        return CalledTool(*handoff_result, None)
+
+            # normal tool call
+            else:
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
-                    handoff_result = await agent_handoff(tool_def, call, conversation)
-                    return CalledTool(*handoff_result, None)
-
-        # normal tool call
-        else:
-            async with span(name=call.function, type="tool"):
-                transcript()._event(event)
-                if on_execute is not None:
-                    on_execute(call)
-                result: ToolResult = await tool_def.tool(**arguments)
-                agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
-                return CalledTool(result, [], None, None, agent_span_id)
+                    if on_execute is not None:
+                        on_execute(call)
+                    result: ToolResult = await tool_def.tool(**arguments)
+                    agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
+                    return CalledTool(result, [], None, None, agent_span_id)
 
 
 async def _apply_tool_review(

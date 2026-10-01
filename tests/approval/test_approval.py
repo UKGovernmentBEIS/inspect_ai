@@ -1,6 +1,14 @@
 from pathlib import Path
 from typing import NamedTuple
 
+import pytest
+from test_helpers.utils import (
+    skip_if_no_anthropic,
+    skip_if_no_google,
+    skip_if_no_mistral,
+    skip_if_no_openai,
+)
+
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.registry import registry_log_name
@@ -29,6 +37,7 @@ from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool._tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.tool._tool_choice import ToolFunction
 
 
 # define tool
@@ -694,6 +703,80 @@ async def test_modify_arguments_are_recorded_on_the_tool_event() -> None:
         "addition",
         {"x": 2, "y": 3},
     )
+
+
+def check_substitution_continues(model: str | Model, function: str) -> None:
+    """Substitute `function` for a live model's call and check the model continues.
+
+    The provider must accept the next request, whose tool result names the
+    substituted function while the assistant turn names the proposed one.
+    """
+    calls: list[str] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1? Use the addition tool.", target="2")],
+        solver=[
+            use_tools(
+                [addition(), echo(calls)], tool_choice=ToolFunction(name="addition")
+            ),
+            generate(),
+        ],
+        message_limit=8,
+    )
+    policy = ApprovalPolicy(
+        approver=substituting_approver(function, {"text": "2"}), tools="addition"
+    )
+    log = eval(task, model=model, approval=[policy])[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    tool_events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert tool_events and tool_events[0].function == function
+    if function == "echo":
+        assert calls and calls[0] == "2"
+    else:
+        assert calls == []
+        assert tool_events[0].error is not None
+    # the model answered the substituted result
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(model_events) >= 2
+    assert model_events[1].error is None
+
+
+SUBSTITUTION_FUNCTIONS = pytest.mark.parametrize("function", ["echo", "nonexistent"])
+
+
+@SUBSTITUTION_FUNCTIONS
+@skip_if_no_openai
+def test_modify_substitution_continues_openai(function: str) -> None:
+    check_substitution_continues("openai/gpt-4o", function)
+
+
+@SUBSTITUTION_FUNCTIONS
+@skip_if_no_openai
+def test_modify_substitution_continues_openai_responses(function: str) -> None:
+    check_substitution_continues(
+        get_model("openai/gpt-4o-mini", responses_api=True), function
+    )
+
+
+@SUBSTITUTION_FUNCTIONS
+@skip_if_no_anthropic
+def test_modify_substitution_continues_anthropic(function: str) -> None:
+    check_substitution_continues("anthropic/claude-sonnet-4-6", function)
+
+
+@SUBSTITUTION_FUNCTIONS
+@skip_if_no_google
+def test_modify_substitution_continues_google(function: str) -> None:
+    check_substitution_continues("google/gemini-2.5-pro", function)
+
+
+@SUBSTITUTION_FUNCTIONS
+@skip_if_no_mistral
+def test_modify_substitution_continues_mistral(function: str) -> None:
+    check_substitution_continues("mistral/mistral-large-latest", function)
 
 
 if __name__ == "__main__":
