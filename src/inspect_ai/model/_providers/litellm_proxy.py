@@ -28,6 +28,7 @@ from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
+from .._model import same_model
 from .._model_call import ModelCall
 from .._model_data.model_data import ModelInfo
 from .._model_info import (
@@ -71,6 +72,7 @@ from ._litellm_proxy_names import (
     ProxyResolution,
     resolve_deployments,
     resolve_upstream,
+    upstream_model,
 )
 from ._litellm_proxy_reasoning import (
     ThinkingBlocksAccumulator,
@@ -237,6 +239,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         # get_model_info() constructs providers with a placeholder key, which
         # the proxy would reject
         self._deployments: list[ProxyDeployment] | None = None
+        # every deployment the proxy lists, to identify a fallback's deployment
+        self._proxy_deployments: list[ProxyDeployment] = []
         # the model name a key or team alias routes to, and why aliases
         # couldn't be read
         self._alias_target: str | None = None
@@ -259,6 +263,7 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                     "team gets the model info of the listed model.",
                 )
             self._deployments = [d for d in deployments if d.model_name == target]
+            self._proxy_deployments = deployments
         self._resolution: ProxyResolution | None = resolve_deployments(
             self.service_model_name(), self._deployments or []
         )
@@ -339,21 +344,70 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
 
     @override
     def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
-        """The upstream model a router fallback served the request with.
+        """The deployment a router fallback served the request with.
 
-        The proxy reports the requested alias as the model, unless a router
-        fallback to another alias served the request: then it reports that
-        deployment's upstream model id.
+        The proxy reports the model either as an alias (the requested one, or
+        the fallback's for streamed Chat Completions) or as the serving
+        deployment's upstream model id (the fallback's, or the called
+        deployment's for streamed Responses). Each form is mapped to the alias
+        whose deployment served the call, so a call served by the called
+        alias keeps its price in every form.
         """
-        if (
-            output.usage is None
-            or not output.model
-            or output.model in (self.service_model_name(), self._routed_name())
-        ):
+        if output.usage is None or not output.model:
             return None
-        resolution = resolve_upstream(output.model)
-        served = resolution.db_key or resolution.upstream or output.model
+        called = self._routed_name()
+        reported = output.model
+        if reported in (self.service_model_name(), called):
+            return None
+        alias = self._serving_alias(reported)
+        if alias == called:
+            return None
+        if alias is not None:
+            served = self._alias_price_name(alias)
+        else:
+            # an upstream id of no listed deployment
+            resolution = resolve_upstream(reported)
+            if self._resolution is not None and same_model(
+                _db_model_info(resolution.db_key),
+                _db_model_info(self._resolution.db_key),
+            ):
+                return None
+            served = resolution.db_key or resolution.upstream or reported
         return [ServedModelUsage(served, output.usage)]
+
+    def _serving_alias(self, reported: str) -> str | None:
+        """The listed alias whose deployment a reported model name names."""
+        deployments = self._proxy_deployments
+        if any(d.model_name == reported for d in deployments):
+            return reported
+        # an upstream id: the called alias's deployments take precedence
+        called = self._routed_name()
+        ordered = sorted(deployments, key=lambda d: d.model_name != called)
+        for deployment in ordered:
+            ids = {deployment.model, upstream_model(deployment)} - {None}
+            if reported in ids | {i.split("/", 1)[-1] for i in ids if i}:
+                return deployment.model_name
+        reported_info = _db_model_info(resolve_upstream(reported).db_key)
+        for deployment in ordered:
+            resolution = resolve_deployments(deployment.model_name, [deployment])
+            if resolution is not None and same_model(
+                reported_info, _db_model_info(resolution.db_key)
+            ):
+                return deployment.model_name
+        return None
+
+    def _alias_price_name(self, alias: str) -> str:
+        """Model info name to price a call served by another alias."""
+        key = f"litellm-proxy/{alias}"
+        info = _get_custom_model_info(key)
+        if info is not None and info.cost is not None:
+            return key
+        resolution = resolve_deployments(
+            alias, [d for d in self._proxy_deployments if d.model_name == alias]
+        )
+        if resolution is None:
+            return key
+        return resolution.db_key or resolution.upstream or key
 
     def _routed_name(self) -> str:
         """The model name requests are routed to (the alias target, if any)."""
@@ -951,3 +1005,7 @@ def merged_model_info(
     if primary.input_tokens is None and "context_length" in fill:
         merged = ModelInfo(_input_tokens=secondary.input_tokens, **merged.model_dump())
     return merged
+
+
+def _db_model_info(db_key: str | None) -> ModelInfo | None:
+    return _get_model_info_direct(db_key) if db_key else None

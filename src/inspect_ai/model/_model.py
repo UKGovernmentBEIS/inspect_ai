@@ -3064,7 +3064,7 @@ def model_usage_cost(
         for part in served:
             part_info = _get_model_info_direct(part.model)
             part_cost = part_info.cost if part_info is not None else None
-            if part_cost is None and _same_model(part_info, info):
+            if part_cost is None and same_model(part_info, info):
                 part_cost = called_cost
             if part_cost is None:
                 if called_cost is not None:
@@ -3092,7 +3092,7 @@ def model_usage_cost(
     return compute_model_cost(called_cost, usage, cache_ttl)
 
 
-def _same_model(a: ModelInfo | None, b: ModelInfo | None) -> bool:
+def same_model(a: ModelInfo | None, b: ModelInfo | None) -> bool:
     """Whether two model info entries describe the same model (e.g. two snapshots)."""
     return (
         a is not None
