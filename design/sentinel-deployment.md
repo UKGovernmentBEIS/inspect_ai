@@ -1,3 +1,5 @@
+> **Moved.** The canonical copy of this document is [design/sentinel-deployment.md in inspect_sentinel](https://github.com/meridianlabs-ai/inspect_sentinel/blob/main/design/sentinel-deployment.md). This copy is a final snapshot (2026-10-01) and is no longer updated.
+
 # Running sentinels outside the eval process
 
 Companion to `sentinel.md`, which defines monitors (which observe) and protocols (which decide). This document covers deploying a sentinel where there is no eval: inside a proxy on the wire in front of a model API.
@@ -77,12 +79,13 @@ So there is no `PortableAction` subset — the vocabulary crosses whole, and wha
 The single most useful structural decision: define a monitor as pure logic plus a small declared effect surface. Then the compilation and transport strategy becomes a deployment detail rather than a design constraint.
 
 ``` python
-class Host(Protocol):
+class Host(typing.Protocol):
     async def generate(
         self,
         input: str | list[ChatMessage],
         *,
-        model: str | None = None,          # a model name or a model role; default role "monitor"
+        model: str | Model | None = None,  # a model name or instance; not with role
+        role: str | None = None,           # a model role; neither means "monitor"
         tools: list[ToolInfo] | None = None,
         config: GenerateConfig | None = None,
     ) -> ModelOutput: ...
@@ -102,7 +105,7 @@ class Host(Protocol):
     """End this session or agent out-of-band. False if unsupported."""
 
 
-class HostResponse(Protocol):
+class HostResponse(typing.Protocol):
     status: int
     headers: Mapping[str, str]
     def json(self) -> Any: ...
@@ -110,13 +113,17 @@ class HostResponse(Protocol):
     def text(self) -> str: ...
 ```
 
+Only `generate` is built; `fetch`, `get`/`put` and `terminate` are planned.
+
+`model` and `role` are separate so a role name is never read as a model name; passing both is an error the host raises. With neither, the host uses the `monitor` role and, if that role is not configured, falls back to the agent's model with a warning once per eval naming the role to set. `defer_to_trusted` and `resample` will ask for a separate `trusted` role.
+
 `generate` returns a `ModelOutput` rather than a string because the protocols that substitute an action (`defer_to_trusted`, `resample`) regenerate with the agent's tools and need the whole response; a text-prompt monitor reads `.completion`. Generating as the agent's own model is, in a proxy, a re-issued upstream request.
 
 The same surface whether the host is Envoy via proxy-wasm, a Go runtime, or ordinary Python in-process where these are normal implementations.
 
 Recording is not on the ABI. The runner records every report, cancellation, bypass and supersession through a separate `Recorder` that the host implements and authors never see (`sentinel-reference.md`, "Context"), so a protocol cannot skip recording by not calling it.
 
-A monitor reaches it as `context.host` (`sentinel.md`, "The context"), never by import. That is what keeps a monitor a pure function of its two arguments, and it is why the ABI is small enough to be worth specifying: everything a monitor can do to the outside world is enumerable from one Protocol.
+A monitor reaches it as `context.host` (`sentinel.md`, "The context"), never by import. That is what keeps a monitor a pure function of its two arguments, and it is why the ABI is small enough to be worth specifying: everything a portable monitor can do to the outside world is enumerable from one interface.
 
 ### Why `fetch` is a primitive, not an escape hatch
 
@@ -174,7 +181,7 @@ It could be — `fetch("model", ...)` — but keeping it distinct is better. Mod
 
 The split is one of types, `@monitor` and `@protocol`, but both are plain functions of `(context, step)`, and that matters here in one specific way. The portability verdict is per function, so a composition is exactly as portable as its least portable member — a leaf monitor calling `get_model()` disqualifies the protocol that wraps it, and a protocol reaching for task-scoped state disqualifies itself while leaving its leaves deployable. Both directions are visible to the same static check, which would not have been true had protocols been a separate kind of object with their own affordances.
 
-The two shipped compositions cross intact. `concurrent()` and `chain()` are ordinary code over the runner, and a chain's hand-off travels as data — `step.escalations` is a field on the payload, not a reference to a `ToolCallView` — so an ordered chain deserializes and runs in a proxy exactly as in-process. What changes is the last link: a `human()` in a proxy is an audit queue rather than a blocking prompt, which is the `audit`-travels-cleanly point below applied to a chain, and it means a proxy chain ending in a person degrades to "record, request review, and apply the chain's default" rather than waiting.
+The two compositions cross intact. `concurrent()` and `sequential()` (designed, not yet built) are ordinary code over the runner, and a `sequential`'s hand-off travels as data — `step.escalations` is a field on the payload, not a reference to a `ToolCallView` — so a `sequential` deserializes and runs in a proxy exactly as in-process. What changes is the last link: a `human()` in a proxy is an audit queue rather than a blocking prompt, which is the `audit`-travels-cleanly point below applied to a `sequential`, and it means a proxy `sequential` ending in a person degrades to "record, request review, and apply its default" rather than waiting.
 
 Three notes:
 

@@ -1,3 +1,5 @@
+> **Moved.** The canonical copy of this document is [design/inspect-core.md in inspect_sentinel](https://github.com/meridianlabs-ai/inspect_sentinel/blob/main/design/inspect-core.md). This copy is a final snapshot (2026-10-01) and is no longer updated.
+
 # `inspect_core`: extracting the wire types
 
 Exploratory design. Status: measured where marked, reasoned elsewhere.

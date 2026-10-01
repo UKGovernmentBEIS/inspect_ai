@@ -1,10 +1,12 @@
+> **Moved.** The canonical copy of this document is [design/sentinel-overview.md in inspect_sentinel](https://github.com/meridianlabs-ai/inspect_sentinel/blob/main/design/sentinel-overview.md). This copy is a final snapshot (2026-10-01) and is no longer updated.
+
 # Inspect Sentinel
 
 ## Overview
 
 Inspect Sentinel is a package for defining, developing, and deploying sentinels: functions that watch agents and intervene in their execution. Key design elements include:
 
-1.  A single interface that encompasses monitoring tool calls and model generations, with execution either before or after steps.
+1.  A single interface that encompasses monitoring tool calls and model generations, with execution either before or after model generations and tool calls.
 2.  A division between monitors, which observe and report a suspicion score, and protocols, which decide on an action similar to the current Inspect tool call approval interface (e.g. continue, modify, reject, escalate, terminate). A protocol with no monitors is a simple rule.
 3.  Support for layering control protocols (thresholds, audit budgets, resampling, defer to trusted, human review, etc.) on top of monitors.
 4.  Core interfaces decoupled from the Inspect runtime so that monitors can be deployed elsewhere (e.g. in network proxies).
@@ -20,10 +22,10 @@ There are two registerable types. A **monitor** observes: it returns an `Observa
 
 ``` python
 @protocol
-def no_curl() -> ControlProtocol:
-    async def decide(context: Context, step: BeforeToolCall):
+def no_curl() -> Protocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
         if "curl" in str(step.call.arguments):
-            return Decision.reject("network access is not allowed")
+            return Decision.reject("uses curl", message="network access is not allowed")
         return None
 
     return decide
@@ -34,7 +36,7 @@ And here is a monitor that scores each tool call, wrapped in the `threshold()` p
 ``` python
 @monitor
 def suspicion_monitor(model: str | None = None) -> Monitor:
-    async def check(context: Context, step: BeforeToolCall):
+    async def check(context: Context, step: BeforeToolCall) -> Observation:
         ...
         return Observation.score(score, explanation)
 
@@ -43,9 +45,9 @@ def suspicion_monitor(model: str | None = None) -> Monitor:
 Task(sentinel=threshold(suspicion_monitor(), reject_at=0.8))
 ```
 
-Both run before the tool call executes (the `step` they take is `BeforeToolCall`). There are four different steps that a monitor or protocol could choose to target:
+Both run before the tool call executes (the `step` they take is `BeforeToolCall`). There are four stages, the step types a monitor or protocol could choose to target; the two tool stages are built, and the generate stages are designed but not yet built:
 
-| Step | Fires |
+| Stage | Fires |
 |------------------------------------|------------------------------------|
 | `BeforeGenerate` | Before each generate, before the cache lookup |
 | `AfterGenerate` | After each generate, before the output reaches the agent |
@@ -68,6 +70,8 @@ A protocol's `Decision` carries one of the following actions:
 | `terminate` | End the sample                                               |
 | `escalate`  | Pass the decision to the next decider                        |
 
+A decision's `explanation` is for the log only; the agent never sees it, since an agent told why it was flagged can learn to evade. The one thing the agent reads is `message`, which only a `reject` may carry for now (`Decision.reject(explanation, message=...)`); a reject without one gets the host's default "not approved" text.
+
 A monitor never returns an action. It records an `Observation` for a protocol to act on (see [Protocols](#protocols) below), which keeps every threshold in the protocol where it can be calibrated, and makes every monitor dry-runnable and backtestable before anything acts on it.
 
 ### Context
@@ -75,43 +79,49 @@ A monitor never returns an action. It records an `Observation` for a protocol to
 In addition to the data associated with a tool call or generation, monitors and protocols are passed a `Context` that includes task and sample information, a place to store state, and an interface to the sentinel host (which could either be Inspect AI or a proxy server):
 
 ``` python
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Context:
     task: str | None
     """Task name, or the deployed agent's identifier."""
 
     task_description: str | None
-    """What agents in this setting are asked to do."""
+    """What agents in this setting are asked to do. None until inspect_ai has `Task(description=)`."""
 
     sample_id: str | int | None
     """Dataset sample identifier."""
 
+    epoch: int | None
+    """Epoch of the sample, when the task runs several."""
+
     sample_description: str | None
-    """What is distinctive about this instance."""
+    """What is distinctive about this instance. None until inspect_ai has `Sample(description=)`."""
 
     input: str | list[ChatMessage]
-    """The prompt this agent was given."""
+    """The sample's input: the assignment the agent was given."""
 
     metadata: dict[str, Any]
     """Task metadata merged with sample metadata."""
 
+    path: str
+    """Instance path, e.g. `attempt/internet_attempt`. Empty at the top layer."""
+
     store: Store
-    """This monitor's per-sample state."""
+    """The whole sample store, not namespaced."""
 
     def store_as(
         self,
         model_cls: Type[SMT],
         *,
-        scope: Scope = "sample"
+        scope: Scope = "sample"  # "task" is not built
     ) -> SMT:
-        """Typed view of this monitor's state."""
+        """Typed view of this instance's state, namespaced by its path."""
 
     # -- effects
     host: Host
-    """Interface to host for inference, logging, etc."""
+    """Interface to the host; inference only for now, `fetch` planned."""
 
     target: Target | None = None
-    """The expected answer (opt-in; absent by default)."""
+    """The expected answer (opt-in, not built yet; always None for now)."""
 ```
 
 ## Protocols {#protocols}
@@ -124,14 +134,14 @@ A protocol decides what happens at a step. It may consult monitors, other protoc
 - **Control actions**: accept, audit, defer to a trusted model, trusted edit, resample. These are things a protocol does with a score, not values a monitor can return.
 - **Pipeline stages** such as paraphrasing agent output before monitors see it, or injecting honeypot inputs to catch a colluding monitor.
 
-Built-in protocols cover the common compositions and basic control scenarios:
+Built-in protocols cover the common compositions and basic control scenarios. `concurrent()`, `observe()` and `threshold()` ship today; the other three are designed but not yet built:
 
 | Protocol | Description |
 |------------------------|------------------------------------------------|
-| `concurrent()` | Runs every child concurrently; the strongest decision wins (`terminate` \> `reject` \> `modify` \> `continue`). What a list containing a protocol resolves to. Use for independent guards that must all be satisfied. |
-| `chain()` | Runs children in order until one decides; first non-`escalate` wins, and escalations are handed to the next link so a human at the end sees who asked and why. Use for a cheap rule ahead of an expensive judge. |
+| `concurrent()` | Runs every child concurrently; the strongest decision wins (`terminate` \> `reject` \> `modify` \> `escalate` \> `continue`). What a list containing a protocol resolves to. Use for independent guards that must all be satisfied. |
+| `sequential()` | Runs children in order until one decides; first non-`escalate` wins, and escalations are handed to the next link so a human at the end sees who asked and why. Use for a cheap rule ahead of an expensive judge. |
 | `observe()` | Records every observation and acts on none. What a bare monitor resolves to, and how a benign score distribution gets collected. |
-| `threshold()` | Acts on a score: `reject` above one constant, `terminate` above another. The smallest protocol, and the one calibration feeds. |
+| `threshold()` | Acts on scores: `reject` at or above one threshold, `terminate` at or above another, each one number or a mapping per dimension (`{"audit.sabotage": 0.6, "*": 0.9}`). The smallest protocol, and the one calibration feeds. |
 | `defer_to_trusted()` | Above a threshold, substitutes a trusted model's action for the untrusted one's. Defaults to the `trusted` model role. |
 | `resample()` | Above a threshold, draws further completions, scores each, and executes the least suspicious; escalates if none clears. |
 
@@ -139,25 +149,27 @@ Built-in protocols cover the common compositions and basic control scenarios:
 
 A protocol's body is ordinary code around the runner (`run_monitors()`, `run_protocols()`, `run_children()`), which runs the children concurrently and records their reports. Thresholds, budget arithmetic, and aggregation are up to the protocol.
 
-For example, `threshold`, the smallest shipped protocol: it reads its children's scores and acts above a constant. This is the full implementation:
+For example, `threshold`, the smallest shipped protocol: it reads its children's scores and acts when one reaches its threshold. In outline, with configuration-time validation left out:
 
 ``` python
 @protocol
 def threshold(
-    monitors: Monitors,
-    reject_at: float,
-    terminate_at: float | None = None,
-) -> ControlProtocol:
+    monitors: Monitor | MonitorGroup | Monitors,
+    reject_at: float | Mapping[str, float],
+    terminate_at: float | Mapping[str, float] | None = None,
+) -> Protocol:
+    rejects = thresholds(reject_at)  # a float is {"*": float}
+    terminates = thresholds(terminate_at)
+
     async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
         observations = await run_monitors(monitors, context, step)
-        score = observations.max_suspicion()
-        if score is None:
+        if not observations:
             return None
-        if terminate_at is not None and score >= terminate_at:
-            return Decision.terminate(explain(observations, score))
-        if score >= reject_at:
-            return Decision.reject()
-        return Decision.clear()
+        if crossed := crossing(observations, terminates):
+            return Decision.terminate(crossed.explain(), references=crossed.references)
+        if crossed := crossing(observations, rejects):
+            return Decision.reject(crossed.explain(), references=crossed.references)
+        return Decision.proceed()
 
     return decide
 ```
@@ -168,9 +180,9 @@ Sentinels can be developed, refined, and deployed within Inspect AI, and for man
 
 ### Proxy Steps
 
-A proxy sits on one HTTP exchange: a request and a response. It never sees a tool execute, because tools run client-side after the response is delivered. So two of the four steps are exact, and the tool steps are projections:
+A proxy sits on one HTTP exchange: a request and a response. It never sees a tool execute, because tools run client-side after the response is delivered. So two of the four stages are exact, and the tool stages are projections:
 
-| Step | In a proxy | Fidelity |
+| Stage | In a proxy | Fidelity |
 |------------------------|------------------------|------------------------|
 | `BeforeGenerate` | The request body | Full |
 | `AfterGenerate` | The response body | Full |
@@ -184,9 +196,9 @@ The goal is to enable two deployment modes for proxy servers:
 1.  Sidecar (a Python service beside the proxy); or
 2.  Embedded (CPython compiled to WASM inside the proxy)
 
-Both modes depend on sentinels being lightweight. `inspect_sentinel` depends only on `inspect_core`, a new package holding the wire types (`ChatMessage`, `ModelOutput`, `ToolCall`, `ToolInfo`) and the registry primitives, so that a monitor author, a proxy, or a WASM build never pulls in the full Inspect framework.
+Both modes depend on sentinels being lightweight. `inspect_sentinel` is to depend only on `inspect_core`, a new package holding the wire types (`ChatMessage`, `ModelOutput`, `ToolCall`, `ToolInfo`) and the registry primitives, so that a monitor author, a proxy, or a WASM build never pulls in the full Inspect framework. Today it depends on `inspect_ai`.
 
-Even if you are deploying sentinels inside Inspect AI to start with, the API will verify that your code will travel well to a proxy without Inspect dependencies. Note that you can opt out of this checking with `@monitor(portable=False)`.
+Even if you are deploying sentinels inside Inspect AI to start with, the API will verify that your code will travel well to a proxy without Inspect dependencies, and `@monitor(portable=False)` will opt out of this checking. Neither is built yet.
 
 ## Development
 

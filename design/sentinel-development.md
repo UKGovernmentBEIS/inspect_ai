@@ -1,3 +1,5 @@
+> **Moved.** The canonical copy of this document is [design/sentinel-development.md in inspect_sentinel](https://github.com/meridianlabs-ai/inspect_sentinel/blob/main/design/sentinel-development.md). This copy is a final snapshot (2026-10-01) and is no longer updated.
+
 # Developing sentinels
 
 How the monitors in a sentinel get built, measured and calibrated before they are trusted to act. The mechanism is Inspect Scout: a monitor becomes a scanner over the steps of a transcript, and Scout's validation sets, metrics and viewer become the monitor's feedback loop.
@@ -45,7 +47,7 @@ Three things fall out of this that the rest of the document works through:
 
 ## Packages
 
-`inspect_sentinel` is its own distribution depending only on `inspect_core` (see `inspect-core.md`). The chain is:
+`inspect_sentinel` is its own distribution, to depend only on `inspect_core` once that is extracted (see `inspect-core.md`; today it depends on `inspect_ai`). The chain is then:
 
 ```
 inspect_core  ←  inspect_sentinel  ←  inspect_ai  ←  inspect_scout
@@ -82,7 +84,7 @@ Messages give the two histories unevenly. A transcript's messages *are* `history
 @dataclass(frozen=True)
 class ReplayStep:
     id: str                 # the step id — see below
-    stage: Stage
+    stage: Literal["model_input", "model_output", "tool_call", "tool_result"]  # as SentinelEvent.stage
     context: Context
     step: Step
 
@@ -117,7 +119,7 @@ Events also restore `input` exactly, from `ModelEvent.input`, and let `history` 
 Replay reproduces the monitor's *reports*, not its *effects*. A `reject` in replay does not change the transcript; the agent already did what it did. This is the right limitation for measuring a classifier — precision and recall are about reports — but it means two things cannot be back-tested offline:
 
 - **Interventions.** Whether rejecting call 7 would have led the agent somewhere better is a question for a live eval, not a replay.
-- **Humans.** `human()`, a protocol with no children, cannot be replayed. The useful substitute is to *replay the recorded human decision* when the transcript carries a `SentinelEvent` from that `human()` instance for that step, passing it to `final()` when the recorded run did (the `bypassed` events above it say so), so a chain can be back-tested against the answers a person actually gave; otherwise `human()` abstains in replay.
+- **Humans.** `human()`, a protocol with no children, cannot be replayed. The useful substitute is to *replay the recorded human decision* when the transcript carries a `SentinelEvent` from that `human()` instance for that step, passing it to `decide_final()` when the recorded run did (the `bypassed` events above it say so), so a `sequential` can be back-tested against the answers a person actually gave; otherwise `human()` abstains in replay.
 
 ## Step ids
 
@@ -194,9 +196,9 @@ Three things the table encodes:
 
 - **A dict suspicion validates per key** through Scout's existing dict-target path, so a multi-dimension monitor gets per-dimension precision and recall without any adapter logic.
 - **The boolean flagged value is what makes binary labels work.** A per-step validation set will label steps the monitor abstained on, and abstention produces no report. The adapter emits a result for every step at the monitor's stage, `None` on abstain, and a label of `false` compares equal to "not flagged" only if the value is boolean. Teaching the `eq` predicate that `None` is negative was the alternative; mapping to a boolean keeps the predicate honest and leaves the action in `answer` for anyone sweeping on it.
-- **`escalate` is not flagged.** It is "I decline to decide", not a verdict. Inside a chain it also means "worth a person's look", which a reviewer might want to count; `answer` carries it for that. This is a default that is cheap to get wrong, and it is recorded as a decision rather than left implicit.
+- **`escalate` is not flagged.** It is "I decline to decide", not a verdict. Inside a `sequential` it also means "worth a person's look", which a reviewer might want to count; `answer` carries it for that. This is a default that is cheap to get wrong, and it is recorded as a decision rather than left implicit.
 
-The `explanation` maps directly, and `references` are whatever the monitor put in its report's metadata under a well-known key — an LLM monitor using Scout's `message_numbering` in its prompt gets cites for free.
+The `explanation` and `references` map directly from the report's own fields — an LLM monitor using Scout's `message_numbering` in its prompt gets cites for free.
 
 ## Two modes: replay and read
 
