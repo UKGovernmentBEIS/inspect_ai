@@ -551,14 +551,16 @@ async def bridge_generate(
                 tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
                 for tool in tools
             ]
-            if _is_model_filter(bridge.filter):
-                result = await bridge.filter(
-                    model, input_messages, tool_info, tool_choice, config
-                )
-            else:
-                result = await bridge.filter(
-                    model.name, input_messages, tool_info, tool_choice, config
-                )
+            # under the bridge's approval policies, as a filter may generate
+            with bridge_approval_scope(bridge.approval):
+                if _is_model_filter(bridge.filter):
+                    result = await bridge.filter(
+                        model, input_messages, tool_info, tool_choice, config
+                    )
+                else:
+                    result = await bridge.filter(
+                        model.name, input_messages, tool_info, tool_choice, config
+                    )
             if isinstance(result, ModelOutput):
                 output = result
             elif isinstance(result, GenerateInput):

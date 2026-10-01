@@ -21,10 +21,12 @@ from inspect_ai.model import (
     ContentToolUse,
     GenerateConfig,
     Model,
+    ModelOutput,
     get_model,
 )
+from inspect_ai.model._model import GenerateFilter
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import MCPServer, mcp_server_http
+from inspect_ai.tool import MCPServer, ToolChoice, ToolInfo, mcp_server_http
 
 
 @skip_if_no_openai
@@ -229,21 +231,86 @@ def test_remote_mcp_refused_under_react_approval_policy() -> None:
     assert mcp_requests(requests) == []
 
 
-async def test_remote_mcp_refused_under_bridge_approval_policy() -> None:
-    """A bridge's own policies apply to the model calls it makes."""
-    requests: list[dict[str, Any]] = []
-    messages: list[ChatMessage] = [ChatMessageUser(content="Search.")]
-    bridge = AgentBridge(AgentState(messages=list(messages)))
-    bridge.approval = [ApprovalPolicy(auto_approver(), "*")]
-    async with remote_mcp_model("openai", requests) as model:
-        with pytest.raises(RuntimeError, match="Remote MCP server 'deepwiki'"):
-            await bridge_generate(
-                bridge,
-                model,
-                messages,
-                await deepwiki_server().tools(),
-                None,
-                GenerateConfig(),
+def generating_filter(kind: str | None, model: Model) -> GenerateFilter | None:
+    """A bridge filter that generates itself, with a `Model` or legacy `str` first parameter."""
+    if kind == "model":
+
+        async def model_filter(
+            model: Model,
+            messages: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            return await model.generate(
+                messages, tools=tools, tool_choice=tool_choice, config=config
             )
 
+        return model_filter
+    elif kind == "str":
+
+        async def legacy_filter(
+            model_name: str,
+            messages: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            return await model.generate(
+                messages, tools=tools, tool_choice=tool_choice, config=config
+            )
+
+        return legacy_filter
+    else:
+        return None
+
+
+async def run_bridge_with_remote_mcp(
+    provider: str,
+    filter: str | None,
+    approval: list[ApprovalPolicy] | None,
+    requests: list[dict[str, Any]],
+) -> None:
+    messages: list[ChatMessage] = [ChatMessageUser(content="Search.")]
+    async with remote_mcp_model(provider, requests) as model:
+        bridge = AgentBridge(
+            AgentState(messages=list(messages)),
+            filter=generating_filter(filter, model),
+            approval=approval,
+        )
+        await bridge_generate(
+            bridge,
+            model,
+            messages,
+            await deepwiki_server().tools(),
+            None,
+            GenerateConfig(),
+        )
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+@pytest.mark.parametrize("filter", [None, "model", "str"])
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+async def test_remote_mcp_refused_under_bridge_approval_policy(
+    provider: str, filter: str | None
+) -> None:
+    """A bridge's own policies apply to the model calls it (or its filter) makes."""
+    requests: list[dict[str, Any]] = []
+    with pytest.raises(RuntimeError, match="Remote MCP server 'deepwiki'"):
+        await run_bridge_with_remote_mcp(
+            provider, filter, [ApprovalPolicy(auto_approver(), "*")], requests
+        )
+
     assert mcp_requests(requests) == []
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+@pytest.mark.parametrize("filter", [None, "model", "str"])
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+async def test_remote_mcp_sent_through_bridge_without_approval_policy(
+    provider: str, filter: str | None
+) -> None:
+    requests: list[dict[str, Any]] = []
+    await run_bridge_with_remote_mcp(provider, filter, None, requests)
+
+    assert len(mcp_requests(requests)) == 1
