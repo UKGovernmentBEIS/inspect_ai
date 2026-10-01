@@ -1007,6 +1007,22 @@ async def test_sandbox_request_path_applies_eval_tool_options(
 
 
 COMPUTER_PARAM: dict[str, Any] = {"type": "computer"}
+NAMESPACED_COMPUTER: dict[str, Any] = {
+    "type": "namespace",
+    "name": "nested",
+    "description": "nested",
+    "tools": [COMPUTER_PARAM],
+}
+COMPUTER_DECLARATIONS: dict[str, dict[str, Any]] = {
+    "top-level": {"input": "hi", "tools": [COMPUTER_PARAM]},
+    "namespace": {"input": "hi", "tools": [NAMESPACED_COMPUTER]},
+    "additional-tools-namespace": {
+        "input": [
+            {"type": "additional_tools", "tools": [NAMESPACED_COMPUTER]},
+            {"role": "user", "content": "hi"},
+        ]
+    },
+}
 
 
 @skip_if_no_openai_package
@@ -1018,8 +1034,9 @@ COMPUTER_PARAM: dict[str, Any] = {"type": "computer"}
     ],
     ids=["model-arg", "extra-body"],
 )
+@pytest.mark.parametrize("declaration", list(COMPUTER_DECLARATIONS))
 async def test_sandbox_computer_tool_refused_when_eval_turns_storage_off(
-    model_args: dict[str, Any], config: GenerateConfig
+    model_args: dict[str, Any], config: GenerateConfig, declaration: str
 ) -> None:
     model = get_model("openai/gpt-5", api_key="test-key", config=config, **model_args)
     captured: list[GenerateConfig] = []
@@ -1029,7 +1046,7 @@ async def test_sandbox_computer_tool_refused_when_eval_turns_storage_off(
     generate = _forward_provider_errors(generate_responses(None, None, bridge), bridge)
 
     result = await generate(
-        {"model": "eval-model", "input": "hi", "tools": [COMPUTER_PARAM]}
+        {"model": "eval-model", **COMPUTER_DECLARATIONS[declaration]}
     )
 
     error = cast(dict[str, Any], result[PROVIDER_ERROR_KEY])
@@ -1058,6 +1075,37 @@ async def test_sandbox_computer_tool_served_unless_storage_off(
         None,
         bridge,
     )
+    assert len(captured) == 1
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "client_store,warned", [(False, ["store"]), (True, [])], ids=["false", "true"]
+)
+async def test_sandbox_computer_tool_store_warning_follows_forced_storage(
+    bridge_warnings: list[str], client_store: bool, warned: list[str]
+) -> None:
+    """With storage unset, a computer tool turns it on, so `store=True` matches."""
+    model = get_model("openai/gpt-5", api_key="test-key")
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(
+        filter=capture_config(captured), model_aliases={"eval-model": model}
+    )
+
+    await inspect_responses_api_request(
+        {
+            "model": "eval-model",
+            "input": "hi",
+            "tools": [COMPUTER_PARAM],
+            "store": client_store,
+        },
+        None,
+        None,
+        None,
+        bridge,
+    )
+
+    assert warned_fields(bridge_warnings) == warned
     assert len(captured) == 1
 
 

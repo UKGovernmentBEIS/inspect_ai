@@ -162,7 +162,7 @@ from inspect_ai.tool._tools._code_execution import (
     CodeExecutionProviders,
     code_execution,
 )
-from inspect_ai.tool._tools._computer._computer import computer
+from inspect_ai.tool._tools._computer._computer import computer, is_computer_tool_info
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     web_search,
@@ -257,23 +257,6 @@ async def inspect_responses_api_request_impl(
                         declared_tool_keys.add(key)
                         responses_tools.append(declared)
 
-    has_computer_use = any(is_computer_tool_param(tool) for tool in responses_tools)
-    if has_computer_use and not is_openai:
-        raise RuntimeError(
-            f"computer use with the OpenAI Responses agent bridge requires an "
-            f"OpenAI model, got '{ModelName(model)}'"
-        )
-    if (
-        has_computer_use
-        and not bridge.forwards_client_request_settings
-        and _eval_responses_store(model) is False
-    ):
-        raise BridgePolicyError(
-            "the OpenAI computer tool requires provider-side storage, which this "
-            "eval turns off (store=False); enable it with the responses_store model "
-            "arg to allow computer use through the sandbox agent bridge"
-        )
-
     # convert openai tools to inspect tools (don't pass custom tools on to
     # non openai models as they don't know how to handle them). Track which
     # tool names belong to a namespace so we can restore the `namespace`
@@ -299,6 +282,26 @@ async def inspect_responses_api_request_impl(
             )
         )
     tools = [tool for tool in tools if tool]
+
+    # checked on the converted tools, so a computer tool declared inside a
+    # namespace (top-level or in an `additional_tools` item) counts too
+    has_computer_use = _has_native_computer_tool(tools)
+    if has_computer_use and not is_openai:
+        raise RuntimeError(
+            f"computer use with the OpenAI Responses agent bridge requires an "
+            f"OpenAI model, got '{ModelName(model)}'"
+        )
+    if (
+        has_computer_use
+        and not bridge.forwards_client_request_settings
+        and _eval_responses_store(model) is False
+    ):
+        raise BridgePolicyError(
+            "the OpenAI computer tool requires provider-side storage, which this "
+            "eval turns off (store=False); enable it with the responses_store model "
+            "arg to allow computer use through the sandbox agent bridge"
+        )
+
     # client-controlled; validated by tool_choice_from_responses_tool_choice below
     responses_tool_choice: Any = json_data.get("tool_choice", None)
     tool_choice = relax_tool_choice_for_withheld(
@@ -333,7 +336,9 @@ async def inspect_responses_api_request_impl(
     if not bridge.forward_generation_config:
         clear_generation_params(config)
     if not bridge.forwards_client_request_settings:
-        withhold_client_request_settings(bridge, config, _eval_request_settings(model))
+        withhold_client_request_settings(
+            bridge, config, _eval_request_settings(model, has_computer_use)
+        )
     validate_client_config(config)
     config.extra_headers = headers
     if config.system_message:
@@ -403,14 +408,31 @@ def _reject_previous_response_id(json_data: dict[str, Any]) -> None:
         )
 
 
-def _eval_request_settings(model: Model) -> dict[str, Any]:
+def _has_native_computer_tool(tools: list[ToolInfo | Tool]) -> bool:
+    """Whether the request sends the provider's native computer tool.
+
+    Uses the provider's own test: Inspect's `computer()` tool, unless it is a
+    verbatim function or custom declaration that only shares the name. The
+    provider turns storage on for such a request.
+    """
+    for tool in tools:
+        info = tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+        if is_computer_tool_info(info) and RESPONSES_VERBATIM not in (
+            info.options or {}
+        ):
+            return True
+    return False
+
+
+def _eval_request_settings(model: Model, has_computer_use: bool) -> dict[str, Any]:
     """The values the eval's configuration gives the Responses fields the bridge withholds.
 
     Follows the Responses request builder: the `responses_store` model arg of the
     OpenAI and OpenAI-compatible providers, and the OpenAI provider's
     `service_tier` model arg, take precedence over `GenerateConfig.extra_body`.
-    When neither sets a field, `store=False` is sent and `service_tier` and
-    `truncation` stay at the API defaults.
+    When neither sets a field, `store=False` is sent (or `store=True` for a
+    request with a native computer tool) and `service_tier` and `truncation` stay
+    at the API defaults.
     """
     extra_body = resolve_generate_config(model, GenerateConfig()).extra_body or {}
     service_tier = extra_body.get("service_tier", "auto")
@@ -421,9 +443,10 @@ def _eval_request_settings(model: Model) -> dict[str, Any]:
     else:
         if isinstance(model.api, OpenAIAPI):
             service_tier = model.api.service_tier or service_tier
+    store = _eval_responses_store(model)
     return {
         "service_tier": service_tier,
-        "store": _eval_responses_store(model) is True,
+        "store": store is True or (has_computer_use and store is None),
         "truncation": extra_body.get("truncation", "disabled"),
     }
 
