@@ -1,6 +1,13 @@
+from typing import Any
+
+import anyio
+import httpx2
 import pytest
+from openai import BadRequestError
+from openai.types.chat import ChatCompletion
 from test_helpers.utils import skip_if_no_perplexity
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
 from inspect_ai.model import (
@@ -124,6 +131,7 @@ async def test_perplexity_citation_mapping(monkeypatch) -> None:
     call = ModelCall.create({}, {})
 
     async def fake_generate(self, input, tools, tool_choice, config):
+        self.on_response(sample_response)
         return output, call
 
     provider = PerplexityAPI(
@@ -133,8 +141,6 @@ async def test_perplexity_citation_mapping(monkeypatch) -> None:
     )
 
     monkeypatch.setattr(OpenAICompatibleAPI, "generate", fake_generate)
-
-    provider.on_response(sample_response)
 
     result, _ = await provider.generate([], [], "none", GenerateConfig())
 
@@ -184,3 +190,152 @@ async def test_perplexity_web_search_options(monkeypatch) -> None:
         "search_mode": "academic",
         "web_search_options": {"search_context_size": "low"},
     }
+
+
+def _search_completion(name: str, tokens: int) -> ChatCompletion:
+    return ChatCompletion.model_validate(
+        {
+            "id": f"completion-{name}",
+            "model": "sonar",
+            "created": 1234567890,
+            "object": "chat.completion",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "stop",
+                    "message": {"content": f"answer {name}", "role": "assistant"},
+                }
+            ],
+            "search_results": [
+                {"title": name, "url": f"https://example.com/{name}"},
+            ],
+            "usage": {
+                "prompt_tokens": tokens,
+                "completion_tokens": tokens,
+                "total_tokens": 2 * tokens,
+                "reasoning_tokens": tokens,
+                "num_search_queries": tokens,
+            },
+        }
+    )
+
+
+def _citation_urls(output: ModelOutput) -> list[str]:
+    content = output.choices[0].message.content
+    if isinstance(content, str):
+        return []
+    return [
+        citation.url
+        for part in content
+        if isinstance(part, ContentText)
+        for citation in part.citations or []
+        if isinstance(citation, UrlCitation)
+    ]
+
+
+@pytest.mark.anyio
+async def test_perplexity_concurrent_generate_uses_own_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = PerplexityAPI(model_name="perplexity/sonar", api_key="sk-test")
+    completions = {"a": _search_completion("a", 1), "b": _search_completion("b", 2)}
+
+    # call "a" receives its response first, then waits before post-processing
+    # it until call "b" has received its own response
+    a_received = anyio.Event()
+    b_received = anyio.Event()
+
+    async def fake_create(**kwargs: Any) -> ChatCompletion:
+        name = kwargs["messages"][0]["content"]
+        if name == "b":
+            await a_received.wait()
+        return completions[name]
+
+    monkeypatch.setattr(provider.client.chat.completions, "create", fake_create)
+
+    base_generate = OpenAICompatibleAPI.generate
+
+    async def ordered_generate(
+        self: OpenAICompatibleAPI,
+        input: list[Any],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> Any:
+        result = await base_generate(self, input, tools, tool_choice, config)
+        if input[0].text == "a":
+            a_received.set()
+            await b_received.wait()
+        else:
+            b_received.set()
+        return result
+
+    monkeypatch.setattr(OpenAICompatibleAPI, "generate", ordered_generate)
+
+    async def generate(name: str) -> ModelOutput:
+        output, _ = await provider.generate(
+            [ChatMessageUser(content=name)], [], "none", GenerateConfig()
+        )
+        assert isinstance(output, ModelOutput)
+        return output
+
+    try:
+        output_a, output_b = await tg_collect(
+            [lambda: generate("a"), lambda: generate("b")]
+        )
+    finally:
+        await provider.aclose()
+
+    for output, name, tokens in [(output_a, "a", 1), (output_b, "b", 2)]:
+        assert output.completion == f"answer {name}"
+        assert _citation_urls(output) == [f"https://example.com/{name}"]
+        assert output.usage is not None
+        assert output.usage.input_tokens == tokens
+        assert output.usage.reasoning_tokens == tokens
+        assert output.metadata is not None
+        assert output.metadata["num_search_queries"] == tokens
+        assert output.metadata["search_results"][0]["title"] == name
+
+
+@pytest.mark.anyio
+async def test_perplexity_failed_generate_ignores_earlier_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = PerplexityAPI(model_name="perplexity/sonar", api_key="sk-test")
+    request = httpx2.Request("POST", "https://api.perplexity.ai/chat/completions")
+    responses: list[ChatCompletion | Exception] = [
+        _search_completion("a", 1),
+        BadRequestError(
+            "Error code: 400 - input length exceeds the context window",
+            response=httpx2.Response(400, request=request),
+            body=None,
+        ),
+    ]
+
+    async def fake_create(**kwargs: Any) -> ChatCompletion:
+        response = responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    monkeypatch.setattr(provider.client.chat.completions, "create", fake_create)
+
+    try:
+        first, _ = await provider.generate(
+            [ChatMessageUser(content="a")], [], "none", GenerateConfig()
+        )
+        assert isinstance(first, ModelOutput)
+        assert _citation_urls(first) == ["https://example.com/a"]
+
+        failed, call = await provider.generate(
+            [ChatMessageUser(content="b")], [], "none", GenerateConfig()
+        )
+    finally:
+        await provider.aclose()
+
+    assert call.error is True
+    assert isinstance(failed, ModelOutput)
+    assert failed.stop_reason == "model_length"
+    assert _citation_urls(failed) == []
+    assert failed.usage is None
+    assert not failed.metadata
