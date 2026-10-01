@@ -84630,14 +84630,16 @@ var scoreText = (score) => {
 /** A token count that is safe to accumulate and divide by, else undefined. */ var tokenCount = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= kMaxTokenCount ? value : void 0;
 /** Input-side tokens for one model call (context occupancy). Prefers the
 *  recorded input_context_tokens: usage is billed, and for a call that made
-*  several requests it sums them. Logs without that field fall back to the
-*  shared total minus the output side. Summing input + cache categories
+*  several requests it sums them. A null value means the size is unknown
+*  (e.g. a rejected request); logs written before the field existed omit it
+*  and fall back to the shared total minus the output side. Summing input + cache categories
 *  directly would double-count on providers whose input_tokens already
 *  includes cached reads (OpenAI) — deriving from usageTotal keeps this
 *  surface consistent with the Usage tab. */ var inputSideTokens = (event) => {
 	const usage = event.output.usage;
 	if (!usage) return void 0;
 	const context = event.output.input_context_tokens;
+	if (context === null) return void 0;
 	if (typeof context === "number") return tokenCount(context);
 	const total = tokenCount(usageTotal(usage));
 	const output = tokenCount(usage.output_tokens);
