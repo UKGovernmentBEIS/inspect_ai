@@ -1,5 +1,6 @@
 """Tests for prompt_logprobs config and response parsing."""
 
+from contextlib import nullcontext
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -477,7 +478,7 @@ async def test_vllm_completions_dedicated_field_wins_over_extra_body() -> None:
     api.client = mock_client
 
     mock_hooks = MagicMock()
-    mock_hooks.start_request.return_value = "req-1"
+    mock_hooks.request.return_value = nullcontext("req-1")
     mock_hooks.end_request.return_value = 0.1
     api._http_hooks = mock_hooks
 

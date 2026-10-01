@@ -1,10 +1,12 @@
 import re
 import time
+from contextlib import contextmanager
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Iterator,
     Literal,
     Mapping,
     NamedTuple,
@@ -80,7 +82,12 @@ class HttpHooks:
         # unattributed in the throughput registry.
         self._api = api
 
-    def start_request(self) -> str:
+    def _start_request(self) -> str:
+        """Register a request and return its id.
+
+        Use `request()` instead, which also removes the entry when the
+        request ends.
+        """
         request_id = uuid()
         self._requests[request_id] = RequestInfo(0, time.monotonic())
         return request_id
@@ -94,6 +101,21 @@ class HttpHooks:
 
         # return elapsed time
         return time.monotonic() - request_info.last_request
+
+    @contextmanager
+    def request(self) -> Iterator[str]:
+        """Track a request for the duration of the block.
+
+        This is how providers register a request. Yields a new request id,
+        and removes its entry when the block exits, including when the
+        request raises or is cancelled. Call `end_request()` inside the block
+        to read the elapsed time; the exit then has nothing left to remove.
+        """
+        request_id = self._start_request()
+        try:
+            yield request_id
+        finally:
+            self._requests.pop(request_id, None)
 
     def record_response(
         self,

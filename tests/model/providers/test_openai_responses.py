@@ -1,4 +1,5 @@
 import json
+from contextlib import nullcontext
 from types import SimpleNamespace
 from typing import Any
 
@@ -395,7 +396,7 @@ async def _generate_responses_with_mock(
     client.responses.create = AsyncMock(return_value=mock_response)
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     model_info = MagicMock()
@@ -2611,7 +2612,7 @@ async def test_responses_streaming_logged_in_model_call() -> None:
     client: Any = SimpleNamespace(responses=_FakeResponses())
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     model_info = MagicMock()
@@ -2688,7 +2689,7 @@ async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None
     client: Any = SimpleNamespace(responses=_FakeResponses())
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     model_info = MagicMock()
@@ -2770,7 +2771,7 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
     client: Any = SimpleNamespace(responses=_FakeResponses())
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     model_info = MagicMock()
