@@ -1112,6 +1112,36 @@ async def test_bridged_tool_grouped_unexpected_exception_fails_the_sample() -> N
     assert bridge._failure is error
 
 
+async def test_bridged_tool_receives_an_argument_named_like_its_var_keyword() -> None:
+    """An argument may share the name of the tool's `**` parameter."""
+    from typing import Any
+
+    from inspect_ai.tool._tool_def import ToolDef
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    received: list[dict] = []
+
+    async def echo(count: int, **arguments: Any) -> str:
+        received.append({"count": count, **arguments})
+        return "hello"
+
+    schema = ToolParams(
+        properties={
+            "count": ToolParam(type="integer", description="Count."),
+            "arguments": ToolParam(type="string", description="Arguments."),
+        },
+        required=["count"],
+    )
+    tool = ToolDef(echo, name="echo", description="Echo.", parameters=schema).as_tool()
+    bridge = _bridge_with_tools([tool])
+
+    assert (
+        await call_tool(bridge)("srv", "echo", {"count": 2, "arguments": "kept"})
+        == "hello"
+    )
+    assert received == [{"count": 2, "arguments": "kept"}]
+
+
 @pytest.mark.parametrize("annotated", [False, True], ids=["bare", "Any"])
 async def test_bridged_tool_with_explicit_schema_keeps_keyword_forwarding(
     annotated: bool,

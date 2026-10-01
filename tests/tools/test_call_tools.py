@@ -655,3 +655,20 @@ def test_tool_params_passes_extra_arguments_to_var_keyword() -> None:
         return ""
 
     assert tool_params({"count": 2.0, "a": "x"}, execute) == {"count": 2, "a": "x"}
+
+
+def test_tool_params_keeps_an_argument_named_like_the_var_keyword() -> None:
+    from inspect_ai.model._call_tools import tool_params
+
+    async def execute(**arguments: Any) -> str:
+        return ""
+
+    async def named(count: int, **arguments: Any) -> str:
+        return ""
+
+    assert tool_params({"arguments": "kept"}, execute) == {"arguments": "kept"}
+    assert tool_params({"count": 1.0, "arguments": "kept", "x": 1}, named) == {
+        "count": 1,
+        "arguments": "kept",
+        "x": 1,
+    }

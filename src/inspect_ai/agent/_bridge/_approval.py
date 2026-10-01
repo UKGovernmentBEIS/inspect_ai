@@ -112,7 +112,9 @@ async def apply_bridge_tool_approval(
     against the declaration or the bridged host tool it denotes, and for a host
     tool with canonical arguments and the tool's viewer. An invalid call is not
     shown to the approvers; it is answered like a rejection, with a parsing error.
-    A modified call is validated again.
+    A modified call is validated again. A call that denotes several bridged host
+    tools (sharing a description) is approved once for each, and cannot be
+    modified: a modification is answered as a rejection.
 
     Args:
         bridge: Bridge whose `approval` policies (if any) apply for this call.
@@ -126,6 +128,8 @@ async def apply_bridge_tool_approval(
         the response was rejected.
     """
     from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
+    from inspect_ai.approval._approval import Approval
+    from inspect_ai.approval._call import record_approval
 
     with bridge_approval_scope(bridge.approval):
         approval_active = have_tool_approval()
@@ -183,6 +187,24 @@ async def apply_bridge_tool_approval(
                     )
 
                 if approval is not None and approval.modified is not None:
+                    # each host tool's grant must be for arguments its own
+                    # approval saw, so a call that could run several of them
+                    # cannot be rewritten by one approval
+                    if len(reviews) > 1:
+                        explanation = (
+                            f"Tool call '{call.function}' denotes several bridged "
+                            "tools, so its arguments cannot be modified on approval."
+                        )
+                        record_approval(
+                            "policy",
+                            message,
+                            reviewed.call,
+                            None,
+                            Approval(decision="reject", explanation=explanation),
+                        )
+                        return BridgeApproval(
+                            output, rejection_messages(output, call, explanation)
+                        )
                     arguments = approval.modified.arguments
                     if reviewed.dispatch is not None:
                         arguments = reviewed.dispatch(arguments)

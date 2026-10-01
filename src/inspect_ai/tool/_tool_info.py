@@ -8,7 +8,7 @@ from typing import (
 )
 
 from docstring_parser import Docstring, parse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from inspect_ai.util._json import JSONType, json_schema
 
@@ -56,6 +56,10 @@ class ToolInfo(BaseModel):
     """JSON Schema of tool parameters object."""
     options: dict[str, Any] | None = Field(default=None)
     """Optional property bag that can be used by the model provider to customize the implementation of the tool"""
+
+    _declared_parameters: dict[str, Any] | None = PrivateAttr(default=None)
+    # the parameters JSON Schema as an agent bridge's scaffold declared it
+    # (`parameters` is a normalized copy that can lose constraints); not serialized
 
 
 INTERNAL_TOOL_TYPE = "__internal_tool_type__"

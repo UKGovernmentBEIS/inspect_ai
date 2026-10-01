@@ -38,7 +38,8 @@ if TYPE_CHECKING:
 import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
-from pydantic import BaseModel
+from pydantic import AliasChoices, AliasPath, BaseModel
+from pydantic.fields import FieldInfo
 from typing_extensions import is_typeddict
 
 from inspect_ai._util.content import (
@@ -1289,12 +1290,17 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
 
     # build params
     params: dict[str, Any] = {}
+    named = [
+        name
+        for name, param in signature.parameters.items()
+        if param.kind
+        not in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL)
+    ]
     for param_name, param in signature.parameters.items():
-        # pass arguments without a named parameter through to **kwargs
+        # pass arguments without a named parameter through to **kwargs (an
+        # argument may share the name of the ** parameter itself)
         if param.kind == inspect.Parameter.VAR_KEYWORD:
-            params.update(
-                {k: v for k, v in input.items() if k not in signature.parameters}
-            )
+            params.update({k: v for k, v in input.items() if k not in named})
             continue
 
         # Parse docstring
@@ -1403,7 +1409,8 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
     args = get_args(type_hint)
 
     def unable_to_convert(ex: Exception | None = None) -> ToolParsingError:
-        name = getattr(type_hint, "__name__", str(type_hint))
+        name = getattr(type_hint, "__name__", None) if origin is None else None
+        name = name or str(type_hint)
         reason = f": {ex}" if ex is not None else ""
         return ToolParsingError(f"Unable to convert '{input}' to {name}{reason}")
 
@@ -1455,10 +1462,12 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
                 raise unable_to_convert()
             model_data = dict(input)
             for name, model_field in type_hint.model_fields.items():
-                key = name if name in input else model_field.alias
                 annotation = model_field.annotation
-                if key is not None and key in input and annotation is not None:
-                    model_data[key] = tool_param(annotation, input[key])
+                if annotation is None:
+                    continue
+                for key in _model_field_input_keys(name, model_field):
+                    if key in input:
+                        model_data[key] = tool_param(annotation, input[key])
             try:
                 return type_hint(**model_data)
             except (TypeError, ValueError) as ex:
@@ -1503,12 +1512,49 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
         else:
             return input
     elif origin is Union or origin is types.UnionType:
-        if args[1] is type(None) and input is not None:
-            return tool_param(args[0], input)
-        else:
-            return input
+        return _union_param(args, input, unable_to_convert)
     else:
         return input
+
+
+def _union_param(
+    args: tuple[Any, ...],
+    input: Any,
+    unable_to_convert: Callable[[], ToolParsingError],
+) -> Any:
+    """Convert `input` to the first member of a union it converts to exactly.
+
+    A value already of one of the member scalar types is kept as it is (so
+    `int | float` keeps an int); otherwise each member is tried in order.
+    """
+    if input is None:
+        if type(None) in args:
+            return None
+        raise unable_to_convert()
+    members = [arg for arg in args if arg is not type(None)]
+    if any(arg in (int, str, float, bool) and type(input) is arg for arg in members):
+        return input
+    for arg in members:
+        try:
+            return tool_param(arg, input)
+        except ToolParsingError:
+            continue
+    raise unable_to_convert()
+
+
+def _model_field_input_keys(name: str, field: FieldInfo) -> list[str]:
+    """The input keys a Pydantic model field can be validated from."""
+    keys = [name]
+    if field.alias:
+        keys.append(field.alias)
+    aliases = field.validation_alias
+    choices = aliases.choices if isinstance(aliases, AliasChoices) else [aliases]
+    for choice in choices:
+        if isinstance(choice, str):
+            keys.append(choice)
+        elif isinstance(choice, AliasPath) and len(choice.path) == 1:
+            keys.extend(key for key in choice.path if isinstance(key, str))
+    return keys
 
 
 def _exact_scalar(type_hint: Type[Any], value: Any) -> Any:
@@ -1558,7 +1604,43 @@ def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | 
 
     schema = parameters.model_dump(exclude_none=True)
     validator = Draft7Validator(schema)
-    errors = list(validator.iter_errors(input))
+    return _validation_message(list(validator.iter_errors(input)))
+
+
+def validate_declared_input(
+    input: dict[str, Any], schema: dict[str, Any]
+) -> str | None:
+    """Validate `input` against a JSON Schema as an external client declared it.
+
+    The schema's own `$schema` dialect is used (Draft 7 by default). A schema
+    that is itself invalid, or has a reference that cannot be resolved, cannot
+    say whether the input is valid: that is logged and the input is accepted.
+    """
+    from jsonschema import Draft7Validator
+    from jsonschema.exceptions import SchemaError
+    from jsonschema.validators import validator_for
+
+    unusable_schema: tuple[type[Exception], ...] = (SchemaError,)
+    try:
+        from referencing.exceptions import Unresolvable
+
+        unusable_schema += (Unresolvable,)
+    except ImportError:  # jsonschema < 4.18
+        from jsonschema.exceptions import RefResolutionError
+
+        unusable_schema += (RefResolutionError,)
+
+    try:
+        validator_class = validator_for(schema, default=Draft7Validator)
+        validator_class.check_schema(schema)
+        errors = list(validator_class(schema).iter_errors(input))
+    except unusable_schema as ex:
+        warn_once(logger, f"Unable to validate tool input against its schema: {ex}")
+        return None
+    return _validation_message(errors)
+
+
+def _validation_message(errors: list[Any]) -> str | None:
     if errors:
         message = "\n".join(
             [f"Found {len(errors)} validation errors parsing tool input arguments:"]

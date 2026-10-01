@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 import pytest
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
@@ -972,6 +972,128 @@ async def test_handoff_arguments_are_converted_for_the_agent() -> None:
         {"amount": 5.0, "payload": Payload(amount=1.0), "note": "curried"}
     ]
     assert isinstance(received[0]["amount"], float)
+
+
+class UnionPayload(BaseModel):
+    amount: float | str
+
+
+class NoneFirstPayload(BaseModel):
+    amount: None | float
+
+
+class AliasPayload(BaseModel):
+    amount: float = Field(validation_alias="value")
+
+
+class ChoicesPayload(BaseModel):
+    amount: float = Field(validation_alias=AliasChoices("value", "total"))
+
+
+class OuterPayload(BaseModel):
+    items: list[UnionPayload]
+
+
+@tool
+def model_inputs(received: list[dict[str, Any]]):
+    async def execute(
+        union: UnionPayload | None = None,
+        none_first: NoneFirstPayload | None = None,
+        alias: AliasPayload | None = None,
+        choices: ChoicesPayload | None = None,
+        outer: OuterPayload | None = None,
+    ) -> str:
+        """Record model inputs.
+
+        Args:
+            union: A union field.
+            none_first: An optional field written None first.
+            alias: An aliased field.
+            choices: A field with alias choices.
+            outer: A nested model in a container.
+        """
+        received.append(
+            {
+                "union": union,
+                "none_first": none_first,
+                "alias": alias,
+                "choices": choices,
+                "outer": outer,
+            }
+        )
+        return "ok"
+
+    return execute
+
+
+MODEL_INPUT_CASES: list[tuple[str, dict[str, Any]]] = [
+    ("union", {"union": {"amount": 2**53 + 1}}),
+    ("none-first", {"none_first": {"amount": 2**53 + 1}}),
+    ("alias", {"alias": {"value": 2**53 + 1}}),
+    ("alias-choices", {"choices": {"value": 2**53 + 1}}),
+    ("nested", {"outer": {"items": [{"amount": 2**53 + 1}]}}),
+]
+
+
+async def execute_model_inputs(
+    arguments: dict[str, Any],
+) -> tuple[ChatMessageTool, list[ToolCall], list[ToolCall], list[dict[str, Any]]]:
+    received: list[dict[str, Any]] = []
+    calls: list[ToolCall] = []
+    viewed: list[ToolCall] = []
+
+    def viewer(call: ToolCall) -> ToolCallView:
+        viewed.append(call)
+        return ToolCallView()
+
+    message = await execute_with_approval(
+        ToolCall(id="1", function="model_inputs", arguments=arguments),
+        [ToolDef(model_inputs(received), viewer=viewer)],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+    return message, calls, viewed, received
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [case[1] for case in MODEL_INPUT_CASES],
+    ids=[case[0] for case in MODEL_INPUT_CASES],
+)
+async def test_inexact_model_field_never_reaches_approval(
+    arguments: dict[str, Any],
+) -> None:
+    message, calls, viewed, received = await execute_model_inputs(arguments)
+
+    assert message.error is not None
+    assert message.error.type == "parsing"
+    assert calls == []
+    assert viewed == []
+    assert received == []
+
+
+async def test_exact_model_fields_run_as_approved() -> None:
+    exact = 2**52
+    arguments: dict[str, Any] = {
+        "union": {"amount": exact},
+        "none_first": {"amount": exact},
+        "alias": {"value": exact},
+        "choices": {"value": exact},
+        "outer": {"items": [{"amount": "text"}, {"amount": exact}]},
+    }
+
+    message, calls, viewed, received = await execute_model_inputs(arguments)
+
+    assert message.error is None
+    assert [c.arguments for c in calls] == [arguments]
+    assert len(viewed) == 1
+    (values,) = received
+    assert values["union"] == UnionPayload(amount=float(exact))
+    assert values["none_first"] == NoneFirstPayload(amount=float(exact))
+    assert values["alias"].amount == float(exact)
+    assert values["choices"].amount == float(exact)
+    assert values["outer"] == OuterPayload(
+        items=[UnionPayload(amount="text"), UnionPayload(amount=float(exact))]
+    )
 
 
 if __name__ == "__main__":

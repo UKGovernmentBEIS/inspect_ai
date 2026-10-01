@@ -9,7 +9,7 @@ than by editing the response the scaffold sees.
 import json
 import logging
 from pathlib import PurePosixPath
-from typing import Any, Awaitable, Callable, Iterator
+from typing import Any, Awaitable, Callable, Iterator, cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -18,6 +18,7 @@ from inspect_ai import Task, eval
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge._approval import MAX_CONSECUTIVE_REJECTIONS
+from inspect_ai.agent._bridge._declared import with_declared_schema
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
@@ -2557,7 +2558,14 @@ async def test_invalid_scaffold_tool_call_is_a_parsing_error_not_an_approval() -
     run = await run_bridge(
         [tool_calls_output(invalid), tool_calls_output(valid)],
         approval=[ApprovalPolicy(recording_approver(seen), "*")],
-        tools=declare("bash", description="Run a command.", parameters=("cmd",)),
+        tools=[
+            with_declared_schema(
+                info, {**info.parameters.model_dump(exclude_none=True)}
+            )
+            for info in declare(
+                "bash", description="Run a command.", parameters=("cmd",)
+            )
+        ],
     )
 
     (result,) = run.tool_results(1)
@@ -2704,3 +2712,311 @@ async def test_host_memory_path_is_approved_as_its_canonical_path() -> None:
         await execute("host", "memory", dict(escaping.arguments))
     await execute("host", "memory", dict(inside.arguments))
     assert set(store_as(MemoryStore).files) == {"/memories/public/note.txt"}
+
+
+# ---------------------------------------------------------------------------
+# scaffold declarations are validated against the schema as declared
+# ---------------------------------------------------------------------------
+
+RUN_DESCRIPTION = "Run a command in the scaffold."
+
+
+def declared_via(adapter: str, schema: dict[str, Any]) -> list[ToolInfo]:
+    """The declaration of a `run` tool with `schema`, as `adapter` converts it."""
+    from inspect_ai.agent._bridge.anthropic_api_impl import tools_from_anthropic_tools
+    from inspect_ai.agent._bridge.completions import tools_from_openai_tools
+    from inspect_ai.agent._bridge.google_api_impl import tools_from_google_tools
+    from inspect_ai.agent._bridge.responses_impl import tools_from_responses_tool
+
+    tools: list[Any]
+    if adapter == "completions":
+        tools = tools_from_openai_tools(
+            [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "run",
+                        "description": RUN_DESCRIPTION,
+                        "parameters": schema,
+                    },
+                }
+            ]
+        )
+    elif adapter == "responses":
+        tools = tools_from_responses_tool(
+            {
+                "type": "function",
+                "name": "run",
+                "description": RUN_DESCRIPTION,
+                "parameters": schema,
+                "strict": False,
+            },
+            None,
+            None,
+            False,
+        )
+    elif adapter == "anthropic":
+        tools = tools_from_anthropic_tools(
+            cast(
+                Any,
+                [
+                    {
+                        "name": "run",
+                        "description": RUN_DESCRIPTION,
+                        "input_schema": schema,
+                    }
+                ],
+            ),
+            None,
+            None,
+            None,
+            False,
+        )
+    else:
+        key = "parametersJsonSchema" if adapter == "google" else "parameters"
+        tools = tools_from_google_tools(
+            [
+                {
+                    "functionDeclarations": [
+                        {"name": "run", "description": RUN_DESCRIPTION, key: schema}
+                    ]
+                }
+            ],
+            None,
+            None,
+        )
+    infos = [t for t in tools if isinstance(t, ToolInfo)]
+    assert len(infos) == len(tools) == 1
+    return infos
+
+
+CMD_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"cmd": {"type": "string"}},
+    "required": ["cmd"],
+}
+
+DECLARED_SCHEMA_CASES: list[tuple[str, dict[str, Any], dict[str, Any], bool]] = [
+    ("omitted-extra", CMD_SCHEMA, {"cmd": "ls", "extra": True}, True),
+    (
+        "true-extra",
+        {**CMD_SCHEMA, "additionalProperties": True},
+        {"cmd": "ls", "extra": True},
+        True,
+    ),
+    (
+        "false-extra",
+        {**CMD_SCHEMA, "additionalProperties": False},
+        {"cmd": "ls", "extra": True},
+        False,
+    ),
+    (
+        "oneOf-invalid",
+        {
+            "type": "object",
+            "properties": {"cmd": {"type": "string"}, "script": {"type": "string"}},
+            "oneOf": [{"required": ["cmd"]}, {"required": ["script"]}],
+        },
+        {"other": "x"},
+        False,
+    ),
+    (
+        "oneOf-valid",
+        {
+            "type": "object",
+            "properties": {"cmd": {"type": "string"}, "script": {"type": "string"}},
+            "oneOf": [{"required": ["cmd"]}, {"required": ["script"]}],
+        },
+        {"cmd": "ls"},
+        True,
+    ),
+    (
+        "ref-invalid",
+        {
+            "type": "object",
+            "properties": {"n": {"$ref": "#/$defs/count"}},
+            "$defs": {"count": {"type": "integer"}},
+        },
+        {"n": "x"},
+        False,
+    ),
+    (
+        "ref-valid",
+        {
+            "type": "object",
+            "properties": {"n": {"$ref": "#/$defs/count"}},
+            "$defs": {"count": {"type": "integer"}},
+        },
+        {"n": 1},
+        True,
+    ),
+]
+
+GEMINI_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "cmd": {"type": "string"},
+        "note": {"type": "string", "nullable": True},
+    },
+    "required": ["cmd"],
+}
+
+
+@pytest.mark.parametrize("adapter", ["completions", "responses", "anthropic", "google"])
+@pytest.mark.parametrize(
+    "schema,arguments,valid",
+    [case[1:] for case in DECLARED_SCHEMA_CASES],
+    ids=[case[0] for case in DECLARED_SCHEMA_CASES],
+)
+async def test_scaffold_call_is_validated_against_its_declared_schema(
+    adapter: str, schema: dict[str, Any], arguments: dict[str, Any], valid: bool
+) -> None:
+    await check_declared_validation(declared_via(adapter, schema), arguments, valid)
+
+
+@pytest.mark.parametrize(
+    "arguments,valid",
+    [
+        ({"cmd": "ls", "extra": True}, True),
+        ({"cmd": "ls", "note": None}, True),
+        ({"cmd": 5}, False),
+    ],
+    ids=["omitted-extra", "nullable", "wrong-type"],
+)
+async def test_gemini_openapi_declaration_is_validated_as_json_schema(
+    arguments: dict[str, Any], valid: bool
+) -> None:
+    await check_declared_validation(
+        declared_via("gemini-openapi", GEMINI_SCHEMA), arguments, valid
+    )
+
+
+async def check_declared_validation(
+    tools: list[ToolInfo], arguments: dict[str, Any], valid: bool
+) -> None:
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    proposed = ToolCall(id="1", function="run", arguments=arguments)
+    retry = ToolCall(id="2", function="other", arguments={})
+
+    run = await run_bridge(
+        [tool_calls_output(proposed), tool_calls_output(retry)],
+        approval=[ApprovalPolicy(recording_approver(seen), "*")],
+        tools=tools,
+    )
+
+    if valid:
+        assert run.generations == 1
+        assert [call for _, call, _ in seen] == [proposed]
+    else:
+        assert run.generations == 2
+        (result,) = run.tool_results(1)
+        assert result.error is not None
+        assert result.error.type == "parsing"
+        assert [call for _, call, _ in seen] == [retry]
+
+
+def test_declared_schema_is_not_serialized() -> None:
+    (info,) = declared_via("completions", {**CMD_SCHEMA, "$comment": "declared"})
+    plain = ToolInfo(
+        name=info.name, description=info.description, parameters=info.parameters
+    )
+    assert info.model_dump() == plain.model_dump()
+    assert "declared" not in json.dumps(info.model_dump())
+
+
+# ---------------------------------------------------------------------------
+# a call denoting several host tools cannot be modified by one approval
+# ---------------------------------------------------------------------------
+
+
+@approver(name="test_bridge_modify_nth")
+def modify_nth(n: int, arguments: dict[str, object], seen: list[ToolCall]) -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        seen.append(call)
+        if len(seen) == n:
+            return Approval(
+                decision="modify",
+                modified=ToolCall(
+                    id=call.id, function=call.function, arguments=dict(arguments)
+                ),
+            )
+        return Approval(decision="approve")
+
+    return approve
+
+
+@pytest.mark.parametrize("n", [1, 2], ids=["first-target", "later-target"])
+async def test_modifying_a_call_with_several_host_targets_is_rejected(n: int) -> None:
+    bridge = two_tools_one_description()
+    seen: list[ToolCall] = []
+    bridge.approval = [ApprovalPolicy(modify_nth(n, {"path": "/secret"}, seen), "*")]
+    proposed = ToolCall(id="1", function="read_file", arguments={"path": "/public"})
+    retry = ToolCall(id="2", function="other", arguments={})
+
+    run = await run_bridge(
+        [tool_calls_output(proposed), tool_calls_output(retry)],
+        bridge=bridge,
+        tools=declare("read_file"),
+    )
+
+    assert run.generations == 2
+    (result,) = run.tool_results(1)
+    assert result.error is not None
+    assert result.error.type == "approval"
+    assert run.output.message.tool_calls == [retry]
+    for server in ("a", "b"):
+        for path in ("/public", "/secret"):
+            assert not bridge.consume_tool_execution_grant(
+                server, "read_file", {"path": path}
+            )
+
+
+async def test_each_host_target_is_approved_and_granted_its_own_arguments() -> None:
+    from inspect_ai.tool._tool_canonical import set_tool_canonical_arguments
+
+    viewed: list[ToolCall] = []
+
+    async def execute(path: str) -> str:
+        """Read a file from the host.
+
+        Args:
+            path: Path of the file to read.
+        """
+        return "contents"
+
+    def viewer(call: ToolCall) -> ToolCallView:
+        viewed.append(call)
+        return ToolCallView()
+
+    set_tool_canonical_arguments(
+        execute, lambda arguments: {**arguments, "path": arguments["path"].lower()}
+    )
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {
+                "read_file": ToolDef(execute, name="read_file", viewer=viewer).as_tool()
+            },
+            "b": {"read_file": served_tool(AsyncMock())},
+        }
+    )
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge.approval = [ApprovalPolicy(recording_approver(seen), "*")]
+    proposed = ToolCall(id="1", function="read_file", arguments={"path": "/A.TXT"})
+
+    await run_bridge(
+        [tool_calls_output(proposed)], bridge=bridge, tools=declare("read_file")
+    )
+
+    assert [call.arguments for _, call, _ in seen] == [
+        {"path": "/a.txt"},
+        {"path": "/A.TXT"},
+    ]
+    assert [call.arguments for call in viewed] == [{"path": "/a.txt"}]
+    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "/a.txt"})
+    assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "/a.txt"})
+    assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "/A.TXT"})

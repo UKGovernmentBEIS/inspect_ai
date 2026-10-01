@@ -186,7 +186,7 @@ Two behaviors are specific to bridged agents:
 
 2.  **Three consecutive rejected responses terminate the sample.** Without this a model that keeps proposing rejected calls would retry indefinitely.
 
-As for Inspect-executed tools, approvers see only valid calls. A call whose arguments don't match the tool's declared schema (or, for a bridged host tool, the tool's own parameters) is answered with a parsing error in the same way as a rejection (and counts toward the three), without consulting the approvers. A call to a bridged host tool is approved with the arguments the tool will act on (for example the canonical path for the memory tool) and the tool's own viewer.
+As for Inspect-executed tools, approvers see only valid calls. A call whose arguments don't match the tool's declared schema (or, for a bridged host tool, the tool's own parameters) is answered with a parsing error in the same way as a rejection (and counts toward the three), without consulting the approvers. A call to a bridged host tool is approved with the arguments the tool will act on (for example the canonical path for the memory tool) and the tool's own viewer. A call that matches several bridged tools (because they share a description) is approved once for each, and a `modify` decision on it is treated as a rejection.
 
 Because Inspect doesn't execute these tool calls, no tool event is recorded for them — the transcript shows the approval decision rather than a tool call with an approval attached. Two things follow from that when reading a log:
 
