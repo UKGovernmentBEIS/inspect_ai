@@ -7,6 +7,7 @@ from inspect_sentinel import (
     AfterToolCall,
     BeforeToolCall,
     Decision,
+    HumanAnswer,
     Observation,
     Report,
     Reported,
@@ -17,6 +18,8 @@ from inspect_sentinel._integration import RunnerContext, run_root
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_lookup
+from inspect_ai.approval._approval import ApprovalDecision
+from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import SentinelAction, SentinelEvent, SentinelSuspicion
@@ -30,10 +33,17 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, active_model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.review._human import view_with_result
 from inspect_ai.scorer._metric import Reference
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.tool._tool import ToolApprovalError, ToolResult
-from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer, resolve_tool_call_view
+from inspect_ai.tool._tool_call import (
+    ToolCall,
+    ToolCallContent,
+    ToolCallView,
+    ToolCallViewer,
+    resolve_tool_call_view,
+)
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 from inspect_ai.util._span import current_agent_span_id, span
@@ -313,6 +323,71 @@ class _Host:
         return await resolved.generate(
             input, tools=tools or [], config=config or GenerateConfig()
         )
+
+    async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
+        if "modify" in choices:
+            raise NotImplementedError(
+                "human() cannot offer 'modify' in inspect_ai, since its human "
+                "approval surfaces cannot edit a tool call yet."
+            )
+        offered: list[ApprovalDecision] = []
+        for choice in choices:
+            if choice not in _HUMAN_CHOICES:
+                raise ValueError(
+                    f"human() cannot offer {choice!r}; the choices are "
+                    f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
+                )
+            offered.append(_HUMAN_CHOICES[choice])
+        approval = await human_approver(choices=offered)(
+            step.message, step.call, _human_view(step), step.history
+        )
+        if approval.decision in offered:
+            return HumanAnswer(decision=approval.decision, reason=approval.explanation)
+        return HumanAnswer(
+            decision="reject" if "reject" in offered else "terminate",
+            reason=(
+                "Human review ended without one of the offered choices "
+                f"({approval.decision}: {approval.explanation})."
+            ),
+        )
+
+
+_HUMAN_CHOICES: dict[str, ApprovalDecision] = {
+    "approve": "approve",
+    "reject": "reject",
+    "terminate": "terminate",
+}
+
+
+def _human_view(step: Step) -> ToolCallView:
+    view = step.view
+    if step.escalations:
+        lines = "\n".join(
+            f"- {e.name}: {e.report.explanation}"
+            if e.report.explanation
+            else f"- {e.name}"
+            for e in step.escalations
+        ).replace("{{", "{ {")
+        if view.call is None:
+            call = ToolCallContent(
+                format="markdown", content=f"**Escalated by**\n\n{lines}"
+            )
+        elif view.call.format == "markdown":
+            call = ToolCallContent(
+                title=view.call.title,
+                format="markdown",
+                content=f"**Escalated by**\n\n{lines}\n\n{view.call.content}",
+            )
+        else:
+            call = ToolCallContent(
+                title=view.call.title,
+                format="text",
+                content=f"Escalated by\n\n{lines}\n\n{view.call.content}",
+            )
+        view = ToolCallView(context=view.context, call=call)
+    if isinstance(step, AfterToolCall):
+        view = view_with_result(view, step.result)
+    return view
 
 
 class _Recorder:
