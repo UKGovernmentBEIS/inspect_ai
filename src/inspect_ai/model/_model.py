@@ -1521,6 +1521,13 @@ class Model:
             else:
                 cache_entry = None
 
+            # refuse a dispatch once a token or cost limit has been reached (the
+            # call could only exceed it). checked per attempt, after the cache
+            # lookup: cache hits send nothing, and concurrent calls can reach a
+            # limit while a retry backs off
+            check_token_limit(raise_for_equal=True)
+            check_cost_limit(raise_for_equal=True)
+
             # verify that model apis are allowed
             self.verify_model_apis()
 

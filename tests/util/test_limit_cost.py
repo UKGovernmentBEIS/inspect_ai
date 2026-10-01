@@ -1,5 +1,8 @@
 import pytest
 
+from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, get_model
+from inspect_ai.model._model import Model
+from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.util._limit import (
     LimitExceededError,
     check_cost_limit,
@@ -116,6 +119,63 @@ def test_stacking_cost_limits_outer_exceeded() -> None:
             # outer limit should be the one that triggered (checked root to leaf)
             assert exc_info.value.source is outer
             assert exc_info.value.limit == 0.01
+
+
+def _counting_model(calls: list[list[ChatMessage]]) -> Model:
+    """A model which records each provider call."""
+
+    def outputs(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        calls.append(input)
+        return ModelOutput.from_content("mockllm/model", "hello")
+
+    return get_model("mockllm/model", custom_outputs=outputs)
+
+
+async def test_generate_refused_when_cost_limit_reached() -> None:
+    calls: list[list[ChatMessage]] = []
+    model = _counting_model(calls)
+
+    with cost_limit(0.01) as limit:
+        record_model_cost(0.01)
+        with pytest.raises(LimitExceededError) as exc_info:
+            await model.generate("")
+
+    assert calls == []
+    assert exc_info.value.type == "cost"
+    assert exc_info.value.value == 0.01
+    assert exc_info.value.limit == 0.01
+    assert exc_info.value.source is limit
+    assert exc_info.value.message.startswith("Cost limit reached.")
+
+
+async def test_generate_dispatched_when_cost_limit_not_reached() -> None:
+    calls: list[list[ChatMessage]] = []
+    model = _counting_model(calls)
+
+    with cost_limit(0.01):
+        record_model_cost(0.005)
+        await model.generate("")
+
+    assert len(calls) == 1
+
+
+async def test_generate_refused_when_outer_cost_limit_reached() -> None:
+    calls: list[list[ChatMessage]] = []
+    model = _counting_model(calls)
+
+    with cost_limit(0.01) as outer:
+        record_model_cost(0.01)
+        with cost_limit(1.0):
+            with pytest.raises(LimitExceededError) as exc_info:
+                await model.generate("")
+
+    assert calls == []
+    assert exc_info.value.source is outer
 
 
 def _consume_cost(amount: float) -> None:
