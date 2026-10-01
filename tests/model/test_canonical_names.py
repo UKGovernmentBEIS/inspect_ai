@@ -6,6 +6,8 @@ to canonical format for model info database lookup.
 
 import pytest
 
+from inspect_ai.model import ModelOutput
+
 
 class TestBedrockCanonicalName:
     """Tests for Bedrock provider canonical_name()."""
@@ -904,3 +906,84 @@ def reset_cache():
     clear_model_info_cache()
     yield
     clear_model_info_cache()
+
+
+class TestServedModelNames:
+    """Providers report a served model under its model info database name."""
+
+    @staticmethod
+    def _output(model: str) -> ModelOutput:
+        from inspect_ai.model import ModelUsage
+
+        return ModelOutput(
+            model=model,
+            usage=ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7),
+        )
+
+    def test_azureai_deployment(self, monkeypatch):
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        monkeypatch.setenv("AZUREAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZUREAI_BASE_URL", "https://test.azure.com/models")
+        api = AzureAIAPI(model_name="my-deployment")
+        output = self._output("gpt-4o-mini-2024-07-18")
+        assert api.served_model_usage(output) == [
+            ("openai/gpt-4o-mini-2024-07-18", output.usage)
+        ]
+        assert api.served_model_usage(self._output("my-deployment")) is None
+
+    def test_openrouter_router(self):
+        from inspect_ai.model._providers.openrouter import OpenRouterAPI
+
+        api = OpenRouterAPI(
+            model_name="openrouter/auto", base_url=None, api_key="test-key"
+        )
+        output = self._output("anthropic/claude-sonnet-4")
+        assert api.served_model_usage(output) == [
+            ("anthropic/claude-sonnet-4", output.usage)
+        ]
+
+    def test_openrouter_same_model(self):
+        from inspect_ai.model._providers.openrouter import OpenRouterAPI
+
+        api = OpenRouterAPI(
+            model_name="openai/gpt-4o:free", base_url=None, api_key="test-key"
+        )
+        assert api.served_model_usage(self._output("openai/gpt-4o")) is None
+
+    def test_bedrock_prompt_router(self):
+        from inspect_ai.model._providers.bedrock import (
+            BedrockAPI,
+            ConverseMessage,
+            ConverseMetrics,
+            ConverseOutput,
+            ConverseResponse,
+            ConverseUsage,
+            model_output_from_response,
+        )
+
+        router = "arn:aws:bedrock:us-east-1:123456789012:default-prompt-router/anthropic.claude:1"
+        invoked = "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+        response = ConverseResponse(
+            output=ConverseOutput(
+                message=ConverseMessage(role="assistant", content=[{"text": "hi"}])
+            ),
+            stopReason="end_turn",
+            usage=ConverseUsage(inputTokens=3, outputTokens=4, totalTokens=7),
+            metrics=ConverseMetrics(latencyMs=1),
+            trace={"promptRouter": {"invokedModelId": invoked}},
+        )
+        output = model_output_from_response(router, response, [])
+        assert output.model == invoked
+
+        api = BedrockAPI(model_name=router, base_url=None)
+        assert api.served_model_usage(output) == [
+            ("anthropic/claude-3-haiku-20240307", output.usage)
+        ]
+
+        # without a prompt router the output model is the called model
+        response.trace = None
+        assert (
+            api.served_model_usage(model_output_from_response(router, response, []))
+            is None
+        )

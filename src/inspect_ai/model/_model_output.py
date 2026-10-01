@@ -1,6 +1,6 @@
 import uuid
 from logging import Logger
-from typing import Any, Callable, Literal, Type, TypeVar
+from typing import Any, Callable, Literal, NamedTuple, Type, TypeVar
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
@@ -67,6 +67,16 @@ class ModelUsage(BaseModel):
             ),
             total_cost=optional_sum(self.total_cost, other.total_cost),
         )
+
+
+class ServedModelUsage(NamedTuple):
+    """Part of a call's usage and the model that served it, for pricing."""
+
+    model: str
+    """Model info name of the serving model (e.g. `"anthropic/claude-opus-4-8"`)."""
+
+    usage: ModelUsage
+    """Usage served by `model`."""
 
 
 class ModelFallback(BaseModel):
