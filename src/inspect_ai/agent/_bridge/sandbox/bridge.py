@@ -77,6 +77,10 @@ async def sandbox_agent_bridge(
     the agent within the container and ensure that your agent targets the
     model name "inspect" when calling OpenAI, Anthropic, or Google. Use "inspect/<full-model-name>" to target other Inspect model providers.
 
+    The eval's configuration, not the agent's request, governs `service_tier`,
+    `store` and `truncation`; requests with `previous_response_id` are refused,
+    and the agent's HTTP headers are not forwarded.
+
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.

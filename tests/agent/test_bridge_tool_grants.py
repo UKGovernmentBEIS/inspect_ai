@@ -5,18 +5,32 @@ access through the model provider even when its sandbox has no network egress, s
 `sandbox_agent_bridge()` withholds those tools unless the evaluation grants them.
 In-process `agent_bridge()` stays permissive: that scaffold already runs with the
 host's network and filesystem, so there is no boundary to defend.
+
+The same holds for request fields that change billing, provider-side storage or
+context truncation: on the sandbox bridge the eval's configuration governs them.
 """
 
-from typing import Any, cast
+from typing import Any, Awaitable, Callable, cast
 
 import pytest
+from test_helpers.utils import skip_if_no_openai_package
 
 from inspect_ai._util.content import ContentAudio, ContentDocument, ContentImage
 from inspect_ai.agent import agent_bridge
 from inspect_ai.agent._agent import AgentState
-from inspect_ai.agent._bridge._errors import BridgePolicyError
+from inspect_ai.agent._bridge import util as bridge_util
+from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY, BridgePolicyError
+from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.anthropic_api_impl import tools_from_anthropic_tools
+from inspect_ai.agent._bridge.responses import inspect_responses_api_request
 from inspect_ai.agent._bridge.responses_impl import tools_from_responses_tool
+from inspect_ai.agent._bridge.sandbox.service import (
+    _forward_provider_errors,
+    generate_anthropic,
+    generate_completions,
+    generate_google,
+    generate_responses,
+)
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import (
@@ -25,8 +39,10 @@ from inspect_ai.agent._bridge.util import (
     resolve_bridge_web_search,
     validate_bridge_media,
 )
-from inspect_ai.model._chat_message import ChatMessageUser
-from inspect_ai.tool import ToolFunction, ToolInfo, WebSearchProviders
+from inspect_ai.model import GenerateConfig, Model, ModelOutput, get_model
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._model import GenerateFilter
+from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo, WebSearchProviders
 from inspect_ai.util import media_resolver
 
 WEB_SEARCH_PARAM = cast(Any, {"type": "web_search"})
@@ -46,10 +62,12 @@ ANTHROPIC_MCP_SERVER = cast(
 )
 
 
-def sandbox_bridge(**kwargs: Any) -> SandboxAgentBridge:
+def sandbox_bridge(
+    filter: GenerateFilter | None = None, **kwargs: Any
+) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
-        filter=None,
+        filter=filter,
         retry_refusals=None,
         compaction=None,
         port=3000,
@@ -358,3 +376,299 @@ async def test_bridge_materialization_updates_document_mime_type() -> None:
 
     assert document.document == "data:application/pdf;base64,AAAA"
     assert document.mime_type == "application/pdf"
+
+
+# --- request settings -------------------------------------------------------
+
+EVAL_GOVERNED_RESPONSES_FIELDS: dict[str, Any] = {
+    "service_tier": "priority",
+    "store": True,
+    "truncation": "auto",
+}
+FORWARDED_RESPONSES_FIELDS: dict[str, Any] = {
+    "metadata": {"run": "1"},
+    "safety_identifier": "agent",
+    "prompt_cache_key": "key",
+    "prompt_cache_retention": "24h",
+    "max_tool_calls": 3,
+}
+
+
+def capture_config(captured: list[GenerateConfig]) -> GenerateFilter:
+    """A bridge filter that records the config the provider would get, and answers."""
+
+    async def capture(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        captured.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="ok")
+
+    return capture
+
+
+def responses_request(**fields: Any) -> dict[str, Any]:
+    return {"model": "inspect/mockllm/model", "input": "hi", **fields}
+
+
+def anthropic_request(**fields: Any) -> dict[str, Any]:
+    return {
+        "model": "inspect/mockllm/model",
+        "max_tokens": 16,
+        "messages": [{"role": "user", "content": "hi"}],
+        **fields,
+    }
+
+
+@pytest.fixture
+def bridge_warnings(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    messages: list[str] = []
+    monkeypatch.setattr(
+        bridge_util.logger,
+        "warning",
+        lambda message, *args, **kwargs: messages.append(message),
+    )
+    return messages
+
+
+def warned_fields(warnings: list[str]) -> list[str]:
+    return [
+        field
+        for warning in warnings
+        for field in ("service_tier", "store", "truncation")
+        if f"agent's {field}=" in warning
+    ]
+
+
+async def test_sandbox_responses_settings_follow_eval(
+    bridge_warnings: list[str],
+) -> None:
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(filter=capture_config(captured))
+
+    await inspect_responses_api_request(
+        responses_request(
+            **EVAL_GOVERNED_RESPONSES_FIELDS, **FORWARDED_RESPONSES_FIELDS
+        ),
+        None,
+        None,
+        None,
+        bridge,
+    )
+
+    assert captured[0].extra_body == FORWARDED_RESPONSES_FIELDS
+    assert sorted(warned_fields(bridge_warnings)) == sorted(
+        EVAL_GOVERNED_RESPONSES_FIELDS
+    )
+    assert "the eval's configuration governs service_tier" in bridge_warnings[0]
+
+
+async def test_sandbox_warns_once_per_field_per_bridge(
+    bridge_warnings: list[str],
+) -> None:
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(filter=capture_config(captured))
+    request = responses_request(service_tier="priority")
+
+    await inspect_responses_api_request(request, None, None, None, bridge)
+    await inspect_responses_api_request(request, None, None, None, bridge)
+    assert warned_fields(bridge_warnings) == ["service_tier"]
+
+    other = sandbox_bridge(filter=capture_config(captured))
+    await inspect_responses_api_request(request, None, None, None, other)
+    assert warned_fields(bridge_warnings) == ["service_tier", "service_tier"]
+    assert all(config.extra_body is None for config in captured)
+
+
+async def test_sandbox_no_warning_when_client_matches_eval(
+    bridge_warnings: list[str],
+) -> None:
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(filter=capture_config(captured))
+
+    await inspect_responses_api_request(
+        responses_request(service_tier="auto", store=False, truncation="disabled"),
+        None,
+        None,
+        None,
+        bridge,
+    )
+
+    assert captured[0].extra_body is None
+    assert bridge_warnings == []
+
+
+async def test_sandbox_eval_config_governs_withheld_settings(
+    bridge_warnings: list[str],
+) -> None:
+    eval_extra_body = {"service_tier": "flex", "store": True, "truncation": "auto"}
+    model = get_model(
+        "mockllm/model", config=GenerateConfig(extra_body=eval_extra_body)
+    )
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(
+        filter=capture_config(captured), model_aliases={"eval-model": model}
+    )
+
+    await inspect_responses_api_request(
+        {"model": "eval-model", "input": "hi", "service_tier": "flex", "store": False},
+        None,
+        None,
+        None,
+        bridge,
+    )
+
+    assert captured[0].extra_body == eval_extra_body
+    assert warned_fields(bridge_warnings) == ["store"]
+
+
+@skip_if_no_openai_package
+async def test_sandbox_openai_model_args_govern_withheld_settings(
+    bridge_warnings: list[str],
+) -> None:
+    model = get_model(
+        "openai/gpt-5", api_key="test-key", service_tier="flex", responses_store=True
+    )
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(
+        filter=capture_config(captured), model_aliases={"eval-model": model}
+    )
+
+    request = {"model": "eval-model", "input": "hi", "service_tier": "flex"}
+    await inspect_responses_api_request(
+        {**request, "store": True}, None, None, None, bridge
+    )
+    assert bridge_warnings == []
+
+    await inspect_responses_api_request(
+        {**request, "service_tier": "priority"}, None, None, None, bridge
+    )
+    assert warned_fields(bridge_warnings) == ["service_tier"]
+    assert all(config.extra_body is None for config in captured)
+
+
+async def test_sandbox_anthropic_service_tier_follows_eval(
+    bridge_warnings: list[str],
+) -> None:
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(filter=capture_config(captured))
+
+    await inspect_anthropic_api_request(
+        anthropic_request(service_tier="standard_only", metadata={"user_id": "u"}),
+        None,
+        None,
+        None,
+        bridge,
+    )
+
+    assert captured[0].extra_body == {"metadata": {"user_id": "u"}}
+    assert warned_fields(bridge_warnings) == ["service_tier"]
+
+
+async def test_sandbox_refuses_previous_response_id() -> None:
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(filter=capture_config(captured))
+    generate = _forward_provider_errors(generate_responses(None, None, bridge), bridge)
+
+    result = await generate(responses_request(previous_response_id="resp_elsewhere"))
+
+    error = cast(dict[str, Any], result[PROVIDER_ERROR_KEY])
+    assert error["status"] == 400
+    assert "previous_response_id" in error["message"]
+    assert captured == []
+
+
+async def test_sandbox_accepts_null_previous_response_id() -> None:
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(filter=capture_config(captured))
+
+    await inspect_responses_api_request(
+        responses_request(previous_response_id=None), None, None, None, bridge
+    )
+
+    assert len(captured) == 1
+
+
+async def test_in_process_bridge_forwards_request_settings(
+    bridge_warnings: list[str],
+) -> None:
+    captured: list[GenerateConfig] = []
+    headers = {"openai-organization": "org-agent"}
+    async with agent_bridge(
+        AgentState(messages=[]), filter=capture_config(captured)
+    ) as bridge:
+        responses_fields = {
+            **EVAL_GOVERNED_RESPONSES_FIELDS,
+            **FORWARDED_RESPONSES_FIELDS,
+            "previous_response_id": "resp_elsewhere",
+        }
+        await inspect_responses_api_request(
+            responses_request(**responses_fields), headers, None, None, bridge
+        )
+        anthropic_fields = {
+            "service_tier": "standard_only",
+            "metadata": {"user_id": "u"},
+        }
+        await inspect_anthropic_api_request(
+            anthropic_request(**anthropic_fields), headers, None, None, bridge
+        )
+
+    assert captured[0].extra_body == responses_fields
+    assert captured[1].extra_body == anthropic_fields
+    assert [config.extra_headers for config in captured] == [headers, headers]
+    assert bridge_warnings == []
+
+
+# --- headers ----------------------------------------------------------------
+
+SandboxGenerate = Callable[
+    [SandboxAgentBridge], Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
+]
+
+
+@pytest.mark.parametrize(
+    "service_method,request_body",
+    [
+        (
+            generate_completions,
+            {
+                "model": "inspect/mockllm/model",
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+        ),
+        (
+            lambda bridge: generate_responses(None, None, bridge),
+            responses_request(),
+        ),
+        (
+            lambda bridge: generate_anthropic(None, None, bridge),
+            anthropic_request(),
+        ),
+        (
+            lambda bridge: generate_google(None, None, bridge),
+            {
+                "model": "inspect/mockllm/model",
+                "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
+            },
+        ),
+    ],
+    ids=["completions", "responses", "anthropic", "google"],
+)
+async def test_sandbox_service_sends_no_client_headers(
+    service_method: SandboxGenerate, request_body: dict[str, Any]
+) -> None:
+    """The sandbox service gets only the request body, so no client header reaches the provider.
+
+    The in-container proxy's side (it forwards the body alone) is pinned by
+    `test_proxy_forwards_no_client_headers` in the sandbox tools tests.
+    """
+    captured: list[GenerateConfig] = []
+    bridge = sandbox_bridge(filter=capture_config(captured))
+
+    await service_method(bridge)(request_body)
+
+    assert len(captured) == 1
+    assert captured[0].extra_headers is None

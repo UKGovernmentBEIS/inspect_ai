@@ -184,6 +184,7 @@ from .util import (
     validate_bridge_media,
     validate_client_config,
     withheld_bridge_tool,
+    withhold_client_request_settings,
 )
 
 logger = getLogger(__name__)
@@ -213,6 +214,9 @@ async def inspect_responses_api_request_impl(
     code_execution: CodeExecutionProviders | None,
     bridge: AgentBridge,
 ) -> Response:
+    if not bridge.forwards_client_request_settings:
+        _reject_previous_response_id(json_data)
+
     # resolve model
     bridge_model_name = str(json_data["model"])
     model = resolve_inspect_model(
@@ -310,6 +314,8 @@ async def inspect_responses_api_request_impl(
     config = generate_config_from_openai_responses(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
+    if not bridge.forwards_client_request_settings:
+        withhold_client_request_settings(bridge, config, _eval_request_settings(model))
     validate_client_config(config)
     config.extra_headers = headers
     if config.system_message:
@@ -360,6 +366,46 @@ async def inspect_responses_api_request_impl(
     debug_log("SCAFFOLD RESPONSE", response)
 
     return response
+
+
+def _reject_previous_response_id(json_data: dict[str, Any]) -> None:
+    """Refuse a request that continues from a stored response.
+
+    The bridge keeps no provider-side response state: it generates from the
+    request's `input` alone, and the response ids it returns are Inspect message
+    ids that the provider never issued. Forwarding the field could only continue
+    from a response this bridge did not produce (one stored at the provider under
+    the eval's credentials), and dropping it would generate without the earlier
+    turns, so the request is refused with a 400.
+    """
+    if json_data.get("previous_response_id", None) is not None:
+        raise BridgePolicyError(
+            "previous_response_id is not supported by the sandbox agent bridge; "
+            "send the full conversation in 'input'"
+        )
+
+
+def _eval_request_settings(model: Model) -> dict[str, Any]:
+    """The values the eval's configuration gives the Responses fields the bridge withholds.
+
+    Follows the OpenAI provider: its `service_tier` and `responses_store` model
+    args take precedence over `GenerateConfig.extra_body`, and when neither sets
+    a field it sends `store=False` and leaves `service_tier` and `truncation` at
+    the API defaults.
+    """
+    extra_body = resolve_generate_config(model, GenerateConfig()).extra_body or {}
+    service_tier = extra_body.get("service_tier", "auto")
+    store = extra_body.get("store", False)
+    if _is_openai_responses_provider(model):
+        service_tier = getattr(model.api, "service_tier", None) or service_tier
+        responses_store = getattr(model.api, "responses_store", None)
+        if responses_store is not None:
+            store = responses_store
+    return {
+        "service_tier": service_tier,
+        "store": store is True,
+        "truncation": extra_body.get("truncation", "disabled"),
+    }
 
 
 def _declarations_in_input(

@@ -145,6 +145,20 @@ subclass cannot accidentally grant host access. Code that constructs the class
 directly can opt in with `allow_remote_media=True`; the `agent_bridge()` factory
 makes this grant explicitly.
 
+### Request Settings
+
+Some request fields change billing, storage at the model provider, or how much of the conversation the provider keeps. On `sandbox_agent_bridge()` the eval's configuration decides these, not the agent:
+
+-   `service_tier`, `store` and `truncation` (OpenAI Responses) and `service_tier` (Anthropic) are not forwarded. Set them with the provider's model args (for OpenAI, `-M service_tier=flex` or `-M responses_store=true`) or with `GenerateConfig(extra_body=...)`. If the agent asks for a different value, a warning is logged once per field.
+
+-   A Responses request with `previous_response_id` is refused with a 400 error. The bridge keeps no stored responses, so the agent must send the whole conversation in `input`.
+
+-   `metadata`, `safety_identifier`, `prompt_cache_key`, `prompt_cache_retention` and `max_tool_calls` are forwarded.
+
+-   HTTP headers the agent sends to the proxy are not forwarded. Only the request body reaches the model provider.
+
+OpenAI Chat Completions and Google requests forward none of these fields on either bridge. The in-process `agent_bridge()` forwards the Responses and Anthropic fields above, and the agent's headers other than credentials and SDK-managed ones.
+
 ## Bridged Tools
 
 Host-side Inspect tools can be exposed as MCP tools to sandboxed agents using the `bridged_tools` parameter. This is useful when you have Inspect tools that need to run on the host (e.g. tools that access host resources, databases, or APIs) but want them available to agents running in a sandbox.

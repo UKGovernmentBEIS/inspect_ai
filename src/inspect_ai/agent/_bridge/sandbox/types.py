@@ -113,6 +113,9 @@ class SandboxAgentBridge(AgentBridge):
     grants_tool_execution = True
     """Host tools run only against a grant minted here from a response."""
 
+    forwards_client_request_settings = False
+    """The eval's configuration, not the sandboxed client, governs billing, storage and context fields."""
+
     def register_bridged_tools(
         self, server: str, tools: dict[str, Tool], require_proposal: bool = True
     ) -> None:

@@ -479,6 +479,39 @@ def _restore_operator_message_source(
         bridge._pending_operator = 0
 
 
+def withhold_client_request_settings(
+    bridge: AgentBridge, config: GenerateConfig, eval_values: dict[str, Any]
+) -> None:
+    """Remove the request fields the eval's configuration governs (in place).
+
+    Applied when the bridge does not forward client request settings
+    (`AgentBridge.forwards_client_request_settings`). `eval_values` maps each such
+    field of the client's API to the value the eval's configuration gives it. The
+    fields are removed from `config.extra_body`, so the eval's `GenerateConfig` or
+    the provider's model args govern them. A client value that differs from the
+    eval's is logged once per field per bridge, since the client cannot otherwise
+    tell that it was ignored.
+    """
+    if config.extra_body is None:
+        return
+    for field, eval_value in eval_values.items():
+        client_value = config.extra_body.pop(field, None)
+        if (
+            client_value is None
+            or client_value == eval_value
+            or field in bridge._warned_request_settings
+        ):
+            continue
+        bridge._warned_request_settings.add(field)
+        logger.warning(
+            f"The sandbox agent bridge ignored the agent's {field}={client_value!r}: "
+            f"the eval's configuration governs {field} (set it with GenerateConfig "
+            "extra_body or a provider model arg)."
+        )
+    if not config.extra_body:
+        config.extra_body = None
+
+
 async def bridge_generate(
     bridge: AgentBridge,
     model: Model,

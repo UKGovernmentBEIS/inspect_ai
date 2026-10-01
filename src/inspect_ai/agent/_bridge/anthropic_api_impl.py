@@ -46,7 +46,7 @@ from inspect_ai.model._generate_config import (
     ResponseSchema,
 )
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
-from inspect_ai.model._model import ModelName
+from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
@@ -96,6 +96,7 @@ from .util import (
     validate_bridge_media,
     validate_client_config,
     withheld_bridge_tool,
+    withhold_client_request_settings,
 )
 
 logger = getLogger(__name__)
@@ -159,6 +160,8 @@ async def inspect_anthropic_api_request_impl(
     config = generate_config_from_anthropic(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
+    if not bridge.forwards_client_request_settings:
+        withhold_client_request_settings(bridge, config, _eval_request_settings(model))
     validate_client_config(config)
     config.extra_headers = headers
     # Hoist the request's `system` value into leading system messages, ONE PER
@@ -327,6 +330,16 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
         config.extra_body = extra_body
 
     return config
+
+
+def _eval_request_settings(model: Model) -> dict[str, Any]:
+    """The values the eval's configuration gives the Anthropic fields the bridge withholds.
+
+    The Anthropic provider takes `service_tier` from `GenerateConfig.extra_body`;
+    when that does not set it, the API default (`auto`) applies.
+    """
+    extra_body = resolve_generate_config(model, GenerateConfig()).extra_body or {}
+    return {"service_tier": extra_body.get("service_tier", "auto")}
 
 
 def tools_from_anthropic_tools(

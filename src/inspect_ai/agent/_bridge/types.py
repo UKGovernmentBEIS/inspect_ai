@@ -139,6 +139,7 @@ class AgentBridge:
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
+        self._warned_request_settings: set[str] = set()
 
     state: AgentState
     """State updated from messages traveling over the bridge."""
@@ -211,6 +212,16 @@ class AgentBridge:
         of propagating.
         """
         raise TerminateSampleError(reason)
+
+    forwards_client_request_settings: bool = True
+    """Whether request fields that change billing, storage or context handling come from the client.
+
+    These are `service_tier`, `store` and `truncation`, plus `previous_response_id`.
+    In-process bridges forward them, since their scaffold already runs on the host.
+    `SandboxAgentBridge` clears this: the eval's configuration governs the first
+    three (`withhold_client_request_settings`), and a Responses request naming a
+    `previous_response_id` is refused with a 400.
+    """
 
     grants_tool_execution: bool = False
     """Whether this bridge binds host-tool execution to the calls in each response.
