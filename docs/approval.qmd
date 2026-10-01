@@ -175,7 +175,7 @@ Decisions behave as follows:
 | Decision | Behavior for a bridged agent |
 |--------------------------|----------------------------------------------|
 | approve | The call is passed to the agent, which executes it as normal. |
-| modify | The modified arguments are passed to the agent (the function name is not substituted, since the agent dispatches on it). |
+| modify | The modified arguments are passed to the agent. A modification that changes the function is treated as a rejection, since the agent dispatches on the function name and cannot run a different function. |
 | reject | The call is never given to the agent. The model is told it was rejected and asked to generate again; the agent sees only the replacement response. |
 | terminate | The sample is terminated. |
 | escalate | Passed to the next approver in the chain, as elsewhere. |
@@ -226,6 +226,8 @@ There are five possible approval decisions:
 | reject | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
 | escalate | The tool call should be escalated to the next approver in the chain. |
 | terminate | The current sample should be terminated as a result of the tool call. |
+
+For tools that Inspect executes, a `modify` decision can change both the function and the arguments. The modified call is the one that runs: its arguments are validated against the tool it names, and if no such tool is available the model gets a "tool not found" error and nothing runs. The modified call is not sent through the approval policy again. The tool event and tool message record the call that ran, while the model output and the approval event keep the call the model proposed. For bridged agents, `modify` can change only the arguments (see [Bridged Agents](#bridged-agents)).
 
 
 Here's a more complicated custom approver that implements an allow list for bash commands. Imagine that we've implemented this approver within a Python package named `evaltools`:

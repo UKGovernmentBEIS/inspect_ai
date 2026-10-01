@@ -21,11 +21,13 @@ from inspect_ai.approval._policy import (
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import ChatMessage, Model, ModelOutput, get_model
+from inspect_ai.model import ChatMessage, ChatMessageTool, Model, ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool._tool import tool
+from inspect_ai.tool._tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 
@@ -542,6 +544,156 @@ def test_approval_policy_comma_separated_list():
         approver=auto_approver(), tools=["web_browser*", "addition, python"]
     )
     check_approval(policy, decision="approve")
+
+
+@tool
+def echo(calls: list[str]) -> Tool:
+    async def execute(text: str) -> str:
+        """
+        Echo text back.
+
+        Args:
+            text (str): Text to echo.
+
+        Returns:
+            The text.
+        """
+        calls.append(text)
+        return text
+
+    return execute
+
+
+@approver
+def substituting_approver(function: str, arguments: dict[str, object]) -> Approver:
+    """Approver which replaces each call with a call to `function`."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=ToolCall(id=call.id, function=function, arguments=arguments),
+        )
+
+    return approve
+
+
+def test_modify_to_another_function_runs_that_function() -> None:
+    """The modified call runs, and the log keeps the model's proposal beside it."""
+    calls: list[str] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition(), echo(calls)), generate()],
+        scorer=match(numeric=True),
+    )
+    policy = ApprovalPolicy(
+        approver=substituting_approver("echo", {"text": "2"}), tools="addition"
+    )
+    log = eval(task, model=approval_model(), approval=[policy])[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert calls == ["2"]
+
+    # the model's proposal is recorded as it was made
+    model_event = next(e for e in sample.events if isinstance(e, ModelEvent))
+    assert model_event.output.message.tool_calls
+    proposed = model_event.output.message.tool_calls[0]
+    assert (proposed.function, proposed.arguments) == ("addition", {"x": 1, "y": 1})
+
+    approval_event = find_approval(log)
+    assert approval_event and approval_event.decision == "modify"
+    assert approval_event.call.function == "addition"
+    assert approval_event.modified
+    assert approval_event.modified.function == "echo"
+
+    # the tool event and tool message record the call that ran
+    (tool_event,) = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert (tool_event.function, tool_event.arguments) == ("echo", {"text": "2"})
+    assert tool_event.result == "2"
+    assert tool_event.error is None
+    (tool_message,) = [m for m in sample.messages if isinstance(m, ChatMessageTool)]
+    assert tool_message.tool_call_id == proposed.id
+    assert tool_message.function == "echo"
+    assert tool_message.text == "2"
+
+
+async def execute_with_substitution(
+    function: str, arguments: dict[str, object], calls: list[str]
+) -> tuple[list[ChatMessage], list[ToolEvent]]:
+    """Run a model call to `addition` through an approver that substitutes `function`."""
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._tool_def import ToolDef
+
+    init_transcript(Transcript())
+    call = ToolCall(id="test", function="addition", arguments={"x": 1, "y": 1})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(addition()), ToolDef(echo(calls))],
+        approval=[
+            ApprovalPolicy(
+                approver=substituting_approver(function, arguments), tools="*"
+            )
+        ],
+    )
+    return messages, [e for e in transcript().events if isinstance(e, ToolEvent)]
+
+
+async def test_modify_to_unknown_function_is_not_found() -> None:
+    calls: list[str] = []
+    messages, tool_events = await execute_with_substitution(
+        "nonexistent", {"text": "2"}, calls
+    )
+
+    assert calls == []
+    (tool_message,) = messages
+    assert isinstance(tool_message, ChatMessageTool)
+    assert tool_message.error is not None
+    assert tool_message.error.type == "parsing"
+    assert tool_message.error.message == "Tool nonexistent not found"
+    (tool_event,) = tool_events
+    assert tool_event.function == "nonexistent"
+    assert tool_event.error == tool_message.error
+
+
+async def test_modify_to_another_function_validates_against_it() -> None:
+    """Arguments valid for the proposed tool but not the substituted one are refused."""
+    calls: list[str] = []
+    messages, tool_events = await execute_with_substitution(
+        "echo", {"x": 1, "y": 1}, calls
+    )
+
+    assert calls == []
+    (tool_message,) = messages
+    assert isinstance(tool_message, ChatMessageTool)
+    assert tool_message.error is not None
+    assert tool_message.error.type == "parsing"
+    assert "text" in tool_message.error.message
+    (tool_event,) = tool_events
+    assert (tool_event.function, tool_event.arguments) == ("echo", {"x": 1, "y": 1})
+
+
+async def test_modify_arguments_are_recorded_on_the_tool_event() -> None:
+    messages, tool_events = await execute_with_substitution(
+        "addition", {"x": 2, "y": 3}, []
+    )
+
+    (tool_message,) = messages
+    assert isinstance(tool_message, ChatMessageTool)
+    assert tool_message.error is None
+    assert tool_message.text == "5"
+    (tool_event,) = tool_events
+    assert (tool_event.function, tool_event.arguments) == (
+        "addition",
+        {"x": 2, "y": 3},
+    )
 
 
 if __name__ == "__main__":

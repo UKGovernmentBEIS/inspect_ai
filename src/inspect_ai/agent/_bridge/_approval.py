@@ -33,6 +33,7 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
 if TYPE_CHECKING:
+    from inspect_ai.approval._approval import Approval
     from inspect_ai.approval._policy import ApprovalPolicy
 
 logger = getLogger(__name__)
@@ -93,7 +94,8 @@ async def apply_bridge_tool_approval(
 
     Calls are approved in order and evaluation stops at the first non-approval, so a
     human isn't asked to decide on calls that are about to be discarded anyway.
-    `terminate` doesn't return.
+    `terminate` doesn't return. A `modify` decision may change only the arguments;
+    one that changes the function is treated as a rejection.
 
     A multi-choice response whose alternate choices carry tool calls is reduced to
     the primary choice (with a warning) when approval is active, since only the
@@ -150,6 +152,16 @@ async def apply_bridge_tool_approval(
             approved, approval = await apply_tool_approval(
                 message, reviewed, None, approval_history
             )
+            if (
+                approved
+                and approval is not None
+                and approval.modified is not None
+                and approval.modified.function != reviewed.function
+            ):
+                approval = substituted_function_rejection(
+                    message, reviewed, approval.modified
+                )
+                approved = False
             if not approved:
                 explanation = (approval.explanation if approval else None) or (
                     f"Tool call '{reviewed.function}' was rejected by the approval "
@@ -188,17 +200,41 @@ def with_modified_arguments(
     reference. Rewriting in place would make the log show the approved arguments as
     the model's original proposal, erasing the evidence that approval changed them.
     The native path avoids this the same way, by rebinding rather than mutating
-    (`model/_call_tools.py:653`).
+    (`call_tool()` in `model/_call_tools.py`).
 
-    Only the arguments are adopted. The native path swaps the whole call, but here
-    the scaffold dispatches on the function name and may have no handler for a
-    substituted one.
+    Only the arguments are adopted: a modification that changes the function is
+    rejected before this point (see `substituted_function_rejection`).
     """
     result = output.model_copy(deep=True)
     for call in result.message.tool_calls or []:
         if call.id in modified:
             call.arguments = modified[call.id]
     return result
+
+
+def substituted_function_rejection(
+    message: str, reviewed: ToolCall, modified: ToolCall
+) -> "Approval":
+    """Reject a `modify` decision that changes the function called.
+
+    The scaffold dispatches on the function name and may have no handler for a
+    substituted one, so the bridge cannot run the call the approver approved, and
+    running the original function with the new arguments would run a call nobody
+    approved. The rejection is recorded so the log shows why the call didn't run.
+    """
+    from inspect_ai.approval._approval import Approval
+    from inspect_ai.approval._call import record_approval
+
+    rejection = Approval(
+        decision="reject",
+        explanation=(
+            f"The approver changed this call from '{reviewed.function}' to "
+            f"'{modified.function}'. A bridged agent cannot substitute a different "
+            "function, so the call was rejected."
+        ),
+    )
+    record_approval("bridge", message, reviewed, None, rejection)
+    return rejection
 
 
 def rejection_messages(

@@ -337,7 +337,7 @@ async def _execute_tools_impl(
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
             except Exception as ex:
-                mapped = tool_call_error(ex, call.function)
+                mapped = tool_call_error(ex, event.function)
                 if mapped is not None:
                     tool_error = mapped.error
                     if mapped.result is not None:
@@ -387,9 +387,9 @@ async def _execute_tools_impl(
 
                 # truncate if necessary
                 truncated_output = truncate_tool_output(
-                    call.function,
+                    event.function,
                     content,
-                    _tool_max_output(tdefs, call.function, max_output),
+                    _tool_max_output(tdefs, event.function, max_output),
                 )
                 if truncated_output:
                     content = truncated_output.output
@@ -398,14 +398,15 @@ async def _execute_tools_impl(
                         truncated_output.truncated_bytes,
                     )
 
-            # create event
+            # create event (`call_tool` rebinds `event` to an approver's
+            # modified call, so it names the call that ran or was refused)
             result_event = ToolEvent(
                 id=call.id,
-                function=call.function,
-                arguments=call.arguments,
+                function=event.function,
+                arguments=event.arguments,
                 result=content,
                 truncated=truncated,
-                view=call.view,
+                view=event.view,
                 error=tool_error,
                 agent=agent,
                 agent_span_id=agent_span_id,
@@ -415,7 +416,7 @@ async def _execute_tools_impl(
             tool_message = ChatMessageTool(
                 content=cast(list[Content], content),
                 tool_call_id=call.id,
-                function=call.function,
+                function=event.function,
                 error=tool_error,
             )
             execution_result = ExecuteToolsResult(
@@ -892,10 +893,13 @@ async def call_tool(
             f"Error parsing tool call arguments: {_max_depth_parse_error()}"
         )
 
-    # find the tool
-    tool_def = next((tool for tool in tools if tool.name == call.function), None)
-    if tool_def is None:
-        raise await record_tool_parsing_error(f"Tool {call.function} not found")
+    async def find_tool(function: str) -> ToolDef:
+        tool_def = next((tool for tool in tools if tool.name == function), None)
+        if tool_def is None:
+            raise await record_tool_parsing_error(f"Tool {function} not found")
+        return tool_def
+
+    tool_def = await find_tool(call.function)
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
@@ -911,7 +915,15 @@ async def call_tool(
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
+        # run and record the call as modified: the model's proposal stays in the
+        # ModelEvent and the ApprovalEvent, while the tool event (and, through
+        # it, the tool message) shows what actually ran
         call = approval.modified
+        event.function = call.function
+        event.arguments = call.arguments
+        event.view = tool_call_view(call, tools)
+        if call.function != tool_def.name:
+            tool_def = await find_tool(call.function)
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
