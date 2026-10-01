@@ -6,6 +6,7 @@ from test_helpers.utils import run_example
 
 from inspect_ai import Task, eval
 from inspect_ai._eval.evalset import GENERATE_CONFIG_FIELDS_TO_EXCLUDE
+from inspect_ai._util.content import ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import EvalSample
@@ -108,6 +109,38 @@ def test_cache_key_neutralized_fields_preserve_existing_keys():
     assert _cache_key_config(GenerateConfig()) == GenerateConfig().model_dump(
         exclude=_CACHE_KEY_DROPPED_FIELDS
     )
+
+
+def _key_for_content(content: ContentText) -> str:
+    return CacheEntry(
+        base_url=None,
+        config=GenerateConfig(),
+        input=[ChatMessageUser(content=[content])],
+        model="mockllm/model",
+        policy=CachePolicy(),
+        tool_choice=None,
+        tools=[],
+    ).key
+
+
+def test_cache_key_excludes_content_cache_breakpoint():
+    # cache_breakpoint is an Anthropic-caching operational hint, not something
+    # that changes model output, so it must not affect the response-cache
+    # identity — otherwise every persisted block-form entry (whose dump never
+    # had this key before) misses the moment the field is introduced
+    base_key = _key_for_content(ContentText(text="hello"))
+    assert (
+        _key_for_content(ContentText(text="hello", cache_breakpoint=None)) == base_key
+    )
+    assert (
+        _key_for_content(ContentText(text="hello", cache_breakpoint=True)) == base_key
+    )
+    assert (
+        _key_for_content(ContentText(text="hello", cache_breakpoint=False)) == base_key
+    )
+
+    # still sensitive to the actual text
+    assert _key_for_content(ContentText(text="goodbye")) != base_key
 
 
 def test_cache_key_excludes_fail_on_refusal():

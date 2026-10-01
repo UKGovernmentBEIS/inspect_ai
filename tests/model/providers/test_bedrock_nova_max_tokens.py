@@ -105,7 +105,6 @@ def test_reasoning_capable_nova_models_emit_reasoning_config(model_name: str):
         "us.amazon.nova-pro-v1:0",
         "amazon.nova-micro-v1:0",
         "amazon.nova-premier-v1:0",
-        "amazon.nova-2-sonic-v1:0",
     ],
 )
 def test_unsupported_nova_models_omit_reasoning_config_with_warning(
@@ -185,6 +184,8 @@ def test_adaptive_thinking_model_omits_top_k():
         ("us.amazon.nova-2-lite-v1:0", "low", True, 2048),
         ("amazon.nova-lite-1-5-v1:0", "medium", True, 2048),
         ("custom-nova-test", "medium", True, 2048),
+        ("amazon.nova-future-test-v1:0", "medium", True, 2048),
+        ("amazon.nova-pro-v2:0", "high", True, None),
         (
             "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-2-lite-v1:0",
             "medium",

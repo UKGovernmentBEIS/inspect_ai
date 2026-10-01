@@ -204,6 +204,13 @@ class OpenAICompatibleAPI(ModelAPI):
         self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples.
+        super().initialize()
+        self.client.api_key = cast(str, self.api_key)
+
+    @override
     async def aclose(self) -> None:
         await self.client.close()
 
@@ -217,6 +224,8 @@ class OpenAICompatibleAPI(ModelAPI):
         tools, tool_choice, config = self.resolve_tools(tools, tool_choice, config)
 
         if self.responses_api:
+            # supports_explicit_prompt_cache intentionally left False: other
+            # OpenAI-compatible providers' support for these fields is unverified.
             return await generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,

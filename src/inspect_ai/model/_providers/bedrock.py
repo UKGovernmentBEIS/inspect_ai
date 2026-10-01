@@ -79,8 +79,8 @@ logger = getLogger(__name__)
 # Gemini's redacted thinking. See `redacted_content_bytes`.
 REDACTED_CONTENT_KEY = "bedrock_redacted_content"
 
-NOVA_REASONING_MODEL_PATTERN = re.compile(
-    r"(?:^|[./])amazon\.nova-(?:2-lite|lite-1-5)-v\d+(?::|$)"
+NOVA_NON_REASONING_MODEL_PATTERN = re.compile(
+    r"(?:^|[./])amazon\.nova-(?:micro|lite|pro|premier)-v1(?::|$)"
 )
 
 # Model for Bedrock Converse API (Response)
@@ -572,9 +572,9 @@ class BedrockAPI(ModelAPI):
         return "nova" in self.model_family().lower()
 
     def supports_nova_reasoning(self) -> bool:
-        """Whether the model accepts Amazon Nova's reasoningConfig field."""
+        """Preserve reasoning unless the Nova model is known not to support it."""
         return (
-            NOVA_REASONING_MODEL_PATTERN.search(self.model_family().lower()) is not None
+            NOVA_NON_REASONING_MODEL_PATTERN.search(self.model_family().lower()) is None
         )
 
     def supports_prompt_cache(self) -> bool:

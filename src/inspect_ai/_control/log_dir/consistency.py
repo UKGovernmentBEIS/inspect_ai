@@ -4,13 +4,18 @@ A running log is replaced on every flush, and the central-directory read and
 each member read are separate range requests, so one read can mix bytes from
 two versions of the object. Every member is checked against the central
 directory's CRC-32; a mismatch, a decompression error or a JSON error re-reads
-the central directory and the member, up to :data:`MAX_REREADS` times. See
-"Reading a member consistently" in ``design/ctl/log-dir-mode.md``.
+the central directory and the member, up to :data:`MAX_REREADS` times.
+
+A member's log and its shared-buffer manifest are separate objects, so the log
+is observed after the manifest: :func:`log_version` is the freshness check that
+tells whether a log read before the manifest is still current. See "Reading a
+member consistently" in ``design/ctl/log-dir-mode.md``.
 """
 
 from __future__ import annotations
 
 import importlib
+import os
 import struct
 import zlib
 from collections.abc import Awaitable, Callable
@@ -20,7 +25,8 @@ import zstandard
 from pydantic import ValidationError
 
 from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory, ZipCrcError
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, is_s3_filename
+from inspect_ai._util.file import filesystem, local_path
 
 MAX_REREADS = 2
 """Re-reads after the first attempt before a read is reported as failed."""
@@ -97,3 +103,41 @@ async def read_consistently(
     if isinstance(last, ZipCrcError):
         raise LogChangedError(location, str(last)) from last
     raise LogUnparseableError(location, str(last) or type(last).__name__) from last
+
+
+async def log_version(fs: AsyncFilesystem, location: str) -> str | None:
+    """The log object's current version, from one metadata request.
+
+    On S3 its ETag (``head_object``). A local file's inode, ``mtime_ns`` and
+    size: the recorder replaces a local log atomically, so every flush is a
+    new inode. Other backends: the ETag, else the mtime and size. ``None``
+    when the backend reports nothing to compare, which callers treat as
+    changed.
+
+    Raises ``FileNotFoundError`` when the log is gone.
+    """
+    if not is_s3_filename(location) and filesystem(location).is_local():
+        st = os.stat(local_path(location))
+        return f"{st.st_ino}:{st.st_mtime_ns}:{st.st_size}"
+    info = await fs.info(location)
+    if info.etag:
+        return info.etag
+    return f"{info.mtime}:{info.size}" if info.mtime is not None else None
+
+
+async def read_version(
+    fs: AsyncFilesystem, location: str, read: Callable[[], Awaitable[CentralDirectory]]
+) -> tuple[CentralDirectory, str | None]:
+    """Read a central directory with the version of the object it came from.
+
+    On S3 the version is the ETag of the response that returned the central
+    directory, so it names exactly those bytes. Elsewhere there is no such
+    response, so the version is looked up *before* the read: a replacement in
+    between leaves an older version than the bytes, which the freshness check
+    then reports as changed (an extra re-read, never a stale answer).
+    """
+    if is_s3_filename(location):
+        cd = await read()
+        return cd, cd.etag
+    version = await log_version(fs, location)
+    return await read(), version
