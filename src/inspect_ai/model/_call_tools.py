@@ -602,7 +602,7 @@ async def _execute_tools_impl(
                     )
                     transcript()._event_updated(event)
                     transcript().info(
-                        f"Review of tool call '{call.function}' ({call.id}) was "
+                        f"Review of tool call '{event.function}' ({call.id}) was "
                         "cancelled before a decision; its result was preserved."
                     )
 
@@ -681,9 +681,10 @@ async def _execute_tools_impl(
                 # handles the sibling-cancellation synthesis with its
                 # own messaging.
                 if results[idx] is None and event.cancelled:
+                    # the event names an approver's replacement once approved
                     op_tool_message = ChatMessageTool(
                         content="",
-                        function=call.function,
+                        function=event.function,
                         tool_call_id=call.id,
                         error=ToolCallError(
                             "timeout", "Command timed out before completing."
@@ -691,11 +692,11 @@ async def _execute_tools_impl(
                     )
                     op_result_event = ToolEvent(
                         id=call.id,
-                        function=call.function,
-                        arguments=call.arguments,
+                        function=event.function,
+                        arguments=event.arguments,
                         result=tool_result_content(op_tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=op_tool_message.error,
                     )
                     results[idx] = (
@@ -727,7 +728,7 @@ async def _execute_tools_impl(
                     else:
                         transcript()._event_updated(event)
                     transcript().info(
-                        f"Tool call '{call.function}' was cancelled by operator."
+                        f"Tool call '{event.function}' was cancelled by operator."
                     )
 
             stage_gate = _ParallelStageGate() if len(stage) > 1 else None
@@ -767,10 +768,11 @@ async def _execute_tools_impl(
                     # operator-cancelled (run_one's EndOfStream branch would
                     # have synthesised one). The only remaining cause is the
                     # outer task group cancelling this call when another
-                    # sibling raised an unhandled exception.
+                    # sibling raised an unhandled exception. The event names
+                    # an approver's replacement once approved.
                     tool_message = ChatMessageTool(
                         content="",
-                        function=call.function,
+                        function=event.function,
                         tool_call_id=call.id,
                         error=ToolCallError(
                             "cancelled",
@@ -780,15 +782,15 @@ async def _execute_tools_impl(
                     )
                     cancellation_event = ToolEvent(
                         id=call.id,
-                        function=call.function,
-                        arguments=call.arguments,
+                        function=event.function,
+                        arguments=event.arguments,
                         result=tool_result_content(tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=tool_message.error,
                     )
                     transcript().info(
-                        f"Tool call '{call.function}' was cancelled because "
+                        f"Tool call '{event.function}' was cancelled because "
                         "a parallel sibling tool call raised an exception."
                     )
                     result_messages.append(tool_message)

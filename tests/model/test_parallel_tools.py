@@ -9,6 +9,7 @@ that acts as a barrier preserving the model's declared call ordering.
 import anyio
 import pytest
 
+from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model._call_tools import TOOL_CALLS_FAIL_FAST, execute_tools
@@ -354,6 +355,167 @@ async def test_stage_gate_released_when_a_waiting_serial_call_is_cancelled() -> 
             release_first.set()
 
     assert serial_ran == []
+
+
+@approver
+def replace_proposed() -> Approver:
+    """Replace each call to `proposed` with `replacement(label="modified")`."""
+
+    async def approve(message, call, view, history) -> Approval:
+        if call.function != "proposed":
+            return Approval(decision="approve")
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id, function="replacement", arguments={"label": "modified"}
+            ),
+        )
+
+    return approve
+
+
+@tool(parallel=True)
+def proposed():
+    async def proposed(label: str) -> str:
+        """Tool the model proposes; the approver replaces every call to it.
+
+        Args:
+            label: The label to echo back.
+        """
+        raise AssertionError("the proposed tool must not run")
+
+    return proposed
+
+
+def own_pending_event(call_id: str) -> ToolEvent:
+    from inspect_ai.log._transcript import transcript
+
+    return next(
+        e
+        for e in reversed(transcript().events)
+        if isinstance(e, ToolEvent) and e.id == call_id and e.pending
+    )
+
+
+def tool_event(call_id: str) -> ToolEvent:
+    from inspect_ai.log._transcript import transcript
+
+    (event,) = [
+        e for e in transcript().events if isinstance(e, ToolEvent) and e.id == call_id
+    ]
+    return event
+
+
+def assert_substitution_recorded(call_id: str) -> None:
+    """The approval event keeps the proposal; the tool event names the replacement."""
+    from inspect_ai.event._approval import ApprovalEvent
+    from inspect_ai.log._transcript import transcript
+
+    (approval_event,) = [
+        e
+        for e in transcript().events
+        if isinstance(e, ApprovalEvent) and e.call.id == call_id
+    ]
+    assert approval_event.call.function == "proposed"
+    assert approval_event.call.arguments == {"label": "original"}
+    assert approval_event.modified is not None
+    assert approval_event.modified.function == "replacement"
+    event = tool_event(call_id)
+    assert (event.function, event.arguments) == ("replacement", {"label": "modified"})
+
+
+async def test_operator_cancelled_substitute_is_reported_as_the_substitute() -> None:
+    """Cancelling a running replacement reports the replacement, not the proposal."""
+
+    @tool
+    def replacement():
+        async def replacement(label: str) -> str:
+            """Cancel this call from inside it.
+
+            Args:
+                label: The label.
+            """
+            own_pending_event("cancel-c0")._cancel()
+            await anyio.sleep_forever()
+            return label
+
+        return replacement
+
+    proposal = call("proposed", "cancel-c0", label="original")
+    with anyio.fail_after(5):
+        messages, _ = await execute_tools(
+            [assistant(proposal)],
+            [ToolDef(proposed()), ToolDef(replacement())],
+            approval=[ApprovalPolicy(replace_proposed(), "*")],
+        )
+
+    (tool_message,) = messages
+    assert isinstance(tool_message, ChatMessageTool)
+    assert tool_message.tool_call_id == "cancel-c0"
+    assert tool_message.function == "replacement"
+    assert tool_message.error is not None and tool_message.error.type == "timeout"
+    assert_substitution_recorded("cancel-c0")
+    assert tool_event("cancel-c0").error == tool_message.error
+    # the model's proposal is untouched
+    assert (proposal.function, proposal.arguments) == (
+        "proposed",
+        {"label": "original"},
+    )
+
+
+async def test_sibling_cancelled_substitute_is_reported_as_the_substitute() -> None:
+    """A replacement cancelled by a failing sibling is recorded as the replacement."""
+    from inspect_ai.event._info import InfoEvent
+    from inspect_ai.log._transcript import transcript
+
+    started = anyio.Event()
+
+    @tool(parallel=True)
+    def replacement():
+        async def replacement(label: str) -> str:
+            """Run until a sibling's failure cancels this call.
+
+            Args:
+                label: The label.
+            """
+            started.set()
+            await anyio.sleep_forever()
+            return label
+
+        return replacement
+
+    @tool(parallel=True)
+    def fail_after_start():
+        async def fail_after_start() -> str:
+            """Raise once the replacement is running."""
+            await started.wait()
+            raise RuntimeError("kaboom")
+
+        return fail_after_start
+
+    with pytest.raises(RuntimeError, match="kaboom"):
+        with anyio.fail_after(5):
+            await execute_tools(
+                [
+                    assistant(
+                        call("proposed", "sibling-c0", label="original"),
+                        call("fail_after_start", "sibling-c1"),
+                    )
+                ],
+                [
+                    ToolDef(proposed()),
+                    ToolDef(replacement()),
+                    ToolDef(fail_after_start()),
+                ],
+                approval=[ApprovalPolicy(replace_proposed(), "*")],
+            )
+
+    assert_substitution_recorded("sibling-c0")
+    event = tool_event("sibling-c0")
+    assert event.error is not None and event.error.type == "cancelled"
+    # the result messages are discarded with the raise; the info event remains
+    info = [e.data for e in transcript().events if isinstance(e, InfoEvent)]
+    assert any("'replacement' was cancelled because" in str(data) for data in info)
 
 
 async def test_tool_error_in_parallel_does_not_abort_siblings():
@@ -782,6 +944,11 @@ async def test_sibling_cancel_during_approval_records_event_in_transcript():
     assert target_ev.error is not None
     assert target_ev.error.type == "cancelled"
     assert target_ev.failed is True
+    # no approval decided, so the proposal is what the event records
+    assert (target_ev.function, target_ev.arguments) == (
+        "needs_approval",
+        {"label": "never"},
+    )
 
 
 async def test_parallel_pending_events_coexist_with_distinct_uuids() -> None:
