@@ -9,6 +9,7 @@ from test_helpers.utils import run_example
 
 from inspect_ai import Task, eval
 from inspect_ai._eval.evalset import GENERATE_CONFIG_FIELDS_TO_EXCLUDE
+from inspect_ai._util import appdirs
 from inspect_ai._util import logger as inspect_logger
 from inspect_ai._util.content import ContentText
 from inspect_ai.dataset import Sample
@@ -236,6 +237,23 @@ def cache_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Path
     inspect_logger._warned.clear()
 
 
+@pytest.fixture(params=["env", "default"])
+def absent_cache_root(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Iterator[Path]:
+    # a cache root that does not exist yet, set by INSPECT_CACHE_DIR or found
+    # in the default user cache directory
+    base = tmp_path / "a" / "b" / "c"
+    if request.param == "env":
+        monkeypatch.setenv("INSPECT_CACHE_DIR", str(base))
+    else:
+        monkeypatch.delenv("INSPECT_CACHE_DIR", raising=False)
+        monkeypatch.setattr(appdirs, "user_cache_path", lambda _name: base)
+    inspect_logger._warned.clear()
+    yield base / "generate"
+    inspect_logger._warned.clear()
+
+
 def _files_outside(root: Path, tmp_path: Path) -> dict[Path, bytes]:
     return {
         path: path.read_bytes()
@@ -369,3 +387,30 @@ def test_cache_layout_unchanged_for_normal_model_names(cache_root: Path):
     assert cache_clear("openai/gpt-4") is True
     assert not (cache_root / "openai" / "gpt-4").exists()
     assert inspect_logger._warned == []
+
+
+def test_cache_refusals_create_nothing(absent_cache_root: Path, tmp_path: Path):
+    outside = tmp_path / "outside"
+    _plant(outside, "planted", expiry=_PAST)
+
+    entry = _entry(_ESCAPING_MODEL)
+    output = ModelOutput.from_content(model="m", content="Hi")
+    with pytest.raises(ValueError):
+        cache_path(_ESCAPING_MODEL)
+    assert cache_store(entry=entry, output=output) is False
+    assert cache_fetch(entry) is None
+    assert cache_clear(_ESCAPING_MODEL) is False
+    assert cache_list_expired([_ESCAPING_MODEL]) == []
+    cache_prune([outside])
+    assert list(tmp_path.iterdir()) == [outside]
+
+    # the fixture does point the cache here: an accepted lookup creates it
+    assert cache_path() == absent_cache_root
+    assert absent_cache_root.is_dir()
+
+
+def test_cache_prune_skips_unresolvable_paths(cache_root: Path):
+    expired = cache_root / "openai" / "gpt-4" / "old"
+    _plant(expired, "old", expiry=_PAST)
+    cache_prune([Path("invalid\0path"), expired])
+    assert not expired.exists()

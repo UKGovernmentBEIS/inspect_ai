@@ -34,10 +34,11 @@ def _path_is_in_cache(path: Path | str, root: Path | None = None) -> bool:
     directory fails the check.
     """
     try:
-        resolved_root = (root or cache_path()).resolve()
+        resolved_root = (root or _cache_root()).resolve()
         return resolved_root in Path(path).resolve().parents
-    except (OSError, RuntimeError):
-        # unresolvable (e.g. a symlink loop): not provably in the cache
+    except (OSError, RuntimeError, ValueError):
+        # unresolvable (e.g. a symlink loop or an embedded NUL): not provably
+        # in the cache
         return False
 
 
@@ -367,25 +368,28 @@ def cache_path(model: str = "") -> Path:
 
     Raises:
        ValueError: If the directory for `model` would not be inside the
-          cache directory (e.g. the name has `..` segments).
+          cache directory (e.g. the name has `..` segments). Nothing is
+          created in that case.
     """
+    generate_cache = _cache_root()
+    path = generate_cache / model if model else generate_cache
+    if model and (
+        not _is_safe_model_name(model) or not _path_is_in_cache(path, generate_cache)
+    ):
+        raise ValueError(
+            f"The cache directory for model {model!r} would be outside {generate_cache}."
+        )
+    generate_cache.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _cache_root() -> Path:
+    """The cache directory, without creating it."""
     env_cache_dir = os.environ.get("INSPECT_CACHE_DIR", None)
     if env_cache_dir:
-        generate_cache = Path(env_cache_dir) / "generate"
-        generate_cache.mkdir(parents=True, exist_ok=True)
+        return Path(env_cache_dir) / "generate"
     else:
-        generate_cache = inspect_cache_dir("generate")
-    if model:
-        path = generate_cache / model
-        if not _is_safe_model_name(model) or not _path_is_in_cache(
-            path, generate_cache
-        ):
-            raise ValueError(
-                f"The cache directory for model {model!r} would be outside {generate_cache}."
-            )
-        return path
-    else:
-        return generate_cache
+        return inspect_cache_dir("generate", create=False)
 
 
 def _cache_size_directories_only(filter_by: list[str]) -> list[tuple[str, int]]:
@@ -522,7 +526,7 @@ def cache_prune(files: list[Path] = []) -> None:
     if not files:
         files = cache_list_expired()
 
-    root = cache_path()
+    root = _cache_root()
     for file in files:
         if not _path_is_in_cache(file, root):
             logger.warning(f"Not pruning {file}: it is outside the cache directory.")

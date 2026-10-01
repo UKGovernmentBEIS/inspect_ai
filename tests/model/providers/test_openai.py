@@ -1,10 +1,12 @@
 import base64
 import json
+from pathlib import Path
 
 import httpx2
 import openai
 import pytest
 from openai import DefaultAsyncHttpxClient
+from test_helpers.output_cache import check_output_cache_round_trip
 from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 
 from inspect_ai import Task, eval
@@ -100,6 +102,13 @@ async def test_openai_api() -> None:
     message = ChatMessageUser(content="This is a test string. What are you?")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+
+@skip_if_no_openai
+async def test_openai_output_cache(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    await check_output_cache_round_trip("openai/gpt-4o-mini", monkeypatch, tmp_path)
 
 
 @skip_if_no_openai
