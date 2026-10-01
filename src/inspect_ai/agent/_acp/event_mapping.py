@@ -92,7 +92,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._model_info import get_model_info
-from inspect_ai.model._model_output import usage_input_tokens
+from inspect_ai.model._model_output import output_input_context_tokens
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
@@ -798,13 +798,12 @@ def _build_usage_update(event: ModelEvent) -> UsageUpdate | None:
     info = get_model_info(event.model)
     if info is None or info.context_length is None:
         return None
-    # the input's size in context (usage for outputs logged before
-    # input_context_tokens existed) plus output_tokens, so the chip reflects
+    # the input's size in context plus output_tokens, so the chip reflects
     # "size of state after the call", which matches what an operator looking
-    # at a running agent expects.
-    input_tokens = event.output.input_context_tokens
+    # at a running agent expects. An unknown input size skips the update.
+    input_tokens = output_input_context_tokens(event.output)
     if input_tokens is None:
-        input_tokens = usage_input_tokens(usage) or 0
+        return None
     used = input_tokens + usage.output_tokens
     return UsageUpdate(
         session_update="usage_update",

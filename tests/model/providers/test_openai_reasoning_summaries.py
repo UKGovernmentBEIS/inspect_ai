@@ -155,3 +155,70 @@ async def test_reasoning_summaries_probe_usage_reported_once(
         )
     finally:
         await api.aclose()
+
+
+@pytest.mark.parametrize(
+    ("code", "stop_reason"),
+    [
+        ("context_length_exceeded", "model_length"),
+        ("content_policy_violation", "content_filter"),
+    ],
+)
+@pytest.mark.anyio
+async def test_reasoning_summaries_probe_then_rejected_request(
+    monkeypatch: pytest.MonkeyPatch, code: str, stop_reason: str
+) -> None:
+    """A rejected request after the probe bills the probe but has no context size."""
+    from inspect_ai.agent._acp.event_mapping import _build_usage_update
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.model import get_model
+    from inspect_ai.model._model_output import output_input_context_tokens
+
+    model = get_model(
+        "openai/gpt-5",
+        memoize=False,
+        api_key="test-key",
+        responses_api=True,
+        config=GenerateConfig(max_retries=0),
+    )
+    api = model.api
+    assert isinstance(api, OpenAIAPI)
+    try:
+
+        async def create(**kwargs: object) -> Response:
+            if kwargs.get("input") == "Please say 'hello, world'":
+                return _probe_response()
+            raise BadRequestError(
+                message="rejected",
+                response=httpx2.Response(status_code=400, request=_request()),
+                body={"message": "rejected", "code": code},
+            )
+
+        monkeypatch.setattr(api.client.responses, "create", create)
+
+        output = await model.generate("hi")
+
+        assert output.stop_reason == stop_reason
+        # the probe was billed...
+        assert output.usage == ModelUsage(
+            input_tokens=10,
+            output_tokens=30,
+            total_tokens=42,
+            input_tokens_cache_read=2,
+            reasoning_tokens=20,
+        )
+        # ...but the rejected request's context size is unknown, and
+        # consumers do not read it from the probe's usage
+        assert output.input_context_tokens is None
+        assert output_input_context_tokens(output) is None
+        event = ModelEvent(
+            model="openai/gpt-5",
+            input=[],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+            output=output,
+        )
+        assert _build_usage_update(event) is None
+    finally:
+        await api.aclose()

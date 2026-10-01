@@ -301,8 +301,8 @@ class ModelOutput(BaseModel):
 
     Counts the system prompt, tools and input messages, cached tokens included.
     For a call that made several requests, this is the size of the request built
-    from the input, not a sum. None when unknown (e.g. logs written before this
-    field existed).
+    from the input, not a sum. None when unknown: the request was rejected, or
+    the output comes from a log written before this field existed.
     """
 
     fallback: ModelFallback | None = Field(default=None)
@@ -455,6 +455,19 @@ class ModelOutput(BaseModel):
                 )
             ],
         )
+
+
+def output_input_context_tokens(output: ModelOutput) -> int | None:
+    """The input's context size for a consumer of an output.
+
+    An output from generate always has `input_context_tokens` set, and None
+    there means the size is unknown (e.g. the request was rejected). An output
+    read from a log written before the field existed lacks it, so this falls
+    back to the input side of its usage.
+    """
+    if "input_context_tokens" in output.model_fields_set:
+        return output.input_context_tokens
+    return usage_input_tokens(output.usage)
 
 
 def as_stop_reason(reason: str | None) -> StopReason:

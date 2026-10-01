@@ -656,12 +656,14 @@ class OpenAIAPI(ModelAPI):
             )
             response = await generate_once(False)
 
-        # the probe is billed, so this call's output reports its usage too
-        # (but its prompt was never part of the input)
+        # the probe is billed, so this call's output reports its usage too.
+        # Its prompt was never part of the input, so the context size comes
+        # from the primary request only, and stays None (assigned, so it is
+        # not filled from usage) when that request was rejected
         if probe_usage is not None:
             output = response[0] if isinstance(response, tuple) else response
             if isinstance(output, ModelOutput):
-                if output.input_context_tokens is None:
+                if "input_context_tokens" not in output.model_fields_set:
                     output.input_context_tokens = usage_input_tokens(output.usage)
                 output.usage = sum_usage(probe_usage, output.usage)
 

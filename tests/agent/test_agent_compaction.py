@@ -321,7 +321,7 @@ def test_compaction_event_emitted() -> None:
         # each call billed several requests (usage over the threshold) but its
         # input was small: no compaction
         (300, False),
-        # no context size reported: falls back to usage and compacts
+        # a provider that leaves it unset gets it filled from usage
         (None, True),
     ],
 )
@@ -334,7 +334,8 @@ def test_react_compaction_baseline_uses_input_context_tokens(
         output.usage = ModelUsage(
             input_tokens=50_000, output_tokens=10, total_tokens=50_010
         )
-        output.input_context_tokens = input_context_tokens
+        if input_context_tokens is not None:
+            output.input_context_tokens = input_context_tokens
     task = Task(
         dataset=[Sample(input="Run the verbose tool several times.", target="done")],
         solver=react(
