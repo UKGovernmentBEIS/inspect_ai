@@ -2589,6 +2589,31 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
     raise ValueError(f"Unknown HarmBlockThreshold: {threshold}")
 
 
+def _files_cache_key(client: Client, content_bytes: bytes, mime_type: str) -> str:
+    """Key for the Files API upload cache.
+
+    An upload is reused only for the same bytes and MIME type, on the same
+    backend, endpoint and account (API key or quota project; project and
+    location on Vertex). The API key is only mixed into a sha256 digest, so it
+    is never stored. Keys from the older format (the sha256 of the bytes alone)
+    never match, so their entries are not reused.
+    """
+    api_client = client._api_client
+    headers = api_client._http_options.headers or {}
+    scope = [
+        "vertex" if client.vertexai else "gemini",
+        api_client._http_options.base_url,
+        api_client.project,
+        api_client.location,
+        api_client.api_key,
+        headers.get("x-goog-user-project"),
+        mime_type,
+        hashlib.sha256(content_bytes).hexdigest(),
+    ]
+    digest = hashlib.sha256(json.dumps(scope).encode()).hexdigest()
+    return f"v2:{digest}"
+
+
 async def file_for_content(
     client: Client, content: ContentAudio | ContentVideo | ContentDocument
 ) -> File:
@@ -2596,7 +2621,7 @@ async def file_for_content(
     def trace(message: str) -> None:
         trace_message(logger, "Google Files", message)
 
-    # get the file bytes and compute sha256 hash
+    # get the file bytes and mime type
     if isinstance(content, ContentAudio):
         file = content.audio
     elif isinstance(content, ContentVideo):
@@ -2622,12 +2647,12 @@ async def file_for_content(
             else content.mime_type
         ),
     )
-    content_sha256 = hashlib.sha256(content_bytes).hexdigest()
+    cache_key = _files_cache_key(client, content_bytes, mime_type)
     # we cache uploads for re-use, open the db where we track that
     # (track up to 1 million previous uploads)
     with inspect_kvstore("google_files", 1000000) as files_db:
         # can we serve from existing uploads?
-        uploaded_file = files_db.get(content_sha256)
+        uploaded_file = files_db.get(cache_key)
         if uploaded_file:
             try:
                 upload: File = client.files.get(name=uploaded_file)
@@ -2641,7 +2666,7 @@ async def file_for_content(
                     )
             except Exception as ex:
                 trace(f"Error attempting to access uploaded file: {ex}")
-                files_db.delete(content_sha256)
+                files_db.delete(cache_key)
         # do the upload (and record it)
         upload = client.files.upload(
             file=BytesIO(content_bytes), config=dict(mime_type=mime_type)
@@ -2655,7 +2680,7 @@ async def file_for_content(
             raise ValueError(f"Google file upload failed: {upload.error}")
         # trace and record it
         trace(f"Uploaded file: {upload.name}")
-        files_db.put(content_sha256, str(upload.name))
+        files_db.put(cache_key, str(upload.name))
         # return the file
         return upload
 
