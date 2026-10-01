@@ -601,21 +601,25 @@ def _drain_batches(
 ) -> list[list[_QueueItem]]:
     """Drain queued requests into batches that can be generated together.
 
-    Stops when no request has arrived for `timeout` seconds or when a batch
-    reaches its batch size. Requests are grouped by their batch key, so each
-    batch holds requests for one model with the same tokenizer, generation and
-    decoder settings. Batches are returned in order of their first request.
+    Stops when no request has arrived for `timeout` seconds or when it has
+    collected a batch size of requests across all batches, so requests that
+    keep arriving with different settings cannot hold back the ones already
+    collected. Requests are grouped by their batch key, so each batch holds
+    requests for one model with the same tokenizer, generation and decoder
+    settings, and no more than its batch size. Batches are returned in order of
+    their first request.
     """
     batches: dict[Hashable, list[_QueueItem]] = {}
+    collected = 0
     while True:
         try:
             item = queue.get(timeout=timeout)
         except Empty:
             # we have exhausted the queue
             break
-        batch = batches.setdefault(item.key, [])
-        batch.append(item)
-        if len(batch) == item.input.batch_size:
+        batches.setdefault(item.key, []).append(item)
+        collected += 1
+        if collected >= item.input.batch_size:
             # max batch size reached
             break
     return list(batches.values())

@@ -1,6 +1,7 @@
 import contextlib
 import importlib
 import sys
+from concurrent.futures import Future
 from threading import Thread
 from types import ModuleType, SimpleNamespace
 from typing import Any, Iterator
@@ -607,6 +608,51 @@ async def test_hf_batches_respect_batch_size(monkeypatch: pytest.MonkeyPatch) ->
         2,
         3,
     ]
+
+
+async def test_hf_batches_generate_while_other_settings_keep_arriving(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _hf_provider_with_fake_deps(monkeypatch) as provider:
+        model = _FakeModel(101)
+        api = _fake_hf_api(provider, "a", model)
+        # stops batched_generate() from starting the worker thread
+        setattr(provider, "batch_thread", Thread())
+
+        class ContinuousArrivals:
+            """Never idle: each request after the first has its own settings."""
+
+            def __init__(self, first: Any) -> None:
+                self.first = first
+                self.reads = 0
+
+            def get(self, timeout: float) -> Any:
+                self.reads += 1
+                if self.reads == 1:
+                    return self.first
+                if self.reads > 1000:
+                    raise AssertionError("drain did not return")
+                return provider._QueueItem(
+                    input=self.first.input,
+                    future=Future(),
+                    key=("other settings", self.reads),
+                )
+
+        results: list[Any] = []
+
+        async def run() -> None:
+            results.append(await _hf_generate(api, GenerateConfig(), "1"))
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(run)
+            while provider.batch_queue.qsize() < 1:
+                await anyio.sleep(0.01)
+            arrivals = ContinuousArrivals(provider.batch_queue.get())
+            for batch in provider._drain_batches(arrivals, timeout=2):
+                provider._generate_batch(batch)
+
+    assert arrivals.reads == api.max_connections()
+    assert [result.completion for result in results] == ["a:[101]"]
 
 
 async def test_hf_batch_error_fails_only_its_batch(
