@@ -3,6 +3,7 @@
 import importlib
 from typing import Any
 
+import anyio
 from mcp.types import SamplingMessage, TextContent
 
 # mcp 2.0 renamed FastMCP to MCPServer (see mcp_test_server.create_server)
@@ -36,11 +37,21 @@ async def ask_repeatedly(question: str, times: int, ctx: Any) -> str:
     return "\n".join(answers)
 
 
+async def ask_then_wait(question: str, ctx: Any) -> str:
+    try:
+        await ask(question, ctx)
+    except Exception:
+        pass
+    await anyio.sleep_forever()
+    return "unreachable"
+
+
 # the server finds the context parameter by its annotation
-ask.__annotations__["ctx"] = _module.Context
-ask_repeatedly.__annotations__["ctx"] = _module.Context
+for _fn in (ask, ask_repeatedly, ask_then_wait):
+    _fn.__annotations__["ctx"] = _module.Context
 server.tool(description="Asks the client's model a question")(ask)
 server.tool(description="Asks the client's model, ignoring errors")(ask_repeatedly)
+server.tool(description="Asks the client's model, then never returns")(ask_then_wait)
 
 
 if __name__ == "__main__":

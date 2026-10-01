@@ -1,7 +1,9 @@
 import weakref
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Any, Iterator, Literal, Sequence
 
+import anyio
 from mcp.types import (
     INTERNAL_ERROR,
     AudioContent,
@@ -42,9 +44,18 @@ from ._compat import (
     params_system_prompt,
 )
 
-# A limit exceeded by a sampling request, keyed by the client session that
-# received the request, until the tool call on that session raises it.
-_sampling_limit_errors: "weakref.WeakKeyDictionary[Any, LimitExceededError]" = (
+
+@dataclass
+class _ToolCall:
+    """A tool call in flight on a client session."""
+
+    scope: anyio.CancelScope
+    limit_error: LimitExceededError | None = None
+
+
+# The tool calls in flight on each client session, so a sampling request on
+# the session can hand them a limit error.
+_session_tool_calls: "weakref.WeakKeyDictionary[Any, list[_ToolCall]]" = (
     weakref.WeakKeyDictionary()
 )
 
@@ -54,27 +65,52 @@ def raise_sampling_limit_error(session: Any) -> Iterator[None]:
     """Raise a limit exceeded by a sampling request during a tool call.
 
     Sampling requests run in the session's task, where a limit error cannot
-    reach the scope that owns the limit. The tool call raises it instead, in
-    place of its own result or error, so the tool executor can pass it on.
+    reach the scope that owns the limit. When one exceeds a limit, the tool
+    calls in flight on the session stop waiting for the server and raise the
+    error in place of their own result or error, so the tool executor can
+    pass it on.
 
     Args:
        session: The client session the tool call is made on.
     """
+    call = _ToolCall(scope=anyio.CancelScope())
+    calls = _session_tool_calls.setdefault(session, [])
+    calls.append(call)
     try:
-        yield
-    except Exception:
-        limit_error = _sampling_limit_errors.pop(session, None)
-        if limit_error is not None:
-            raise limit_error
-        raise
-    limit_error = _sampling_limit_errors.pop(session, None)
-    if limit_error is not None:
-        raise limit_error
+        try:
+            with call.scope:
+                yield
+        except Exception:
+            if call.limit_error is not None:
+                raise call.limit_error
+            raise
+        if call.limit_error is not None:
+            raise call.limit_error
+    finally:
+        calls.remove(call)
+        if not calls:
+            _session_tool_calls.pop(session, None)
+
+
+def _record_sampling_limit_error(session: Any, limit_error: LimitExceededError) -> None:
+    """Hand `limit_error` to the tool calls in flight on `session` and stop them."""
+    for call in _session_tool_calls.get(session, []):
+        if call.limit_error is None:
+            call.limit_error = limit_error
+            call.scope.cancel()
+
+
+def _pending_sampling_limit_error(session: Any) -> LimitExceededError | None:
+    for call in _session_tool_calls.get(session, []):
+        if call.limit_error is not None:
+            return call.limit_error
+    return None
 
 
 async def sampling_fn(
     # RequestContext[ClientSession, Any] on mcp 1.x, ClientRequestContext on
-    # 2.x — unused here, so typed as Any to satisfy both SamplingFnT protocols
+    # 2.x — typed as Any to satisfy both SamplingFnT protocols (both carry
+    # the client `session`)
     context: Any,
     params: CreateMessageRequestParams,
 ) -> CreateMessageResult | ErrorData:
@@ -90,7 +126,7 @@ async def sampling_fn(
 
     # once a limit is exceeded, refuse further requests from the tool call
     session = getattr(context, "session", None)
-    pending = _sampling_limit_errors.get(session) if session is not None else None
+    pending = _pending_sampling_limit_error(session) if session is not None else None
     if pending is not None:
         return ErrorData(code=INTERNAL_ERROR, message=pending.message)
 
@@ -162,7 +198,7 @@ async def sampling_fn(
                 if active is not None:
                     active.limit_exceeded(limit_error)
             if session is not None:
-                _sampling_limit_errors[session] = limit_error
+                _record_sampling_limit_error(session, limit_error)
         return ErrorData(code=INTERNAL_ERROR, message=exception_message(ex))
 
 

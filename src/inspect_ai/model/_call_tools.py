@@ -279,6 +279,11 @@ async def _execute_tools_impl(
         tool_calls = message.tool_calls
         tdefs = await tool_defs(tools)
 
+        # Enclosing limits hit by the current stage's calls. Recorded when
+        # caught, so one is not lost if a sibling's failure cancels its call
+        # before the limit reaches run_one.
+        stage_limit_errors: list[LimitExceededError] = []
+
         async def call_tool_task(
             call: ToolCall,
             event: ToolEvent,
@@ -354,6 +359,7 @@ async def _execute_tools_impl(
                         and limit_error_scope(ex) != "inner"
                     ):
                         tool_exception = ex
+                        stage_limit_errors.append(ex)
                 elif isinstance(ex, ValueError):
                     # pre-existing: a ValueError other than the null-byte case
                     # escapes the per-call handler rather than being captured
@@ -736,6 +742,7 @@ async def _execute_tools_impl(
                     )
 
             stage_exception: Exception | None = None
+            stage_limit_errors.clear()
             try:
                 async with anyio.create_task_group() as outer_tg:
                     for idx in stage:
@@ -750,6 +757,9 @@ async def _execute_tools_impl(
                         )
             except Exception as ex:
                 stage_exception = inner_exception(ex)
+            # an enclosing limit wins over other failures in the stage
+            if stage_limit_errors:
+                stage_exception = stage_limit_errors[0]
 
             # Splice results into `result_messages` in declared order so the
             # message list matches the order of tool_calls (Anthropic and

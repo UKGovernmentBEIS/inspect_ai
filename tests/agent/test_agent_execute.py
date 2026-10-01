@@ -11,6 +11,7 @@ from inspect_ai.agent import Agent, AgentState, agent, as_solver, as_tool
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._run import run
 from inspect_ai.event._span import SpanBeginEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
@@ -26,7 +27,13 @@ from inspect_ai.solver._use_tools import use_tools
 from inspect_ai.tool import ToolDef, tool
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
-from inspect_ai.util._limit import LimitExceededError, message_limit, token_limit
+from inspect_ai.util._limit import (
+    LimitExceededError,
+    check_token_limit,
+    message_limit,
+    record_model_usage,
+    token_limit,
+)
 
 
 @agent
@@ -339,6 +346,78 @@ def test_tool_grouped_sample_limit_with_other_error_ends_sample() -> None:
     assert sample.error is None
     assert sample.limit is not None
     assert sample.limit.type == "token"
+
+
+@solver
+def call_parallel_failing_and_limited_tools() -> Solver:
+    """Run two parallel tools that fail together: one exceeds the sample's limit."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        arrived = 0
+        both_arrived = anyio.Event()
+
+        async def barrier() -> None:
+            nonlocal arrived
+            arrived += 1
+            if arrived == 2:
+                both_arrived.set()
+            await both_arrived.wait()
+
+        @tool(parallel=True)
+        def limited() -> Tool:
+            async def execute() -> str:
+                """Exceed the sample's token limit."""
+                await barrier()
+                record_model_usage(ModelUsage(total_tokens=100))
+                check_token_limit()
+                return "done"
+
+            return execute
+
+        @tool(parallel=True)
+        def failing() -> Tool:
+            async def execute() -> str:
+                """Fail with an unrelated error."""
+                await barrier()
+                raise RuntimeError("unrelated failure")
+
+            return execute
+
+        # alternate the order, since the first call is started first
+        calls = [
+            ToolCall(id="1", function="limited", arguments={}),
+            ToolCall(id="2", function="failing", arguments={}),
+        ]
+        if state.epoch % 2 == 0:
+            calls.reverse()
+        state.messages.append(ChatMessageAssistant(content="", tool_calls=calls))
+        result = await execute_tools(state.messages, [limited(), failing()])
+        state.messages.extend(result.messages)
+        state.messages.append(ChatMessageUser(content="continued"))
+        return state
+
+    return solve
+
+
+def test_parallel_tool_sample_limit_wins_over_sibling_error() -> None:
+    log = eval(
+        Task(
+            solver=call_parallel_failing_and_limited_tools(),
+            token_limit=5,
+            epochs=10,
+        )
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples and len(log.samples) == 10
+    for sample in log.samples:
+        assert sample.error is None
+        assert sample.limit is not None
+        assert sample.limit.type == "token"
+        assert sample.messages[-1].text != "continued"
+        tool_events = [e for e in sample.events if isinstance(e, ToolEvent)]
+        assert len(tool_events) == 2
+        assert all(not e.pending for e in tool_events)
 
 
 def test_tool_model_call_tool_limit_returns_tool_error() -> None:
