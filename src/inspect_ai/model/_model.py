@@ -3035,7 +3035,7 @@ def model_usage_cost(
 
     When the provider reports that another model served the call (see
     `ModelAPI.served_model_usage()`), each part is priced at its serving
-    model's rates. A serving model with no cost data that the model database
+    model's rates (the cost the provider gives, else the model's cost data). A serving model with no cost data that the model database
     identifies as the called model (e.g. a dated snapshot of it) is priced at
     the called model's rates. Otherwise, if a serving model has no cost data,
     the whole call is priced at the called model's rates and a warning is
@@ -3063,7 +3063,9 @@ def model_usage_cost(
         served_cost = 0.0
         for part in served:
             part_info = _get_model_info_direct(part.model)
-            part_cost = part_info.cost if part_info is not None else None
+            part_cost = part.cost
+            if part_cost is None and part_info is not None:
+                part_cost = part_info.cost
             if part_cost is None and same_model(part_info, info):
                 part_cost = called_cost
             if part_cost is None:

@@ -424,7 +424,7 @@ async def test_azure_usage_priced_by_served_model() -> None:
 
 
 def test_served_model_usage_azure_only() -> None:
-    from inspect_ai.model import ModelOutput, ModelUsage
+    from inspect_ai.model import ModelOutput, ModelUsage, ServedModelUsage
     from inspect_ai.model._providers.openai import OpenAIAPI
 
     usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
@@ -438,7 +438,7 @@ def test_served_model_usage_azure_only() -> None:
         return api.served_model_usage(ModelOutput(model=output_model, usage=usage))
 
     assert served("azure/my-deployment", "gpt-4o-mini-2024-07-18") == [
-        ("openai/gpt-4o-mini-2024-07-18", usage)
+        ServedModelUsage("openai/gpt-4o-mini-2024-07-18", usage)
     ]
     assert served("azure/gpt-4o", "gpt-4o") is None
     assert served("gpt-4o", "gpt-4o-2024-08-06") is None

@@ -3719,53 +3719,112 @@ async def test_litellm_proxy_priced_by_serving_deployment(
     )
 
 
-FALLBACK_ROWS = [
-    {
-        "model_name": name,
-        "litellm_params": {"model": f"openai/{model}"},
-        "model_info": {"base_model": base_model},
+def _proxy_price(rate: float) -> dict[str, Any]:
+    """Proxy `model_info` pricing every token at `rate` dollars per million."""
+    return {
+        "input_cost_per_token": rate / 1_000_000,
+        "output_cost_per_token": rate / 1_000_000,
+        "max_input_tokens": 100000,
     }
-    for name, model, base_model in [
-        ("primary", "fallback-primary", "openai/gpt-4o"),
-        ("backup", "fallback-backup", "openai/gpt-4o-mini"),
-        ("same", "fallback-same", "openai/gpt-4o"),
-    ]
+
+
+SERVED_ROWS = [
+    # private upstreams the model database does not know, priced by the proxy
+    _row("primary", "openai/review-primary", **_proxy_price(1000.0)),
+    _row("backup", "openai/review-backup", **_proxy_price(100.0)),
+    # aliases whose deployments serve different models, in both orders
+    _row("mixed", "openai/gpt-4o"),
+    _row("mixed", "openai/gpt-4o-mini"),
+    _row("mixed-reversed", "openai/gpt-4o-mini"),
+    _row("mixed-reversed", "openai/gpt-4o"),
+    # one deployment, identified by its base model
+    _row("same", "openai/review-same", base_model="openai/gpt-4o"),
 ]
 
 
-@skip_if_no_openai_package
-def test_served_model_usage_maps_reported_names(
-    model_info_stub: ModelInfoStub,
-) -> None:
+@pytest.fixture
+def served_stub(model_info_stub: ModelInfoStub) -> ModelInfoStub:
+    _serve(model_info_stub, SERVED_ROWS)
+    set_model_cost("openai/gpt-4o", _cost(1000.0))
+    set_model_cost("openai/gpt-4o-mini", _cost(100.0))
+    return model_info_stub
+
+
+def _served_cost(stub: ModelInfoStub, alias: str, reported: str) -> float | None:
     from inspect_ai.model import ModelUsage
+    from inspect_ai.model._model import model_usage_cost
 
-    model_info_stub.body = json.dumps({"data": FALLBACK_ROWS}).encode()
-    usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
-
-    def served(alias: str, reported: str) -> object:
-        provider = _stub_provider(model_info_stub, alias)
-        return provider.served_model_usage(ModelOutput(model=reported, usage=usage))
-
-    # the called deployment, reported by alias, raw upstream id or snapshot
-    assert served("same", "same") is None
-    assert served("same", "fallback-same") is None
-    assert served("same", "gpt-4o-2024-08-06") is None
-    # a fallback deployment, reported by alias or by its upstream snapshot
-    assert served("primary", "backup") == [("openai/gpt-4o-mini", usage)]
-    assert served("primary", "gpt-4o-mini-2024-07-18") == [
-        ("openai/gpt-4o-mini", usage)
-    ]
-    # an explicit price for the fallback alias wins
-    set_model_info(
-        "litellm-proxy/backup",
-        ModelInfo(
-            cost=ModelCost(
-                input=1.0, output=1.0, input_cache_write=1.0, input_cache_read=1.0
-            )
-        ),
+    model = get_model(
+        f"litellm-proxy/{alias}", base_url=stub.url, api_key="sk-stub", memoize=False
     )
-    assert served("primary", "backup") == [("litellm-proxy/backup", usage)]
-    # an upstream id no listed deployment names
-    assert served("primary", "claude-opus-4-8") == [
-        ("anthropic/claude-opus-4-8", usage)
-    ]
+    usage = ModelUsage(input_tokens=10, output_tokens=10, total_tokens=20)
+    return model_usage_cost(model, usage, ModelOutput(model=reported, usage=usage))
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize(
+    "reported", ["backup", "review-backup", "openai/review-backup"]
+)
+def test_fallback_priced_from_proxy_metadata(
+    served_stub: ModelInfoStub, reported: str
+) -> None:
+    # 20 tokens at the fallback's $100/M, not the called alias's $1000/M
+    assert _served_cost(served_stub, "primary", reported) == pytest.approx(0.002)
+    # the same once a model for the fallback alias exists
+    get_model("litellm-proxy/backup", base_url=served_stub.url, api_key="sk-stub")
+    assert _served_cost(served_stub, "primary", reported) == pytest.approx(0.002)
+
+
+@skip_if_no_openai_package
+def test_fallback_alias_price_registered_by_user_wins(
+    served_stub: ModelInfoStub,
+) -> None:
+    set_model_info("litellm-proxy/backup", ModelInfo(cost=_cost(10.0)))
+    assert _served_cost(served_stub, "primary", "backup") == pytest.approx(0.0002)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("alias", ["mixed", "mixed-reversed"])
+@pytest.mark.parametrize(
+    "reported,cost",
+    [
+        ("openai/gpt-4o-mini", 0.002),
+        ("gpt-4o-mini", 0.002),
+        ("gpt-4o-mini-2024-07-18", 0.002),
+        ("openai/gpt-4o", 0.02),
+        ("gpt-4o-2024-08-06", 0.02),
+    ],
+)
+def test_deployment_named_by_response_is_priced(
+    served_stub: ModelInfoStub, alias: str, reported: str, cost: float
+) -> None:
+    # the called alias
+    assert _served_cost(served_stub, alias, reported) == pytest.approx(cost)
+    # a fallback alias (the response names one of its deployments)
+    if alias == "mixed":
+        assert _served_cost(served_stub, "primary", reported) == pytest.approx(cost)
+
+
+@skip_if_no_openai_package
+def test_called_deployment_keeps_alias_price(served_stub: ModelInfoStub) -> None:
+    # the alias's own deployment, named by its raw id or a snapshot
+    for reported in ["same", "review-same", "openai/review-same", "gpt-4o-2024-08-06"]:
+        assert _served_cost(served_stub, "same", reported) == pytest.approx(0.02)
+    # an explicit price for the alias wins over its deployment's model
+    set_model_info("litellm-proxy/same", ModelInfo(cost=_cost(10.0)))
+    assert _served_cost(served_stub, "same", "gpt-4o-2024-08-06") == pytest.approx(
+        0.0002
+    )
+
+
+@skip_if_no_openai_package
+def test_unlisted_upstream_priced_by_database_name(
+    served_stub: ModelInfoStub,
+) -> None:
+    from inspect_ai.model import ModelUsage, ServedModelUsage
+
+    usage = ModelUsage(input_tokens=10, output_tokens=10, total_tokens=20)
+    provider = _stub_provider(served_stub, "primary")
+    assert provider.served_model_usage(
+        ModelOutput(model="claude-opus-4-8", usage=usage)
+    ) == [ServedModelUsage("anthropic/claude-opus-4-8", usage)]

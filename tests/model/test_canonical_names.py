@@ -6,7 +6,7 @@ to canonical format for model info database lookup.
 
 import pytest
 
-from inspect_ai.model import ModelOutput
+from inspect_ai.model import ModelOutput, ServedModelUsage
 
 
 class TestBedrockCanonicalName:
@@ -928,7 +928,7 @@ class TestServedModelNames:
         api = AzureAIAPI(model_name="my-deployment")
         output = self._output("gpt-4o-mini-2024-07-18")
         assert api.served_model_usage(output) == [
-            ("openai/gpt-4o-mini-2024-07-18", output.usage)
+            ServedModelUsage("openai/gpt-4o-mini-2024-07-18", output.usage)
         ]
         assert api.served_model_usage(self._output("my-deployment")) is None
 
@@ -941,7 +941,7 @@ class TestServedModelNames:
         api = AnthropicAPI(model_name="azure/my-claude", api_key="test-key")
         output = self._output("claude-opus-5-5")
         assert api.served_model_usage(output) == [
-            ("anthropic/claude-opus-5-5", output.usage)
+            ServedModelUsage("anthropic/claude-opus-5-5", output.usage)
         ]
         assert api.served_model_usage(self._output("my-claude")) is None
 
@@ -960,7 +960,7 @@ class TestServedModelNames:
         )
         output = self._output("accounts/fireworks/models/kimi-k3-fast")
         assert api.served_model_usage(output) == [
-            ("fireworks/kimi-k3-fast", output.usage)
+            ServedModelUsage("fireworks/kimi-k3-fast", output.usage)
         ]
         assert (
             api.served_model_usage(
@@ -983,7 +983,7 @@ class TestServedModelNames:
         )
         output = self._output("anthropic/claude-sonnet-4")
         assert api.served_model_usage(output) == [
-            ("anthropic/claude-sonnet-4", output.usage)
+            ServedModelUsage("anthropic/claude-sonnet-4", output.usage)
         ]
 
     def test_openrouter_same_model(self):
@@ -1023,12 +1023,14 @@ class TestServedModelNames:
 
         api = BedrockAPI(model_name=router, base_url=None)
         assert api.served_model_usage(output) == [
-            ("anthropic/claude-3-haiku-20240307", output.usage)
+            ServedModelUsage("anthropic/claude-3-haiku-20240307", output.usage)
         ]
 
         # routers invoke cross-region inference profiles
         output.model = "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.amazon.nova-lite-v1:0"
-        assert api.served_model_usage(output) == [("amazon/nova-lite", output.usage)]
+        assert api.served_model_usage(output) == [
+            ServedModelUsage("amazon/nova-lite", output.usage)
+        ]
 
         # without a prompt router the output model is the called model
         response.trace = None

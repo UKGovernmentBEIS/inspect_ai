@@ -9,6 +9,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessage, ChatMessageAssistant
+from ._model_data.model_data import ModelCost
 
 _T = TypeVar("_T", int, float)
 
@@ -77,6 +78,9 @@ class ServedModelUsage(NamedTuple):
 
     usage: ModelUsage
     """Usage served by `model`."""
+
+    cost: ModelCost | None = None
+    """Cost data for `model`, when the provider has it (otherwise looked up by `model`)."""
 
 
 class ModelFallback(BaseModel):
