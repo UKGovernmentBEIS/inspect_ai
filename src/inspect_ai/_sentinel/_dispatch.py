@@ -135,7 +135,7 @@ async def _run(step: Step) -> Decision | None:
         warn_once(
             logger,
             "A sentinel escalated a tool call with nothing to escalate to, so it proceeded; "
-            "add sequential(..., human()) to send escalations to a person.",
+            "add sequential([..., human()]) to send escalations to a person.",
         )
         return Decision.proceed()
     return decision

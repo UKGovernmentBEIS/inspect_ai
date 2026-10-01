@@ -390,7 +390,7 @@ def test_an_escalate_at_the_root_proceeds_and_warns_once(
     assert [e.action for e in root] == ["escalate", "escalate"]
     warnings = [r for r in caplog.records if "nothing to escalate to" in r.message]
     assert len(warnings) == 1
-    assert "sequential(..., human())" in warnings[0].message
+    assert "sequential([..., human()])" in warnings[0].message
 
 
 def test_multi_function_monitor_shares_state_across_calls() -> None:
