@@ -29,6 +29,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    Model,
     ModelOutput,
     get_model,
 )
@@ -164,6 +165,17 @@ def d3_trajectory() -> MonitorGroup:
 def d3_asks_model() -> Monitor:
     async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
         output = await context.host.generate("How suspicious is this call?")
+        return Observation.score(float(output.completion))
+
+    return ask
+
+
+@monitor
+def d3_asks_with(model: str | None = None, role: str | None = None) -> Monitor:
+    async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
+        output = await context.host.generate(
+            "How suspicious is this call?", model=model, role=role
+        )
         return Observation.score(float(output.completion))
 
     return ask
@@ -704,6 +716,61 @@ def test_host_generate_without_a_monitor_role_labels_the_agent_model() -> None:
     assert log.samples
     roles = [e.role for e in log.samples[0].events if isinstance(e, ModelEvent)]
     assert roles == [None, "monitor", None]
+
+
+def _scoring_model(score: str) -> Model:
+    return get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", content=score)],
+        memoize=False,
+    )
+
+
+def test_host_generate_uses_a_named_role() -> None:
+    log = run(
+        [d3_asks_with(role="trusted")], model_roles={"trusted": _scoring_model("0.25")}
+    )
+    assert log.status == "success", log.error
+    [event] = sentinel_events(log)
+    assert event.suspicion == 0.25
+    assert log.samples
+    roles = [e.role for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert roles.count("trusted") == 1
+
+
+def test_host_generate_model_is_always_a_model_name() -> None:
+    # a role named like the model must not shadow an explicit model
+    log = run(
+        [d3_asks_with(model="mockllm/model")],
+        model_roles={"mockllm/model": _scoring_model("0.9")},
+    )
+    assert log.status == "error"
+    assert log.error is not None
+    assert "could not convert string to float" in log.error.message
+
+
+def test_host_generate_rejects_both_model_and_role() -> None:
+    log = run([d3_asks_with(model="mockllm/model", role="monitor")])
+    assert log.status == "error"
+    assert log.error is not None
+    assert "not both" in log.error.message
+
+
+def test_host_generate_warns_once_without_the_role(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import inspect_ai._util.logger as logger_module
+
+    monkeypatch.setattr(logger_module, "_warned", [])
+    with caplog.at_level(logging.WARNING):
+        run([d3_asks_with(role="judge")])
+    warnings = [
+        r.getMessage()
+        for r in caplog.records
+        if "sentinel role 'judge'" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert "--model-role judge=" in warnings[0]
 
 
 async def test_missing_model_event_falls_back_to_the_prior_conversation(

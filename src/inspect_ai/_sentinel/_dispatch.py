@@ -15,6 +15,7 @@ from inspect_sentinel import (
 from inspect_sentinel._integration import RunnerContext, run_root
 
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.logger import warn_once
 from inspect_ai.approval._apply import resolve_tool_call_view
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
@@ -27,7 +28,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import active_model, get_model, model_roles
+from inspect_ai.model._model import Model, active_model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Reference
 from inspect_ai.solver._task_state import sample_state
@@ -255,16 +256,26 @@ class _Host:
         self,
         input: str | list[ChatMessage],
         *,
-        model: str | None = None,
+        model: str | Model | None = None,
+        role: str | None = None,
         tools: list[ToolInfo] | None = None,
         config: GenerateConfig | None = None,
     ) -> ModelOutput:
-        if model is None:
-            resolved = get_model(role="monitor", default=active_model())
-        elif model in model_roles():
-            resolved = get_model(role=model)
-        else:
+        if model is not None and role is not None:
+            raise ValueError(
+                f"host.generate() takes a model or a role, not both; got model={model!r} and role={role!r}."
+            )
+        if model is not None:
             resolved = get_model(model)
+        else:
+            role = role or "monitor"
+            if role not in model_roles():
+                warn_once(
+                    logger,
+                    f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
+                    f"Set one with Task(model_roles={{'{role}': ...}}) or --model-role {role}=<model>.",
+                )
+            resolved = get_model(role=role, default=active_model())
         return await resolved.generate(
             input, tools=tools or [], config=config or GenerateConfig()
         )
