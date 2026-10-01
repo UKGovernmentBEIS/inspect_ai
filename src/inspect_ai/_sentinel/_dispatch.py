@@ -296,15 +296,14 @@ class _Host:
         tools: list[ToolInfo] | None = None,
         config: GenerateConfig | None = None,
     ) -> ModelOutput:
-        if model is not None and role is not None:
-            raise ValueError(
-                f"host.generate() takes a model or a role, not both; got model={model!r} and role={role!r}."
-            )
-        if model is not None:
+        # get_model() returns a Model instance before consulting the role, so
+        # the role's precedence is applied here
+        role = role or ("monitor" if model is None else None)
+        configured = role is not None and role in model_roles()
+        if model is not None and not configured:
             resolved = get_model(model)
         else:
-            role = role or "monitor"
-            if role not in model_roles():
+            if not configured:
                 warn_once(
                     logger,
                     f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
