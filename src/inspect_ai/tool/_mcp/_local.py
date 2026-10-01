@@ -37,6 +37,7 @@ from inspect_ai.tool._tool import Tool, ToolError, ToolParsingError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._limit import enclosing_limit_error
 
 from ._compat import (
     MCP_READ_TIMEOUT_CODES,
@@ -176,6 +177,18 @@ class MCPServerLocal(MCPServer):
         return session
 
 
+def _raise_limit_error(ex: Exception) -> None:
+    """Raise an enclosing limit error found in `ex`, unwrapped.
+
+    A limit error from `raise_sampling_limit_error` is wrapped in an exception
+    group by the session's task groups, and `apply_limits()` only catches a
+    bare one.
+    """
+    limit_error = enclosing_limit_error(ex)
+    if limit_error is not None:
+        raise limit_error
+
+
 class MCPServerLocalSession(MCPServer):
     def __init__(
         self,
@@ -265,11 +278,18 @@ class MCPServerLocalSession(MCPServer):
         if self._cached_tool_list is not None:
             mcp_tools = self._cached_tool_list
         else:
-            async with self._client_session() as session:
-                # get the underlying tools on the server
-                with trace_action(logger, "MCPServer", f"list_tools {self._name}"):
-                    mcp_tools = (await session.list_tools()).tools
-                self._cached_tool_list = mcp_tools
+            try:
+                async with self._client_session() as session:
+                    # get the underlying tools on the server
+                    with (
+                        raise_sampling_limit_error(session),
+                        trace_action(logger, "MCPServer", f"list_tools {self._name}"),
+                    ):
+                        mcp_tools = (await session.list_tools()).tools
+                    self._cached_tool_list = mcp_tools
+            except Exception as ex:
+                _raise_limit_error(ex)
+                raise
 
         return [
             self._tool_def_from_mcp_tool(mcp_tool).as_tool() for mcp_tool in mcp_tools
@@ -343,6 +363,7 @@ class MCPServerLocalSession(MCPServer):
 
                     return as_inspect_content_list(result.content)  # type: ignore[return-value,arg-type]
             except Exception as e:
+                _raise_limit_error(e)
                 if isinstance(inner_exception(e), TimeoutError):
                     raise ToolError(
                         f"Tool '{mcp_tool.name}' timed out before completing."

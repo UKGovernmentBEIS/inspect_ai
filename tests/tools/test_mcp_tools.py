@@ -880,10 +880,10 @@ def test_mcp_sampling_sample_limit_ends_sample() -> None:
     assert sample.limit.limit == 1
     assert sample.messages[-1].text != "continued"
     # the cancelled tool call leaves no state behind
-    from inspect_ai.tool._mcp.sampling import _session_tool_calls
+    from inspect_ai.tool._mcp.sampling import _session_requests
 
     gc.collect()
-    assert len(_session_tool_calls) == 0
+    assert len(_session_requests) == 0
 
 
 @skip_if_no_mcp_package
@@ -959,7 +959,7 @@ def _run_agent_with_token_limit(function: str = "ask_repeatedly"):
 @skip_if_no_mcp_package
 @pytest.mark.parametrize("function", ["ask_repeatedly", "ask_then_wait"])
 def test_mcp_sampling_agent_limit_ends_agent(function: str) -> None:
-    from inspect_ai.tool._mcp.sampling import _session_tool_calls
+    from inspect_ai.tool._mcp.sampling import _session_requests
 
     log = eval(
         Task(solver=_run_agent_with_token_limit(function)),
@@ -978,7 +978,7 @@ def test_mcp_sampling_agent_limit_ends_agent(function: str) -> None:
     assert len(model_events) == 1
     tool_events = [e for e in sample.events if e.event == "tool"]
     assert tool_events and all(not e.pending for e in tool_events)
-    assert len(_session_tool_calls) == 0
+    assert len(_session_requests) == 0
 
 
 class _Session:
@@ -1003,7 +1003,7 @@ async def test_mcp_sampling_grouped_limit_raised_by_tool_call(scope: str) -> Non
     from mcp.types import ErrorData
 
     from inspect_ai.tool._mcp.sampling import (
-        _session_tool_calls,
+        _session_requests,
         raise_sampling_limit_error,
         sampling_fn,
     )
@@ -1045,14 +1045,14 @@ async def test_mcp_sampling_grouped_limit_raised_by_tool_call(scope: str) -> Non
     else:
         active.limit_exceeded.assert_not_called()
     # nothing is left behind for the session
-    assert session not in _session_tool_calls
+    assert session not in _session_requests
 
 
 @skip_if_no_mcp_package
 async def test_mcp_sampling_limit_state_cleared() -> None:
     """A reused session starts clean, and no state keeps a session alive."""
     from inspect_ai.tool._mcp.sampling import (
-        _session_tool_calls,
+        _session_requests,
         raise_sampling_limit_error,
         sampling_fn,
     )
@@ -1064,7 +1064,7 @@ async def test_mcp_sampling_limit_state_cleared() -> None:
     model.generate = AsyncMock(side_effect=generate)
     session = _Session()
     context = SimpleNamespace(session=session)
-    baseline = len(_session_tool_calls)
+    baseline = len(_session_requests)
 
     with patch("inspect_ai.model._model.get_model", return_value=model):
         with token_limit(1):
@@ -1083,8 +1083,150 @@ async def test_mcp_sampling_limit_state_cleared() -> None:
                 outer.cancel()
                 await anyio.sleep_forever()
 
-    assert len(_session_tool_calls) == baseline
+    assert len(_session_requests) == baseline
     session_ref = weakref.ref(session)
     del session, context
     gc.collect()
     assert session_ref() is None
+
+
+def _list_sampling_server(mode: str) -> MCPServer:
+    """A server that samples while listing its tools (see mcp_sampling_server.py)."""
+    return mcp_server_stdio(
+        command=sys.executable, args=[MCP_SAMPLING_SERVER, "--sample-on-list", mode]
+    )
+
+
+@solver
+def _list_tools_then_continue(mode: str):
+    async def solve(state, generate):
+        await _list_sampling_server(mode).tools()
+        state.messages.append(ChatMessageUser(content="continued"))
+        return state
+
+    return solve
+
+
+@tool
+def limited_list(mode: str) -> Tool:
+    async def execute(question: str) -> str:
+        """List the server's tools under a token limit of 1.
+
+        Args:
+            question: Ignored.
+        """
+        with token_limit(1):
+            tools = await _list_sampling_server(mode).tools()
+        return str(len(tools))
+
+    return execute
+
+
+@solver
+def _run_listing_agent_with_token_limit(mode: str):
+    """Run an agent that lists the server's tools under its own token limit of 1."""
+
+    @agent
+    def listing_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            """List the server's tools, then carry on.
+
+            Args:
+                state: Input state (conversation)
+            """
+            await _list_sampling_server(mode).tools()
+            state.messages.append(ChatMessageUser(content="agent continued"))
+            return state
+
+        return execute
+
+    async def solve(state, generate):
+        agent_limit = token_limit(1)
+        # a server that never answers must not hang the agent
+        with anyio.fail_after(60):
+            agent_state, limit_error = await run(
+                listing_agent(), "input", limits=[agent_limit]
+            )
+        state.messages.extend(agent_state.messages)
+        assert limit_error is not None and limit_error.source is agent_limit
+        state.messages.append(ChatMessageUser(content="agent limit reached"))
+        return state
+
+    return solve
+
+
+@skip_if_no_mcp_package
+@pytest.mark.parametrize("mode", ["return", "wait"])
+def test_mcp_sampling_during_tool_listing_sample_limit(mode: str) -> None:
+    from inspect_ai.tool._mcp.sampling import _session_requests
+
+    log = eval(
+        Task(solver=_list_tools_then_continue(mode), token_limit=1),
+        model="mockllm/model",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is not None
+    assert sample.limit.type == "token"
+    assert sample.messages[-1].text != "continued"
+    model_events = [e for e in sample.events if e.event == "model"]
+    assert len(model_events) == 1
+    assert len(_session_requests) == 0
+
+
+@skip_if_no_mcp_package
+@pytest.mark.parametrize("mode", ["return", "wait"])
+def test_mcp_sampling_during_tool_listing_agent_limit(mode: str) -> None:
+    from inspect_ai.tool._mcp.sampling import _session_requests
+
+    log = eval(
+        Task(solver=_run_listing_agent_with_token_limit(mode)),
+        model="mockllm/model",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is None
+    texts = [m.text for m in sample.messages]
+    assert texts[-1] == "agent limit reached"
+    assert "agent continued" not in texts
+    # the server's later sampling requests are refused without a model call
+    model_events = [e for e in sample.events if e.event == "model"]
+    assert len(model_events) == 1
+    assert len(_session_requests) == 0
+
+
+@skip_if_no_mcp_package
+@pytest.mark.parametrize("mode", ["return", "wait"])
+def test_mcp_sampling_during_tool_listing_tool_limit(mode: str) -> None:
+    from inspect_ai.tool._mcp.sampling import _session_requests
+
+    log = eval(
+        Task(
+            solver=[
+                use_tools(limited_list(mode)),
+                _call_tool_then_continue("limited_list"),
+            ],
+            token_limit=100_000,
+        ),
+        model="mockllm/model",
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is None
+    tool_message = sample.messages[-2]
+    assert isinstance(tool_message, ChatMessageTool)
+    assert tool_message.error is not None
+    assert tool_message.error.type == "limit"
+    assert sample.messages[-1].text == "continued"
+    tool_events = [e for e in sample.events if e.event == "tool"]
+    assert tool_events and all(not e.pending for e in tool_events)
+    assert len(_session_requests) == 0

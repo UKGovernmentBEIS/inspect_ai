@@ -46,64 +46,64 @@ from ._compat import (
 
 
 @dataclass
-class _ToolCall:
-    """A tool call in flight on a client session."""
+class _Request:
+    """A request (a tool call or tool listing) in flight on a client session."""
 
     scope: anyio.CancelScope
     limit_error: LimitExceededError | None = None
 
 
-# The tool calls in flight on each client session, so a sampling request on
-# the session can hand them a limit error.
-_session_tool_calls: "weakref.WeakKeyDictionary[Any, list[_ToolCall]]" = (
+# The requests in flight on each client session, so a sampling request on the
+# session can hand them a limit error.
+_session_requests: "weakref.WeakKeyDictionary[Any, list[_Request]]" = (
     weakref.WeakKeyDictionary()
 )
 
 
 @contextmanager
 def raise_sampling_limit_error(session: Any) -> Iterator[None]:
-    """Raise a limit exceeded by a sampling request during a tool call.
+    """Raise a limit exceeded by a sampling request during a request to the server.
 
     Sampling requests run in the session's task, where a limit error cannot
-    reach the scope that owns the limit. When one exceeds a limit, the tool
-    calls in flight on the session stop waiting for the server and raise the
-    error in place of their own result or error, so the tool executor can
-    pass it on.
+    reach the scope that owns the limit. When one exceeds a limit, the
+    requests in flight on the session (tool calls and tool listing) stop
+    waiting for the server and raise the error in place of their own result
+    or error, so it reaches the scope that owns the limit.
 
     Args:
-       session: The client session the tool call is made on.
+       session: The client session the request is made on.
     """
-    call = _ToolCall(scope=anyio.CancelScope())
-    calls = _session_tool_calls.setdefault(session, [])
-    calls.append(call)
+    request = _Request(scope=anyio.CancelScope())
+    requests = _session_requests.setdefault(session, [])
+    requests.append(request)
     try:
         try:
-            with call.scope:
+            with request.scope:
                 yield
         except Exception:
-            if call.limit_error is not None:
-                raise call.limit_error
+            if request.limit_error is not None:
+                raise request.limit_error
             raise
-        if call.limit_error is not None:
-            raise call.limit_error
+        if request.limit_error is not None:
+            raise request.limit_error
     finally:
-        calls.remove(call)
-        if not calls:
-            _session_tool_calls.pop(session, None)
+        requests.remove(request)
+        if not requests:
+            _session_requests.pop(session, None)
 
 
 def _record_sampling_limit_error(session: Any, limit_error: LimitExceededError) -> None:
-    """Hand `limit_error` to the tool calls in flight on `session` and stop them."""
-    for call in _session_tool_calls.get(session, []):
-        if call.limit_error is None:
-            call.limit_error = limit_error
-            call.scope.cancel()
+    """Hand `limit_error` to the requests in flight on `session` and stop them."""
+    for request in _session_requests.get(session, []):
+        if request.limit_error is None:
+            request.limit_error = limit_error
+            request.scope.cancel()
 
 
 def _pending_sampling_limit_error(session: Any) -> LimitExceededError | None:
-    for call in _session_tool_calls.get(session, []):
-        if call.limit_error is not None:
-            return call.limit_error
+    for request in _session_requests.get(session, []):
+        if request.limit_error is not None:
+            return request.limit_error
     return None
 
 
@@ -124,7 +124,7 @@ async def sampling_fn(
     from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model import get_model
 
-    # once a limit is exceeded, refuse further requests from the tool call
+    # once a limit is exceeded, refuse further sampling for the request
     session = getattr(context, "session", None)
     pending = _pending_sampling_limit_error(session) if session is not None else None
     if pending is not None:
@@ -190,7 +190,8 @@ async def sampling_fn(
         # dispatcher converts anything raised here into an INTERNAL_ERROR
         # response anyway, so re-raising would not reach the sample runner.
         # A sample limit ends the sample now; any limit is also raised by
-        # the tool call (see raise_sampling_limit_error).
+        # the request that the server is handling (see
+        # raise_sampling_limit_error).
         limit_error = enclosing_limit_error(ex)
         if limit_error is not None:
             if limit_error_scope(limit_error) == "sample":
