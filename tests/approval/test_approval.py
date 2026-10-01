@@ -1018,6 +1018,22 @@ class OuterLiteralPayload(BaseModel):
     items: list[LiteralPayload]
 
 
+class FlagPayload(BaseModel):
+    value: bool | bytes
+
+
+class SetPayload(BaseModel):
+    value: Annotated[set[float], Field(min_length=1)] | Literal["none"]
+
+
+class FrozenSetPayload(BaseModel):
+    value: frozenset[float] | Literal["none"]
+
+
+class OuterFlagPayload(BaseModel):
+    items: list[FlagPayload]
+
+
 @tool
 def model_inputs(received: list[dict[str, Any]]):
     async def execute(
@@ -1031,6 +1047,10 @@ def model_inputs(received: list[dict[str, Any]]):
         raw: BytesPayload | None = None,
         anything: AnyPayload | None = None,
         outer_literal: OuterLiteralPayload | None = None,
+        flag: FlagPayload | None = None,
+        floats: SetPayload | None = None,
+        frozen: FrozenSetPayload | None = None,
+        outer_flag: OuterFlagPayload | None = None,
     ) -> str:
         """Record model inputs.
 
@@ -1045,6 +1065,10 @@ def model_inputs(received: list[dict[str, Any]]):
             raw: A union with a bytes member.
             anything: A union with an Any member.
             outer_literal: Nested models with a Literal union member.
+            flag: A union of a flag and bytes.
+            floats: A union with a set of floats.
+            frozen: A union with a frozenset of floats.
+            outer_flag: Nested flag models.
         """
         received.append(
             {
@@ -1058,6 +1082,10 @@ def model_inputs(received: list[dict[str, Any]]):
                 "raw": raw,
                 "anything": anything,
                 "outer_literal": outer_literal,
+                "flag": flag,
+                "floats": floats,
+                "frozen": frozen,
+                "outer_flag": outer_flag,
             }
         )
         return "ok"
@@ -1076,6 +1104,11 @@ MODEL_INPUT_CASES: list[tuple[str, dict[str, Any]]] = [
     ("bytes", {"raw": {"amount": 2**53 + 1}}),
     ("any", {"anything": {"amount": 2**53 + 1}}),
     ("nested-literal", {"outer_literal": {"items": [{"amount": 2**53 + 1}]}}),
+    ("flag-false-string", {"flag": {"value": "false"}}),
+    ("flag-true-string", {"flag": {"value": "true"}}),
+    ("set", {"floats": {"value": [2**53 + 1]}}),
+    ("frozenset", {"frozen": {"value": [2**53 + 1]}}),
+    ("nested-flag", {"outer_flag": {"items": [{"value": "false"}]}}),
 ]
 
 
@@ -1128,6 +1161,10 @@ async def test_exact_model_fields_run_as_approved() -> None:
         "raw": {"amount": exact},
         "anything": {"amount": exact},
         "outer_literal": {"items": [{"amount": "unlimited"}, {"amount": exact}]},
+        "flag": {"value": False},
+        "floats": {"value": [exact, 1.5]},
+        "frozen": {"value": [exact]},
+        "outer_flag": {"items": [{"value": True}]},
     }
 
     message, calls, viewed, received = await execute_model_inputs(arguments)
@@ -1148,6 +1185,10 @@ async def test_exact_model_fields_run_as_approved() -> None:
     assert values["outer_literal"] == OuterLiteralPayload(
         items=[LiteralPayload(amount="unlimited"), LiteralPayload(amount=exact)]
     )
+    assert values["flag"] == FlagPayload(value=False)
+    assert values["floats"].value == {float(exact), 1.5}
+    assert values["frozen"].value == frozenset({float(exact)})
+    assert values["outer_flag"] == OuterFlagPayload(items=[FlagPayload(value=True)])
 
 
 @tool

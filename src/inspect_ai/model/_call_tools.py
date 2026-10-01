@@ -5,9 +5,10 @@ import string
 import types
 import typing
 from copy import copy, deepcopy
-from dataclasses import is_dataclass, replace
-from datetime import date, datetime, time
-from enum import EnumMeta
+from dataclasses import fields, is_dataclass, replace
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
+from enum import Enum, EnumMeta
 from logging import getLogger
 from textwrap import dedent
 from types import UnionType
@@ -1595,25 +1596,61 @@ def _input_at(value: Any, path: tuple[str | int, ...]) -> tuple[bool, Any]:
 
 
 def _value_preserved(supplied: Any, built: Any) -> bool:
-    """Whether `built` holds `supplied` without a changed number or flag."""
-    if isinstance(built, BaseModel):
-        return not isinstance(supplied, dict) or _model_preserves(supplied, built)
-    if isinstance(supplied, int | float) and isinstance(built, int | float):
-        if isinstance(supplied, bool) != isinstance(built, bool):
+    """Whether `built` holds the JSON value `supplied` with the same meaning.
+
+    Numbers and flags must survive exactly, and keep their kind: a string
+    never becomes a number or flag, nor a number or flag a string. Arrays and
+    objects are compared element by element against the sequence, set,
+    mapping, model or dataclass built from them. Other types parsed from a
+    string (dates, enums, bytes, UUIDs) are accepted.
+    """
+    if isinstance(built, Enum) and not isinstance(supplied, list | dict):
+        return _value_preserved(supplied, built.value)
+    if supplied is None:
+        return built is None
+    if isinstance(supplied, bool):
+        return isinstance(built, bool) and built == supplied
+    if isinstance(supplied, int | float):
+        if isinstance(built, bool | str):
             return False
-        return bool(supplied == built) or (
-            isinstance(supplied, float) and math.isnan(supplied) and math.isnan(built)
-        )
-    if isinstance(supplied, list) and isinstance(built, list | tuple):
-        return len(supplied) == len(built) and all(
-            _value_preserved(s, b) for s, b in zip(supplied, built)
-        )
-    if isinstance(supplied, dict) and isinstance(built, dict):
-        return all(
-            _value_preserved(value, built[key])
-            for key, value in supplied.items()
-            if key in built
-        )
+        if isinstance(built, int | float | Decimal):
+            return bool(supplied == built) or (
+                isinstance(supplied, float)
+                and math.isnan(supplied)
+                and isinstance(built, float)
+                and math.isnan(built)
+            )
+        if isinstance(built, timedelta):
+            return bool(built.total_seconds() == supplied)
+        return False
+    if isinstance(supplied, str):
+        if isinstance(built, str):
+            return built == supplied
+        return not isinstance(built, bool | int | float | Decimal)
+    if isinstance(supplied, list):
+        if isinstance(built, list | tuple):
+            return len(supplied) == len(built) and all(
+                _value_preserved(s, b) for s, b in zip(supplied, built)
+            )
+        if isinstance(built, set | frozenset):
+            return all(any(_value_preserved(s, b) for b in built) for s in supplied)
+        return True
+    if isinstance(supplied, dict):
+        if isinstance(built, BaseModel):
+            return _model_preserves(supplied, built)
+        if is_dataclass(built) and not isinstance(built, type):
+            return all(
+                _value_preserved(supplied[field.name], getattr(built, field.name))
+                for field in fields(built)
+                if field.name in supplied
+            )
+        if isinstance(built, dict):
+            return all(
+                _value_preserved(value, built[key])
+                for key, value in supplied.items()
+                if key in built
+            )
+        return True
     return True
 
 

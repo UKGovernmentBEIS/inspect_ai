@@ -672,3 +672,35 @@ def test_tool_params_keeps_an_argument_named_like_the_var_keyword() -> None:
         "arguments": "kept",
         "x": 1,
     }
+
+
+def test_model_conversion_keeps_values_parsed_from_strings() -> None:
+    from decimal import Decimal
+
+    class Parsed(BaseModel):
+        when: date
+        enum: MyEnum
+        data: bytes
+        tags: Set[str]
+        price: Decimal
+        ratio: float
+
+    parsed = tool_param(
+        Parsed,
+        {
+            "when": "2025-01-02",
+            "enum": "alpha",
+            "data": "abc",
+            "tags": ["a", "a"],
+            "price": 5,
+            "ratio": 2,
+        },
+    )
+    assert parsed == Parsed(
+        when=date(2025, 1, 2),
+        enum=MyEnum.ALPHA,
+        data=b"abc",
+        tags={"a"},
+        price=Decimal(5),
+        ratio=2.0,
+    )
