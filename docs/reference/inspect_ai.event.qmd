@@ -10,7 +10,6 @@ description: Transcript events.
 ### BranchEvent
 ### CompactionEvent
 ### ApprovalEvent
-### SentinelEvent
 ### SandboxEvent
 ### InfoEvent
 ### ScoreEvent

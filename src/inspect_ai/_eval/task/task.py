@@ -165,7 +165,7 @@ class Task:
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
             review: Tool result review policies.
                 Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
-            sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package).
+            sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
                 A monitor, a protocol, a list or mapping of them, a config file path or registered name, or a parsed configuration. Defaults to no sentinel.
             epochs: Epochs to repeat samples for and optional score
                 reducer function(s) used to combine sample scores (defaults to "mean")
@@ -398,7 +398,7 @@ def task_with(
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         review: Tool result review policies.
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
-        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package).
+        sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A monitor, a protocol, a list or mapping of them, a config file path or registered name, or a parsed configuration. Defaults to no sentinel.
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
