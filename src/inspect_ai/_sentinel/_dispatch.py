@@ -33,7 +33,11 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, active_model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.review._human import view_with_result
+from inspect_ai.review._human import (
+    _escape_placeholders,
+    _fenced,
+    view_with_result,
+)
 from inspect_ai.scorer._metric import Reference
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.tool._tool import ToolApprovalError, ToolResult
@@ -362,21 +366,22 @@ _HUMAN_CHOICES: dict[str, ApprovalDecision] = {
 def _human_view(step: Step) -> ToolCallView:
     view = step.view
     if step.escalations:
-        lines = "\n".join(
-            f"- {e.name}: {e.report.explanation}"
-            if e.report.explanation
-            else f"- {e.name}"
-            for e in step.escalations
-        ).replace("{{", "{ {")
-        if view.call is None:
-            call = ToolCallContent(
-                format="markdown", content=f"**Escalated by**\n\n{lines}"
+        lines = _escape_placeholders(
+            "\n".join(
+                f"- {e.name}: {e.report.explanation}"
+                if e.report.explanation
+                else f"- {e.name}"
+                for e in step.escalations
             )
+        )
+        escalated = f"**Escalated by**\n\n{_fenced(lines)}"
+        if view.call is None:
+            call = ToolCallContent(format="markdown", content=escalated)
         elif view.call.format == "markdown":
             call = ToolCallContent(
                 title=view.call.title,
                 format="markdown",
-                content=f"**Escalated by**\n\n{lines}\n\n{view.call.content}",
+                content=f"{escalated}\n\n{view.call.content}",
             )
         else:
             call = ToolCallContent(

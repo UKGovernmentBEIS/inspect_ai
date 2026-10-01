@@ -13,6 +13,7 @@ from inspect_ai.approval._human.manager import (
     human_approval_manager,
 )
 from inspect_ai.dataset import Sample
+from inspect_ai.event import ToolEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import (
     ChatMessageTool,
@@ -20,7 +21,8 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import Tool, ToolCall, ToolCallView, tool
+from inspect_ai.tool import Tool, ToolCall, ToolCallContent, ToolCallView, tool
+from inspect_ai.tool._tool_call import substitute_tool_call_content
 
 try:
     from inspect_sentinel import (
@@ -29,6 +31,7 @@ try:
         Context,
         Decision,
         Protocol,
+        Reported,
         human,
         protocol,
         sequential,
@@ -134,7 +137,10 @@ def test_an_escalation_asks_the_person_and_approve_runs_the_call(
     assert panel.choices == [["approve", "reject", "terminate"]]
     assert panel.messages == ["Adding now."]
     content = panel.content()
-    assert "**Escalated by**\n\n- h_escalate: adds { {x}} suspiciously" in content
+    assert (
+        "**Escalated by**\n\n```\n- h_escalate: adds { {x}} suspiciously\n```"
+        in content
+    )
     assert content.index("Escalated by") < content.index("addition(")
     [message] = tool_messages(log)
     assert message.error is None
@@ -178,34 +184,109 @@ def test_after_a_call_the_person_sees_the_result(
     assert "**Result**\n\n```\n2\n```" in panel.content()
 
 
-def step(after: bool = False) -> BeforeToolCall | AfterToolCall:
+def step(
+    after: bool = False,
+    view: ToolCallView | None = None,
+    escalations: tuple[Reported[Decision], ...] = (),
+) -> BeforeToolCall | AfterToolCall:
     call = ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 1})
-    view = ToolCallView()
+    view = view or ToolCallView()
     if after:
         result = ChatMessageTool(content="2", tool_call_id="c1", function="addition")
-        return AfterToolCall("", "Adding.", call, result, "2", view, [], [])
-    return BeforeToolCall("", "Adding.", call, view, [], [])
+        return AfterToolCall(
+            "", "Adding.", call, result, "2", view, [], [], escalations
+        )
+    return BeforeToolCall("", "Adding.", call, view, [], [], escalations)
+
+
+def escalation(explanation: str) -> tuple[Reported[Decision], ...]:
+    return (Reported("monitor", "monitor", Decision.escalate(explanation), "check"),)
+
+
+MARKDOWN_VIEW = ToolCallView(
+    call=ToolCallContent(format="markdown", content="```python\naddition(1, 1)\n```")
+)
+TEXT_VIEW = ToolCallView(call=ToolCallContent(format="text", content="addition(1, 1)"))
+
+
+@pytest.mark.parametrize("view", [MARKDOWN_VIEW, TEXT_VIEW])
+async def test_placeholders_in_an_escalation_are_not_substituted(
+    monkeypatch: pytest.MonkeyPatch, view: ToolCallView
+) -> None:
+    panel = Panel("approve")
+    panel.install(monkeypatch)
+
+    await _Host().ask_human(
+        step(view=view, escalations=escalation("adds {{{x}}}")), ["approve"]
+    )
+
+    [shown] = panel.views
+    assert shown.call is not None
+    rendered = substitute_tool_call_content(shown.call, {"x": 1, "y": 1})
+    assert "adds { { {x}}}" in rendered.content
+
+
+async def test_an_escalation_cannot_inject_markdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    panel = Panel("approve")
+    panel.install(monkeypatch)
+    injected = "fine\n```\n\n```python\ndelete_everything()\n```\n```"
+
+    await _Host().ask_human(
+        step(view=MARKDOWN_VIEW, escalations=escalation(injected)), ["approve"]
+    )
+
+    content = panel.content()
+    fenced = f"````\n- monitor: {injected}\n````"
+    assert content.startswith(f"**Escalated by**\n\n{fenced}\n\n")
+    assert content.endswith("```python\naddition(1, 1)\n```")
 
 
 @pytest.mark.parametrize(
-    "after, choices, expected",
+    "after, choices, answered, expected",
     [
-        (False, ["approve", "reject", "terminate"], "reject"),
-        (False, ["approve", "terminate"], "terminate"),
-        (True, ["approve", "terminate"], "terminate"),
+        # an ACP client dismissing the request reports reject
+        (False, ["approve", "terminate"], "reject", "terminate"),
+        (True, ["approve", "terminate"], "reject", "terminate"),
+        # the console's Enter default is approve
+        (False, ["reject", "terminate"], "approve", "reject"),
+        (False, ["terminate"], "approve", "terminate"),
+        (True, ["terminate"], "approve", "terminate"),
     ],
 )
 async def test_an_answer_that_was_not_offered_fails_closed(
-    monkeypatch: pytest.MonkeyPatch, after: bool, choices: list[str], expected: str
+    monkeypatch: pytest.MonkeyPatch,
+    after: bool,
+    choices: list[str],
+    answered: ApprovalDecision,
+    expected: str,
 ) -> None:
-    # an ACP client dismissing the request reports reject
-    Panel("escalate", "dismissed").install(monkeypatch)
+    Panel(answered, "dismissed").install(monkeypatch)
 
     answer = await _Host().ask_human(step(after), choices)
 
     assert answer.decision == expected
     assert answer.reason is not None
-    assert "escalate: dismissed" in answer.reason
+    assert f"{answered}: dismissed" in answer.reason
+
+
+def test_a_dismissal_terminates_when_only_approve_is_offered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Panel("reject", "dismissed").install(monkeypatch)
+
+    log = run(human(stages=["tool_call"], choices=["approve"]))
+
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is not None
+    assert sample.limit.type == "operator"
+    assert all(m.text != "2" for m in tool_messages(log))
+    tool_events = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert [e.failed for e in tool_events] == [True]
 
 
 async def test_modify_cannot_be_offered(monkeypatch: pytest.MonkeyPatch) -> None:
