@@ -108223,6 +108223,7 @@ function hasDataDefault(node) {
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/transform/toolSentinels.ts
 /** The span a sentinel's dispatch runs in; it holds the step's events and the model calls its monitors made. */ var isSentinelSpan = (node) => node.event.event === "span_begin" && node.event.type === "sentinel";
+var reported = (node, kind) => node.event.status === "reported" && node.event.kind === kind;
 var pathSegments = (path) => path === "" ? [] : path.split("/");
 var isAncestorPath = (ancestor, path) => ancestor === "" ? path !== "" : path.startsWith(`${ancestor}/`);
 /**
@@ -108283,7 +108284,7 @@ var explanationOf = (node) => node?.event.explanation?.trim() || void 0;
 	let current = tree.find((e) => e.node === outcome);
 	let reason = explanationOf(outcome);
 	for (;;) {
-		const next = current.children.find((c) => c.node.event.kind === "decision" && c.node.event.action === outcome.event.action);
+		const next = current.children.find((c) => reported(c.node, "decision") && c.node.event.action === outcome.event.action);
 		if (!next) return {
 			node: current.node,
 			reason
@@ -108296,25 +108297,25 @@ var explanationOf = (node) => node?.event.explanation?.trim() || void 0;
 * The decision the runner returned for the step: the root's, or, when a
 * `decide_final()` bypassed the root, the one recorded after the bypassed layers.
 */ var outcomeOf = (nodes) => {
-	const root = nodes.find((n) => n.event.path === "" && n.event.kind === "decision");
+	const root = nodes.find((n) => n.event.path === "" && reported(n, "decision"));
 	if (root) return root;
-	const bypassed = nodes.findIndex((n) => n.event.path === "" && n.event.kind === "bypassed");
+	const bypassed = nodes.findIndex((n) => n.event.path === "" && n.event.status === "bypassed");
 	if (bypassed === -1) return void 0;
-	return nodes.slice(bypassed + 1).findLast((n) => n.event.kind === "decision");
+	return nodes.slice(bypassed + 1).findLast((n) => reported(n, "decision"));
 };
-var isInactiveKind = (kind) => kind === "bypassed" || kind === "cancelled" || kind === "superseded";
+var isInactive$1 = (status) => status !== "reported";
 /**
 * The verdict of a step the runner returned no decision for: observed when
 * only monitors reported, continued when a protocol reported but the root
-* returned nothing, and the recorded kind when the root or every check was
+* returned nothing, and the recorded status when the root or every check was
 * cancelled or bypassed.
 */ var quietVerdict = (checks) => {
-	const rootKind = checks.find((n) => n.event.path === "")?.event.kind;
-	if (rootKind && isInactiveKind(rootKind)) return rootKind;
-	if (checks.some((n) => n.event.kind === "decision")) return "continue";
-	if (checks.some((n) => n.event.kind === "observation")) return "observe";
-	const firstKind = checks[0]?.event.kind;
-	return firstKind && isInactiveKind(firstKind) ? firstKind : "continue";
+	const rootStatus = checks.find((n) => n.event.path === "")?.event.status;
+	if (rootStatus && isInactive$1(rootStatus)) return rootStatus;
+	if (checks.some((n) => reported(n, "decision"))) return "continue";
+	if (checks.some((n) => reported(n, "observation"))) return "observe";
+	const firstStatus = checks[0]?.event.status;
+	return firstStatus && isInactive$1(firstStatus) ? firstStatus : "continue";
 };
 /**
 * Builds the check tree for one step's events, given in recording order. A
@@ -108323,8 +108324,8 @@ var isInactiveKind = (kind) => kind === "bypassed" || kind === "cancelled" || ki
 	const first = nodes[0];
 	const replaced = /* @__PURE__ */ new Set();
 	nodes.forEach((loser, at) => {
-		if (loser.event.kind !== "superseded") return;
-		for (const report of nodes.slice(0, at)) if (report.event.kind === "decision" && report.event.path === loser.event.path && report.event.function === loser.event.function) replaced.add(report);
+		if (loser.event.status !== "superseded") return;
+		for (const report of nodes.slice(0, at)) if (reported(report, "decision") && report.event.path === loser.event.path && report.event.function === loser.event.function) replaced.add(report);
 	});
 	const checks = nodes.filter((n) => !replaced.has(n));
 	const keys = pathOrderKeys(checks);
@@ -108337,7 +108338,7 @@ var isInactiveKind = (kind) => kind === "bypassed" || kind === "cancelled" || ki
 	const credit = acted ? creditDecision(tree, outcome) : void 0;
 	const effective = credit?.node;
 	const single = checks.length === 1 ? checks[0] : void 0;
-	const observations = checks.filter((n) => n.event.kind === "observation" && n.event.suspicion != null);
+	const observations = checks.filter((n) => reported(n, "observation") && n.event.suspicion != null);
 	const scores = acted ? [] : single?.event.suspicion != null ? [formatSuspicion(single.event.suspicion)].filter(Boolean) : observations.flatMap((n) => {
 		const top = topScore(n.event.suspicion);
 		if (!top.value) return [];
@@ -108369,7 +108370,7 @@ var isInactiveKind = (kind) => kind === "bypassed" || kind === "cancelled" || ki
 */ function buildLoneSentinelStep(node) {
 	const step = buildSentinelStep([node]);
 	const event = node.event;
-	if (event.kind !== "decision" || step.outcome) return step;
+	if (!reported(node, "decision") || step.outcome) return step;
 	const verdict = event.action ?? "continue";
 	const acted = verdict !== "continue";
 	return {
@@ -108544,7 +108545,7 @@ var reviewDecisionLabels = {
 		case "input": return "Input";
 		case "approval": return approvalDecisionLabels[event.decision] ?? event.decision;
 		case "review": return reviewDecisionLabels[event.decision] ?? event.decision;
-		case "sentinel": return `Sentinel ${toTitleCase(event.kind)}: ${instanceLabel(event)}`;
+		case "sentinel": return event.status === "reported" ? `Sentinel ${toTitleCase(event.kind)}: ${instanceLabel(event)}` : `Sentinel ${toTitleCase(event.kind)} (${event.status}): ${instanceLabel(event)}`;
 		case "sandbox": return `Sandbox: ${event.action}`;
 		default: return "";
 	}
@@ -114484,16 +114485,16 @@ var CheckResult = (t0) => {
 		$[1] = t1;
 	} else t1 = $[1];
 	const flag = t1;
-	if (event.kind === "bypassed" || event.kind === "cancelled") {
+	if (event.status === "bypassed" || event.status === "cancelled") {
 		let t2;
-		if ($[2] !== event.kind) {
-			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.kind });
-			$[2] = event.kind;
+		if ($[2] !== event.status) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.status });
+			$[2] = event.status;
 			$[3] = t2;
 		} else t2 = $[3];
 		return t2;
 	}
-	if (event.kind === "superseded") {
+	if (event.status === "superseded") {
 		let t2;
 		if ($[4] !== event.action) {
 			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("s", { children: event.action }), " · superseded"] });
@@ -114587,7 +114588,7 @@ var CheckDetail = (t0) => {
 	} else t2 = $[4];
 	const effectTone = t2;
 	const t3 = event.audit ? "flagged" : null;
-	const t4 = event.kind === "superseded" ? "superseded" : null;
+	const t4 = event.status === "superseded" ? "superseded" : null;
 	let t5;
 	if ($[5] !== t3 || $[6] !== t4) {
 		t5 = [t3, t4].filter(Boolean);
@@ -114757,7 +114758,7 @@ var replacementText = (call) => {
 	const { input, functionCall } = resolveToolInput(call.function, call.arguments);
 	return typeof input === "string" && input ? input : functionCall;
 };
-var isInactive = (event) => event.kind === "superseded" || event.kind === "bypassed" || event.kind === "cancelled";
+var isInactive = (event) => event.status !== "reported";
 /** The step's monitor model calls, collapsed to a count that expands to the model call views. */ var ModelCallsNote = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(22);
 	const { id, modelCalls, context } = t0;
@@ -117818,6 +117819,7 @@ var sanitizeStringify = (v) => {
 		case "sentinel": {
 			const sentinelEvent = event;
 			fields.push(["kind", sentinelEvent.kind]);
+			fields.push(["status", sentinelEvent.status]);
 			if (sentinelEvent.path) fields.push(["path", sentinelEvent.path]);
 			fields.push(["factory", sentinelEvent.factory]);
 			if (sentinelEvent.function) fields.push(["function", sentinelEvent.function]);
@@ -126165,7 +126167,7 @@ var labelForNode = (node) => {
 			escalate: "escalated",
 			terminate: "terminated"
 		}[node.event.decision];
-		case "sentinel": return `sentinel ${node.event.action ?? node.event.kind}`;
+		case "sentinel": return `sentinel ${node.event.status === "reported" ? node.event.action ?? node.event.kind : node.event.status}`;
 		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
 		case "score": return "scoring";
 		case "step":
