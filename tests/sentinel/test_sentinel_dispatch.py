@@ -33,6 +33,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.scorer import Reference
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import Tool, ToolCall, ToolCallView, tool
 from inspect_ai.util import StoreModel
@@ -122,6 +123,25 @@ def d3_suspicion(score: float = 0.25) -> Monitor:
         return Observation.score(score, "looked")
 
     return check
+
+
+_CITE = Reference(type="message", id="msg_2", cite="[M2]")
+
+
+@monitor
+def d3_cites() -> Monitor:
+    async def check(context: Context, step: BeforeToolCall) -> Observation | None:
+        return Observation.score(0.3, "see [M2]", references=[_CITE])
+
+    return check
+
+
+@protocol
+def d3_cites_reject() -> Protocol:
+    async def decide(context: Context, step: BeforeToolCall) -> Decision | None:
+        return Decision.reject("see [M2]", references=[_CITE])
+
+    return decide
 
 
 class Trajectory(StoreModel):
@@ -301,6 +321,17 @@ def test_observe_records_observations_without_effect() -> None:
     assert event.action is None
 
 
+def test_references_are_recorded_from_each_report() -> None:
+    log = run({"watch": d3_cites(), "block": d3_cites_reject()})
+    assert log.status == "success", log.error
+    events = {e.path: e for e in sentinel_events(log)}
+    assert {path: e.references for path, e in events.items()} == {
+        "watch": [_CITE],
+        "block": [_CITE],
+        "": [_CITE],
+    }
+
+
 def test_final_from_a_nested_protocol() -> None:
     log = run(concurrent({"inner": d3_final()}))
     assert log.status == "success", log.error
@@ -313,6 +344,7 @@ def test_final_from_a_nested_protocol() -> None:
         ("inspect_sentinel/concurrent", "", None, "bypassed", None),
         ("d3_final", "concurrent/inner", "veto", "decision", "reject"),
     ]
+    assert all(e.references == [] for e in sentinel_events(log))
 
 
 def test_multi_function_monitor_shares_state_across_calls() -> None:

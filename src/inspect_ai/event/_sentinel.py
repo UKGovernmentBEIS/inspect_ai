@@ -4,6 +4,7 @@ from pydantic import Field, FiniteFloat, model_validator
 from typing_extensions import Self
 
 from inspect_ai.event._base import BaseEvent
+from inspect_ai.scorer._metric import Reference
 from inspect_ai.tool._tool_call import ToolCall
 
 SentinelAction: TypeAlias = Literal[
@@ -68,6 +69,9 @@ class SentinelEvent(BaseEvent):
     explanation: str | None = Field(default=None)
     """Explanation for the report, recorded in the log only (the agent never sees it)."""
 
+    references: list[Reference] = Field(default_factory=list)
+    """Messages and events the report cites, which link cites such as `[M22]` in `explanation`. Empty for `cancelled` and `bypassed` events."""
+
     @model_validator(mode="after")
     def _check_kind_fields(self) -> Self:
         if self.kind in ("cancelled", "bypassed"):
@@ -76,10 +80,12 @@ class SentinelEvent(BaseEvent):
                 for field in ("function", "suspicion", "action")
                 if getattr(self, field) is not None
             ]
+            if self.references:
+                unexpected.append("references")
             if unexpected:
                 raise ValueError(
                     f"A '{self.kind}' SentinelEvent records no report, so "
-                    f"{', '.join(unexpected)} must be None."
+                    f"{', '.join(unexpected)} must be unset."
                 )
         elif self.kind == "observation":
             if self.suspicion is None or self.action is not None:

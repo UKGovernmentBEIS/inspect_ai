@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from logging import getLogger
 from typing import Any, Literal
 from weakref import WeakKeyDictionary
@@ -28,6 +29,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import active_model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.scorer._metric import Reference
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
@@ -281,6 +283,7 @@ class _Recorder:
                 function=reported.function,
                 suspicion=report.suspicion,
                 explanation=report.explanation,
+                references=report.references,
                 metadata=report.metadata,
             )
         else:
@@ -314,6 +317,7 @@ def _emit_decision(
         audit=decision.audit,
         message=decision.message,
         explanation=decision.explanation,
+        references=decision.references,
         metadata=decision.metadata,
         modified=decision.modified,
     )
@@ -330,6 +334,7 @@ def _emit(
     audit: bool = False,
     message: str | None = None,
     explanation: str | None = None,
+    references: Sequence[Reference] = (),
     metadata: dict[str, Any] | None = None,
     modified: ToolCall | None = None,
 ) -> None:
@@ -347,6 +352,7 @@ def _emit(
             audit=audit,
             message=message,
             explanation=explanation,
+            references=list(references),
             metadata=metadata,
             modified=modified,
         )

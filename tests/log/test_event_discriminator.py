@@ -15,6 +15,7 @@ from inspect_ai.event._sentinel import (
     SentinelEvent,
     SentinelSuspicion,
 )
+from inspect_ai.scorer import Reference
 from inspect_ai.tool import ToolCall
 
 
@@ -96,6 +97,11 @@ def _sentinel_event(**kwargs: Any) -> SentinelEvent:
 
 _MODIFIED = ToolCall(id="call_1", function="bash", arguments={"cmd": "ls"})
 
+_REFERENCES = [
+    Reference(type="message", id="msg_22", cite="[M22]"),
+    Reference(type="event", id="evt_7"),
+]
+
 
 def _observation(**kwargs: Any) -> SentinelEvent:
     fields: dict[str, Any] = dict(kind="observation", action=None, suspicion=0.5)
@@ -115,6 +121,8 @@ def _observation(**kwargs: Any) -> SentinelEvent:
         _sentinel_event(kind="bypassed", function=None, action=None),
         _sentinel_event(action="modify", modified=_MODIFIED),
         _sentinel_event(kind="superseded", action="modify", modified=_MODIFIED),
+        _observation(references=_REFERENCES),
+        _sentinel_event(references=_REFERENCES),
     ],
 )
 def test_sentinel_event_round_trips(event: SentinelEvent) -> None:
@@ -137,6 +145,7 @@ def test_sentinel_event_rejects_invalid_suspicion() -> None:
         ("function", "f"),
         ("suspicion", 0.5),
         ("action", "continue"),
+        ("references", [{"type": "message", "id": "msg_22"}]),
     ],
 )
 def test_sentinel_event_without_report_rejects_report_fields(

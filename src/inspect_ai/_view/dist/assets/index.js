@@ -106189,6 +106189,13 @@ function _temp$71(toolDefinition, idx) {
 	return events?.some((event) => event.event === "store" && storeEventHasDefaultVisiblePreview(event.changes)) ? kDefaultExcludeEvents.filter((type) => type !== "store") : [...kDefaultExcludeEvents];
 };
 //#endregion
+//#region ../../packages/inspect-components/src/transcript/citeReferences.ts
+/** References as markdown cite links; one with no cite has nothing in the text to link. */ var citeReferences = (references, makeCiteUrl) => references.flatMap((ref) => ref.cite ? [{
+	id: ref.id,
+	cite: ref.cite,
+	citeUrl: makeCiteUrl?.(ref.id, ref.type)
+}] : []);
+//#endregion
 //#region ../../packages/inspect-components/src/transcript/transform/fixups.ts
 var kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
 /**
@@ -114196,7 +114203,7 @@ var SentinelEventView_module_default = {
 * One step's sentinel checks: a summary row naming the result that took
 * effect, expanding to the tree of every check with its detail beneath it.
 */ var SentinelInset = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(34);
+	const $ = (0, import_compiler_runtime.c)(35);
 	const { step, region, context, ran: t1 } = t0;
 	const ran = t1 === void 0 ? true : t1;
 	const [collapsed, setCollapsed] = useCollapsedState(`${step.id}-sentinel-checks`, true);
@@ -114254,29 +114261,31 @@ var SentinelEventView_module_default = {
 		$[19] = t5;
 	} else t5 = $[19];
 	let t6;
-	if ($[20] !== collapsed || $[21] !== step || $[22] !== tone) {
+	if ($[20] !== collapsed || $[21] !== context?.makeCiteUrl || $[22] !== step || $[23] !== tone) {
 		t6 = !collapsed && step.rows.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckTree, {
 			step,
-			tone
+			tone,
+			makeCiteUrl: context?.makeCiteUrl
 		}) : null;
 		$[20] = collapsed;
-		$[21] = step;
-		$[22] = tone;
-		$[23] = t6;
-	} else t6 = $[23];
+		$[21] = context?.makeCiteUrl;
+		$[22] = step;
+		$[23] = tone;
+		$[24] = t6;
+	} else t6 = $[24];
 	let t7;
-	if ($[24] !== context || $[25] !== step.modelCalls) {
+	if ($[25] !== context || $[26] !== step.modelCalls) {
 		t7 = step.modelCalls[0] ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelCallsNote, {
 			id: step.modelCalls[0].id,
 			modelCalls: step.modelCalls,
 			context
 		}) : null;
-		$[24] = context;
-		$[25] = step.modelCalls;
-		$[26] = t7;
-	} else t7 = $[26];
+		$[25] = context;
+		$[26] = step.modelCalls;
+		$[27] = t7;
+	} else t7 = $[27];
 	let t8;
-	if ($[27] !== region || $[28] !== t4 || $[29] !== t5 || $[30] !== t6 || $[31] !== t7 || $[32] !== tone) {
+	if ($[28] !== region || $[29] !== t4 || $[30] !== t5 || $[31] !== t6 || $[32] !== t7 || $[33] !== tone) {
 		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(CheckInset, {
 			region,
 			tone,
@@ -114287,19 +114296,19 @@ var SentinelEventView_module_default = {
 				t7
 			]
 		});
-		$[27] = region;
-		$[28] = t4;
-		$[29] = t5;
-		$[30] = t6;
-		$[31] = t7;
-		$[32] = tone;
-		$[33] = t8;
-	} else t8 = $[33];
+		$[28] = region;
+		$[29] = t4;
+		$[30] = t5;
+		$[31] = t6;
+		$[32] = t7;
+		$[33] = tone;
+		$[34] = t8;
+	} else t8 = $[34];
 	return t8;
 };
 var CheckTree = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(8);
-	const { step, tone } = t0;
+	const { step, tone, makeCiteUrl } = t0;
 	const grouped = groupedPaths(step.rows);
 	const t1 = step.effective?.id ?? null;
 	let t2;
@@ -114326,7 +114335,8 @@ var CheckTree = (t0) => {
 			onToggle: () => setOpenRow(open ? null : row.node.id)
 		}), open ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckDetail, {
 			row,
-			showFunction: grouped.has(row.node.event.path)
+			showFunction: grouped.has(row.node.event.path),
+			makeCiteUrl
 		}) : null] }, row.node.id);
 	});
 	let t7;
@@ -114558,8 +114568,8 @@ var CheckResult = (t0) => {
 	return t4;
 };
 var CheckDetail = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(48);
-	const { row, showFunction } = t0;
+	const $ = (0, import_compiler_runtime.c)(50);
+	const { row, showFunction, makeCiteUrl } = t0;
 	const event = row.node.event;
 	let t1;
 	if ($[0] !== event.explanation) {
@@ -114656,20 +114666,23 @@ var CheckDetail = (t0) => {
 		t9 = $[18];
 	}
 	let t11;
-	if ($[30] !== effectTone || $[31] !== explanation) {
-		t11 = explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, {
+	if ($[30] !== effectTone || $[31] !== event.references || $[32] !== explanation || $[33] !== makeCiteUrl) {
+		t11 = explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
 			markdown: explanation,
+			references: citeReferences(event.references, makeCiteUrl),
 			className: clsx(SentinelEventView_module_default.explanation, effectTone === "reject" && checkClasses.rejectReason)
 		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: SentinelEventView_module_default.noExplanation,
 			children: "No explanation recorded."
 		});
 		$[30] = effectTone;
-		$[31] = explanation;
-		$[32] = t11;
-	} else t11 = $[32];
+		$[31] = event.references;
+		$[32] = explanation;
+		$[33] = makeCiteUrl;
+		$[34] = t11;
+	} else t11 = $[34];
 	let t12;
-	if ($[33] !== event.message) {
+	if ($[35] !== event.message) {
 		t12 = event.message ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: SentinelEventView_module_default.labelled,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -114677,11 +114690,11 @@ var CheckDetail = (t0) => {
 				children: "told the agent"
 			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.message })]
 		}) : null;
-		$[33] = event.message;
-		$[34] = t12;
-	} else t12 = $[34];
+		$[35] = event.message;
+		$[36] = t12;
+	} else t12 = $[36];
 	let t13;
-	if ($[35] !== event.modified) {
+	if ($[37] !== event.modified) {
 		t13 = event.modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: SentinelEventView_module_default.labelled,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -114692,11 +114705,11 @@ var CheckDetail = (t0) => {
 				children: replacementText(event.modified)
 			})]
 		}) : null;
-		$[35] = event.modified;
-		$[36] = t13;
-	} else t13 = $[36];
+		$[37] = event.modified;
+		$[38] = t13;
+	} else t13 = $[38];
 	let t14;
-	if ($[37] !== t11 || $[38] !== t12 || $[39] !== t13 || $[40] !== t6 || $[41] !== t7 || $[42] !== t8) {
+	if ($[39] !== t11 || $[40] !== t12 || $[41] !== t13 || $[42] !== t6 || $[43] !== t7 || $[44] !== t8) {
 		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t6,
 			children: [
@@ -114707,26 +114720,26 @@ var CheckDetail = (t0) => {
 				t13
 			]
 		});
-		$[37] = t11;
-		$[38] = t12;
-		$[39] = t13;
-		$[40] = t6;
-		$[41] = t7;
-		$[42] = t8;
-		$[43] = t14;
-	} else t14 = $[43];
+		$[39] = t11;
+		$[40] = t12;
+		$[41] = t13;
+		$[42] = t6;
+		$[43] = t7;
+		$[44] = t8;
+		$[45] = t14;
+	} else t14 = $[45];
 	let t15;
-	if ($[44] !== t10 || $[45] !== t14 || $[46] !== t9) {
+	if ($[46] !== t10 || $[47] !== t14 || $[48] !== t9) {
 		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: t9,
 			style: t10,
 			children: t14
 		});
-		$[44] = t10;
-		$[45] = t14;
-		$[46] = t9;
-		$[47] = t15;
-	} else t15 = $[47];
+		$[46] = t10;
+		$[47] = t14;
+		$[48] = t9;
+		$[49] = t15;
+	} else t15 = $[49];
 	return t15;
 };
 /** Paths of the instances that reported from more than one function on this step. */ var groupedPaths = (rows) => {
@@ -132587,10 +132600,8 @@ var TranscriptPreview = (t0) => {
 //#endregion
 //#region src/app/samples/scans/scanReferences.ts
 function buildScoreMarkdownRefs(metadata, makeUrl, previewTable) {
-	return readScannerReferences(metadata).map((ref) => ({
-		id: ref.id,
-		cite: ref.cite,
-		citeUrl: makeUrl(ref.id, ref.type),
+	return citeReferences(readScannerReferences(metadata), makeUrl).map((ref) => ({
+		...ref,
 		citePreview: previewTable?.get(ref.id)
 	}));
 }
@@ -134922,7 +134933,14 @@ var withStoredFallback = (ids, stored) => ids.length > 0 ? ids : [...stored];
 	});
 	const transcriptSearchLabels = searchScope === "events" ? searchReferenceLabels : void 0;
 	const messagesSearchLabels = searchScope === "messages" ? searchReferenceLabels : void 0;
-	const transcriptEventNodeContext = (0, import_react.useMemo)(() => mergeTranscriptLabelContext(scans.eventNodeContext, transcriptSearchLabels), [scans.eventNodeContext, transcriptSearchLabels]);
+	const transcriptEventNodeContext = (0, import_react.useMemo)(() => ({
+		...mergeTranscriptLabelContext(scans.eventNodeContext, transcriptSearchLabels),
+		makeCiteUrl: scans.makeCiteUrl
+	}), [
+		scans.eventNodeContext,
+		transcriptSearchLabels,
+		scans.makeCiteUrl
+	]);
 	const tools = [];
 	if (effectiveSelectedTab === kSampleTranscriptTabId) {
 		const label = isNoneFilter ? "None" : isDebugFilter ? "Debug" : isDefaultFilter ? "Default" : "Custom";

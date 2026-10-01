@@ -8041,7 +8041,7 @@
         "type": "object"
       },
       "Reference": {
-        "description": "Reference to scanned content.",
+        "description": "Reference from a score to content in the scored transcript.\n\nReferences are stored as a list of dicts under a score's\n`metadata[\"scanner_references\"]` key. Inspect View identifies scanner\nscores by the presence of that key and renders cites in the score's\nexplanation (e.g. `[M22]`) as links to the referenced content.",
         "properties": {
           "cite": {
             "anyOf": [
@@ -9918,6 +9918,13 @@
             ],
             "title": "Pending"
           },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            },
+            "title": "References",
+            "type": "array"
+          },
           "span_id": {
             "anyOf": [
               {
@@ -9991,7 +9998,8 @@
           "conversation",
           "stage",
           "kind",
-          "audit"
+          "audit",
+          "references"
         ],
         "title": "SentinelEvent",
         "type": "object"
