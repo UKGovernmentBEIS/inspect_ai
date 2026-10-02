@@ -5,6 +5,23 @@ import textwrap
 
 import pytest
 
+# Public symbols defined in these modules (exported via `__all__` of the
+# public package in parentheses):
+#
+# _chat_message (inspect_ai.model): ChatMessage, ChatMessageAssistant,
+#   ChatMessageBase, ChatMessageSystem, ChatMessageTool, ChatMessageUser
+# content (inspect_ai.model, inspect_ai.tool): Content, ContentAudio,
+#   ContentData, ContentDocument, ContentImage, ContentReasoning, ContentText,
+#   ContentToolUse, ContentVideo
+# _tool_call (inspect_ai.tool): ToolCall, ToolCallContent, ToolCallError,
+#   ToolCallModelInput, ToolCallView, ToolCallViewer
+# _tool_info (inspect_ai.tool): INTERNAL_TOOL_TYPE, ToolInfo, internal_tool_type
+# _tool_choice (inspect_ai.tool): ToolChoice, ToolFunction
+# _model_output (inspect_ai.model): ChatCompletionChoice, Logprob, Logprobs,
+#   ModelFallback, ModelOutput, ModelUsage, StopCategory, StopDetails,
+#   StopReason, TopLogprob
+# _generate_config (inspect_ai.model): BatchConfig, GenerateConfig,
+#   GenerateConfigArgs, ImageOutput, OutputModality, ResponseSchema
 WIRE_TYPE_MODULES = [
     "inspect_ai.model._chat_message",
     "inspect_ai._util.content",
