@@ -40,6 +40,13 @@ from ._tool_call import (
 from ._tool_choice import ToolChoice, ToolFunction
 from ._tool_info import INTERNAL_TOOL_TYPE, ToolInfo, internal_tool_type
 from ._tool_params import ToolParam, ToolParams
+from .citation import (
+    Citation,
+    CitationBase,
+    ContentCitation,
+    DocumentCitation,
+    UrlCitation,
+)
 from .content import (
     Content,
     ContentAudio,
@@ -63,6 +70,9 @@ __all__ = [
     "ChatMessageSystem",
     "ChatMessageTool",
     "ChatMessageUser",
+    "Citation",
+    "CitationBase",
+    "ContentCitation",
     "Content",
     "ContentAudio",
     "ContentData",
@@ -72,6 +82,7 @@ __all__ = [
     "ContentText",
     "ContentToolUse",
     "ContentVideo",
+    "DocumentCitation",
     "GenerateConfig",
     "GenerateConfigArgs",
     "ImageOutput",
@@ -100,5 +111,6 @@ __all__ = [
     "ToolParam",
     "ToolParams",
     "TopLogprob",
+    "UrlCitation",
     "internal_tool_type",
 ]
