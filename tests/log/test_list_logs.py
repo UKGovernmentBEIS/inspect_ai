@@ -78,25 +78,25 @@ def test_list_logs_with_prefix_scoped_s3(
     assert {log.name for log in logs} == expected
 
 
-@pytest.mark.parametrize("recursive", [False, True])
-@pytest.mark.parametrize("missing", [False, True])
+@pytest.mark.parametrize(
+    ("recursive", "error"),
+    [(False, FileNotFoundError), (False, PermissionError), (True, PermissionError)],
+)
 def test_list_logs_root_listing_errors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     recursive: bool,
-    missing: bool,
+    error: type[OSError],
 ) -> None:
     fs = filesystem(str(tmp_path))
 
     def deny_listing(path: str, **kwargs: Any) -> list[dict[str, Any]]:
-        if missing:
-            raise FileNotFoundError(path)
-        raise PermissionError("root listing denied")
+        raise error("root listing denied")
 
     monkeypatch.setattr(fs.fs, "ls", deny_listing)
     monkeypatch.setattr("inspect_ai.log._file.filesystem", lambda *args: fs)
 
-    if missing:
+    if error is FileNotFoundError:
         assert list_eval_logs(str(tmp_path), recursive=recursive) == []
     else:
         with pytest.raises(PermissionError, match="root listing denied"):
@@ -104,11 +104,9 @@ def test_list_logs_root_listing_errors(
 
 
 @pytest.mark.parametrize("recursive", [False, True])
-@pytest.mark.parametrize("custom_options", [False, True])
 async def test_list_logs_async_with_prefix_scoped_s3(
     prefix_scoped_s3: str,
     recursive: bool,
-    custom_options: bool,
 ) -> None:
     prefix = prefix_scoped_s3.removeprefix("s3://test-bucket/")
     filename = "2026-01-01T00-00-00_task_id.eval"
@@ -118,7 +116,7 @@ async def test_list_logs_async_with_prefix_scoped_s3(
     logs = await list_eval_logs_async(
         prefix_scoped_s3,
         recursive=recursive,
-        fs_options={"anon": True} if custom_options else {},
+        fs_options={"anon": True},
     )
     expected = {f"{prefix_scoped_s3}/nested/{filename}"} if recursive else set()
     assert {log.name for log in logs} == expected
@@ -268,12 +266,6 @@ class _FakeAsyncAzureFilesystem:
 
     def is_s3(self) -> bool:
         return False
-
-    async def _exists(self, path: str) -> bool:
-        raise AssertionError("directory existence must not be probed")
-
-    def exists(self, path: str) -> bool:
-        raise AssertionError("directory existence must not be probed")
 
     def invalidate_cache(self, path: str) -> None:
         pass

@@ -278,9 +278,7 @@ async def _list_eval_logs_async(
     elif fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
             try:
-                # prevent caching of listings
                 async_fs.invalidate_cache(log_dir)
-                # list logs
                 if recursive:
                     if _walk_supports_detail(async_fs):
                         files = await _walk_with_detail(async_fs, log_dir)
