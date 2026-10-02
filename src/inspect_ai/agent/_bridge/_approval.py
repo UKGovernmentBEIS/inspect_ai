@@ -23,11 +23,20 @@ dispatcher call the scaffold receives.
 import sys
 from contextlib import AbstractContextManager, nullcontext
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, NoReturn, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    Mapping,
+    NamedTuple,
+    NoReturn,
+    Sequence,
+)
 
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
@@ -38,6 +47,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
+    from inspect_ai.model._call_tools import ValidatedToolCall
 
 logger = getLogger(__name__)
 
@@ -86,6 +96,10 @@ class BridgeApproval(NamedTuple):
 
     rejection: list[ChatMessage] | None
     """When set, the response was rejected: replay these and generate again."""
+
+    prepared: Mapping[tuple[str, str, str], "ValidatedToolCall"] = {}
+    """The prepared host-tool calls the approvals authorized, by call id, server
+    and tool (`AgentBridge.register_tool_execution_grants` runs these)."""
 
 
 async def apply_bridge_tool_approval(
@@ -162,6 +176,7 @@ async def apply_bridge_tool_approval(
             if isinstance(declaration, ToolInfo):
                 declared.setdefault(declaration.name, []).append(declaration)
         modified: dict[str, dict[str, Any]] = {}
+        prepared: dict[tuple[str, str, str], "ValidatedToolCall"] = {}
         for call in tool_calls:
             try:
                 reviews = bridge.reviewed_calls(call, declared)
@@ -210,7 +225,7 @@ async def apply_bridge_tool_approval(
                         arguments = reviewed.dispatch(arguments)
                     # validated as the JSON the scaffold will re-send
                     try:
-                        bridge.reviewed_calls(
+                        (modified_review,) = bridge.reviewed_calls(
                             ToolCall(
                                 id=call.id,
                                 function=call.function,
@@ -224,15 +239,41 @@ async def apply_bridge_tool_approval(
                             output,
                             rejection_messages(output, call, ex.message, "parsing"),
                         )
+                    # a host tool must run what the approver selected
+                    if not json_equal(
+                        to_jsonable_python(
+                            modified_review.call.arguments, fallback=str
+                        ),
+                        to_jsonable_python(approval.modified.arguments, fallback=str),
+                    ):
+                        explanation = (
+                            f"The approver's modified arguments for '{call.function}' "
+                            "change when they are converted for the tool, so the call "
+                            "was not run."
+                        )
+                        record_approval(
+                            "policy",
+                            message,
+                            modified_review.call,
+                            None,
+                            Approval(decision="reject", explanation=explanation),
+                        )
+                        return BridgeApproval(
+                            output, rejection_messages(output, call, explanation)
+                        )
                     modified[call.id] = arguments
+                    reviewed = modified_review
+
+                if reviewed.target is not None and reviewed.prepared is not None:
+                    prepared[(call.id, *reviewed.target)] = reviewed.prepared
 
     # modifications are adopted only now that the whole response is approved: a later
     # rejection discards every call, and rewriting an earlier one as we went would
     # leave the turn we replay to the model claiming arguments it never produced.
     if modified:
-        return BridgeApproval(with_modified_arguments(output, modified), None)
+        return BridgeApproval(with_modified_arguments(output, modified), None, prepared)
 
-    return BridgeApproval(output, None)
+    return BridgeApproval(output, None, prepared)
 
 
 def with_modified_arguments(

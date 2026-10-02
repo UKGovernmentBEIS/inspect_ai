@@ -1,16 +1,21 @@
 from collections import deque
 from logging import getLogger
 from os.path import commonprefix
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Mapping, NamedTuple, NoReturn, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall, ReviewedCall
-from inspect_ai.model._call_tools import get_tools_info, validated_tool_call
+from inspect_ai.model._call_tools import (
+    ValidatedToolCall,
+    get_tools_info,
+    validated_tool_call,
+)
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -126,7 +131,10 @@ class SandboxAgentBridge(AgentBridge):
             self.proposal_exempt_servers.add(server)
 
     def register_tool_execution_grants(
-        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        prepared: Mapping[tuple[str, str, str], ValidatedToolCall] | None = None,
     ) -> None:
         """Add one-shot host-tool grants for the calls in a response handed to the scaffold.
 
@@ -139,6 +147,12 @@ class SandboxAgentBridge(AgentBridge):
         tools (a shared description; `warn_indistinct_tools` names them at setup)
         gets one grant for each. No grant is stored for a server in
         `proposal_exempt_servers`.
+
+        A grant also carries the host tool's prepared call, which is what runs:
+        the one approval reviewed (`prepared`, keyed by call id, server and
+        tool), or one prepared here for a call no approval reviewed. The tool is
+        not prepared again at execution, so a model whose construction varies
+        (a `default_factory`, a stateful validator) runs as approved.
 
         A grant persists until consumed or evicted (with a warning, once
         `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants accumulate), including when
@@ -164,8 +178,12 @@ class SandboxAgentBridge(AgentBridge):
             for target in targets:
                 if target.server in self.proposal_exempt_servers:
                     continue
-                grant_arguments = host_call_arguments(
-                    self.bridged_tools[target.server][target.tool], arguments
+                target_prepared = (prepared or {}).get(
+                    (call.id, target.server, target.tool)
+                ) or _prepared_host_call(
+                    self.bridged_tools[target.server][target.tool],
+                    target.tool,
+                    arguments,
                 )
                 if (
                     len(self._tool_execution_grants)
@@ -182,7 +200,8 @@ class SandboxAgentBridge(AgentBridge):
                     _ToolExecutionGrant(
                         server=target.server,
                         tool=target.tool,
-                        arguments=to_jsonable_python(grant_arguments, fallback=str),
+                        arguments=to_jsonable_python(arguments, fallback=str),
+                        prepared=target_prepared,
                     )
                 )
 
@@ -209,10 +228,10 @@ class SandboxAgentBridge(AgentBridge):
 
     def consume_tool_execution_grant(
         self, server: str, tool: str, arguments: dict[str, Any]
-    ) -> bool:
-        """Consume one grant binding this exact (server, tool), if present.
+    ) -> "_ToolExecutionGrant | None":
+        """Consume and return one grant binding this exact (server, tool), if present.
 
-        Arguments match by JSON semantics (`_json_equal`): key order and
+        Arguments match by JSON semantics (`json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
         JSON round-trip cannot turn a proposed call into a denial; any other
         difference (including bool vs number) is denied.
@@ -221,11 +240,11 @@ class SandboxAgentBridge(AgentBridge):
             if (
                 grant.server == server
                 and grant.tool == tool
-                and _json_equal(grant.arguments, arguments)
+                and json_equal(grant.arguments, arguments)
             ):
                 del self._tool_execution_grants[index]
-                return True
-        return False
+                return grant
+        return None
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
@@ -256,14 +275,24 @@ class SandboxAgentBridge(AgentBridge):
         if targets:
             return [
                 _reviewed_host_call(
-                    call, self.bridged_tools[target.server][target.tool], None
+                    call,
+                    self.bridged_tools[target.server][target.tool],
+                    None,
+                    target,
                 )
                 for target in targets
             ]
         dispatched = self.dispatched_call(call)
         if dispatched is not None:
-            tool = self.bridged_tools[dispatched.server][dispatched.target.function]
-            return [_reviewed_host_call(dispatched.target, tool, dispatched.dispatch)]
+            target = _BridgedToolId(
+                server=dispatched.server, tool=dispatched.target.function
+            )
+            tool = self.bridged_tools[target.server][target.tool]
+            return [
+                _reviewed_host_call(
+                    dispatched.target, tool, dispatched.dispatch, target
+                )
+            ]
         return super().reviewed_calls(call, declared)
 
     def request_fail(self, error: Exception) -> None:
@@ -309,7 +338,11 @@ class _ToolExecutionGrant(NamedTuple):
     """Tool name within the bridged server."""
 
     arguments: dict[str, Any]
-    """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
+    """The arguments handed to the scaffold, JSON-normalized and matched via `json_equal`."""
+
+    prepared: ValidatedToolCall | None
+    """The host tool's prepared call, which the execution runs (None when the
+    arguments are invalid for the tool; the service reports the parsing error)."""
 
 
 class _BridgedToolId(NamedTuple):
@@ -466,36 +499,26 @@ def _reviewed_host_call(
     call: ToolCall,
     tool: Tool,
     dispatch: Callable[[dict[str, Any]], dict[str, Any]] | None,
+    target: _BridgedToolId,
 ) -> ReviewedCall:
     """`call` as `tool` will run it, for approval (raises `ToolParsingError`)."""
     tool_def = ToolDef(tool)
+    prepared = validated_tool_call(call, tool_def)
     return ReviewedCall(
-        validated_tool_call(call, tool_def).call, tool_def.viewer, dispatch
+        prepared.call,
+        tool_def.viewer,
+        dispatch,
+        (target.server, target.tool),
+        prepared,
     )
 
 
-def host_call_arguments(tool: Tool, arguments: dict[str, Any]) -> dict[str, Any]:
-    """The arguments a host tool call acts on, as approval saw them.
-
-    Valid arguments are canonicalized as `validated_tool_call()` does, so a grant
-    and the call that consumes it match on the canonical form; invalid ones are
-    returned as given, and the service rejects them.
-    """
-    call = ToolCall(id="", function="", arguments=arguments)
+def _prepared_host_call(
+    tool: Tool, name: str, arguments: dict[str, Any]
+) -> ValidatedToolCall | None:
+    """The host tool's prepared call for `arguments`, or None if they are invalid."""
+    call = ToolCall(id="", function=name, arguments=arguments)
     try:
-        return validated_tool_call(call, ToolDef(tool)).call.arguments
+        return validated_tool_call(call, ToolDef(tool))
     except ToolParsingError:
-        return arguments
-
-
-def _json_equal(a: Any, b: Any) -> bool:
-    """Equality by JSON semantics: 5 == 5.0, but True != 1 (unlike Python `==`)."""
-    if isinstance(a, bool) or isinstance(b, bool):
-        return isinstance(a, bool) and isinstance(b, bool) and a == b
-    if isinstance(a, int | float) and isinstance(b, int | float):
-        return a == b
-    if isinstance(a, dict) and isinstance(b, dict):
-        return a.keys() == b.keys() and all(_json_equal(v, b[k]) for k, v in a.items())
-    if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(_json_equal(x, y) for x, y in zip(a, b))
-    return type(a) is type(b) and bool(a == b)
+        return None

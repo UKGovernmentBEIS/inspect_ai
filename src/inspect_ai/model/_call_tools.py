@@ -3,9 +3,11 @@ import json
 import string
 import types
 import typing
-from collections.abc import Iterator
+from collections import defaultdict, deque
+from collections.abc import Iterator, Mapping
+from collections.abc import Set as AbstractSet
 from copy import copy, deepcopy
-from dataclasses import is_dataclass, replace
+from dataclasses import fields, is_dataclass, replace
 from datetime import date, datetime, time
 from enum import EnumMeta
 from logging import getLogger
@@ -55,7 +57,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.json import exceeds_max_depth
+from inspect_ai._util.json import exceeds_max_depth, json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
@@ -905,9 +907,10 @@ async def call_tool(
     # approvers and viewers see the validated call, so an invalid call is
     # never presented for approval
     try:
-        call, arguments = validated_tool_call(call, tool_def)
+        prepared = validated_tool_call(call, tool_def)
     except ToolParsingError as ex:
         raise await record_tool_parsing_error(ex.message)
+    call, arguments = prepared
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
@@ -924,9 +927,16 @@ async def call_tool(
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
         try:
-            call, arguments = validated_tool_call(approval.modified, tool_def)
+            modified = validated_tool_call(approval.modified, tool_def)
         except ToolParsingError as ex:
             raise await record_tool_parsing_error(ex.message)
+        try:
+            call, arguments = approved_modification(
+                prepared, approval.modified, modified
+            )
+        except ToolApprovalError:
+            await record_pending_tool_event()
+            raise
 
     # call the tool
     with trace_action(
@@ -1380,62 +1390,139 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
 
     # a Pydantic model applies its own validation, which can change a value
     # (e.g. round a large integer), so approval sees what the model holds
-    serialized = {
-        name: _serialized_models(arguments[name])
-        for name in call.arguments
-        if name in arguments and _contains_model(arguments[name])
-    }
+    serialized: dict[str, Any] = {}
+    for name in call.arguments:
+        if name in arguments and _contains_model(arguments[name]):
+            arguments[name] = _materialized(arguments[name])
+            serialized[name] = to_jsonable_python(arguments[name], fallback=str)
     if serialized:
         call = replace(call, arguments={**call.arguments, **serialized})
     return ValidatedToolCall(call, arguments)
 
 
+def approved_modification(
+    approved: ValidatedToolCall, selected: ToolCall, modified: ValidatedToolCall
+) -> ValidatedToolCall:
+    """The call to run for an approver's `modify` decision.
+
+    An argument the approver left as approved keeps the value prepared for
+    approval (a model is not built again). A changed argument must prepare to
+    the value the approver selected: if converting it for the tool would change
+    it (e.g. a model validator), the call is not run.
+
+    Raises:
+        ToolApprovalError: A changed argument would not run as selected.
+    """
+    call_arguments = dict(modified.call.arguments)
+    arguments = dict(modified.arguments)
+    for name, value in to_jsonable_python(selected.arguments, fallback=str).items():
+        if (
+            name in approved.call.arguments
+            and name in approved.arguments
+            and json_equal(
+                value, to_jsonable_python(approved.call.arguments[name], fallback=str)
+            )
+        ):
+            call_arguments[name] = approved.call.arguments[name]
+            arguments[name] = approved.arguments[name]
+        elif not json_equal(
+            value, to_jsonable_python(call_arguments.get(name), fallback=str)
+        ):
+            raise ToolApprovalError(
+                f"The approver's modified value for '{name}' changes when it is "
+                "converted for the tool, so the call was not run."
+            )
+    return ValidatedToolCall(
+        replace(modified.call, arguments=call_arguments), arguments
+    )
+
+
 def _contains_model(value: Any) -> bool:
     if isinstance(value, BaseModel):
         return True
-    if isinstance(value, list | tuple | set | frozenset):
-        return any(_contains_model(v) for v in value)
-    if isinstance(value, dict):
+    if isinstance(value, str | bytes | bytearray):
+        return False
+    if isinstance(value, Mapping):
         return any(_contains_model(v) for v in value.values())
+    if isinstance(value, Sequence | AbstractSet):
+        return any(_contains_model(v) for v in value)
     return False
 
 
-def _serialized_models(value: Any) -> Any:
-    """`value`, holding Pydantic models, as the JSON the models serialize to.
+def _materialized(value: Any) -> Any:
+    """`value` with each lazy iterable a Pydantic model built read into a tuple.
 
-    A lazy iterable a model holds (an `Iterable` or `Generator` field) is read
-    into a list first, so serializing it for approval does not consume the
-    values the tool will receive.
+    An `Iterable` or `Generator` field validates its items only as they are
+    read, and serializing it for approval would consume them. Reading them
+    first lets approval see the values and leaves the tool a tuple of them.
+    Models, dataclasses and containers holding one are copied rather than
+    changed, so a frozen model already in a set keeps a stable hash.
 
     Raises:
-        ToolParsingError: Reading a lazy iterable fails the model's validation.
+        ToolParsingError: An item read from a lazy iterable fails validation.
     """
-    _materialize_iterators(value)
-    return to_jsonable_python(value, fallback=str)
-
-
-def _materialize_iterators(value: Any) -> None:
+    if isinstance(value, Iterator):
+        try:
+            return tuple(_materialized(item) for item in value)
+        except ValueError as ex:
+            raise ToolParsingError(f"Unable to convert lazily validated values: {ex}")
     if isinstance(value, BaseModel):
-        for name in type(value).model_fields:
-            attr = getattr(value, name, None)
-            if isinstance(attr, Iterator):
-                try:
-                    items = list(attr)
-                except ValueError as ex:
-                    raise ToolParsingError(
-                        f"Unable to convert the values of '{name}': {ex}"
-                    ) from ex
-                # bypasses validate_assignment and frozen models: the values
-                # were validated as they were read
-                object.__setattr__(value, name, items)
-            else:
-                _materialize_iterators(attr)
-    elif isinstance(value, list | tuple | set | frozenset):
-        for item in value:
-            _materialize_iterators(item)
-    elif isinstance(value, dict):
-        for item in value.values():
-            _materialize_iterators(item)
+        updates = {
+            name: new
+            for name, old in value.__dict__.items()
+            if (new := _materialized(old)) is not old
+        }
+        extra = value.__pydantic_extra__ or {}
+        extra_updates = {
+            name: new
+            for name, old in extra.items()
+            if (new := _materialized(old)) is not old
+        }
+        if not updates and not extra_updates:
+            return value
+        model = value.model_copy(update=updates)
+        if extra_updates:
+            object.__setattr__(model, "__pydantic_extra__", {**extra, **extra_updates})
+        return model
+    if is_dataclass(value) and not isinstance(value, type):
+        changes = {
+            field.name: new
+            for field in fields(value)
+            if (new := _materialized(old := getattr(value, field.name))) is not old
+        }
+        if not changes:
+            return value
+        instance = copy(value)
+        for name, new in changes.items():
+            object.__setattr__(instance, name, new)
+        return instance
+    if isinstance(value, str | bytes | bytearray):
+        return value
+    if isinstance(value, Mapping):
+        entries = {key: _materialized(item) for key, item in value.items()}
+        if all(entries[key] is item for key, item in value.items()):
+            return value
+        return _rebuilt(value, entries)
+    if isinstance(value, Sequence | AbstractSet):
+        items = [_materialized(item) for item in value]
+        if all(new is old for new, old in zip(items, value)):
+            return value
+        return _rebuilt(value, items)
+    return value
+
+
+def _rebuilt(original: Any, contents: Any) -> Any:
+    """A container of `original`'s type holding `contents` (a list or dict)."""
+    if isinstance(original, defaultdict):
+        return defaultdict(original.default_factory, contents)
+    if isinstance(original, deque):
+        return deque(contents, maxlen=original.maxlen)
+    if isinstance(original, tuple) and hasattr(original, "_fields"):
+        return type(original)(*contents)
+    try:
+        return type(original)(contents)
+    except TypeError:
+        return contents
 
 
 def _handoff_arguments(

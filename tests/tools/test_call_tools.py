@@ -5,6 +5,7 @@ from datetime import date, time, timezone
 from enum import Enum
 from typing import (
     Any,
+    Deque,
     Dict,
     FrozenSet,
     Generator,
@@ -19,6 +20,7 @@ from typing import (
 
 import pytest
 from pydantic import BaseModel
+from pydantic_core import to_jsonable_python
 from typing_extensions import TypedDict
 
 from inspect_ai._util.content import ContentDocument, ContentText
@@ -903,3 +905,105 @@ def test_model_lazy_iterables_are_read_for_approval(name: str) -> None:
 
     assert validated.call.arguments == {name: {"values": [1.0, 2.5]}}
     assert list(validated.arguments[name].values) == [1.0, 2.5]
+
+
+class ListOfLazy(BaseModel):
+    rows: List[Iterable[float]]
+
+
+class TupleOfLazy(BaseModel):
+    rows: Tuple[Iterable[float], ...]
+
+
+class DictOfLazy(BaseModel):
+    rows: Dict[str, Iterable[float]]
+
+
+class DequeOfLazy(BaseModel):
+    rows: Deque[Iterable[float]]
+
+
+class LazyOfModels(BaseModel):
+    items: Iterable[LazyIterable]
+
+
+class LazyExtras(BaseModel):
+    model_config = {"extra": "allow"}
+    __pydantic_extra__: Dict[str, Iterable[float]]
+
+
+class FrozenLazy(BaseModel):
+    model_config = {"frozen": True}
+    values: Iterable[int]
+
+
+class SetOfFrozenLazy(BaseModel):
+    members: FrozenSet[FrozenLazy]
+
+
+def _rows(value: Any) -> Any:
+    """`value` with every iterable consumed into a list."""
+    if isinstance(value, BaseModel):
+        return {
+            k: _rows(v)
+            for k, v in {**value.__dict__, **(value.__pydantic_extra__ or {})}.items()
+        }
+    if isinstance(value, dict):
+        return {k: _rows(v) for k, v in value.items()}
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Iterable):
+        return [_rows(v) for v in value]
+    return value
+
+
+@pytest.mark.parametrize(
+    "model,payload,expected",
+    [
+        (ListOfLazy, {"rows": [[1, 2]]}, {"rows": [[1.0, 2.0]]}),
+        (TupleOfLazy, {"rows": [[1, 2]]}, {"rows": [[1.0, 2.0]]}),
+        (DictOfLazy, {"rows": {"a": [1, 2]}}, {"rows": {"a": [1.0, 2.0]}}),
+        (DequeOfLazy, {"rows": [[1, 2]]}, {"rows": [[1.0, 2.0]]}),
+        (
+            LazyOfModels,
+            {"items": [{"values": [1, 2]}]},
+            {"items": [{"values": [1.0, 2.0]}]},
+        ),
+        (LazyExtras, {"a": [1, 2]}, {"a": [1.0, 2.0]}),
+    ],
+    ids=["list", "tuple", "dict", "deque", "model-items", "extras"],
+)
+def test_nested_lazy_iterables_are_read_for_approval(
+    model: Any, payload: dict[str, Any], expected: dict[str, Any]
+) -> None:
+    from inspect_ai.model._call_tools import validated_tool_call
+
+    async def execute(payload: Any) -> str:
+        return ""
+
+    execute.__annotations__["payload"] = model
+    tool_def = ToolDef(
+        execute,
+        name="lazy",
+        description="Lazy.",
+        parameters=ToolParams(
+            properties={"payload": ToolParam()}, required=["payload"]
+        ),
+    )
+    validated = validated_tool_call(make_call("lazy", {"payload": payload}), tool_def)
+
+    assert validated.call.arguments == {"payload": expected}
+    # the tool still receives every value (the serialization consumed nothing)
+    assert _rows(validated.arguments["payload"]) == expected
+
+
+def test_frozen_lazy_members_stay_in_their_set() -> None:
+    from inspect_ai.model._call_tools import _materialized, tool_param
+
+    built = tool_param(SetOfFrozenLazy, {"members": [{"values": [1, 2]}]})
+    prepared = _materialized(built)
+
+    assert to_jsonable_python(prepared) == {"members": [{"values": [1, 2]}]}
+    (member,) = prepared.members
+    assert member in prepared.members
+    assert list(member.values) == [1, 2]

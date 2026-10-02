@@ -1,6 +1,15 @@
 from enum import IntEnum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Mapping,
+    NamedTuple,
+    NoReturn,
+    Sequence,
+    Set,
+)
 
 from shortuuid import uuid
 
@@ -36,6 +45,7 @@ if TYPE_CHECKING:
     # cycles back through partially-initialized modules). Same reason
     # `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
+    from inspect_ai.model._call_tools import ValidatedToolCall
 
 
 class DispatchedCall(NamedTuple):
@@ -63,6 +73,14 @@ class ReviewedCall(NamedTuple):
     dispatch: Callable[[dict[str, Any]], dict[str, Any]] | None
     """Arguments for the scaffold's call that make `call` with the given ones (None
     when they are the same)."""
+
+    target: tuple[str, str] | None = None
+    """The bridged host tool (server, tool) `call` is for (None for a tool the
+    scaffold runs itself)."""
+
+    prepared: "ValidatedToolCall | None" = None
+    """The host tool's prepared call: what an approval of `call` authorizes it to
+    run (None for a tool the scaffold runs itself)."""
 
 
 class AgentBridge:
@@ -236,7 +254,10 @@ class AgentBridge:
     """
 
     def register_tool_execution_grants(
-        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        prepared: Mapping[tuple[str, str, str], "ValidatedToolCall"] | None = None,
     ) -> None:
         """Register the calls in a response handed to the scaffold for execution-edge checks.
 

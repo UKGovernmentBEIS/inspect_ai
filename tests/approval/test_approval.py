@@ -4,7 +4,14 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, Mapping, NamedTuple
 
 import pytest
-from pydantic import AliasChoices, AliasPath, BaseModel, Field
+from pydantic import (
+    AliasChoices,
+    AliasPath,
+    BaseModel,
+    Field,
+    field_serializer,
+    field_validator,
+)
 from pydantic_core import to_jsonable_python
 
 from inspect_ai import Task, eval
@@ -1321,3 +1328,106 @@ async def test_alias_path_field_is_approved_as_constructed(amount: int) -> None:
 
 if __name__ == "__main__":
     test_approve_escalate()
+
+
+@approver
+def modifying_approver(arguments: dict[str, Any]) -> Approver:
+    """Approver which replaces the call's arguments."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=ToolCall(id=call.id, function=call.function, arguments=arguments),
+        )
+
+    return approve
+
+
+class Bumped(BaseModel):
+    n: int
+    note: str = ""
+
+    @field_validator("n")
+    @classmethod
+    def bump(cls, n: int) -> int:
+        return n + 1
+
+
+class Aliased(BaseModel):
+    n: int = Field(alias="N")
+
+
+class Scaled(BaseModel):
+    n: int
+
+    @field_serializer("n")
+    def scale(self, n: int) -> int:
+        return n * 10
+
+
+@tool
+def model_tool(received: list[Any]):
+    async def execute(
+        bumped: Bumped | None = None,
+        aliased: Aliased | None = None,
+        scaled: Scaled | None = None,
+    ) -> str:
+        """Record models.
+
+        Args:
+            bumped: A model whose validator changes its value.
+            aliased: A model with an aliased field.
+            scaled: A model with a custom serializer.
+        """
+        received.append(bumped or aliased or scaled)
+        return "ok"
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "initial,modified,runs,expected",
+    [
+        # unchanged from what was approved: the prepared model runs as it is
+        ({"bumped": {"n": 1}}, {"bumped": {"n": 2, "note": ""}}, True, Bumped(n=1)),
+        # a changed value that a validator would change again: not run
+        ({"bumped": {"n": 1}}, {"bumped": {"n": 5, "note": ""}}, False, None),
+        # a changed value that serializes as selected (under its alias): runs
+        ({"aliased": {"N": 1}}, {"aliased": {"N": 5}}, True, Aliased(N=5)),
+        # the approved serialization, unchanged: the prepared model runs
+        ({"scaled": {"n": 1}}, {"scaled": {"n": 10}}, True, Scaled(n=1)),
+        # a changed value its serializer shows differently: not run
+        ({"scaled": {"n": 1}}, {"scaled": {"n": 7}}, False, None),
+    ],
+    ids=[
+        "unchanged",
+        "validator-changes-it",
+        "alias",
+        "serializer-unchanged",
+        "serializer-changes-it",
+    ],
+)
+async def test_modified_model_runs_only_as_selected(
+    initial: dict[str, Any], modified: dict[str, Any], runs: bool, expected: Any
+) -> None:
+    received: list[Any] = []
+    call = ToolCall(id="1", function="model_tool", arguments=initial)
+    message = await execute_with_approval(
+        call,
+        [model_tool(received)],
+        [ApprovalPolicy(modifying_approver(modified), "*")],
+    )
+
+    if runs:
+        assert message.error is None
+        assert received == [expected]
+    else:
+        assert message.error is not None
+        assert message.error.type == "approval"
+        assert "changes when it is converted" in message.error.message
+        assert received == []

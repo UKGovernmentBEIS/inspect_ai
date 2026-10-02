@@ -6,6 +6,7 @@ instead, and resolves a rejection by telling the model and regenerating rather
 than by editing the response the scaffold sees.
 """
 
+import itertools
 import json
 import logging
 from pathlib import PurePosixPath
@@ -13,6 +14,7 @@ from typing import Any, Awaitable, Callable, Iterator, cast
 from unittest.mock import AsyncMock
 
 import pytest
+from pydantic import BaseModel, Field, field_validator
 
 from inspect_ai import Task, eval
 from inspect_ai._util.exception import TerminateSampleError
@@ -3088,9 +3090,14 @@ async def test_each_host_target_is_approved_and_granted_its_own_arguments() -> N
         {"path": "/A.TXT"},
     ]
     assert [call.arguments for call in viewed] == [{"path": "/a.txt"}]
-    assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "/a.txt"})
-    assert not bridge.consume_tool_execution_grant("b", "read_file", {"path": "/a.txt"})
-    assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "/A.TXT"})
+    # each grant is for the arguments the scaffold was handed, and runs the
+    # call its own target's approval saw prepared
+    grant_a = bridge.consume_tool_execution_grant("a", "read_file", {"path": "/A.TXT"})
+    grant_b = bridge.consume_tool_execution_grant("b", "read_file", {"path": "/A.TXT"})
+    assert grant_a is not None and grant_a.prepared is not None
+    assert grant_b is not None and grant_b.prepared is not None
+    assert grant_a.prepared.call.arguments == {"path": "/a.txt"}
+    assert grant_b.prepared.call.arguments == {"path": "/A.TXT"}
 
 
 # ---------------------------------------------------------------------------
@@ -3206,3 +3213,154 @@ async def test_responses_declaration_a_filter_changed_uses_the_forwarded_schema(
 ) -> None:
     await check_filtered_validation("responses", replace, {"cmd": 7}, True)
     await check_filtered_validation("responses", replace, {"cmd": "ls"}, False)
+
+
+# ---------------------------------------------------------------------------
+# a host tool runs the call approval saw prepared
+# ---------------------------------------------------------------------------
+
+
+class Bumped(BaseModel):
+    n: int
+
+    @field_validator("n")
+    @classmethod
+    def bump(cls, n: int) -> int:
+        return n + 1
+
+
+BUMPED_DESCRIPTION = "Record a bumped number."
+
+
+@tool
+def bumped_tool(received: list[int]) -> Tool:
+    async def execute(bumped: Bumped) -> str:
+        """Record a bumped number.
+
+        Args:
+            bumped: The number.
+        """
+        received.append(bumped.n)
+        return "ok"
+
+    return ToolDef(execute, name="bumped_tool").as_tool()
+
+
+@pytest.mark.parametrize("dispatcher", [False, True], ids=["renamed", "dispatcher"])
+async def test_host_modification_that_conversion_changes_is_rejected(
+    dispatcher: bool,
+) -> None:
+    received: list[int] = []
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"bumped_tool": bumped_tool(received)}}
+    )
+    bridge.approval = [ApprovalPolicy(modifying_approver({"bumped": {"n": 5}}), "*")]
+    proposed = (
+        dispatched("1", {"bumped": {"n": 1}}, tool="bumped_tool")
+        if dispatcher
+        else ToolCall(
+            id="1", function="mcp__host__bump", arguments={"bumped": {"n": 1}}
+        )
+    )
+
+    with pytest.raises(TerminateSampleError):
+        await run_bridge(
+            [tool_calls_output(proposed)],
+            bridge=bridge,
+            tools=[]
+            if dispatcher
+            else declare(
+                "mcp__host__bump", description=BUMPED_DESCRIPTION, parameters=()
+            ),
+        )
+
+    # never granted: the approver selected 5, which would run as 6
+    assert len(bridge._tool_execution_grants) == 0
+    assert received == []
+
+
+STAMPS: "itertools.count[int]" = itertools.count(1)
+
+
+class Stamped(BaseModel):
+    n: int = Field(default_factory=lambda: next(STAMPS))
+
+
+STAMPED_DESCRIPTION = "Record a stamp."
+
+
+@tool
+def stamped_tool(received: list[int]) -> Tool:
+    async def execute(stamped: Stamped) -> str:
+        """Record a stamp.
+
+        Args:
+            stamped: The stamp.
+        """
+        received.append(stamped.n)
+        return "ok"
+
+    return ToolDef(execute, name="stamped_tool").as_tool()
+
+
+@pytest.mark.parametrize("approval", [True, False], ids=["approval", "no-approval"])
+async def test_host_tool_runs_the_model_prepared_for_its_grant(approval: bool) -> None:
+    """A model whose construction varies runs as approved, once."""
+    global STAMPS
+    STAMPS = itertools.count(1)
+    received: list[int] = []
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"stamped_tool": stamped_tool(received)}}
+    )
+    if approval:
+        bridge.approval = [ApprovalPolicy(recording_approver(seen), "*")]
+    proposed = ToolCall(id="1", function="mcp__host__stamp", arguments={"stamped": {}})
+
+    await run_bridge(
+        [tool_calls_output(proposed)],
+        bridge=bridge,
+        tools=declare(
+            "mcp__host__stamp", description=STAMPED_DESCRIPTION, parameters=()
+        ),
+    )
+
+    if approval:
+        assert [call.arguments for _, call, _ in seen] == [{"stamped": {"n": 1}}]
+    execute = call_host_tool(bridge)
+    with pytest.raises(PermissionError):
+        await execute("host", "stamped_tool", {"stamped": {"n": 9}})
+    await execute("host", "stamped_tool", {"stamped": {}})
+    with pytest.raises(PermissionError):
+        await execute("host", "stamped_tool", {"stamped": {}})
+    # the model prepared once, for approval or the grant; not built again
+    assert received == [1]
+
+
+async def test_each_host_target_runs_its_own_prepared_model() -> None:
+    global STAMPS
+    STAMPS = itertools.count(1)
+    received: list[int] = []
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"stamped_tool": stamped_tool(received)},
+            "b": {"stamped_tool": stamped_tool(received)},
+        }
+    )
+    bridge.approval = [ApprovalPolicy(recording_approver(seen), "*")]
+    proposed = ToolCall(id="1", function="mcp__host__stamp", arguments={"stamped": {}})
+
+    await run_bridge(
+        [tool_calls_output(proposed)],
+        bridge=bridge,
+        tools=declare(
+            "mcp__host__stamp", description=STAMPED_DESCRIPTION, parameters=()
+        ),
+    )
+
+    approved = [call.arguments["stamped"]["n"] for _, call, _ in seen]
+    execute = call_host_tool(bridge)
+    await execute("a", "stamped_tool", {"stamped": {}})
+    await execute("b", "stamped_tool", {"stamped": {}})
+    assert sorted(received) == sorted(approved)

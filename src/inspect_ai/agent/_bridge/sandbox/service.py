@@ -15,7 +15,6 @@ from inspect_ai.model._call_tools import (
     validated_tool_call,
 )
 from inspect_ai.model._model import ModelRefusalError
-from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
@@ -234,10 +233,11 @@ def call_tool(
     per proposal (see `SandboxAgentBridge.register_tool_execution_grants`), unless
     its server was registered with `require_proposal=False`.
 
-    Arguments are validated, canonicalized and converted as for a native call
-    (`validated_tool_call()`), so a scaffold's malformed arguments surface as a
-    `ToolParsingError` the model can recover from, and the grant is matched on
-    the canonical arguments approval saw.
+    The grant is matched on the arguments the scaffold was handed, and the tool
+    runs the call the grant carries, prepared (validated, canonicalized and
+    converted, `validated_tool_call()`) when approval reviewed it or the grant
+    was made, not again here. A scaffold's malformed arguments surface as a
+    `ToolParsingError` the model can recover from.
     Exceptions are classified after unwrapping any task-group
     `ExceptionGroup`, as `execute_tools` does, and with the same
     `tool_call_error` mapping. Those a native call would show the model
@@ -259,27 +259,18 @@ def call_tool(
         if tool not in server_tools:
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
-        # approval and the grant saw the validated, canonical call; the tool runs
-        # with its arguments converted, as for a native call
         tool_fn = server_tools[tool]
-        tool_def = ToolDef(tool_fn)
-        prepared: ValidatedToolCall | ToolParsingError
-        try:
-            prepared = validated_tool_call(
-                ToolCall(id="", function=tool, arguments=arguments), tool_def
-            )
-        except ToolParsingError as ex:
-            prepared = ex
-        grant_arguments = (
-            arguments
-            if isinstance(prepared, ToolParsingError)
-            else prepared.call.arguments
+        prepared: ValidatedToolCall | None = None
+        exempt = server in bridge.proposal_exempt_servers
+        grant = (
+            None
+            if exempt
+            else bridge.consume_tool_execution_grant(server, tool, arguments)
         )
-
-        if (
-            server not in bridge.proposal_exempt_servers
-            and not bridge.consume_tool_execution_grant(server, tool, grant_arguments)
-        ):
+        if grant is not None:
+            # run the call as prepared for the grant, not a new construction of it
+            prepared = grant.prepared
+        if not exempt and grant is None:
             warn_once(
                 logger,
                 f"Denied host tool call '{server}/{tool}': the model did not "
@@ -293,8 +284,11 @@ def call_tool(
             )
 
         try:
-            if isinstance(prepared, ToolParsingError):
-                raise prepared
+            if prepared is None:
+                prepared = validated_tool_call(
+                    ToolCall(id="", function=tool, arguments=arguments),
+                    ToolDef(tool_fn),
+                )
             result = await tool_fn(**prepared.arguments)
         except Exception as ex:
             # classify the unwrapped exception, but let the original propagate:

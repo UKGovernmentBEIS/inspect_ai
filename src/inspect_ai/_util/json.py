@@ -179,6 +179,19 @@ JSONType = Literal["string", "integer", "number", "boolean", "array", "object", 
 """Valid types within JSON schema."""
 
 
+def json_equal(a: Any, b: Any) -> bool:
+    """Equality by JSON semantics: 5 == 5.0, but True != 1 (unlike Python `==`)."""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return isinstance(a, bool) and isinstance(b, bool) and a == b
+    if isinstance(a, int | float) and isinstance(b, int | float):
+        return a == b
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(json_equal(v, b[k]) for k, v in a.items())
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(json_equal(x, y) for x, y in zip(a, b))
+    return type(a) is type(b) and bool(a == b)
+
+
 def jsonable_python(x: Any) -> Any:
     return to_jsonable_python(x, exclude_none=True, fallback=lambda _x: None)
 
