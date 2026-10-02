@@ -11,7 +11,7 @@ from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.agent import as_solver, handoff, react
+from inspect_ai.agent import as_solver, as_tool, handoff, react
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     Event,
@@ -34,15 +34,17 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._call_tools import execute_tools
-from inspect_ai.scorer import Reference
-from inspect_ai.solver import generate, use_tools
+from inspect_ai.scorer import Reference, Score, Scorer, Target, scorer
+from inspect_ai.solver import TaskState, generate, use_tools
 from inspect_ai.tool import Tool, ToolCall, ToolCallView, tool
 from inspect_ai.util import StoreModel
 from inspect_ai.util._limit import LimitExceededError
 
 try:
     from inspect_sentinel import (
+        AfterGenerate,
         AfterToolCall,
+        BeforeGenerate,
         BeforeToolCall,
         Context,
         Decision,
@@ -50,6 +52,7 @@ try:
         MonitorGroup,
         Observation,
         Protocol,
+        ProtocolGroup,
         Reported,
         concurrent,
         decide_final,
@@ -568,18 +571,19 @@ def test_sentinel_events_nest_under_a_sentinel_span() -> None:
     assert log.samples
     events = log.samples[0].events
 
-    before, after = sentinel_span_ids(events)
+    # the monitor watches only before the call, so no span is opened after it
+    [before] = sentinel_span_ids(events)
     [monitor_call] = [
         e for e in events if isinstance(e, ModelEvent) and e.role == "monitor"
     ]
     assert monitor_call.span_id == before
     assert all(e.span_id == before for e in sentinel_events(log))
     agent_calls = [e for e in events if isinstance(e, ModelEvent) and e.role is None]
-    assert agent_calls and all(e.span_id not in (before, after) for e in agent_calls)
+    assert agent_calls and all(e.span_id != before for e in agent_calls)
     [tool_event] = [e for e in events if isinstance(e, ToolEvent)]
-    assert tool_event.span_id not in (before, after)
+    assert tool_event.span_id != before
     ended = [e.id for e in events if isinstance(e, SpanEndEvent)]
-    assert ended.count(before) == 1 and ended.count(after) == 1
+    assert ended.count(before) == 1
 
 
 def test_each_stage_runs_in_its_own_sentinel_span() -> None:
@@ -1069,7 +1073,9 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
         name="p", path="p", function="f", report=Decision(action=action, modified=call)
     )
     with pytest.raises(ValueError, match="modified is set only"):
-        _Recorder().record(replace(_context(), factory="p", path="p"), step, reported)
+        _Recorder(call.id).record(
+            replace(_context(call.id), factory="p", path="p"), step, reported
+        )
 
 
 def test_apply_sentinel_decision() -> None:
@@ -1152,3 +1158,214 @@ def test_each_turn_sees_its_own_model_input(caplog: pytest.LogCaptureFixture) ->
     for (_, step), event in zip(seen, model_events, strict=False):
         assert [m.id for m in step.input] == [m.id for m in event.input]
     assert len({len(step.input) for _, step in seen}) == 3
+
+
+GenerateSeen = list[BeforeGenerate | AfterGenerate]
+
+
+@monitor
+def d3_generates(seen: Any, ask: bool = False) -> MonitorGroup:
+    async def before(context: Context, step: BeforeGenerate) -> Observation | None:
+        seen.append(step)
+        if ask:
+            await context.host.generate("How suspicious is this request?")
+        return Observation.score(0.1)
+
+    async def after(context: Context, step: AfterGenerate) -> Observation | None:
+        seen.append(step)
+        return Observation.score(0.2)
+
+    return MonitorGroup(before, after)
+
+
+@protocol
+def d3_generate_decides(action: Any, after: bool) -> ProtocolGroup:
+    async def before_generate(
+        context: Context, step: BeforeGenerate
+    ) -> Decision | None:
+        return None if after else Decision(action=action, explanation="no generate")
+
+    async def after_generate(context: Context, step: AfterGenerate) -> Decision | None:
+        if after and step.output.message.tool_calls:
+            return Decision(action=action, explanation="no tools")
+        return None
+
+    return ProtocolGroup(before_generate, after_generate)
+
+
+@tool
+def graded() -> Tool:
+    async def execute(text: str) -> str:
+        """Grade some text with a model.
+
+        Args:
+            text: The text to grade.
+        """
+        output = await get_model().generate(f"Grade: {text}")
+        return output.completion
+
+    return execute
+
+
+@scorer(metrics=[])
+def d3_model_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        output = await get_model().generate("Grade the answer.")
+        return Score(value=output.completion)
+
+    return score
+
+
+def agent_events(log: EvalLog) -> list[ModelEvent]:
+    assert log.samples
+    return [
+        e for e in log.samples[0].events if isinstance(e, ModelEvent) and e.role is None
+    ]
+
+
+def test_a_monitor_sees_each_agent_generate_before_and_after() -> None:
+    seen: GenerateSeen = []
+    log = run([d3_generates(seen)])
+    assert log.status == "success", log.error
+
+    model_events = agent_events(log)
+    assert len(model_events) == 2
+    assert [type(step) for step in seen] == [
+        BeforeGenerate,
+        AfterGenerate,
+        BeforeGenerate,
+        AfterGenerate,
+    ]
+    for index, event in enumerate(model_events):
+        before, after = seen[2 * index], seen[2 * index + 1]
+        assert isinstance(after, AfterGenerate)
+        assert [m.id for m in before.input] == [m.id for m in event.input]
+        assert [t.name for t in before.tools] == ["addition"]
+        assert before.model == "mockllm/model"
+        assert after.output.message.id == event.output.message.id
+        assert after.input is before.input
+
+    events = sentinel_events(log)
+    assert [(e.stage, e.step_id) for e in events if e.path == "d3_generates"] == [
+        ("model_input", model_events[0].input[-1].id),
+        ("model_output", model_events[0].output.message.id),
+        ("model_input", model_events[1].input[-1].id),
+        ("model_output", model_events[1].output.message.id),
+    ]
+    assert log.samples
+    assert len(sentinel_span_ids(log.samples[0].events)) == 4
+
+
+def test_generate_stages_check_only_the_agents_own_calls() -> None:
+    seen: GenerateSeen = []
+    agent = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="graded", tool_arguments={"text": "hi"}
+            ),
+            ModelOutput.from_content("mockllm/model", content="tool grade"),
+            ModelOutput.from_content("mockllm/model", content="done"),
+            ModelOutput.from_content("mockllm/model", content="scorer grade"),
+        ],
+        memoize=False,
+    )
+    monitor_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", content="0") for _ in range(2)
+        ],
+        memoize=False,
+    )
+    task = Task(
+        dataset=[Sample(input="Grade hi.", target="ok")],
+        solver=[use_tools(graded()), generate()],
+        scorer=d3_model_scorer(),
+        sentinel=[d3_generates(seen, ask=True)],
+    )
+    log = eval(task, model=agent, model_roles={"monitor": monitor_model})[0]
+    assert log.status == "success", log.error
+
+    # the agent's two turns, then the tool's and the scorer's calls
+    model_events = agent_events(log)
+    assert [e.output.completion for e in model_events][1:] == [
+        "tool grade",
+        "done",
+        "scorer grade",
+    ]
+    agent_turns = [model_events[0], model_events[2]]
+    afters = [step for step in seen if isinstance(step, AfterGenerate)]
+    assert [step.output.message.id for step in afters] == [
+        e.output.message.id for e in agent_turns
+    ]
+    assert len(seen) == 4
+
+
+def test_a_sub_agent_on_another_model_is_not_checked() -> None:
+    seen: GenerateSeen = []
+    log = run_handoff([d3_generates(seen)])
+    assert log.status == "success", log.error
+    afters = [step for step in seen if isinstance(step, AfterGenerate)]
+    assert [step.output.completion for step in afters][1:] == ["done"]
+    assert len(afters) == 2
+
+
+def test_an_agent_run_as_a_tool_is_checked() -> None:
+    seen: GenerateSeen = []
+    agent = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="helper", tool_arguments={"input": "add"}
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="submit", tool_arguments={"answer": "5"}
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    helper = react(name="helper", description="A helper agent.", tools=[addition()])
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=[use_tools(as_tool(helper)), generate()],
+        sentinel=[d3_generates(seen)],
+    )
+    log = eval(task, model=agent)[0]
+    assert log.status == "success", log.error
+    afters = [step for step in seen if isinstance(step, AfterGenerate)]
+    assert [step.output.message.id for step in afters] == [
+        e.output.message.id for e in agent_events(log)
+    ]
+    assert len(afters) == 3
+    parent, sub_agent, _ = (step.conversation for step in afters)
+    assert parent != sub_agent
+
+
+@pytest.mark.parametrize("after", [False, True])
+def test_terminate_at_a_generate_stage_ends_the_sample(after: bool) -> None:
+    log = run(d3_generate_decides("terminate", after))
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None
+    assert sample.limit.type == "operator"
+    assert sample.limit.reason == ("no tools" if after else "no generate")
+    assert len(agent_events(log)) == (1 if after else 0)
+    assert not [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert {(e.stage, e.action) for e in sentinel_events(log)} == {
+        ("model_output" if after else "model_input", "terminate")
+    }
+
+
+@pytest.mark.parametrize("action", ["reject", "escalate"])
+@pytest.mark.parametrize("after", [False, True])
+def test_unsupported_actions_at_a_generate_stage_fail_the_sample(
+    action: str, after: bool
+) -> None:
+    log = run(d3_generate_decides(action, after))
+    assert log.status == "error"
+    assert log.samples
+    error = log.samples[0].error
+    assert error is not None
+    assert "only 'continue' and 'terminate' are supported" in error.message

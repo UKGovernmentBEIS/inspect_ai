@@ -1,10 +1,13 @@
+from collections import Counter
 from collections.abc import Sequence
 from logging import getLogger
 from typing import Any, Literal
 from weakref import WeakKeyDictionary
 
 from inspect_sentinel import (
+    AfterGenerate,
     AfterToolCall,
+    BeforeGenerate,
     BeforeToolCall,
     Decision,
     HumanAnswer,
@@ -13,7 +16,7 @@ from inspect_sentinel import (
     Reported,
     Step,
 )
-from inspect_sentinel._integration import RunnerContext, run_root
+from inspect_sentinel._integration import RunnerContext, run_root, watched_stages
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
@@ -22,7 +25,12 @@ from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.event._sentinel import SentinelAction, SentinelEvent, SentinelSuspicion
+from inspect_ai.event._sentinel import (
+    SentinelAction,
+    SentinelEvent,
+    SentinelStage,
+    SentinelSuspicion,
+)
 from inspect_ai.log._samples import sample_active
 from inspect_ai.log._transcript import Transcript, transcript
 from inspect_ai.model._chat_message import (
@@ -48,12 +56,22 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewer,
     resolve_tool_call_view,
 )
+from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
+from inspect_ai.util._limit import (
+    LimitExceededError,
+    suspend_token_limit,
+    suspend_turn_limit,
+)
 from inspect_ai.util._span import current_agent_span_id, span
 from inspect_ai.util._store import store
 
-from ._context import SentinelFailure, active_sentinel, active_task_metadata
+from ._context import (
+    SentinelFailure,
+    active_sentinel,
+    active_task_metadata,
+    not_agent_generates,
+)
 
 logger = getLogger(__name__)
 
@@ -131,14 +149,83 @@ async def sentinel_after_tool_call(
         )
 
 
+async def sentinel_before_generate(
+    *,
+    model: str,
+    input: list[ChatMessage],
+    history: list[ChatMessage],
+    tools: list[ToolInfo],
+    tool_choice: ToolChoice,
+    config: GenerateConfig,
+) -> BeforeGenerate | None:
+    """Run the sentinel before one of the agent's generates.
+
+    Returns:
+        The step, for `sentinel_after_generate`, or None when nothing in the sentinel watches either generate stage.
+
+    Raises:
+        TerminateSampleError: The sentinel requested termination.
+        SentinelFailure: A monitor or protocol failed.
+    """
+    root = active_sentinel()
+    if root is None or not (watched_stages(root) & {BeforeGenerate, AfterGenerate}):
+        return None
+    step = BeforeGenerate(
+        model=model,
+        conversation=_conversation(),
+        input=input,
+        history=history,
+        tools=tools,
+        tool_choice=tool_choice,
+        config=config,
+    )
+    await _run_generate(step)
+    return step
+
+
+async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -> None:
+    """Run the sentinel after one of the agent's generates, before its output reaches the agent.
+
+    Raises:
+        TerminateSampleError: The sentinel requested termination.
+        SentinelFailure: A monitor or protocol failed.
+    """
+    step = AfterGenerate(
+        model=before.model,
+        conversation=before.conversation,
+        input=before.input,
+        history=before.history,
+        tools=before.tools,
+        tool_choice=before.tool_choice,
+        config=before.config,
+        output=output,
+    )
+    await _run_generate(step)
+
+
+async def _run_generate(step: BeforeGenerate | AfterGenerate) -> None:
+    # a generate inside a tool's body (an as_tool() agent) must fail the
+    # sample, not become a tool error the model sees, so failures are wrapped
+    try:
+        decision = await _run(step)
+    except (LimitExceededError, TerminateSampleError):
+        raise
+    except Exception as ex:
+        raise SentinelFailure(ex) from ex
+    if decision is not None and decision.action == "terminate":
+        raise TerminateSampleError(
+            decision.explanation or "Sentinel requested termination."
+        )
+
+
 async def _run(step: Step) -> Decision | None:
     root = active_sentinel()
-    if root is None:
+    if root is None or type(step) not in watched_stages(root):
         return None
     try:
         async with span(name="sentinel", type="sentinel"):
-            with suspend_token_limit(), suspend_turn_limit():
-                decision = await run_root(root, _context(), step)
+            with suspend_token_limit(), suspend_turn_limit(), not_agent_generates():
+                decision = await run_root(root, _context(_step_id(step)), step)
     except TimeoutError as ex:
         # the sample runner treats a bare TimeoutError as benign
         raise RuntimeError(
@@ -155,11 +242,33 @@ async def _run(step: Step) -> Decision | None:
     return decision
 
 
-def _stage(step: Step) -> Literal["tool_call", "tool_result"]:
-    return "tool_call" if isinstance(step, BeforeToolCall) else "tool_result"
+def _stage(step: Step) -> SentinelStage:
+    if isinstance(step, BeforeGenerate):
+        return "model_input"
+    elif isinstance(step, AfterGenerate):
+        return "model_output"
+    elif isinstance(step, BeforeToolCall):
+        return "tool_call"
+    return "tool_result"
 
 
-def _context() -> RunnerContext:
+def _step_id(step: Step) -> str:
+    if isinstance(step, AfterGenerate):
+        return step.output.message.id or ""
+    elif isinstance(step, BeforeGenerate):
+        # the same request generated again (a retried refusal) is a new step
+        message_id = (step.input[-1].id if step.input else None) or ""
+        seen = _model_inputs.setdefault(transcript(), Counter[str]())
+        seen[message_id] += 1
+        count = seen[message_id]
+        return message_id if count == 1 else f"{message_id}:{count}"
+    return step.call.id
+
+
+_model_inputs: "WeakKeyDictionary[Transcript, Counter[str]]" = WeakKeyDictionary()
+
+
+def _context(step_id: str) -> RunnerContext:
     active = sample_active()
     state = sample_state()
     if state is not None:
@@ -197,7 +306,7 @@ def _context() -> RunnerContext:
         path="",
         store=store(),
         host=_Host(),
-        recorder=_Recorder(),
+        recorder=_Recorder(step_id),
         factory="",
     )
 
@@ -329,6 +438,11 @@ class _Host:
         )
 
     async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
+        if not isinstance(step, BeforeToolCall | AfterToolCall):
+            raise NotImplementedError(
+                f"inspect_ai cannot ask a person at the {_stage(step)} stage; "
+                "its human approval surfaces show tool calls."
+            )
         if "modify" in choices:
             raise NotImplementedError(
                 "human() cannot offer 'modify' in inspect_ai, since its human "
@@ -363,7 +477,7 @@ _HUMAN_CHOICES: dict[str, ApprovalDecision] = {
 }
 
 
-def _human_view(step: Step) -> ToolCallView:
+def _human_view(step: BeforeToolCall | AfterToolCall) -> ToolCallView:
     view = step.view
     if step.escalations:
         lines = _escape_placeholders(
@@ -396,6 +510,9 @@ def _human_view(step: Step) -> ToolCallView:
 
 
 class _Recorder:
+    def __init__(self, step_id: str) -> None:
+        self._step_id = step_id
+
     def record(
         self, context: RunnerContext, step: Step, reported: Reported[Report]
     ) -> None:
@@ -404,6 +521,7 @@ class _Recorder:
             _emit(
                 context,
                 step,
+                self._step_id,
                 "observation",
                 "reported",
                 function=reported.function,
@@ -413,18 +531,27 @@ class _Recorder:
                 metadata=report.metadata,
             )
         else:
-            _emit_decision(context, step, "reported", reported.function, report)
+            _emit_decision(
+                context, step, self._step_id, "reported", reported.function, report
+            )
 
     def cancelled(self, context: RunnerContext, step: Step, name: str) -> None:
-        _emit(context, step, _factory_kind(context.factory), "cancelled")
+        _emit(context, step, self._step_id, _factory_kind(context.factory), "cancelled")
 
     def bypassed(self, context: RunnerContext, step: Step, name: str) -> None:
-        _emit(context, step, "decision", "bypassed")
+        _emit(context, step, self._step_id, "decision", "bypassed")
 
     def superseded(
         self, context: RunnerContext, step: Step, reported: Reported[Decision]
     ) -> None:
-        _emit_decision(context, step, "superseded", reported.function, reported.report)
+        _emit_decision(
+            context,
+            step,
+            self._step_id,
+            "superseded",
+            reported.function,
+            reported.report,
+        )
 
 
 def _factory_kind(factory: str) -> _Kind:
@@ -438,6 +565,7 @@ def _factory_kind(factory: str) -> _Kind:
 def _emit_decision(
     context: RunnerContext,
     step: Step,
+    step_id: str,
     status: _Status,
     function: str,
     decision: Decision,
@@ -445,6 +573,7 @@ def _emit_decision(
     _emit(
         context,
         step,
+        step_id,
         "decision",
         status,
         function=function,
@@ -461,6 +590,7 @@ def _emit_decision(
 def _emit(
     context: RunnerContext,
     step: Step,
+    step_id: str,
     kind: _Kind,
     status: _Status,
     *,
@@ -479,7 +609,7 @@ def _emit(
             factory=context.factory,
             path=context.path,
             function=function,
-            step_id=step.call.id,
+            step_id=step_id,
             conversation=step.conversation,
             stage=_stage(step),
             kind=kind,
