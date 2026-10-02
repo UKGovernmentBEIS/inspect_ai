@@ -197,7 +197,9 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#september-2026" id="toc-september-2026" class="nav-link active" data-scroll-target="#september-2026">0.3.273 (29 September 2026)</a></li>
+  <li><a href="#october-2026" id="toc-october-2026" class="nav-link active" data-scroll-target="#october-2026">0.3.275 (01 October 2026)</a></li>
+  <li><a href="#october-2026-1" id="toc-october-2026-1" class="nav-link" data-scroll-target="#october-2026-1">0.3.274 (01 October 2026)</a></li>
+  <li><a href="#september-2026" id="toc-september-2026" class="nav-link" data-scroll-target="#september-2026">0.3.273 (29 September 2026)</a></li>
   <li><a href="#september-2026-1" id="toc-september-2026-1" class="nav-link" data-scroll-target="#september-2026-1">0.3.272 (28 September 2026)</a></li>
   <li><a href="#september-2026-2" id="toc-september-2026-2" class="nav-link" data-scroll-target="#september-2026-2">0.3.271 (26 September 2026)</a></li>
   <li><a href="#september-2026-3" id="toc-september-2026-3" class="nav-link" data-scroll-target="#september-2026-3">0.3.270 (25 September 2026)</a></li>
@@ -476,6 +478,25 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="october-2026" class="level2">
+<h2 class="anchored" data-anchor-id="october-2026">0.3.275 (01 October 2026)</h2>
+<ul>
+<li>LiteLLM Proxy: Gemini models accept any <code>reasoning_effort</code>, mapped to the levels or thinking budgets the native Google provider uses.</li>
+<li>LiteLLM Proxy: Gemini tool calls replayed through the proxy keep their thought signatures when the proxy’s <code>model_name</code> does not contain “gemini” (LiteLLM otherwise replaced them with a placeholder); requests with tools carry the function-calling hint; and a turn returned as a malformed function call (no text or tool call, or a call written as code) is retried with a corrective exchange, as with the <code>google</code> provider.</li>
+</ul>
+</section>
+<section id="october-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="october-2026-1">0.3.274 (01 October 2026)</h2>
+<ul>
+<li>Sandbox tools: the root check now runs once at sample start, before solver/agent execution begins; an inconclusive check warns before falling back to the sandbox’s default user, and a check that could not run, or a later root failure, is an error.</li>
+<li>Local sandbox: <code>exec(user=...)</code> now rejects unsupported users instead of ignoring them; the current effective user’s name or UID is accepted on POSIX.</li>
+<li>Control Channel: <code>inspect ctl ... --log-dir</code> now shows running and completed-but-unflushed samples, with current counts and their events, for evals run with <code>--log-shared</code>.</li>
+<li>OpenAI Compatible: Fixed concurrent sample failures during credential refresh, including OpenRouter evaluations on Hawk, and added an overridable <code>ModelAPI.refresh_credentials()</code> for model API extensions.</li>
+<li>OpenAI: Biological-risk policy responses now produce content-filter stops instead of failing samples.</li>
+<li>Log viewer: Tasks can set <code>ViewerConfig(trust_content=False)</code> to have the viewer show all of a log’s content as plain text, with no markdown, media, or clickable links.</li>
+<li>Log viewer: <code>inspect view --no-trust-content</code> (or <code>INSPECT_VIEW_TRUST_CONTENT=false</code>) shows every log’s content as plain text.</li>
+</ul>
+</section>
 <section id="september-2026" class="level2">
 <h2 class="anchored" data-anchor-id="september-2026">0.3.273 (29 September 2026)</h2>
 <ul>

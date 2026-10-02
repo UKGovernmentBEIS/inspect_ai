@@ -814,6 +814,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>By default it will run locally (<code>127.0.0.1</code>) on port 7575 (and kill any existing <code>inspect view</code> using that port). If you want to run two instances of <code>inspect view</code> you can specify an alternate port:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view <span class="at">--log-dir</span> ./experiment-logs <span class="at">--port</span> 6565</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You only need to run <code>inspect view</code> once at the beginning of a session (as it will automatically update to show new evaluations when they are run).</p>
+<p>If the logs contain output you don’t trust (for example, from a model without safeguards), <code>inspect view --no-trust-content</code> shows all log content as plain text. See <a href="./task-views.html#untrusted-content">Untrusted Content</a>.</p>
 <section id="remote-access" class="level3">
 <h3 class="anchored" data-anchor-id="remote-access">Remote Access</h3>
 <p>For single-user access to a viewer on a remote machine, keep the viewer bound to loopback and use SSH port forwarding:</p>

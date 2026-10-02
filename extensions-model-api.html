@@ -889,21 +889,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Whether an exception indicates an authentication failure (used to trigger an API key refresh).</td>
 </tr>
 <tr class="even">
+<td><code>refresh_credentials()</code></td>
+<td>close, then <code>initialize()</code></td>
+<td>Async. Called after an authentication failure to pick up new credentials. OpenAI-compatible providers update the key on their existing client instead, so a subclass that keeps other credential state must update it here too.</td>
+</tr>
+<tr class="odd">
 <td><code>collapse_user_messages()</code></td>
 <td><code>False</code></td>
 <td>Collapse consecutive user messages into a single message (required by some providers).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>collapse_assistant_messages()</code></td>
 <td><code>False</code></td>
 <td>Collapse consecutive assistant messages into a single message.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>tools_required()</code></td>
 <td><code>False</code></td>
 <td>Whether tool definitions must be passed whenever the message stream contains tool use.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>tool_result_images()</code></td>
 <td><code>False</code></td>
 <td>Whether tool results may contain images.</td>

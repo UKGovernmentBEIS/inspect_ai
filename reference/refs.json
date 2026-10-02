@@ -473,6 +473,7 @@
   "SandboxEnvironment": "inspect_ai.util.qmd#sandboxenvironment",
   "SandboxConnection": "inspect_ai.util.qmd#sandboxconnection",
   "SandboxUnavailableError": "inspect_ai.util.qmd#sandboxunavailableerror",
+  "SandboxUserUnsupportedError": "inspect_ai.util.qmd#sandboxuserunsupportederror",
   "sandboxenv": "inspect_ai.util.qmd#sandboxenv",
   "sandbox_service": "inspect_ai.util.qmd#sandbox_service",
   "override_sandbox_output_limit": "inspect_ai.util.qmd#override_sandbox_output_limit",

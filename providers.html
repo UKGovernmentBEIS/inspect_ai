@@ -854,6 +854,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#litellm-proxy-model-info" id="toc-litellm-proxy-model-info" class="nav-link" data-scroll-target="#litellm-proxy-model-info">Model Info</a></li>
   <li><a href="#litellm-proxy-claude" id="toc-litellm-proxy-claude" class="nav-link" data-scroll-target="#litellm-proxy-claude">Claude Models</a></li>
+  <li><a href="#litellm-proxy-gemini" id="toc-litellm-proxy-gemini" class="nav-link" data-scroll-target="#litellm-proxy-gemini">Gemini Models</a></li>
   <li><a href="#litellm-proxy-reasoning-effort" id="toc-litellm-proxy-reasoning-effort" class="nav-link" data-scroll-target="#litellm-proxy-reasoning-effort">Reasoning Effort</a></li>
   <li><a href="#litellm-proxy-streaming" id="toc-litellm-proxy-streaming" class="nav-link" data-scroll-target="#litellm-proxy-streaming">Responses API and Streaming</a></li>
   <li><a href="#litellm-proxy-web-search" id="toc-litellm-proxy-web-search" class="nav-link" data-scroll-target="#litellm-proxy-web-search">Web Search</a></li>
@@ -1023,7 +1024,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="c7a80dd2" class="cell">
+<div id="c6e54288" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
@@ -2721,8 +2722,18 @@ Note
 </ul>
 <p>A model that does not accept a conversation ending with an assistant message (assistant prefill) fails with an error saying so rather than being retried.</p>
 </section>
+<section id="litellm-proxy-gemini" class="level3">
+<h3 class="anchored" data-anchor-id="litellm-proxy-gemini">Gemini Models</h3>
+<p>When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native <code>google</code> provider’s handling of malformed function calls:</p>
+<ul>
+<li>The system prompt carries a function-calling hint that discourages Gemini from writing a function call as code (<code>print(default_api.bash(...))</code>).</li>
+<li>A turn that comes back as a malformed function call is retried up to 3 times with a corrective exchange, with tool calling required when the tool choice was <code>auto</code>. LiteLLM reports Gemini’s <code>MALFORMED_FUNCTION_CALL</code> as an ordinary stop, so Inspect recognizes such a turn by its shape: no text and no tool call, or text that is a function call written as code. When the retries run out, the assistant message says that it had trouble calling a function. Usage covers every attempt, and <code>ModelOutput.metadata</code> records <code>malformed_function_call_attempts</code>.</li>
+<li>Each replayed tool call carries its thought signature in <code>provider_specific_fields</code> as well as in its id. LiteLLM strips the id-embedded signature when the proxy’s <code>model_name</code> does not contain “gemini” and then sends a placeholder signature, which Google documents as degrading the model.</li>
+</ul>
+</section>
 <section id="litellm-proxy-reasoning-effort" class="level3">
 <h3 class="anchored" data-anchor-id="litellm-proxy-reasoning-effort">Reasoning Effort</h3>
+<p>Google models get the same <code>reasoning_effort</code> mapping as the <a href="#google-gemini">Google</a> provider: Gemini 3 and later (and names matching no known Gemini model, such as predeployment codenames) take <code>minimal</code> through <code>high</code>, with <code>xhigh</code> and <code>max</code> lowered to <code>high</code> and <code>minimal</code> raised to <code>low</code> where the model does not support it.</p>
 <p>When the proxy or upstream model rejects the requested <code>reasoning_effort</code>, Inspect retries with the nearest effort the model accepts (or with no effort, if the model takes none), warns once, and uses that effort for later requests. Reasoning returned by the upstream model (including Claude thinking blocks and Gemini thought signatures) is sent back on the next turn.</p>
 </section>
 <section id="litellm-proxy-streaming" class="level3">

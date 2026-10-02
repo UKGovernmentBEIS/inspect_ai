@@ -214,7 +214,10 @@ There are two sandbox environments built in to Inspect and six available as exte
 | `ec2` | [inspect_ec2_sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) | No | [AWS EC2](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) virtual machine. |
 | `proxmox` | [inspect_proxmox_sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) | No | [Proxmox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) with virtual machines. |
 | `vagrant` | [inspect_vagrant_sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) | No | [Vagrant](https://github.com/jasongwartz/inspect_vagrant_sandbox) virtual machines on any Vagrant-supported hypervisor. |
+| `openshell` | [inspect-openshell-sandbox](https://pypi.org/project/inspect-openshell-sandbox/) | Yes | [NVIDIA OpenShell](https://github.com/32bitsret/inspect-openshell-sandbox) sandboxes with Landlock filesystem and network policies. |
 | `local` | Built-in | No | Local file system (no sandbox). |
+
+The `local` environment always executes as the current effective user. On POSIX systems, `exec(user=...)` accepts that user’s name or UID; other identities raise [SandboxUserUnsupportedError](./reference/inspect_ai.util.html.md#sandboxuserunsupportederror) before execution. On other platforms, omit `user`.
 
 Sandbox environment definitions can be bound at the [Sample](./reference/inspect_ai.dataset.html.md#sample), [Task](./reference/inspect_ai.html.md#task), or [eval()](./reference/inspect_ai.html.md#eval) level. Binding precedence goes from [eval()](./reference/inspect_ai.html.md#eval), to [Task](./reference/inspect_ai.html.md#task) to [Sample](./reference/inspect_ai.dataset.html.md#sample), however sandbox config files defined on the [Sample](./reference/inspect_ai.dataset.html.md#sample) always take precedence when the sandbox type for the [Sample](./reference/inspect_ai.dataset.html.md#sample) is the same as the enclosing [Task](./reference/inspect_ai.html.md#task) or [eval()](./reference/inspect_ai.html.md#eval).
 

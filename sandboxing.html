@@ -1023,6 +1023,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><a href="https://github.com/jasongwartz/inspect_vagrant_sandbox">Vagrant</a> virtual machines on any Vagrant-supported hypervisor.</td>
 </tr>
 <tr class="even">
+<td><code>openshell</code></td>
+<td><a href="https://pypi.org/project/inspect-openshell-sandbox/">inspect-openshell-sandbox</a></td>
+<td>Yes</td>
+<td><a href="https://github.com/32bitsret/inspect-openshell-sandbox">NVIDIA OpenShell</a> sandboxes with Landlock filesystem and network policies.</td>
+</tr>
+<tr class="odd">
 <td><code>local</code></td>
 <td>Built-in</td>
 <td>No</td>
@@ -1030,6 +1036,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
+<p>The <code>local</code> environment always executes as the current effective user. On POSIX systems, <code>exec(user=...)</code> accepts that user’s name or UID; other identities raise <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxuserunsupportederror">SandboxUserUnsupportedError</a></span> before execution. On other platforms, omit <code>user</code>.</p>
 <p>Sandbox environment definitions can be bound at the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>, or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> level. Binding precedence goes from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>, to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span>, however sandbox config files defined on the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> always take precedence when the sandbox type for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> is the same as the enclosing <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</p>
 <p>Here is a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> that defines a <code>sandbox</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>Task(</span>

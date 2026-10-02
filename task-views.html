@@ -743,6 +743,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#the-score-panel" id="toc-the-score-panel" class="nav-link" data-scroll-target="#the-score-panel">The Score Panel</a></li>
   <li><a href="#scanner-results" id="toc-scanner-results" class="nav-link" data-scroll-target="#scanner-results">Scanner Results</a></li>
+  <li><a href="#untrusted-content" id="toc-untrusted-content" class="nav-link" data-scroll-target="#untrusted-content">Untrusted Content</a>
+  <ul class="collapse">
+  <li><a href="#viewing-untrusted-logs" id="toc-viewing-untrusted-logs" class="nav-link" data-scroll-target="#viewing-untrusted-logs">Viewing Untrusted Logs</a></li>
+  </ul></li>
   <li><a href="#reference" id="toc-reference" class="nav-link" data-scroll-target="#reference">Reference</a></li>
   </ul>
 </nav>
@@ -810,7 +814,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>        ),</span>
 <span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The configuration that you specify in your task will be serialized into the eval log when it is written, so the configuration will be used for anyone viewing the log file produced using the configuration.</p>
-<p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.viewer.html#viewerconfig">ViewerConfig</a></span> covers three areas, each configured independently:</p>
+<p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.viewer.html#viewerconfig">ViewerConfig</a></span> covers four areas, each configured independently:</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -830,6 +834,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>scanner_result_view</code></td>
 <td>The scanner results sidebar (for <a href="./scanners.html">scanners</a>).</td>
+</tr>
+<tr class="even">
+<td><code>trust_content</code></td>
+<td>Whether the log’s content may be rendered richly (see <a href="#untrusted-content">Untrusted Content</a>).</td>
 </tr>
 </tbody>
 </table>
@@ -1074,6 +1082,57 @@ Note
 <li>A bare string — shorthand for the matching <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.viewer.html#scannerresultfield">ScannerResultField</a></span> name.</li>
 </ul>
 <p><code>exclude_fields</code> subtracts sections from the resolved set. Excluding a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.viewer.html#metadatafield">MetadataField</a></span> also removes that key from the generic <code>metadata</code> dump.</p>
+</section>
+<section id="untrusted-content" class="level2">
+<h2 class="anchored" data-anchor-id="untrusted-content">Untrusted Content</h2>
+<p>By default the viewer renders log content richly: model output and scores are shown as markdown (with math and syntax highlighting), terminal output keeps its colors, and images, audio, and video are displayed. When the content comes from a model you can’t trust (for example, during pre-deployment testing of a model without safeguards), set <code>trust_content=False</code> to have the viewer show all of the log’s content as plain text instead:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> untrusted_eval():</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>...,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>...,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        viewer<span class="op">=</span>ViewerConfig(trust_content<span class="op">=</span><span class="va">False</span>),</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>For such logs, the viewer:</p>
+<ul>
+<li>Shows markdown, math, and code as their literal source text.</li>
+<li>Shows terminal escape sequences rather than interpreting them.</li>
+<li>Replaces images, audio, video, and terminal recordings with a placeholder.</li>
+<li>Shows links as text, with their destination, rather than making them clickable.</li>
+<li>Makes invisible and bidirectional-override characters visible (e.g.&nbsp;<code>⟨U+202E⟩</code>).</li>
+</ul>
+<p>Unlike the other settings, this isn’t a default that a reviewer’s preferences override. To mark a task you didn’t write as untrusted, use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>. Since <code>viewer</code> replaces the task’s whole viewer configuration, copy the existing one to keep its other settings:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> task_with</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>task <span class="op">=</span> existing_task()</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>untrusted <span class="op">=</span> task_with(</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    task,</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    viewer<span class="op">=</span>(task.viewer <span class="kw">or</span> ViewerConfig()).model_copy(</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        update<span class="op">=</span>{<span class="st">"trust_content"</span>: <span class="va">False</span>}</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Retrying an eval (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span> or <code>inspect eval-retry</code>) keeps its logs untrusted.</p>
+<section id="viewing-untrusted-logs" class="level3">
+<h3 class="anchored" data-anchor-id="viewing-untrusted-logs">Viewing Untrusted Logs</h3>
+<p>To show every log as untrusted, whatever its own setting (for example, logs written before this setting existed, or by a task that doesn’t set it), start the viewer with <code>--no-trust-content</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view <span class="at">--no-trust-content</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>You can also set <code>INSPECT_VIEW_TRUST_CONTENT=false</code> in the environment <code>inspect view</code> runs in. From Python, pass <code>trust_content=False</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#view">view()</a></span>.</p>
+<p>This option applies only to the <code>inspect view</code> server. Bundled and embedded viewers (<code>inspect view bundle</code>, <code>inspect view embed</code>, <code>eval_set(embed_viewer=True)</code>) rely on each log’s own <code>ViewerConfig(trust_content=False)</code>.</p>
+<p>The viewer option only lowers trust. Leaving it unset, or passing <code>--trust-content</code>, defers to each log, and a log that sets <code>trust_content=False</code> is never shown richly.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p><code>trust_content</code> is applied by the viewer when it reads the log. Viewers that predate the setting (including older versions of the VS Code extension) ignore it, and older versions of Inspect drop it if they rewrite the log. Scout does not yet honor it. The setting controls rendering only; it doesn’t make the content safe to copy or act on.</p>
+</div>
+</div>
+</section>
 </section>
 <section id="reference" class="level2">
 <h2 class="anchored" data-anchor-id="reference">Reference</h2>

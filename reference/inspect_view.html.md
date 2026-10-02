@@ -39,6 +39,7 @@ inspect view start [OPTIONS]
 | `--trusted-origin` | text | Exact browser origin allowed to use the viewer. Repeat for multiple origins. | `Sentinel.UNSET` |
 | `--trusted-host` | text | Additional exact HTTP authority allowed for non-browser clients. | `Sentinel.UNSET` |
 | `--unsafe-allow-unauthenticated` | boolean | Acknowledge unauthenticated access when binding beyond loopback. | `False` |
+| `--trust-content` / `--no-trust-content` | boolean | Whether log content may be rendered richly (markdown, math, highlighting, media, links). –no-trust-content shows the content of every log as plain text, whatever the log’s own ViewerConfig(trust_content=…). –trust-content, like leaving the option unset, defers to each log; it never shows an untrusted log richly. | None |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
