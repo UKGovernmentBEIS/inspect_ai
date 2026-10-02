@@ -183,18 +183,22 @@ def _google_api(model_name: str) -> GoogleGenAIAPI:
 
 
 @pytest.mark.parametrize(
-    "effort,expected_budget",
+    "model_name,effort,expected_budget",
     [
-        ("minimal", 2048),
-        ("low", 4096),
-        ("medium", 10000),
-        ("high", 16000),
-        ("xhigh", 32000),
-        ("max", 32000),
+        ("gemini-2.5-flash", "minimal", 2048),
+        ("gemini-2.5-flash", "low", 4096),
+        ("gemini-2.5-flash", "medium", 10000),
+        ("gemini-2.5-flash", "high", 16000),
+        # capped at the model's maximum budget
+        ("gemini-2.5-flash", "xhigh", 24576),
+        ("gemini-2.5-flash", "max", 24576),
+        ("gemini-2.5-flash-lite", "max", 24576),
+        ("gemini-2.5-pro", "xhigh", 32000),
+        ("gemini-2.5-pro", "max", 32000),
     ],
 )
-def test_google_gemini_2_5_effort_bridge(effort, expected_budget):
-    api = _google_api("gemini-2.5-flash")
+def test_google_gemini_2_5_effort_bridge(model_name, effort, expected_budget):
+    api = _google_api(model_name)
     thinking_config = api.chat_thinking_config(GenerateConfig(reasoning_effort=effort))
     assert thinking_config is not None
     assert thinking_config.thinking_budget == expected_budget
@@ -596,6 +600,7 @@ def _responses_params_for(model_name, config):
         ("gpt-6-astra", "max"),
         ("gpt-6-sol", "max"),
         ("gpt-6-luna", "max"),
+        ("gpt-6.1-sol", "max"),
     ],
 )
 def test_openai_responses_max_effort_by_model(model_name, expected):
@@ -678,6 +683,7 @@ def test_openai_responses_explicit_none_effort_keeps_sampling_params():
         ("gpt-6-astra", True, True),
         ("gpt-6-sol", True, True),
         ("gpt-6-luna", True, True),
+        ("gpt-6.1-sol", True, True),
         ("gpt-5.6-chat", False, False),  # -chat variants don't reason
         ("gpt-4o", False, False),
         ("o3", False, False),
@@ -928,7 +934,7 @@ def _assert_sampling_params_sent(params):
 
 
 @pytest.mark.parametrize(
-    "model_name", ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6"]
+    "model_name", ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6"]
 )
 def test_openai_responses_gpt_6_drops_sampling_params_without_effort(model_name):
     params = _responses_params_for(model_name, _SAMPLING_CONFIG)
@@ -976,7 +982,7 @@ def test_openai_responses_always_reasoning_models_drop_sampling_params(
     model_name, effort
 ):
     # o-series and gpt-5.0 can't turn reasoning off either; they share the
-    # always_reasons() gate with Astra
+    # always_reasons() gate with Astra and GPT-6.1 Sol
     params = _responses_params_for(
         model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
     )
@@ -984,14 +990,22 @@ def test_openai_responses_always_reasoning_models_drop_sampling_params(
 
 
 @pytest.mark.parametrize(
-    "model_name", ["gpt-6-astra", "openai.gpt-6-astra", "my-gpt-6-astra-deployment"]
+    "model_name",
+    [
+        "gpt-6-astra",
+        "openai.gpt-6-astra",
+        "my-gpt-6-astra-deployment",
+        "gpt-6.1-sol",
+        "openai.gpt-6.1-sol",
+        "my-gpt-6.1-sol-deployment",
+    ],
 )
 @pytest.mark.parametrize("effort", [None, "none", "low", "max"])
-def test_openai_responses_gpt_6_astra_drops_sampling_params_regardless_of_effort(
+def test_openai_responses_always_reasoning_gpt_6_drops_sampling_params_regardless_of_effort(
     model_name, effort
 ):
-    # regression: splitting "GPT-6 always reasons" into an Astra-only predicate
-    # must not change Astra, which rejects sampling params even with `none`
+    # Astra and GPT-6.1 Sol reject sampling params even with `none`, which is
+    # passed through unchanged (the API rejects it)
     params = _responses_params_for(
         model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
     )
@@ -1000,7 +1014,9 @@ def test_openai_responses_gpt_6_astra_drops_sampling_params_regardless_of_effort
         assert params["reasoning"]["effort"] == effort
 
 
-@pytest.mark.parametrize("model_name", ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"])
+@pytest.mark.parametrize(
+    "model_name", ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol"]
+)
 def test_openai_compatible_model_info_gpt_6_is_gpt_5_plus(model_name):
     from inspect_ai.model._providers.openai_compatible import ModelInfo
 
@@ -1020,6 +1036,9 @@ def test_openai_compatible_model_info_gpt_6_is_gpt_5_plus(model_name):
         ("gpt-6-luna", False),
         ("openai.gpt-6-sol", False),
         ("my-gpt-6-luna-deployment", False),
+        ("gpt-6.1-sol", True),
+        ("openai.gpt-6.1-sol", True),  # bedrock api_model_name prefix
+        ("my-gpt-6.1-sol-deployment", True),  # azure deployment name
         ("gpt-6", False),
         ("gpt-5.6-sol", False),
         ("gpt-5.5", False),

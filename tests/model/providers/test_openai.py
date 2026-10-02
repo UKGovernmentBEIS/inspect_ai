@@ -793,6 +793,36 @@ async def test_openai_gpt_6_luna_max_reasoning_effort() -> None:
     await _gpt_6_max_effort("gpt-6-luna")
 
 
+# -- GPT-6.1 Sol (live) --
+#
+# Like Astra (and unlike GPT-6 Sol), GPT-6.1 Sol always reasons: `none` is
+# rejected and sampling params are dropped regardless of effort.
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-sol")
+async def test_openai_gpt_6_1_sol_generate() -> None:
+    await _gpt_6_generate("gpt-6.1-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-sol")
+async def test_openai_gpt_6_1_sol_low_effort_with_temperature() -> None:
+    # temperature is dropped (with a warning) even with an explicit effort
+    model = get_model(
+        "openai/gpt-6.1-sol",
+        config=GenerateConfig(temperature=0.5, reasoning_effort="low"),
+    )
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-sol")
+async def test_openai_gpt_6_1_sol_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.1-sol")
+
+
 # -- skip_if_no_openai_model gate (no network) --
 
 

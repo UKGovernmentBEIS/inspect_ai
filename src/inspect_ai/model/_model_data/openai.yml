@@ -502,4 +502,16 @@ openai:
       reasoning: True
       # https://developers.openai.com/api/docs/models/gpt-6-luna ("none, low, medium (default), high, xhigh, and max")
       reasoning_effort_default: medium
+    # https://developers.openai.com/api/docs/models/gpt-6.1-sol
+    gpt-6.1-sol:
+      display_name: GPT-6.1 Sol
+      # https://openai.com/index/introducing-gpt-6-1-sol/
+      release_date: 2026-09-29
+      knowledge_cutoff_date: 2026-04-30
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # https://developers.openai.com/api/docs/models/gpt-6.1-sol ("low, medium (default), high, xhigh, and max")
+      reasoning_effort_default: medium
 

@@ -88,6 +88,7 @@ from .._model_output import (
     StopReason,
     TopLogprob,
 )
+from ._first_party import FRONTIER_MODELS
 from ._grok_batch import GrokBatcher
 
 XAI_API_KEY = "XAI_API_KEY"
@@ -523,7 +524,7 @@ class GrokAPI(ModelAPI):
             self.is_at_least_grok_4()
             and _get_model_info_direct(self.canonical_name()) is None
         ):
-            return "grok/grok-4.7"
+            return FRONTIER_MODELS["grok"]
         return super().input_tokens_name()
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
