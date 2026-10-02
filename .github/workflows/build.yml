@@ -114,7 +114,7 @@ jobs:
       # unannounced; bump it deliberately when inspect_ai needs newer sentinel code.
       - name: Install inspect_sentinel (TEMPORARY)
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@f9a0884e631a425ecaf3c33a887f0ef24f06676f"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@96da1257686cf284d01f94ab2b2869b6ba16e6f6"
 
       - name: Run mypy
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
@@ -347,7 +347,7 @@ jobs:
       # unannounced; bump it deliberately when inspect_ai needs newer sentinel code.
       - name: Install inspect_sentinel (TEMPORARY)
         if: env.RUN_TESTS == 'true'
-        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@f9a0884e631a425ecaf3c33a887f0ef24f06676f"
+        run: uv pip install --no-deps "inspect_sentinel @ git+https://github.com/meridianlabs-ai/inspect_sentinel@96da1257686cf284d01f94ab2b2869b6ba16e6f6"
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
