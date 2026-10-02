@@ -9,11 +9,9 @@ from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING, MESSAGE_CACHE
 from inspect_ai._util.content import Content, ContentText
-from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.model_validator import model_wrap_validator
-from inspect_ai.tool import ToolCall
-from inspect_ai.tool._tool_call import ToolCallError
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
 logger = getLogger(__name__)
 
@@ -75,6 +73,8 @@ class ChatMessageBase(BaseModel):
                 json.dumps(data, sort_keys=True).encode()
             ).digest()
         except Exception as ex:
+            from inspect_ai._util.logger import warn_once
+
             warn_once(
                 logger,
                 f"Failed to dump object with json ({ex}). Falling back to repr which is slower",

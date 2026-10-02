@@ -5,7 +5,6 @@ from typing import Any, Callable, Literal, NamedTuple, Type, TypeVar
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from inspect_ai._util.content import Content
-from inspect_ai._util.logger import warn_once
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessage, ChatMessageAssistant
@@ -174,6 +173,8 @@ def collect_stop_details(
     try:
         details = fn()
     except Exception as ex:
+        from inspect_ai._util.logger import warn_once
+
         warn_once(
             logger,
             f"Unexpected data shape collecting stop_details from {provider}: {ex}",
