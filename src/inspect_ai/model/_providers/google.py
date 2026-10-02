@@ -8,7 +8,6 @@ import ssl
 from copy import copy
 from io import BytesIO
 from logging import getLogger
-from textwrap import dedent
 from typing import Any, Literal, NamedTuple, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
@@ -153,6 +152,14 @@ from inspect_ai.tool import (
 from inspect_ai.util._json import json_schema_dump
 
 from ._first_party import FRONTIER_MODELS
+from ._gemini_function_calling import (
+    DEFAULT_MALFORMED_FUNCTION_MESSAGE,
+    FUNCTION_CALLING_HINT,
+    MALFORMED_FUNCTION_RETRY_PROMPT,
+    MAX_TOOL_CALLING_ATTEMPTS,
+    malformed_function_apology,
+    malformed_function_attempt,
+)
 from .util import (
     OAUTH_PLACEHOLDER_API_KEY,
     GoogleOAuthCredentials,
@@ -180,10 +187,6 @@ def _is_truthy(value: Any) -> bool:
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
 
-# Total request budget (initial attempt + retries) for the internal
-# MALFORMED_FUNCTION_CALL retry loop. The stream-restart boundary inside the
-# loop must use the same bound: it only fires when another request will run.
-MAX_TOOL_CALLING_ATTEMPTS = 3
 
 # Key under ContentReasoning.internal that links a redacted reasoning block
 # to the function_call whose thought_signature it carries. Used to preserve
@@ -1764,15 +1767,7 @@ async def extract_system_message_as_parts(
     # as sending it causes FAILED_PRECONDITION from the API.
     # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
     if len(tools) > 0 and include_function_calling_hint:
-        system_parts.append(
-            Part(
-                text=dedent("""
-                ## Function Calling
-                - Do not generate code. Always generate the function call json
-                When calling functions, output the function name exactly as defined. Do not prepend 'default_api.' or any other namespace to the function name
-                """)
-            )
-        )
+        system_parts.append(Part(text=FUNCTION_CALLING_HINT))
 
     # if every part is text then return list[str] rather than list[Part]
     # works around issue w/ open-telemetry not expecting parts
@@ -2135,10 +2130,7 @@ def completion_choice_from_candidate(
     if candidate.finish_reason == FinishReason.MALFORMED_FUNCTION_CALL:
         content.append(
             ContentText(
-                text=dedent(f"""
-                I seem to have had trouble calling a function and replied with {_malformed_function_message(candidate)}.
-                I need to fix this by generating the function call JSON instead.
-                """)
+                text=malformed_function_apology(_malformed_function_message(candidate))
             )
         )
 
@@ -2632,18 +2624,13 @@ def _malformed_function_retry(
             role="model",
             parts=[
                 Part(
-                    text=f"I attempted to call a function but produced: {_malformed_function_message(response)}"
+                    text=malformed_function_attempt(
+                        _malformed_function_message(response)
+                    )
                 )
             ],
         ),
-        Content(
-            role="user",
-            parts=[
-                Part(
-                    text="Please try again and generate valid function call JSON, not Python code."
-                )
-            ],
-        ),
+        Content(role="user", parts=[Part(text=MALFORMED_FUNCTION_RETRY_PROMPT)]),
     ]
 
     # force tool calling if it was 'auto'
@@ -2653,18 +2640,14 @@ def _malformed_function_retry(
 
 
 def _malformed_function_message(candidate: Candidate | GenerateContentResponse) -> str:
-    DEFAULT_FINISH_MESSAGE = (
-        "a malformed function call (possibly Python code instead of JSON)"
-    )
-
     # resolve candidate
     if isinstance(candidate, GenerateContentResponse):
         if not candidate.candidates:
-            return DEFAULT_FINISH_MESSAGE
+            return DEFAULT_MALFORMED_FUNCTION_MESSAGE
 
         candidate = candidate.candidates[0]
 
     if candidate.finish_message:
         return candidate.finish_message
     else:
-        return DEFAULT_FINISH_MESSAGE
+        return DEFAULT_MALFORMED_FUNCTION_MESSAGE
