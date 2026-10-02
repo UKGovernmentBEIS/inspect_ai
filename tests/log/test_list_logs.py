@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, cast
 
 import anyio
+import boto3
 import pytest
 
 from inspect_ai._util.azure import AzureAuthError
@@ -58,6 +59,69 @@ def test_list_logs():
 
     assert len(logs) == 3
     assert all(file not in names for file in ignored_files)
+
+
+@pytest.mark.parametrize("recursive", [False, True])
+def test_list_logs_with_prefix_scoped_s3(
+    prefix_scoped_s3: str, recursive: bool
+) -> None:
+    client = boto3.client("s3")
+    prefix = prefix_scoped_s3.removeprefix("s3://test-bucket/")
+    filename = "2026-01-01T00-00-00_task_id.eval"
+    client.put_object(Bucket="test-bucket", Key=f"{prefix}/{filename}", Body=b"")
+    client.put_object(Bucket="test-bucket", Key=f"{prefix}/nested/{filename}", Body=b"")
+
+    logs = list_eval_logs(prefix_scoped_s3, recursive=recursive)
+    expected = {f"{prefix_scoped_s3}/{filename}"}
+    if recursive:
+        expected.add(f"{prefix_scoped_s3}/nested/{filename}")
+    assert {log.name for log in logs} == expected
+
+
+@pytest.mark.parametrize("recursive", [False, True])
+@pytest.mark.parametrize("missing", [False, True])
+def test_list_logs_root_listing_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    recursive: bool,
+    missing: bool,
+) -> None:
+    fs = filesystem(str(tmp_path))
+
+    def deny_listing(path: str, **kwargs: Any) -> list[dict[str, Any]]:
+        if missing:
+            raise FileNotFoundError(path)
+        raise PermissionError("root listing denied")
+
+    monkeypatch.setattr(fs.fs, "ls", deny_listing)
+    monkeypatch.setattr("inspect_ai.log._file.filesystem", lambda *args: fs)
+
+    if missing:
+        assert list_eval_logs(str(tmp_path), recursive=recursive) == []
+    else:
+        with pytest.raises(PermissionError, match="root listing denied"):
+            list_eval_logs(str(tmp_path), recursive=recursive)
+
+
+@pytest.mark.parametrize("recursive", [False, True])
+@pytest.mark.parametrize("custom_options", [False, True])
+async def test_list_logs_async_with_prefix_scoped_s3(
+    prefix_scoped_s3: str,
+    recursive: bool,
+    custom_options: bool,
+) -> None:
+    prefix = prefix_scoped_s3.removeprefix("s3://test-bucket/")
+    filename = "2026-01-01T00-00-00_task_id.eval"
+    boto3.client("s3").put_object(
+        Bucket="test-bucket", Key=f"{prefix}/nested/{filename}", Body=b""
+    )
+    logs = await list_eval_logs_async(
+        prefix_scoped_s3,
+        recursive=recursive,
+        fs_options={"anon": True} if custom_options else {},
+    )
+    expected = {f"{prefix_scoped_s3}/nested/{filename}"} if recursive else set()
+    assert {log.name for log in logs} == expected
 
 
 async def test_list_logs_async_matches_sync():
@@ -121,8 +185,7 @@ async def test_list_logs_unfiltered_in_async_context():
 
 
 async def test_walk_without_detail_error_handling():
-    # unlistable directories are skipped (fsspec walk's on_error="omit"
-    # semantics), while non-OSError failures propagate
+    # Unreadable descendants are skipped, but the requested root must be readable.
     class FakeFS:
         async def _ls(self, path: str, detail: bool = True) -> list[dict[str, Any]]:
             if path == "root":
@@ -149,6 +212,13 @@ async def test_walk_without_detail_error_handling():
 
     with pytest.raises(ValueError, match="auth failure"):
         await _walk_without_detail(cast(Any, FailingFS()), "root")
+
+    class DeniedRoot:
+        async def _ls(self, path: str, detail: bool = True) -> list[dict[str, Any]]:
+            raise PermissionError("root listing denied")
+
+    with pytest.raises(PermissionError, match="root listing denied"):
+        await _walk_without_detail(cast(Any, DeniedRoot()), "root")
 
 
 # NOTE: The trio tests below use anyio.run(backend="trio") directly so the
@@ -200,13 +270,19 @@ class _FakeAsyncAzureFilesystem:
         return False
 
     async def _exists(self, path: str) -> bool:
-        raise Exception(AZURE_AUTH_MESSAGE)
+        raise AssertionError("directory existence must not be probed")
 
     def exists(self, path: str) -> bool:
+        raise AssertionError("directory existence must not be probed")
+
+    def invalidate_cache(self, path: str) -> None:
+        pass
+
+    async def _ls(self, path: str, detail: bool = True) -> list[dict[str, Any]]:
         raise Exception(AZURE_AUTH_MESSAGE)
 
-    def ls(self, path: str, recursive: bool = True) -> list[Any]:
-        raise AssertionError("listing must not be reached after an auth failure")
+    def ls(self, path: str, recursive: bool = True, **kwargs: Any) -> list[Any]:
+        raise Exception(AZURE_AUTH_MESSAGE)
 
 
 def _patch_azure_auth_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
