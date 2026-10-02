@@ -136,6 +136,8 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         A request that has not been submitted yet is dropped before its batch
         is sent. A submitted batch is cancelled at the provider once every
         request in it is cancelled; until then it keeps running for the others.
+        If the provider still returns a result for a cancelled request, it is
+        dropped and its usage is not recorded: the sample has already ended.
         """
         request.cancelled = True
         batch = next(
@@ -155,7 +157,8 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         The batch stops being tracked first, so it is cancelled at most once.
         Cancellation is best effort: it is shielded from the caller's
         cancellation, bounded by `BATCH_CANCEL_TIMEOUT`, and a failure is
-        logged rather than raised.
+        logged rather than raised. Usage of work the provider completes anyway
+        is not recorded.
         """
         if not all(request.cancelled for request in batch.requests.values()):
             return

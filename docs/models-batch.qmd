@@ -99,3 +99,5 @@ In general, you should keep the following limitations in mind when using batch p
 -   Evaluations with many turns will wait for many batches (each potentially taking many hours), and samples will generally take longer as requests need to additionally wait on the other requests in their batch before proceeding to the next turn.
 
 -   If you are using sandboxes then your machine's resources may place an upper limit on the number of concurrent samples you have (correlated to the number of CPU cores, which will reduce batch sizes.
+
+-   When a sample is cancelled (for example by a time limit), Inspect cancels its batch once no other request in it is still waiting. Work the provider completes anyway may be billed, but its usage is not recorded in the eval log.
