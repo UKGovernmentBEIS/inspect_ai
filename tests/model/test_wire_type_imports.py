@@ -26,6 +26,8 @@ import pytest
 # _cache_policy (inspect_ai.model): CachePolicy
 # _adaptive_concurrency (inspect_ai.util): AdaptiveConcurrency
 # _json (inspect_ai.util): JSONSchema, JSONType
+# citation (inspect_ai.model, inspect_ai.tool): Citation, CitationBase,
+#   ContentCitation, DocumentCitation, UrlCitation
 #
 # The original modules re-export these symbols and must stay light too.
 WIRE_TYPE_MODULES = [
@@ -39,18 +41,8 @@ WIRE_TYPE_MODULES = [
     "inspect_ai.core._tool_choice",
     "inspect_ai.core._tool_info",
     "inspect_ai.core._tool_params",
+    "inspect_ai.core.citation",
     "inspect_ai.core.content",
-    "inspect_ai._util.content",
-    "inspect_ai.model._cache_policy",
-    "inspect_ai.model._chat_message",
-    "inspect_ai.model._generate_config",
-    "inspect_ai.model._model_output",
-    "inspect_ai.tool._tool_call",
-    "inspect_ai.tool._tool_choice",
-    "inspect_ai.tool._tool_info",
-    "inspect_ai.tool._tool_params",
-    "inspect_ai.util._adaptive_concurrency",
-    "inspect_ai.util._json",
 ]
 
 # pydantic brings annotated_types and typing_inspection with it.

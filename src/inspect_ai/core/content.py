@@ -4,8 +4,8 @@ from typing import Any, Literal, Sequence, Union
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
-from inspect_ai._util.citation import Citation
 from inspect_ai._util.url import data_uri_mime_type
+from inspect_ai.core.citation import Citation
 
 
 class ContentBase(BaseModel):
