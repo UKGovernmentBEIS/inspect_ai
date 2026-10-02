@@ -123,10 +123,12 @@ def test_json_object_tool_results_are_wrapped_for_litellm() -> None:
     wrapped = with_json_tool_results_wrapped(messages)
     assert wrapped[0] == messages[0]
     for index, original in ((1, OPENAPI_DOCUMENT), (2, '  \n{"a": 1}')):
-        content = wrapped[index]["content"]
+        message, wrapped_message = messages[index], wrapped[index]
+        assert message["role"] == "tool" and wrapped_message["role"] == "tool"
+        content = wrapped_message["content"]
         assert isinstance(content, str)
         assert json.loads(content) == {"content": original}
-        assert wrapped[index]["tool_call_id"] == messages[index]["tool_call_id"]  # type: ignore[typeddict-item]
+        assert wrapped_message["tool_call_id"] == message["tool_call_id"]
     # a list, broken JSON and plain text LiteLLM already sends under `content`
     assert wrapped[3:] == messages[3:]
 
