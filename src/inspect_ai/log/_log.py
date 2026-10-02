@@ -1200,7 +1200,7 @@ class EvalStats(BaseModel):
     """Evaluation start time. Empty string if eval interrupted before start time set."""
 
     completed_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
-    """Evaluation completion time. Empty string if eval interrupted before completion."""
+    """Evaluation completion time. Empty if interrupted; set on normal completion even when sample failures cause error status."""
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for evaluation."""

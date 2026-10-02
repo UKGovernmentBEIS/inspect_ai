@@ -29,12 +29,135 @@ from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize("mode", ["success", "fatal", "cancel", "completed_error"])
+async def test_eval_completion_timestamp(
+    tmp_path: Path, log_format: Literal["eval", "json"], mode: str
+) -> None:
+    from inspect_ai.log import read_eval_log_async
+    from inspect_ai.log._file import to_overview
+
+    cleaned: list[str | int] = []
+    with anyio.CancelScope() as scope:
+
+        @solver
+        def completion_probe() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                try:
+                    state = await generate(state)
+                    if mode == "cancel":
+                        scope.cancel()
+                        await anyio.sleep_forever()
+                    if mode in ("fatal", "completed_error"):
+                        raise RuntimeError("completion timestamp probe")
+                    return state
+                finally:
+                    cleaned.append(state.sample_id)
+
+            return solve
+
+        await eval_async(
+            Task(
+                dataset=[Sample(id=i, input="Say hello") for i in range(1, 4)],
+                solver=completion_probe(),
+            ),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            log_format=log_format,
+            max_samples=1,
+            fail_on_error=True,
+            continue_on_fail=mode == "completed_error",
+        )
+
+    paths = list(tmp_path.glob(f"*.{log_format}"))
+    assert len(paths) == 1
+    log = await read_eval_log_async(str(paths[0]))
+    header = await read_eval_log_async(str(paths[0]), header_only=True)
+    finished = mode in ("success", "completed_error")
+    expected_status = (
+        "cancelled" if mode == "cancel" else "success" if mode == "success" else "error"
+    )
+    assert log.status == expected_status
+    assert log.stats.started_at
+    assert bool(log.stats.completed_at) == finished
+    assert header.stats.completed_at == log.stats.completed_at
+    assert to_overview(header).completed_at == log.stats.completed_at
+    assert sum(u.total_tokens for u in log.stats.model_usage.values()) > 0
+    assert cleaned
+    if finished:
+        assert set(cleaned) == {1, 2, 3}
+        assert len(cleaned) == 3
+        assert len(log.samples or []) == 3
+    else:
+        assert log.stats.completed_at == ""
+    if mode == "fatal":
+        assert log.error is not None
+        assert "completion timestamp probe" in log.error.message
+
+
 def test_eval_epochs_sample_count():
     task = Task(dataset=[Sample(input="s1"), Sample(input="s2")])
     log = eval(task, model="mockllm/model", epochs=3)[0]
     assert log.status == "success"
     assert log.samples is not None
     assert len(log.samples) == 6  # 2 samples * 3 epochs
+
+
+@pytest.mark.parametrize("completed", [True, False])
+@pytest.mark.parametrize("initial_completion", ["", "2026-10-02T12:00:01+00:00"])
+def test_collect_eval_data_completion(
+    monkeypatch: pytest.MonkeyPatch, completed: bool, initial_completion: str
+) -> None:
+    from types import SimpleNamespace
+
+    from inspect_ai._eval.task.log import collect_eval_data
+    from inspect_ai.log import ConnectionLimitChange, EvalStats
+    from inspect_ai.model import ModelUsage
+
+    timestamp = "2026-10-02T12:00:02+00:00"
+    stats = EvalStats.model_validate(
+        {
+            "started_at": "2026-10-02T12:00:00+00:00",
+            "completed_at": initial_completion,
+        }
+    )
+    usage = {
+        "mockllm/model": ModelUsage(input_tokens=2, output_tokens=3, total_tokens=5)
+    }
+    roles = {"critic": ModelUsage(input_tokens=4, output_tokens=5, total_tokens=9)}
+    monkeypatch.setattr("inspect_ai._eval.task.log.iso_now", lambda: timestamp)
+    monkeypatch.setattr("inspect_ai._eval.task.log.model_usage", lambda: usage)
+    monkeypatch.setattr("inspect_ai._eval.task.log.role_usage", lambda: roles)
+    monkeypatch.setattr(
+        "inspect_ai.util._concurrency.adaptive_controllers",
+        lambda: [
+            SimpleNamespace(history=[(2.0, "mockllm/model", 1, 2, "slow_start")]),
+            SimpleNamespace(history=[(1.0, "mockllm/model", 2, 1, "rate_limit")]),
+        ],
+    )
+
+    collect_eval_data(stats, completed=completed)
+
+    assert stats.completed_at == (timestamp if completed else "")
+    assert stats.started_at == "2026-10-02T12:00:00+00:00"
+    assert stats.model_usage == usage
+    assert stats.role_usage == roles
+    assert stats.connection_limit_history == [
+        ConnectionLimitChange(
+            timestamp=1.0,
+            model="mockllm/model",
+            old_limit=2,
+            new_limit=1,
+            reason="rate_limit",
+        ),
+        ConnectionLimitChange(
+            timestamp=2.0,
+            model="mockllm/model",
+            old_limit=1,
+            new_limit=2,
+            reason="slow_start",
+        ),
+    ]
 
 
 def test_eval_sample_records_turn_count_and_token_limit_usage():

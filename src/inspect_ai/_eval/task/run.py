@@ -1891,7 +1891,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 )
 
             # collect eval data
-            collect_eval_data(stats)
+            collect_eval_data(stats, completed=True)
 
             # use the SampleErrorHandler's authoritative count (incremented in
             # handle_error() exactly once per sample after retries are

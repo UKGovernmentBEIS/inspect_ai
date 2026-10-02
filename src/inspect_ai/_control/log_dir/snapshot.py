@@ -503,7 +503,12 @@ def task_row(view: TaskView) -> dict[str, Any]:
     completed_at = (
         None if running else _iso_to_timestamp(plan.header.stats.completed_at or None)
     )
-    elapsed = (completed_at or time.time()) - (started_at or 0.0)
+    ended_at = time.time() if running else completed_at
+    elapsed = (
+        ended_at - started_at
+        if ended_at is not None and started_at is not None
+        else 0.0
+    )
     tokens_per_second = (
         round(total_tokens / elapsed, 1)
         if started_at is not None and elapsed > 0

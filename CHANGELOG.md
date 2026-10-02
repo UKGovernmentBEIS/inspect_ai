@@ -1,3 +1,7 @@
+## Unreleased
+
+- Interrupted evaluations now leave their completion timestamp empty while preserving partial results and usage statistics.
+
 ## 0.3.275 (01 October 2026)
 
 - LiteLLM Proxy: Gemini models accept any `reasoning_effort`, mapped to the levels or thinking budgets the native Google provider uses.

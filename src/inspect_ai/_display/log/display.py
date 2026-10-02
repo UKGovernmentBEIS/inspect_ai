@@ -91,9 +91,12 @@ class LogDisplay(Display):
 
     def _task_stats_str(self, stats: EvalStats) -> str:
         # eval time
-        started = datetime_from_iso_format_safe(stats.started_at)
-        completed = datetime_from_iso_format_safe(stats.completed_at)
-        elapsed = completed - started
+        if stats.started_at and stats.completed_at:
+            started = datetime_from_iso_format_safe(stats.started_at)
+            completed = datetime_from_iso_format_safe(stats.completed_at)
+            elapsed = str(completed - started)
+        else:
+            elapsed = "unavailable"
         res = f"total time: {elapsed}"
         # token usage
         for model, usage in stats.model_usage.items():

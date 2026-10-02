@@ -22126,7 +22126,7 @@ var sameItems = (a, b) => a.length === b.length && a.every((item, i) => item ===
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/url.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/router/url.js
 /**
 * react-router v8.4.0
 *
@@ -22143,7 +22143,7 @@ function normalizeProtocolRelativeUrl(url, protocol) {
 	return protocol + url.replace(/\\/g, "/");
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/history.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/router/history.js
 /**
 * react-router v8.4.0
 *
@@ -22957,7 +22957,7 @@ function parseToInfo(_to, basename) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/instrumentation.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/router/instrumentation.js
 /**
 * react-router v8.4.0
 *
@@ -23216,7 +23216,7 @@ function getReadonlyContext(context) {
 	return { get: (ctx) => context.get(ctx) };
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/matcher.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/router/matcher.js
 /**
 * react-router v8.4.0
 *
@@ -23253,7 +23253,7 @@ var V6RegExMatcher = class {
 * @license MIT
 */
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/navigation.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/router/navigation.js
 /**
 * react-router v8.4.0
 *
@@ -23297,7 +23297,7 @@ function validateNavigationTarget(original, resolved, currentUrl, externalPolicy
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/router/router.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/router/router.js
 /**
 * react-router v8.4.0
 *
@@ -25858,7 +25858,7 @@ function createDeferred() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/context.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/context.js
 /**
 * react-router v8.4.0
 *
@@ -25904,7 +25904,7 @@ RouteIdContext.displayName = "RouteId";
 var RouteErrorContext = import_react.createContext(null);
 RouteErrorContext.displayName = "RouteError";
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/errors.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/errors.js
 /**
 * react-router v8.4.0
 *
@@ -25931,7 +25931,7 @@ function decodeRouteErrorResponseDigest(digest) {
 	} catch {}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/hooks.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/hooks.js
 /**
 * react-router v8.4.0
 *
@@ -26730,7 +26730,7 @@ function warningOnce(key, cond, message) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
 /**
 * react-router v8.4.0
 *
@@ -26749,7 +26749,7 @@ function warnOnce(condition, message) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/components.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/components.js
 /**
 * react-router v8.4.0
 *
@@ -27195,7 +27195,7 @@ function Router({ basename: basenameProp = "/", children = null, location: locat
 }
 import_react.Component;
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/dom.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/dom/dom.js
 /**
 * react-router v8.4.0
 *
@@ -27336,7 +27336,7 @@ function getFormSubmissionInfo(target, basename) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
 /**
 * react-router v8.4.0
 *
@@ -27351,7 +27351,7 @@ function invariant(value, message) {
 	if (value === false || value === null || typeof value === "undefined") throw new Error(message);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
 /**
 * react-router v8.4.0
 *
@@ -27374,7 +27374,7 @@ function escapeHtml(html) {
 	return html.replace(ESCAPE_REGEX, (match) => ESCAPE_LOOKUP[match]);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
 /**
 * react-router v8.4.0
 *
@@ -27392,7 +27392,7 @@ function singleFetchUrl(reqUrl, extension) {
 	return url;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
 /**
 * react-router v8.4.0
 *
@@ -27422,7 +27422,7 @@ async function loadRouteModule(route, routeModulesCache) {
 	}
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/links.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/dom/ssr/links.js
 /**
 * react-router v8.4.0
 *
@@ -27523,7 +27523,7 @@ function dedupeLinkDescriptors(descriptors, preloads) {
 	}, []);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/ssr/components.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/dom/ssr/components.js
 /**
 * react-router v8.4.0
 *
@@ -27773,7 +27773,7 @@ function mergeRefs(...refs) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom/lib.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/dom/lib.js
 /**
 * react-router v8.4.0
 *
@@ -28769,9 +28769,9 @@ var isRichContentPolicy = (policy) => Object.values(policy).every(Boolean);
 	links: a.links && b.links
 };
 var ContentTrust_module_default = {
-	untrustedText: "_untrustedText_tpj36_4",
-	untrustedInlineText: "_untrustedInlineText_tpj36_11",
-	placeholder: "_placeholder_tpj36_15"
+	untrustedText: "_untrustedText_390ee_7",
+	untrustedInlineText: "_untrustedInlineText_390ee_21",
+	placeholder: "_placeholder_390ee_29"
 };
 //#endregion
 //#region ../../packages/react/src/components/ContentTrust.tsx
@@ -30308,18 +30308,18 @@ function useEventListener(target, type, listener, options) {
 function _temp$107(error) {
 	console.error("Failed to copy:", error);
 }
-var AsyncGate_module_default = { gate: "_gate_111wv_1" };
+var AsyncGate_module_default = { gate: "_gate_xod0n_1" };
 var PulsingDots_module_default = {
-	container: "_container_4p85e_2",
-	dotsContainer: "_dotsContainer_4p85e_8",
-	small: "_small_4p85e_15",
-	medium: "_medium_4p85e_19",
-	large: "_large_4p85e_24",
-	dot: "_dot_4p85e_8",
-	pulse: "_pulse_4p85e_1",
-	subtle: "_subtle_4p85e_36",
-	primary: "_primary_4p85e_40",
-	visuallyHidden: "_visuallyHidden_4p85e_59"
+	container: "_container_rhaml_3",
+	dotsContainer: "_dotsContainer_rhaml_15",
+	small: "_small_rhaml_29",
+	medium: "_medium_rhaml_37",
+	large: "_large_rhaml_47",
+	dot: "_dot_rhaml_15",
+	pulse: "_pulse_rhaml_1",
+	subtle: "_subtle_rhaml_71",
+	primary: "_primary_rhaml_79",
+	visuallyHidden: "_visuallyHidden_rhaml_117"
 };
 //#endregion
 //#region ../../packages/react/src/components/PulsingDots.tsx
@@ -30434,13 +30434,13 @@ var PulsingDots = (t0) => {
 //#region ../../packages/react/src/components/AutocompleteInput.module.css
 var import_react_dom = /* @__PURE__ */ __toESM(require_react_dom(), 1);
 var AutocompleteInput_module_default = {
-	container: "_container_uf0p9_1",
-	input: "_input_uf0p9_6",
-	inputWithToggle: "_inputWithToggle_uf0p9_22",
-	toggleButton: "_toggleButton_uf0p9_26",
-	suggestionsList: "_suggestionsList_uf0p9_51",
-	suggestionItem: "_suggestionItem_uf0p9_64",
-	highlighted: "_highlighted_uf0p9_74"
+	container: "_container_sr5ex_1",
+	input: "_input_sr5ex_11",
+	inputWithToggle: "_inputWithToggle_sr5ex_43",
+	toggleButton: "_toggleButton_sr5ex_51",
+	suggestionsList: "_suggestionsList_sr5ex_101",
+	suggestionItem: "_suggestionItem_sr5ex_127",
+	highlighted: "_highlighted_sr5ex_147"
 };
 //#endregion
 //#region ../../packages/react/src/components/AutocompleteInput.tsx
@@ -30934,12 +30934,12 @@ var TrustedANSIDisplay = (props) => {
 	return t4;
 };
 var ErrorPanel_module_default = {
-	errorPanel: "_errorPanel_13pj6_1",
-	heading: "_heading_13pj6_9",
-	body: "_body_13pj6_13",
-	stack: "_stack_13pj6_23",
-	centeredFlex: "_centeredFlex_13pj6_28",
-	errorIcon: "_errorIcon_13pj6_35"
+	errorPanel: "_errorPanel_17y3m_1",
+	heading: "_heading_17y3m_17",
+	body: "_body_17y3m_25",
+	stack: "_stack_17y3m_45",
+	centeredFlex: "_centeredFlex_17y3m_55",
+	errorIcon: "_errorIcon_17y3m_69"
 };
 //#endregion
 //#region ../../packages/react/src/components/ErrorPanel.tsx
@@ -31055,13 +31055,13 @@ var AppErrorBoundary = class extends import_react.Component {
 	}
 };
 var Card_module_default = {
-	headerContainer: "_headerContainer_19525_1",
-	headerModern: "_headerModern_19525_17",
-	headerIcon: "_headerIcon_19525_24",
-	headerIconEmpty: "_headerIconEmpty_19525_24",
-	body: "_body_19525_28",
-	card: "_card_19525_33",
-	noPadding: "_noPadding_19525_40"
+	headerContainer: "_headerContainer_1bqo4_1",
+	headerModern: "_headerModern_1bqo4_33",
+	headerIcon: "_headerIcon_1bqo4_47",
+	headerIconEmpty: "_headerIconEmpty_1bqo4_47",
+	body: "_body_1bqo4_55",
+	card: "_card_1bqo4_65",
+	noPadding: "_noPadding_1bqo4_79"
 };
 //#endregion
 //#region ../../packages/react/src/components/Card.tsx
@@ -31154,7 +31154,7 @@ var Card$1 = (t0) => {
 	} else t2 = $[5];
 	return t2;
 };
-var CopyButton_module_default = { copyButton: "_copyButton_1goi8_1" };
+var CopyButton_module_default = { copyButton: "_copyButton_18bal_1" };
 //#endregion
 //#region ../../packages/react/src/components/CopyButton.tsx
 var toCopyError = (error) => error instanceof Error ? error : /* @__PURE__ */ new Error("Failed to copy");
@@ -33826,7 +33826,7 @@ __decorate$32([n$4({
 })], VscodeCollapsible$1.prototype, "open", void 0);
 VscodeCollapsible$1 = __decorate$32([customElement("vscode-collapsible")], VscodeCollapsible$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeCollapsible.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elem_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeCollapsible.js
 var VscodeCollapsible = o$7({
 	tagName: "vscode-collapsible",
 	elementClass: VscodeCollapsible$1,
@@ -37005,7 +37005,7 @@ o$7({
 	}
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeOption.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elem_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeOption.js
 var VscodeOption = o$7({
 	tagName: "vscode-option",
 	elementClass: VscodeOption$1,
@@ -38073,7 +38073,7 @@ __decorate$16([n$4({
 __decorate$16([e$6(".face")], VscodeSingleSelect$1.prototype, "_face", void 0);
 VscodeSingleSelect$1 = __decorate$16([customElement("vscode-single-select")], VscodeSingleSelect$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeSingleSelect.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elem_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeSingleSelect.js
 var VscodeSingleSelect = o$7({
 	tagName: "vscode-single-select",
 	elementClass: VscodeSingleSelect$1,
@@ -40583,7 +40583,7 @@ __decorate$5([r$2()], VscodeTextarea$1.prototype, "_textareaPointerCursor", void
 __decorate$5([r$2()], VscodeTextarea$1.prototype, "_shadow", void 0);
 VscodeTextarea$1 = __decorate$5([customElement("vscode-textarea")], VscodeTextarea$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeTextarea.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elem_acc50d91fe5af1eafa6ba5aa80a12ce8/node_modules/@vscode-elements/react-elements/dist/components/VscodeTextarea.js
 var VscodeTextarea = o$7({
 	tagName: "vscode-textarea",
 	elementClass: VscodeTextarea$1,
@@ -42718,18 +42718,18 @@ o$7({
 	displayName: "VscodeTreeItem"
 });
 var Modal_module_default = {
-	backdrop: "_backdrop_1hn8l_1",
-	modal: "_modal_1hn8l_15",
-	header: "_header_1hn8l_28",
-	title: "_title_1hn8l_37",
-	closeButton: "_closeButton_1hn8l_44",
-	body: "_body_1hn8l_60",
-	overflowAuto: "_overflowAuto_1hn8l_66",
-	overflowHidden: "_overflowHidden_1hn8l_70",
-	overflowScroll: "_overflowScroll_1hn8l_74",
-	overflowVisible: "_overflowVisible_1hn8l_78",
-	noPadding: "_noPadding_1hn8l_82",
-	footer: "_footer_1hn8l_86"
+	backdrop: "_backdrop_1ebcr_1",
+	modal: "_modal_1ebcr_29",
+	header: "_header_1ebcr_55",
+	title: "_title_1ebcr_73",
+	closeButton: "_closeButton_1ebcr_87",
+	body: "_body_1ebcr_119",
+	overflowAuto: "_overflowAuto_1ebcr_131",
+	overflowHidden: "_overflowHidden_1ebcr_139",
+	overflowScroll: "_overflowScroll_1ebcr_147",
+	overflowVisible: "_overflowVisible_1ebcr_155",
+	noPadding: "_noPadding_1ebcr_163",
+	footer: "_footer_1ebcr_171"
 };
 //#endregion
 //#region ../../packages/react/src/components/Modal.tsx
@@ -43087,8 +43087,8 @@ var useExtendedFind = () => {
 	return (0, import_react.useContext)(ExtendedFindContext);
 };
 var JsonPanel_module_default = {
-	jsonPanel: "_jsonPanel_1ssvw_1",
-	simple: "_simple_1ssvw_6"
+	jsonPanel: "_jsonPanel_p4ea4_1",
+	simple: "_simple_p4ea4_11"
 };
 //#endregion
 //#region ../../packages/react/src/components/JsonPanel.tsx
@@ -43177,10 +43177,10 @@ var resolveBase64 = (value) => {
 	return value;
 };
 var LabeledValue_module_default = {
-	labeledValue: "_labeledValue_6obbb_1",
-	row: "_row_6obbb_6",
-	column: "_column_6obbb_10",
-	labeledValueLabel: "_labeledValueLabel_6obbb_14"
+	labeledValue: "_labeledValue_bma7d_1",
+	row: "_row_bma7d_11",
+	column: "_column_bma7d_19",
+	labeledValueLabel: "_labeledValueLabel_bma7d_27"
 };
 //#endregion
 //#region ../../packages/react/src/components/LabeledValue.tsx
@@ -43247,10 +43247,10 @@ var LabeledValue = (t0) => {
 	return t9;
 };
 var LoadingBar_module_default = {
-	wrapper: "_wrapper_1tajk_1",
-	container: "_container_1tajk_12",
-	animate: "_animate_1tajk_21",
-	leftToRight: "_leftToRight_1tajk_1"
+	wrapper: "_wrapper_1fzlv_1",
+	container: "_container_1fzlv_23",
+	animate: "_animate_1fzlv_41",
+	leftToRight: "_leftToRight_1fzlv_1"
 };
 //#endregion
 //#region ../../packages/react/src/components/LoadingBar.tsx
@@ -43576,10 +43576,10 @@ function _temp$105(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
-	panel: "_panel_tison_1",
-	container: "_container_tison_7",
-	ellipsis: "_ellipsis_tison_14",
-	"ncp-ellipsis": "_ncp-ellipsis_tison_1"
+	panel: "_panel_9x7be_1",
+	container: "_container_9x7be_13",
+	ellipsis: "_ellipsis_9x7be_27",
+	"ncp-ellipsis": "_ncp-ellipsis_9x7be_1"
 };
 //#endregion
 //#region ../../packages/react/src/components/NoContentsPanel.tsx
@@ -43643,7 +43643,7 @@ var NoContentsPanel = (t0) => {
 	return t6;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-popper/lib/esm/utils.js
+//#region ../../node_modules/.pnpm/react-popper@2.3.0_@popperj_99586de259858e098e8e6d7c4683b414/node_modules/react-popper/lib/esm/utils.js
 /**
 * Simple ponyfill for Object.fromEntries
 */
@@ -44948,7 +44948,7 @@ var createPopper = /*#__PURE__*/ popperGenerator({ defaultModifiers: [
 	hide_default
 ] });
 //#endregion
-//#region ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-popper/lib/esm/usePopper.js
+//#region ../../node_modules/.pnpm/react-popper@2.3.0_@popperj_99586de259858e098e8e6d7c4683b414/node_modules/react-popper/lib/esm/usePopper.js
 var import_react_fast_compare = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var hasElementType = typeof Element !== "undefined";
 	var hasMap = typeof Map === "function";
@@ -45538,7 +45538,7 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 		jsonEscaped: lower.replace(/"/g, "\\\"")
 	};
 }
-var Preformatted_module_default = { content: "_content_13ihw_1" };
+var Preformatted_module_default = { content: "_content_kjdl3_1" };
 //#endregion
 //#region ../../packages/react/src/components/Preformatted.tsx
 var Preformatted = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
@@ -45568,10 +45568,10 @@ var Preformatted = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 });
 Preformatted.displayName = "Preformatted";
 var ProgressBar_module_default = {
-	container: "_container_1n7pm_1",
-	label: "_label_1n7pm_7",
-	outer: "_outer_1n7pm_11",
-	inner: "_inner_1n7pm_20"
+	container: "_container_1i6kg_1",
+	label: "_label_1i6kg_13",
+	outer: "_outer_1i6kg_21",
+	inner: "_inner_1i6kg_39"
 };
 //#endregion
 //#region ../../packages/react/src/components/ProgressBar.tsx
@@ -45658,14 +45658,14 @@ var ProgressBar = (t0) => {
 	return t12;
 };
 var RailDock_module_default = {
-	separator: "_separator_ts678_1",
-	rail: "_rail_ts678_6",
-	railSticky: "_railSticky_ts678_11"
+	separator: "_separator_310zo_1",
+	rail: "_rail_310zo_11",
+	railSticky: "_railSticky_310zo_21"
 };
 var ResizablePanel_module_default = {
-	divider: "_divider_1538e_3",
-	resizer: "_resizer_1538e_10",
-	panel: "_panel_1538e_47"
+	divider: "_divider_11rlf_5",
+	resizer: "_resizer_11rlf_19",
+	panel: "_panel_11rlf_93"
 };
 //#endregion
 //#region ../../packages/react/src/components/ResizablePanel.tsx
@@ -45877,11 +45877,11 @@ var ResizablePanel_module_default = {
 	return t10;
 };
 var ActivityRail_module_default = {
-	rail: "_rail_1llfi_1",
-	item: "_item_1llfi_9",
-	itemActive: "_itemActive_1llfi_35",
-	icon: "_icon_1llfi_41",
-	label: "_label_1llfi_46"
+	rail: "_rail_1tq9v_1",
+	item: "_item_1tq9v_17",
+	itemActive: "_itemActive_1tq9v_69",
+	icon: "_icon_1tq9v_81",
+	label: "_label_1tq9v_91"
 };
 //#endregion
 //#region ../../packages/react/src/components/ActivityRail.tsx
@@ -46020,11 +46020,11 @@ var ActivityRail_module_default = {
 	return t3;
 };
 var SegmentedControl_module_default = {
-	rootControl: "_rootControl_116ql_1",
-	segment: "_segment_116ql_10",
-	selected: "_selected_116ql_10",
-	compact: "_compact_116ql_42",
-	disabled: "_disabled_116ql_51"
+	rootControl: "_rootControl_1s5rd_1",
+	segment: "_segment_1s5rd_19",
+	selected: "_selected_1s5rd_19",
+	compact: "_compact_1s5rd_83",
+	disabled: "_disabled_1s5rd_101"
 };
 //#endregion
 //#region ../../packages/react/src/components/SegmentedControl.tsx
@@ -46101,12 +46101,12 @@ var SegmentedControl = (t0) => {
 	return t5;
 };
 var SidebarHeader_module_default = {
-	header: "_header_2b98m_1",
-	headerTitle: "_headerTitle_2b98m_12",
-	headerIcon: "_headerIcon_2b98m_20",
-	headerSecondary: "_headerSecondary_2b98m_24",
-	headerActions: "_headerActions_2b98m_29",
-	closeButton: "_closeButton_2b98m_35"
+	header: "_header_bkc7z_1",
+	headerTitle: "_headerTitle_bkc7z_23",
+	headerIcon: "_headerIcon_bkc7z_39",
+	headerSecondary: "_headerSecondary_bkc7z_47",
+	headerActions: "_headerActions_bkc7z_57",
+	closeButton: "_closeButton_bkc7z_69"
 };
 //#endregion
 //#region ../../packages/react/src/components/SidebarHeader.tsx
@@ -46179,9 +46179,9 @@ var SidebarHeader = (t0) => {
 	return t6;
 };
 var SourceCodePanel_module_default = {
-	sourcePanel: "_sourcePanel_bat6y_1",
-	simple: "_simple_bat6y_6",
-	code: "_code_bat6y_11"
+	sourcePanel: "_sourcePanel_13uin_1",
+	simple: "_simple_13uin_11",
+	code: "_code_13uin_21"
 };
 //#endregion
 //#region ../../packages/react/src/components/SourceCodePanel.tsx
@@ -46398,12 +46398,12 @@ var useStickyScroll = () => {
 	return (0, import_react.useContext)(StickyScrollContext);
 };
 var TextInput_module_default = {
-	container: "_container_hqi3c_1",
-	input: "_input_hqi3c_17",
-	withIcon: "_withIcon_hqi3c_25",
-	icon: "_icon_hqi3c_29",
-	clearText: "_clearText_hqi3c_33",
-	hidden: "_hidden_hqi3c_47"
+	container: "_container_xtj27_1",
+	input: "_input_xtj27_33",
+	withIcon: "_withIcon_xtj27_49",
+	icon: "_icon_xtj27_57",
+	clearText: "_clearText_xtj27_65",
+	hidden: "_hidden_xtj27_93"
 };
 //#endregion
 //#region ../../packages/react/src/components/TextInput.tsx
@@ -46503,15 +46503,15 @@ var TextInput = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 });
 TextInput.displayName = "TextInput";
 var ToolDropdownButton_module_default = {
-	toolButton: "_toolButton_3h5lc_1",
-	bodyColor: "_bodyColor_3h5lc_5",
-	chevron: "_chevron_3h5lc_17",
-	backdrop: "_backdrop_3h5lc_31",
-	dropdownMenu: "_dropdownMenu_3h5lc_41",
-	dropdownItem: "_dropdownItem_3h5lc_52",
-	dropdownHeading: "_dropdownHeading_3h5lc_73",
-	dropdownDivider: "_dropdownDivider_3h5lc_82",
-	dropdownFooter: "_dropdownFooter_3h5lc_87"
+	toolButton: "_toolButton_t23fq_1",
+	bodyColor: "_bodyColor_t23fq_9",
+	chevron: "_chevron_t23fq_33",
+	backdrop: "_backdrop_t23fq_61",
+	dropdownMenu: "_dropdownMenu_t23fq_81",
+	dropdownItem: "_dropdownItem_t23fq_103",
+	dropdownHeading: "_dropdownHeading_t23fq_145",
+	dropdownDivider: "_dropdownDivider_t23fq_163",
+	dropdownFooter: "_dropdownFooter_t23fq_173"
 };
 //#endregion
 //#region ../../packages/react/src/components/ToolDropdownButton.tsx
@@ -46788,10 +46788,10 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 });
 ToolDropdownButton.displayName = "ToolDropdownButton";
 var NavPills_module_default = {
-	visible: "_visible_tm52u_1",
-	hidden: "_hidden_tm52u_5",
-	pills: "_pills_tm52u_9",
-	pill: "_pill_tm52u_9"
+	visible: "_visible_ty7ie_1",
+	hidden: "_hidden_ty7ie_9",
+	pills: "_pills_ty7ie_17",
+	pill: "_pill_ty7ie_17"
 };
 //#endregion
 //#region ../../packages/react/src/components/NavPills.tsx
@@ -46923,18 +46923,18 @@ var NavPill = (t0) => {
 	return t5;
 };
 var TabSet_module_default = {
-	tabs: "_tabs_1ugqd_1",
-	tabContents: "_tabContents_1ugqd_5",
-	scrollable: "_scrollable_1ugqd_13",
-	tab: "_tab_1ugqd_1",
-	linkTab: "_linkTab_1ugqd_35",
-	tabItem: "_tabItem_1ugqd_39",
-	pillSmallContainer: "_pillSmallContainer_1ugqd_43",
-	pillSmall: "_pillSmall_1ugqd_43",
-	tabIcon: "_tabIcon_1ugqd_51",
-	tabSpacer: "_tabSpacer_1ugqd_55",
-	tabTools: "_tabTools_1ugqd_61",
-	tabStyle: "_tabStyle_1ugqd_75"
+	tabs: "_tabs_16vnh_1",
+	tabContents: "_tabContents_16vnh_9",
+	scrollable: "_scrollable_16vnh_25",
+	tab: "_tab_16vnh_1",
+	linkTab: "_linkTab_16vnh_69",
+	tabItem: "_tabItem_16vnh_77",
+	pillSmallContainer: "_pillSmallContainer_16vnh_85",
+	pillSmall: "_pillSmall_16vnh_85",
+	tabIcon: "_tabIcon_16vnh_101",
+	tabSpacer: "_tabSpacer_16vnh_109",
+	tabTools: "_tabTools_16vnh_121",
+	tabStyle: "_tabStyle_16vnh_149"
 };
 //#endregion
 //#region ../../packages/react/src/components/TabSet.tsx
@@ -47269,16 +47269,16 @@ function _temp2$62(tab, index) {
 	}, tab.props.id);
 }
 var ExpandablePanel_module_default = {
-	outer: "_outer_tgwyj_1",
-	expandablePanel: "_expandablePanel_tgwyj_17",
-	expandableBordered: "_expandableBordered_tgwyj_21",
-	expandableTruncated: "_expandableTruncated_tgwyj_38",
-	moreToggle: "_moreToggle_tgwyj_47",
-	bordered: "_bordered_tgwyj_57",
-	moreToggleButton: "_moreToggleButton_tgwyj_64",
-	inlineToggleHolder: "_inlineToggleHolder_tgwyj_75",
-	inlineToggleSticky: "_inlineToggleSticky_tgwyj_92",
-	blockLeft: "_blockLeft_tgwyj_98"
+	outer: "_outer_49sdz_1",
+	expandablePanel: "_expandablePanel_49sdz_33",
+	expandableBordered: "_expandableBordered_49sdz_41",
+	expandableTruncated: "_expandableTruncated_49sdz_75",
+	moreToggle: "_moreToggle_49sdz_93",
+	bordered: "_bordered_49sdz_113",
+	moreToggleButton: "_moreToggleButton_49sdz_127",
+	inlineToggleHolder: "_inlineToggleHolder_49sdz_149",
+	inlineToggleSticky: "_inlineToggleSticky_49sdz_183",
+	blockLeft: "_blockLeft_49sdz_195"
 };
 //#endregion
 //#region ../../packages/react/src/components/FindTargetContext.tsx
@@ -47555,18 +47555,18 @@ var MoreToggle = (t0) => {
 };
 ExpandablePanel.displayName = "ExpandablePanel";
 var LightboxCarousel_module_default = {
-	carouselThumbs: "_carouselThumbs_1dfia_1",
-	carouselThumb: "_carouselThumb_1dfia_1",
-	carouselPlayIcon: "_carouselPlayIcon_1dfia_18",
-	lightboxOverlay: "_lightboxOverlay_1dfia_22",
-	lightboxContent: "_lightboxContent_1dfia_35",
-	open: "_open_1dfia_35",
-	closed: "_closed_1dfia_41",
-	lightboxButtonCloseWrapper: "_lightboxButtonCloseWrapper_1dfia_47",
-	lightboxButtonClose: "_lightboxButtonClose_1dfia_47",
-	lightboxPreviewButton: "_lightboxPreviewButton_1dfia_65",
-	next: "_next_1dfia_78",
-	prev: "_prev_1dfia_82"
+	carouselThumbs: "_carouselThumbs_6scby_1",
+	carouselThumb: "_carouselThumb_6scby_1",
+	carouselPlayIcon: "_carouselPlayIcon_6scby_35",
+	lightboxOverlay: "_lightboxOverlay_6scby_43",
+	lightboxContent: "_lightboxContent_6scby_69",
+	open: "_open_6scby_69",
+	closed: "_closed_6scby_81",
+	lightboxButtonCloseWrapper: "_lightboxButtonCloseWrapper_6scby_93",
+	lightboxButtonClose: "_lightboxButtonClose_6scby_93",
+	lightboxPreviewButton: "_lightboxPreviewButton_6scby_129",
+	next: "_next_6scby_155",
+	prev: "_prev_6scby_163"
 };
 //#endregion
 //#region ../../packages/react/src/components/LightboxCarousel.tsx
@@ -47805,13 +47805,13 @@ var LightboxCarousel_module_default = {
 	return t18;
 };
 var HumanBaselineView_module_default = {
-	asciinemaPlayerStatus: "_asciinemaPlayerStatus_1doob_1",
-	asciinemaWrapper: "_asciinemaWrapper_1doob_5",
-	asciinemaContainer: "_asciinemaContainer_1doob_10",
-	asciinemaHeaderLeft: "_asciinemaHeaderLeft_1doob_17",
-	asciinemaHeaderCenter: "_asciinemaHeaderCenter_1doob_22",
-	asciinemaHeaderRight: "_asciinemaHeaderRight_1doob_27",
-	asciinemaBody: "_asciinemaBody_1doob_32"
+	asciinemaPlayerStatus: "_asciinemaPlayerStatus_1bs1q_1",
+	asciinemaWrapper: "_asciinemaWrapper_1bs1q_9",
+	asciinemaContainer: "_asciinemaContainer_1bs1q_19",
+	asciinemaHeaderLeft: "_asciinemaHeaderLeft_1bs1q_33",
+	asciinemaHeaderCenter: "_asciinemaHeaderCenter_1bs1q_43",
+	asciinemaHeaderRight: "_asciinemaHeaderRight_1bs1q_53",
+	asciinemaBody: "_asciinemaBody_1bs1q_63"
 };
 //#endregion
 //#region ../../packages/react/src/components/HumanBaselineView.tsx
@@ -48041,12 +48041,12 @@ var useComponentNavigation = () => {
 	});
 }
 var FindBandUI_module_default = {
-	findBand: "_findBand_oh7be_1",
-	matchCount: "_matchCount_oh7be_30",
-	noResults: "_noResults_oh7be_40",
-	next: "_next_oh7be_48",
-	prev: "_prev_oh7be_49",
-	close: "_close_oh7be_55"
+	findBand: "_findBand_w3ra4_1",
+	matchCount: "_matchCount_w3ra4_59",
+	noResults: "_noResults_w3ra4_79",
+	next: "_next_w3ra4_95",
+	prev: "_prev_w3ra4_97",
+	close: "_close_w3ra4_109"
 };
 //#endregion
 //#region ../../packages/react/src/components/FindBandUI.tsx
@@ -48649,7 +48649,7 @@ function selectionParentElement(range) {
 	}
 	(0, import_react.useEffect)(t3, t4);
 }
-var MarkdownDivWithReferences_module_default = { cite: "_cite_1t1bm_1" };
+var MarkdownDivWithReferences_module_default = { cite: "_cite_90vpa_1" };
 //#endregion
 //#region ../../packages/react/src/components/MarkdownDivWithReferences.tsx
 var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((props, ref) => {
@@ -49028,10 +49028,10 @@ function _temp$102(r) {
 	usage: "bi bi-stopwatch"
 };
 var NextPreviousNav_module_default = {
-	container: "_container_f9jlf_1",
-	nav: "_nav_f9jlf_9",
-	disabled: "_disabled_f9jlf_17",
-	center: "_center_f9jlf_28"
+	container: "_container_17dbz_1",
+	nav: "_nav_17dbz_17",
+	disabled: "_disabled_17dbz_33",
+	center: "_center_17dbz_55"
 };
 //#endregion
 //#region ../../packages/react/src/components/NextPreviousNav.tsx
@@ -54085,7 +54085,7 @@ var DisplayModeContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 //#endregion
 //#region ../../packages/inspect-components/src/content/cappedText.module.css
 var import_dist = /* @__PURE__ */ __toESM(require_dist(), 1);
-var cappedText_module_default = { notice: "_notice_mpxkz_1" };
+var cappedText_module_default = { notice: "_notice_1oe1t_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/content/cappedText.tsx
 var MAX_INLINE_CHARS = 25e4;
@@ -54180,7 +54180,7 @@ var RenderedText = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 	return t2;
 });
 RenderedText.displayName = "RenderedText";
-var MediaReference_module_default = { reference: "_reference_7p4hu_1" };
+var MediaReference_module_default = { reference: "_reference_opngv_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/media/MediaReference.tsx
 var MediaReference = (t0) => {
@@ -55409,7 +55409,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.13_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-virtual/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.1_a8dc63622a48ce981b422eaf98df6132/node_modules/@tanstack/react-virtual/dist/esm/index.js
 var useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
@@ -55633,7 +55633,7 @@ function useVirtualListState(persistenceKey, t0) {
 	} else t4 = $[9];
 	return t4;
 }
-var VirtualList_module_default = { scroller: "_scroller_1uwiu_1" };
+var VirtualList_module_default = { scroller: "_scroller_1st2o_1" };
 //#endregion
 //#region ../../packages/react/src/virtual/VirtualList.tsx
 var BOTTOM_THRESHOLD_PX = 30;
@@ -56414,13 +56414,13 @@ var storeKey = (storeName, instanceId) => {
 	return `${storeName || ""} (${instanceId})`;
 };
 var RecordTree_module_default = {
-	keyPairContainer: "_keyPairContainer_1u1d5_1",
-	keyPairBordered: "_keyPairBordered_1u1d5_9",
-	keyPairCopy: "_keyPairCopy_1u1d5_15",
-	copyCell: "_copyCell_1u1d5_21",
-	key: "_key_1u1d5_1",
-	pre: "_pre_1u1d5_43",
-	treeIcon: "_treeIcon_1u1d5_47"
+	keyPairContainer: "_keyPairContainer_1tx0m_1",
+	keyPairBordered: "_keyPairBordered_1tx0m_17",
+	keyPairCopy: "_keyPairCopy_1tx0m_29",
+	copyCell: "_copyCell_1tx0m_41",
+	key: "_key_1tx0m_1",
+	pre: "_pre_1tx0m_85",
+	treeIcon: "_treeIcon_1tx0m_93"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/content/ContentRenderersContext.tsx
@@ -56526,23 +56526,23 @@ var useContentRenderers = () => {
 * element qualifies; a log-authored `_html` key holding data is not one.
 */ var isHtmlEscape = (v) => isRecord(v) && (0, import_react.isValidElement)(v._html);
 var MetaDataGrid_module_default = {
-	grid: "_grid_17hbv_5",
-	rows: "_rows_17hbv_14",
-	row: "_row_17hbv_14",
-	striped: "_striped_17hbv_35",
-	key: "_key_17hbv_43",
-	val: "_val_17hbv_52",
-	rowsCopy: "_rowsCopy_17hbv_65",
-	copyCell: "_copyCell_17hbv_71",
-	group: "_group_17hbv_90",
-	groupHeader: "_groupHeader_17hbv_102",
-	groupKey: "_groupKey_17hbv_110",
-	groupRule: "_groupRule_17hbv_118",
-	depth1: "_depth1_17hbv_126",
-	depth1Group: "_depth1Group_17hbv_139",
-	depth2: "_depth2_17hbv_154",
-	toggleContainer: "_toggleContainer_17hbv_164",
-	toggleButton: "_toggleButton_17hbv_175"
+	grid: "_grid_zub4f_9",
+	rows: "_rows_zub4f_27",
+	row: "_row_zub4f_27",
+	striped: "_striped_zub4f_69",
+	key: "_key_zub4f_85",
+	val: "_val_zub4f_103",
+	rowsCopy: "_rowsCopy_zub4f_129",
+	copyCell: "_copyCell_zub4f_141",
+	group: "_group_zub4f_179",
+	groupHeader: "_groupHeader_zub4f_203",
+	groupKey: "_groupKey_zub4f_219",
+	groupRule: "_groupRule_zub4f_235",
+	depth1: "_depth1_zub4f_251",
+	depth1Group: "_depth1Group_zub4f_277",
+	depth2: "_depth2_zub4f_307",
+	toggleContainer: "_toggleContainer_zub4f_327",
+	toggleButton: "_toggleButton_zub4f_349"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/content/MetaDataGrid.tsx
@@ -56697,10 +56697,10 @@ function _temp3$46(prev) {
 	return !prev;
 }
 var RenderedContent_module_default = {
-	query: "_query_seqs2_1",
-	summary: "_summary_seqs2_6",
-	preWrap: "_preWrap_seqs2_10",
-	preCompact: "_preCompact_seqs2_15"
+	query: "_query_eaaog_1",
+	summary: "_summary_eaaog_11",
+	preWrap: "_preWrap_eaaog_19",
+	preCompact: "_preCompact_eaaog_29"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/content/types.ts
@@ -57262,9 +57262,9 @@ var isPrimitiveOrNull = (value) => {
 	return value === null || value === void 0 || typeof value === "string" || typeof value === "number" || typeof value === "boolean";
 };
 var CompactionData_module_default = {
-	title: "_title_1pwo3_1",
-	content: "_content_1pwo3_11",
-	grid: "_grid_1pwo3_16"
+	title: "_title_1q1nq_1",
+	content: "_content_1q1nq_21",
+	grid: "_grid_1q1nq_31"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/content-data/CompactionData.tsx
@@ -57322,7 +57322,7 @@ var CompactionData = (t0) => {
 	} else t5 = $[8];
 	return t5;
 };
-var ContentDataView_module_default = { contentData: "_contentData_1lrx1_1" };
+var ContentDataView_module_default = { contentData: "_contentData_1jwxt_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/content-data/FallbackData.tsx
 var kFallbackMetadata = "fallback_metadata";
@@ -57381,8 +57381,8 @@ var modelName$2 = (side) => {
 	return t8;
 };
 var WebSearch_module_default = {
-	webSearch: "_webSearch_1376z_1",
-	query: "_query_1376z_8"
+	webSearch: "_webSearch_wv2ae_1",
+	query: "_query_wv2ae_15"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/content-data/WebSearch.tsx
@@ -57421,7 +57421,7 @@ var WebSearch = (t0) => {
 	} else t4 = $[4];
 	return t4;
 };
-var WebSearchResults_module_default = { result: "_result_svtwi_1" };
+var WebSearchResults_module_default = { result: "_result_9e6tq_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/content-data/WebSearchResults.tsx
 /** Shallow: results come from a tool payload; title and url are what render. */ var isWebSearchContentData = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
@@ -57606,10 +57606,10 @@ var contentDataRenderers = [
 	}
 ];
 var ContentDocumentView_module_default = {
-	documentFrame: "_documentFrame_66um0_1",
-	documentFrameTitle: "_documentFrameTitle_66um0_9",
-	downloadLink: "_downloadLink_66um0_16",
-	imageDocument: "_imageDocument_66um0_30"
+	documentFrame: "_documentFrame_dhe3u_1",
+	documentFrameTitle: "_documentFrameTitle_dhe3u_17",
+	downloadLink: "_downloadLink_dhe3u_31",
+	imageDocument: "_imageDocument_dhe3u_59"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/documents/ContentDocumentView.tsx
@@ -57736,7 +57736,7 @@ var ContentDocumentFrame = (t0) => {
 	} else t8 = $[18];
 	return t8;
 };
-var JsonMessageContent_module_default = { jsonMessage: "_jsonMessage_oxf8d_1" };
+var JsonMessageContent_module_default = { jsonMessage: "_jsonMessage_nvlwy_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/JsonMessageContent.tsx
 var JsonMessageContent = (t0) => {
@@ -57764,8 +57764,8 @@ var JsonMessageContent = (t0) => {
 	return t2;
 };
 var MessageCitations_module_default = {
-	citations: "_citations_1gzkd_1",
-	citationLink: "_citationLink_1gzkd_9"
+	citations: "_citations_1066z_1",
+	citationLink: "_citationLink_1066z_17"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/MessageCitations.tsx
@@ -57858,22 +57858,22 @@ function _temp$94(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
-	contentImage: "_contentImage_a1z7v_1",
-	reasoning: "_reasoning_a1z7v_6",
-	breakable: "_breakable_a1z7v_15",
-	codePanel: "_codePanel_a1z7v_20",
-	codePanelPre: "_codePanelPre_a1z7v_26"
+	contentImage: "_contentImage_jmf8f_1",
+	reasoning: "_reasoning_jmf8f_11",
+	breakable: "_breakable_jmf8f_29",
+	codePanel: "_codePanel_jmf8f_39",
+	codePanelPre: "_codePanelPre_jmf8f_51"
 };
 var ToolBlock_module_default = {
-	block: "_block_mcsgc_5",
-	standalone: "_standalone_mcsgc_13",
-	header: "_header_mcsgc_21",
-	icon: "_icon_mcsgc_36",
-	title: "_title_mcsgc_42",
-	summary: "_summary_mcsgc_50",
-	pill: "_pill_mcsgc_61",
-	inputZone: "_inputZone_mcsgc_75",
-	outputWell: "_outputWell_mcsgc_88"
+	block: "_block_6x0xf_9",
+	standalone: "_standalone_6x0xf_25",
+	header: "_header_6x0xf_41",
+	icon: "_icon_6x0xf_71",
+	title: "_title_6x0xf_83",
+	summary: "_summary_6x0xf_99",
+	pill: "_pill_6x0xf_121",
+	inputZone: "_inputZone_6x0xf_149",
+	outputWell: "_outputWell_6x0xf_175"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/ToolBlock.tsx
@@ -58007,8 +58007,8 @@ var ToolBlock_module_default = {
 	return t2;
 };
 var ToolCallErrorView_module_default = {
-	error: "_error_wtrgp_1",
-	message: "_message_wtrgp_11"
+	error: "_error_1wuog_1",
+	message: "_message_1wuog_21"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/ToolCallErrorView.tsx
@@ -58043,8 +58043,8 @@ var ToolCallErrorView = (t0) => {
 	return t3;
 };
 var TodoWriteInput_module_default = {
-	todoList: "_todoList_1t8rx_1",
-	inProgress: "_inProgress_1t8rx_9"
+	todoList: "_todoList_9lgye_1",
+	inProgress: "_inProgress_9lgye_17"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/tool-input/TodoWriteInput.tsx
@@ -58114,9 +58114,9 @@ var TodoWriteInput = (t0) => {
 	return t4;
 };
 var ToolInput_module_default = {
-	outputPre: "_outputPre_7phrr_1",
-	toolView: "_toolView_7phrr_7",
-	outputCode: "_outputCode_7phrr_20"
+	outputPre: "_outputPre_dc5ww_1",
+	toolView: "_toolView_dc5ww_13",
+	outputCode: "_outputCode_dc5ww_39"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/ToolInput.tsx
@@ -58253,9 +58253,9 @@ var isValidView = (view) => {
 	return true;
 };
 var ServerToolCall_module_default = {
-	tool: "_tool_13xcg_1",
-	execOutput: "_execOutput_13xcg_5",
-	execError: "_execError_13xcg_16"
+	tool: "_tool_hh2ub_1",
+	execOutput: "_execOutput_hh2ub_9",
+	execError: "_execError_hh2ub_31"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/server-tools/ServerToolCall.tsx
@@ -58635,10 +58635,10 @@ function _temp$93(result, index) {
 	}) }, index);
 }
 var ToolOutput_module_default = {
-	toolImage: "_toolImage_1cvly_1",
-	output: "_output_1cvly_6",
-	textOutput: "_textOutput_1cvly_10",
-	textCode: "_textCode_1cvly_19"
+	toolImage: "_toolImage_td713_1",
+	output: "_output_td713_11",
+	textOutput: "_textOutput_td713_19",
+	textCode: "_textCode_td713_37"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/ToolOutput.tsx
@@ -59088,12 +59088,12 @@ var renderContent = (key, content, isLast, displayMode, references) => {
 	return t6;
 };
 var AnnotatedScreenshot_module_default = {
-	container: "_container_nfqzf_1",
-	screenshot: "_screenshot_nfqzf_10",
-	overlay: "_overlay_nfqzf_16",
-	badge: "_badge_nfqzf_24",
-	type: "_type_nfqzf_39",
-	key: "_key_nfqzf_45"
+	container: "_container_1hzas_1",
+	screenshot: "_screenshot_1hzas_19",
+	overlay: "_overlay_1hzas_31",
+	badge: "_badge_1hzas_47",
+	type: "_type_1hzas_77",
+	key: "_key_1hzas_89"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/browserActionUtils.ts
@@ -59328,16 +59328,16 @@ function renderHtmlAnnotation(annotation) {
 function _temp$92(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
-var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
+var customToolRendering_module_default = { submitView: "_submitView_i39vo_1" };
 var ToolSearchView_module_default = {
-	catalog: "_catalog_gx8eg_1",
-	namespace: "_namespace_gx8eg_7",
-	namespaceName: "_namespaceName_gx8eg_13",
-	namespaceDescription: "_namespaceDescription_gx8eg_17",
-	tool: "_tool_gx8eg_21",
-	summary: "_summary_gx8eg_25",
-	toolNoDetails: "_toolNoDetails_gx8eg_38",
-	description: "_description_gx8eg_42"
+	catalog: "_catalog_v6dv1_1",
+	namespace: "_namespace_v6dv1_13",
+	namespaceName: "_namespaceName_v6dv1_25",
+	namespaceDescription: "_namespaceDescription_v6dv1_33",
+	tool: "_tool_v6dv1_41",
+	summary: "_summary_v6dv1_49",
+	toolNoDetails: "_toolNoDetails_v6dv1_75",
+	description: "_description_v6dv1_83"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/ToolSearchView.tsx
@@ -59393,9 +59393,9 @@ function _temp2$58(namespace, nsIdx) {
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
-	image: "_image_1evla_1",
-	toolTitle: "_toolTitle_1evla_6",
-	description: "_description_1evla_11"
+	image: "_image_e5egv_1",
+	toolTitle: "_toolTitle_e5egv_11",
+	description: "_description_e5egv_21"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/ToolTitle.tsx
@@ -59523,7 +59523,7 @@ var SubmitToolCallView = (props) => {
 	} else t5 = $[12];
 	return t5;
 };
-var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
+var ToolCallView_module_default = { toolCallView: "_toolCallView_otkyb_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/ToolCallView.tsx
 /**
@@ -59786,7 +59786,7 @@ function _temp3$45(item, i) {
 	if (item.type === "text" && item.text) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: item.text }, `md-${i}`);
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, { contents: [item] }, `content-${i}`);
 }
-var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
+var ClientToolCall_module_default = { custom: "_custom_ljn27_7" };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/tools/ClientToolCall.tsx
 /**
@@ -59992,19 +59992,19 @@ var MessageContents = (t0) => {
 	return t2;
 };
 var ChatMessage_module_default = {
-	message: "_message_o8d3m_1",
-	systemRole: "_systemRole_o8d3m_9",
-	turnSegments: "_turnSegments_o8d3m_15",
-	proseSegment: "_proseSegment_o8d3m_23",
-	timestamp: "_timestamp_o8d3m_28",
-	messageGrid: "_messageGrid_o8d3m_34",
-	toolMessageGrid: "_toolMessageGrid_o8d3m_44",
-	headerEnd: "_headerEnd_o8d3m_48",
-	messageContents: "_messageContents_o8d3m_55",
-	indented: "_indented_o8d3m_60",
-	copyLink: "_copyLink_o8d3m_64",
-	metadataLabel: "_metadataLabel_o8d3m_75",
-	hover: "_hover_o8d3m_79"
+	message: "_message_40sa3_1",
+	systemRole: "_systemRole_40sa3_17",
+	turnSegments: "_turnSegments_40sa3_29",
+	proseSegment: "_proseSegment_40sa3_45",
+	timestamp: "_timestamp_40sa3_55",
+	messageGrid: "_messageGrid_40sa3_67",
+	toolMessageGrid: "_toolMessageGrid_40sa3_87",
+	headerEnd: "_headerEnd_40sa3_95",
+	messageContents: "_messageContents_40sa3_109",
+	indented: "_indented_40sa3_119",
+	copyLink: "_copyLink_40sa3_127",
+	metadataLabel: "_metadataLabel_40sa3_149",
+	hover: "_hover_40sa3_157"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/ChatMessage.tsx
@@ -60321,24 +60321,24 @@ function _temp$89(c) {
 	return c.type === "text" || c.type === "image";
 }
 var ChatMessageRow_module_default = {
-	grid: "_grid_1k0mq_1",
-	user: "_user_1k0mq_10",
-	container: "_container_1k0mq_16",
-	first: "_first_1k0mq_24",
-	last: "_last_1k0mq_31",
-	highlight: "_highlight_1k0mq_38",
-	turnContainer: "_turnContainer_1k0mq_45",
-	box: "_box_1k0mq_57",
-	toolPart: "_toolPart_1k0mq_65",
-	toolLabel: "_toolLabel_1k0mq_71",
-	bottomMargin: "_bottomMargin_1k0mq_78",
-	codeCompact: "_codeCompact_1k0mq_82",
-	simple: "_simple_1k0mq_86"
+	grid: "_grid_19i2q_1",
+	user: "_user_19i2q_19",
+	container: "_container_19i2q_31",
+	first: "_first_19i2q_47",
+	last: "_last_19i2q_61",
+	highlight: "_highlight_19i2q_75",
+	turnContainer: "_turnContainer_19i2q_89",
+	box: "_box_19i2q_113",
+	toolPart: "_toolPart_19i2q_129",
+	toolLabel: "_toolLabel_19i2q_141",
+	bottomMargin: "_bottomMargin_19i2q_155",
+	codeCompact: "_codeCompact_19i2q_163",
+	simple: "_simple_19i2q_171"
 };
 var MessageLabel_module_default = {
-	badge: "_badge_1c7cn_1",
-	inline: "_inline_1c7cn_2",
-	interactive: "_interactive_1c7cn_25"
+	badge: "_badge_450y7_1",
+	inline: "_inline_450y7_3",
+	interactive: "_interactive_450y7_49"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/MessageLabel.tsx
@@ -60817,13 +60817,13 @@ function _temp$88(k) {
 	return t6;
 };
 var GeneratingIndicator_module_default = {
-	bar: "_bar_pg4l8_1",
-	"gen-sweep": "_gen-sweep_pg4l8_1",
-	barLabelOnly: "_barLabelOnly_pg4l8_34",
-	label: "_label_pg4l8_38",
-	ell: "_ell_pg4l8_47",
-	"gen-ell": "_gen-ell_pg4l8_1",
-	attempt: "_attempt_pg4l8_64"
+	bar: "_bar_kyktc_1",
+	"gen-sweep": "_gen-sweep_kyktc_1",
+	barLabelOnly: "_barLabelOnly_kyktc_67",
+	label: "_label_kyktc_75",
+	ell: "_ell_kyktc_93",
+	"gen-ell": "_gen-ell_kyktc_1",
+	attempt: "_attempt_kyktc_127"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/indicators/GeneratingIndicator.tsx
@@ -60917,14 +60917,14 @@ function messageHasVisibleContent(message) {
 	});
 }
 var LoadingEventsIndicator_module_default = {
-	bar: "_bar_q6epo_1",
-	"le-sweep": "_le-sweep_q6epo_1",
-	compact: "_compact_q6epo_33",
-	spinner: "_spinner_q6epo_44",
-	"le-spin": "_le-spin_q6epo_1",
-	label: "_label_q6epo_55",
-	ell: "_ell_q6epo_68",
-	"le-ell": "_le-ell_q6epo_1"
+	bar: "_bar_srywb_1",
+	"le-sweep": "_le-sweep_srywb_1",
+	compact: "_compact_srywb_65",
+	spinner: "_spinner_srywb_87",
+	"le-spin": "_le-spin_srywb_1",
+	label: "_label_srywb_109",
+	ell: "_ell_srywb_135",
+	"le-ell": "_le-ell_srywb_1"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/indicators/LoadingEventsIndicator.tsx
@@ -60984,8 +60984,8 @@ var LoadingEventsIndicator = (t0) => {
 	return t7;
 };
 var ChatViewVirtualList_module_default = {
-	list: "_list_zuqui_1",
-	generatingRow: "_generatingRow_zuqui_7"
+	list: "_list_7u1jq_1",
+	generatingRow: "_generatingRow_7u1jq_13"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/ChatViewVirtualList.tsx
@@ -62898,7 +62898,7 @@ function enableMapSet() {
 }
 var produce = new Immer2().produce;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.18_react@19.3.0_use-sync-external-store@1.7.0_react@19.3.0_/node_modules/zustand/esm/vanilla.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react_8f63c6b0005d80dc574b222734a0da97/node_modules/zustand/esm/vanilla.mjs
 var createStoreImpl = (createState) => {
 	let state;
 	const listeners = /* @__PURE__ */ new Set();
@@ -62927,7 +62927,7 @@ var createStoreImpl = (createState) => {
 };
 var createStore = ((createState) => createState ? createStoreImpl(createState) : createStoreImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.18_react@19.3.0_use-sync-external-store@1.7.0_react@19.3.0_/node_modules/zustand/esm/react.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react_8f63c6b0005d80dc574b222734a0da97/node_modules/zustand/esm/react.mjs
 var identity = (arg) => arg;
 function useStore$1(api, selector = identity) {
 	const slice = import_react.useSyncExternalStore(api.subscribe, import_react.useCallback(() => selector(api.getState()), [api, selector]), import_react.useCallback(() => selector(api.getInitialState()), [api, selector]));
@@ -62942,7 +62942,7 @@ var createImpl = (createState) => {
 };
 var create = ((createState) => createState ? createImpl(createState) : createImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.18_react@19.3.0_use-sync-external-store@1.7.0_react@19.3.0_/node_modules/zustand/esm/middleware.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react_8f63c6b0005d80dc574b222734a0da97/node_modules/zustand/esm/middleware.mjs
 var shouldDispatchFromDevtools = (api) => !!api.dispatchFromDevtools && typeof api.dispatch === "function";
 var trackedConnections = /* @__PURE__ */ new Map();
 var getTrackedConnectionState = (name) => {
@@ -63280,7 +63280,7 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 };
 var persist = persistImpl;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.18_react@19.3.0_use-sync-external-store@1.7.0_react@19.3.0_/node_modules/zustand/esm/middleware/immer.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react_8f63c6b0005d80dc574b222734a0da97/node_modules/zustand/esm/middleware/immer.mjs
 var immerImpl = (initializer) => (set, get, store) => {
 	store.setState = (updater, replace, ...args) => {
 		return set(typeof updater === "function" ? produce(updater) : updater, replace, ...args);
@@ -63918,35 +63918,35 @@ var initializeSampleSlice = (set) => {
 	});
 };
 var SearchPanel_module_default = {
-	container: "_container_1sdtt_1",
-	body: "_body_1sdtt_8",
-	searchArea: "_searchArea_1sdtt_15",
-	inputShell: "_inputShell_1sdtt_23",
-	controlsRow: "_controlsRow_1sdtt_33",
-	topRow: "_topRow_1sdtt_40",
-	typeToggle: "_typeToggle_1sdtt_47",
-	topActions: "_topActions_1sdtt_52",
-	textarea: "_textarea_1sdtt_58",
-	modeRow: "_modeRow_1sdtt_65",
-	modeControls: "_modeControls_1sdtt_71",
-	modeToggle: "_modeToggle_1sdtt_77",
-	modeToggleActive: "_modeToggleActive_1sdtt_100",
-	modelPill: "_modelPill_1sdtt_105",
-	modelInputShell: "_modelInputShell_1sdtt_123",
-	modelInput: "_modelInput_1sdtt_123",
-	iconAction: "_iconAction_1sdtt_144",
-	iconActionActive: "_iconActionActive_1sdtt_166",
-	runButton: "_runButton_1sdtt_171",
-	results: "_results_1sdtt_192",
-	sectionHeader: "_sectionHeader_1sdtt_202",
-	resultCard: "_resultCard_1sdtt_214",
-	matchCount: "_matchCount_1sdtt_222",
-	recentList: "_recentList_1sdtt_228",
-	recentItem: "_recentItem_1sdtt_234",
-	recentEmpty: "_recentEmpty_1sdtt_249",
-	emptyState: "_emptyState_1sdtt_256",
-	searchingText: "_searchingText_1sdtt_267",
-	searchingElapsed: "_searchingElapsed_1sdtt_271"
+	container: "_container_485r4_1",
+	body: "_body_485r4_15",
+	searchArea: "_searchArea_485r4_29",
+	inputShell: "_inputShell_485r4_45",
+	controlsRow: "_controlsRow_485r4_65",
+	topRow: "_topRow_485r4_79",
+	typeToggle: "_typeToggle_485r4_93",
+	topActions: "_topActions_485r4_103",
+	textarea: "_textarea_485r4_115",
+	modeRow: "_modeRow_485r4_129",
+	modeControls: "_modeControls_485r4_141",
+	modeToggle: "_modeToggle_485r4_153",
+	modeToggleActive: "_modeToggleActive_485r4_199",
+	modelPill: "_modelPill_485r4_209",
+	modelInputShell: "_modelInputShell_485r4_245",
+	modelInput: "_modelInput_485r4_245",
+	iconAction: "_iconAction_485r4_287",
+	iconActionActive: "_iconActionActive_485r4_331",
+	runButton: "_runButton_485r4_341",
+	results: "_results_485r4_383",
+	sectionHeader: "_sectionHeader_485r4_403",
+	resultCard: "_resultCard_485r4_427",
+	matchCount: "_matchCount_485r4_443",
+	recentList: "_recentList_485r4_455",
+	recentItem: "_recentItem_485r4_467",
+	recentEmpty: "_recentEmpty_485r4_497",
+	emptyState: "_emptyState_485r4_511",
+	searchingText: "_searchingText_485r4_533",
+	searchingElapsed: "_searchingElapsed_485r4_541"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript-search/searchPanelState.ts
@@ -68772,12 +68772,12 @@ var AppConfigGate = (t0) => {
 	return t2;
 };
 var LogLocationGate_module_default = {
-	gate: "_gate_fvpnz_1",
-	card: "_card_fvpnz_10",
-	title: "_title_fvpnz_18",
-	body: "_body_fvpnz_25",
-	location: "_location_fvpnz_30",
-	actions: "_actions_fvpnz_40"
+	gate: "_gate_tyfai_1",
+	card: "_card_tyfai_19",
+	title: "_title_tyfai_35",
+	body: "_body_tyfai_49",
+	location: "_location_tyfai_59",
+	actions: "_actions_tyfai_79"
 };
 //#endregion
 //#region src/app_config/LogLocationGate.tsx
@@ -68910,7 +68910,7 @@ var LogLocationApproval = (t0) => {
 	return t7;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
+//#region ../../node_modules/.pnpm/react-router@8.4.0_react-do_8c7b91c66c8115d08033ff54fc817791/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
 /**
 * react-router v8.4.0
 *
@@ -69005,24 +69005,24 @@ var toClipboardJson = (value) => {
 	}
 };
 var TreeNode_module_default = {
-	children: "_children_1xt2m_4",
-	row: "_row_1xt2m_10",
-	keyToggle: "_keyToggle_1xt2m_22",
-	caret: "_caret_1xt2m_34",
-	caretSpacer: "_caretSpacer_1xt2m_41",
-	key: "_key_1xt2m_22",
-	value: "_value_1xt2m_51",
-	string: "_string_1xt2m_57",
-	number: "_number_1xt2m_61",
-	boolean: "_boolean_1xt2m_65",
-	"null": "_null_1xt2m_69",
-	"function": "_function_1xt2m_74",
-	collection: "_collection_1xt2m_78",
-	other: "_other_1xt2m_82",
-	copy: "_copy_1xt2m_86",
-	showMore: "_showMore_1xt2m_104",
-	empty: "_empty_1xt2m_113",
-	flash: "_flash_1xt2m_119"
+	children: "_children_123oz_7",
+	row: "_row_123oz_19",
+	keyToggle: "_keyToggle_123oz_43",
+	caret: "_caret_123oz_67",
+	caretSpacer: "_caretSpacer_123oz_81",
+	key: "_key_123oz_43",
+	value: "_value_123oz_101",
+	string: "_string_123oz_113",
+	number: "_number_123oz_121",
+	boolean: "_boolean_123oz_129",
+	"null": "_null_123oz_137",
+	"function": "_function_123oz_147",
+	collection: "_collection_123oz_155",
+	other: "_other_123oz_163",
+	copy: "_copy_123oz_171",
+	showMore: "_showMore_123oz_207",
+	empty: "_empty_123oz_225",
+	flash: "_flash_123oz_237"
 };
 //#endregion
 //#region ../../packages/zustand-devtools/src/TreeNode.tsx
@@ -69330,9 +69330,9 @@ var ApplicationIcons = {
 	return "Error";
 };
 var BooleanScoreDescriptor_module_default = {
-	circle: "_circle_17gxn_1",
-	green: "_green_17gxn_10",
-	red: "_red_17gxn_16"
+	circle: "_circle_1ic1x_1",
+	green: "_green_1ic1x_19",
+	red: "_red_1ic1x_31"
 };
 //#endregion
 //#region src/app/samples/descriptor/score/BooleanScoreDescriptor.tsx
@@ -69416,9 +69416,9 @@ var numericScoreDescriptor = (values) => {
 	};
 };
 var ObjectScoreDescriptor_module_default = {
-	container: "_container_7a6bv_1",
-	key: "_key_7a6bv_8",
-	value: "_value_7a6bv_16"
+	container: "_container_wrn4c_1",
+	key: "_key_wrn4c_15",
+	value: "_value_wrn4c_31"
 };
 //#endregion
 //#region src/app/samples/descriptor/score/ObjectScoreDescriptor.tsx
@@ -69484,10 +69484,10 @@ var otherScoreDescriptor = () => {
 	};
 };
 var PassFailScoreDescriptor_module_default = {
-	circle: "_circle_1seo2_1",
-	green: "_green_1seo2_10",
-	red: "_red_1seo2_16",
-	orange: "_orange_1seo2_22"
+	circle: "_circle_4n2d1_1",
+	green: "_green_4n2d1_19",
+	red: "_red_4n2d1_31",
+	orange: "_orange_4n2d1_43"
 };
 //#endregion
 //#region src/app/samples/descriptor/score/PassFailScoreDescriptor.tsx
@@ -71750,8 +71750,8 @@ function _temp5$18(state) {
 	return state.logs.selectedLogFile;
 }
 var FlowButton_module_default = {
-	button: "_button_mrm1o_1",
-	viewerOptions: "_viewerOptions_mrm1o_12"
+	button: "_button_170yp_1",
+	viewerOptions: "_viewerOptions_170yp_23"
 };
 //#endregion
 //#region src/app/flow/FlowButton.tsx
@@ -71848,15 +71848,15 @@ function _temp$81(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
-	root: "_root_1jsd7_1",
-	button: "_button_1jsd7_6",
-	icon: "_icon_1jsd7_23",
-	menu: "_menu_1jsd7_27",
-	headerRow: "_headerRow_1jsd7_37",
-	srOnly: "_srOnly_1jsd7_48",
-	group: "_group_1jsd7_60",
-	resetButton: "_resetButton_1jsd7_67",
-	option: "_option_1jsd7_82"
+	root: "_root_it2o1_1",
+	button: "_button_it2o1_11",
+	icon: "_icon_it2o1_45",
+	menu: "_menu_it2o1_53",
+	headerRow: "_headerRow_it2o1_73",
+	srOnly: "_srOnly_it2o1_95",
+	group: "_group_it2o1_119",
+	resetButton: "_resetButton_it2o1_133",
+	option: "_option_it2o1_163"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/theme/ThemeToggle.tsx
@@ -72167,8 +72167,8 @@ function _temp$79(state) {
 	return state.logs.selectedLogFile;
 }
 var ViewerOptionsButton_module_default = {
-	button: "_button_1bbut_1",
-	viewerOptions: "_viewerOptions_1bbut_7"
+	button: "_button_1lebh_1",
+	viewerOptions: "_viewerOptions_1lebh_13"
 };
 //#endregion
 //#region src/app/log-list/ViewerOptionsButton.tsx
@@ -72223,15 +72223,15 @@ var ViewerOptionsButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =
 });
 ViewerOptionsButton.displayName = "ViewerOptionsButton";
 var ViewerOptionsPopover_module_default = {
-	container: "_container_fz24h_1",
-	fullWidth: "_fullWidth_fz24h_9",
-	fullWidthPadded: "_fullWidthPadded_fz24h_13",
-	spacer: "_spacer_fz24h_18",
-	logDir: "_logDir_fz24h_26",
-	clearButton: "_clearButton_fz24h_31",
-	message: "_message_fz24h_35",
-	messageSuccess: "_messageSuccess_fz24h_43",
-	messageError: "_messageError_fz24h_48"
+	container: "_container_1n73e_1",
+	fullWidth: "_fullWidth_1n73e_17",
+	fullWidthPadded: "_fullWidthPadded_1n73e_25",
+	spacer: "_spacer_1n73e_35",
+	logDir: "_logDir_1n73e_51",
+	clearButton: "_clearButton_1n73e_61",
+	message: "_message_1n73e_69",
+	messageSuccess: "_messageSuccess_1n73e_85",
+	messageError: "_messageError_1n73e_95"
 };
 //#endregion
 //#region src/app/log-list/ViewerOptionsPopover.tsx
@@ -72533,14 +72533,14 @@ var ViewerOptionsPopover = (t0) => {
 	return t35;
 };
 var Navbar_module_default = {
-	header: "_header_1u3sd_1",
-	bordered: "_bordered_1u3sd_11",
-	breadcrumbs: "_breadcrumbs_1u3sd_15",
-	ellipsis: "_ellipsis_1u3sd_26",
-	left: "_left_1u3sd_31",
-	right: "_right_1u3sd_41",
-	toolbarButton: "_toolbarButton_1u3sd_50",
-	pathContainer: "_pathContainer_1u3sd_58"
+	header: "_header_1pnv3_1",
+	bordered: "_bordered_1pnv3_21",
+	breadcrumbs: "_breadcrumbs_1pnv3_29",
+	ellipsis: "_ellipsis_1pnv3_51",
+	left: "_left_1pnv3_61",
+	right: "_right_1pnv3_81",
+	toolbarButton: "_toolbarButton_1pnv3_99",
+	pathContainer: "_pathContainer_1pnv3_115"
 };
 //#endregion
 //#region src/app/navbar/Navbar.tsx
@@ -72885,8 +72885,8 @@ function _temp4$31(state_0) {
 	return state_0.appActions.setShowingOptionsDialog;
 }
 var NavbarButton_module_default = {
-	navbarButton: "_navbarButton_i4zyi_1",
-	dropdownChevron: "_dropdownChevron_i4zyi_9"
+	navbarButton: "_navbarButton_9pw8m_1",
+	dropdownChevron: "_dropdownChevron_9pw8m_17"
 };
 //#endregion
 //#region src/app/navbar/NavbarButton.tsx
@@ -73098,18 +73098,18 @@ function _temp$77(evalSet) {
 	return col.colId || col.field || col.headerName || "?";
 };
 var ColumnSelectorPopover_module_default = {
-	checkboxWrapper: "_checkboxWrapper_cdanu_1",
-	label: "_label_cdanu_5",
-	checkbox: "_checkbox_cdanu_1",
-	filterIcon: "_filterIcon_cdanu_16",
-	scrollableContainer: "_scrollableContainer_cdanu_21",
-	section: "_section_cdanu_33",
-	headerRow: "_headerRow_cdanu_37",
-	scoresHeadingGroup: "_scoresHeadingGroup_cdanu_47",
-	scoresViewModeControl: "_scoresViewModeControl_cdanu_53",
-	buttonContainer: "_buttonContainer_cdanu_57",
-	button: "_button_cdanu_57",
-	columnsLayout: "_columnsLayout_cdanu_76"
+	checkboxWrapper: "_checkboxWrapper_1rzep_1",
+	label: "_label_1rzep_9",
+	checkbox: "_checkbox_1rzep_1",
+	filterIcon: "_filterIcon_1rzep_31",
+	scrollableContainer: "_scrollableContainer_1rzep_41",
+	section: "_section_1rzep_65",
+	headerRow: "_headerRow_1rzep_73",
+	scoresHeadingGroup: "_scoresHeadingGroup_1rzep_93",
+	scoresViewModeControl: "_scoresViewModeControl_1rzep_105",
+	buttonContainer: "_buttonContainer_1rzep_113",
+	button: "_button_1rzep_113",
+	columnsLayout: "_columnsLayout_1rzep_151"
 };
 //#endregion
 //#region src/app/shared/ColumnSelectorPopover.tsx
@@ -73627,26 +73627,26 @@ var parseLogFileName = (logFileName) => {
 	return formatTime((end.getTime() - start.getTime()) / 1e3);
 }
 var gridCells_module_default$1 = {
-	gridWrapper: "_gridWrapper_nawgx_1",
-	gridContainer: "_gridContainer_nawgx_7",
-	iconCell: "_iconCell_nawgx_15",
-	numberCell: "_numberCell_nawgx_29",
-	taskText: "_taskText_nawgx_39",
-	folder: "_folder_nawgx_46",
-	fullWidthHeight: "_fullWidthHeight_nawgx_52"
+	gridWrapper: "_gridWrapper_eyrya_1",
+	gridContainer: "_gridContainer_eyrya_13",
+	iconCell: "_iconCell_eyrya_29",
+	numberCell: "_numberCell_eyrya_57",
+	taskText: "_taskText_eyrya_77",
+	folder: "_folder_eyrya_91",
+	fullWidthHeight: "_fullWidthHeight_eyrya_103"
 };
 var columns_module_default = {
-	nameCell: "_nameCell_8fyml_1",
-	modelCell: "_modelCell_8fyml_8",
-	modelCellPrimary: "_modelCellPrimary_8fyml_15",
-	scoreCell: "_scoreCell_8fyml_22",
-	multiScorerBadge: "_multiScorerBadge_8fyml_29",
-	error: "_error_8fyml_41",
-	started: "_started_8fyml_45",
-	success: "_success_8fyml_49",
-	cancelled: "_cancelled_8fyml_53",
-	statusCell: "_statusCell_8fyml_57",
-	dateCell: "_dateCell_8fyml_68"
+	nameCell: "_nameCell_1y0hx_1",
+	modelCell: "_modelCell_1y0hx_15",
+	modelCellPrimary: "_modelCellPrimary_1y0hx_29",
+	scoreCell: "_scoreCell_1y0hx_43",
+	multiScorerBadge: "_multiScorerBadge_1y0hx_57",
+	error: "_error_1y0hx_81",
+	started: "_started_1y0hx_89",
+	success: "_success_1y0hx_97",
+	cancelled: "_cancelled_1y0hx_105",
+	statusCell: "_statusCell_1y0hx_113",
+	dateCell: "_dateCell_1y0hx_135"
 };
 //#endregion
 //#region src/app/shared/gridComparators.ts
@@ -74315,7 +74315,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 	};
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-table/dist/FlexRender.js
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_17a79c112d54eb98b1f82b0354a844e4/node_modules/@tanstack/react-table/dist/FlexRender.js
 function isReactComponent(component) {
 	return isClassComponent(component) || typeof component === "function" || isExoticComponent(component);
 }
@@ -74869,7 +74869,7 @@ var require_with_selector_production = /* @__PURE__ */ __commonJSMin(((exports) 
 	};
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-store@0.11.1_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-store/dist/useSelector.js
+//#region ../../node_modules/.pnpm/@tanstack+react-store@0.11._24bd51e295017816a0f8da416ed131ab/node_modules/@tanstack/react-store/dist/useSelector.js
 var import_with_selector = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_with_selector_production();
 })))();
@@ -74906,7 +74906,7 @@ function useSelector(source, selector = (s) => s, options) {
 	return (0, import_with_selector.useSyncExternalStoreWithSelector)(subscribe, getSnapshot, getSnapshot, selector, compare);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-table/dist/Subscribe.js
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_17a79c112d54eb98b1f82b0354a844e4/node_modules/@tanstack/react-table/dist/Subscribe.js
 function Subscribe(props) {
 	const selected = useSelector(props.source, props.selector, { compare: shallow });
 	return typeof props.children === "function" ? props.children(selected) : props.children;
@@ -75025,7 +75025,7 @@ function createRenderPhaseSource(source, compare = Object.is) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-table/dist/reactivity.js
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_17a79c112d54eb98b1f82b0354a844e4/node_modules/@tanstack/react-table/dist/reactivity.js
 /**
 * Creates the table-core reactivity bindings used by the React adapter.
 *
@@ -79720,7 +79720,7 @@ function _createSortedRowModel(table) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/@tanstack/react-table/dist/useTable.js
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_17a79c112d54eb98b1f82b0354a844e4/node_modules/@tanstack/react-table/dist/useTable.js
 var useIsomorphicLayoutEffect = typeof window === "undefined" ? import_react.useEffect : import_react.useLayoutEffect;
 /**
 * Creates a React table instance backed by TanStack Store atoms.
@@ -79789,8 +79789,8 @@ function useTable(tableOptions, selector) {
 	]);
 }
 var ColumnFilterButton_module_default = {
-	filterButton: "_filterButton_b38ko_1",
-	filterButtonActive: "_filterButtonActive_b38ko_13"
+	filterButton: "_filterButton_1d0x2_1",
+	filterButtonActive: "_filterButtonActive_1d0x2_25"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/columnFilter/ColumnFilterButton.tsx
@@ -79830,22 +79830,22 @@ var ColumnFilterButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 });
 ColumnFilterButton.displayName = "ColumnFilterButton";
 var ColumnFilterControl_module_default = {
-	headerActions: "_headerActions_uh0qk_1",
-	filterPopover: "_filterPopover_uh0qk_8"
+	headerActions: "_headerActions_1ynvs_1",
+	filterPopover: "_filterPopover_1ynvs_15"
 };
 var ColumnFilterEditor_module_default = {
-	filterContent: "_filterContent_19h4j_1",
-	filterRow: "_filterRow_19h4j_7",
-	filterSelect: "_filterSelect_19h4j_13",
-	filterInput: "_filterInput_19h4j_14",
-	filterButton: "_filterButton_19h4j_30",
-	rangeLabel: "_rangeLabel_19h4j_35",
-	joinRow: "_joinRow_19h4j_41",
-	joinOption: "_joinOption_19h4j_46"
+	filterContent: "_filterContent_1t9d8_1",
+	filterRow: "_filterRow_1t9d8_13",
+	filterSelect: "_filterSelect_1t9d8_25",
+	filterInput: "_filterInput_1t9d8_27",
+	filterButton: "_filterButton_1t9d8_59",
+	rangeLabel: "_rangeLabel_1t9d8_69",
+	joinRow: "_joinRow_1t9d8_81",
+	joinOption: "_joinOption_1t9d8_91"
 };
 var DurationInput_module_default = {
-	durationInputWrapper: "_durationInputWrapper_tdbd6_1",
-	durationHelper: "_durationHelper_tdbd6_8"
+	durationInputWrapper: "_durationInputWrapper_15hbc_1",
+	durationHelper: "_durationHelper_15hbc_15"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/columnFilter/DurationInput.tsx
@@ -81169,47 +81169,47 @@ var clampWidth = (w, c) => Math.min(Math.max(w, baseWidth(c)), hi(c));
 	return order.indexOf(draggedId) < order.indexOf(targetId) ? "right" : "left";
 }
 var DataGrid_module_default = {
-	container: "_container_1k6n1_1",
-	srStatus: "_srStatus_1k6n1_11",
-	headerContent: "_headerContent_1k6n1_27",
-	rotatedLabel: "_rotatedLabel_1k6n1_28",
-	table: "_table_1k6n1_38",
-	thead: "_thead_1k6n1_43",
-	headerRow: "_headerRow_1k6n1_51",
-	headerCell: "_headerCell_1k6n1_59",
-	headerCellSortable: "_headerCellSortable_1k6n1_102",
-	sortIcon: "_sortIcon_1k6n1_106",
-	sortIndicator: "_sortIndicator_1k6n1_111",
-	sortOrder: "_sortOrder_1k6n1_119",
-	headerFilter: "_headerFilter_1k6n1_125",
-	headerFilterActive: "_headerFilterActive_1k6n1_134",
-	headerText: "_headerText_1k6n1_138",
-	headerCellCenter: "_headerCellCenter_1k6n1_144",
-	headerCellTall: "_headerCellTall_1k6n1_151",
-	headerCellRotated: "_headerCellRotated_1k6n1_175",
-	rotatedText: "_rotatedText_1k6n1_232",
-	rotatedFilter: "_rotatedFilter_1k6n1_243",
-	rotatedLabelFiltered: "_rotatedLabelFiltered_1k6n1_252",
-	rotatedFilterAnchor: "_rotatedFilterAnchor_1k6n1_259",
-	theadDragging: "_theadDragging_1k6n1_275",
-	headerCellDragSource: "_headerCellDragSource_1k6n1_283",
-	dragGhost: "_dragGhost_1k6n1_289",
-	headerCellDropLeft: "_headerCellDropLeft_1k6n1_307",
-	headerCellDropRight: "_headerCellDropRight_1k6n1_308",
-	tbody: "_tbody_1k6n1_326",
-	row: "_row_1k6n1_331",
-	rowSelected: "_rowSelected_1k6n1_351",
-	cell: "_cell_1k6n1_355",
-	cellCenter: "_cellCenter_1k6n1_385",
-	multiline: "_multiline_1k6n1_393",
-	headerCellPinned: "_headerCellPinned_1k6n1_402",
-	cellPinned: "_cellPinned_1k6n1_407",
-	afterRotatedGap: "_afterRotatedGap_1k6n1_430",
-	empty: "_empty_1k6n1_442",
-	resizeHandle: "_resizeHandle_1k6n1_455",
-	resizeHandleActive: "_resizeHandleActive_1k6n1_480",
-	resizeHandleTall: "_resizeHandleTall_1k6n1_486",
-	resizeHandleRotated: "_resizeHandleRotated_1k6n1_498"
+	container: "_container_1h2pv_1",
+	srStatus: "_srStatus_1h2pv_21",
+	headerContent: "_headerContent_1h2pv_53",
+	rotatedLabel: "_rotatedLabel_1h2pv_55",
+	table: "_table_1h2pv_75",
+	thead: "_thead_1h2pv_85",
+	headerRow: "_headerRow_1h2pv_101",
+	headerCell: "_headerCell_1h2pv_117",
+	headerCellSortable: "_headerCellSortable_1h2pv_203",
+	sortIcon: "_sortIcon_1h2pv_211",
+	sortIndicator: "_sortIndicator_1h2pv_221",
+	sortOrder: "_sortOrder_1h2pv_237",
+	headerFilter: "_headerFilter_1h2pv_249",
+	headerFilterActive: "_headerFilterActive_1h2pv_267",
+	headerText: "_headerText_1h2pv_275",
+	headerCellCenter: "_headerCellCenter_1h2pv_287",
+	headerCellTall: "_headerCellTall_1h2pv_301",
+	headerCellRotated: "_headerCellRotated_1h2pv_349",
+	rotatedText: "_rotatedText_1h2pv_463",
+	rotatedFilter: "_rotatedFilter_1h2pv_485",
+	rotatedLabelFiltered: "_rotatedLabelFiltered_1h2pv_503",
+	rotatedFilterAnchor: "_rotatedFilterAnchor_1h2pv_517",
+	theadDragging: "_theadDragging_1h2pv_549",
+	headerCellDragSource: "_headerCellDragSource_1h2pv_565",
+	dragGhost: "_dragGhost_1h2pv_577",
+	headerCellDropLeft: "_headerCellDropLeft_1h2pv_613",
+	headerCellDropRight: "_headerCellDropRight_1h2pv_615",
+	tbody: "_tbody_1h2pv_651",
+	row: "_row_1h2pv_661",
+	rowSelected: "_rowSelected_1h2pv_701",
+	cell: "_cell_1h2pv_709",
+	cellCenter: "_cellCenter_1h2pv_769",
+	multiline: "_multiline_1h2pv_785",
+	headerCellPinned: "_headerCellPinned_1h2pv_803",
+	cellPinned: "_cellPinned_1h2pv_813",
+	afterRotatedGap: "_afterRotatedGap_1h2pv_859",
+	empty: "_empty_1h2pv_883",
+	resizeHandle: "_resizeHandle_1h2pv_909",
+	resizeHandleActive: "_resizeHandleActive_1h2pv_959",
+	resizeHandleTall: "_resizeHandleTall_1h2pv_971",
+	resizeHandleRotated: "_resizeHandleRotated_1h2pv_995"
 };
 //#endregion
 //#region src/app/shared/data-grid/keyboardNav.ts
@@ -83312,13 +83312,13 @@ function _temp3$38(item_1) {
 	return buildLogListRow(item_1);
 }
 var LogListFooter_module_default = {
-	footer: "_footer_14uod_1",
-	spinnerContainer: "_spinnerContainer_14uod_11",
-	spinner: "_spinner_14uod_11",
-	label: "_label_14uod_25",
-	right: "_right_14uod_30",
-	left: "_left_14uod_39",
-	center: "_center_14uod_48"
+	footer: "_footer_19n48_1",
+	spinnerContainer: "_spinnerContainer_19n48_21",
+	spinner: "_spinner_19n48_21",
+	label: "_label_19n48_49",
+	right: "_right_19n48_59",
+	left: "_left_19n48_77",
+	center: "_center_19n48_95"
 };
 //#endregion
 //#region src/app/log-list/LogListFooter.tsx
@@ -83414,8 +83414,8 @@ var LogListFooter = (t0) => {
 	return t9;
 };
 var LogsPanel_module_default = {
-	panel: "_panel_16dj8_1",
-	list: "_list_16dj8_8"
+	panel: "_panel_w9ec5_1",
+	list: "_list_w9ec5_15"
 };
 //#endregion
 //#region src/app/log-list/useLogsOverview.ts
@@ -84383,8 +84383,8 @@ function _temp5$14(state_0) {
 	return state_0.log.selectedSampleHandle;
 }
 var InlineSampleDisplay_module_default = {
-	container: "_container_ly812_1",
-	scroller: "_scroller_ly812_7"
+	container: "_container_1aj7r_1",
+	scroller: "_scroller_1aj7r_13"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/timeFormat.ts
@@ -85360,89 +85360,89 @@ var inertData = (inputs) => ({
 	flush();
 };
 var ActivityChart_module_default = {
-	chart: "_chart_md8fn_6",
-	svg: "_svg_md8fn_14",
-	bandLabel: "_bandLabel_md8fn_22",
-	bandHeadline: "_bandHeadline_md8fn_27",
-	axisLine: "_axisLine_md8fn_33",
-	axisLabel: "_axisLabel_md8fn_37",
-	yTickLabel: "_yTickLabel_md8fn_42",
-	workingBlock: "_workingBlock_md8fn_49",
-	stallBracket: "_stallBracket_md8fn_53",
-	stallBracketRetry: "_stallBracketRetry_md8fn_59",
-	stallLabel: "_stallLabel_md8fn_65",
-	stallLabelRetry: "_stallLabelRetry_md8fn_70",
-	tokenSeries: "_tokenSeries_md8fn_81",
-	contextSeries: "_contextSeries_md8fn_88",
-	contextDot: "_contextDot_md8fn_95",
-	compactionDrop: "_compactionDrop_md8fn_100",
-	compactionLabel: "_compactionLabel_md8fn_105",
-	cursorLine: "_cursorLine_md8fn_113",
-	cursorPill: "_cursorPill_md8fn_120",
-	cursorPillText: "_cursorPillText_md8fn_125",
-	readoutDot: "_readoutDot_md8fn_133",
-	plotHit: "_plotHit_md8fn_141",
-	stallHit: "_stallHit_md8fn_146",
-	tokenLayer: "_tokenLayer_md8fn_152",
-	tokenLayerEdge: "_tokenLayerEdge_md8fn_158",
-	legendName: "_legendName_md8fn_165",
-	rowLabel: "_rowLabel_md8fn_172",
-	rowLabelMuted: "_rowLabelMuted_md8fn_177",
-	modelSpan: "_modelSpan_md8fn_181",
-	toolSpan: "_toolSpan_md8fn_185",
-	failedSpan: "_failedSpan_md8fn_190",
-	pendingSpan: "_pendingSpan_md8fn_195",
-	spanHovered: "_spanHovered_md8fn_201",
-	turnRect: "_turnRect_md8fn_209",
-	turnSeparator: "_turnSeparator_md8fn_228",
-	ghostSpan: "_ghostSpan_md8fn_235",
-	ghostLabel: "_ghostLabel_md8fn_242",
-	ghostAggregate: "_ghostAggregate_md8fn_251",
-	axisLabelMuted: "_axisLabelMuted_md8fn_259",
-	roleRow: "_roleRow_md8fn_265",
-	foldRow: "_foldRow_md8fn_270",
-	blockedThread: "_blockedThread_md8fn_276",
-	blockedLabel: "_blockedLabel_md8fn_282",
-	gutterCheckbox: "_gutterCheckbox_md8fn_289",
-	gutterCheckboxOn: "_gutterCheckboxOn_md8fn_295",
-	gutterCheck: "_gutterCheck_md8fn_289",
-	gutterExpand: "_gutterExpand_md8fn_307",
-	gutterName: "_gutterName_md8fn_312",
-	gutterModel: "_gutterModel_md8fn_317",
-	gutterHit: "_gutterHit_md8fn_322",
-	burstLabel: "_burstLabel_md8fn_328",
-	retryBadge: "_retryBadge_md8fn_333",
-	densityModel: "_densityModel_md8fn_339",
-	densityTool: "_densityTool_md8fn_343",
-	densityFailure: "_densityFailure_md8fn_347",
-	densityHit: "_densityHit_md8fn_353",
-	marker: "_marker_md8fn_361",
-	markerHit: "_markerHit_md8fn_368",
-	clusterBoxRect: "_clusterBoxRect_md8fn_377",
-	clusterBoxText: "_clusterBoxText_md8fn_383"
+	chart: "_chart_r095l_11",
+	svg: "_svg_r095l_27",
+	bandLabel: "_bandLabel_r095l_43",
+	bandHeadline: "_bandHeadline_r095l_53",
+	axisLine: "_axisLine_r095l_65",
+	axisLabel: "_axisLabel_r095l_73",
+	yTickLabel: "_yTickLabel_r095l_83",
+	workingBlock: "_workingBlock_r095l_97",
+	stallBracket: "_stallBracket_r095l_105",
+	stallBracketRetry: "_stallBracketRetry_r095l_117",
+	stallLabel: "_stallLabel_r095l_129",
+	stallLabelRetry: "_stallLabelRetry_r095l_139",
+	tokenSeries: "_tokenSeries_r095l_161",
+	contextSeries: "_contextSeries_r095l_175",
+	contextDot: "_contextDot_r095l_189",
+	compactionDrop: "_compactionDrop_r095l_199",
+	compactionLabel: "_compactionLabel_r095l_209",
+	cursorLine: "_cursorLine_r095l_225",
+	cursorPill: "_cursorPill_r095l_239",
+	cursorPillText: "_cursorPillText_r095l_249",
+	readoutDot: "_readoutDot_r095l_265",
+	plotHit: "_plotHit_r095l_281",
+	stallHit: "_stallHit_r095l_291",
+	tokenLayer: "_tokenLayer_r095l_303",
+	tokenLayerEdge: "_tokenLayerEdge_r095l_315",
+	legendName: "_legendName_r095l_329",
+	rowLabel: "_rowLabel_r095l_343",
+	rowLabelMuted: "_rowLabelMuted_r095l_353",
+	modelSpan: "_modelSpan_r095l_361",
+	toolSpan: "_toolSpan_r095l_369",
+	failedSpan: "_failedSpan_r095l_379",
+	pendingSpan: "_pendingSpan_r095l_389",
+	spanHovered: "_spanHovered_r095l_401",
+	turnRect: "_turnRect_r095l_417",
+	turnSeparator: "_turnSeparator_r095l_455",
+	ghostSpan: "_ghostSpan_r095l_469",
+	ghostLabel: "_ghostLabel_r095l_483",
+	ghostAggregate: "_ghostAggregate_r095l_501",
+	axisLabelMuted: "_axisLabelMuted_r095l_517",
+	roleRow: "_roleRow_r095l_529",
+	foldRow: "_foldRow_r095l_539",
+	blockedThread: "_blockedThread_r095l_551",
+	blockedLabel: "_blockedLabel_r095l_563",
+	gutterCheckbox: "_gutterCheckbox_r095l_577",
+	gutterCheckboxOn: "_gutterCheckboxOn_r095l_589",
+	gutterCheck: "_gutterCheck_r095l_577",
+	gutterExpand: "_gutterExpand_r095l_613",
+	gutterName: "_gutterName_r095l_623",
+	gutterModel: "_gutterModel_r095l_633",
+	gutterHit: "_gutterHit_r095l_643",
+	burstLabel: "_burstLabel_r095l_655",
+	retryBadge: "_retryBadge_r095l_665",
+	densityModel: "_densityModel_r095l_677",
+	densityTool: "_densityTool_r095l_685",
+	densityFailure: "_densityFailure_r095l_693",
+	densityHit: "_densityHit_r095l_705",
+	marker: "_marker_r095l_721",
+	markerHit: "_markerHit_r095l_735",
+	clusterBoxRect: "_clusterBoxRect_r095l_753",
+	clusterBoxText: "_clusterBoxText_r095l_765"
 };
 var ActivityTooltip_module_default = {
-	tooltip: "_tooltip_1y9z1_4",
-	header: "_header_1y9z1_21",
-	subject: "_subject_1y9z1_28",
-	statusFailed: "_statusFailed_1y9z1_36",
-	statusRejected: "_statusRejected_1y9z1_40",
-	timeLine: "_timeLine_1y9z1_44",
-	who: "_who_1y9z1_50",
-	swatch: "_swatch_1y9z1_58",
-	dot: "_dot_1y9z1_65",
-	glyph: "_glyph_1y9z1_74",
-	grid: "_grid_1y9z1_78",
-	key: "_key_1y9z1_86",
-	value: "_value_1y9z1_91",
-	mono: "_mono_1y9z1_98",
-	muted: "_muted_1y9z1_103",
-	ellipsis: "_ellipsis_1y9z1_107",
-	list: "_list_1y9z1_116",
-	listRow: "_listRow_1y9z1_122",
-	listRowHovered: "_listRowHovered_1y9z1_134",
-	note: "_note_1y9z1_138",
-	footer: "_footer_1y9z1_142"
+	tooltip: "_tooltip_1u3mo_7",
+	header: "_header_1u3mo_41",
+	subject: "_subject_1u3mo_55",
+	statusFailed: "_statusFailed_1u3mo_71",
+	statusRejected: "_statusRejected_1u3mo_79",
+	timeLine: "_timeLine_1u3mo_87",
+	who: "_who_1u3mo_99",
+	swatch: "_swatch_1u3mo_115",
+	dot: "_dot_1u3mo_129",
+	glyph: "_glyph_1u3mo_147",
+	grid: "_grid_1u3mo_155",
+	key: "_key_1u3mo_171",
+	value: "_value_1u3mo_181",
+	mono: "_mono_1u3mo_195",
+	muted: "_muted_1u3mo_205",
+	ellipsis: "_ellipsis_1u3mo_213",
+	list: "_list_1u3mo_231",
+	listRow: "_listRow_1u3mo_243",
+	listRowHovered: "_listRowHovered_1u3mo_267",
+	note: "_note_1u3mo_275",
+	footer: "_footer_1u3mo_283"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/sample-activity/ActivityTooltip.tsx
@@ -88572,36 +88572,36 @@ var ActivityChart = ({ data, window: timeWindow, showWorking, showMarkers, showT
 	});
 };
 var ModelTokenTable_module_default = {
-	wrapper: "_wrapper_14pl5_1",
-	table: "_table_14pl5_7",
-	num: "_num_14pl5_24",
-	modelRow: "_modelRow_14pl5_28",
-	modelCell: "_modelCell_14pl5_49",
-	modelName: "_modelName_14pl5_55",
-	modelAlias: "_modelAlias_14pl5_60",
-	modelTotal: "_modelTotal_14pl5_69",
-	modelCost: "_modelCost_14pl5_77",
-	configSection: "_configSection_14pl5_85",
-	configSectionLabel: "_configSectionLabel_14pl5_92",
-	configTable: "_configTable_14pl5_106",
-	configKey: "_configKey_14pl5_118",
-	configVal: "_configVal_14pl5_124",
-	composeCell: "_composeCell_14pl5_139",
-	stack: "_stack_14pl5_147",
-	pcts: "_pcts_14pl5_162",
-	breakdown: "_breakdown_14pl5_170",
-	breakdownLabel: "_breakdownLabel_14pl5_178",
-	breakdownLeader: "_breakdownLeader_14pl5_186",
-	breakdownValue: "_breakdownValue_14pl5_193",
-	perSampleCell: "_perSampleCell_14pl5_200",
-	perSampleSub: "_perSampleSub_14pl5_205",
-	perSampleCost: "_perSampleCost_14pl5_214",
-	swatchSmall: "_swatchSmall_14pl5_220",
-	catInput: "_catInput_14pl5_226",
-	catCacheRead: "_catCacheRead_14pl5_230",
-	catCacheWrite: "_catCacheWrite_14pl5_234",
-	catOutput: "_catOutput_14pl5_238",
-	catReasoning: "_catReasoning_14pl5_242"
+	wrapper: "_wrapper_17jg3_1",
+	table: "_table_17jg3_13",
+	num: "_num_17jg3_47",
+	modelRow: "_modelRow_17jg3_55",
+	modelCell: "_modelCell_17jg3_97",
+	modelName: "_modelName_17jg3_109",
+	modelAlias: "_modelAlias_17jg3_119",
+	modelTotal: "_modelTotal_17jg3_137",
+	modelCost: "_modelCost_17jg3_153",
+	configSection: "_configSection_17jg3_169",
+	configSectionLabel: "_configSectionLabel_17jg3_183",
+	configTable: "_configTable_17jg3_211",
+	configKey: "_configKey_17jg3_235",
+	configVal: "_configVal_17jg3_247",
+	composeCell: "_composeCell_17jg3_277",
+	stack: "_stack_17jg3_293",
+	pcts: "_pcts_17jg3_323",
+	breakdown: "_breakdown_17jg3_339",
+	breakdownLabel: "_breakdownLabel_17jg3_355",
+	breakdownLeader: "_breakdownLeader_17jg3_371",
+	breakdownValue: "_breakdownValue_17jg3_385",
+	perSampleCell: "_perSampleCell_17jg3_399",
+	perSampleSub: "_perSampleSub_17jg3_409",
+	perSampleCost: "_perSampleCost_17jg3_427",
+	swatchSmall: "_swatchSmall_17jg3_439",
+	catInput: "_catInput_17jg3_451",
+	catCacheRead: "_catCacheRead_17jg3_459",
+	catCacheWrite: "_catCacheWrite_17jg3_467",
+	catOutput: "_catOutput_17jg3_475",
+	catReasoning: "_catReasoning_17jg3_483"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/ModelTokenTable.tsx
@@ -88864,25 +88864,25 @@ function _temp4$25(label, entries) {
 	})] });
 }
 var ModelUsagePanel_module_default = {
-	strip: "_strip_c99qp_1",
-	stripTimed: "_stripTimed_c99qp_11",
-	cell: "_cell_c99qp_15",
-	span2: "_span2_c99qp_33",
-	lab: "_lab_c99qp_37",
-	val: "_val_c99qp_55",
-	sub: "_sub_c99qp_71",
-	stack: "_stack_c99qp_76",
-	breakdown: "_breakdown_c99qp_90",
-	swatch: "_swatch_c99qp_109",
-	workingRow: "_workingRow_c99qp_118",
-	clockRow: "_clockRow_c99qp_125",
-	clockVal: "_clockVal_c99qp_133",
-	clockArrow: "_clockArrow_c99qp_138",
-	catInput: "_catInput_c99qp_143",
-	catCacheRead: "_catCacheRead_c99qp_146",
-	catCacheWrite: "_catCacheWrite_c99qp_149",
-	catOutput: "_catOutput_c99qp_152",
-	catReasoning: "_catReasoning_c99qp_155"
+	strip: "_strip_ai507_1",
+	stripTimed: "_stripTimed_ai507_21",
+	cell: "_cell_ai507_29",
+	span2: "_span2_ai507_65",
+	lab: "_lab_ai507_73",
+	val: "_val_ai507_109",
+	sub: "_sub_ai507_141",
+	stack: "_stack_ai507_151",
+	breakdown: "_breakdown_ai507_179",
+	swatch: "_swatch_ai507_217",
+	workingRow: "_workingRow_ai507_235",
+	clockRow: "_clockRow_ai507_249",
+	clockVal: "_clockVal_ai507_265",
+	clockArrow: "_clockArrow_ai507_275",
+	catInput: "_catInput_ai507_285",
+	catCacheRead: "_catCacheRead_ai507_291",
+	catCacheWrite: "_catCacheWrite_ai507_297",
+	catOutput: "_catOutput_ai507_303",
+	catReasoning: "_catReasoning_ai507_309"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/ModelUsagePanel.tsx
@@ -89374,27 +89374,27 @@ var buildConnectionLanes = (history, window, configuredMax) => {
 };
 /** Caps the guide can show in-window — the y-scale must cover them. */ var laneCapValues = (lane, retunes, windowEnd) => (retunes ?? []).filter((retune) => retune.timestamp <= windowEnd).map((retune) => capFromRetune(retune, lane.configuredMax)).filter((v) => typeof v === "number");
 var ConfigChangedChip_module_default = {
-	cell: "_cell_1etak_1",
-	effectiveValue: "_effectiveValue_1etak_8",
-	clearedValue: "_clearedValue_1etak_12",
-	noneValue: "_noneValue_1etak_16",
-	priorValue: "_priorValue_1etak_20",
-	chip: "_chip_1etak_25",
-	chipCleared: "_chipCleared_1etak_39",
-	diamond: "_diamond_1etak_45",
-	popover: "_popover_1etak_55",
-	popoverHeader: "_popoverHeader_1etak_60",
-	popoverKnob: "_popoverKnob_1etak_76",
-	popoverHeaderNote: "_popoverHeaderNote_1etak_80",
-	popoverBody: "_popoverBody_1etak_84",
-	popoverTransition: "_popoverTransition_1etak_92",
-	from: "_from_1etak_98",
-	to: "_to_1etak_102",
-	popoverGrid: "_popoverGrid_1etak_106",
-	popoverLabel: "_popoverLabel_1etak_118",
-	scopePill: "_scopePill_1etak_124",
-	timelineLink: "_timelineLink_1etak_135",
-	changeList: "_changeList_1etak_158"
+	cell: "_cell_iusx1_1",
+	effectiveValue: "_effectiveValue_iusx1_15",
+	clearedValue: "_clearedValue_iusx1_23",
+	noneValue: "_noneValue_iusx1_31",
+	priorValue: "_priorValue_iusx1_39",
+	chip: "_chip_iusx1_49",
+	chipCleared: "_chipCleared_iusx1_77",
+	diamond: "_diamond_iusx1_89",
+	popover: "_popover_iusx1_109",
+	popoverHeader: "_popoverHeader_iusx1_119",
+	popoverKnob: "_popoverKnob_iusx1_151",
+	popoverHeaderNote: "_popoverHeaderNote_iusx1_159",
+	popoverBody: "_popoverBody_iusx1_167",
+	popoverTransition: "_popoverTransition_iusx1_183",
+	from: "_from_iusx1_195",
+	to: "_to_iusx1_203",
+	popoverGrid: "_popoverGrid_iusx1_211",
+	popoverLabel: "_popoverLabel_iusx1_235",
+	scopePill: "_scopePill_iusx1_247",
+	timelineLink: "_timelineLink_iusx1_269",
+	changeList: "_changeList_iusx1_315"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/config/ConfigChangedChip.tsx
@@ -89943,16 +89943,16 @@ function _temp$67(change) {
 	] }, `${change.config}-${change.name}`);
 }
 var ConnectionChange_module_default = {
-	transition: "_transition_1sx4b_1",
-	oldLimit: "_oldLimit_1sx4b_6",
-	arrowUp: "_arrowUp_1sx4b_10",
-	arrowDown: "_arrowDown_1sx4b_11",
-	newLimit: "_newLimit_1sx4b_23",
-	badge: "_badge_1sx4b_27",
-	badgeSlowStart: "_badgeSlowStart_1sx4b_36",
-	badgeSteadyUp: "_badgeSteadyUp_1sx4b_41",
-	badgeRateLimit: "_badgeRateLimit_1sx4b_46",
-	badgeManual: "_badgeManual_1sx4b_51"
+	transition: "_transition_1roib_1",
+	oldLimit: "_oldLimit_1roib_11",
+	arrowUp: "_arrowUp_1roib_19",
+	arrowDown: "_arrowDown_1roib_21",
+	newLimit: "_newLimit_1roib_45",
+	badge: "_badge_1roib_53",
+	badgeSlowStart: "_badgeSlowStart_1roib_71",
+	badgeSteadyUp: "_badgeSteadyUp_1roib_81",
+	badgeRateLimit: "_badgeRateLimit_1roib_91",
+	badgeManual: "_badgeManual_1roib_101"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/ConnectionChange.tsx
@@ -90047,22 +90047,22 @@ var ConnectionReasonBadge = (t0) => {
 	return t4;
 };
 var ConnectionLogModal_module_default = {
-	table: "_table_136xr_1",
-	time: "_time_136xr_33",
-	limitHead: "_limitHead_136xr_38",
-	limit: "_limit_136xr_38",
-	noLimit: "_noLimit_136xr_47",
-	badge: "_badge_136xr_51",
-	badgeConfig: "_badgeConfig_136xr_60",
-	configRow: "_configRow_136xr_66",
-	rateLimitRow: "_rateLimitRow_136xr_70",
-	configDetail: "_configDetail_136xr_74",
-	subheader: "_subheader_136xr_80",
-	sharedBy: "_sharedBy_136xr_90",
-	filters: "_filters_136xr_94",
-	filterChip: "_filterChip_136xr_100",
-	filterChipActive: "_filterChipActive_136xr_111",
-	footerLink: "_footerLink_136xr_118"
+	table: "_table_1c6xw_1",
+	time: "_time_1c6xw_65",
+	limitHead: "_limitHead_1c6xw_75",
+	limit: "_limit_1c6xw_75",
+	noLimit: "_noLimit_1c6xw_93",
+	badge: "_badge_1c6xw_101",
+	badgeConfig: "_badgeConfig_1c6xw_119",
+	configRow: "_configRow_1c6xw_131",
+	rateLimitRow: "_rateLimitRow_1c6xw_139",
+	configDetail: "_configDetail_1c6xw_147",
+	subheader: "_subheader_1c6xw_159",
+	sharedBy: "_sharedBy_1c6xw_179",
+	filters: "_filters_1c6xw_187",
+	filterChip: "_filterChip_1c6xw_199",
+	filterChipActive: "_filterChipActive_1c6xw_221",
+	footerLink: "_footerLink_1c6xw_235"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/ConnectionLogModal.tsx
@@ -90289,33 +90289,33 @@ function _temp5$12(row_0, i_0) {
 	}, `controller-${i_0}`);
 }
 var ConnectionsView_module_default = {
-	grid: "_grid_13lh4_1",
-	headCell: "_headCell_13lh4_9",
-	cell: "_cell_13lh4_19",
-	lastRow: "_lastRow_13lh4_25",
-	modelCell: "_modelCell_13lh4_29",
-	modelName: "_modelName_13lh4_33",
-	roles: "_roles_13lh4_39",
-	roleChip: "_roleChip_13lh4_49",
-	avgCell: "_avgCell_13lh4_58",
-	avgValue: "_avgValue_13lh4_62",
-	rateLimits: "_rateLimits_13lh4_75",
-	actionsCell: "_actionsCell_13lh4_83",
-	actionLink: "_actionLink_13lh4_90",
-	chart: "_chart_13lh4_114",
-	svg: "_svg_13lh4_119",
-	series: "_series_13lh4_123",
-	baseline: "_baseline_13lh4_129",
-	capGuide: "_capGuide_13lh4_133",
-	rateLimitLine: "_rateLimitLine_13lh4_139",
-	retuneLine: "_retuneLine_13lh4_146",
-	retuneMarker: "_retuneMarker_13lh4_150",
-	chartLabel: "_chartLabel_13lh4_156",
-	legend: "_legend_13lh4_161",
-	legendItem: "_legendItem_13lh4_169",
-	legendDiamond: "_legendDiamond_13lh4_175",
-	legendRateLimit: "_legendRateLimit_13lh4_184",
-	legendGuide: "_legendGuide_13lh4_191"
+	grid: "_grid_1dcf1_1",
+	headCell: "_headCell_1dcf1_17",
+	cell: "_cell_1dcf1_37",
+	lastRow: "_lastRow_1dcf1_49",
+	modelCell: "_modelCell_1dcf1_57",
+	modelName: "_modelName_1dcf1_65",
+	roles: "_roles_1dcf1_77",
+	roleChip: "_roleChip_1dcf1_97",
+	avgCell: "_avgCell_1dcf1_115",
+	avgValue: "_avgValue_1dcf1_123",
+	rateLimits: "_rateLimits_1dcf1_149",
+	actionsCell: "_actionsCell_1dcf1_165",
+	actionLink: "_actionLink_1dcf1_179",
+	chart: "_chart_1dcf1_227",
+	svg: "_svg_1dcf1_237",
+	series: "_series_1dcf1_245",
+	baseline: "_baseline_1dcf1_257",
+	capGuide: "_capGuide_1dcf1_265",
+	rateLimitLine: "_rateLimitLine_1dcf1_277",
+	retuneLine: "_retuneLine_1dcf1_291",
+	retuneMarker: "_retuneMarker_1dcf1_299",
+	chartLabel: "_chartLabel_1dcf1_311",
+	legend: "_legend_1dcf1_321",
+	legendItem: "_legendItem_1dcf1_337",
+	legendDiamond: "_legendDiamond_1dcf1_349",
+	legendRateLimit: "_legendRateLimit_1dcf1_367",
+	legendGuide: "_legendGuide_1dcf1_381"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/roleAliases.ts
@@ -90726,16 +90726,16 @@ function _temp2$42(e_0) {
 	return e_0.reason === "rate_limit";
 }
 var UsagePanel_module_default = {
-	panel: "_panel_ald9k_1",
-	head: "_head_ald9k_5",
-	headLeft: "_headLeft_ald9k_16",
-	title: "_title_ald9k_23",
-	meta: "_meta_ald9k_29",
-	metaItem: "_metaItem_ald9k_37",
-	metaLabel: "_metaLabel_ald9k_43",
-	metaValue: "_metaValue_ald9k_51",
-	metaSep: "_metaSep_ald9k_57",
-	tableNoTop: "_tableNoTop_ald9k_64"
+	panel: "_panel_gvsbl_1",
+	head: "_head_gvsbl_9",
+	headLeft: "_headLeft_gvsbl_31",
+	title: "_title_gvsbl_45",
+	meta: "_meta_gvsbl_57",
+	metaItem: "_metaItem_gvsbl_73",
+	metaLabel: "_metaLabel_gvsbl_85",
+	metaValue: "_metaValue_gvsbl_101",
+	metaSep: "_metaSep_gvsbl_113",
+	tableNoTop: "_tableNoTop_gvsbl_127"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/UsagePanel.tsx
@@ -90915,46 +90915,46 @@ var buildArgsByRole = (evalSpec) => {
 	return finalize(acc);
 };
 var ActivityHistoryList_module_default = {
-	container: "_container_143e5_1",
-	filterRow: "_filterRow_143e5_7",
-	caption: "_caption_143e5_16",
-	filterPill: "_filterPill_143e5_28",
-	pillCount: "_pillCount_143e5_42",
-	pillEmpty: "_pillEmpty_143e5_46",
-	pillAll: "_pillAll_143e5_51",
-	pillSelected: "_pillSelected_143e5_55",
-	pillError: "_pillError_143e5_61",
-	pillLimit: "_pillLimit_143e5_67",
-	pillApproval: "_pillApproval_143e5_73",
-	pillInput: "_pillInput_143e5_79",
-	pillInterrupt: "_pillInterrupt_143e5_85",
-	pillCompaction: "_pillCompaction_143e5_91",
-	pillScore: "_pillScore_143e5_98",
-	search: "_search_143e5_151",
-	list: "_list_143e5_166",
-	empty: "_empty_143e5_175",
-	headerRow: "_headerRow_143e5_182",
-	row: "_row_143e5_183",
-	timeSort: "_timeSort_143e5_204",
-	byHeader: "_byHeader_143e5_220",
-	rowLast: "_rowLast_143e5_231",
-	rowSelected: "_rowSelected_143e5_235",
-	rowWash: "_rowWash_143e5_243",
-	washError: "_washError_143e5_247",
-	washLimit: "_washLimit_143e5_252",
-	washApproval: "_washApproval_143e5_257",
-	washInput: "_washInput_143e5_261",
-	washInterrupt: "_washInterrupt_143e5_266",
-	washCompaction: "_washCompaction_143e5_271",
-	washScore: "_washScore_143e5_276",
-	time: "_time_143e5_204",
-	kindCell: "_kindCell_143e5_289",
-	kindPill: "_kindPill_143e5_297",
-	event: "_event_143e5_311",
-	muted: "_muted_143e5_318",
-	mono: "_mono_143e5_322",
-	by: "_by_143e5_220",
-	openEvent: "_openEvent_143e5_339"
+	container: "_container_1xt25_1",
+	filterRow: "_filterRow_1xt25_13",
+	caption: "_caption_1xt25_31",
+	filterPill: "_filterPill_1xt25_55",
+	pillCount: "_pillCount_1xt25_83",
+	pillEmpty: "_pillEmpty_1xt25_91",
+	pillAll: "_pillAll_1xt25_101",
+	pillSelected: "_pillSelected_1xt25_109",
+	pillError: "_pillError_1xt25_121",
+	pillLimit: "_pillLimit_1xt25_133",
+	pillApproval: "_pillApproval_1xt25_145",
+	pillInput: "_pillInput_1xt25_157",
+	pillInterrupt: "_pillInterrupt_1xt25_169",
+	pillCompaction: "_pillCompaction_1xt25_181",
+	pillScore: "_pillScore_1xt25_195",
+	search: "_search_1xt25_301",
+	list: "_list_1xt25_331",
+	empty: "_empty_1xt25_349",
+	headerRow: "_headerRow_1xt25_363",
+	row: "_row_1xt25_365",
+	timeSort: "_timeSort_1xt25_407",
+	byHeader: "_byHeader_1xt25_439",
+	rowLast: "_rowLast_1xt25_461",
+	rowSelected: "_rowSelected_1xt25_469",
+	rowWash: "_rowWash_1xt25_485",
+	washError: "_washError_1xt25_493",
+	washLimit: "_washLimit_1xt25_503",
+	washApproval: "_washApproval_1xt25_513",
+	washInput: "_washInput_1xt25_521",
+	washInterrupt: "_washInterrupt_1xt25_531",
+	washCompaction: "_washCompaction_1xt25_541",
+	washScore: "_washScore_1xt25_551",
+	time: "_time_1xt25_407",
+	kindCell: "_kindCell_1xt25_577",
+	kindPill: "_kindPill_1xt25_593",
+	event: "_event_1xt25_621",
+	muted: "_muted_1xt25_635",
+	mono: "_mono_1xt25_643",
+	by: "_by_1xt25_439",
+	openEvent: "_openEvent_1xt25_677"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/sample-activity/ActivityHistoryList.tsx
@@ -91273,12 +91273,12 @@ var ActivityHistoryList = (t0) => {
 	return t22;
 };
 var SampleActivityPanel_module_default = {
-	container: "_container_pqeak_1",
-	pickerRow: "_pickerRow_pqeak_9",
-	caption: "_caption_pqeak_17",
-	bandChip: "_bandChip_pqeak_26",
-	bandChipOn: "_bandChipOn_pqeak_41",
-	axisToggle: "_axisToggle_pqeak_52"
+	container: "_container_ijt10_1",
+	pickerRow: "_pickerRow_ijt10_17",
+	caption: "_caption_ijt10_33",
+	bandChip: "_bandChip_ijt10_51",
+	bandChipOn: "_bandChipOn_ijt10_81",
+	axisToggle: "_axisToggle_ijt10_103"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/sample-activity/SampleActivityPanel.tsx
@@ -92002,9 +92002,9 @@ var ownChild = (value, key) => {
 	return [];
 };
 var StateEventRenderers_module_default = {
-	toolsGrid: "_toolsGrid_1qqm2_1",
-	tools: "_tools_1qqm2_1",
-	tool: "_tool_1qqm2_1"
+	toolsGrid: "_toolsGrid_6mrkl_1",
+	tools: "_tools_6mrkl_1",
+	tool: "_tool_6mrkl_1"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/state/StateEventRenderers.tsx
@@ -92461,34 +92461,34 @@ var createSpanEnd = (name, timestamp) => {
 	return result;
 };
 var FocusTurnView_module_default = {
-	root: "_root_ugt1x_1",
-	focusBar: "_focusBar_ugt1x_14",
-	crumbs: "_crumbs_ugt1x_25",
-	laneName: "_laneName_ugt1x_33",
-	crumbButton: "_crumbButton_ugt1x_39",
-	crumbSeparator: "_crumbSeparator_ugt1x_62",
-	laneMenu: "_laneMenu_ugt1x_67",
-	laneMenuItem: "_laneMenuItem_ugt1x_73",
-	laneMenuItemCurrent: "_laneMenuItemCurrent_ugt1x_90",
-	controls: "_controls_ugt1x_94",
-	turnLabel: "_turnLabel_ugt1x_101",
-	divider: "_divider_ugt1x_106",
-	button: "_button_ugt1x_115",
-	container: "_container_ugt1x_146",
-	errorStrip: "_errorStrip_ugt1x_168",
-	errorStripLabel: "_errorStripLabel_ugt1x_183",
-	errorStripMessage: "_errorStripMessage_ugt1x_191"
+	root: "_root_16v2a_1",
+	focusBar: "_focusBar_16v2a_27",
+	crumbs: "_crumbs_16v2a_49",
+	laneName: "_laneName_16v2a_65",
+	crumbButton: "_crumbButton_16v2a_77",
+	crumbSeparator: "_crumbSeparator_16v2a_123",
+	laneMenu: "_laneMenu_16v2a_133",
+	laneMenuItem: "_laneMenuItem_16v2a_145",
+	laneMenuItemCurrent: "_laneMenuItemCurrent_16v2a_179",
+	controls: "_controls_16v2a_187",
+	turnLabel: "_turnLabel_16v2a_201",
+	divider: "_divider_16v2a_211",
+	button: "_button_16v2a_229",
+	container: "_container_16v2a_291",
+	errorStrip: "_errorStrip_16v2a_335",
+	errorStripLabel: "_errorStripLabel_16v2a_365",
+	errorStripMessage: "_errorStripMessage_16v2a_381"
 };
 var GoToTurnBar_module_default = {
-	dock: "_dock_1hs1n_5",
-	bar: "_bar_1hs1n_17",
-	title: "_title_1hs1n_30",
-	input: "_input_1hs1n_39",
-	range: "_range_1hs1n_57",
-	divider: "_divider_1hs1n_63",
-	hint: "_hint_1hs1n_69",
-	hintKey: "_hintKey_1hs1n_75",
-	close: "_close_1hs1n_79"
+	dock: "_dock_1yxvz_9",
+	bar: "_bar_1yxvz_33",
+	title: "_title_1yxvz_59",
+	input: "_input_1yxvz_77",
+	range: "_range_1yxvz_113",
+	divider: "_divider_1yxvz_125",
+	hint: "_hint_1yxvz_137",
+	hintKey: "_hintKey_1yxvz_149",
+	close: "_close_1yxvz_157"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/GoToTurnBar.tsx
@@ -92727,13 +92727,13 @@ function _temp$63(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
-	selectorContainer: "_selectorContainer_djjmp_1",
-	selectorButton: "_selectorButton_djjmp_8",
-	chevron: "_chevron_djjmp_28",
-	backdrop: "_backdrop_djjmp_33",
-	dropdownMenu: "_dropdownMenu_djjmp_42",
-	dropdownItem: "_dropdownItem_djjmp_57",
-	dropdownItemActive: "_dropdownItemActive_djjmp_74"
+	selectorContainer: "_selectorContainer_1an5r_1",
+	selectorButton: "_selectorButton_1an5r_15",
+	chevron: "_chevron_1an5r_55",
+	backdrop: "_backdrop_1an5r_65",
+	dropdownMenu: "_dropdownMenu_1an5r_83",
+	dropdownItem: "_dropdownItem_1an5r_113",
+	dropdownItemActive: "_dropdownItemActive_1an5r_147"
 };
 var TranscriptIcons = {
 	selection: {
@@ -92799,8 +92799,8 @@ var TranscriptIcons = {
 /** Whether the row being rendered is selected — a primitive, so a toggle
 *  re-renders only the rows whose value changed. */ var EventRowSelectedContext = (0, import_react.createContext)(false);
 var EventSelectCheckbox_module_default = {
-	selectBox: "_selectBox_19rqv_1",
-	selectBoxChecked: "_selectBoxChecked_19rqv_19"
+	selectBox: "_selectBox_ipk8p_1",
+	selectBoxChecked: "_selectBoxChecked_ipk8p_37"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/selection/EventSelectCheckbox.tsx
@@ -92883,11 +92883,11 @@ function _temp$62(e) {
 	if (e.shiftKey) e.preventDefault();
 }
 var EventRow_module_default = {
-	title: "_title_9b4ex_1",
-	selectable: "_selectable_9b4ex_7",
-	contents: "_contents_9b4ex_13",
-	selected: "_selected_9b4ex_13",
-	below: "_below_9b4ex_26"
+	title: "_title_1gk3e_1",
+	selectable: "_selectable_1gk3e_13",
+	contents: "_contents_1gk3e_25",
+	selected: "_selected_1gk3e_25",
+	below: "_below_1gk3e_51"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/EventRow.tsx
@@ -92986,9 +92986,9 @@ var AnchorEventView = (t0) => {
 	return t3;
 };
 var ApprovalEventView_module_default = {
-	headline: "_headline_1l22a_1",
-	inlineExplanation: "_inlineExplanation_1l22a_6",
-	rejected: "_rejected_1l22a_10"
+	headline: "_headline_1o4pk_1",
+	inlineExplanation: "_inlineExplanation_1o4pk_11",
+	rejected: "_rejected_1o4pk_19"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ApprovalEventView.tsx
@@ -93127,7 +93127,7 @@ var decisionIcon$1 = (decision) => {
 		default: return TranscriptIcons.approve;
 	}
 };
-var BranchEventView_module_default = { panel: "_panel_8zdtn_1" };
+var BranchEventView_module_default = { panel: "_panel_1rhl4_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/EventLabelContext.ts
 var EventLabelContext = (0, import_react.createContext)(void 0);
@@ -93212,7 +93212,7 @@ function getRegistry(container) {
 	}
 	(0, import_react.useEffect)(t0, t1);
 }
-var EventNav_module_default = { tab: "_tab_1je38_1" };
+var EventNav_module_default = { tab: "_tab_1q3p1_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/EventNav.tsx
 /**
@@ -93262,19 +93262,19 @@ var EventNav_module_default = { tab: "_tab_1je38_1" };
 	return t4;
 };
 var EventNavs_module_default = {
-	wrapper: "_wrapper_og902_1",
-	navs: "_navs_og902_10",
-	probe: "_probe_og902_17",
-	probeItem: "_probeItem_og902_27"
+	wrapper: "_wrapper_1nwux_1",
+	navs: "_navs_1nwux_19",
+	probe: "_probe_1nwux_33",
+	probeItem: "_probeItem_1nwux_53"
 };
 var EventNavsPicker_module_default = {
-	trigger: "_trigger_nqyxq_1",
-	label: "_label_nqyxq_21",
-	chevron: "_chevron_nqyxq_27",
-	backdrop: "_backdrop_nqyxq_33",
-	menu: "_menu_nqyxq_43",
-	item: "_item_nqyxq_55",
-	selected: "_selected_nqyxq_76"
+	trigger: "_trigger_1w43j_1",
+	label: "_label_1w43j_41",
+	chevron: "_chevron_1w43j_53",
+	backdrop: "_backdrop_1w43j_65",
+	menu: "_menu_1w43j_85",
+	item: "_item_1w43j_109",
+	selected: "_selected_1w43j_151"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/EventNavsPicker.tsx
@@ -93576,29 +93576,29 @@ function _temp$60(nav_1) {
 	}, nav_1.id);
 }
 var EventPanel_module_default = {
-	stickyWrapper: "_stickyWrapper_loteg_1",
-	label: "_label_loteg_21",
-	title: "_title_loteg_30",
-	titleExtra: "_titleExtra_loteg_38",
-	navs: "_navs_loteg_45",
-	turnLabel: "_turnLabel_loteg_52",
-	turnNav: "_turnNav_loteg_60",
-	turnNavFollower: "_turnNavFollower_loteg_75",
-	turnLabelButton: "_turnLabelButton_loteg_83",
-	turnButton: "_turnButton_loteg_100",
-	card: "_card_loteg_132",
-	jumpTarget: "_jumpTarget_loteg_141",
-	selected: "_selected_loteg_147",
-	cardContent: "_cardContent_loteg_153",
-	hidden: "_hidden_loteg_158",
-	copyLink: "_copyLink_loteg_166",
-	hover: "_hover_loteg_176",
-	eventLabel: "_eventLabel_loteg_181",
-	root: "_root_loteg_185",
-	expanded: "_expanded_loteg_146",
-	collapseToggle: "_collapseToggle_loteg_203",
-	bottomDongle: "_bottomDongle_loteg_214",
-	dongleIcon: "_dongleIcon_loteg_232"
+	stickyWrapper: "_stickyWrapper_36qci_1",
+	label: "_label_36qci_41",
+	title: "_title_36qci_59",
+	titleExtra: "_titleExtra_36qci_75",
+	navs: "_navs_36qci_89",
+	turnLabel: "_turnLabel_36qci_103",
+	turnNav: "_turnNav_36qci_119",
+	turnNavFollower: "_turnNavFollower_36qci_149",
+	turnLabelButton: "_turnLabelButton_36qci_165",
+	turnButton: "_turnButton_36qci_199",
+	card: "_card_36qci_263",
+	jumpTarget: "_jumpTarget_36qci_281",
+	selected: "_selected_36qci_293",
+	cardContent: "_cardContent_36qci_305",
+	hidden: "_hidden_36qci_315",
+	copyLink: "_copyLink_36qci_331",
+	hover: "_hover_36qci_351",
+	eventLabel: "_eventLabel_36qci_361",
+	root: "_root_36qci_369",
+	expanded: "_expanded_36qci_291",
+	collapseToggle: "_collapseToggle_36qci_405",
+	bottomDongle: "_bottomDongle_36qci_427",
+	dongleIcon: "_dongleIcon_36qci_463"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/EventPanel.tsx
@@ -93982,13 +93982,13 @@ var BranchEventView = (t0) => {
 	return t5;
 };
 var BranchPoint_module_default = {
-	branchPoint: "_branchPoint_w0zdg_1",
-	label: "_label_w0zdg_20",
-	glyph: "_glyph_w0zdg_27",
-	labelText: "_labelText_w0zdg_36",
-	segmented: "_segmented_w0zdg_44",
-	segment: "_segment_w0zdg_44",
-	continuesGlyph: "_continuesGlyph_w0zdg_87"
+	branchPoint: "_branchPoint_1izmo_1",
+	label: "_label_1izmo_39",
+	glyph: "_glyph_1izmo_53",
+	labelText: "_labelText_1izmo_71",
+	segmented: "_segmented_1izmo_87",
+	segment: "_segment_1izmo_87",
+	continuesGlyph: "_continuesGlyph_1izmo_173"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/BranchPoint.tsx
@@ -94147,11 +94147,11 @@ var ContinuesGlyph = () => {
 	return null;
 }
 var CheckpointEventView_module_default = {
-	panel: "_panel_1us8t_1",
-	rowValue: "_rowValue_1us8t_10",
-	files: "_files_1us8t_16",
-	file: "_file_1us8t_16",
-	fileOverflow: "_fileOverflow_1us8t_27"
+	panel: "_panel_1bl8u_1",
+	rowValue: "_rowValue_1bl8u_19",
+	files: "_files_1bl8u_31",
+	file: "_file_1bl8u_31",
+	fileOverflow: "_fileOverflow_1bl8u_53"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/CheckpointEventView.tsx
@@ -94404,7 +94404,7 @@ function _temp$59(file) {
 		children: file
 	}, file);
 }
-var CompactionEventView_module_default = { panel: "_panel_8zdtn_1" };
+var CompactionEventView_module_default = { panel: "_panel_1rhl4_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/CompactionEventView.tsx
 var CompactionEventView = (t0) => {
@@ -94488,9 +94488,9 @@ var CompactionEventView = (t0) => {
 	return t9;
 };
 var EmptyBranchView_module_default = {
-	empty: "_empty_f9al6_1",
-	headline: "_headline_f9al6_6",
-	detail: "_detail_f9al6_12"
+	empty: "_empty_urybz_1",
+	headline: "_headline_urybz_11",
+	detail: "_detail_urybz_23"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/EmptyBranchView.tsx
@@ -94584,7 +94584,7 @@ var ErrorEventView = (t0) => {
 	} else t4 = $[9];
 	return t4;
 };
-var InfoEventView_module_default = { panel: "_panel_vz394_1" };
+var InfoEventView_module_default = { panel: "_panel_jvt93_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/InfoEventView.tsx
 var InfoEventView = (t0) => {
@@ -94744,7 +94744,7 @@ var InterruptEventView = (t0) => {
 	} else t5 = $[10];
 	return t5;
 };
-var LoggerEventView_module_default = { grid: "_grid_1pgwi_1" };
+var LoggerEventView_module_default = { grid: "_grid_18kig_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/LoggerEventView.tsx
 var LoggerEventView = (t0) => {
@@ -94855,9 +94855,9 @@ var LoggerEventView = (t0) => {
 	return null;
 }
 var EventSection_module_default = {
-	container: "_container_1ww70_1",
-	titleRow: "_titleRow_1ww70_5",
-	title: "_title_1ww70_5"
+	container: "_container_q2hly_1",
+	titleRow: "_titleRow_q2hly_9",
+	title: "_title_q2hly_9"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/EventSection.tsx
@@ -94919,19 +94919,19 @@ var EventSection_module_default = {
 	return t6;
 };
 var RetryChip_module_default = {
-	wrap: "_wrap_fjhll_1",
-	chip: "_chip_fjhll_6",
-	chipOpen: "_chipOpen_fjhll_25",
-	chipText: "_chipText_fjhll_30",
-	chipIcon: "_chipIcon_fjhll_35",
-	chipChevron: "_chipChevron_fjhll_40",
-	backdrop: "_backdrop_fjhll_45",
-	menu: "_menu_fjhll_51",
-	item: "_item_fjhll_65",
-	itemActive: "_itemActive_fjhll_85",
-	itemNum: "_itemNum_fjhll_89",
-	itemLabel: "_itemLabel_fjhll_104",
-	itemStatus: "_itemStatus_fjhll_112"
+	wrap: "_wrap_itt6m_1",
+	chip: "_chip_itt6m_11",
+	chipOpen: "_chipOpen_itt6m_49",
+	chipText: "_chipText_itt6m_59",
+	chipIcon: "_chipIcon_itt6m_69",
+	chipChevron: "_chipChevron_itt6m_79",
+	backdrop: "_backdrop_itt6m_89",
+	menu: "_menu_itt6m_101",
+	item: "_item_itt6m_129",
+	itemActive: "_itemActive_itt6m_169",
+	itemNum: "_itemNum_itt6m_177",
+	itemLabel: "_itemLabel_itt6m_207",
+	itemStatus: "_itemStatus_itt6m_223"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/summarizeModelError.ts
@@ -95129,15 +95129,15 @@ function _temp$58(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
-	section: "_section_8yqw9_1",
-	header: "_header_8yqw9_5",
-	label: "_label_8yqw9_12",
-	badge: "_badge_8yqw9_16",
-	neutral: "_neutral_8yqw9_31",
-	amber: "_amber_8yqw9_36",
-	blue: "_blue_8yqw9_41",
-	rose: "_rose_8yqw9_46",
-	gray: "_gray_8yqw9_51"
+	section: "_section_zhydi_1",
+	header: "_header_zhydi_9",
+	label: "_label_zhydi_23",
+	badge: "_badge_zhydi_31",
+	neutral: "_neutral_zhydi_61",
+	amber: "_amber_zhydi_71",
+	blue: "_blue_zhydi_81",
+	rose: "_rose_zhydi_91",
+	gray: "_gray_zhydi_101"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/StopReasonBadge.tsx
@@ -95233,20 +95233,20 @@ var StopReasonBadge = (t0) => {
 	return t6;
 };
 var ModelEventView_module_default = {
-	container: "_container_12m69_1",
-	all: "_all_12m69_6",
-	tableSelection: "_tableSelection_12m69_12",
-	config: "_config_12m69_18",
-	codePre: "_codePre_12m69_22",
-	code: "_code_12m69_22",
-	progress: "_progress_12m69_34",
-	error: "_error_12m69_38",
-	cancelled: "_cancelled_12m69_49",
-	showAllLink: "_showAllLink_12m69_62",
-	showAllIcon: "_showAllIcon_12m69_77",
-	toolConfig: "_toolConfig_12m69_86",
-	toolChoice: "_toolChoice_12m69_90",
-	fallbackBadge: "_fallbackBadge_12m69_100"
+	container: "_container_197rh_1",
+	all: "_all_197rh_11",
+	tableSelection: "_tableSelection_197rh_23",
+	config: "_config_197rh_35",
+	codePre: "_codePre_197rh_43",
+	code: "_code_197rh_43",
+	progress: "_progress_197rh_67",
+	error: "_error_197rh_75",
+	cancelled: "_cancelled_197rh_97",
+	showAllLink: "_showAllLink_197rh_123",
+	showAllIcon: "_showAllIcon_197rh_153",
+	toolConfig: "_toolConfig_197rh_171",
+	toolChoice: "_toolChoice_197rh_179",
+	fallbackBadge: "_fallbackBadge_197rh_199"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/recentInputMessages.ts
@@ -96106,11 +96106,11 @@ var decisionIcon = (decision) => {
 	}
 };
 var SampleInitEventView_module_default = {
-	noMargin: "_noMargin_1a3fk_1",
-	code: "_code_1a3fk_5",
-	sample: "_sample_1a3fk_10",
-	section: "_section_1a3fk_14",
-	metadata: "_metadata_1a3fk_21"
+	noMargin: "_noMargin_kl59l_1",
+	code: "_code_kl59l_9",
+	sample: "_sample_kl59l_19",
+	section: "_section_kl59l_27",
+	metadata: "_metadata_kl59l_41"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SampleInitEventView.tsx
@@ -96378,11 +96378,11 @@ function _temp2$39(type_0) {
 	}
 }
 var SandboxEventView_module_default = {
-	twoColumn: "_twoColumn_ufsua_1",
-	exec: "_exec_ufsua_7",
-	result: "_result_ufsua_11",
-	fileLabel: "_fileLabel_ufsua_15",
-	wrapPre: "_wrapPre_ufsua_20"
+	twoColumn: "_twoColumn_f5vlr_1",
+	exec: "_exec_f5vlr_13",
+	result: "_result_f5vlr_21",
+	fileLabel: "_fileLabel_f5vlr_29",
+	wrapPre: "_wrapPre_f5vlr_39"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SandboxEventView.tsx
@@ -96660,13 +96660,13 @@ var FileView = (t0) => {
 	return t4;
 };
 var ScoreEditEventView_module_default = {
-	container: "_container_io1r0_1",
-	wrappingContent: "_wrappingContent_io1r0_8",
-	separator: "_separator_io1r0_13",
-	metadata: "_metadata_io1r0_18",
-	unchanged: "_unchanged_io1r0_22",
-	section: "_section_io1r0_27",
-	spacer: "_spacer_io1r0_31"
+	container: "_container_fqyd9_1",
+	wrappingContent: "_wrappingContent_fqyd9_15",
+	separator: "_separator_fqyd9_25",
+	metadata: "_metadata_fqyd9_35",
+	unchanged: "_unchanged_fqyd9_43",
+	section: "_section_fqyd9_53",
+	spacer: "_spacer_fqyd9_61"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ScoreValue.tsx
@@ -96931,10 +96931,10 @@ var ScoreEditEventView = (t0) => {
 	return t20;
 };
 var ScoreEventView_module_default = {
-	explanation: "_explanation_1k2k0_1",
-	wrappingContent: "_wrappingContent_1k2k0_8",
-	separator: "_separator_1k2k0_13",
-	metadata: "_metadata_1k2k0_18"
+	explanation: "_explanation_sdrgw_1",
+	wrappingContent: "_wrappingContent_sdrgw_15",
+	separator: "_separator_sdrgw_25",
+	metadata: "_metadata_sdrgw_35"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ScoreEventView.tsx
@@ -97438,8 +97438,8 @@ function _temp$53(child) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffRow, { child }, child.id);
 }
 var StateEventView_module_default = {
-	diff: "_diff_eobja_1",
-	summary: "_summary_eobja_6"
+	diff: "_diff_4vz38_1",
+	summary: "_summary_4vz38_11"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/state/StateEventView.tsx
@@ -97604,10 +97604,10 @@ var StateEventView_module_default = {
 	return changeList.join(", ");
 };
 var SubtaskEventView_module_default = {
-	summary: "_summary_ac4z2_1",
-	summaryRendered: "_summaryRendered_ac4z2_6",
-	subtaskSummary: "_subtaskSummary_ac4z2_10",
-	subtaskLabel: "_subtaskLabel_ac4z2_17"
+	summary: "_summary_8n9mv_1",
+	summaryRendered: "_summaryRendered_8n9mv_11",
+	subtaskSummary: "_subtaskSummary_8n9mv_19",
+	subtaskLabel: "_subtaskLabel_8n9mv_33"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SubtaskEventView.tsx
@@ -99645,13 +99645,13 @@ function useTimelineRowSelect() {
 	return (0, import_react.useContext)(TimelineRowSelectContext);
 }
 var ToolEventView_module_default = {
-	summary: "_summary_1mtn2_1",
-	labeledToolCall: "_labeledToolCall_1mtn2_6",
-	label: "_label_1mtn2_6",
-	labeledToolContent: "_labeledToolContent_1mtn2_19",
-	approvalWrap: "_approvalWrap_1mtn2_23",
-	approval: "_approval_1mtn2_23",
-	progress: "_progress_1mtn2_33"
+	summary: "_summary_wbet3_1",
+	labeledToolCall: "_labeledToolCall_wbet3_11",
+	label: "_label_wbet3_11",
+	labeledToolContent: "_labeledToolContent_wbet3_37",
+	approvalWrap: "_approvalWrap_wbet3_45",
+	approval: "_approval_wbet3_45",
+	progress: "_progress_wbet3_65"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ToolEventView.tsx
@@ -100644,13 +100644,13 @@ var isSelectableEvent = (event) => eventTypeValues.includes(event.event) && !isS
 	}
 });
 var TranscriptVirtualListComponent_module_default = {
-	node: "_node_t3xlr_1",
-	attached: "_attached_t3xlr_5",
-	attachedParent: "_attachedParent_t3xlr_9",
-	attachedChild: "_attachedChild_t3xlr_16",
-	depthRoot: "_depthRoot_t3xlr_21",
-	last: "_last_t3xlr_27",
-	runningTool: "_runningTool_t3xlr_31"
+	node: "_node_13r7s_1",
+	attached: "_attached_13r7s_9",
+	attachedParent: "_attachedParent_13r7s_17",
+	attachedChild: "_attachedChild_13r7s_31",
+	depthRoot: "_depthRoot_13r7s_41",
+	last: "_last_13r7s_53",
+	runningTool: "_runningTool_13r7s_61"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/transcriptVisualActions.ts
@@ -102015,9 +102015,9 @@ var kExitFocusIcon = "bi bi-arrows-angle-contract";
 	});
 };
 var TranscriptSelectTool_module_default = {
-	group: "_group_1cexi_1",
-	splitMain: "_splitMain_1cexi_6",
-	splitClear: "_splitClear_1cexi_13"
+	group: "_group_152g1_1",
+	splitMain: "_splitMain_152g1_11",
+	splitClear: "_splitClear_152g1_25"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/selection/TranscriptSelectTool.tsx
@@ -104453,16 +104453,16 @@ var kBranchKeyPattern$1 = /\/branch-([^/]*)-(\d+)$/;
 	return mappings;
 }
 var AgentCardView_module_default = {
-	card: "_card_fxgye_1",
-	branchCard: "_branchCard_fxgye_13",
-	utilityCard: "_utilityCard_fxgye_21",
-	header: "_header_fxgye_30",
-	icon: "_icon_fxgye_39",
-	title: "_title_fxgye_43",
-	meta: "_meta_fxgye_49",
-	disclosure: "_disclosure_fxgye_54",
-	description: "_description_fxgye_59",
-	resultPanel: "_resultPanel_fxgye_64"
+	card: "_card_1tljj_1",
+	branchCard: "_branchCard_1tljj_25",
+	utilityCard: "_utilityCard_1tljj_41",
+	header: "_header_1tljj_59",
+	icon: "_icon_1tljj_77",
+	title: "_title_1tljj_85",
+	meta: "_meta_1tljj_97",
+	disclosure: "_disclosure_1tljj_107",
+	description: "_description_1tljj_117",
+	resultPanel: "_resultPanel_1tljj_127"
 };
 var TimelineIconsContext = /*#__PURE__*/ (0, import_react.createContext)({
 	error: "bi bi-exclamation-circle-fill",
@@ -104724,21 +104724,21 @@ function _temp$49(e) {
 	e.stopPropagation();
 }
 var TimelineMinimap_module_default = {
-	container: "_container_19ndv_3",
-	stableLabel: "_stableLabel_19ndv_17",
-	alignRight: "_alignRight_19ndv_36",
-	alignLeft: "_alignLeft_19ndv_40",
-	hidden: "_hidden_19ndv_44",
-	minimap: "_minimap_19ndv_48",
-	track: "_track_19ndv_57",
-	regionFill: "_regionFill_19ndv_70",
-	marker: "_marker_19ndv_83",
-	selectionRegion: "_selectionRegion_19ndv_100",
-	sectionTime: "_sectionTime_19ndv_118",
-	sectionTimePill: "_sectionTimePill_19ndv_130",
-	scrubber: "_scrubber_19ndv_146",
-	scrubberLine: "_scrubberLine_19ndv_157",
-	scrubberCaretUp: "_scrubberCaretUp_19ndv_165"
+	container: "_container_1n3ev_5",
+	stableLabel: "_stableLabel_1n3ev_33",
+	alignRight: "_alignRight_1n3ev_71",
+	alignLeft: "_alignLeft_1n3ev_79",
+	hidden: "_hidden_1n3ev_87",
+	minimap: "_minimap_1n3ev_95",
+	track: "_track_1n3ev_113",
+	regionFill: "_regionFill_1n3ev_139",
+	marker: "_marker_1n3ev_165",
+	selectionRegion: "_selectionRegion_1n3ev_199",
+	sectionTime: "_sectionTime_1n3ev_235",
+	sectionTimePill: "_sectionTimePill_1n3ev_259",
+	scrubber: "_scrubber_1n3ev_291",
+	scrubberLine: "_scrubberLine_1n3ev_313",
+	scrubberCaretUp: "_scrubberCaretUp_1n3ev_329"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineMinimap.tsx
@@ -105052,10 +105052,10 @@ var TimelineMinimap_module_default = {
 	return t28;
 };
 var TimelineOptionsPopover_module_default = {
-	title: "_title_1f23l_1",
-	rows: "_rows_1f23l_8",
-	row: "_row_1f23l_8",
-	groupHeader: "_groupHeader_1f23l_29"
+	title: "_title_nsonl_1",
+	rows: "_rows_nsonl_15",
+	row: "_row_nsonl_15",
+	groupHeader: "_groupHeader_nsonl_57"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineOptionsPopover.tsx
@@ -105308,50 +105308,50 @@ function _temp$48(prev) {
 	return !prev;
 }
 var TimelineSwimLanes_module_default = {
-	swimlane: "_swimlane_1lr7w_1",
-	pinnedSection: "_pinnedSection_1lr7w_17",
-	scrollSection: "_scrollSection_1lr7w_25",
-	collapsibleSection: "_collapsibleSection_1lr7w_40",
-	collapsibleCollapsed: "_collapsibleCollapsed_1lr7w_53",
-	swimlaneSticky: "_swimlaneSticky_1lr7w_63",
-	collapsibleInner: "_collapsibleInner_1lr7w_67",
-	collapseToggle: "_collapseToggle_1lr7w_77",
-	row: "_row_1lr7w_105",
-	label: "_label_1lr7w_111",
-	labelSelected: "_labelSelected_1lr7w_129",
-	labelHighlighted: "_labelHighlighted_1lr7w_134",
-	chevron: "_chevron_1lr7w_141",
-	chevronSpacer: "_chevronSpacer_1lr7w_159",
-	punchDownBtn: "_punchDownBtn_1lr7w_165",
-	viewStackBack: "_viewStackBack_1lr7w_187",
-	barArea: "_barArea_1lr7w_206",
-	barInner: "_barInner_1lr7w_212",
-	fill: "_fill_1lr7w_218",
-	fillParent: "_fillParent_1lr7w_236",
-	fillSelected: "_fillSelected_1lr7w_240",
-	fillHighlight: "_fillHighlight_1lr7w_248",
-	fillDimmed: "_fillDimmed_1lr7w_259",
-	regionSegment: "_regionSegment_1lr7w_266",
-	regionDefault: "_regionDefault_1lr7w_265",
-	regionHover: "_regionHover_1lr7w_265",
-	regionFirst: "_regionFirst_1lr7w_286",
-	regionLast: "_regionLast_1lr7w_290",
-	regionMiddle: "_regionMiddle_1lr7w_294",
-	marker: "_marker_1lr7w_300",
-	markerBranch: "_markerBranch_1lr7w_318",
-	markerError: "_markerError_1lr7w_332",
-	markerCompaction: "_markerCompaction_1lr7w_353",
-	branchConnector: "_branchConnector_1lr7w_373",
-	connectorArrow: "_connectorArrow_1lr7w_384",
-	breadcrumbRow: "_breadcrumbRow_1lr7w_412",
-	optionsButton: "_optionsButton_1lr7w_421",
-	hiddenUtility: "_hiddenUtility_1lr7w_445",
-	breadcrumbTrail: "_breadcrumbTrail_1lr7w_464",
-	breadcrumbSegment: "_breadcrumbSegment_1lr7w_472",
-	breadcrumbDivider: "_breadcrumbDivider_1lr7w_478",
-	breadcrumbLink: "_breadcrumbLink_1lr7w_486",
-	breadcrumbCurrent: "_breadcrumbCurrent_1lr7w_500",
-	tokens: "_tokens_1lr7w_511"
+	swimlane: "_swimlane_bucf2_1",
+	pinnedSection: "_pinnedSection_bucf2_33",
+	scrollSection: "_scrollSection_bucf2_49",
+	collapsibleSection: "_collapsibleSection_bucf2_79",
+	collapsibleCollapsed: "_collapsibleCollapsed_bucf2_105",
+	swimlaneSticky: "_swimlaneSticky_bucf2_125",
+	collapsibleInner: "_collapsibleInner_bucf2_133",
+	collapseToggle: "_collapseToggle_bucf2_153",
+	row: "_row_bucf2_209",
+	label: "_label_bucf2_221",
+	labelSelected: "_labelSelected_bucf2_257",
+	labelHighlighted: "_labelHighlighted_bucf2_267",
+	chevron: "_chevron_bucf2_281",
+	chevronSpacer: "_chevronSpacer_bucf2_317",
+	punchDownBtn: "_punchDownBtn_bucf2_329",
+	viewStackBack: "_viewStackBack_bucf2_373",
+	barArea: "_barArea_bucf2_411",
+	barInner: "_barInner_bucf2_423",
+	fill: "_fill_bucf2_435",
+	fillParent: "_fillParent_bucf2_471",
+	fillSelected: "_fillSelected_bucf2_479",
+	fillHighlight: "_fillHighlight_bucf2_495",
+	fillDimmed: "_fillDimmed_bucf2_517",
+	regionSegment: "_regionSegment_bucf2_531",
+	regionDefault: "_regionDefault_bucf2_529",
+	regionHover: "_regionHover_bucf2_529",
+	regionFirst: "_regionFirst_bucf2_571",
+	regionLast: "_regionLast_bucf2_579",
+	regionMiddle: "_regionMiddle_bucf2_587",
+	marker: "_marker_bucf2_599",
+	markerBranch: "_markerBranch_bucf2_635",
+	markerError: "_markerError_bucf2_663",
+	markerCompaction: "_markerCompaction_bucf2_705",
+	branchConnector: "_branchConnector_bucf2_745",
+	connectorArrow: "_connectorArrow_bucf2_767",
+	breadcrumbRow: "_breadcrumbRow_bucf2_823",
+	optionsButton: "_optionsButton_bucf2_841",
+	hiddenUtility: "_hiddenUtility_bucf2_889",
+	breadcrumbTrail: "_breadcrumbTrail_bucf2_927",
+	breadcrumbSegment: "_breadcrumbSegment_bucf2_943",
+	breadcrumbDivider: "_breadcrumbDivider_bucf2_955",
+	breadcrumbLink: "_breadcrumbLink_bucf2_971",
+	breadcrumbCurrent: "_breadcrumbCurrent_bucf2_999",
+	tokens: "_tokens_bucf2_1021"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineSwimLanes.tsx
@@ -107862,17 +107862,17 @@ function _temp$44(tl) {
 	return t5;
 }
 var OutlineRow_module_default = {
-	eventRow: "_eventRow_dssp9_1",
-	selected: "_selected_dssp9_9",
-	toggle: "_toggle_dssp9_13",
-	eventLink: "_eventLink_dssp9_25",
-	label: "_label_dssp9_38",
-	iconSlot: "_iconSlot_dssp9_44",
-	progress: "_progress_dssp9_56",
-	loadingRow: "_loadingRow_dssp9_60",
-	spinner: "_spinner_dssp9_64",
-	"outline-spin": "_outline-spin_dssp9_1",
-	popover: "_popover_dssp9_85"
+	eventRow: "_eventRow_1secv_1",
+	selected: "_selected_1secv_17",
+	toggle: "_toggle_1secv_25",
+	eventLink: "_eventLink_1secv_49",
+	label: "_label_1secv_75",
+	iconSlot: "_iconSlot_1secv_87",
+	progress: "_progress_1secv_111",
+	loadingRow: "_loadingRow_1secv_119",
+	spinner: "_spinner_1secv_127",
+	"outline-spin": "_outline-spin_1secv_1",
+	popover: "_popover_1secv_169"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/outline/OutlineRow.tsx
@@ -108167,7 +108167,7 @@ var labelForNode = (node) => {
 		default: return node.event.event;
 	}
 };
-var TranscriptOutline_module_default = { rootHeader: "_rootHeader_g5gla_1" };
+var TranscriptOutline_module_default = { rootHeader: "_rootHeader_1c15f_1" };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/outline/useOutlineCollapse.ts
 /**
@@ -108659,14 +108659,14 @@ var TranscriptOutline = (t0) => {
 	return t14;
 };
 var OutlineSidebar_module_default = {
-	outline: "_outline_1dbcw_1",
-	expanded: "_expanded_1dbcw_11",
-	outlineToggle: "_outlineToggle_1dbcw_17",
-	separator: "_separator_1dbcw_31",
-	sidebarHeader: "_sidebarHeader_1dbcw_35",
-	sidebarHeaderTitle: "_sidebarHeaderTitle_1dbcw_43",
-	sidebarHeaderCloseAnchor: "_sidebarHeaderCloseAnchor_1dbcw_59",
-	sidebarHeaderClose: "_sidebarHeaderClose_1dbcw_59"
+	outline: "_outline_13hds_1",
+	expanded: "_expanded_13hds_21",
+	outlineToggle: "_outlineToggle_13hds_33",
+	separator: "_separator_13hds_61",
+	sidebarHeader: "_sidebarHeader_13hds_69",
+	sidebarHeaderTitle: "_sidebarHeaderTitle_13hds_85",
+	sidebarHeaderCloseAnchor: "_sidebarHeaderCloseAnchor_13hds_117",
+	sidebarHeaderClose: "_sidebarHeaderClose_13hds_117"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/OutlineSidebar.tsx
@@ -109302,13 +109302,13 @@ function raf() {
 	return false;
 }
 var TranscriptLayout_module_default = {
-	root: "_root_sou2s_1",
-	main: "_main_sou2s_12",
-	container: "_container_sou2s_19",
-	embedded: "_embedded_sou2s_28",
-	outlineCollapsed: "_outlineCollapsed_sou2s_37",
-	noOutline: "_noOutline_sou2s_41",
-	eventsList: "_eventsList_sou2s_45"
+	root: "_root_1j2iu_1",
+	main: "_main_1j2iu_23",
+	container: "_container_1j2iu_37",
+	embedded: "_embedded_1j2iu_55",
+	outlineCollapsed: "_outlineCollapsed_1j2iu_73",
+	noOutline: "_noOutline_1j2iu_81",
+	eventsList: "_eventsList_1j2iu_89"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/transform/toolApprovals.ts
@@ -110626,19 +110626,19 @@ function _temp3$28(state_0) {
 	return state_0.log.selectedSampleHandle?.logFile;
 }
 var SampleDisplay_module_default = {
-	tabControls: "_tabControls_fvnsu_1",
-	fullWidth: "_fullWidth_fvnsu_10",
-	metadataPanel: "_metadataPanel_fvnsu_14",
-	padded: "_padded_fvnsu_20",
-	error: "_error_fvnsu_25",
-	ansi: "_ansi_fvnsu_29",
-	noTop: "_noTop_fvnsu_33",
-	chat: "_chat_fvnsu_37",
-	railHost: "_railHost_fvnsu_41",
-	tabContent: "_tabContent_fvnsu_49",
-	overflowVisible: "_overflowVisible_fvnsu_60",
-	toolSeparator: "_toolSeparator_fvnsu_68",
-	retriedErrors: "_retriedErrors_fvnsu_77"
+	tabControls: "_tabControls_1yr5s_1",
+	fullWidth: "_fullWidth_1yr5s_19",
+	metadataPanel: "_metadataPanel_1yr5s_27",
+	padded: "_padded_1yr5s_39",
+	error: "_error_1yr5s_49",
+	ansi: "_ansi_1yr5s_57",
+	noTop: "_noTop_1yr5s_65",
+	chat: "_chat_1yr5s_73",
+	railHost: "_railHost_1yr5s_81",
+	tabContent: "_tabContent_1yr5s_97",
+	overflowVisible: "_overflowVisible_1yr5s_119",
+	toolSeparator: "_toolSeparator_1yr5s_135",
+	retriedErrors: "_retriedErrors_1yr5s_153"
 };
 //#endregion
 //#region src/app/samples/SampleJSONView.tsx
@@ -110689,22 +110689,22 @@ var SampleJSONView = (t0) => {
 	return new Date(Math.min(...times));
 }
 var RetryAttemptCard_module_default = {
-	card: "_card_1bwn0_1",
-	cardCollapsed: "_cardCollapsed_1bwn0_13",
-	cardOpen: "_cardOpen_1bwn0_17",
-	header: "_header_1bwn0_21",
-	attemptLabel: "_attemptLabel_1bwn0_29",
-	timestamp: "_timestamp_1bwn0_39",
-	errorChip: "_errorChip_1bwn0_49",
-	message: "_message_1bwn0_64",
-	chevron: "_chevron_1bwn0_73",
-	body: "_body_1bwn0_82",
-	dividerBand: "_dividerBand_1bwn0_88",
-	hairline: "_hairline_1bwn0_95",
-	toggle: "_toggle_1bwn0_101",
-	content: "_content_1bwn0_106",
-	errorPanel: "_errorPanel_1bwn0_110",
-	ansi: "_ansi_1bwn0_114"
+	card: "_card_arb41_1",
+	cardCollapsed: "_cardCollapsed_arb41_25",
+	cardOpen: "_cardOpen_arb41_33",
+	header: "_header_arb41_41",
+	attemptLabel: "_attemptLabel_arb41_57",
+	timestamp: "_timestamp_arb41_77",
+	errorChip: "_errorChip_arb41_97",
+	message: "_message_arb41_127",
+	chevron: "_chevron_arb41_145",
+	body: "_body_arb41_163",
+	dividerBand: "_dividerBand_arb41_175",
+	hairline: "_hairline_arb41_189",
+	toggle: "_toggle_arb41_201",
+	content: "_content_arb41_211",
+	errorPanel: "_errorPanel_arb41_219",
+	ansi: "_ansi_arb41_227"
 };
 //#endregion
 //#region src/app/samples/retry-display/RetryAttemptCard.tsx
@@ -110993,10 +110993,10 @@ var RetryEventsView = (t0) => {
 	return t8;
 };
 var status_module_default = {
-	statusCell: "_statusCell_4ypz5_1",
-	error: "_error_4ypz5_11",
-	success: "_success_4ypz5_15",
-	cancelled: "_cancelled_4ypz5_19"
+	statusCell: "_statusCell_1qf7c_1",
+	error: "_error_1qf7c_21",
+	success: "_success_1qf7c_29",
+	cancelled: "_cancelled_1qf7c_37"
 };
 //#endregion
 //#region src/app/samples/status/status.tsx
@@ -111057,19 +111057,19 @@ var SampleStatusIcon = (t0) => {
 	return t2;
 };
 var RetryTerminalAnchor_module_default = {
-	row: "_row_5mttp_1",
-	marker: "_marker_5mttp_7",
-	markerSuccess: "_markerSuccess_5mttp_22",
-	markerError: "_markerError_5mttp_26",
-	markerCancelled: "_markerCancelled_5mttp_30",
-	markerLimit: "_markerLimit_5mttp_34",
-	copy: "_copy_5mttp_42",
-	headline: "_headline_5mttp_52",
-	headlineSuccess: "_headlineSuccess_5mttp_58",
-	headlineError: "_headlineError_5mttp_62",
-	headlineCancelled: "_headlineCancelled_5mttp_66",
-	headlineLimit: "_headlineLimit_5mttp_70",
-	detail: "_detail_5mttp_74"
+	row: "_row_1xb6d_1",
+	marker: "_marker_1xb6d_13",
+	markerSuccess: "_markerSuccess_1xb6d_43",
+	markerError: "_markerError_1xb6d_51",
+	markerCancelled: "_markerCancelled_1xb6d_59",
+	markerLimit: "_markerLimit_1xb6d_67",
+	copy: "_copy_1xb6d_83",
+	headline: "_headline_1xb6d_103",
+	headlineSuccess: "_headlineSuccess_1xb6d_115",
+	headlineError: "_headlineError_1xb6d_123",
+	headlineCancelled: "_headlineCancelled_1xb6d_131",
+	headlineLimit: "_headlineLimit_1xb6d_139",
+	detail: "_detail_1xb6d_147"
 };
 //#endregion
 //#region src/app/samples/retry-display/RetryTerminalAnchor.tsx
@@ -111174,14 +111174,14 @@ var RetryTerminalAnchor = (t0) => {
 	return t12;
 };
 var SampleRetriedErrors_module_default = {
-	panel: "_panel_1n9ws_1",
-	sectionLabel: "_sectionLabel_1n9ws_5",
-	timeline: "_timeline_1n9ws_14",
-	rail: "_rail_1n9ws_19",
-	items: "_items_1n9ws_28",
-	row: "_row_1n9ws_34",
-	dotGutter: "_dotGutter_1n9ws_41",
-	statusIcon: "_statusIcon_1n9ws_49"
+	panel: "_panel_akoo0_1",
+	sectionLabel: "_sectionLabel_akoo0_9",
+	timeline: "_timeline_akoo0_27",
+	rail: "_rail_akoo0_37",
+	items: "_items_akoo0_55",
+	row: "_row_akoo0_67",
+	dotGutter: "_dotGutter_akoo0_81",
+	statusIcon: "_statusIcon_akoo0_97"
 };
 //#endregion
 //#region src/app/samples/SampleRetriedErrors.tsx
@@ -111368,10 +111368,10 @@ var ApplicationStyles = {
 	}
 };
 var SampleErrorView_module_default = {
-	body: "_body_x9ww7_1",
-	safe: "_safe_x9ww7_9",
-	iconSmall: "_iconSmall_x9ww7_13",
-	message: "_message_x9ww7_19"
+	body: "_body_4ufoc_1",
+	safe: "_safe_4ufoc_17",
+	iconSmall: "_iconSmall_4ufoc_25",
+	message: "_message_4ufoc_37"
 };
 //#endregion
 //#region src/app/samples/error/SampleErrorView.tsx
@@ -111949,26 +111949,26 @@ function _temp2$32(state) {
 	return state.logs.selectedLogFile;
 }
 var ScorePanel_module_default = {
-	panel: "_panel_h02oy_1",
-	panelHeader: "_panelHeader_h02oy_9",
-	scoresHeader: "_scoresHeader_h02oy_19",
-	scoresCount: "_scoresCount_h02oy_27",
-	columnLabel: "_columnLabel_h02oy_33",
-	headerControls: "_headerControls_h02oy_41",
-	sortWrapper: "_sortWrapper_h02oy_51",
-	sortButton: "_sortButton_h02oy_58",
-	panelBody: "_panelBody_h02oy_80",
-	bodyGrid: "_bodyGrid_h02oy_84",
-	tight: "_tight_h02oy_88",
-	bodyChips: "_bodyChips_h02oy_92",
-	dense: "_dense_h02oy_107",
-	row: "_row_h02oy_113",
-	rowTight: "_rowTight_h02oy_122",
-	rowName: "_rowName_h02oy_127",
-	chip: "_chip_h02oy_138",
-	chipFail: "_chipFail_h02oy_152",
-	chipWarn: "_chipWarn_h02oy_156",
-	chipName: "_chipName_h02oy_160"
+	panel: "_panel_1vfnn_1",
+	panelHeader: "_panelHeader_1vfnn_17",
+	scoresHeader: "_scoresHeader_1vfnn_37",
+	scoresCount: "_scoresCount_1vfnn_53",
+	columnLabel: "_columnLabel_1vfnn_65",
+	headerControls: "_headerControls_1vfnn_81",
+	sortWrapper: "_sortWrapper_1vfnn_101",
+	sortButton: "_sortButton_1vfnn_115",
+	panelBody: "_panelBody_1vfnn_159",
+	bodyGrid: "_bodyGrid_1vfnn_167",
+	tight: "_tight_1vfnn_175",
+	bodyChips: "_bodyChips_1vfnn_183",
+	dense: "_dense_1vfnn_213",
+	row: "_row_1vfnn_225",
+	rowTight: "_rowTight_1vfnn_243",
+	rowName: "_rowName_1vfnn_253",
+	chip: "_chip_1vfnn_275",
+	chipFail: "_chipFail_1vfnn_303",
+	chipWarn: "_chipWarn_1vfnn_311",
+	chipName: "_chipName_1vfnn_319"
 };
 //#endregion
 //#region src/app/samples/header-v2/scoreTone.ts
@@ -111999,21 +111999,21 @@ var ScorePanel_module_default = {
 	return "neutral";
 }
 var ScoreValueDisplay_module_default = {
-	circle: "_circle_kcau9_1",
-	circlePass: "_circlePass_kcau9_13",
-	circleFail: "_circleFail_kcau9_17",
-	circleWarn: "_circleWarn_kcau9_21",
-	circleNeutral: "_circleNeutral_kcau9_25",
-	text: "_text_kcau9_29",
-	textPass: "_textPass_kcau9_41",
-	textFail: "_textFail_kcau9_45",
-	textWarn: "_textWarn_kcau9_49",
-	textNeutral: "_textNeutral_kcau9_53",
-	miniPill: "_miniPill_kcau9_60",
-	miniPillPass: "_miniPillPass_kcau9_80",
-	miniPillFail: "_miniPillFail_kcau9_85",
-	miniPillWarn: "_miniPillWarn_kcau9_90",
-	miniPillNeutral: "_miniPillNeutral_kcau9_95"
+	circle: "_circle_1w2nw_1",
+	circlePass: "_circlePass_1w2nw_25",
+	circleFail: "_circleFail_1w2nw_33",
+	circleWarn: "_circleWarn_1w2nw_41",
+	circleNeutral: "_circleNeutral_1w2nw_49",
+	text: "_text_1w2nw_57",
+	textPass: "_textPass_1w2nw_81",
+	textFail: "_textFail_1w2nw_89",
+	textWarn: "_textWarn_1w2nw_97",
+	textNeutral: "_textNeutral_1w2nw_105",
+	miniPill: "_miniPill_1w2nw_119",
+	miniPillPass: "_miniPillPass_1w2nw_159",
+	miniPillFail: "_miniPillFail_1w2nw_169",
+	miniPillWarn: "_miniPillWarn_1w2nw_179",
+	miniPillNeutral: "_miniPillNeutral_1w2nw_189"
 };
 //#endregion
 //#region src/app/samples/header-v2/ScoreValueDisplay.tsx
@@ -112690,31 +112690,31 @@ function _temp3$26(s_2) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreChip, { score: s_2 }, s_2.key);
 }
 var SampleSummaryView_module_default = {
-	root: "_root_rr9mf_1",
-	layout: "_layout_rr9mf_12",
-	wideRight: "_wideRight_rr9mf_17",
-	noRight: "_noRight_rr9mf_21",
-	left: "_left_rr9mf_25",
-	right: "_right_rr9mf_34",
-	metaLine: "_metaLine_rr9mf_42",
-	metaSep: "_metaSep_rr9mf_52",
-	metaId: "_metaId_rr9mf_56",
-	fields: "_fields_rr9mf_65",
-	field: "_field_rr9mf_65",
-	fieldTarget: "_fieldTarget_rr9mf_75",
-	fieldLabel: "_fieldLabel_rr9mf_79",
-	fieldValue: "_fieldValue_rr9mf_87",
-	clamp: "_clamp_rr9mf_94",
-	scoreField: "_scoreField_rr9mf_106",
-	scoreFieldValue: "_scoreFieldValue_rr9mf_110",
-	errorBlock: "_errorBlock_rr9mf_117",
-	collapsedMeta: "_collapsedMeta_rr9mf_127",
-	invalidationBanner: "_invalidationBanner_rr9mf_140",
-	invalidationIcon: "_invalidationIcon_rr9mf_150",
-	invalidationContent: "_invalidationContent_rr9mf_156",
-	invalidationTitle: "_invalidationTitle_rr9mf_163",
-	invalidationDetails: "_invalidationDetails_rr9mf_168",
-	invalidationReason: "_invalidationReason_rr9mf_176"
+	root: "_root_u6q4s_1",
+	layout: "_layout_u6q4s_23",
+	wideRight: "_wideRight_u6q4s_33",
+	noRight: "_noRight_u6q4s_41",
+	left: "_left_u6q4s_49",
+	right: "_right_u6q4s_67",
+	metaLine: "_metaLine_u6q4s_83",
+	metaSep: "_metaSep_u6q4s_103",
+	metaId: "_metaId_u6q4s_111",
+	fields: "_fields_u6q4s_129",
+	field: "_field_u6q4s_129",
+	fieldTarget: "_fieldTarget_u6q4s_149",
+	fieldLabel: "_fieldLabel_u6q4s_157",
+	fieldValue: "_fieldValue_u6q4s_173",
+	clamp: "_clamp_u6q4s_187",
+	scoreField: "_scoreField_u6q4s_211",
+	scoreFieldValue: "_scoreFieldValue_u6q4s_219",
+	errorBlock: "_errorBlock_u6q4s_233",
+	collapsedMeta: "_collapsedMeta_u6q4s_253",
+	invalidationBanner: "_invalidationBanner_u6q4s_279",
+	invalidationIcon: "_invalidationIcon_u6q4s_299",
+	invalidationContent: "_invalidationContent_u6q4s_311",
+	invalidationTitle: "_invalidationTitle_u6q4s_325",
+	invalidationDetails: "_invalidationDetails_u6q4s_335",
+	invalidationReason: "_invalidationReason_u6q4s_351"
 };
 //#endregion
 //#region src/app/samples/SampleSummaryView.tsx
@@ -113300,7 +113300,7 @@ var Explanation = (t0) => {
 	} else t2 = $[3];
 	return t2;
 };
-var Metadata_module_default = { entry: "_entry_a2fxh_1" };
+var Metadata_module_default = { entry: "_entry_r1ows_1" };
 //#endregion
 //#region ../../packages/scout-components/src/scanner-result-detail/Metadata.tsx
 var Metadata = (t0) => {
@@ -113711,16 +113711,16 @@ function coerceFields(raw) {
 	return null;
 }
 var ScannerResultDetailView_module_default = {
-	container: "_container_1c6v2_1",
-	header: "_header_1c6v2_8",
-	section: "_section_1c6v2_12"
+	container: "_container_b5scd_1",
+	header: "_header_b5scd_15",
+	section: "_section_b5scd_23"
 };
 var ValidationResult_module_default = {
-	result: "_result_1202h_1",
-	"true": "_true_1202h_11",
-	"false": "_false_1202h_16",
-	targetValue: "_targetValue_1202h_21",
-	validationTable: "_validationTable_1202h_29"
+	result: "_result_5eiwb_1",
+	"true": "_true_5eiwb_21",
+	"false": "_false_5eiwb_31",
+	targetValue: "_targetValue_5eiwb_41",
+	validationTable: "_validationTable_5eiwb_57"
 };
 //#endregion
 //#region ../../packages/scout-components/src/scanner-result-detail/ValidationResult.tsx
@@ -113873,14 +113873,14 @@ function inferValueType(value) {
 	return "string";
 }
 var Value_module_default = {
-	boolean: "_boolean_8citi_1",
-	"true": "_true_8citi_13",
-	"false": "_false_8citi_19",
-	valueTable: "_valueTable_8citi_25",
-	valueKey: "_valueKey_8citi_32",
-	inline: "_inline_8citi_38",
-	valueValue: "_valueValue_8citi_38",
-	value: "_value_8citi_25"
+	boolean: "_boolean_12rqo_1",
+	"true": "_true_12rqo_25",
+	"false": "_false_12rqo_37",
+	valueTable: "_valueTable_12rqo_49",
+	valueKey: "_valueKey_12rqo_63",
+	inline: "_inline_12rqo_75",
+	valueValue: "_valueValue_12rqo_75",
+	value: "_value_12rqo_49"
 };
 //#endregion
 //#region ../../packages/scout-components/src/scanner-result-detail/Value.tsx
@@ -114397,8 +114397,8 @@ function readScannerReferences(metadata) {
 	return entries;
 }
 var SampleScannerPicker_module_default = {
-	picker: "_picker_zkjwy_1",
-	select: "_select_zkjwy_9"
+	picker: "_picker_14ndd_1",
+	select: "_select_14ndd_17"
 };
 //#endregion
 //#region src/app/samples/scans/SampleScannerPicker.tsx
@@ -114450,8 +114450,8 @@ function _temp$38(scanner) {
 	}, scanner);
 }
 var SampleScansSidebar_module_default = {
-	header: "_header_1ge26_1",
-	singleScanner: "_singleScanner_1ge26_10"
+	header: "_header_17ig9_1",
+	singleScanner: "_singleScanner_17ig9_19"
 };
 //#endregion
 //#region src/app/samples/scans/scanReferencePreviews.tsx
@@ -114685,8 +114685,8 @@ var SampleScansSidebar = (t0) => {
 	return t16;
 };
 var ScansSidebarPanel_module_default = {
-	container: "_container_t8xq0_1",
-	body: "_body_t8xq0_8"
+	container: "_container_5duzr_1",
+	body: "_body_5duzr_15"
 };
 //#endregion
 //#region src/app/samples/scans/ScansSidebarPanel.tsx
@@ -114824,12 +114824,12 @@ var SampleScores = ({ scores, scorer }) => {
 	return getScoreDescriptorForValues([scoreData.value], [typeof scoreData.value])?.render(scoreData.value);
 };
 var SampleScoresGrid_module_default = {
-	container: "_container_eou6j_1",
-	cell: "_cell_eou6j_9",
-	fullWidth: "_fullWidth_eou6j_15",
-	separator: "_separator_eou6j_19",
-	separatorPadded: "_separatorPadded_eou6j_24",
-	headerSep: "_headerSep_eou6j_29"
+	container: "_container_22j82_1",
+	cell: "_cell_22j82_17",
+	fullWidth: "_fullWidth_22j82_29",
+	separator: "_separator_22j82_37",
+	separatorPadded: "_separatorPadded_22j82_47",
+	headerSep: "_headerSep_22j82_57"
 };
 //#endregion
 //#region src/app/samples/scores/SampleScoresGrid.tsx
@@ -114981,9 +114981,9 @@ var SampleScoresGrid = (t0) => {
 	return t9;
 };
 var SampleScoresView_module_default = {
-	wordBreak: "_wordBreak_148cv_1",
-	scoreCard: "_scoreCard_148cv_5",
-	scores: "_scores_148cv_9"
+	wordBreak: "_wordBreak_9kcan_1",
+	scoreCard: "_scoreCard_9kcan_9",
+	scores: "_scores_9kcan_17"
 };
 //#endregion
 //#region src/app/samples/scores/SampleScoresView.tsx
@@ -115264,13 +115264,13 @@ var summarizeChildren = (span) => {
 	return t2;
 };
 var ChunkedTranscriptPanel_module_default = {
-	layout: "_layout_6xi98_1",
-	swimlanes: "_swimlanes_6xi98_7",
-	outline: "_outline_6xi98_13",
-	list: "_list_6xi98_21",
-	row: "_row_6xi98_27",
-	placeholder: "_placeholder_6xi98_35",
-	shimmer: "_shimmer_6xi98_1"
+	layout: "_layout_16ze2_1",
+	swimlanes: "_swimlanes_16ze2_13",
+	outline: "_outline_16ze2_25",
+	list: "_list_16ze2_41",
+	row: "_row_16ze2_53",
+	placeholder: "_placeholder_16ze2_69",
+	shimmer: "_shimmer_16ze2_1"
 };
 //#endregion
 //#region src/app/samples/transcript/chunked/mainViewOutline.ts
@@ -116058,8 +116058,8 @@ function _temp4$19(s_0) {
 	};
 };
 var SearchScoutUnavailable_module_default = {
-	container: "_container_15sk8_1",
-	body: "_body_15sk8_8"
+	container: "_container_54yxx_1",
+	body: "_body_54yxx_15"
 };
 //#endregion
 //#region src/app/samples/transcript/search/SearchScoutUnavailable.tsx
@@ -116248,10 +116248,10 @@ var SCOUT_DOCS_URL = "https://meridianlabs-ai.github.io/inspect_scout/";
 	return useCachedSearchReferenceLabels(t5);
 };
 var TranscriptFilter_module_default = {
-	grid: "_grid_1wuct_1",
-	row: "_row_1wuct_8",
-	links: "_links_1wuct_22",
-	selected: "_selected_1wuct_44"
+	grid: "_grid_1nffb_1",
+	row: "_row_1nffb_15",
+	links: "_links_1nffb_43",
+	selected: "_selected_1nffb_87"
 };
 //#endregion
 //#region src/app/samples/transcript/TranscriptFilter.tsx
@@ -117664,10 +117664,10 @@ function _temp3$22(state_1) {
 	return state_1.log.selectedSampleHandle;
 }
 var SampleDetailComponent_module_default = {
-	detail: "_detail_s5t7t_1",
-	panel: "_panel_s5t7t_7"
+	detail: "_detail_16r20_1",
+	panel: "_panel_16r20_13"
 };
-var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
+var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_1n6jq_1" };
 //#endregion
 //#region src/app/samples/SampleNavbar.tsx
 /**
@@ -118089,15 +118089,15 @@ function _temp$31(state) {
 	return state.log.loadedLog;
 }
 var LogView_module_default = {
-	workspace: "_workspace_rc1vz_1",
-	tabContainer: "_tabContainer_rc1vz_6",
-	tabSet: "_tabSet_rc1vz_14",
-	tabs: "_tabs_rc1vz_21",
-	tabPanels: "_tabPanels_rc1vz_29"
+	workspace: "_workspace_1fwv2_1",
+	tabContainer: "_tabContainer_1fwv2_11",
+	tabSet: "_tabSet_1fwv2_27",
+	tabs: "_tabs_1fwv2_41",
+	tabPanels: "_tabPanels_1fwv2_57"
 };
 var TaskErrorPanel_module_default = {
-	"task-error-display": "_task-error-display_1gb2h_1",
-	message: "_message_1gb2h_5"
+	"task-error-display": "_task-error-display_1e4r2_1",
+	message: "_message_1e4r2_9"
 };
 //#endregion
 //#region src/app/log-view/error/TaskErrorPanel.tsx
@@ -118217,12 +118217,12 @@ var ErrorTab = (t0) => {
 	return t4;
 };
 var MessageBand_module_default = {
-	messageBand: "_messageBand_1qdgc_1",
-	hidden: "_hidden_1qdgc_11",
-	info: "_info_1qdgc_15",
-	warning: "_warning_1qdgc_19",
-	error: "_error_1qdgc_24",
-	messageBandBtn: "_messageBandBtn_1qdgc_29"
+	messageBand: "_messageBand_9ahnx_1",
+	hidden: "_hidden_9ahnx_21",
+	info: "_info_9ahnx_29",
+	warning: "_warning_9ahnx_37",
+	error: "_error_9ahnx_47",
+	messageBandBtn: "_messageBandBtn_9ahnx_57"
 };
 //#endregion
 //#region src/components/MessageBand.tsx
@@ -118304,9 +118304,9 @@ var MessageBand = (t0) => {
 	return t12;
 };
 var EditButton_module_default = {
-	button: "_button_u0dz8_2",
-	link: "_link_u0dz8_1",
-	pill: "_pill_u0dz8_1"
+	button: "_button_zyzv9_3",
+	link: "_link_zyzv9_1",
+	pill: "_pill_zyzv9_1"
 };
 //#endregion
 //#region src/app/log-view/title-view/EditButton.tsx
@@ -118344,7 +118344,7 @@ var EditButton = (t0) => {
 	} else t7 = $[7];
 	return t7;
 };
-var AutogrowText_module_default = { textarea: "_textarea_8mbr9_1" };
+var AutogrowText_module_default = { textarea: "_textarea_1fg49_1" };
 //#endregion
 //#region src/app/log-view/title-view/AutogrowText.tsx
 var AutogrowText = (t0) => {
@@ -118411,13 +118411,13 @@ var AutogrowText = (t0) => {
 	return t5;
 };
 var ChangeSummary_module_default = {
-	container: "_container_13ofn_1",
-	line: "_line_13ofn_18",
-	label: "_label_13ofn_24",
-	items: "_items_13ofn_29",
-	accentAdding: "_accentAdding_13ofn_33",
-	accentEditing: "_accentEditing_13ofn_37",
-	accentRemoving: "_accentRemoving_13ofn_41"
+	container: "_container_imazr_1",
+	line: "_line_imazr_35",
+	label: "_label_imazr_47",
+	items: "_items_imazr_57",
+	accentAdding: "_accentAdding_imazr_65",
+	accentEditing: "_accentEditing_imazr_73",
+	accentRemoving: "_accentRemoving_imazr_81"
 };
 //#endregion
 //#region src/app/log-view/title-view/ChangeSummary.tsx
@@ -118553,17 +118553,17 @@ var Line$1 = (t0) => {
 	return t6;
 };
 var EditAnnotationsDialog_module_default = {
-	body: "_body_13gwg_3",
-	section: "_section_13gwg_9",
-	labelRow: "_labelRow_13gwg_15",
-	label: "_label_13gwg_15",
-	hint: "_hint_13gwg_27",
-	required: "_required_13gwg_36",
-	divider: "_divider_13gwg_41",
-	provenance: "_provenance_13gwg_47",
-	error: "_error_13gwg_53",
-	footer: "_footer_13gwg_62",
-	footerActions: "_footerActions_13gwg_62"
+	body: "_body_vj1jx_5",
+	section: "_section_vj1jx_17",
+	labelRow: "_labelRow_vj1jx_29",
+	label: "_label_vj1jx_29",
+	hint: "_hint_vj1jx_53",
+	required: "_required_vj1jx_71",
+	divider: "_divider_vj1jx_81",
+	provenance: "_provenance_vj1jx_93",
+	error: "_error_vj1jx_105",
+	footer: "_footer_vj1jx_123",
+	footerActions: "_footerActions_vj1jx_123"
 };
 //#endregion
 //#region src/app/log-view/title-view/editErrors.ts
@@ -118577,19 +118577,19 @@ function formatEditError(err) {
 	return String(err);
 }
 var EditMetadataDialog_module_default = {
-	tableScroll: "_tableScroll_1i84k_5",
-	table: "_table_1i84k_5",
-	empty: "_empty_1i84k_23",
-	row: "_row_1i84k_30",
-	rowDivider: "_rowDivider_1i84k_37",
-	rowNew: "_rowNew_1i84k_41",
-	key: "_key_1i84k_54",
-	value: "_value_1i84k_51",
-	remove: "_remove_1i84k_54",
-	addRow: "_addRow_1i84k_87",
-	addKeyInput: "_addKeyInput_1i84k_94",
-	typeSelect: "_typeSelect_1i84k_98",
-	addButton: "_addButton_1i84k_102"
+	tableScroll: "_tableScroll_18vfc_9",
+	table: "_table_18vfc_9",
+	empty: "_empty_18vfc_45",
+	row: "_row_18vfc_59",
+	rowDivider: "_rowDivider_18vfc_73",
+	rowNew: "_rowNew_18vfc_81",
+	key: "_key_18vfc_107",
+	value: "_value_18vfc_101",
+	remove: "_remove_18vfc_107",
+	addRow: "_addRow_18vfc_173",
+	addKeyInput: "_addKeyInput_18vfc_187",
+	typeSelect: "_typeSelect_18vfc_195",
+	addButton: "_addButton_18vfc_203"
 };
 //#endregion
 //#region src/app/log-view/title-view/ProvenanceFields.tsx
@@ -119511,10 +119511,10 @@ function _temp8$4(e_8) {
 	return e_8.isNew || e_8.dirty;
 }
 var PlanCard_module_default = {
-	headerActions: "_headerActions_1fn25_1",
-	emptyMetadata: "_emptyMetadata_1fn25_10"
+	headerActions: "_headerActions_uvy8t_1",
+	emptyMetadata: "_emptyMetadata_uvy8t_19"
 };
-var DatasetDetailView_module_default = { item: "_item_1uzhd_1" };
+var DatasetDetailView_module_default = { item: "_item_1u0pk_1" };
 //#endregion
 //#region src/app/plan/DatasetDetailView.tsx
 var DatasetDetailView = (t0) => {
@@ -119574,16 +119574,16 @@ function _temp$29(t0) {
 	return key !== "sample_ids";
 }
 var PlanDetailView_module_default = {
-	floatingCol: "_floatingCol_b77t2_1",
-	wideCol: "_wideCol_b77t2_9",
-	planCol: "_planCol_b77t2_16",
-	container: "_container_b77t2_21",
-	grid: "_grid_b77t2_27"
+	floatingCol: "_floatingCol_dbu42_1",
+	wideCol: "_wideCol_dbu42_17",
+	planCol: "_planCol_dbu42_31",
+	container: "_container_dbu42_41",
+	grid: "_grid_dbu42_53"
 };
 var DetailStep_module_default = {
-	icon: "_icon_59zaz_1",
-	container: "_container_59zaz_5",
-	metadata: "_metadata_59zaz_11"
+	icon: "_icon_1t56z_1",
+	container: "_container_1t56z_9",
+	metadata: "_metadata_1t56z_21"
 };
 //#endregion
 //#region src/app/plan/DetailStep.tsx
@@ -119634,7 +119634,7 @@ var DetailStep = (t0) => {
 	} else t4 = $[10];
 	return t4;
 };
-var ScorerDetailView_module_default = { item: "_item_leq25_1" };
+var ScorerDetailView_module_default = { item: "_item_dt61a_1" };
 //#endregion
 //#region src/app/plan/ScorerDetailView.tsx
 var ScorerDetailView = (t0) => {
@@ -119675,9 +119675,9 @@ var ScorerDetailView = (t0) => {
 	return t4;
 };
 var SolverDetailView_module_default = {
-	container: "_container_12j2k_1",
-	item: "_item_12j2k_7",
-	separator: "_separator_12j2k_11"
+	container: "_container_1qfgd_1",
+	item: "_item_1qfgd_13",
+	separator: "_separator_1qfgd_21"
 };
 //#endregion
 //#region src/app/plan/SolverDetailView.tsx
@@ -120075,7 +120075,7 @@ var InfoTab = (t0) => {
 	} else t6 = $[12];
 	return t6;
 };
-var DownloadButton_module_default = { downloadButton: "_downloadButton_skjjg_1" };
+var DownloadButton_module_default = { downloadButton: "_downloadButton_a60b2_1" };
 //#endregion
 //#region src/components/DownloadButton.tsx
 var DownloadButton = (t0) => {
@@ -120116,8 +120116,8 @@ var DownloadButton = (t0) => {
 	return t4;
 };
 var DownloadPanel_module_default = {
-	downloadPanel: "_downloadPanel_1ggsq_1",
-	downloadPanelMessage: "_downloadPanelMessage_1ggsq_8"
+	downloadPanel: "_downloadPanel_puppd_1",
+	downloadPanelMessage: "_downloadPanelMessage_puppd_15"
 };
 //#endregion
 //#region src/components/DownloadPanel.tsx
@@ -120157,7 +120157,7 @@ var DownloadPanel = (t0) => {
 	} else t3 = $[8];
 	return t3;
 };
-var JsonTab_module_default = { jsonTab: "_jsonTab_6pq03_1" };
+var JsonTab_module_default = { jsonTab: "_jsonTab_7c4lx_1" };
 //#endregion
 //#region src/app/log-view/tabs/JsonTab.tsx
 var kJsonMaxSize = 1e7;
@@ -120799,10 +120799,10 @@ var kGridModeRowHeight = 30;
 	return t15;
 };
 var SampleFooter_module_default = {
-	footer: "_footer_vkofn_1",
-	spinnerContainer: "_spinnerContainer_vkofn_11",
-	spinner: "_spinner_vkofn_11",
-	label: "_label_vkofn_25"
+	footer: "_footer_17p8h_1",
+	spinnerContainer: "_spinnerContainer_17p8h_21",
+	spinner: "_spinner_17p8h_21",
+	label: "_label_17p8h_49"
 };
 //#endregion
 //#region src/app/samples/list/SampleFooter.tsx
@@ -120858,7 +120858,7 @@ var SampleFooter = (t0) => {
 	} else t6 = $[9];
 	return t6;
 };
-var SampleList_module_default = { mainLayout: "_mainLayout_xvd5i_1" };
+var SampleList_module_default = { mainLayout: "_mainLayout_1dumc_1" };
 //#endregion
 //#region src/app/samples/list/SampleList.tsx
 var makeSampleRowId = (id, epoch) => `${id}-${epoch}`.replace(/\s+/g, "_");
@@ -138701,10 +138701,10 @@ var binaryToSpec = (ast, registry) => {
 	return astToSpecs(ast, registry);
 }
 var gridCells_module_default = {
-	cell: "_cell_8nkqa_2",
-	wrapAnywhere: "_wrapAnywhere_8nkqa_6",
-	noLeft: "_noLeft_8nkqa_10",
-	score: "_score_8nkqa_14"
+	cell: "_cell_1gyty_3",
+	wrapAnywhere: "_wrapAnywhere_1gyty_11",
+	noLeft: "_noLeft_1gyty_19",
+	score: "_score_1gyty_27"
 };
 //#endregion
 //#region src/app/shared/samples-grid/cells.tsx
@@ -139381,9 +139381,9 @@ var numberLiteral = (n) => String(n);
 	return parts.join(" and ");
 }
 var SamplesViewOptionsPopover_module_default = {
-	container: "_container_1tduz_1",
-	row: "_row_1tduz_8",
-	checkbox: "_checkbox_1tduz_15"
+	container: "_container_ln6hq_1",
+	row: "_row_ln6hq_15",
+	checkbox: "_checkbox_ln6hq_29"
 };
 //#endregion
 //#region src/app/samples/list/SamplesViewOptionsPopover.tsx
@@ -143462,10 +143462,10 @@ var makeMetadataValueCompletion = (value) => {
 	return noCompletions();
 }
 var SampleFilter_module_default = {
-	root: "_root_1dunz_1",
-	label: "_label_1dunz_15",
-	input: "_input_1dunz_21",
-	help: "_help_1dunz_26"
+	root: "_root_1nk66_1",
+	label: "_label_1nk66_29",
+	input: "_input_1nk66_41",
+	help: "_help_1nk66_51"
 };
 //#endregion
 //#region src/app/samples/sample-tools/sample-filter/SampleFilter.tsx
@@ -143802,13 +143802,13 @@ function _temp5$8(c) {
 	return c.label.endsWith(" ");
 }
 var SelectScorer_module_default = {
-	container: "_container_e52xb_1",
-	grid: "_grid_e52xb_5",
-	row: "_row_e52xb_12",
-	label: "_label_e52xb_26",
-	links: "_links_e52xb_32",
-	selected: "_selected_e52xb_54",
-	bodyColorButton: "_bodyColorButton_e52xb_58"
+	container: "_container_8dzjc_1",
+	grid: "_grid_8dzjc_9",
+	row: "_row_8dzjc_23",
+	label: "_label_8dzjc_51",
+	links: "_links_8dzjc_63",
+	selected: "_selected_8dzjc_107",
+	bodyColorButton: "_bodyColorButton_8dzjc_115"
 };
 //#endregion
 //#region src/app/samples/sample-tools/SelectScorer.tsx
@@ -144161,10 +144161,10 @@ function _temp2$18(state) {
 	return state.logActions.setSelectedScores;
 }
 var RunningNoSamples_module_default = {
-	panel: "_panel_1yknn_1",
-	container: "_container_1yknn_7",
-	spinner: "_spinner_1yknn_14",
-	text: "_text_1yknn_20"
+	panel: "_panel_c1nj9_1",
+	container: "_container_c1nj9_13",
+	spinner: "_spinner_c1nj9_27",
+	text: "_text_c1nj9_39"
 };
 //#endregion
 //#region src/app/log-view/tabs/RunningNoSamples.tsx
@@ -144728,19 +144728,30 @@ function _temp8$3(col_1, i_1) {
 function _temp9$3(x) {
 	return x.col;
 }
+//#endregion
+//#region src/utils/evalTiming.ts
+function formatEvalTiming(stats) {
+	const start = stats?.started_at ? new Date(stats.started_at) : void 0;
+	const end = stats?.completed_at ? new Date(stats.completed_at) : void 0;
+	return {
+		start: start ? formatDateTime(start) : "unavailable",
+		end: end ? formatDateTime(end) : "unavailable",
+		duration: start && end ? formatDuration(start, end) : "unavailable"
+	};
+}
 var EditTagsDialog_module_default = {
-	chipBox: "_chipBox_yxwie_1",
-	empty: "_empty_yxwie_12",
-	addRow: "_addRow_yxwie_17",
-	input: "_input_yxwie_23",
-	addButton: "_addButton_yxwie_27"
+	chipBox: "_chipBox_ti8tp_1",
+	empty: "_empty_ti8tp_23",
+	addRow: "_addRow_ti8tp_33",
+	input: "_input_ti8tp_45",
+	addButton: "_addButton_ti8tp_53"
 };
 var TagChip_module_default = {
-	chip: "_chip_17zs5_1",
-	chipLabel: "_chipLabel_17zs5_31",
-	chipNew: "_chipNew_17zs5_40",
-	chipClickable: "_chipClickable_17zs5_48",
-	chipRemove: "_chipRemove_17zs5_61"
+	chip: "_chip_1nkqv_1",
+	chipLabel: "_chipLabel_1nkqv_61",
+	chipNew: "_chipNew_1nkqv_79",
+	chipClickable: "_chipClickable_1nkqv_95",
+	chipRemove: "_chipRemove_1nkqv_121"
 };
 //#endregion
 //#region src/app/log-view/title-view/TagChip.tsx
@@ -145300,7 +145311,7 @@ var EditTagsDialog = (t0) => {
 	return t43;
 };
 function _temp$19() {}
-var TagStrip_module_default = { tagRow: "_tagRow_pg3wd_4" };
+var TagStrip_module_default = { tagRow: "_tagRow_1b6w9_7" };
 //#endregion
 //#region src/app/log-view/title-view/TagStrip.tsx
 var MAX_ROWS = 2;
@@ -145591,11 +145602,11 @@ function _temp2$16(k) {
 	return t4;
 };
 var ConfigCard_module_default = {
-	headerMeta: "_headerMeta_j84v5_1",
-	effectiveNote: "_effectiveNote_j84v5_8",
-	headerRight: "_headerRight_j84v5_16",
-	changeCount: "_changeCount_j84v5_26",
-	headerSep: "_headerSep_j84v5_31"
+	headerMeta: "_headerMeta_u2gsf_1",
+	effectiveNote: "_effectiveNote_u2gsf_15",
+	headerRight: "_headerRight_u2gsf_31",
+	changeCount: "_changeCount_u2gsf_51",
+	headerSep: "_headerSep_u2gsf_61"
 };
 //#endregion
 //#region src/app/log-view/tabs/ConfigCard.tsx
@@ -145723,8 +145734,8 @@ var ConfigCard_module_default = {
 	return t7;
 };
 var TaskTab_module_default = {
-	grid: "_grid_q7chi_1",
-	tagPillAlign: "_tagPillAlign_q7chi_11"
+	grid: "_grid_s8peg_1",
+	tagPillAlign: "_tagPillAlign_s8peg_21"
 };
 //#endregion
 //#region src/app/log-view/tabs/TaskTab.tsx
@@ -145755,7 +145766,7 @@ var useTaskTabConfig = (evalSpec, evalStats, earlyStopping, tags, configUpdates)
 	return t0;
 };
 var TaskTab = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(61);
+	const $ = (0, import_compiler_runtime.c)(56);
 	const { evalSpec, evalStats, earlyStopping, tags, configUpdates } = t0;
 	let t1;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
@@ -145850,23 +145861,22 @@ var TaskTab = (t0) => {
 		$[9] = taskInformation;
 	} else taskInformation = $[9];
 	let t5;
-	if ($[23] !== evalStats?.completed_at || $[24] !== evalStats?.started_at) {
-		t5 = formatDuration(new Date(evalStats?.started_at || 0), new Date(evalStats?.completed_at || 0));
-		$[23] = evalStats?.completed_at;
-		$[24] = evalStats?.started_at;
-		$[25] = t5;
-	} else t5 = $[25];
-	const totalDuration = t5;
+	if ($[23] !== evalStats) {
+		t5 = formatEvalTiming(evalStats);
+		$[23] = evalStats;
+		$[24] = t5;
+	} else t5 = $[24];
+	const timing = t5;
 	let t6;
-	if ($[26] !== evalSpec?.task_args) {
+	if ($[25] !== evalSpec?.task_args) {
 		t6 = evalSpec?.task_args || {};
-		$[26] = evalSpec?.task_args;
-		$[27] = t6;
-	} else t6 = $[27];
+		$[25] = evalSpec?.task_args;
+		$[26] = t6;
+	} else t6 = $[26];
 	const task_args = t6;
 	let t7;
 	let t8;
-	if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[27] === Symbol.for("react.memo_cache_sentinel")) {
 		t7 = { width: "100%" };
 		t8 = {
 			padding: "0.5em 1em 0 1em",
@@ -145875,179 +145885,167 @@ var TaskTab = (t0) => {
 			flexDirection: "column",
 			gap: "0.75rem"
 		};
-		$[28] = t7;
-		$[29] = t8;
+		$[27] = t7;
+		$[28] = t8;
 	} else {
-		t7 = $[28];
-		t8 = $[29];
+		t7 = $[27];
+		t8 = $[28];
 	}
 	let t9;
-	if ($[30] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[29] === Symbol.for("react.memo_cache_sentinel")) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Task Info" });
-		$[30] = t9;
-	} else t9 = $[30];
+		$[29] = t9;
+	} else t9 = $[29];
 	let t10;
-	if ($[31] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[30] === Symbol.for("react.memo_cache_sentinel")) {
 		t10 = clsx(TaskTab_module_default.grid);
-		$[31] = t10;
-	} else t10 = $[31];
+		$[30] = t10;
+	} else t10 = $[30];
 	let t11;
-	if ($[32] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[31] === Symbol.for("react.memo_cache_sentinel")) {
 		t11 = { copyButton: true };
-		$[32] = t11;
-	} else t11 = $[32];
+		$[31] = t11;
+	} else t11 = $[31];
 	let t12;
-	if ($[33] !== taskInformation) {
+	if ($[32] !== taskInformation) {
 		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
 			className: "text-size-small",
 			entries: taskInformation,
 			options: t11
 		}, "plan-md-task");
-		$[33] = taskInformation;
-		$[34] = t12;
-	} else t12 = $[34];
+		$[32] = taskInformation;
+		$[33] = t12;
+	} else t12 = $[33];
 	let t13;
-	if ($[35] !== evalStats?.started_at) {
-		t13 = formatDateTime(new Date(evalStats?.started_at || 0));
-		$[35] = evalStats?.started_at;
-		$[36] = t13;
-	} else t13 = $[36];
+	if ($[34] !== timing.duration || $[35] !== timing.end || $[36] !== timing.start) {
+		t13 = {
+			"Start": timing.start,
+			"End": timing.end,
+			"Duration": timing.duration
+		};
+		$[34] = timing.duration;
+		$[35] = timing.end;
+		$[36] = timing.start;
+		$[37] = t13;
+	} else t13 = $[37];
 	let t14;
-	if ($[37] !== evalStats?.completed_at) {
-		t14 = formatDateTime(new Date(evalStats?.completed_at || 0));
-		$[37] = evalStats?.completed_at;
+	if ($[38] === Symbol.for("react.memo_cache_sentinel")) {
+		t14 = { copyButton: true };
 		$[38] = t14;
 	} else t14 = $[38];
 	let t15;
-	if ($[39] !== t13 || $[40] !== t14 || $[41] !== totalDuration) {
-		t15 = {
-			"Start": t13,
-			"End": t14,
-			"Duration": totalDuration
-		};
-		$[39] = t13;
-		$[40] = t14;
-		$[41] = totalDuration;
-		$[42] = t15;
-	} else t15 = $[42];
-	let t16;
-	if ($[43] === Symbol.for("react.memo_cache_sentinel")) {
-		t16 = { copyButton: true };
-		$[43] = t16;
-	} else t16 = $[43];
-	let t17;
-	if ($[44] !== t15) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
-			entries: t15,
-			options: t16
+	if ($[39] !== t13) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
+			entries: t13,
+			options: t14
 		});
-		$[44] = t15;
-		$[45] = t17;
-	} else t17 = $[45];
-	let t18;
-	if ($[46] !== t12 || $[47] !== t17) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [t9, /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
+		$[39] = t13;
+		$[40] = t15;
+	} else t15 = $[40];
+	let t16;
+	if ($[41] !== t12 || $[42] !== t15) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [t9, /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
 			id: "task-card-config",
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: t10,
-				children: [t12, t17]
+				children: [t12, t15]
 			})
 		})] });
-		$[46] = t12;
-		$[47] = t17;
-		$[48] = t18;
-	} else t18 = $[48];
-	const t19 = evalSpec?.config;
-	let t20;
-	if ($[49] !== configUpdates || $[50] !== t19) {
-		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ConfigCard, {
-			config: t19,
+		$[41] = t12;
+		$[42] = t15;
+		$[43] = t16;
+	} else t16 = $[43];
+	const t17 = evalSpec?.config;
+	let t18;
+	if ($[44] !== configUpdates || $[45] !== t17) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ConfigCard, {
+			config: t17,
 			configUpdates
 		});
-		$[49] = configUpdates;
-		$[50] = t19;
-		$[51] = t20;
-	} else t20 = $[51];
-	let t21;
-	if ($[52] !== earlyStopping) {
-		t21 = earlyStopping && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: `Early Stopping (${earlyStopping.manager} — ${formatNumber(earlyStopping.early_stops.length)} skipped)` }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
+		$[44] = configUpdates;
+		$[45] = t17;
+		$[46] = t18;
+	} else t18 = $[46];
+	let t19;
+	if ($[47] !== earlyStopping) {
+		t19 = earlyStopping && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: `Early Stopping (${earlyStopping.manager} — ${formatNumber(earlyStopping.early_stops.length)} skipped)` }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
 			id: "early-stopping-metadata",
 			record: earlyStopping.metadata,
 			copyButton: true
 		}) })] });
-		$[52] = earlyStopping;
-		$[53] = t21;
-	} else t21 = $[53];
-	let t22;
-	if ($[54] !== task_args) {
-		t22 = Object.keys(task_args).length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Task Args" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
+		$[47] = earlyStopping;
+		$[48] = t19;
+	} else t19 = $[48];
+	let t20;
+	if ($[49] !== task_args) {
+		t20 = Object.keys(task_args).length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Task Args" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
 			id: "task-card-config",
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
 				className: "text-size-small",
 				entries: task_args
 			}, "plan-md-task-args")
 		})] });
-		$[54] = task_args;
-		$[55] = t22;
-	} else t22 = $[55];
-	let t23;
-	if ($[56] !== t18 || $[57] !== t20 || $[58] !== t21 || $[59] !== t22) {
-		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[49] = task_args;
+		$[50] = t20;
+	} else t20 = $[50];
+	let t21;
+	if ($[51] !== t16 || $[52] !== t18 || $[53] !== t19 || $[54] !== t20) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			style: t7,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				style: t8,
 				children: [
+					t16,
 					t18,
-					t20,
-					t21,
-					t22
+					t19,
+					t20
 				]
 			})
 		});
-		$[56] = t18;
-		$[57] = t20;
-		$[58] = t21;
-		$[59] = t22;
-		$[60] = t23;
-	} else t23 = $[60];
-	return t23;
+		$[51] = t16;
+		$[52] = t18;
+		$[53] = t19;
+		$[54] = t20;
+		$[55] = t21;
+	} else t21 = $[55];
+	return t21;
 };
 var HistoryList_module_default = {
-	container: "_container_1y1ui_1",
-	filterRow: "_filterRow_1y1ui_7",
-	caption: "_caption_1y1ui_16",
-	filterPill: "_filterPill_1y1ui_28",
-	pillCount: "_pillCount_1y1ui_42",
-	pillEmpty: "_pillEmpty_1y1ui_46",
-	pillAll: "_pillAll_1y1ui_51",
-	pillSelected: "_pillSelected_1y1ui_55",
-	pillConfig: "_pillConfig_1y1ui_61",
-	pillConnections: "_pillConnections_1y1ui_67",
-	pillLimits: "_pillLimits_1y1ui_73",
-	pillErrors: "_pillErrors_1y1ui_79",
-	pillCancels: "_pillCancels_1y1ui_86",
-	pillTags: "_pillTags_1y1ui_92",
-	pillRun: "_pillRun_1y1ui_98",
-	search: "_search_1y1ui_151",
-	list: "_list_1y1ui_166",
-	empty: "_empty_1y1ui_175",
-	headerRow: "_headerRow_1y1ui_182",
-	row: "_row_1y1ui_183",
-	timeSort: "_timeSort_1y1ui_204",
-	byHeader: "_byHeader_1y1ui_220",
-	rowLast: "_rowLast_1y1ui_230",
-	rowClickable: "_rowClickable_1y1ui_234",
-	rowSelected: "_rowSelected_1y1ui_238",
-	rowWash: "_rowWash_1y1ui_245",
-	time: "_time_1y1ui_204",
-	kindCell: "_kindCell_1y1ui_258",
-	kindPill: "_kindPill_1y1ui_266",
-	event: "_event_1y1ui_280",
-	muted: "_muted_1y1ui_287",
-	mono: "_mono_1y1ui_291",
-	by: "_by_1y1ui_220",
-	ordinalBox: "_ordinalBox_1y1ui_310",
-	openSample: "_openSample_1y1ui_327"
+	container: "_container_1gi2j_1",
+	filterRow: "_filterRow_1gi2j_13",
+	caption: "_caption_1gi2j_31",
+	filterPill: "_filterPill_1gi2j_55",
+	pillCount: "_pillCount_1gi2j_83",
+	pillEmpty: "_pillEmpty_1gi2j_91",
+	pillAll: "_pillAll_1gi2j_101",
+	pillSelected: "_pillSelected_1gi2j_109",
+	pillConfig: "_pillConfig_1gi2j_121",
+	pillConnections: "_pillConnections_1gi2j_133",
+	pillLimits: "_pillLimits_1gi2j_145",
+	pillErrors: "_pillErrors_1gi2j_157",
+	pillCancels: "_pillCancels_1gi2j_171",
+	pillTags: "_pillTags_1gi2j_183",
+	pillRun: "_pillRun_1gi2j_195",
+	search: "_search_1gi2j_301",
+	list: "_list_1gi2j_331",
+	empty: "_empty_1gi2j_349",
+	headerRow: "_headerRow_1gi2j_363",
+	row: "_row_1gi2j_365",
+	timeSort: "_timeSort_1gi2j_407",
+	byHeader: "_byHeader_1gi2j_439",
+	rowLast: "_rowLast_1gi2j_459",
+	rowClickable: "_rowClickable_1gi2j_467",
+	rowSelected: "_rowSelected_1gi2j_475",
+	rowWash: "_rowWash_1gi2j_489",
+	time: "_time_1gi2j_407",
+	kindCell: "_kindCell_1gi2j_515",
+	kindPill: "_kindPill_1gi2j_531",
+	event: "_event_1gi2j_559",
+	muted: "_muted_1gi2j_573",
+	mono: "_mono_1gi2j_581",
+	by: "_by_1gi2j_439",
+	ordinalBox: "_ordinalBox_1gi2j_619",
+	openSample: "_openSample_1gi2j_653"
 };
 //#endregion
 //#region src/app/log-view/tabs/timeline/OpenSampleLink.tsx
@@ -147001,66 +146999,66 @@ var timelineAxisTicks = (window, plotWidth) => {
 	return ticks;
 };
 var TimelineChart_module_default = {
-	chart: "_chart_1we23_1",
-	svg: "_svg_1we23_6",
-	bandLabel: "_bandLabel_1we23_13",
-	bandLabelModel: "_bandLabelModel_1we23_18",
-	activeSeries: "_activeSeries_1we23_22",
-	connectionsSeries: "_connectionsSeries_1we23_28",
-	limitGuide: "_limitGuide_1we23_34",
-	guideLabel: "_guideLabel_1we23_40",
-	rateLimitLine: "_rateLimitLine_1we23_45",
-	terminationDot: "_terminationDot_1we23_53",
-	termHitColumn: "_termHitColumn_1we23_57",
-	lineHit: "_lineHit_1we23_62",
-	crosshair: "_crosshair_1we23_66",
-	hoverDotActive: "_hoverDotActive_1we23_73",
-	hoverDotConnections: "_hoverDotConnections_1we23_78",
-	lineTooltip: "_lineTooltip_1we23_83",
-	axisLine: "_axisLine_1we23_97",
-	axisLabel: "_axisLabel_1we23_101",
-	yTickLabel: "_yTickLabel_1we23_106",
-	axisBreak: "_axisBreak_1we23_111",
-	postRunLabel: "_postRunLabel_1we23_117",
-	marker: "_marker_1we23_123",
-	markerLine: "_markerLine_1we23_128",
-	markerLineLog: "_markerLineLog_1we23_132",
-	markerLineActive: "_markerLineActive_1we23_137",
-	markerLineLogActive: "_markerLineLogActive_1we23_142",
-	markerDiamond: "_markerDiamond_1we23_147",
-	markerDiamondLog: "_markerDiamondLog_1we23_153",
-	markerDiamondActive: "_markerDiamondActive_1we23_159",
-	markerDiamondLogActive: "_markerDiamondLogActive_1we23_164",
-	markerDiamondText: "_markerDiamondText_1we23_169",
-	ordinalBoxRect: "_ordinalBoxRect_1we23_177",
-	ordinalBoxText: "_ordinalBoxText_1we23_182",
-	markerPostRun: "_markerPostRun_1we23_189",
-	markerActive: "_markerActive_1we23_195",
-	markerPopover: "_markerPopover_1we23_199",
-	markerPopoverHeader: "_markerPopoverHeader_1we23_211",
-	markerPopoverOrdinal: "_markerPopoverOrdinal_1we23_221",
-	markerPopoverTime: "_markerPopoverTime_1we23_237",
-	markerPopoverBody: "_markerPopoverBody_1we23_244",
-	markerPopoverEntry: "_markerPopoverEntry_1we23_251",
-	markerPopoverChange: "_markerPopoverChange_1we23_257",
-	markerPopoverMuted: "_markerPopoverMuted_1we23_266",
-	markerPopoverMeta: "_markerPopoverMeta_1we23_270",
-	markerPopoverLabel: "_markerPopoverLabel_1we23_283",
-	markerPopoverByline: "_markerPopoverByline_1we23_288",
-	samplePopover: "_samplePopover_1we23_294",
-	popoverHeader: "_popoverHeader_1we23_305",
-	popoverStatusDot: "_popoverStatusDot_1we23_316",
-	popoverSampleId: "_popoverSampleId_1we23_324",
-	popoverEpoch: "_popoverEpoch_1we23_328",
-	popoverStatusWord: "_popoverStatusWord_1we23_332",
-	popoverBody: "_popoverBody_1we23_337",
-	popoverInput: "_popoverInput_1we23_344",
-	popoverGrid: "_popoverGrid_1we23_353",
-	popoverLabel: "_popoverLabel_1we23_366",
-	popoverMore: "_popoverMore_1we23_372",
-	popoverError: "_popoverError_1we23_377",
-	popoverCallout: "_popoverCallout_1we23_385",
-	popoverOpen: "_popoverOpen_1we23_395"
+	chart: "_chart_1ap4u_1",
+	svg: "_svg_1ap4u_11",
+	bandLabel: "_bandLabel_1ap4u_25",
+	bandLabelModel: "_bandLabelModel_1ap4u_35",
+	activeSeries: "_activeSeries_1ap4u_43",
+	connectionsSeries: "_connectionsSeries_1ap4u_55",
+	limitGuide: "_limitGuide_1ap4u_67",
+	guideLabel: "_guideLabel_1ap4u_79",
+	rateLimitLine: "_rateLimitLine_1ap4u_89",
+	terminationDot: "_terminationDot_1ap4u_105",
+	termHitColumn: "_termHitColumn_1ap4u_113",
+	lineHit: "_lineHit_1ap4u_123",
+	crosshair: "_crosshair_1ap4u_131",
+	hoverDotActive: "_hoverDotActive_1ap4u_145",
+	hoverDotConnections: "_hoverDotConnections_1ap4u_155",
+	lineTooltip: "_lineTooltip_1ap4u_165",
+	axisLine: "_axisLine_1ap4u_193",
+	axisLabel: "_axisLabel_1ap4u_201",
+	yTickLabel: "_yTickLabel_1ap4u_211",
+	axisBreak: "_axisBreak_1ap4u_221",
+	postRunLabel: "_postRunLabel_1ap4u_233",
+	marker: "_marker_1ap4u_245",
+	markerLine: "_markerLine_1ap4u_255",
+	markerLineLog: "_markerLineLog_1ap4u_263",
+	markerLineActive: "_markerLineActive_1ap4u_273",
+	markerLineLogActive: "_markerLineLogActive_1ap4u_283",
+	markerDiamond: "_markerDiamond_1ap4u_293",
+	markerDiamondLog: "_markerDiamondLog_1ap4u_305",
+	markerDiamondActive: "_markerDiamondActive_1ap4u_317",
+	markerDiamondLogActive: "_markerDiamondLogActive_1ap4u_327",
+	markerDiamondText: "_markerDiamondText_1ap4u_337",
+	ordinalBoxRect: "_ordinalBoxRect_1ap4u_353",
+	ordinalBoxText: "_ordinalBoxText_1ap4u_363",
+	markerPostRun: "_markerPostRun_1ap4u_377",
+	markerActive: "_markerActive_1ap4u_389",
+	markerPopover: "_markerPopover_1ap4u_397",
+	markerPopoverHeader: "_markerPopoverHeader_1ap4u_421",
+	markerPopoverOrdinal: "_markerPopoverOrdinal_1ap4u_441",
+	markerPopoverTime: "_markerPopoverTime_1ap4u_473",
+	markerPopoverBody: "_markerPopoverBody_1ap4u_487",
+	markerPopoverEntry: "_markerPopoverEntry_1ap4u_501",
+	markerPopoverChange: "_markerPopoverChange_1ap4u_513",
+	markerPopoverMuted: "_markerPopoverMuted_1ap4u_531",
+	markerPopoverMeta: "_markerPopoverMeta_1ap4u_539",
+	markerPopoverLabel: "_markerPopoverLabel_1ap4u_565",
+	markerPopoverByline: "_markerPopoverByline_1ap4u_575",
+	samplePopover: "_samplePopover_1ap4u_587",
+	popoverHeader: "_popoverHeader_1ap4u_609",
+	popoverStatusDot: "_popoverStatusDot_1ap4u_631",
+	popoverSampleId: "_popoverSampleId_1ap4u_647",
+	popoverEpoch: "_popoverEpoch_1ap4u_655",
+	popoverStatusWord: "_popoverStatusWord_1ap4u_663",
+	popoverBody: "_popoverBody_1ap4u_673",
+	popoverInput: "_popoverInput_1ap4u_687",
+	popoverGrid: "_popoverGrid_1ap4u_705",
+	popoverLabel: "_popoverLabel_1ap4u_731",
+	popoverMore: "_popoverMore_1ap4u_743",
+	popoverError: "_popoverError_1ap4u_753",
+	popoverCallout: "_popoverCallout_1ap4u_769",
+	popoverOpen: "_popoverOpen_1ap4u_789"
 };
 //#endregion
 //#region src/app/log-view/tabs/timeline/TimelineChart.tsx
@@ -148429,16 +148427,16 @@ function _temp27(row) {
 	}) })] }, row.key);
 }
 var TimelineTab_module_default = {
-	container: "_container_fne0n_1",
-	pickerRow: "_pickerRow_fne0n_9",
-	caption: "_caption_fne0n_17",
-	bandChip: "_bandChip_fne0n_26",
-	bandChipOn: "_bandChipOn_fne0n_40",
-	bandChipNote: "_bandChipNote_fne0n_50",
-	legend: "_legend_fne0n_55",
-	legendItem: "_legendItem_fne0n_64",
-	legendDot: "_legendDot_fne0n_71",
-	legendRateLimit: "_legendRateLimit_fne0n_78"
+	container: "_container_3h36a_1",
+	pickerRow: "_pickerRow_3h36a_17",
+	caption: "_caption_3h36a_33",
+	bandChip: "_bandChip_3h36a_51",
+	bandChipOn: "_bandChipOn_3h36a_79",
+	bandChipNote: "_bandChipNote_3h36a_99",
+	legend: "_legend_3h36a_109",
+	legendItem: "_legendItem_3h36a_127",
+	legendDot: "_legendDot_3h36a_141",
+	legendRateLimit: "_legendRateLimit_3h36a_155"
 };
 //#endregion
 //#region src/app/log-view/tabs/timeline/TimelineTab.tsx
@@ -149176,8 +149174,8 @@ function _temp4$12(dot_2) {
 	return dot_2.status === "started";
 }
 var LinkButton_module_default = {
-	button: "_button_12472_1",
-	label: "_label_12472_14"
+	button: "_button_1c13y_1",
+	label: "_label_1c13y_27"
 };
 //#endregion
 //#region src/components/LinkButton.tsx
@@ -149392,49 +149390,49 @@ var metricsKey = (metrics) => {
 	return metrics.map((m) => `${m.group ?? ""}::${m.name}`).join("|");
 };
 var CollapsedTitleBar_module_default = {
-	container: "_container_1jo7v_1",
-	left: "_left_1jo7v_11",
-	task: "_task_1jo7v_19",
-	model: "_model_1jo7v_24",
-	right: "_right_1jo7v_30",
-	inlineMetrics: "_inlineMetrics_1jo7v_38",
-	inlineMetric: "_inlineMetric_1jo7v_38",
-	inlineMetricLabel: "_inlineMetricLabel_1jo7v_50",
-	inlineMetricValue: "_inlineMetricValue_1jo7v_54",
-	statusBadge: "_statusBadge_1jo7v_58",
-	statusIcon: "_statusIcon_1jo7v_64",
-	statusCount: "_statusCount_1jo7v_68",
-	scoringDetailModal: "_scoringDetailModal_1jo7v_74"
+	container: "_container_am5dr_1",
+	left: "_left_am5dr_21",
+	task: "_task_am5dr_37",
+	model: "_model_am5dr_47",
+	right: "_right_am5dr_59",
+	inlineMetrics: "_inlineMetrics_am5dr_75",
+	inlineMetric: "_inlineMetric_am5dr_75",
+	inlineMetricLabel: "_inlineMetricLabel_am5dr_99",
+	inlineMetricValue: "_inlineMetricValue_am5dr_107",
+	statusBadge: "_statusBadge_am5dr_115",
+	statusIcon: "_statusIcon_am5dr_127",
+	statusCount: "_statusCount_am5dr_135",
+	scoringDetailModal: "_scoringDetailModal_am5dr_147"
 };
 var ResultsPanel_module_default = {
-	simpleMetricsRows: "_simpleMetricsRows_bth2f_1",
-	verticalMetricReducer: "_verticalMetricReducer_bth2f_12",
-	verticalMetricName: "_verticalMetricName_bth2f_19",
-	verticalMetricValue: "_verticalMetricValue_bth2f_27",
-	moreButton: "_moreButton_bth2f_32",
-	metricsSummary: "_metricsSummary_bth2f_38",
-	scoringDetailModal: "_scoringDetailModal_bth2f_49"
+	simpleMetricsRows: "_simpleMetricsRows_j8fps_1",
+	verticalMetricReducer: "_verticalMetricReducer_j8fps_23",
+	verticalMetricName: "_verticalMetricName_j8fps_37",
+	verticalMetricValue: "_verticalMetricValue_j8fps_53",
+	moreButton: "_moreButton_j8fps_63",
+	metricsSummary: "_metricsSummary_j8fps_75",
+	scoringDetailModal: "_scoringDetailModal_j8fps_97"
 };
 var ScoreGrid_module_default = {
-	gridContainer: "_gridContainer_1o53x_4",
-	cardContainer: "_cardContainer_1o53x_12",
-	groupGrid: "_groupGrid_1o53x_17",
-	table: "_table_1o53x_23",
-	groupRow: "_groupRow_1o53x_65",
-	groupLabel: "_groupLabel_1o53x_70",
-	numericHeader: "_numericHeader_1o53x_79",
-	numericCell: "_numericCell_1o53x_80",
-	scorerCell: "_scorerCell_1o53x_85",
-	scorerHeader: "_scorerHeader_1o53x_93",
-	lastHeader: "_lastHeader_1o53x_98",
-	lastCell: "_lastCell_1o53x_99",
-	sortable: "_sortable_1o53x_103",
-	headerLabel: "_headerLabel_1o53x_108",
-	sortIcon: "_sortIcon_1o53x_115",
-	sortIconIdle: "_sortIconIdle_1o53x_119",
-	compact: "_compact_1o53x_126"
+	gridContainer: "_gridContainer_1y7sn_7",
+	cardContainer: "_cardContainer_1y7sn_23",
+	groupGrid: "_groupGrid_1y7sn_33",
+	table: "_table_1y7sn_45",
+	groupRow: "_groupRow_1y7sn_129",
+	groupLabel: "_groupLabel_1y7sn_139",
+	numericHeader: "_numericHeader_1y7sn_157",
+	numericCell: "_numericCell_1y7sn_159",
+	scorerCell: "_scorerCell_1y7sn_169",
+	scorerHeader: "_scorerHeader_1y7sn_185",
+	lastHeader: "_lastHeader_1y7sn_195",
+	lastCell: "_lastCell_1y7sn_197",
+	sortable: "_sortable_1y7sn_205",
+	headerLabel: "_headerLabel_1y7sn_215",
+	sortIcon: "_sortIcon_1y7sn_229",
+	sortIconIdle: "_sortIconIdle_1y7sn_237",
+	compact: "_compact_1y7sn_251"
 };
-var UnscoredSamplesView_module_default = { unscoredSamples: "_unscoredSamples_1h85z_1" };
+var UnscoredSamplesView_module_default = { unscoredSamples: "_unscoredSamples_17qop_1" };
 //#endregion
 //#region src/app/log-view/title-view/UnscoredSamplesView.tsx
 var UnscoredSamples = (t0) => {
@@ -150615,7 +150613,7 @@ function _temp3$10(item_0) {
 function _temp4$9(s) {
 	return !!s.reducer;
 }
-var DownloadLogButton_module_default = { downloadLogButton: "_downloadLogButton_fi3zx_1" };
+var DownloadLogButton_module_default = { downloadLogButton: "_downloadLogButton_r1l1b_1" };
 //#endregion
 //#region src/components/DownloadLogButton.tsx
 var DownloadLogButton = (t0) => {
@@ -150717,8 +150715,8 @@ var DownloadLogButton = (t0) => {
 	return t11;
 };
 var ModelRolesView_module_default = {
-	container: "_container_q17yq_1",
-	grid: "_grid_q17yq_10"
+	container: "_container_1y4qn_1",
+	grid: "_grid_1y4qn_19"
 };
 //#endregion
 //#region src/app/log-view/title-view/ModelRolesView.tsx
@@ -150773,22 +150771,22 @@ var ModelRolesView_module_default = {
 	return t4;
 };
 var PrimaryBar_module_default = {
-	container: "_container_16j9y_1",
-	wrapper: "_wrapper_16j9y_15",
-	body: "_body_16j9y_21",
-	bodyContainer: "_bodyContainer_16j9y_33",
-	tagRowHeader: "_tagRowHeader_16j9y_54",
-	taskTitle: "_taskTitle_16j9y_59",
-	taskModel: "_taskModel_16j9y_66",
-	taskStatus: "_taskStatus_16j9y_70",
-	secondaryContainer: "_secondaryContainer_16j9y_77",
-	buttonGroup: "_buttonGroup_16j9y_86"
+	container: "_container_1myd3_1",
+	wrapper: "_wrapper_1myd3_29",
+	body: "_body_1myd3_41",
+	bodyContainer: "_bodyContainer_1myd3_65",
+	tagRowHeader: "_tagRowHeader_1myd3_107",
+	taskTitle: "_taskTitle_1myd3_117",
+	taskModel: "_taskModel_1myd3_131",
+	taskStatus: "_taskStatus_1myd3_139",
+	secondaryContainer: "_secondaryContainer_1myd3_153",
+	buttonGroup: "_buttonGroup_1myd3_171"
 };
 var RunningStatusPanel_module_default = {
-	statusContainer: "_statusContainer_1nntt_1",
-	status: "_status_1nntt_1",
-	statusText: "_statusText_1nntt_11",
-	icon: "_icon_1nntt_15"
+	statusContainer: "_statusContainer_ysdik_1",
+	status: "_status_ysdik_1",
+	statusText: "_statusText_ysdik_21",
+	icon: "_icon_ysdik_29"
 };
 //#endregion
 //#region src/app/log-view/title-view/RunningStatusPanel.tsx
@@ -150836,8 +150834,8 @@ var RunningStatusPanel = (t0) => {
 	return t5;
 };
 var StatusPanel_module_default = {
-	statusPanel: "_statusPanel_1o5l7_1",
-	statusIcon: "_statusIcon_1o5l7_11"
+	statusPanel: "_statusPanel_1fwmj_1",
+	statusIcon: "_statusIcon_1fwmj_21"
 };
 //#endregion
 //#region src/app/log-view/title-view/StatusPanel.tsx
@@ -151236,21 +151234,21 @@ function _temp3$9(state_1) {
 	return state_1.logs.selectedLogFile;
 }
 var SecondaryBar_module_default = {
-	staticCol: "_staticCol_pjkwm_1",
-	justifyLeft: "_justifyLeft_pjkwm_5",
-	justifyCenter: "_justifyCenter_pjkwm_9",
-	justifyRight: "_justifyRight_pjkwm_13",
-	valueGrid: "_valueGrid_pjkwm_17",
-	container: "_container_pjkwm_25",
-	invalidationStatus: "_invalidationStatus_pjkwm_30",
-	paramsWithChanges: "_paramsWithChanges_pjkwm_35"
+	staticCol: "_staticCol_s95t3_1",
+	justifyLeft: "_justifyLeft_s95t3_9",
+	justifyCenter: "_justifyCenter_s95t3_17",
+	justifyRight: "_justifyRight_s95t3_25",
+	valueGrid: "_valueGrid_s95t3_33",
+	container: "_container_s95t3_49",
+	invalidationStatus: "_invalidationStatus_s95t3_59",
+	paramsWithChanges: "_paramsWithChanges_s95t3_69"
 };
 //#endregion
 //#region src/app/log-view/title-view/SecondaryBar.tsx
 /**
 * Renders the SecondaryBar
 */ var SecondaryBar = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(70);
+	const $ = (0, import_compiler_runtime.c)(69);
 	const { evalSpec, evalPlan, evalResults, evalStats, status, sampleCount } = t0;
 	const evalDescriptor = useEvalDescriptor();
 	const sampleInvalidation = useSelectedSampleInvalidation();
@@ -151408,20 +151406,19 @@ var SecondaryBar_module_default = {
 		}
 		if (evalStats) {
 			let t13;
-			if ($[52] !== evalStats.completed_at || $[53] !== evalStats.started_at) {
-				t13 = formatDuration(new Date(evalStats.started_at), new Date(evalStats.completed_at));
-				$[52] = evalStats.completed_at;
-				$[53] = evalStats.started_at;
-				$[54] = t13;
-			} else t13 = $[54];
-			const totalDuration = t13;
+			if ($[52] !== evalStats) {
+				t13 = formatEvalTiming(evalStats);
+				$[52] = evalStats;
+				$[53] = t13;
+			} else t13 = $[53];
+			const totalDuration = t13.duration;
 			let t14;
-			if ($[55] === Symbol.for("react.memo_cache_sentinel")) {
+			if ($[54] === Symbol.for("react.memo_cache_sentinel")) {
 				t14 = clsx(SecondaryBar_module_default.justifyRight, "text-size-small");
-				$[55] = t14;
-			} else t14 = $[55];
+				$[54] = t14;
+			} else t14 = $[54];
 			let t15;
-			if ($[56] !== totalDuration) {
+			if ($[55] !== totalDuration) {
 				t15 = {
 					size: "minmax(12%, auto)",
 					value: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LabeledValue, {
@@ -151430,21 +151427,21 @@ var SecondaryBar_module_default = {
 						children: totalDuration
 					}, "sb-duration")
 				};
-				$[56] = totalDuration;
-				$[57] = t15;
-			} else t15 = $[57];
+				$[55] = totalDuration;
+				$[56] = t15;
+			} else t15 = $[56];
 			values.push(t15);
 		}
 		if (sampleInvalidation) {
 			let t13;
-			if ($[58] !== sampleInvalidation) {
+			if ($[57] !== sampleInvalidation) {
 				t13 = {
 					size: "minmax(12%, auto)",
 					value: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InvalidationStatus, { invalidation: sampleInvalidation }, "sb-invalidation")
 				};
-				$[58] = sampleInvalidation;
-				$[59] = t13;
-			} else t13 = $[59];
+				$[57] = sampleInvalidation;
+				$[58] = t13;
+			} else t13 = $[58];
 			values.push(t13);
 		}
 		$[16] = configChanges;
@@ -151462,31 +151459,31 @@ var SecondaryBar_module_default = {
 		$[28] = values;
 	} else values = $[28];
 	let t7;
-	if ($[60] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[59] === Symbol.for("react.memo_cache_sentinel")) {
 		t7 = clsx(SecondaryBar_module_default.container, "text-size-small");
-		$[60] = t7;
-	} else t7 = $[60];
+		$[59] = t7;
+	} else t7 = $[59];
 	let t8;
-	if ($[61] !== values) {
+	if ($[60] !== values) {
 		t8 = values.map(_temp$11);
-		$[61] = values;
-		$[62] = t8;
-	} else t8 = $[62];
+		$[60] = values;
+		$[61] = t8;
+	} else t8 = $[61];
 	const t9 = `${t8.join(" ")}`;
 	let t10;
-	if ($[63] !== t9) {
+	if ($[62] !== t9) {
 		t10 = { gridTemplateColumns: t9 };
-		$[63] = t9;
-		$[64] = t10;
-	} else t10 = $[64];
+		$[62] = t9;
+		$[63] = t10;
+	} else t10 = $[63];
 	let t11;
-	if ($[65] !== values) {
+	if ($[64] !== values) {
 		t11 = values.map(_temp2$9);
-		$[65] = values;
-		$[66] = t11;
-	} else t11 = $[66];
+		$[64] = values;
+		$[65] = t11;
+	} else t11 = $[65];
 	let t12;
-	if ($[67] !== t10 || $[68] !== t11) {
+	if ($[66] !== t10 || $[67] !== t11) {
 		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: "secondary-nav-bar",
 			className: t7,
@@ -151498,10 +151495,10 @@ var SecondaryBar_module_default = {
 				children: t11
 			})
 		});
-		$[67] = t10;
-		$[68] = t11;
-		$[69] = t12;
-	} else t12 = $[69];
+		$[66] = t10;
+		$[67] = t11;
+		$[68] = t12;
+	} else t12 = $[68];
 	return t12;
 };
 /**
@@ -151663,11 +151660,11 @@ function _temp4$8(timestamp) {
 	}
 }
 var TitleView_module_default = {
-	navbarWrapper: "_navbarWrapper_ujt11_1",
-	expandedSlot: "_expandedSlot_ujt11_18",
-	collapsedSlot: "_collapsedSlot_ujt11_19",
-	collapsed: "_collapsed_ujt11_19",
-	expandedInner: "_expandedInner_ujt11_48"
+	navbarWrapper: "_navbarWrapper_p0i6o_1",
+	expandedSlot: "_expandedSlot_p0i6o_35",
+	collapsedSlot: "_collapsedSlot_p0i6o_37",
+	collapsed: "_collapsed_p0i6o_37",
+	expandedInner: "_expandedInner_p0i6o_95"
 };
 //#endregion
 //#region src/app/log-view/title-view/TitleView.tsx
@@ -152215,10 +152212,10 @@ function _temp5$3() {
 	unloadLog();
 }
 var SampleEventView_module_default = {
-	root: "_root_1hhbn_1",
-	loading: "_loading_1hhbn_7",
-	ellipsis: "_ellipsis_1hhbn_14",
-	"loading-ellipsis": "_loading-ellipsis_1hhbn_1"
+	root: "_root_kutiu_1",
+	loading: "_loading_kutiu_13",
+	ellipsis: "_ellipsis_kutiu_27",
+	"loading-ellipsis": "_loading-ellipsis_kutiu_1"
 };
 //#endregion
 //#region src/app/samples/event/SampleEventView.tsx
@@ -152717,9 +152714,9 @@ function _temp6$2(state_4) {
 	return t3;
 };
 var FlowPanel_module_default = {
-	container: "_container_ovp9s_1",
-	panel: "_panel_ovp9s_7",
-	code: "_code_ovp9s_12"
+	container: "_container_v676q_1",
+	panel: "_panel_v676q_13",
+	code: "_code_v676q_23"
 };
 //#endregion
 //#region src/app/flow/FlowPanel.tsx
@@ -152813,10 +152810,10 @@ var FlowPanelContent = () => {
 	return t9;
 };
 var PrintHeading_module_default = {
-	heading: "_heading_1trs5_1",
-	headingTask: "_headingTask_1trs5_10",
-	headingModel: "_headingModel_1trs5_14",
-	headingTime: "_headingTime_1trs5_18"
+	heading: "_heading_balt9_1",
+	headingTask: "_headingTask_balt9_19",
+	headingModel: "_headingModel_balt9_27",
+	headingTime: "_headingTime_balt9_35"
 };
 //#endregion
 //#region src/app/samples/print/PrintHeading.tsx
@@ -152877,10 +152874,10 @@ var PrintHeading = (t0) => {
 	return t5;
 };
 var SamplePrintView_module_default = {
-	container: "_container_15zex_1",
-	loading: "_loading_15zex_5",
-	header: "_header_15zex_14",
-	sampleInfo: "_sampleInfo_15zex_18"
+	container: "_container_1rsez_1",
+	loading: "_loading_1rsez_9",
+	header: "_header_1rsez_27",
+	sampleInfo: "_sampleInfo_1rsez_35"
 };
 //#endregion
 //#region src/app/samples/print/SamplePrintView.tsx
@@ -153659,8 +153656,8 @@ function _temp$3(state_3) {
 	return state_3.logsActions.setSamplesColumnVisibility;
 }
 var SamplesPanel_module_default = {
-	panel: "_panel_18nhs_1",
-	list: "_list_18nhs_8"
+	panel: "_panel_1izny_1",
+	list: "_list_1izny_15"
 };
 //#endregion
 //#region src/app/samples-panel/SamplesPanel.tsx

@@ -303,6 +303,48 @@ async def test_finished_log_row_has_every_live_key_and_counts(
     assert row["paused_models"] == []
 
 
+@pytest.mark.parametrize("status", ["success", "error", "cancelled"])
+@pytest.mark.parametrize("completed", [True, False])
+async def test_terminal_log_throughput_requires_completion_time(
+    tmp_path: Path,
+    finished_log: EvalLog,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+    completed: bool,
+) -> None:
+    source = finished_log.model_copy(deep=True)
+    stats = source.stats
+    stats.started_at = "2026-01-01T00:00:00+00:00"
+    stats.completed_at = "2026-01-01T00:05:00+00:00"
+    for sample in source.samples or []:
+        sample.started_at = stats.started_at
+    if not completed:
+        stats.completed_at = ""
+    await _attempt(
+        source,
+        tmp_path,
+        "2026-01-01T00-00-00+00-00",
+        status=status,
+        stats=stats,
+    )
+    monkeypatch.setattr(
+        "inspect_ai._control.log_dir.snapshot.time.time", lambda: 2_000_000_000.0
+    )
+    _, [first] = await _index(tmp_path)
+    monkeypatch.setattr(
+        "inspect_ai._control.log_dir.snapshot.time.time", lambda: 2_100_000_000.0
+    )
+    _, [later] = await _index(tmp_path)
+
+    assert first["total_tokens"] > 0
+    assert first["tokens_per_second"] == later["tokens_per_second"]
+    if completed:
+        assert first["tokens_per_second"] is not None
+    else:
+        assert first["completed_at"] is None
+        assert first["tokens_per_second"] is None
+
+
 async def test_retries_fold_into_one_row_with_the_newest_current(
     tmp_path: Path, finished_log: EvalLog
 ) -> None:

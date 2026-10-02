@@ -222,9 +222,12 @@ def task_stats(stats: EvalStats) -> RenderableType:
     table.add_column()
 
     # eval time
-    started = datetime_from_iso_format_safe(stats.started_at)
-    completed = datetime_from_iso_format_safe(stats.completed_at)
-    elapsed = completed - started
+    if stats.started_at and stats.completed_at:
+        started = datetime_from_iso_format_safe(stats.started_at)
+        completed = datetime_from_iso_format_safe(stats.completed_at)
+        elapsed = str(completed - started)
+    else:
+        elapsed = "unavailable"
     table.add_row(Text("total time:", style="bold"), f"  {elapsed}", style=theme.light)
 
     # token usage

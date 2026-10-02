@@ -11,6 +11,7 @@ from pydantic_core import to_jsonable_python
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai.log import read_eval_log_async
+from inspect_ai.log._file import to_overview
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -129,7 +130,10 @@ async def test_write_recovered_eval_log_stats() -> None:
 
             assert log.stats is not None
             assert log.stats.started_at != ""
-            assert log.stats.completed_at != ""
+            assert log.stats.completed_at == ""
+            header = await read_eval_log_async(output, header_only=True)
+            assert header.stats.completed_at == ""
+            assert to_overview(header).completed_at == ""
             assert "mockllm/model" in log.stats.model_usage
             usage = log.stats.model_usage["mockllm/model"]
             assert usage.input_tokens == 20

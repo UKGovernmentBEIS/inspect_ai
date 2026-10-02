@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from logging import getLogger
 from typing import Iterator
 
@@ -410,7 +409,6 @@ class _StatsAccumulator:
     def stats(self) -> EvalStats:
         return EvalStats(
             started_at=self._started_at or "",
-            completed_at=datetime.now(timezone.utc).isoformat(),
             model_usage=self._model_usage,
             role_usage=self._role_usage,
         )

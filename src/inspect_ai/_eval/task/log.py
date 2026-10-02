@@ -1223,12 +1223,19 @@ def plan_to_eval_plan(plan: Plan, config: GenerateConfig) -> EvalPlan:
     return eval_plan
 
 
-def collect_eval_data(stats: EvalStats) -> None:
+def collect_eval_data(stats: EvalStats, *, completed: bool = False) -> None:
+    """Collect timing and usage statistics for a task exit.
+
+    Args:
+        stats: Statistics to update.
+        completed: Whether the task reached its normal end, even if sample
+            failures make the final log status an error.
+    """
     from inspect_ai.log._log import ConnectionLimitChange
     from inspect_ai.util._concurrency import adaptive_controllers
 
     # collect stats
-    stats.completed_at = iso_now()
+    stats.completed_at = iso_now() if completed else ""
     stats.model_usage = model_usage()
     stats.role_usage = role_usage()
 
