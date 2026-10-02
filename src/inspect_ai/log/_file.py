@@ -28,6 +28,7 @@ from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     FileInfo,
+    FileSystem,
     default_fs_options,
     file,
     filesystem,
@@ -105,6 +106,14 @@ class LogOverview(BaseModel):
     primary_metric: EvalMetric | None = Field(default=None)
 
 
+def _list_log_files(fs: FileSystem, log_dir: str, recursive: bool) -> list[FileInfo]:
+    options: dict[str, Any] = {"on_error": "raise"} if recursive else {}
+    try:
+        return fs.ls(log_dir, recursive=recursive, **options)
+    except FileNotFoundError:
+        return []
+
+
 def list_eval_logs(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
     formats: list[Literal["eval", "json"]] | None = None,
@@ -144,12 +153,9 @@ def list_eval_logs(
     # get the eval logs
     logger.debug(f"Listing eval logs for {log_dir}")
     fs = filesystem(log_dir, fs_options)
-    if fs.exists(log_dir):
-        eval_logs = log_files_from_ls(
-            fs.ls(log_dir, recursive=recursive), formats, descending
-        )
-    else:
-        eval_logs = []
+    eval_logs = log_files_from_ls(
+        _list_log_files(fs, log_dir, recursive), formats, descending
+    )
     logger.debug(f"Listing eval logs for {log_dir} completed")
 
     # apply filter if requested
@@ -243,8 +249,7 @@ async def _list_eval_logs_async(
                     )
                 ]
         except ClientError as ex:
-            # a missing bucket is an empty listing (as with the existence
-            # precheck the other branches perform), not an error
+            # A missing bucket is an empty listing, as in the other branches.
             if ex.response.get("Error", {}).get("Code") in (
                 "NoSuchBucket",
                 "404",
@@ -262,31 +267,17 @@ async def _list_eval_logs_async(
         # directly rather than via to_thread: remote-fsspec sync calls must
         # not run in our threadpool (see the fsspec warning in AGENTS.md).
         try:
-            exists = fs.exists(log_dir)
+            logs = _list_log_files(fs, log_dir, recursive)
         except Exception as ex:  # noqa: BLE001
             if is_azure_listing_auth_error(log_dir, ex):
                 # An auth failure is not an empty directory: surface it with
                 # remediation guidance instead of silently reporting no logs.
                 raise AzureAuthError(log_dir, ex) from ex
             raise
-        if not exists:
-            return []
-        logs = fs.ls(log_dir, recursive=recursive)
         return await log_files_from_ls_async(logs, formats, descending)
     elif fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
             try:
-                exists = await async_fs._exists(log_dir)
-            except Exception as ex:  # noqa: BLE001
-                if is_azure_listing_auth_error(log_dir, ex):
-                    # An auth failure is not an empty directory: surface it with
-                    # remediation guidance instead of silently reporting no logs.
-                    raise AzureAuthError(log_dir, ex) from ex
-                # TODO: Add S3 login error catching, as well as any other remote file system of interest
-                # Re-raise non-auth related issues
-                raise
-
-            if exists:
                 # prevent caching of listings
                 async_fs.invalidate_cache(log_dir)
                 # list logs
@@ -300,20 +291,19 @@ async def _list_eval_logs_async(
                         list[dict[str, Any]],
                         await async_fs._ls(log_dir, detail=True),
                     )
-                logs = [fs._file_info(file) for file in files]
-                # resolve to eval logs (async fan-out so header reads on
-                # non-conforming filenames don't block the event loop)
-                return await log_files_from_ls_async(logs, formats, descending)
-            else:
+            except FileNotFoundError:
                 return []
+            except Exception as ex:  # noqa: BLE001
+                if is_azure_listing_auth_error(log_dir, ex):
+                    raise AzureAuthError(log_dir, ex) from ex
+                raise
+
+            logs = [fs._file_info(file) for file in files]
+            return await log_files_from_ls_async(logs, formats, descending)
     else:
-        # sync filesystem (e.g. local) — run the existence check and the
-        # (potentially large recursive) listing in a worker thread so they
-        # don't block the event loop
-        if not await anyio.to_thread.run_sync(fs.exists, log_dir):
-            return []
+        # Local recursive listings can be large; keep them off the event loop.
         logs = await anyio.to_thread.run_sync(
-            partial(fs.ls, log_dir, recursive=recursive)
+            partial(_list_log_files, fs, log_dir, recursive)
         )
         return await log_files_from_ls_async(logs, formats, descending)
 
@@ -341,7 +331,8 @@ async def async_filesystem(
         try:
             yield s3
         finally:
-            await session.close()
+            with anyio.CancelScope(shield=True):
+                await session.close()
     else:
         options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
         yield fsspec.filesystem(protocol, **options)
@@ -366,7 +357,7 @@ def _walk_supports_detail(fs: AsyncFileSystem) -> bool:
 
 async def _walk_with_detail(fs: AsyncFileSystem, log_dir: str) -> list[dict[str, Any]]:
     files: list[dict[str, Any]] = []
-    async for _, _, filenames in fs._walk(log_dir, detail=True):
+    async for _, _, filenames in fs._walk(log_dir, detail=True, on_error="raise"):
         files.extend(filenames.values())
     return files
 
@@ -382,9 +373,8 @@ async def _walk_without_detail(
         try:
             entries = await fs._ls(current, detail=True)
         except OSError:
-            # match fsspec walk's on_error="omit" (used by _walk_with_detail
-            # and the sync fs.ls path): skip unlistable directories, but let
-            # non-OSError failures (e.g. auth errors) propagate
+            if current == log_dir:
+                raise
             continue
         for entry in entries:
             name = entry.get("name") or entry.get("path")
@@ -517,7 +507,7 @@ def write_log_dir_manifest(
     """
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = fs.info(log_dir).name
+    log_dir = fs.path_as_uri(fs.fs._strip_protocol(log_dir))
 
     # list eval logs
     logs = list_eval_logs(log_dir)
@@ -1331,7 +1321,7 @@ def write_log_listing(
     """
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = fs.info(log_dir).name
+    log_dir = fs.path_as_uri(fs.fs._strip_protocol(log_dir))
 
     # list eval logs
     if logs is None:

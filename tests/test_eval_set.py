@@ -35,6 +35,7 @@ from inspect_ai._eval.evalset import (
     eval_set,
     latest_completed_task_eval_logs,
     list_all_eval_logs,
+    read_eval_set_info,
     task_identifier,
     validate_eval_set_prerequisites,
 )
@@ -42,7 +43,7 @@ from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import basename, local_path, size_in_mb
+from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.dataset import Sample
 from inspect_ai.event import SampleInitEvent
@@ -52,6 +53,7 @@ from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log,
     write_eval_log,
+    write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
@@ -289,6 +291,41 @@ def test_eval_set_s3(mock_s3) -> None:
     )
     assert success
     assert logs[0].status == "success"
+
+
+@pytest.mark.slow
+@skip_if_trio
+@pytest.mark.parametrize("trailing_slash", [False, True])
+def test_eval_set_s3_prefix_scoped(prefix_scoped_s3: str, trailing_slash: bool) -> None:
+    location = prefix_scoped_s3 + ("/" if trailing_slash else "")
+    tasks = failing_task(rate=0, samples=1)
+    success, logs = eval_set(
+        tasks=tasks,
+        log_dir=location,
+        retry_attempts=1,
+        retry_wait=0.1,
+        model="mockllm/model",
+    )
+    assert success
+    assert logs[0].status == "success"
+
+    success_again, reused = eval_set(
+        tasks=tasks,
+        log_dir=location,
+        retry_attempts=1,
+        retry_wait=0.1,
+        model="mockllm/model",
+    )
+    assert success_again
+    assert reused[0].eval.task_id == logs[0].eval.task_id
+
+    assert read_eval_set_info(prefix_scoped_s3) is not None
+    assert read_eval_set_info(location) is not None
+    write_log_listing(location)
+    fs = filesystem(prefix_scoped_s3)
+    assert fs.exists(f"{prefix_scoped_s3}/eval-set.json")
+    assert fs.exists(f"{prefix_scoped_s3}/logs.json")
+    assert fs.exists(f"{prefix_scoped_s3}/listing.json")
 
 
 def test_eval_set_retry_in_same_second_does_not_clobber_failed_log() -> None:
