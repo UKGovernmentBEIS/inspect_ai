@@ -396,6 +396,8 @@ def render_sentinel_event(event: SentinelEvent) -> EventDisplay:
         summary = f"{summary} ({event.status})"
     if event.suspicion is not None:
         summary = f"{summary}, suspicion {event.suspicion}"
+    if event.error:
+        summary = f"{summary}: {event.error}"
     if event.explanation:
         summary = f"{summary} ({event.explanation})"
     if event.message:

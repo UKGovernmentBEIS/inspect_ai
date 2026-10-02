@@ -10,6 +10,7 @@ from inspect_sentinel import (
     BeforeGenerate,
     BeforeToolCall,
     Decision,
+    Failed,
     HumanAnswer,
     Observation,
     Report,
@@ -72,7 +73,7 @@ from ._context import (
 logger = getLogger(__name__)
 
 _Kind = Literal["observation", "decision"]
-_Status = Literal["reported", "cancelled", "bypassed", "superseded"]
+_Status = Literal["reported", "cancelled", "bypassed", "superseded", "error"]
 
 
 async def sentinel_before_tool_call(
@@ -540,6 +541,16 @@ class _Recorder:
                 context, step, self._step_id, "reported", reported.function, report
             )
 
+    def failed(self, context: RunnerContext, step: Step, failed: Failed) -> None:
+        _emit(
+            context,
+            step,
+            "observation",
+            "error",
+            function=failed.function,
+            error=f"{type(failed.error).__name__}: {failed.error}",
+        )
+
     def cancelled(self, context: RunnerContext, step: Step, name: str) -> None:
         _emit(context, step, self._step_id, _factory_kind(context.factory), "cancelled")
 
@@ -608,6 +619,7 @@ def _emit(
     references: Sequence[Reference] = (),
     metadata: dict[str, Any] | None = None,
     modified: ToolCall | None = None,
+    error: str | None = None,
 ) -> None:
     transcript()._event(
         SentinelEvent(
@@ -627,5 +639,6 @@ def _emit(
             references=list(references),
             metadata=metadata,
             modified=modified,
+            error=error,
         )
     )
