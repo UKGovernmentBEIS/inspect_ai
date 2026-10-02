@@ -1,5 +1,6 @@
 import inspect
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -7,13 +8,14 @@ from typing import (
     get_type_hints,
 )
 
-from docstring_parser import Docstring, parse
 from pydantic import BaseModel, Field
 
 from inspect_ai.util._json import JSONType, json_schema
 
-from ._tool_description import tool_description
 from ._tool_params import ToolParam, ToolParams
+
+if TYPE_CHECKING:
+    from docstring_parser import Docstring
 
 # Cache for parse_tool_info results, keyed on function id.
 # We store (func, ToolInfo) tuples so the strong reference to func prevents
@@ -86,6 +88,8 @@ def _described_tool_info(func: Callable[..., Any]) -> ToolInfo | None:
     # tool may already have registry attributes w/ tool info — these can be
     # updated at any time via set_tool_description / tool_with, so always
     # check them fresh (no caching for this path).
+    from ._tool_description import tool_description
+
     description = tool_description(func)
     if (
         description.name
@@ -120,6 +124,8 @@ def _parse_tool_info_shared(func: Callable[..., Any]) -> ToolInfo:
     else:
         type_hints = get_type_hints(type(func).__call__)
         func_name = type(func).__name__
+
+    from docstring_parser import parse
 
     signature = inspect.signature(func)
     docstring = inspect.getdoc(func)
@@ -189,6 +195,8 @@ def _parse_tool_info_shared(func: Callable[..., Any]) -> ToolInfo:
 def parse_docstring(docstring: str | None, param_name: str) -> Dict[str, str]:
     if not docstring:
         return {}
+
+    from docstring_parser import parse
 
     parsed_docstring: Docstring = parse(docstring)
 

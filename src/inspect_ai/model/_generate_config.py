@@ -12,8 +12,8 @@ from pydantic import (
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DESERIALIZING
-from inspect_ai.model._cache import CachePolicy
-from inspect_ai.util._concurrency import AdaptiveConcurrency
+from inspect_ai.model._cache_policy import CachePolicy
+from inspect_ai.util._adaptive_concurrency import AdaptiveConcurrency
 from inspect_ai.util._json import JSONSchema
 
 
