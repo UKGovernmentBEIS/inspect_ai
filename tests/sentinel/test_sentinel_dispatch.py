@@ -35,7 +35,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.scorer import Reference, Score, Scorer, Target, scorer
-from inspect_ai.solver import TaskState, generate, use_tools
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, ToolCall, ToolCallView, tool
 from inspect_ai.util import StoreModel
 from inspect_ai.util._limit import LimitExceededError
@@ -1369,3 +1369,97 @@ def test_unsupported_actions_at_a_generate_stage_fail_the_sample(
     error = log.samples[0].error
     assert error is not None
     assert "only 'continue' and 'terminate' are supported" in error.message
+
+
+def test_a_monitor_on_the_agents_own_model_is_not_checked() -> None:
+    seen: GenerateSeen = []
+    # each monitor call takes the next output before the agent's call does
+    outputs = [
+        ModelOutput.from_content("mockllm/model", content="0"),
+        ModelOutput.for_tool_call(
+            "mockllm/model", tool_name="addition", tool_arguments={"x": 1, "y": 1}
+        ),
+        ModelOutput.from_content("mockllm/model", content="0"),
+        ModelOutput.from_content("mockllm/model", content="done"),
+    ]
+    agent = get_model("mockllm/model", custom_outputs=outputs, memoize=False)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition()), generate()],
+        sentinel=[d3_generates(seen, ask=True)],
+    )
+    log = eval(task, model=agent, max_connections=1)[0]
+    assert log.status == "success", log.error
+    assert len(seen) == 4
+    assert [type(step) for step in seen[::2]] == [BeforeGenerate, BeforeGenerate]
+
+
+@solver
+def d3_generates_twice() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        await model.generate(state.messages)
+        state.output = await model.generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_a_repeated_request_gets_its_own_step_id() -> None:
+    seen: GenerateSeen = []
+    task = Task(
+        dataset=[Sample(input="Say hi.")],
+        solver=d3_generates_twice(),
+        sentinel=[d3_generates(seen)],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success", log.error
+    [message_id] = {step.input[-1].id for step in seen}
+    inputs = [e.step_id for e in sentinel_events(log) if e.stage == "model_input"]
+    assert inputs == [message_id, f"{message_id}:2"]
+
+
+@solver
+def d3_generates_once() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.output = await get_model().generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_an_empty_output_is_checked_after_the_generate() -> None:
+    seen: GenerateSeen = []
+    agent = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput(model="mockllm/model", choices=[])],
+        memoize=False,
+    )
+    # the generate() solver reads output.message, so call the model directly
+    task = Task(
+        dataset=[Sample(input="Say hi.")],
+        solver=d3_generates_once(),
+        sentinel=[d3_generates(seen)],
+    )
+    log = eval(task, model=agent)[0]
+    assert log.status == "success", log.error
+    outputs = [e for e in sentinel_events(log) if e.stage == "model_output"]
+    assert [e.step_id for e in outputs] == [""]
+
+
+@monitor
+def d3_generate_raises() -> Monitor:
+    async def check(context: Context, step: BeforeGenerate) -> Observation | None:
+        raise ValueError("monitor broke")
+
+    return check
+
+
+def test_a_failing_generate_monitor_fails_the_sample_with_its_error() -> None:
+    log = run([d3_generate_raises()])
+    assert log.status == "error"
+    assert log.samples
+    error = log.samples[0].error
+    assert error is not None
+    assert "monitor broke" in error.message
+    assert "SentinelFailure" not in error.message

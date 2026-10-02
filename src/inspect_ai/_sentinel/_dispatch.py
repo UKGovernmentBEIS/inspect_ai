@@ -58,11 +58,7 @@ from inspect_ai.tool._tool_call import (
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util._limit import (
-    LimitExceededError,
-    suspend_token_limit,
-    suspend_turn_limit,
-)
+from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 from inspect_ai.util._span import current_agent_span_id, span
 from inspect_ai.util._store import store
 
@@ -85,6 +81,8 @@ async def sentinel_before_tool_call(
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
 ) -> Decision | None:
+    if not _watches(BeforeToolCall):
+        return None
     step = BeforeToolCall(
         conversation=_conversation(),
         message=message,
@@ -132,6 +130,8 @@ async def sentinel_after_tool_call(
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
 ) -> None:
+    if not _watches(AfterToolCall):
+        return
     step = AfterToolCall(
         conversation=_conversation(),
         message=message,
@@ -170,14 +170,15 @@ async def sentinel_before_generate(
     root = active_sentinel()
     if root is None or not (watched_stages(root) & {BeforeGenerate, AfterGenerate}):
         return None
+    # copies, so a monitor cannot change the request it was only shown
     step = BeforeGenerate(
         model=model,
         conversation=_conversation(),
-        input=input,
+        input=list(input),
         history=history,
-        tools=tools,
+        tools=list(tools),
         tool_choice=tool_choice,
-        config=config,
+        config=config.model_copy(),
     )
     await _run_generate(step)
     return step
@@ -204,18 +205,21 @@ async def sentinel_after_generate(before: BeforeGenerate, output: ModelOutput) -
 
 
 async def _run_generate(step: BeforeGenerate | AfterGenerate) -> None:
-    # a generate inside a tool's body (an as_tool() agent) must fail the
-    # sample, not become a tool error the model sees, so failures are wrapped
+    # wrapped so a failure inside a tool's body (an as_tool() agent) is not
+    # mapped to a tool error; the tool call and the solvers unwrap it
     try:
         decision = await _run(step)
-    except (LimitExceededError, TerminateSampleError):
-        raise
     except Exception as ex:
         raise SentinelFailure(ex) from ex
     if decision is not None and decision.action == "terminate":
         raise TerminateSampleError(
             decision.explanation or "Sentinel requested termination."
         )
+
+
+def _watches(stage: type[Step]) -> bool:
+    root = active_sentinel()
+    return root is not None and stage in watched_stages(root)
 
 
 async def _run(step: Step) -> Decision | None:
@@ -235,7 +239,7 @@ async def _run(step: Step) -> Decision | None:
         # recorded as the root's decision; with nobody above to take it, the call proceeds
         warn_once(
             logger,
-            "A sentinel escalated a tool call with nothing to escalate to, so it proceeded; "
+            "A sentinel escalated a step with nothing to escalate to, so it proceeded; "
             "add sequential([..., human()]) to send escalations to a person.",
         )
         return Decision.proceed()
@@ -254,7 +258,8 @@ def _stage(step: Step) -> SentinelStage:
 
 def _step_id(step: Step) -> str:
     if isinstance(step, AfterGenerate):
-        return step.output.message.id or ""
+        choices = step.output.choices
+        return (choices[0].message.id if choices else None) or ""
     elif isinstance(step, BeforeGenerate):
         # the same request generated again (a retried refusal) is a new step
         message_id = (step.input[-1].id if step.input else None) or ""
