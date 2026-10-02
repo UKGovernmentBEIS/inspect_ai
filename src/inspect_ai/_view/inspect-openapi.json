@@ -9901,6 +9901,17 @@
             "title": "Conversation",
             "type": "string"
           },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
           "event": {
             "const": "sentinel",
             "default": "sentinel",
@@ -10022,7 +10033,8 @@
               "reported",
               "cancelled",
               "bypassed",
-              "superseded"
+              "superseded",
+              "error"
             ],
             "title": "Status",
             "type": "string"

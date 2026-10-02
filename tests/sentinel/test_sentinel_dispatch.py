@@ -50,11 +50,13 @@ try:
         MonitorGroup,
         Observation,
         Protocol,
+        ProtocolGroup,
         Reported,
         concurrent,
         decide_final,
         monitor,
         protocol,
+        threshold,
     )
 except ImportError:
     pytest.skip("inspect_sentinel is not installed", allow_module_level=True)
@@ -594,12 +596,47 @@ def test_each_stage_runs_in_its_own_sentinel_span() -> None:
     assert {e.span_id for e in sentinel_events(log)} <= set(span_ids)
 
 
-def test_a_raising_monitor_fails_the_sample() -> None:
-    log = run([d3_raises()])
+def test_a_raising_monitor_under_observe_is_recorded_and_the_sample_continues(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        log = run([d3_raises(), d3_suspicion()])
+    assert log.status == "success", log.error
+    [message] = tool_messages(log)
+    assert message.text == "2"
+    failed, observed = sentinel_events(log)
+    assert (failed.path, failed.function, failed.kind, failed.status) == (
+        "d3_raises",
+        "boom",
+        "observation",
+        "error",
+    )
+    assert failed.error == "RuntimeError: monitor exploded"
+    assert failed.suspicion is None
+    assert observed.status == "reported"
+    assert any(
+        "Monitor 'd3_raises'" in r.getMessage() and "monitor exploded" in r.getMessage()
+        for r in caplog.records
+    )
+
+
+def test_a_raising_monitor_under_threshold_fails_the_sample() -> None:
+    log = run(threshold(d3_raises(), reject_at=0.5))
     assert log.status == "error"
     assert log.samples
-    assert log.samples[0].error is not None
-    assert "monitor exploded" in log.samples[0].error.message
+    error = log.samples[0].error
+    assert error is not None
+    assert "MonitorFailedError" in error.traceback
+    assert "'d3_raises' (function 'boom'): RuntimeError: monitor exploded" in (
+        error.message
+    )
+    assert tool_messages(log) == []
+    [failed] = sentinel_events(log)
+    assert (failed.path, failed.status, failed.error) == (
+        "d3_raises",
+        "error",
+        "RuntimeError: monitor exploded",
+    )
 
 
 def test_context_and_step_come_from_the_sample(
@@ -812,19 +849,19 @@ def test_conversation_is_the_enclosing_agent_span() -> None:
     assert step.conversation == agent_spans[-1]
 
 
-@monitor
-def d3_raising(error: Any, after: bool = False) -> MonitorGroup:
-    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+@protocol
+def d3_raising(error: Any, after: bool = False) -> ProtocolGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Decision | None:
         if not after:
             raise error
         return None
 
-    async def later(context: Context, step: AfterToolCall) -> Observation | None:
+    async def later(context: Context, step: AfterToolCall) -> Decision | None:
         if after:
             raise error
         return None
 
-    return MonitorGroup(before, later)
+    return ProtocolGroup(before, later)
 
 
 @pytest.mark.parametrize("after", [False, True])
@@ -907,9 +944,9 @@ def test_host_generate_model_is_always_a_model_name() -> None:
         [d3_asks_with(model="mockllm/model")],
         model_roles={"mockllm/model": _scoring_model("0.9")},
     )
-    assert log.status == "error"
-    assert log.error is not None
-    assert "could not convert string to float" in log.error.message
+    [event] = sentinel_events(log)
+    assert event.error is not None
+    assert "could not convert string to float" in event.error
 
 
 def test_host_generate_prefers_a_configured_role_to_the_model() -> None:
