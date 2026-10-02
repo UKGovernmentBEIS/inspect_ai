@@ -1,3 +1,7 @@
+## Unreleased
+
+- Fixed model calls and token counting in multiprocess Scout scans using the default model configuration.
+
 ## 0.3.275 (01 October 2026)
 
 - LiteLLM Proxy: Gemini models accept any `reasoning_effort`, mapped to the levels or thinking budgets the native Google provider uses.
@@ -5,7 +9,6 @@
 
 ## 0.3.274 (01 October 2026)
 
-- Fixed model calls and token counting in multi-process Scout scans when adaptive concurrency is enabled.
 - Sandbox tools: the root check now runs once at sample start, before solver/agent execution begins; an inconclusive check warns before falling back to the sandbox's default user, and a check that could not run, or a later root failure, is an error.
 - Local sandbox: `exec(user=...)` now rejects unsupported users instead of ignoring them; the current effective user's name or UID is accepted on POSIX.
 - Control Channel: `inspect ctl ... --log-dir` now shows running and completed-but-unflushed samples, with current counts and their events, for evals run with `--log-shared`.

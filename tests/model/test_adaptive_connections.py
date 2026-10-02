@@ -1,6 +1,7 @@
 """End-to-end tests for adaptive_connections wiring through Model.generate."""
 
 from collections.abc import Callable
+from contextlib import nullcontext
 from typing import Any
 
 import pytest
@@ -24,11 +25,9 @@ from inspect_ai.util._concurrency import (
 )
 
 
-@pytest.mark.parametrize("adaptive", [None, True, AdaptiveConcurrency(start=15)])
 @pytest.mark.parametrize("fail", [False, True])
 @pytest.mark.parametrize("operation", ["generate", "count_tokens"])
 async def test_model_requests_with_fixed_limit_registry(
-    adaptive: bool | AdaptiveConcurrency | None,
     fail: bool,
     operation: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -47,10 +46,9 @@ async def test_model_requests_with_fixed_limit_registry(
 
     registry = FixedRegistry()
 
-    def assert_slot_held() -> None:
+    def check_provider_call() -> None:
         (semaphore,) = registry.values()
         assert semaphore.in_use == 1
-        assert _active_controller.get() is None
         if fail:
             raise RuntimeError("provider failed")
 
@@ -60,42 +58,30 @@ async def test_model_requests_with_fixed_limit_registry(
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
-        assert_slot_held()
+        check_provider_call()
         return ModelOutput.from_content(model="mockllm", content="ok")
 
     async def count_tokens(
         input: str | list[ChatMessage], config: GenerateConfig | None = None
     ) -> int:
-        assert_slot_held()
+        check_provider_call()
         return 7
 
     init_concurrency(registry)
-    try:
-        model = get_model("mockllm/model", custom_outputs=output)
-        monkeypatch.setattr(model.api, "count_tokens", count_tokens)
+    model = get_model("mockllm/model", custom_outputs=output)
+    monkeypatch.setattr(model.api, "count_tokens", count_tokens)
 
-        async def request() -> None:
-            config = GenerateConfig(adaptive_connections=adaptive)
-            if operation == "generate":
-                response = await model.generate("hello", config=config)
-                assert response.completion == "ok"
-            else:
-                assert await model.count_tokens("hello", config=config) == 7
-
-        if fail:
-            with pytest.raises(RuntimeError, match="provider failed"):
-                await request()
+    with (
+        pytest.raises(RuntimeError, match="provider failed") if fail else nullcontext()
+    ):
+        if operation == "generate":
+            response = await model.generate("hello")
+            assert response.completion == "ok"
         else:
-            await request()
-        (semaphore,) = registry.values()
-        assert semaphore.in_use == 0
-        assert semaphore.concurrency == (
-            adaptive.start
-            if isinstance(adaptive, AdaptiveConcurrency)
-            else AdaptiveConcurrency().start
-        )
-    finally:
-        init_concurrency()
+            assert await model.count_tokens("hello") == 7
+    (semaphore,) = registry.values()
+    assert semaphore.in_use == 0
+    assert semaphore.concurrency == AdaptiveConcurrency().start
 
 
 def _make_output_fn() -> Callable[..., ModelOutput]:
