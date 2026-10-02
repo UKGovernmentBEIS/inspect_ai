@@ -3,7 +3,7 @@ import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Callable, Iterator, Mapping, Sequence, cast
+from typing import Any, Callable, Collection, Iterator, Mapping, Sequence, cast
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
@@ -484,9 +484,10 @@ def withhold_client_request_settings(
 ) -> None:
     """Remove the request fields the eval's configuration governs (in place).
 
-    Applied when the bridge does not forward client request settings
-    (`AgentBridge.forwards_client_request_settings`). `eval_values` maps each such
-    field of the client's API to the value the eval's configuration gives it. The
+    These fields change billing, provider-side storage or context truncation, so
+    they are the eval author's decision, not the bridged agent's. `eval_values`
+    maps each such field of the client's API to the value the eval's
+    configuration gives it. The
     fields are removed from `config.extra_body`, so the eval's `GenerateConfig` or
     the provider's model args govern them. A client value that differs from the
     eval's is logged once per field per bridge, since the client cannot otherwise
@@ -526,7 +527,7 @@ def warn_ignored_client_setting(
         return
     bridge._warned_request_settings.add(setting)
     logger.warning(
-        f"The sandbox agent bridge ignored the agent's {setting}={client_value!r}: "
+        f"The agent bridge ignored the agent's {setting}={client_value!r}: "
         f"the eval's configuration governs {setting} ({how_to_set})."
     )
 
@@ -552,21 +553,27 @@ def eval_tool_options(
     how_to_set: str,
     defaults: Mapping[str, Any] | None = None,
     narrowing: Mapping[str, ToolOptionNarrowing] | None = None,
+    client_settable: Collection[str] = (),
 ) -> dict[str, Any]:
     """The options to use for a provider tool the client declared.
 
-    The eval's options govern. A client option is applied only when a
-    `narrowing` for it yields a value, which it does only when the client asks
-    for less than the eval allows (fewer searches, no live web access). Every
-    other client option that differs from the eval's value, or from the
-    provider default in `defaults` when the eval sets none, is ignored and
-    warned about once per bridge (`warn_ignored_client_setting`).
+    The eval's options govern. A client option is applied only when the eval
+    leaves it unset and it is in `client_settable` (options that shape results
+    without widening what the tool may reach), or when a `narrowing` for it
+    yields a value, which it does only when the client asks for less than the
+    eval allows (fewer searches, no live web access). Every other client option
+    that differs from the eval's value, or from the provider default in
+    `defaults` when the eval sets none, is ignored and warned about once per
+    bridge (`warn_ignored_client_setting`).
     """
     options = dict(eval_options)
     ignored: dict[str, Any] = {}
     for key, value in client_options.items():
         current = options.get(key, (defaults or {}).get(key, None))
         if value == current:
+            continue
+        if key in client_settable and key not in eval_options:
+            options[key] = value
             continue
         narrow = (narrowing or {}).get(key, None)
         narrowed = narrow(current, value) if narrow is not None else None
@@ -833,14 +840,6 @@ def resolve_inspect_model(
         return active
 
     return get_model(model_name)
-
-
-def resolve_web_search_providers(
-    providers: WebSearchProviders | None,
-) -> WebSearchProviders:
-    if providers is None:
-        providers = internal_web_search_providers()
-    return cast(WebSearchProviders, _normalize_config(providers))
 
 
 def internal_web_search_providers() -> WebSearchProviders:

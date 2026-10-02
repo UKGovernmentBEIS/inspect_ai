@@ -19,8 +19,6 @@ from anthropic.types import (
     TextBlockParam,
     ToolReferenceBlockParam,
     Usage,
-    WebSearchTool20250305Param,
-    WebSearchTool20260209Param,
 )
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import (
@@ -165,8 +163,7 @@ async def inspect_anthropic_api_request_impl(
     config = generate_config_from_anthropic(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
-    if not bridge.forwards_client_request_settings:
-        withhold_client_request_settings(bridge, config, _eval_request_settings(model))
+    withhold_client_request_settings(bridge, config, _eval_request_settings(model))
     validate_client_config(config)
     config.extra_headers = headers
     # Hoist the request's `system` value into leading system messages, ONE PER
@@ -357,13 +354,15 @@ def tools_from_anthropic_tools(
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
     *,
-    bridge: AgentBridge | None = None,
+    bridge: AgentBridge,
 ) -> list[ToolInfo | Tool]:
     """Convert Anthropic tool declarations and MCP servers into inspect tools.
 
-    When `bridge` does not forward client request settings (the sandbox bridge),
-    the options a client sets on a web search tool are ignored, with a warning,
-    and the eval's `web_search` configuration is used as it stands.
+    The eval's `web_search` configuration governs the options of a declared web
+    search tool. The client may set a `user_location` the eval leaves unset (it
+    shapes results without widening what can be searched) and may lower
+    `max_uses`. Other differing options are ignored, with a warning once per
+    `bridge`.
     """
     tools: list[ToolInfo | Tool] = []
 
@@ -385,7 +384,7 @@ def tools_from_anthropic_tools(
         elif is_web_search_tool(anthropic_tool):
             if web_search_providers is None:
                 withheld_bridge_tool("web_search")
-            elif bridge is not None and not bridge.forwards_client_request_settings:
+            else:
                 anthropic_options = web_search_providers.get("anthropic", None)
                 options = eval_tool_options(
                     bridge,
@@ -394,6 +393,7 @@ def tools_from_anthropic_tools(
                     anthropic_options if isinstance(anthropic_options, dict) else {},
                     "set them with the bridge's web_search option",
                     narrowing={"max_uses": narrow_max_uses},
+                    client_settable=("user_location",),
                 )
                 providers = web_search_providers
                 if isinstance(anthropic_options, dict) and options != anthropic_options:
@@ -401,14 +401,6 @@ def tools_from_anthropic_tools(
                         WebSearchProviders, {**providers, "anthropic": options}
                     )
                 tools.append(web_search(providers))
-            else:
-                tools.append(
-                    web_search(
-                        resolve_web_search_providers(
-                            anthropic_tool, web_search_providers
-                        )
-                    )
-                )
         elif is_web_fetch_tool(anthropic_tool):
             # Inspect has no standalone fetch tool: on Anthropic, fetch rides
             # along with a granted web_search (the provider emits both), so a
@@ -476,28 +468,6 @@ def tools_from_anthropic_tools(
         )
 
     return tools
-
-
-def resolve_web_search_providers(
-    tool_param: WebSearchTool20250305Param | WebSearchTool20260209Param,
-    web_search: WebSearchProviders,
-) -> WebSearchProviders:
-    # pass through anthropic options if there is no special anthropic config
-    anthropic_options = web_search.get("anthropic", False)
-    if anthropic_options is True or (
-        isinstance(anthropic_options, dict) and len(anthropic_options) == 0
-    ):
-        # this came from the user in the external scaffold. we want
-        # all the fields except the type as our 'web_search' config
-        tool_param = tool_param.copy()
-        del tool_param["type"]  # type: ignore[misc]
-
-        # this came from the inspect agent_bridge() call. we want
-        # to replace it with whatever the user specified in the scaffold.
-        web_search = web_search.copy()
-        web_search["anthropic"] = tool_param  # type: ignore[typeddict-item]
-
-    return web_search
 
 
 def tool_choice_from_anthropic_tool_choice(

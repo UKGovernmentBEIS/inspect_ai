@@ -13,11 +13,13 @@ from typing import Any, cast
 
 from openai.types.responses import ResponseInputItemParam, ToolParam
 
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.responses_impl import (
     messages_from_responses_input,
     responses_output_items_from_assistant_message,
     tool_from_responses_tool,
 )
+from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._openai_responses import (
@@ -32,6 +34,8 @@ from inspect_ai.model._openai_responses import (
 )
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
+
+BRIDGE = AgentBridge(AgentState(messages=[]))
 
 WEB_SEARCH_PROVIDERS: Any = {}
 CODE_EXECUTION_PROVIDERS: Any = {}
@@ -72,6 +76,7 @@ def test_tool_from_responses_tool_tool_search() -> None:
         WEB_SEARCH_PROVIDERS,
         CODE_EXECUTION_PROVIDERS,
         allow_remote_mcp=True,
+        bridge=BRIDGE,
     )
     assert isinstance(tool, ToolInfo)
     assert tool.name == TOOL_SEARCH_NAME
@@ -90,6 +95,7 @@ def test_maybe_tool_search_tool_emits_native_param() -> None:
         WEB_SEARCH_PROVIDERS,
         CODE_EXECUTION_PROVIDERS,
         allow_remote_mcp=True,
+        bridge=BRIDGE,
     )
     assert isinstance(tool, ToolInfo)
 

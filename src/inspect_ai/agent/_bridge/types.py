@@ -213,19 +213,6 @@ class AgentBridge:
         """
         raise TerminateSampleError(reason)
 
-    forwards_client_request_settings: bool = True
-    """Whether request fields that change billing, storage or context handling come from the client.
-
-    These are `service_tier`, `store` and `truncation`, the options of declared
-    provider tools (web search, code interpreter), and `previous_response_id`.
-    In-process bridges forward them, since their scaffold already runs on the host.
-    `SandboxAgentBridge` clears this: the eval's configuration governs the
-    settings and tool options (`withhold_client_request_settings`,
-    `warn_ignored_client_setting`), and a Responses request naming a
-    `previous_response_id`, or declaring a computer tool when the eval turns
-    storage off, is refused with a 400.
-    """
-
     grants_tool_execution: bool = False
     """Whether this bridge binds host-tool execution to the calls in each response.
 

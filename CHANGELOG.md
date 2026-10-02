@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Sandbox Agent Bridge: The eval's configuration now governs `service_tier`, `store`, `truncation` and provider tool options such as web search domains, which the agent's requests no longer override; requests with `previous_response_id` are refused.
+- Agent Bridge: For both `agent_bridge()` and `sandbox_agent_bridge()`, the eval's configuration now governs `service_tier`, `store`, `truncation` and provider tool options such as web search domains, which the agent's requests no longer override; requests with `previous_response_id` are refused.
 
 ## 0.3.274 (01 October 2026)
 

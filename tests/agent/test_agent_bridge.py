@@ -122,13 +122,13 @@ def check_openai_responses_log_json(log_json: str, tools: bool):
     assert r'"parallel_tool_calls": true' in log_json
     assert r'"effort": "low"' in log_json
     assert r'"summary": "auto"' in log_json
-    assert r'"service_tier": "default"' in log_json
     assert r'"max_tool_calls": 5' in log_json
     assert r'"foo": "bar"' in log_json
     assert r'"prompt_cache_key": "42"' in log_json
     assert r'"prompt_cache_retention": "24h"' in log_json
     assert r'"safety_identifier": "42"' in log_json
-    assert r'"truncation": "auto"' in log_json
+    # the eval's configuration governs truncation, so the client's is withheld
+    assert r'"truncation": "auto"' not in log_json
     if tools:
         assert r'"name": "testing_tool"' in log_json
         assert r'"tool_choice": "auto"' in log_json

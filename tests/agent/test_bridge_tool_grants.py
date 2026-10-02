@@ -6,13 +6,14 @@ access through the model provider even when its sandbox has no network egress, s
 In-process `agent_bridge()` stays permissive: that scaffold already runs with the
 host's network and filesystem, so there is no boundary to defend.
 
-The same holds for request fields that change billing, provider-side storage or
-context truncation: on the sandbox bridge the eval's configuration governs them.
+Request fields that change billing, provider-side storage or context truncation,
+and the options of declared provider tools, are the eval's on both bridges.
 """
 
 from typing import Any, Awaitable, Callable, cast
 
 import pytest
+from openai import AsyncOpenAI
 from test_helpers.utils import (
     skip_if_no_anthropic_package,
     skip_if_no_openai_package,
@@ -87,6 +88,18 @@ def sandbox_bridge(
     )
 
 
+def in_process_bridge(
+    filter: GenerateFilter | None = None, **kwargs: Any
+) -> AgentBridge:
+    return AgentBridge(AgentState(messages=[]), filter=filter, **kwargs)
+
+
+BridgeFactory = Callable[..., AgentBridge]
+BOTH_BRIDGES = pytest.mark.parametrize(
+    "make_bridge", [sandbox_bridge, in_process_bridge], ids=["sandbox", "in-process"]
+)
+
+
 # --- resolution -------------------------------------------------------------
 
 
@@ -148,13 +161,21 @@ def test_responses_native_tools_withheld_by_default() -> None:
 
     assert (
         tools_from_responses_tool(
-            WEB_SEARCH_PARAM, web_search, code_execution, allow_remote_mcp=False
+            WEB_SEARCH_PARAM,
+            web_search,
+            code_execution,
+            allow_remote_mcp=False,
+            bridge=sandbox_bridge(),
         )
         == []
     )
     assert (
         tools_from_responses_tool(
-            MCP_PARAM, web_search, code_execution, allow_remote_mcp=False
+            MCP_PARAM,
+            web_search,
+            code_execution,
+            allow_remote_mcp=False,
+            bridge=sandbox_bridge(),
         )
         == []
     )
@@ -167,13 +188,21 @@ def test_responses_native_tools_honored_when_granted() -> None:
     assert (
         len(
             tools_from_responses_tool(
-                WEB_SEARCH_PARAM, web_search, code_execution, allow_remote_mcp=True
+                WEB_SEARCH_PARAM,
+                web_search,
+                code_execution,
+                allow_remote_mcp=True,
+                bridge=sandbox_bridge(),
             )
         )
         == 1
     )
     mcp = tools_from_responses_tool(
-        MCP_PARAM, web_search, code_execution, allow_remote_mcp=True
+        MCP_PARAM,
+        web_search,
+        code_execution,
+        allow_remote_mcp=True,
+        bridge=sandbox_bridge(),
     )
     assert [getattr(t, "name", None) for t in mcp] == ["mcp_server_elsewhere"]
 
@@ -194,6 +223,7 @@ def test_responses_function_tools_are_never_withheld() -> None:
         None,
         None,
         allow_remote_mcp=False,
+        bridge=sandbox_bridge(),
     )
     assert [getattr(t, "name", None) for t in tools] == ["grep"]
 
@@ -201,7 +231,12 @@ def test_responses_function_tools_are_never_withheld() -> None:
 def test_anthropic_native_tools_withheld_by_default() -> None:
     assert (
         tools_from_anthropic_tools(
-            [ANTHROPIC_WEB_SEARCH], [ANTHROPIC_MCP_SERVER], None, None, False
+            [ANTHROPIC_WEB_SEARCH],
+            [ANTHROPIC_MCP_SERVER],
+            None,
+            None,
+            False,
+            bridge=sandbox_bridge(),
         )
         == []
     )
@@ -214,6 +249,7 @@ def test_anthropic_native_tools_honored_when_granted() -> None:
         resolve_bridge_web_search(True, default_grant=False),
         None,
         True,
+        bridge=sandbox_bridge(),
     )
     assert len(tools) == 2
     assert "mcp_server_elsewhere" in [getattr(t, "name", None) for t in tools]
@@ -233,6 +269,7 @@ def test_anthropic_web_fetch_alone_grants_nothing(granted: bool) -> None:
             resolve_bridge_web_search(granted, default_grant=False),
             None,
             False,
+            bridge=sandbox_bridge(),
         )
         == []
     )
@@ -257,6 +294,7 @@ def test_tool_choice_forcing_a_withheld_tool_relaxes_to_auto() -> None:
         None,
         None,
         allow_remote_mcp=False,
+        bridge=sandbox_bridge(),
     )
     assert (
         relax_tool_choice_for_withheld(ToolFunction(name="web_search"), tools) == "auto"
@@ -454,11 +492,13 @@ def warned_fields(warnings: list[str]) -> list[str]:
     ]
 
 
-async def test_sandbox_responses_settings_follow_eval(
+@BOTH_BRIDGES
+async def test_responses_settings_follow_eval(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     captured: list[GenerateConfig] = []
-    bridge = sandbox_bridge(filter=capture_config(captured))
+    bridge = make_bridge(filter=capture_config(captured))
 
     await inspect_responses_api_request(
         responses_request(
@@ -477,28 +517,32 @@ async def test_sandbox_responses_settings_follow_eval(
     assert "the eval's configuration governs service_tier" in bridge_warnings[0]
 
 
-async def test_sandbox_warns_once_per_field_per_bridge(
+@BOTH_BRIDGES
+async def test_warns_once_per_field_per_bridge(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     captured: list[GenerateConfig] = []
-    bridge = sandbox_bridge(filter=capture_config(captured))
+    bridge = make_bridge(filter=capture_config(captured))
     request = responses_request(service_tier="priority")
 
     await inspect_responses_api_request(request, None, None, None, bridge)
     await inspect_responses_api_request(request, None, None, None, bridge)
     assert warned_fields(bridge_warnings) == ["service_tier"]
 
-    other = sandbox_bridge(filter=capture_config(captured))
+    other = make_bridge(filter=capture_config(captured))
     await inspect_responses_api_request(request, None, None, None, other)
     assert warned_fields(bridge_warnings) == ["service_tier", "service_tier"]
     assert all(config.extra_body is None for config in captured)
 
 
-async def test_sandbox_no_warning_when_client_matches_eval(
+@BOTH_BRIDGES
+async def test_no_warning_when_client_matches_eval(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     captured: list[GenerateConfig] = []
-    bridge = sandbox_bridge(filter=capture_config(captured))
+    bridge = make_bridge(filter=capture_config(captured))
 
     await inspect_responses_api_request(
         responses_request(service_tier="auto", store=False, truncation="disabled"),
@@ -512,7 +556,9 @@ async def test_sandbox_no_warning_when_client_matches_eval(
     assert bridge_warnings == []
 
 
-async def test_sandbox_eval_config_governs_withheld_settings(
+@BOTH_BRIDGES
+async def test_eval_config_governs_withheld_settings(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     eval_extra_body = {"service_tier": "flex", "store": True, "truncation": "auto"}
@@ -520,7 +566,7 @@ async def test_sandbox_eval_config_governs_withheld_settings(
         "mockllm/model", config=GenerateConfig(extra_body=eval_extra_body)
     )
     captured: list[GenerateConfig] = []
-    bridge = sandbox_bridge(
+    bridge = make_bridge(
         filter=capture_config(captured), model_aliases={"eval-model": model}
     )
 
@@ -537,14 +583,16 @@ async def test_sandbox_eval_config_governs_withheld_settings(
 
 
 @skip_if_no_openai_package
-async def test_sandbox_openai_model_args_govern_withheld_settings(
+@BOTH_BRIDGES
+async def test_openai_model_args_govern_withheld_settings(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     model = get_model(
         "openai/gpt-5", api_key="test-key", service_tier="flex", responses_store=True
     )
     captured: list[GenerateConfig] = []
-    bridge = sandbox_bridge(
+    bridge = make_bridge(
         filter=capture_config(captured), model_aliases={"eval-model": model}
     )
 
@@ -562,7 +610,9 @@ async def test_sandbox_openai_model_args_govern_withheld_settings(
 
 
 @skip_if_no_openai_package
-async def test_sandbox_compatible_responses_store_arg_governs_store(
+@BOTH_BRIDGES
+async def test_compatible_responses_store_arg_governs_store(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     model = get_model(
@@ -573,7 +623,7 @@ async def test_sandbox_compatible_responses_store_arg_governs_store(
         responses_store=True,
     )
     captured: list[GenerateConfig] = []
-    bridge = sandbox_bridge(
+    bridge = make_bridge(
         filter=capture_config(captured), model_aliases={"eval-model": model}
     )
 
@@ -591,7 +641,9 @@ async def test_sandbox_compatible_responses_store_arg_governs_store(
 
 
 @skip_if_no_anthropic_package
-async def test_sandbox_anthropic_extra_body_arg_governs_service_tier(
+@BOTH_BRIDGES
+async def test_anthropic_extra_body_arg_governs_service_tier(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     model = get_model(
@@ -600,7 +652,7 @@ async def test_sandbox_anthropic_extra_body_arg_governs_service_tier(
         extra_body={"service_tier": "standard_only"},
     )
     captured: list[GenerateConfig] = []
-    bridge = sandbox_bridge(
+    bridge = make_bridge(
         filter=capture_config(captured), model_aliases={"eval-model": model}
     )
 
@@ -624,11 +676,13 @@ async def test_sandbox_anthropic_extra_body_arg_governs_service_tier(
     assert all(config.extra_body is None for config in captured)
 
 
-async def test_sandbox_anthropic_service_tier_follows_eval(
+@BOTH_BRIDGES
+async def test_anthropic_service_tier_follows_eval(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     captured: list[GenerateConfig] = []
-    bridge = sandbox_bridge(filter=capture_config(captured))
+    bridge = make_bridge(filter=capture_config(captured))
 
     await inspect_anthropic_api_request(
         anthropic_request(service_tier="standard_only", metadata={"user_id": "u"}),
@@ -655,9 +709,10 @@ async def test_sandbox_refuses_previous_response_id() -> None:
     assert captured == []
 
 
-async def test_sandbox_accepts_null_previous_response_id() -> None:
+@BOTH_BRIDGES
+async def test_accepts_null_previous_response_id(make_bridge: BridgeFactory) -> None:
     captured: list[GenerateConfig] = []
-    bridge = sandbox_bridge(filter=capture_config(captured))
+    bridge = make_bridge(filter=capture_config(captured))
 
     await inspect_responses_api_request(
         responses_request(previous_response_id=None), None, None, None, bridge
@@ -666,7 +721,7 @@ async def test_sandbox_accepts_null_previous_response_id() -> None:
     assert len(captured) == 1
 
 
-async def test_in_process_bridge_forwards_request_settings(
+async def test_in_process_bridge_withholds_settings_and_forwards_headers(
     bridge_warnings: list[str],
 ) -> None:
     captured: list[GenerateConfig] = []
@@ -674,26 +729,44 @@ async def test_in_process_bridge_forwards_request_settings(
     async with agent_bridge(
         AgentState(messages=[]), filter=capture_config(captured)
     ) as bridge:
-        responses_fields = {
-            **EVAL_GOVERNED_RESPONSES_FIELDS,
-            **FORWARDED_RESPONSES_FIELDS,
-            "previous_response_id": "resp_elsewhere",
-        }
         await inspect_responses_api_request(
-            responses_request(**responses_fields), headers, None, None, bridge
+            responses_request(
+                **EVAL_GOVERNED_RESPONSES_FIELDS, **FORWARDED_RESPONSES_FIELDS
+            ),
+            headers,
+            None,
+            None,
+            bridge,
         )
-        anthropic_fields = {
-            "service_tier": "standard_only",
-            "metadata": {"user_id": "u"},
-        }
         await inspect_anthropic_api_request(
-            anthropic_request(**anthropic_fields), headers, None, None, bridge
+            anthropic_request(service_tier="standard_only", metadata={"user_id": "u"}),
+            headers,
+            None,
+            None,
+            bridge,
         )
 
-    assert captured[0].extra_body == responses_fields
-    assert captured[1].extra_body == anthropic_fields
+    assert captured[0].extra_body == FORWARDED_RESPONSES_FIELDS
+    assert captured[1].extra_body == {"metadata": {"user_id": "u"}}
     assert [config.extra_headers for config in captured] == [headers, headers]
-    assert bridge_warnings == []
+    assert sorted(warned_fields(bridge_warnings)) == sorted(
+        EVAL_GOVERNED_RESPONSES_FIELDS
+    )
+
+
+async def test_in_process_client_gets_policy_error() -> None:
+    """The patched SDK call raises the bridge's policy error to the agent."""
+    captured: list[GenerateConfig] = []
+    async with agent_bridge(AgentState(messages=[]), filter=capture_config(captured)):
+        client = AsyncOpenAI(api_key="test-key")
+        with pytest.raises(BridgePolicyError, match="previous_response_id") as info:
+            await client.responses.create(
+                model="inspect/mockllm/model",
+                input="hi",
+                previous_response_id="resp_elsewhere",
+            )
+    assert info.value.status_code == 400
+    assert captured == []
 
 
 # --- provider tool options -------------------------------------------------
@@ -713,11 +786,13 @@ def code_interpreter_param(container: Any) -> Any:
     return cast(Any, {"type": "code_interpreter", "container": container})
 
 
-def test_sandbox_code_interpreter_container_follows_eval(
+@BOTH_BRIDGES
+def test_code_interpreter_container_follows_eval(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     code_execution = resolve_bridge_code_execution(True, default_grant=False)
-    bridge = sandbox_bridge()
+    bridge = make_bridge()
 
     tools = tools_from_responses_tool(
         code_interpreter_param(CLIENT_CONTAINER),
@@ -733,10 +808,13 @@ def test_sandbox_code_interpreter_container_follows_eval(
     assert "agent's code_interpreter container=" in bridge_warnings[0]
 
 
-def test_sandbox_author_container_wins(bridge_warnings: list[str]) -> None:
+@BOTH_BRIDGES
+def test_author_container_wins(
+    make_bridge: BridgeFactory, bridge_warnings: list[str]
+) -> None:
     author = {"type": "auto", "memory_limit": "4g"}
     code_execution = CodeExecutionProviders(openai={"container": author})
-    bridge = sandbox_bridge()
+    bridge = make_bridge()
 
     tools = tools_from_responses_tool(
         code_interpreter_param(CLIENT_CONTAINER),
@@ -753,47 +831,39 @@ def test_sandbox_author_container_wins(bridge_warnings: list[str]) -> None:
         None,
         code_execution,
         allow_remote_mcp=False,
-        bridge=sandbox_bridge(),
+        bridge=make_bridge(),
     )
     assert len(bridge_warnings) == 1
 
 
-def test_sandbox_default_container_does_not_warn(bridge_warnings: list[str]) -> None:
+@BOTH_BRIDGES
+def test_default_container_does_not_warn(
+    make_bridge: BridgeFactory, bridge_warnings: list[str]
+) -> None:
     tools_from_responses_tool(
         code_interpreter_param({"type": "auto"}),
         None,
         resolve_bridge_code_execution(True, default_grant=False),
         allow_remote_mcp=False,
-        bridge=sandbox_bridge(),
+        bridge=make_bridge(),
     )
     assert bridge_warnings == []
 
 
-def test_sandbox_code_interpreter_still_withheld_without_grant() -> None:
+@BOTH_BRIDGES
+def test_code_interpreter_still_withheld_without_grant(
+    make_bridge: BridgeFactory,
+) -> None:
     assert (
         tools_from_responses_tool(
             code_interpreter_param(CLIENT_CONTAINER),
             None,
             None,
             allow_remote_mcp=False,
-            bridge=sandbox_bridge(),
+            bridge=make_bridge(),
         )
         == []
     )
-
-
-def test_in_process_code_interpreter_container_passes_through(
-    bridge_warnings: list[str],
-) -> None:
-    tools = tools_from_responses_tool(
-        code_interpreter_param(CLIENT_CONTAINER),
-        None,
-        resolve_bridge_code_execution(True, default_grant=False),
-        allow_remote_mcp=True,
-        bridge=AgentBridge(AgentState(messages=[])),
-    )
-    assert tool_options(tools)["providers"]["openai"] == {"container": CLIENT_CONTAINER}
-    assert bridge_warnings == []
 
 
 CLIENT_SEARCH_OPTIONS: dict[str, Any] = {
@@ -802,11 +872,13 @@ CLIENT_SEARCH_OPTIONS: dict[str, Any] = {
 }
 
 
-def test_sandbox_responses_web_search_options_follow_eval(
+@BOTH_BRIDGES
+def test_responses_web_search_options_follow_eval(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     author = WebSearchProviders(openai={"filters": {"allowed_domains": ["eval.org"]}})
-    bridge = sandbox_bridge()
+    bridge = make_bridge()
 
     tools = tools_from_responses_tool(
         cast(Any, {"type": "web_search", **CLIENT_SEARCH_OPTIONS}),
@@ -816,14 +888,18 @@ def test_sandbox_responses_web_search_options_follow_eval(
         bridge=bridge,
     )
 
+    # the client's context size applies (the eval left it unset); its filters do not
     assert tool_options(tools)["openai"] == {
-        "filters": {"allowed_domains": ["eval.org"]}
+        "filters": {"allowed_domains": ["eval.org"]},
+        "search_context_size": "high",
     }
     assert len(bridge_warnings) == 1
-    assert "agent's web_search options=" in bridge_warnings[0]
+    assert "agent's web_search options={'filters'" in bridge_warnings[0]
 
 
-def test_sandbox_responses_web_search_default_options_follow_eval(
+@BOTH_BRIDGES
+def test_responses_web_search_default_options_follow_eval(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     web_search = resolve_bridge_web_search(True, default_grant=False)
@@ -834,9 +910,9 @@ def test_sandbox_responses_web_search_default_options_follow_eval(
         web_search,
         None,
         allow_remote_mcp=False,
-        bridge=sandbox_bridge(),
+        bridge=make_bridge(),
     )
-    assert tool_options(tools)["openai"] == {}
+    assert tool_options(tools)["openai"] == {"search_context_size": "high"}
     assert len(bridge_warnings) == 1
 
     tools_from_responses_tool(
@@ -844,20 +920,100 @@ def test_sandbox_responses_web_search_default_options_follow_eval(
         web_search,
         None,
         allow_remote_mcp=False,
-        bridge=sandbox_bridge(),
+        bridge=make_bridge(),
     )
     assert len(bridge_warnings) == 1
 
 
-def test_in_process_responses_web_search_options_pass_through() -> None:
+@BOTH_BRIDGES
+@pytest.mark.parametrize(
+    "eval_options,expected,warned",
+    [
+        (
+            {},
+            {
+                "search_context_size": "low",
+                "user_location": {"type": "approximate", "city": "Leeds"},
+            },
+            False,
+        ),
+        (
+            {"search_context_size": "high"},
+            {
+                "search_context_size": "high",
+                "user_location": {"type": "approximate", "city": "Leeds"},
+            },
+            True,
+        ),
+    ],
+    ids=["eval-unset", "eval-set"],
+)
+def test_responses_web_search_location_and_context_size_set_by_client(
+    make_bridge: BridgeFactory,
+    bridge_warnings: list[str],
+    eval_options: dict[str, Any],
+    expected: dict[str, Any],
+    warned: bool,
+) -> None:
+    """The client may set them where the eval leaves them unset; the eval's win."""
     tools = tools_from_responses_tool(
-        cast(Any, {"type": "web_search", "search_context_size": "high"}),
-        resolve_bridge_web_search(None, default_grant=True),
+        cast(
+            Any,
+            {
+                "type": "web_search",
+                "search_context_size": "low",
+                "user_location": {"type": "approximate", "city": "Leeds"},
+            },
+        ),
+        WebSearchProviders(openai=eval_options),
         None,
-        allow_remote_mcp=True,
-        bridge=AgentBridge(AgentState(messages=[])),
+        allow_remote_mcp=False,
+        bridge=make_bridge(),
     )
-    assert tool_options(tools)["openai"] == {"search_context_size": "high"}
+
+    assert tool_options(tools)["openai"] == expected
+    assert (len(bridge_warnings) == 1) is warned
+
+
+@BOTH_BRIDGES
+@pytest.mark.parametrize(
+    "eval_options,expected,warned",
+    [
+        ({}, {"user_location": {"type": "approximate", "city": "Leeds"}}, False),
+        (
+            {"user_location": {"type": "approximate", "city": "York"}},
+            {"user_location": {"type": "approximate", "city": "York"}},
+            True,
+        ),
+    ],
+    ids=["eval-unset", "eval-set"],
+)
+def test_anthropic_web_search_location_set_by_client(
+    make_bridge: BridgeFactory,
+    bridge_warnings: list[str],
+    eval_options: dict[str, Any],
+    expected: dict[str, Any],
+    warned: bool,
+) -> None:
+    tools = tools_from_anthropic_tools(
+        [
+            cast(
+                Any,
+                {
+                    **ANTHROPIC_WEB_SEARCH,
+                    "user_location": {"type": "approximate", "city": "Leeds"},
+                },
+            )
+        ],
+        None,
+        WebSearchProviders(anthropic=eval_options),
+        None,
+        allow_remote_mcp=False,
+        bridge=make_bridge(),
+    )
+
+    assert tool_options(tools)["anthropic"] == expected
+    assert (len(bridge_warnings) == 1) is warned
 
 
 ANTHROPIC_CLIENT_SEARCH = cast(
@@ -866,7 +1022,9 @@ ANTHROPIC_CLIENT_SEARCH = cast(
 )
 
 
-def test_sandbox_anthropic_web_search_options_follow_eval(
+@BOTH_BRIDGES
+def test_anthropic_web_search_options_follow_eval(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     author = WebSearchProviders(anthropic={"blocked_domains": ["blocked.example"]})
@@ -877,7 +1035,7 @@ def test_sandbox_anthropic_web_search_options_follow_eval(
         author,
         None,
         allow_remote_mcp=False,
-        bridge=sandbox_bridge(),
+        bridge=make_bridge(),
     )
 
     # the client's lower search cap applies; its allowed domains do not
@@ -894,7 +1052,7 @@ def test_sandbox_anthropic_web_search_options_follow_eval(
         author,
         None,
         allow_remote_mcp=False,
-        bridge=sandbox_bridge(),
+        bridge=make_bridge(),
     )
     assert len(bridge_warnings) == 1
 
@@ -903,7 +1061,9 @@ def test_sandbox_anthropic_web_search_options_follow_eval(
     "eval_cap,client_cap,expected,warned",
     [(5, 50, 5, True), (5, 3, 3, False), (None, 8, 8, False)],
 )
-def test_sandbox_anthropic_max_uses_may_only_narrow(
+@BOTH_BRIDGES
+def test_anthropic_max_uses_may_only_narrow(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
     eval_cap: int | None,
     client_cap: int,
@@ -920,7 +1080,7 @@ def test_sandbox_anthropic_max_uses_may_only_narrow(
         author,
         None,
         allow_remote_mcp=False,
-        bridge=sandbox_bridge(),
+        bridge=make_bridge(),
     )
 
     assert tool_options(tools)["anthropic"] == {"max_uses": expected}
@@ -935,7 +1095,9 @@ def test_sandbox_anthropic_max_uses_may_only_narrow(
         ({"external_web_access": False}, True, {"external_web_access": False}, True),
     ],
 )
-def test_sandbox_openai_live_web_access_may_only_narrow(
+@BOTH_BRIDGES
+def test_openai_live_web_access_may_only_narrow(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
     eval_options: dict[str, Any],
     client_access: bool,
@@ -947,30 +1109,16 @@ def test_sandbox_openai_live_web_access_may_only_narrow(
         WebSearchProviders(openai=eval_options),
         None,
         allow_remote_mcp=False,
-        bridge=sandbox_bridge(),
+        bridge=make_bridge(),
     )
 
     assert tool_options(tools)["openai"] == expected
     assert (len(bridge_warnings) == 1) is warned
 
 
-def test_in_process_anthropic_web_search_options_pass_through() -> None:
-    tools = tools_from_anthropic_tools(
-        [ANTHROPIC_CLIENT_SEARCH],
-        None,
-        resolve_bridge_web_search(None, default_grant=True),
-        None,
-        allow_remote_mcp=True,
-        bridge=AgentBridge(AgentState(messages=[])),
-    )
-    assert tool_options(tools)["anthropic"] == {
-        "name": "web_search",
-        "max_uses": 50,
-        "allowed_domains": ["agent.example"],
-    }
-
-
-async def test_sandbox_request_path_applies_eval_tool_options(
+@BOTH_BRIDGES
+async def test_request_path_applies_eval_tool_options(
+    make_bridge: BridgeFactory,
     bridge_warnings: list[str],
 ) -> None:
     captured_tools: list[list[ToolInfo]] = []
@@ -985,7 +1133,7 @@ async def test_sandbox_request_path_applies_eval_tool_options(
         captured_tools.append(tools)
         return ModelOutput.from_content(model="mockllm/model", content="ok")
 
-    bridge = sandbox_bridge(filter=capture)
+    bridge = make_bridge(filter=capture)
     await inspect_responses_api_request(
         responses_request(tools=[code_interpreter_param(CLIENT_CONTAINER)]),
         None,
@@ -1056,15 +1204,39 @@ async def test_sandbox_computer_tool_refused_when_eval_turns_storage_off(
 
 
 @skip_if_no_openai_package
+@pytest.mark.parametrize("declaration", list(COMPUTER_DECLARATIONS))
+async def test_in_process_computer_tool_refused_when_eval_turns_storage_off(
+    declaration: str,
+) -> None:
+    model = get_model("openai/gpt-5", api_key="test-key", responses_store=False)
+    captured: list[GenerateConfig] = []
+    bridge = in_process_bridge(
+        filter=capture_config(captured), model_aliases={"eval-model": model}
+    )
+
+    with pytest.raises(BridgePolicyError, match="storage"):
+        await inspect_responses_api_request(
+            {"model": "eval-model", **COMPUTER_DECLARATIONS[declaration]},
+            None,
+            None,
+            None,
+            bridge,
+        )
+    assert captured == []
+
+
+@skip_if_no_openai_package
 @pytest.mark.parametrize("responses_store", [None, True])
-async def test_sandbox_computer_tool_served_unless_storage_off(
+@BOTH_BRIDGES
+async def test_computer_tool_served_unless_storage_off(
+    make_bridge: BridgeFactory,
     responses_store: bool | None,
 ) -> None:
     model = get_model(
         "openai/gpt-5", api_key="test-key", responses_store=responses_store
     )
     captured: list[GenerateConfig] = []
-    bridge = sandbox_bridge(
+    bridge = make_bridge(
         filter=capture_config(captured), model_aliases={"eval-model": model}
     )
 
@@ -1082,13 +1254,17 @@ async def test_sandbox_computer_tool_served_unless_storage_off(
 @pytest.mark.parametrize(
     "client_store,warned", [(False, ["store"]), (True, [])], ids=["false", "true"]
 )
-async def test_sandbox_computer_tool_store_warning_follows_forced_storage(
-    bridge_warnings: list[str], client_store: bool, warned: list[str]
+@BOTH_BRIDGES
+async def test_computer_tool_store_warning_follows_forced_storage(
+    make_bridge: BridgeFactory,
+    bridge_warnings: list[str],
+    client_store: bool,
+    warned: list[str],
 ) -> None:
     """With storage unset, a computer tool turns it on, so `store=True` matches."""
     model = get_model("openai/gpt-5", api_key="test-key")
     captured: list[GenerateConfig] = []
-    bridge = sandbox_bridge(
+    bridge = make_bridge(
         filter=capture_config(captured), model_aliases={"eval-model": model}
     )
 
@@ -1106,26 +1282,6 @@ async def test_sandbox_computer_tool_store_warning_follows_forced_storage(
     )
 
     assert warned_fields(bridge_warnings) == warned
-    assert len(captured) == 1
-
-
-@skip_if_no_openai_package
-async def test_in_process_computer_tool_unaffected_by_storage_setting() -> None:
-    model = get_model("openai/gpt-5", api_key="test-key", responses_store=False)
-    captured: list[GenerateConfig] = []
-    bridge = AgentBridge(
-        AgentState(messages=[]),
-        filter=capture_config(captured),
-        model_aliases={"eval-model": model},
-    )
-
-    await inspect_responses_api_request(
-        {"model": "eval-model", "input": "hi", "tools": [COMPUTER_PARAM]},
-        None,
-        None,
-        None,
-        bridge,
-    )
     assert len(captured) == 1
 
 
