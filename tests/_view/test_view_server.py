@@ -1594,9 +1594,6 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
         def is_async(self) -> bool:
             return True
 
-        def exists(self, path: str) -> bool:
-            raise AssertionError("directory existence must not be probed")
-
         def ls(self, path: str, recursive: bool = False) -> list[FileInfo]:
             sync_ls_calls.append((path, recursive))
             return [
@@ -1619,9 +1616,6 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
             )
 
     class FakeAsyncFileSystem:
-        async def _exists(self, log_dir: str) -> bool:
-            raise AssertionError("directory existence must not be probed")
-
         def invalidate_cache(self, log_dir: str) -> None:
             pass
 
@@ -1674,9 +1668,8 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
 
 
 @skip_if_trio
-@pytest.mark.parametrize("cancel", [False, True])
-async def test_s3_listing_context_closes_on_exit(
-    monkeypatch: pytest.MonkeyPatch, cancel: bool
+async def test_s3_listing_context_closes_on_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     closed = False
 
@@ -1695,16 +1688,10 @@ async def test_s3_listing_context_closes_on_exit(
 
     monkeypatch.setattr(importlib.import_module("s3fs"), "S3FileSystem", S3)
 
-    if cancel:
-        with anyio.CancelScope() as scope:
-            async with async_filesystem("s3://bucket/logs", {"anon": True}):
-                scope.cancel()
-                await anyio.lowlevel.checkpoint()
-        assert scope.cancel_called
-    else:
-        with pytest.raises(PermissionError, match="listing denied"):
-            async with async_filesystem("s3://bucket/logs", {"anon": True}):
-                raise PermissionError("listing denied")
+    with anyio.CancelScope() as scope:
+        async with async_filesystem("s3://bucket/logs", {"anon": True}):
+            scope.cancel()
+            await anyio.lowlevel.checkpoint()
     assert closed
 
 

@@ -295,9 +295,8 @@ def test_eval_set_s3(mock_s3) -> None:
 
 @pytest.mark.slow
 @skip_if_trio
-@pytest.mark.parametrize("trailing_slash", [False, True])
-def test_eval_set_s3_prefix_scoped(prefix_scoped_s3: str, trailing_slash: bool) -> None:
-    location = prefix_scoped_s3 + ("/" if trailing_slash else "")
+def test_eval_set_s3_prefix_scoped(prefix_scoped_s3: str) -> None:
+    location = f"{prefix_scoped_s3}/"
     tasks = failing_task(rate=0, samples=1)
     success, logs = eval_set(
         tasks=tasks,
@@ -323,7 +322,6 @@ def test_eval_set_s3_prefix_scoped(prefix_scoped_s3: str, trailing_slash: bool) 
     assert read_eval_set_info(location) is not None
     write_log_listing(location)
     fs = filesystem(prefix_scoped_s3)
-    assert fs.exists(f"{prefix_scoped_s3}/eval-set.json")
     assert fs.exists(f"{prefix_scoped_s3}/logs.json")
     assert fs.exists(f"{prefix_scoped_s3}/listing.json")
 

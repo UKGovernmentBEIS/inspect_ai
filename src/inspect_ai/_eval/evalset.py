@@ -2385,10 +2385,7 @@ def read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> EvalSet
 
 
 def _resolve_log_dir(fs: FileSystem, log_dir: str) -> str:
-    return call_with_azure_auth_fallback(
-        lambda: fs.path_as_uri(fs.fs._strip_protocol(log_dir)),
-        fallback_return_value=log_dir,
-    )
+    return fs.path_as_uri(fs.fs._strip_protocol(log_dir))
 
 
 def _read_manifest_bytes(manifest: str, fs_options: dict[str, Any]) -> bytes | None:
