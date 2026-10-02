@@ -81,6 +81,7 @@ from ._litellm_proxy_gemini import (
     malformed_function_call,
     malformed_function_retry,
     with_function_calling_hint,
+    with_json_tool_results_wrapped,
     with_malformed_function_apology,
     with_tool_call_signatures,
 )
@@ -672,6 +673,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         messages = await litellm_messages_to_openai(input)
         if self._vendor in (None, "google"):
             messages = with_tool_call_signatures(messages)
+        if self._vendor == "google":
+            messages = with_json_tool_results_wrapped(messages)
         return with_cache_breakpoints(messages) if _cache_prompt.get() else messages
 
     @override

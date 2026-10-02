@@ -20,8 +20,17 @@ the deployment), and the Gemini converter then sends a placeholder signature
 that Google documents as degrading the model. The tool call's
 `provider_specific_fields.thought_signature` is never stripped, so replayed
 tool calls carry their signature there as well.
+
+LiteLLM parses a tool result's content as JSON when it begins with `{` and
+sends an object as Gemini's function response itself rather than under
+`content`. Vertex reads `$ref` keys in that object (an OpenAPI document, say)
+as references to multimodal response parts and rejects the request with a
+400. Tool results that are JSON objects are therefore wrapped as
+`{"content": text}` before they reach the proxy, which is how the native
+Google provider sends every tool result.
 """
 
+import json
 import re
 from typing import Any, cast
 
@@ -88,6 +97,35 @@ def with_tool_call_signatures(
             )
         result.append(message)
     return result
+
+
+def with_json_tool_results_wrapped(
+    messages: list[ChatCompletionMessageParam],
+) -> list[ChatCompletionMessageParam]:
+    """Tool results that are JSON objects, wrapped so LiteLLM sends them as text.
+
+    LiteLLM's Gemini converter would otherwise send the parsed object as the
+    function response, and Vertex rejects `$ref` keys in it (see the module
+    docstring). Wrapped as `{"content": text}`, the result is sent exactly as a
+    plain-text result is.
+    """
+    result: list[ChatCompletionMessageParam] = []
+    for message in messages:
+        if message["role"] == "tool":
+            content = message.get("content")
+            if isinstance(content, str) and _is_json_object(content):
+                message = message | {"content": json.dumps({"content": content})}
+        result.append(message)
+    return result
+
+
+def _is_json_object(text: str) -> bool:
+    if not text.lstrip().startswith("{"):
+        return False
+    try:
+        return isinstance(json.loads(text), dict)
+    except ValueError:
+        return False
 
 
 def with_function_calling_hint(input: list[ChatMessage]) -> list[ChatMessage]:
