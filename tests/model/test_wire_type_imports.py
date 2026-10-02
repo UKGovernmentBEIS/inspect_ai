@@ -5,8 +5,8 @@ import textwrap
 
 import pytest
 
-# Public symbols defined in these modules (exported via `__all__` of the
-# public package in parentheses):
+# Public symbols defined in `inspect_ai.core` (exported via its `__all__` and
+# via `__all__` of the public package in parentheses):
 #
 # _chat_message (inspect_ai.model): ChatMessage, ChatMessageAssistant,
 #   ChatMessageBase, ChatMessageSystem, ChatMessageTool, ChatMessageUser
@@ -17,19 +17,40 @@ import pytest
 #   ToolCallModelInput, ToolCallView, ToolCallViewer
 # _tool_info (inspect_ai.tool): INTERNAL_TOOL_TYPE, ToolInfo, internal_tool_type
 # _tool_choice (inspect_ai.tool): ToolChoice, ToolFunction
+# _tool_params (inspect_ai.tool): ToolParam, ToolParams
 # _model_output (inspect_ai.model): ChatCompletionChoice, Logprob, Logprobs,
 #   ModelFallback, ModelOutput, ModelUsage, StopCategory, StopDetails,
 #   StopReason, TopLogprob
 # _generate_config (inspect_ai.model): BatchConfig, GenerateConfig,
 #   GenerateConfigArgs, ImageOutput, OutputModality, ResponseSchema
+# _cache_policy (inspect_ai.model): CachePolicy
+# _adaptive_concurrency (inspect_ai.util): AdaptiveConcurrency
+# _json (inspect_ai.util): JSONSchema, JSONType
+#
+# The original modules re-export these symbols and must stay light too.
 WIRE_TYPE_MODULES = [
-    "inspect_ai.model._chat_message",
+    "inspect_ai.core._adaptive_concurrency",
+    "inspect_ai.core._cache_policy",
+    "inspect_ai.core._chat_message",
+    "inspect_ai.core._generate_config",
+    "inspect_ai.core._json",
+    "inspect_ai.core._model_output",
+    "inspect_ai.core._tool_call",
+    "inspect_ai.core._tool_choice",
+    "inspect_ai.core._tool_info",
+    "inspect_ai.core._tool_params",
+    "inspect_ai.core.content",
     "inspect_ai._util.content",
-    "inspect_ai.tool._tool_call",
-    "inspect_ai.tool._tool_info",
-    "inspect_ai.tool._tool_choice",
-    "inspect_ai.model._model_output",
+    "inspect_ai.model._cache_policy",
+    "inspect_ai.model._chat_message",
     "inspect_ai.model._generate_config",
+    "inspect_ai.model._model_output",
+    "inspect_ai.tool._tool_call",
+    "inspect_ai.tool._tool_choice",
+    "inspect_ai.tool._tool_info",
+    "inspect_ai.tool._tool_params",
+    "inspect_ai.util._adaptive_concurrency",
+    "inspect_ai.util._json",
 ]
 
 # pydantic brings annotated_types and typing_inspection with it.
