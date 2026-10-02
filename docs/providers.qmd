@@ -1739,6 +1739,14 @@ When the upstream model is a Claude model (recognized by its name, including mod
 
 A model that does not accept a conversation ending with an assistant message (assistant prefill) fails with an error saying so rather than being retried.
 
+### Gemini Models {#litellm-proxy-gemini}
+
+When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native `google` provider's handling of malformed function calls:
+
+-   The system prompt carries a function-calling hint that discourages Gemini from writing a function call as code (`print(default_api.bash(...))`).
+-   A turn that comes back as a malformed function call is retried up to 3 times with a corrective exchange, with tool calling required when the tool choice was `auto`. LiteLLM reports Gemini's `MALFORMED_FUNCTION_CALL` as an ordinary stop, so Inspect recognizes such a turn by its shape: no text and no tool call, or text that is a function call written as code. When the retries run out, the assistant message says that it had trouble calling a function. Usage covers every attempt, and `ModelOutput.metadata` records `malformed_function_call_attempts`.
+-   Each replayed tool call carries its thought signature in `provider_specific_fields` as well as in its id. LiteLLM strips the id-embedded signature when the proxy's `model_name` does not contain "gemini" and then sends a placeholder signature, which Google documents as degrading the model.
+
 ### Reasoning Effort {#litellm-proxy-reasoning-effort}
 
 Google models get the same `reasoning_effort` mapping as the [Google](#google-gemini) provider: Gemini 3 and later (and names matching no known Gemini model, such as predeployment codenames) take `minimal` through `high`, with `xhigh` and `max` lowered to `high` and `minimal` raised to `low` where the model does not support it.

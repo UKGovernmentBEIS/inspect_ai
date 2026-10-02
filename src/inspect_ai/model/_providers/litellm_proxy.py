@@ -36,7 +36,7 @@ from .._model_info import (
     _get_model_info_direct,
     set_model_info,
 )
-from .._model_output import ChatCompletionChoice, ModelOutput
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
     chat_choices_from_openai,
@@ -53,11 +53,13 @@ from .._openai_responses import (
 from .._reasoning import (
     clamp_reasoning_effort_to_minimal_low_medium_high,
 )
+from .._stream import report_model_stream_restart
 from ._anthropic_max_tokens import (
     ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
     ANTHROPIC_MAX_TOKENS,
     anthropic_effort_max_tokens,
 )
+from ._gemini_function_calling import MAX_TOOL_CALLING_ATTEMPTS
 from ._google_reasoning import (
     gemini_3_plus,
     gemini_has_thinking_config,
@@ -74,6 +76,14 @@ from ._litellm_proxy_caching import (
     with_tool_cache_breakpoint,
 )
 from ._litellm_proxy_errors import litellm_error_model_output, upstream_message
+from ._litellm_proxy_gemini import (
+    add_usage,
+    malformed_function_call,
+    malformed_function_retry,
+    with_function_calling_hint,
+    with_malformed_function_apology,
+    with_tool_call_signatures,
+)
 from ._litellm_proxy_model_info import (
     ProxyDeployment,
     proxy_aliases,
@@ -660,6 +670,8 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         self, input: list[ChatMessage]
     ) -> list[ChatCompletionMessageParam]:
         messages = await litellm_messages_to_openai(input)
+        if self._vendor in (None, "google"):
+            messages = with_tool_call_signatures(messages)
         return with_cache_breakpoints(messages) if _cache_prompt.get() else messages
 
     @override
@@ -692,6 +704,10 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         and the request is retried. Later requests use the lowered value
         directly. A rejected `thinking` parameter (see `_thinking_for`) is
         dropped the same way.
+
+        Requests with tools to a Gemini upstream carry the function-calling
+        hint, and a turn that comes back as a malformed function call is
+        retried with a corrective exchange (see `_litellm_proxy_gemini`).
         """
         if config.reasoning_tokens is not None:
             warn_once(
@@ -702,8 +718,14 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         _cache_prompt.set(self._is_claude() and config.cache_prompt is not False)
         _cache_write_ttl.set(None)
         requested = config.reasoning_effort
+        gemini_tools = self._vendor == "google" and len(tools) > 0
+        if gemini_tools:
+            input = with_function_calling_hint(input)
+        tool_calling_attempts = 0
+        discarded_usage: ModelUsage | None = None
         # ends: each rejection is recorded, so the next attempt sends a value
-        # not yet rejected, no effort, or no thinking
+        # not yet rejected, no effort, or no thinking; malformed function
+        # calls are bounded by MAX_TOOL_CALLING_ATTEMPTS
         while True:
             mapped = self._mapped_effort(requested, config)
             effort = self._effort_for(mapped)
@@ -757,6 +779,34 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                         f"not accept reasoning_effort='{requested}'; {instead}."
                         + self._effort_unsupported_fix(),
                     )
+                if gemini_tools and isinstance(output, ModelOutput):
+                    call = result[1] if isinstance(result, tuple) else None
+                    malformed = malformed_function_call(
+                        output, call.response if call is not None else None
+                    )
+                    if malformed is not None:
+                        tool_calling_attempts += 1
+                        if tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
+                            # the retry regenerates the turn, so streamed output
+                            # of this attempt is stale
+                            await report_model_stream_restart()
+                            discarded_usage = add_usage(discarded_usage, output.usage)
+                            input = input + malformed_function_retry(malformed)
+                            if tool_choice == "auto":
+                                tool_choice = "any"
+                            continue
+                        output = with_malformed_function_apology(output, malformed)
+                    if tool_calling_attempts:
+                        output = output.model_copy(
+                            update={
+                                "usage": add_usage(discarded_usage, output.usage),
+                                "metadata": (output.metadata or {})
+                                | {
+                                    "malformed_function_call_attempts": tool_calling_attempts
+                                },
+                            }
+                        )
+                        result = (output, call) if call is not None else output
                 return result
             if rejection.kind == "parameter":
                 self._effort_unsupported = True
