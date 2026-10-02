@@ -1,24 +1,16 @@
 import datetime
 import uuid
-from collections import OrderedDict, deque
 from dataclasses import dataclass
 from datetime import date, time, timezone
 from enum import Enum
-from ipaddress import IPv4Address
-from pathlib import Path
 from typing import (
-    Annotated,
     Any,
-    DefaultDict,
-    Deque,
     Dict,
     FrozenSet,
     Generator,
     Iterable,
     List,
     Literal,
-    Mapping,
-    MutableMapping,
     Optional,
     Set,
     Tuple,
@@ -41,7 +33,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.tool import tool
+from inspect_ai.tool import todo_write, tool, update_plan
 from inspect_ai.tool._tool import tool_result_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
@@ -727,143 +719,6 @@ def test_model_conversion_keeps_values_parsed_from_strings() -> None:
     )
 
 
-BIG = 2**53 + 1
-
-
-@pytest.mark.parametrize(
-    "annotation,inexact,exact,expected",
-    [
-        (Deque[float], [BIG], [2, 1.5], deque([2.0, 1.5])),
-        (Tuple[float, ...], [BIG], [2], (2.0,)),
-        (FrozenSet[float], [BIG], [2, 2], frozenset({2.0})),
-        (Dict[int, float], {"1": BIG}, {"1": 2}, {1: 2.0}),
-        (Mapping[int, float], {"1": BIG}, {"1": 2}, {1: 2.0}),
-        (OrderedDict[int, float], {"1": BIG}, {"1": 2}, OrderedDict({1: 2.0})),
-        (DefaultDict[int, float], {"1": BIG}, {"1": 2}, {1: 2.0}),
-        (Dict[int, float], {"1": 1, "01": 2}, {"1": 1, "2": 2}, {1: 1.0, 2: 2.0}),
-        (Dict[bool, float], {"true": 1}, None, None),
-        (
-            List[Dict[int, Deque[float]]],
-            [{"1": [BIG]}],
-            [{"1": [2]}],
-            [{1: deque([2.0])}],
-        ),
-    ],
-)
-def test_model_collections_convert_exactly(
-    annotation: Any, inexact: Any, exact: Any, expected: Any
-) -> None:
-    """Pydantic-built collections keep each supplied value under its own key."""
-    from pydantic import create_model
-
-    from inspect_ai.tool._tool import ToolParsingError
-
-    model = create_model("Collections", value=(annotation, ...))
-    with pytest.raises(ToolParsingError):
-        tool_param(model, {"value": inexact})
-    if exact is not None:
-        assert tool_param(model, {"value": exact}).value == expected
-
-
-@pytest.mark.parametrize("annotation", [Iterable[float], Generator[float, None, None]])
-def test_model_lazy_iterables_are_rejected(annotation: Any) -> None:
-    """A lazy iterable converts only as the tool consumes it, after approval."""
-    from pydantic import create_model
-
-    from inspect_ai.tool._tool import ToolParsingError
-
-    model = create_model("Lazy", value=(annotation, ...))
-    with pytest.raises(ToolParsingError):
-        tool_param(model, {"value": [1.5]})
-
-
-@pytest.mark.parametrize("annotation", [Set[float], FrozenSet[float]])
-@pytest.mark.parametrize("duplicates", [False, True], ids=["distinct", "duplicates"])
-def test_model_set_check_is_linear(
-    annotation: Any, duplicates: bool, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from pydantic import create_model
-
-    from inspect_ai.model import _call_tools
-
-    calls = 0
-    preserved = _call_tools._value_preserved
-
-    def counting(supplied: Any, built: Any) -> bool:
-        nonlocal calls
-        calls += 1
-        return preserved(supplied, built)
-
-    monkeypatch.setattr(_call_tools, "_value_preserved", counting)
-    n = 2000
-    values = [i // 2 if duplicates else i for i in range(n)]
-    model = create_model("Values", value=(annotation, ...))
-
-    assert tool_param(model, {"value": values}).value == {float(v) for v in values}
-    assert calls <= 2
-
-
-PARSED_KEYS: list[tuple[Any, str]] = [
-    (date, "2025-01-02"),
-    (datetime.datetime, "2025-01-02T03:04:05"),
-    (time, "03:04:05"),
-    (datetime.timedelta, "PT5S"),
-    (uuid.UUID, "12345678-1234-5678-1234-567812345678"),
-    (bytes, "abc"),
-    (Path, "a/b"),
-    (IPv4Address, "10.0.0.1"),
-]
-
-
-@pytest.mark.parametrize(
-    "key_type,key", PARSED_KEYS, ids=[str(k.__name__) for k, _ in PARSED_KEYS]
-)
-@pytest.mark.parametrize(
-    "mapping",
-    [Mapping, MutableMapping, OrderedDict, DefaultDict],
-    ids=["Mapping", "MutableMapping", "OrderedDict", "defaultdict"],
-)
-def test_model_mapping_with_parsed_keys_converts_exactly(
-    key_type: Any, key: str, mapping: Any
-) -> None:
-    from pydantic import create_model
-
-    from inspect_ai.tool._tool import ToolParsingError
-
-    model = create_model("Keys", value=(mapping[key_type, float], ...))
-    with pytest.raises(ToolParsingError):
-        tool_param(model, {"value": {key: BIG}})
-    (converted,) = tool_param(model, {"value": {key: 2}}).value.values()
-    assert converted == 2.0
-
-
-def test_model_mapping_with_parsed_keys_nested_and_wrapped() -> None:
-    from pydantic import Field, create_model
-
-    from inspect_ai.tool._tool import ToolParsingError
-
-    wrapped = create_model(
-        "Wrapped",
-        value=(
-            Annotated[Dict[date, float], Field(min_length=1)] | Literal["none"],
-            ...,
-        ),
-    )
-    nested = create_model("Nested", value=(List[Dict[date, List[float]]], ...))
-    for model, inexact, exact, expected in [
-        (wrapped, {"2025-01-02": BIG}, {"2025-01-02": 2}, {date(2025, 1, 2): 2.0}),
-        (
-            nested,
-            [{"2025-01-02": [BIG]}],
-            [{"2025-01-02": [2]}],
-            [{date(2025, 1, 2): [2.0]}],
-        ),
-    ]:
-        with pytest.raises(ToolParsingError):
-            tool_param(model, {"value": inexact})
-        assert tool_param(model, {"value": exact}).value == expected
-
-
 TUPLE_MEMBERS: list[tuple[Any, str, Any]] = [
     (date, "2025-01-02", date(2025, 1, 2)),
     (bytes, "abc", b"abc"),
@@ -896,61 +751,155 @@ def test_model_set_of_tuples_keeps_parsed_members(
 def test_model_set_of_nested_composites_converts_exactly() -> None:
     from pydantic import create_model
 
-    from inspect_ai.tool._tool import ToolParsingError
-
     model = create_model(
         "Composite", value=(Set[Tuple[date, Tuple[MyEnum, float]]], ...)
     )
     assert tool_param(model, {"value": [["2025-01-02", ["alpha", 1]]]}).value == {
         (date(2025, 1, 2), (MyEnum.ALPHA, 1.0))
     }
-    with pytest.raises(ToolParsingError):
-        tool_param(model, {"value": [["2025-01-02", ["alpha", BIG]]]})
 
 
-class FrozenItem(BaseModel):
-    model_config = {"frozen": True}
-    n: int
-    note: str = ""
+# --- Pydantic parameters are approved as constructed ------------------------
 
 
-@dataclass(frozen=True)
-class FrozenRecord:
-    n: int
+class Step(BaseModel):
+    step: str
+    status: Literal["pending", "in_progress", "completed"] = "pending"
+
+
+class Lookup(BaseModel):
+    user_id: str
+    limit: float = 10
+
+
+@tool
+def model_params(received: list[dict[str, Any]]):
+    async def execute(
+        steps: List[Step],
+        lookups: List[Union[Lookup, Dict[str, Any]]],
+        lookup: Union[Lookup, Dict[str, Any]],
+    ) -> str:
+        """Record model parameters.
+
+        Args:
+            steps: Plan steps (as `update_plan` and `todo_write` take).
+            lookups: Models or plain objects (as tau2's tools take).
+            lookup: A model or a plain object.
+        """
+        received.append({"steps": steps, "lookups": lookups, "lookup": lookup})
+        return "ok"
+
+    return execute
+
+
+def test_model_parameters_are_approved_as_serialized() -> None:
+    from inspect_ai.model._call_tools import validated_tool_call
+
+    received: list[dict[str, Any]] = []
+    arguments: dict[str, Any] = {
+        "steps": [{"step": "plan"}, {"step": "act", "status": "in_progress"}],
+        "lookups": [{"user_id": "u1", "limit": 2}, {"other": 1}],
+        "lookup": {"other": "x"},
+    }
+    validated = validated_tool_call(
+        make_call("model_params", arguments), ToolDef(model_params(received))
+    )
+
+    # the approver sees each model as it serializes (with its defaults and
+    # the values it holds); a plain object stays as given
+    assert validated.call.arguments == {
+        "steps": [
+            {"step": "plan", "status": "pending"},
+            {"step": "act", "status": "in_progress"},
+        ],
+        "lookups": [{"user_id": "u1", "limit": 2.0}, {"other": 1}],
+        "lookup": {"other": "x"},
+    }
+    assert validated.arguments["steps"] == [
+        Step(step="plan"),
+        Step(step="act", status="in_progress"),
+    ]
+    assert validated.arguments["lookups"] == [
+        Lookup(user_id="u1", limit=2.0),
+        {"other": 1},
+    ]
+    assert validated.arguments["lookup"] == {"other": "x"}
 
 
 @pytest.mark.parametrize(
-    "annotation",
+    "tool_factory,name,item",
     [
-        Set[FrozenItem],
-        FrozenSet[FrozenItem],
-        Set[FrozenRecord],
-        FrozenSet[FrozenRecord],
+        (todo_write, "todos", {"content": "write tests", "status": "pending"}),
+        (update_plan, "plan", {"step": "write tests", "status": "pending"}),
     ],
-    ids=["set-model", "frozenset-model", "set-dataclass", "frozenset-dataclass"],
+    ids=["todo_write", "update_plan"],
 )
-@pytest.mark.parametrize("duplicates", [False, True], ids=["distinct", "duplicates"])
-def test_model_set_of_structured_members_check_is_linear(
-    annotation: Any, duplicates: bool, monkeypatch: pytest.MonkeyPatch
+async def test_plan_tools_run_as_approved(
+    tool_factory: Any, name: str, item: dict[str, str]
 ) -> None:
-    from pydantic import create_model
+    from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 
-    from inspect_ai.model import _call_tools
+    approved: list[ToolCall] = []
 
-    calls = 0
-    canonical = _call_tools._canonical_built
+    @approver(name="test_plan_recorder")
+    def recorder() -> Approver:
+        async def approve(
+            message: str, call: ToolCall, view: Any, history: Any
+        ) -> Approval:
+            approved.append(call)
+            return Approval(decision="approve")
 
-    def counting(value: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        return canonical(value)
+        return approve
 
-    monkeypatch.setattr(_call_tools, "_canonical_built", counting)
-    n = 1000
-    items = [{"n": i // 2 if duplicates else i} for i in range(n)]
-    model = create_model("Items", value=(annotation, ...))
+    tool_def = ToolDef(tool_factory())
+    call = make_call(tool_def.name, {name: [item]})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [tool_def],
+        approval=[ApprovalPolicy(recorder(), "*")],
+    )
 
-    built = tool_param(model, {"value": items}).value
-    assert len(built) == (n // 2 if duplicates else n)
-    # one call per member and per field, not per pair of members
-    assert calls <= 3 * n + 1
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert [c.arguments for c in approved] == [{name: [item]}]
+
+
+class LazyIterable(BaseModel):
+    values: Iterable[float]
+
+
+class LazyGenerator(BaseModel):
+    values: Generator[float, None, None]
+
+
+@tool
+def lazy_params():
+    async def execute(
+        iterable: LazyIterable | None = None, generator: LazyGenerator | None = None
+    ) -> str:
+        """Take lazy iterables.
+
+        Args:
+            iterable: An iterable field.
+            generator: A generator field.
+        """
+        return ""
+
+    return execute
+
+
+@pytest.mark.parametrize("name", ["iterable", "generator"])
+def test_model_lazy_iterables_are_read_for_approval(name: str) -> None:
+    """Serializing for approval leaves the tool the values to iterate."""
+    from inspect_ai.model._call_tools import validated_tool_call
+
+    tool_def = ToolDef(
+        lazy_params(),
+        parameters=ToolParams(properties={name: ToolParam()}),
+    )
+    validated = validated_tool_call(
+        make_call("lazy_params", {name: {"values": [1, 2.5]}}), tool_def
+    )
+
+    assert validated.call.arguments == {name: {"values": [1.0, 2.5]}}
+    assert list(validated.arguments[name].values) == [1.0, 2.5]

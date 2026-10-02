@@ -3,14 +3,11 @@ import json
 import string
 import types
 import typing
-from collections.abc import Iterable, Mapping
-from collections.abc import Set as AbstractSet
+from collections.abc import Iterator
 from copy import copy, deepcopy
-from dataclasses import fields, is_dataclass, replace
+from dataclasses import is_dataclass, replace
 from datetime import date, datetime, time
-from decimal import Decimal
-from enum import Enum, EnumMeta
-from fractions import Fraction
+from enum import EnumMeta
 from logging import getLogger
 from textwrap import dedent
 from types import UnionType
@@ -44,7 +41,7 @@ import yaml
 from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import AliasChoices, AliasPath, BaseModel
 from pydantic.fields import FieldInfo
-from pydantic_core import PydanticSerializationError, to_jsonable_python
+from pydantic_core import to_jsonable_python
 from typing_extensions import is_typeddict
 
 from inspect_ai._util.content import (
@@ -1380,7 +1377,65 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
         arguments = _handoff_arguments(tool_def.tool, call.arguments)
     else:
         arguments = tool_params(call.arguments, tool_def.tool)
+
+    # a Pydantic model applies its own validation, which can change a value
+    # (e.g. round a large integer), so approval sees what the model holds
+    serialized = {
+        name: _serialized_models(arguments[name])
+        for name in call.arguments
+        if name in arguments and _contains_model(arguments[name])
+    }
+    if serialized:
+        call = replace(call, arguments={**call.arguments, **serialized})
     return ValidatedToolCall(call, arguments)
+
+
+def _contains_model(value: Any) -> bool:
+    if isinstance(value, BaseModel):
+        return True
+    if isinstance(value, list | tuple | set | frozenset):
+        return any(_contains_model(v) for v in value)
+    if isinstance(value, dict):
+        return any(_contains_model(v) for v in value.values())
+    return False
+
+
+def _serialized_models(value: Any) -> Any:
+    """`value`, holding Pydantic models, as the JSON the models serialize to.
+
+    A lazy iterable a model holds (an `Iterable` or `Generator` field) is read
+    into a list first, so serializing it for approval does not consume the
+    values the tool will receive.
+
+    Raises:
+        ToolParsingError: Reading a lazy iterable fails the model's validation.
+    """
+    _materialize_iterators(value)
+    return to_jsonable_python(value, fallback=str)
+
+
+def _materialize_iterators(value: Any) -> None:
+    if isinstance(value, BaseModel):
+        for name in type(value).model_fields:
+            attr = getattr(value, name, None)
+            if isinstance(attr, Iterator):
+                try:
+                    items = list(attr)
+                except ValueError as ex:
+                    raise ToolParsingError(
+                        f"Unable to convert the values of '{name}': {ex}"
+                    ) from ex
+                # bypasses validate_assignment and frozen models: the values
+                # were validated as they were read
+                object.__setattr__(value, name, items)
+            else:
+                _materialize_iterators(attr)
+    elif isinstance(value, list | tuple | set | frozenset):
+        for item in value:
+            _materialize_iterators(item)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _materialize_iterators(item)
 
 
 def _handoff_arguments(
@@ -1475,19 +1530,9 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
                     if len(path) == 1 and isinstance(key, str) and key in input:
                         model_data[key] = tool_param(annotation, input[key])
             try:
-                model = type_hint(**model_data)
+                return type_hint(**model_data)
             except (TypeError, ValueError) as ex:
                 raise unable_to_convert(ex) from ex
-            # the model's own validation (e.g. of a union with a Literal
-            # member, or a nested alias path) can still round a number
-            if not _model_preserves(input, model):
-                raise unable_to_convert(
-                    ValueError(
-                        "a value would change, or could not be checked before "
-                        "the tool runs"
-                    )
-                )
-            return model
         elif isinstance(type_hint, EnumMeta):
             try:
                 return type_hint(input)
@@ -1574,205 +1619,6 @@ def _model_field_input_paths(
         paths.append((field.alias,))
     paths.append((name,))
     return paths
-
-
-def _model_preserves(supplied: dict[str, Any], model: BaseModel) -> bool:
-    """Whether each supplied field value is the one `model` holds (numerically)."""
-    for name, field in type(model).model_fields.items():
-        for path in _model_field_input_paths(name, field):
-            found, value = _input_at(supplied, path)
-            if found:
-                if not _value_preserved(value, getattr(model, name)):
-                    return False
-                break
-    return True
-
-
-def _input_at(value: Any, path: tuple[str | int, ...]) -> tuple[bool, Any]:
-    for key in path:
-        if isinstance(key, str) and isinstance(value, dict) and key in value:
-            value = value[key]
-        elif (
-            isinstance(key, int)
-            and isinstance(value, list)
-            and -len(value) <= key < len(value)
-        ):
-            value = value[key]
-        else:
-            return False, None
-    return True, value
-
-
-def _value_preserved(supplied: Any, built: Any) -> bool:
-    """Whether `built` holds the JSON value `supplied` with the same meaning.
-
-    Both are reduced to a canonical form and compared (each element once, so a
-    collection of n values costs O(n)). Numbers compare exactly and keep their
-    kind: a string never becomes a number or flag, nor the reverse. Arrays
-    match sequences in order and sets as sets; objects match mappings, models
-    (their supplied fields) and dataclasses. Other values built from a string
-    (dates, enums, bytes, UUIDs) match any string; inside a set, and as a
-    mapping key, they must be written as the text they serialize to. A value that
-    cannot be reduced, such as a lazy iterable the tool would consume after
-    approval, does not match.
-    """
-    try:
-        built_form = _canonical_built(built)
-    except _Unchecked:
-        return False
-    return bool(_canonical_supplied(supplied, built_form) == built_form)
-
-
-class _Unchecked(Exception):
-    """A built value whose content cannot be checked before the tool runs."""
-
-
-def _canonical_number(value: int | float | Decimal) -> tuple[str, Any]:
-    try:
-        return ("n", Fraction(value))
-    except (ValueError, OverflowError):  # nan, inf
-        return ("n", str(float(value)))
-
-
-def _canonical_json(value: Any) -> Any:
-    """The canonical form of a JSON value supplied by the model."""
-    if isinstance(value, bool):
-        return ("b", value)
-    if isinstance(value, int | float):
-        return _canonical_number(value)
-    if isinstance(value, str):
-        return ("s", value)
-    if value is None:
-        return ("z",)
-    if isinstance(value, list | tuple):
-        return ("l", tuple(_canonical_json(v) for v in value))
-    if isinstance(value, dict):
-        return ("d", frozenset((str(k), _canonical_json(v)) for k, v in value.items()))
-    return ("?", id(value))
-
-
-def _canonical_supplied(value: Any, shape: Any) -> Any:
-    """The canonical form of `value`, read as the built form `shape` was (sets)."""
-    tag = shape[0] if isinstance(shape, tuple) and shape else None
-    if tag == "ps" and isinstance(value, str):
-        # parsed from a string (any spelling the type accepts)
-        return shape
-    if tag == "set" and isinstance(value, list):
-        return ("set", frozenset(_canonical_json(v) for v in value))
-    if tag == "l" and isinstance(value, list) and len(value) == len(shape[1]):
-        return (
-            "l",
-            tuple(_canonical_supplied(v, s) for v, s in zip(value, shape[1])),
-        )
-    if tag == "d" and isinstance(value, dict):
-        shapes = dict(shape[1])
-        return (
-            "d",
-            frozenset(
-                (str(k), _canonical_supplied(v, shapes.get(str(k))))
-                for k, v in value.items()
-            ),
-        )
-    return _canonical_json(value)
-
-
-def _canonical_built(value: Any) -> Any:
-    """The canonical form of a value built from a model's JSON input."""
-    if isinstance(value, Enum):
-        value = value.value
-    if isinstance(value, bool):
-        return ("b", value)
-    if isinstance(value, int | float | Decimal):
-        return _canonical_number(value)
-    if isinstance(value, str):
-        return ("s", value)
-    if value is None:
-        return ("z",)
-    if isinstance(value, BaseModel):
-        model_fields = type(value).model_fields
-        return (
-            "d",
-            frozenset(
-                (
-                    _model_field_input_key(name, model_fields[name]),
-                    _canonical_built(getattr(value, name)),
-                )
-                for name in value.model_fields_set
-                if name in model_fields
-            ),
-        )
-    if is_dataclass(value) and not isinstance(value, type):
-        return (
-            "d",
-            frozenset(
-                (field.name, _canonical_built(getattr(value, field.name)))
-                for field in fields(value)
-            ),
-        )
-    if isinstance(value, Mapping):
-        return (
-            "d",
-            frozenset(
-                (_canonical_key(k), _canonical_built(v)) for k, v in value.items()
-            ),
-        )
-    if isinstance(value, AbstractSet):
-        # members are matched by lookup, so a parsed member must have been
-        # written as the text it serializes to
-        return ("set", frozenset(_spelled(_canonical_built(v)) for v in value))
-    if isinstance(value, Sequence) and not isinstance(value, bytes | bytearray):
-        return ("l", tuple(_canonical_built(v) for v in value))
-    if isinstance(value, Iterable) and not isinstance(value, bytes | bytearray):
-        raise _Unchecked()
-    try:
-        serialized = to_jsonable_python(value)
-    except PydanticSerializationError as ex:
-        raise _Unchecked() from ex
-    if isinstance(serialized, str):
-        return ("ps", serialized)
-    return _canonical_json(serialized)
-
-
-def _spelled(form: Any) -> Any:
-    """`form` with each value parsed from a string matched as its own text."""
-    tag = form[0]
-    if tag == "ps":
-        return ("s", form[1])
-    if tag == "l":
-        return ("l", tuple(_spelled(f) for f in form[1]))
-    if tag == "d":
-        return ("d", frozenset((k, _spelled(f)) for k, f in form[1]))
-    if tag == "set":
-        return form
-    return form
-
-
-def _canonical_key(key: Any) -> str:
-    """A mapping key as the JSON text it was built from.
-
-    A number key must have been written as the number's own text (`"1"` for 1),
-    and a flag key matches no text.
-    """
-    if isinstance(key, Enum):
-        key = key.value
-    if isinstance(key, bool):
-        return "\0flag"
-    if isinstance(key, str):
-        return key
-    if isinstance(key, int | float | Decimal):
-        return str(key)
-    try:
-        return str(to_jsonable_python(key))
-    except PydanticSerializationError as ex:
-        raise _Unchecked() from ex
-
-
-def _model_field_input_key(name: str, field: FieldInfo) -> str:
-    """The input key a nested model field is matched under."""
-    for path in _model_field_input_paths(name, field):
-        if len(path) == 1 and isinstance(path[0], str):
-            return path[0]
-    return "\0path"
 
 
 def _exact_scalar(type_hint: Type[Any], value: Any) -> Any:

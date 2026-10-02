@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal, Mapping, NamedTuple
 
 import pytest
 from pydantic import AliasChoices, AliasPath, BaseModel, Field
+from pydantic_core import to_jsonable_python
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
@@ -892,7 +893,14 @@ async def test_converted_values_match_the_approved_call() -> None:
     )
 
     assert message.error is None
-    assert [c.arguments for c in calls] == [arguments]
+    # the approver sees each model as it serializes (with its defaults)
+    assert [c.arguments for c in calls] == [
+        {
+            "when": "2025-01-02",
+            "payload": {"amount": 5.0, "note": ""},
+            "payloads": [{"amount": float(2**52), "note": "n"}],
+        }
+    ]
     (values,) = received
     assert values["when"] == date(2025, 1, 2)
     assert values["payload"] == Payload(amount=5.0)
@@ -967,7 +975,9 @@ async def test_handoff_arguments_are_converted_for_the_agent() -> None:
     )
 
     assert message.error is None
-    assert [c.arguments for c in calls] == [{"amount": 5, "payload": {"amount": 1}}]
+    assert [c.arguments for c in calls] == [
+        {"amount": 5, "payload": {"amount": 1.0, "note": ""}}
+    ]
     assert filtered == 1
     assert received == [
         {"amount": 5.0, "payload": Payload(amount=1.0), "note": "curried"}
@@ -1122,12 +1132,17 @@ def model_inputs(received: list[dict[str, Any]]):
     return execute
 
 
-MODEL_INPUT_CASES: list[tuple[str, dict[str, Any]]] = [
+# fields Inspect converts exactly before the model validates them
+PRECONVERTED_CASES: list[tuple[str, dict[str, Any]]] = [
     ("union", {"union": {"amount": 2**53 + 1}}),
     ("none-first", {"none_first": {"amount": 2**53 + 1}}),
     ("alias", {"alias": {"value": 2**53 + 1}}),
     ("alias-choices", {"choices": {"value": 2**53 + 1}}),
     ("nested", {"outer": {"items": [{"amount": 2**53 + 1}]}}),
+]
+
+# values the model's own validation changes
+CONSTRUCTED_CASES: list[tuple[str, dict[str, Any]]] = [
     ("literal", {"literal": {"amount": 2**53 + 1}}),
     ("annotated", {"annotated": {"amount": 2**53 + 1}}),
     ("bytes", {"raw": {"amount": 2**53 + 1}}),
@@ -1166,8 +1181,8 @@ async def execute_model_inputs(
 
 @pytest.mark.parametrize(
     "arguments",
-    [case[1] for case in MODEL_INPUT_CASES],
-    ids=[case[0] for case in MODEL_INPUT_CASES],
+    [case[1] for case in PRECONVERTED_CASES],
+    ids=[case[0] for case in PRECONVERTED_CASES],
 )
 async def test_inexact_model_field_never_reaches_approval(
     arguments: dict[str, Any],
@@ -1179,6 +1194,36 @@ async def test_inexact_model_field_never_reaches_approval(
     assert calls == []
     assert viewed == []
     assert received == []
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [case[1] for case in CONSTRUCTED_CASES],
+    ids=[case[0] for case in CONSTRUCTED_CASES],
+)
+async def test_model_field_is_approved_as_constructed(
+    arguments: dict[str, Any],
+) -> None:
+    """A value the model's validation changes is shown to approval as it will run."""
+    message, calls, viewed, received = await execute_model_inputs(arguments)
+
+    assert message.error is None
+    (values,) = received
+    expected = {name: to_jsonable_python(values[name]) for name in arguments}
+    assert expected != arguments
+    assert [call.arguments for call in calls] == [expected]
+    assert [call.arguments for call in viewed] == [expected]
+
+
+async def test_model_field_lossy_values_are_shown() -> None:
+    message, calls, _, _ = await execute_model_inputs(
+        {"literal": {"amount": 2**53 + 1}, "flag": {"value": "false"}}
+    )
+
+    assert message.error is None
+    assert [call.arguments for call in calls] == [
+        {"literal": {"amount": float(2**53 + 1)}, "flag": {"value": False}}
+    ]
 
 
 async def test_exact_model_fields_run_as_approved() -> None:
@@ -1207,9 +1252,11 @@ async def test_exact_model_fields_run_as_approved() -> None:
     message, calls, viewed, received = await execute_model_inputs(arguments)
 
     assert message.error is None
-    assert [c.arguments for c in calls] == [arguments]
     assert len(viewed) == 1
     (values,) = received
+    assert [c.arguments for c in calls] == [
+        {name: to_jsonable_python(values[name]) for name in arguments}
+    ]
     assert values["union"] == UnionPayload(amount=float(exact))
     assert values["none_first"] == NoneFirstPayload(amount=float(exact))
     assert values["alias"].amount == float(exact)
@@ -1246,10 +1293,8 @@ def path_input(received: list[PathPayload]):
     return execute
 
 
-@pytest.mark.parametrize(
-    "amount,valid", [(2**53 + 1, False), (2**52, True)], ids=["inexact", "exact"]
-)
-async def test_alias_path_field_converts_exactly(amount: int, valid: bool) -> None:
+@pytest.mark.parametrize("amount", [2**53 + 1, 2**52], ids=["inexact", "exact"])
+async def test_alias_path_field_is_approved_as_constructed(amount: int) -> None:
     received: list[PathPayload] = []
     calls: list[ToolCall] = []
     tool_def = ToolDef(
@@ -1267,15 +1312,11 @@ async def test_alias_path_field_converts_exactly(amount: int, valid: bool) -> No
         [ApprovalPolicy(recording_approver(calls), "*")],
     )
 
-    if valid:
-        assert message.error is None
-        assert len(calls) == 1
-        assert [payload.amount for payload in received] == [float(amount)]
-    else:
-        assert message.error is not None
-        assert message.error.type == "parsing"
-        assert calls == []
-        assert received == []
+    assert message.error is None
+    assert [payload.amount for payload in received] == [float(amount)]
+    assert [call.arguments for call in calls] == [
+        {"payload": {"amount": float(amount)}}
+    ]
 
 
 if __name__ == "__main__":

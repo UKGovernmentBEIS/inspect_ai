@@ -8,6 +8,7 @@
 - Approval: Approvers and tool viewers, including for bridged agents, now see only calls whose arguments passed validation, and memory tool paths are approved in canonical form; a failing viewer rejects the call.
 - Approval: Policy tool patterns match the function name separately from the arguments, so name globs ignore argument text and argument patterns match in any argument order.
 - Tools: Arguments that need a lossy conversion, such as `"false"` for a `bool` or `1.5` for an `int`, are now parsing errors.
+- Approval: Arguments for Pydantic model parameters are shown to approvers as the constructed model serializes, so a value the model's validation changes is approved as it will run.
 
 ## 0.3.273 (29 September 2026)
 
