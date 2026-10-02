@@ -121,6 +121,7 @@ def _observation(**kwargs: Any) -> SentinelEvent:
         _sentinel_event(status="superseded", action="modify", modified=_MODIFIED),
         _observation(references=_REFERENCES),
         _sentinel_event(references=_REFERENCES),
+        _observation(status="error", suspicion=None, error="ValueError: no model"),
     ],
 )
 def test_sentinel_event_round_trips(event: SentinelEvent) -> None:
@@ -178,6 +179,33 @@ def test_sentinel_decision_requires_action_only(
 ) -> None:
     with pytest.raises(ValidationError):
         _sentinel_event(status=status, **overrides)
+
+
+@pytest.mark.parametrize(
+    "overrides,match",
+    [
+        (dict(error=None), "only on, an 'error'"),
+        (dict(kind="decision"), "Only an 'observation'"),
+        (dict(suspicion=0.5), "suspicion"),
+        (dict(action="continue"), "action"),
+        (dict(references=_REFERENCES), "references"),
+        (dict(function=None), "requires function"),
+    ],
+)
+def test_sentinel_error_records_only_the_error(
+    overrides: dict[str, Any], match: str
+) -> None:
+    fields: dict[str, Any] = dict(status="error", suspicion=None, error="boom")
+    _observation(**fields)
+    fields.update(overrides)
+    with pytest.raises(ValidationError, match=match):
+        _observation(**fields)
+
+
+@pytest.mark.parametrize("status", ["reported", "cancelled", "superseded"])
+def test_sentinel_error_is_only_on_an_error_event(status: str) -> None:
+    with pytest.raises(ValidationError, match="only on, an 'error'"):
+        _sentinel_event(status=status, error="boom")
 
 
 def test_sentinel_superseded_is_only_for_decisions() -> None:
@@ -250,3 +278,16 @@ def test_sentinel_event_tui_shows_unreported_status() -> None:
     buffer = io.StringIO()
     Console(file=buffer, width=200).print(displays[0].content)
     assert "reject (superseded)" in buffer.getvalue()
+
+
+def test_sentinel_event_tui_shows_the_error() -> None:
+    from rich.console import Console
+
+    from inspect_ai._display.textual.widgets.transcript import render_event
+
+    event = _observation(status="error", suspicion=None, error="ValueError: [/red]")
+    displays = render_event(event)
+    assert displays is not None
+    buffer = io.StringIO()
+    Console(file=buffer, width=200).print(displays[0].content)
+    assert "observation (error): ValueError: [/red]" in buffer.getvalue()

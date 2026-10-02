@@ -93112,8 +93112,8 @@ var ToolCheckInset_module_default = {
 	return t5;
 };
 /** One row naming the result that took effect for a stage. */ var CheckSummary = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(31);
-	const { icon, iconClassName, verdict, verdictClassName, who, whoSuffix, reason, reasonClassName, scores, flagged, checks, open, onToggle } = t0;
+	const $ = (0, import_compiler_runtime.c)(32);
+	const { icon, iconClassName, verdict, verdictClassName, who, whoSuffix, reason, reasonClassName, scores, flagged, failed, checks, open, onToggle } = t0;
 	let t1;
 	if ($[0] !== icon || $[1] !== iconClassName) {
 		t1 = clsx(icon, ToolCheckInset_module_default.icon, iconClassName);
@@ -93178,28 +93178,36 @@ var ToolCheckInset_module_default = {
 		$[18] = t7;
 	} else t7 = $[18];
 	let t8;
-	if ($[19] !== checks || $[20] !== flagged || $[21] !== onToggle || $[22] !== open) {
-		t8 = flagged || checks !== void 0 && checks > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+	if ($[19] !== checks || $[20] !== failed || $[21] !== flagged || $[22] !== onToggle || $[23] !== open) {
+		t8 = flagged || failed || checks !== void 0 && checks > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolCheckInset_module_default.trailing,
-			children: [flagged ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-				className: ToolCheckInset_module_default.chip,
-				children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: "bi bi-flag-fill" }), "flagged"]
-			}) : null, checks !== void 0 && checks > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-				type: "button",
-				className: ToolCheckInset_module_default.pill,
-				"aria-expanded": !!open,
-				onClick: onToggle,
-				children: [`${checks} checks`, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: clsx(open ? "bi bi-chevron-down" : "bi bi-chevron-right", ToolCheckInset_module_default.pillChevron) })]
-			}) : null]
+			children: [
+				flagged ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+					className: ToolCheckInset_module_default.chip,
+					children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: "bi bi-flag-fill" }), "flagged"]
+				}) : null,
+				failed ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+					className: ToolCheckInset_module_default.chip,
+					children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: "bi bi-exclamation-triangle" }), `${failed} failed`]
+				}) : null,
+				checks !== void 0 && checks > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+					type: "button",
+					className: ToolCheckInset_module_default.pill,
+					"aria-expanded": !!open,
+					onClick: onToggle,
+					children: [`${checks} checks`, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", { className: clsx(open ? "bi bi-chevron-down" : "bi bi-chevron-right", ToolCheckInset_module_default.pillChevron) })]
+				}) : null
+			]
 		}) : null;
 		$[19] = checks;
-		$[20] = flagged;
-		$[21] = onToggle;
-		$[22] = open;
-		$[23] = t8;
-	} else t8 = $[23];
+		$[20] = failed;
+		$[21] = flagged;
+		$[22] = onToggle;
+		$[23] = open;
+		$[24] = t8;
+	} else t8 = $[24];
 	let t9;
-	if ($[24] !== t2 || $[25] !== t4 || $[26] !== t5 || $[27] !== t6 || $[28] !== t7 || $[29] !== t8) {
+	if ($[25] !== t2 || $[26] !== t4 || $[27] !== t5 || $[28] !== t6 || $[29] !== t7 || $[30] !== t8) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ToolCheckInset_module_default.summary,
 			children: [
@@ -93211,14 +93219,14 @@ var ToolCheckInset_module_default = {
 				t8
 			]
 		});
-		$[24] = t2;
-		$[25] = t4;
-		$[26] = t5;
-		$[27] = t6;
-		$[28] = t7;
-		$[29] = t8;
-		$[30] = t9;
-	} else t9 = $[30];
+		$[25] = t2;
+		$[26] = t4;
+		$[27] = t5;
+		$[28] = t6;
+		$[29] = t7;
+		$[30] = t8;
+		$[31] = t9;
+	} else t9 = $[31];
 	return t9;
 };
 /** The call that ran in place of the original, syntax highlighted. */ var ReplacementCall = (t0) => {
@@ -94478,9 +94486,10 @@ var isInactive$1 = (status) => status !== "reported";
 		outcome,
 		decider: effective ?? outcome,
 		effective,
-		reason: credit ? credit.reason : explanationOf(single),
+		reason: credit ? credit.reason : explanationOf(single) ?? (single?.event.error || void 0),
 		scores,
 		audit: nodes.some((n) => n.event.audit),
+		failed: checks.filter((n) => n.event.status === "error").length,
 		modelCalls
 	};
 }
@@ -97897,35 +97906,37 @@ var ScoreEventView = (t0) => {
 	return t25;
 };
 var SentinelEventView_module_default = {
-	tree: "_tree_qohkz_1",
-	reject: "_reject_qohkz_15",
-	modify: "_modify_qohkz_19",
-	row: "_row_qohkz_23",
-	open: "_open_qohkz_42",
-	inactive: "_inactive_qohkz_46",
-	rowLabel: "_rowLabel_qohkz_50",
-	guides: "_guides_qohkz_56",
-	name: "_name_qohkz_60",
-	result: "_result_qohkz_68",
-	"continue": "_continue_qohkz_74",
-	kindIcon: "_kindIcon_qohkz_82",
-	rowChevron: "_rowChevron_qohkz_92",
-	flag: "_flag_qohkz_97",
-	moreScores: "_moreScores_qohkz_102",
-	detailWrap: "_detailWrap_qohkz_113",
-	detail: "_detail_qohkz_113",
-	afterDetail: "_afterDetail_qohkz_129",
-	rejectDetail: "_rejectDetail_qohkz_133",
-	modifyDetail: "_modifyDetail_qohkz_137",
-	meta: "_meta_qohkz_141",
-	scoreGrid: "_scoreGrid_qohkz_146",
-	scoreName: "_scoreName_qohkz_155",
-	explanation: "_explanation_qohkz_159",
-	noExplanation: "_noExplanation_qohkz_169",
-	labelled: "_labelled_qohkz_174",
-	foldedToggle: "_foldedToggle_qohkz_187",
-	chevron: "_chevron_qohkz_202",
-	modelCalls: "_modelCalls_qohkz_206"
+	tree: "_tree_1ww9u_1",
+	reject: "_reject_1ww9u_15",
+	modify: "_modify_1ww9u_19",
+	row: "_row_1ww9u_23",
+	open: "_open_1ww9u_42",
+	inactive: "_inactive_1ww9u_46",
+	rowLabel: "_rowLabel_1ww9u_50",
+	guides: "_guides_1ww9u_56",
+	name: "_name_1ww9u_60",
+	result: "_result_1ww9u_68",
+	"continue": "_continue_1ww9u_74",
+	failed: "_failed_1ww9u_82",
+	kindIcon: "_kindIcon_1ww9u_86",
+	rowChevron: "_rowChevron_1ww9u_96",
+	flag: "_flag_1ww9u_101",
+	moreScores: "_moreScores_1ww9u_106",
+	detailWrap: "_detailWrap_1ww9u_117",
+	detail: "_detail_1ww9u_117",
+	afterDetail: "_afterDetail_1ww9u_133",
+	rejectDetail: "_rejectDetail_1ww9u_137",
+	modifyDetail: "_modifyDetail_1ww9u_141",
+	meta: "_meta_1ww9u_145",
+	scoreGrid: "_scoreGrid_1ww9u_150",
+	scoreName: "_scoreName_1ww9u_159",
+	explanation: "_explanation_1ww9u_163",
+	errorText: "_errorText_1ww9u_173",
+	noExplanation: "_noExplanation_1ww9u_178",
+	labelled: "_labelled_1ww9u_183",
+	foldedToggle: "_foldedToggle_1ww9u_196",
+	chevron: "_chevron_1ww9u_211",
+	modelCalls: "_modelCalls_1ww9u_215"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/SentinelEventView.tsx
@@ -97933,7 +97944,7 @@ var SentinelEventView_module_default = {
 * One step's sentinel checks: a summary row naming the result that took
 * effect, expanding to the tree of every check with its detail beneath it.
 */ var SentinelInset = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(35);
+	const $ = (0, import_compiler_runtime.c)(36);
 	const { step, region, context, ran: t1 } = t0;
 	const ran = t1 === void 0 ? true : t1;
 	const [collapsed, setCollapsed] = useCollapsedState(`${step.id}-sentinel-checks`, true);
@@ -97941,17 +97952,18 @@ var SentinelEventView_module_default = {
 	const tone = step.effective ? look.tone : "neutral";
 	const who = ((step.rows.length === 1 ? step.rows[0] : void 0)?.node ?? step.decider)?.event.path || void 0;
 	const modified = step.effective ? step.outcome?.event.modified : void 0;
-	const t2 = !collapsed;
-	let t3;
+	const t2 = step.rows.length > 1 ? step.failed : 0;
+	const t3 = !collapsed;
+	let t4;
 	if ($[0] !== collapsed || $[1] !== setCollapsed) {
-		t3 = () => setCollapsed(!collapsed);
+		t4 = () => setCollapsed(!collapsed);
 		$[0] = collapsed;
 		$[1] = setCollapsed;
-		$[2] = t3;
-	} else t3 = $[2];
-	let t4;
-	if ($[3] !== look.icon || $[4] !== look.iconClass || $[5] !== look.reasonClass || $[6] !== look.textClass || $[7] !== look.word || $[8] !== step.audit || $[9] !== step.reason || $[10] !== step.rows.length || $[11] !== step.scores || $[12] !== t2 || $[13] !== t3 || $[14] !== who) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckSummary, {
+		$[2] = t4;
+	} else t4 = $[2];
+	let t5;
+	if ($[3] !== look.icon || $[4] !== look.iconClass || $[5] !== look.reasonClass || $[6] !== look.textClass || $[7] !== look.word || $[8] !== step.audit || $[9] !== step.reason || $[10] !== step.rows.length || $[11] !== step.scores || $[12] !== t2 || $[13] !== t3 || $[14] !== t4 || $[15] !== who) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckSummary, {
 			icon: look.icon,
 			iconClassName: look.iconClass,
 			verdict: look.word,
@@ -97961,9 +97973,10 @@ var SentinelEventView_module_default = {
 			reason: step.reason,
 			reasonClassName: look.reasonClass,
 			flagged: step.audit,
+			failed: t2,
 			checks: step.rows.length,
-			open: t2,
-			onToggle: t3
+			open: t3,
+			onToggle: t4
 		});
 		$[3] = look.icon;
 		$[4] = look.iconClass;
@@ -97976,65 +97989,66 @@ var SentinelEventView_module_default = {
 		$[11] = step.scores;
 		$[12] = t2;
 		$[13] = t3;
-		$[14] = who;
-		$[15] = t4;
-	} else t4 = $[15];
-	let t5;
-	if ($[16] !== modified || $[17] !== ran || $[18] !== step.verdict) {
-		t5 = step.verdict === "modify" && modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RanInstead, {
+		$[14] = t4;
+		$[15] = who;
+		$[16] = t5;
+	} else t5 = $[16];
+	let t6;
+	if ($[17] !== modified || $[18] !== ran || $[19] !== step.verdict) {
+		t6 = step.verdict === "modify" && modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RanInstead, {
 			call: modified,
 			ran
 		}) : null;
-		$[16] = modified;
-		$[17] = ran;
-		$[18] = step.verdict;
-		$[19] = t5;
-	} else t5 = $[19];
-	let t6;
-	if ($[20] !== collapsed || $[21] !== context?.makeCiteUrl || $[22] !== step || $[23] !== tone) {
-		t6 = !collapsed && step.rows.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckTree, {
+		$[17] = modified;
+		$[18] = ran;
+		$[19] = step.verdict;
+		$[20] = t6;
+	} else t6 = $[20];
+	let t7;
+	if ($[21] !== collapsed || $[22] !== context?.makeCiteUrl || $[23] !== step || $[24] !== tone) {
+		t7 = !collapsed && step.rows.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CheckTree, {
 			step,
 			tone,
 			makeCiteUrl: context?.makeCiteUrl
 		}) : null;
-		$[20] = collapsed;
-		$[21] = context?.makeCiteUrl;
-		$[22] = step;
-		$[23] = tone;
-		$[24] = t6;
-	} else t6 = $[24];
-	let t7;
-	if ($[25] !== context || $[26] !== step.modelCalls) {
-		t7 = step.modelCalls[0] ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelCallsNote, {
+		$[21] = collapsed;
+		$[22] = context?.makeCiteUrl;
+		$[23] = step;
+		$[24] = tone;
+		$[25] = t7;
+	} else t7 = $[25];
+	let t8;
+	if ($[26] !== context || $[27] !== step.modelCalls) {
+		t8 = step.modelCalls[0] ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelCallsNote, {
 			id: step.modelCalls[0].id,
 			modelCalls: step.modelCalls,
 			context
 		}) : null;
-		$[25] = context;
-		$[26] = step.modelCalls;
-		$[27] = t7;
-	} else t7 = $[27];
-	let t8;
-	if ($[28] !== region || $[29] !== t4 || $[30] !== t5 || $[31] !== t6 || $[32] !== t7 || $[33] !== tone) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(CheckInset, {
+		$[26] = context;
+		$[27] = step.modelCalls;
+		$[28] = t8;
+	} else t8 = $[28];
+	let t9;
+	if ($[29] !== region || $[30] !== t5 || $[31] !== t6 || $[32] !== t7 || $[33] !== t8 || $[34] !== tone) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(CheckInset, {
 			region,
 			tone,
 			children: [
-				t4,
 				t5,
 				t6,
-				t7
+				t7,
+				t8
 			]
 		});
-		$[28] = region;
-		$[29] = t4;
+		$[29] = region;
 		$[30] = t5;
 		$[31] = t6;
 		$[32] = t7;
-		$[33] = tone;
-		$[34] = t8;
-	} else t8 = $[34];
-	return t8;
+		$[33] = t8;
+		$[34] = tone;
+		$[35] = t9;
+	} else t9 = $[35];
+	return t9;
 };
 var CheckTree = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(8);
@@ -98200,7 +98214,7 @@ var CheckRowView = (t0) => {
 	return t16;
 };
 var CheckResult = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(25);
+	const $ = (0, import_compiler_runtime.c)(26);
 	const { row } = t0;
 	const event = row.node.event;
 	let t1;
@@ -98223,82 +98237,93 @@ var CheckResult = (t0) => {
 		} else t2 = $[3];
 		return t2;
 	}
+	if (event.status === "error") {
+		let t2;
+		if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: SentinelEventView_module_default.failed,
+				children: "failed"
+			});
+			$[4] = t2;
+		} else t2 = $[4];
+		return t2;
+	}
 	if (event.status === "superseded") {
 		let t2;
-		if ($[4] !== event.action) {
+		if ($[5] !== event.action) {
 			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("s", { children: event.action }), " · superseded"] });
-			$[4] = event.action;
-			$[5] = t2;
-		} else t2 = $[5];
+			$[5] = event.action;
+			$[6] = t2;
+		} else t2 = $[6];
 		return t2;
 	}
 	if (event.suspicion !== void 0 && event.suspicion !== null) {
 		let t2;
-		if ($[6] !== event.suspicion) {
+		if ($[7] !== event.suspicion) {
 			t2 = topScore(event.suspicion);
-			$[6] = event.suspicion;
-			$[7] = t2;
-		} else t2 = $[7];
+			$[7] = event.suspicion;
+			$[8] = t2;
+		} else t2 = $[8];
 		const top = t2;
 		const t3 = top.dimension ? `${top.dimension} ` : "";
 		let t4;
-		if ($[8] !== t3 || $[9] !== top.value) {
+		if ($[9] !== t3 || $[10] !== top.value) {
 			t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [t3, top.value] });
-			$[8] = t3;
-			$[9] = top.value;
-			$[10] = t4;
-		} else t4 = $[10];
+			$[9] = t3;
+			$[10] = top.value;
+			$[11] = t4;
+		} else t4 = $[11];
 		let t5;
-		if ($[11] !== top.more) {
+		if ($[12] !== top.more) {
 			t5 = top.more > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 				className: SentinelEventView_module_default.moreScores,
 				children: top.more === 1 ? "1 more score" : `${top.more} more scores`
 			}) : null;
-			$[11] = top.more;
-			$[12] = t5;
-		} else t5 = $[12];
+			$[12] = top.more;
+			$[13] = t5;
+		} else t5 = $[13];
 		let t6;
-		if ($[13] !== flag || $[14] !== t4 || $[15] !== t5) {
+		if ($[14] !== flag || $[15] !== t4 || $[16] !== t5) {
 			t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 				flag,
 				t4,
 				t5
 			] });
-			$[13] = flag;
-			$[14] = t4;
-			$[15] = t5;
-			$[16] = t6;
-		} else t6 = $[16];
+			$[14] = flag;
+			$[15] = t4;
+			$[16] = t5;
+			$[17] = t6;
+		} else t6 = $[17];
 		return t6;
 	}
 	if (!event.action) return flag;
 	let t2;
-	if ($[17] !== event.action) {
+	if ($[18] !== event.action) {
 		t2 = decisionClass(event.action);
-		$[17] = event.action;
-		$[18] = t2;
-	} else t2 = $[18];
+		$[18] = event.action;
+		$[19] = t2;
+	} else t2 = $[19];
 	let t3;
-	if ($[19] !== event.action || $[20] !== t2) {
+	if ($[20] !== event.action || $[21] !== t2) {
 		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: t2,
 			children: event.action
 		});
-		$[19] = event.action;
-		$[20] = t2;
-		$[21] = t3;
-	} else t3 = $[21];
+		$[20] = event.action;
+		$[21] = t2;
+		$[22] = t3;
+	} else t3 = $[22];
 	let t4;
-	if ($[22] !== flag || $[23] !== t3) {
+	if ($[23] !== flag || $[24] !== t3) {
 		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [flag, t3] });
-		$[22] = flag;
-		$[23] = t3;
-		$[24] = t4;
-	} else t4 = $[24];
+		$[23] = flag;
+		$[24] = t3;
+		$[25] = t4;
+	} else t4 = $[25];
 	return t4;
 };
 var CheckDetail = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(50);
+	const $ = (0, import_compiler_runtime.c)(51);
 	const { row, showFunction, makeCiteUrl } = t0;
 	const event = row.node.event;
 	let t1;
@@ -98396,8 +98421,11 @@ var CheckDetail = (t0) => {
 		t9 = $[18];
 	}
 	let t11;
-	if ($[30] !== effectTone || $[31] !== event.references || $[32] !== explanation || $[33] !== makeCiteUrl) {
-		t11 = explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
+	if ($[30] !== effectTone || $[31] !== event.error || $[32] !== event.references || $[33] !== explanation || $[34] !== makeCiteUrl) {
+		t11 = event.error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(SentinelEventView_module_default.errorText, checkClasses.mono),
+			children: event.error
+		}) : explanation ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
 			markdown: explanation,
 			references: citeReferences(event.references, makeCiteUrl),
 			className: clsx(SentinelEventView_module_default.explanation, effectTone === "reject" && checkClasses.rejectReason)
@@ -98406,13 +98434,14 @@ var CheckDetail = (t0) => {
 			children: "No explanation recorded."
 		});
 		$[30] = effectTone;
-		$[31] = event.references;
-		$[32] = explanation;
-		$[33] = makeCiteUrl;
-		$[34] = t11;
-	} else t11 = $[34];
+		$[31] = event.error;
+		$[32] = event.references;
+		$[33] = explanation;
+		$[34] = makeCiteUrl;
+		$[35] = t11;
+	} else t11 = $[35];
 	let t12;
-	if ($[35] !== event.message) {
+	if ($[36] !== event.message) {
 		t12 = event.message ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: SentinelEventView_module_default.labelled,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -98420,11 +98449,11 @@ var CheckDetail = (t0) => {
 				children: "told the agent"
 			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.message })]
 		}) : null;
-		$[35] = event.message;
-		$[36] = t12;
-	} else t12 = $[36];
+		$[36] = event.message;
+		$[37] = t12;
+	} else t12 = $[37];
 	let t13;
-	if ($[37] !== event.modified) {
+	if ($[38] !== event.modified) {
 		t13 = event.modified ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: SentinelEventView_module_default.labelled,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -98435,11 +98464,11 @@ var CheckDetail = (t0) => {
 				children: replacementText(event.modified)
 			})]
 		}) : null;
-		$[37] = event.modified;
-		$[38] = t13;
-	} else t13 = $[38];
+		$[38] = event.modified;
+		$[39] = t13;
+	} else t13 = $[39];
 	let t14;
-	if ($[39] !== t11 || $[40] !== t12 || $[41] !== t13 || $[42] !== t6 || $[43] !== t7 || $[44] !== t8) {
+	if ($[40] !== t11 || $[41] !== t12 || $[42] !== t13 || $[43] !== t6 || $[44] !== t7 || $[45] !== t8) {
 		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t6,
 			children: [
@@ -98450,26 +98479,26 @@ var CheckDetail = (t0) => {
 				t13
 			]
 		});
-		$[39] = t11;
-		$[40] = t12;
-		$[41] = t13;
-		$[42] = t6;
-		$[43] = t7;
-		$[44] = t8;
-		$[45] = t14;
-	} else t14 = $[45];
+		$[40] = t11;
+		$[41] = t12;
+		$[42] = t13;
+		$[43] = t6;
+		$[44] = t7;
+		$[45] = t8;
+		$[46] = t14;
+	} else t14 = $[46];
 	let t15;
-	if ($[46] !== t10 || $[47] !== t14 || $[48] !== t9) {
+	if ($[47] !== t10 || $[48] !== t14 || $[49] !== t9) {
 		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: t9,
 			style: t10,
 			children: t14
 		});
-		$[46] = t10;
-		$[47] = t14;
-		$[48] = t9;
-		$[49] = t15;
-	} else t15 = $[49];
+		$[47] = t10;
+		$[48] = t14;
+		$[49] = t9;
+		$[50] = t15;
+	} else t15 = $[50];
 	return t15;
 };
 /** Paths of the instances that reported from more than one function on this step. */ var groupedPaths = (rows) => {
@@ -98670,6 +98699,12 @@ var verdictLooks = {
 		icon: TranscriptIcons.sentinel,
 		word: "Superseded",
 		tone: "neutral"
+	},
+	error: {
+		icon: "bi bi-exclamation-triangle",
+		word: "Failed",
+		tone: "neutral",
+		textClass: SentinelEventView_module_default.failed
 	},
 	reject: {
 		...rejectLook,

@@ -40,7 +40,7 @@ class SentinelEvent(BaseEvent):
     """Instance path (e.g. "attempt/internet_attempt")."""
 
     function: str | None = Field(default=None)
-    """Name of the function that produced the report, which tells apart the functions of an instance whose factory returned several. `None` for `cancelled` and `bypassed` events."""
+    """Name of the function that produced the report, or that raised for an `error` event, which tells apart the functions of an instance whose factory returned several. `None` for `cancelled` and `bypassed` events."""
 
     step_id: str
     """The step examined: the triggering message id (`model_input`), the assistant message id (`model_output`), or the tool call id (tool stages)."""
@@ -54,8 +54,8 @@ class SentinelEvent(BaseEvent):
     kind: Literal["observation", "decision"]
     """The report family: `observation` from a monitor, `decision` from a protocol."""
 
-    status: Literal["reported", "cancelled", "bypassed", "superseded"]
-    """What happened to the report: `reported` carries it; `cancelled` and `bypassed` record no report; `superseded` carries a decision that did not take effect."""
+    status: Literal["reported", "cancelled", "bypassed", "superseded", "error"]
+    """What happened to the report: `reported` carries it; `cancelled` and `bypassed` record no report; `superseded` carries a decision that did not take effect; `error` records a monitor function that raised instead of reporting."""
 
     suspicion: SentinelSuspicion | None = Field(default=None)
     """How suspicious the step is: one score, or scores for several dimensions."""
@@ -76,11 +76,33 @@ class SentinelEvent(BaseEvent):
     """Explanation for the report, recorded in the log only (the agent never sees it)."""
 
     references: list[Reference] = Field(default_factory=list)
-    """Messages and events the report cites, which link cites such as `[M22]` in `explanation`. Empty for `cancelled` and `bypassed` events."""
+    """Messages and events the report cites, which link cites such as `[M22]` in `explanation`. Empty for `cancelled`, `bypassed` and `error` events."""
+
+    error: str | None = Field(default=None)
+    """The exception a monitor function raised, as its type and message, for an `error` event."""
 
     @model_validator(mode="after")
     def _check_report_fields(self) -> Self:
-        if self.status in ("cancelled", "bypassed"):
+        if (self.status == "error") != (self.error is not None):
+            raise ValueError("error is set on, and only on, an 'error' SentinelEvent.")
+        if self.status == "error":
+            if self.kind != "observation":
+                raise ValueError("Only an 'observation' SentinelEvent can be an error.")
+            unexpected = [
+                field
+                for field in ("suspicion", "action")
+                if getattr(self, field) is not None
+            ]
+            if self.references:
+                unexpected.append("references")
+            if unexpected:
+                raise ValueError(
+                    f"An 'error' SentinelEvent records no report, so "
+                    f"{', '.join(unexpected)} must be unset."
+                )
+            if self.function is None:
+                raise ValueError("An 'error' SentinelEvent requires function.")
+        elif self.status in ("cancelled", "bypassed"):
             unexpected = [
                 field
                 for field in ("function", "suspicion", "action")
