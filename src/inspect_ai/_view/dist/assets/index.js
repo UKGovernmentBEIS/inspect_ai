@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./prismHighlighter.js","./rolldown-runtime.js","./src.js","./type.js","./AnsiDisplayRich.js","./compiler-runtime.js","./ToolButton.js","./ToolButton.css","./AnsiDisplayRich.css","./AsciinemaPlayerImpl.js","./AsciinemaPlayerImpl.css","./markdownPipeline.js","./markdownText.js","./preload-helper.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./prismHighlighter.js","./rolldown-runtime.js","./src.js","./type.js","./AnsiDisplayRich.js","./compiler-runtime.js","./ToolButton.js","./ToolButton.css","./AnsiDisplayRich.css","./AsciinemaPlayerImpl.js","./AsciinemaPlayerImpl.css","./markdownPipeline.js","./markdownText.js","./preload-helper.js","./markdownPipeline.css"])))=>i.map(i=>d[i]);
 import { i as __toESM, t as __commonJSMin } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
 import { a as require_dist, c as logFetchInit, d as loading$2, f as map, i as workerLauncher, l as compose, m as stripAnsi, n as asyncJsonParse, o as revealHiddenCharacters, p as isAnsiOutput, r as asyncJsonParseBytes, s as fetchRange, t as createLogger, u as data } from "./src.js";
@@ -43256,7 +43256,7 @@ var LoadingBar = (t0) => {
 };
 //#endregion
 //#region ../../packages/react/src/components/MarkdownDiv.tsx
-var markdownPipeline = onDemandModule(() => __vitePreload(() => import("./markdownPipeline.js"), __vite__mapDeps([11,1,2,12,13]), import.meta.url));
+var markdownPipeline = onDemandModule(() => __vitePreload(() => import("./markdownPipeline.js"), __vite__mapDeps([11,1,2,12,13,14]), import.meta.url));
 var sanitizeMarkdown = (md) => {
 	return escapeHtmlCharacters(md).replace(/\n/g, "<br/>");
 };
