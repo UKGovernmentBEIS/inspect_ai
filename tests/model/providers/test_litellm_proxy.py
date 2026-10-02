@@ -3619,6 +3619,9 @@ FALLBACK_SERVED = {
     "fallback-primary": None,
     "fallback-backup": "gpt-4o-mini-2024-07-18",
     "fallback-same": "gpt-4o-2024-08-06",
+    "fallback-pool-primary": None,
+    "fallback-pool-expensive": "gpt-5-2025-08-07",
+    "fallback-pool-cheap": "gpt-4o-mini-2024-07-18",
 }
 
 
@@ -3641,7 +3644,9 @@ def _fallback_route(request: StubRequest) -> Any:
 def fallback_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLMProxy]:
     with fake_upstream(_fallback_route) as upstream:
 
-        def deployment(name: str, model: str, base_model: str) -> dict[str, Any]:
+        def deployment(
+            name: str, model: str, base_model: str, **model_info: Any
+        ) -> dict[str, Any]:
             return {
                 "model_name": name,
                 "litellm_params": {
@@ -3649,7 +3654,7 @@ def fallback_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLM
                     "api_base": f"{upstream.docker_url}/v1",
                     "api_key": "fake",
                 },
-                "model_info": {"base_model": base_model},
+                "model_info": {"base_model": base_model} | model_info,
             }
 
         config = {
@@ -3657,10 +3662,20 @@ def fallback_proxy(tmp_path_factory: pytest.TempPathFactory) -> Iterator[LiteLLM
                 deployment("primary", "fallback-primary", "openai/gpt-4o"),
                 deployment("backup", "fallback-backup", "openai/gpt-4o-mini"),
                 deployment("same", "fallback-same", "openai/gpt-4o"),
+                deployment("pool-primary", "fallback-pool-primary", "openai/gpt-4o"),
+                # a fallback pool: an expensive deployment priced only by the
+                # proxy, and a cheap one with a native price
+                deployment(
+                    "pool",
+                    "fallback-pool-expensive",
+                    "openai/gpt-5",
+                    **_proxy_price(2000.0),
+                ),
+                deployment("pool", "fallback-pool-cheap", "openai/gpt-4o-mini"),
             ],
             "router_settings": {
                 "num_retries": 0,
-                "fallbacks": [{"primary": ["backup"]}],
+                "fallbacks": [{"primary": ["backup"]}, {"pool-primary": ["pool"]}],
             },
         }
         with run_litellm_proxy(
@@ -3713,6 +3728,40 @@ async def test_litellm_proxy_priced_by_serving_deployment(
     print(f"reported model: {output.model}")
     if alias == "primary":
         assert output.model != alias
+    assert output.usage is not None
+    assert output.usage.total_cost == pytest.approx(
+        output.usage.total_tokens * rate / 1_000_000
+    )
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("responses_api", [False, True])
+async def test_litellm_proxy_fallback_pool_priced_as_alias(
+    fallback_proxy: LiteLLMProxy, responses_api: bool, stream: bool
+) -> None:
+    set_model_cost("openai/gpt-4o", _cost(1000.0))
+    set_model_cost("openai/gpt-4o-mini", _cost(100.0))
+    model = get_model(
+        "litellm-proxy/pool-primary",
+        base_url=fallback_proxy.base_url,
+        api_key=fallback_proxy.api_key,
+        config=GenerateConfig(max_retries=0),
+        responses_api=responses_api,
+        stream=stream,
+        memoize=False,
+    )
+    output = await model.generate("Hello")
+    print(f"reported model: {output.model}")
+    # the pool's alias (streamed Chat Completions) does not say which
+    # deployment served, so it is priced as the alias ($2000/M, its first
+    # deployment's proxy price), never as the other deployment's native price
+    rate = {
+        "pool": 2000.0,
+        "gpt-5-2025-08-07": 2000.0,
+        "gpt-4o-mini-2024-07-18": 100.0,
+    }[output.model]
     assert output.usage is not None
     assert output.usage.total_cost == pytest.approx(
         output.usage.total_tokens * rate / 1_000_000
@@ -3898,3 +3947,45 @@ def test_private_upstream_priced_by_its_registration(
     set_model_info("openai/review-private", ModelInfo(cost=_cost(100.0)))
     assert _served_cost(stub, "primary", reported) == pytest.approx(0.002)
     assert warnings == []
+
+
+POOL_ROWS = [
+    _row("primary", "openai/review-primary", **_proxy_price(1000.0)),
+    # an expensive deployment priced only by the proxy, and a cheap one with
+    # a native price, in both orders
+    _row("pool", "openai/gpt-5", **_proxy_price(2000.0)),
+    _row("pool", "openai/gpt-4o-mini"),
+    _row("pool-reversed", "openai/gpt-4o-mini"),
+    _row("pool-reversed", "openai/gpt-5", **_proxy_price(2000.0)),
+]
+
+
+@pytest.fixture
+def pool_stub(model_info_stub: ModelInfoStub) -> ModelInfoStub:
+    _serve(model_info_stub, POOL_ROWS)
+    set_model_cost("openai/gpt-4o-mini", _cost(100.0))
+    return model_info_stub
+
+
+@skip_if_no_openai_package
+def test_fallback_pool_reported_by_alias_priced_as_alias(
+    pool_stub: ModelInfoStub,
+) -> None:
+    # the alias does not say which deployment served: never the cheap
+    # deployment's native price
+    assert _served_cost(pool_stub, "primary", "pool") == pytest.approx(0.04)
+    # identified deployments are priced on their own
+    assert _served_cost(pool_stub, "primary", "gpt-5-2025-08-07") == pytest.approx(0.04)
+    assert _served_cost(
+        pool_stub, "primary", "gpt-4o-mini-2024-07-18"
+    ) == pytest.approx(0.002)
+
+
+@skip_if_no_openai_package
+@pytest.mark.parametrize("pool", ["pool", "pool-reversed"])
+def test_fallback_pool_priced_as_alias_is_when_called(
+    pool_stub: ModelInfoStub, pool: str
+) -> None:
+    called = _served_cost(pool_stub, pool, pool)
+    assert called is not None
+    assert _served_cost(pool_stub, "primary", pool) == pytest.approx(called)

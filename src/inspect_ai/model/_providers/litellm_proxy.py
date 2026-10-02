@@ -1029,15 +1029,25 @@ def _deployment_usage(
     """Usage served by these deployments of an alias, for pricing.
 
     The same precedence as registered model info: the user's registration
-    for the alias, then the deployment's own model (its resolved model, the
-    reported snapshot, or its upstream id, as registered or in Inspect's
-    database), then the proxy's metadata. Without a price, the deployment's
-    model is reported so that pricing falls back to the called model and
-    warns, rather than using another deployment's rates.
+    for the alias, then Inspect's entry for the model, then the proxy's
+    metadata. An alias reported by name with several deployments does not
+    say which one served the call, so it is priced as the alias, the way
+    the alias is priced when called. An identified deployment is priced by
+    its own model (its resolved model, the reported snapshot, or its
+    upstream id, as registered or in Inspect's database). Without a price,
+    the deployment's model is reported so that pricing falls back to the
+    called model and warns, rather than using another deployment's rates.
     """
     user = _user_model_info(key)
     if user is not None and user.cost is not None:
         return ServedModelUsage(key, usage, user.cost)
+    if len(deployments) > 1:
+        resolution = resolve_deployments(alias, deployments)
+        db = _db_model_info(resolution.db_key if resolution else None)
+        if db is not None and db.cost is not None:
+            return ServedModelUsage(key, usage, db.cost)
+        proxy = proxy_model_info(deployments)
+        return ServedModelUsage(key, usage, proxy.cost if proxy is not None else None)
     names = _deployment_names(alias, deployments, reported)
     for name in names:
         info = _get_model_info_direct(name)
