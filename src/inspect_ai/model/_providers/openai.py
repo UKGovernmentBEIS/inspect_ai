@@ -357,6 +357,19 @@ class OpenAIAPI(ModelAPI):
         self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples. Bedrock
+        # fixes its auth when the client is built, so it keeps the default
+        # rebuild. Token providers run per request and need no update.
+        if self.is_bedrock():
+            await super().refresh_credentials()
+            return
+        super().initialize()
+        if self.api_key:
+            self.client.api_key = self.api_key
+
+    @override
     async def count_text_tokens(self, text: str) -> int:
         import tiktoken
 

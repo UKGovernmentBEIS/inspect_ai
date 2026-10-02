@@ -438,9 +438,9 @@ class AnthropicAPI(ModelAPI):
         floor and pool settings apply.
         """
         # A copy, so every initialize() builds a fresh client: aclose() then
-        # initialize() is the auth-retry path in _model.py's before_retry, and
-        # a closed client fails every later request with the error class these
-        # defaults exist to prevent.
+        # initialize() is the auth-retry path for clients refresh_credentials()
+        # can't update in place, and a closed client fails every later request
+        # with the error class these defaults exist to prevent.
         model_args = dict(self.model_args)
         if "http_client" in model_args:
             return model_args
@@ -563,6 +563,22 @@ class AnthropicAPI(ModelAPI):
         self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client, api=self)
         self._batcher: AnthropicBatcher | None = None
+
+    @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples. Bedrock,
+        # Vertex and ANTHROPIC_AUTH_TOKEN credentials don't come from the key
+        # hooks, so those keep the default rebuild.
+        if (
+            not isinstance(self.client, AsyncAnthropic)
+            or self.client.auth_token
+            or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        ):
+            await super().refresh_credentials()
+            return
+        super().initialize()
+        self.client.api_key = self.api_key
 
     @override
     async def aclose(self) -> None:

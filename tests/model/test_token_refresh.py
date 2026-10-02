@@ -4,9 +4,11 @@ from subprocess import Popen
 from typing import cast
 from unittest.mock import Mock
 
+import anthropic
 import anyio
 import httpx
 import httpx2
+import openai
 import pytest
 from openai import AuthenticationError, DefaultAsyncHttpxClient
 
@@ -25,6 +27,8 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._model_info import _get_model_info_direct
+from inspect_ai.model._providers.anthropic import AnthropicAPI
+from inspect_ai.model._providers.openai import OpenAIAPI
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.openrouter import OpenRouterAPI
 from inspect_ai.model._providers.vllm import VLLMAPI
@@ -156,11 +160,54 @@ def test_reactive_token_refresh_on_401(mock_refresh_token_hook: MockRefreshToken
         del _registry["modelapi:mock401"]
 
 
-@pytest.mark.parametrize("provider", [OpenAICompatibleAPI, OpenRouterAPI])
+_OPENAI_COMPLETION = {
+    "id": "test",
+    "object": "chat.completion",
+    "created": 0,
+    "model": "test-model",
+    "choices": [
+        {
+            "index": 0,
+            "finish_reason": "stop",
+            "message": {"role": "assistant", "content": "ok"},
+        }
+    ],
+}
+
+_ANTHROPIC_MESSAGE = {
+    "id": "test",
+    "type": "message",
+    "role": "assistant",
+    "model": "test-model",
+    "content": [{"type": "text", "text": "ok"}],
+    "stop_reason": "end_turn",
+    "usage": {"input_tokens": 1, "output_tokens": 1},
+}
+
+
+@pytest.mark.parametrize(
+    "provider,model_name,base_url,auth_header",
+    [
+        (OpenAICompatibleAPI, "test/model", "https://example.com/v1", "authorization"),
+        (OpenRouterAPI, "test/model", "https://example.com/v1", "authorization"),
+        (OpenAIAPI, "gpt-4o", "https://example.com/v1", "authorization"),
+        (OpenAIAPI, "azure/gpt-4o", "https://example.openai.azure.com", "api-key"),
+        (AnthropicAPI, "claude-sonnet-4-6", "https://example.com", "x-api-key"),
+        (
+            AnthropicAPI,
+            "azure/claude-sonnet-4-6",
+            "https://example.services.ai.azure.com/anthropic",
+            "api-key",
+        ),
+    ],
+)
 @pytest.mark.parametrize("parallel_status", [200, 500, 401])
 async def test_refresh_preserves_concurrent_requests(
     monkeypatch: pytest.MonkeyPatch,
-    provider: type[OpenAICompatibleAPI],
+    provider: type[OpenAICompatibleAPI] | type[OpenAIAPI] | type[AnthropicAPI],
+    model_name: str,
+    base_url: str,
+    auth_header: str,
     parallel_status: int,
 ) -> None:
     """Refresh during an active request, an SDK retry, or another auth failure."""
@@ -173,10 +220,11 @@ async def test_refresh_preserves_concurrent_requests(
         return token
 
     monkeypatch.setattr("inspect_ai.hooks._hooks.override_api_key", override_api_key)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
 
     async def respond(request: httpx2.Request) -> httpx2.Response:
         marker = json.loads(request.content)["messages"][0]["content"]
-        seen[marker].append(request.headers["authorization"])
+        seen[marker].append(request.headers[auth_header].removeprefix("Bearer "))
         if len(seen[marker]) == 1:
             if marker == "auth":
                 await parallel_started.wait()
@@ -190,69 +238,71 @@ async def test_refresh_preserves_concurrent_requests(
                 )
         return httpx2.Response(
             200,
-            json={
-                "id": "test",
-                "object": "chat.completion",
-                "created": 0,
-                "model": "test-model",
-                "choices": [
-                    {
-                        "index": 0,
-                        "finish_reason": "stop",
-                        "message": {"role": "assistant", "content": "ok"},
-                    }
-                ],
-            },
+            json=_ANTHROPIC_MESSAGE if provider is AnthropicAPI else _OPENAI_COMPLETION,
         )
 
-    http_client = DefaultAsyncHttpxClient(transport=httpx2.MockTransport(respond))
+    http_client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
     api = provider(
-        "test/model",
+        model_name,
         api_key=token,
-        base_url="https://example.com/v1",
+        base_url=base_url,
         http_client=http_client,
         max_retries=1,
     )
     model = Model(api=api, config=GenerateConfig())
     client = api.client
-    # Keep the pre-fix recreation path offline when checking the regression.
-    monkeypatch.setattr(
-        api,
-        "_create_http_client",
-        lambda: DefaultAsyncHttpxClient(transport=httpx2.MockTransport(respond)),
-    )
 
-    async def generate(marker: str) -> str | None:
+    async def create(marker: str) -> None:
+        if isinstance(api, AnthropicAPI):
+            await api.client.messages.create(
+                model="test-model",
+                max_tokens=1,
+                messages=[{"role": "user", "content": marker}],
+            )
+        else:
+            await api.client.chat.completions.create(
+                model="test-model", messages=[{"role": "user", "content": marker}]
+            )
+
+    async def generate(marker: str) -> None:
         nonlocal token
         try:
-            result = await client.chat.completions.create(
-                model="test-model", messages=[{"role": "user", "content": marker}]
-            )
-        except AuthenticationError as ex:
+            await create(marker)
+        except (openai.AuthenticationError, anthropic.AuthenticationError) as ex:
             token = "new-token"
             await model.before_retry(ex)
+            # before retrying, since a rebuilt client would use the real network
+            assert api.client is client
+            assert not http_client.is_closed
             refreshed.set()
-            result = await api.client.chat.completions.create(
-                model="test-model", messages=[{"role": "user", "content": marker}]
-            )
-        return result.choices[0].message.content
+            await create(marker)
 
     try:
         with anyio.fail_after(10):
-            assert await tg_collect(
-                [lambda: generate("auth"), lambda: generate("parallel")]
-            ) == ["ok", "ok"]
-        assert api.client is client
-        assert api.http_client is http_client
-        assert not http_client.is_closed
-        assert seen["auth"] == ["Bearer old-token", "Bearer new-token"]
-        assert seen["parallel"] == ["Bearer old-token"] + (
-            ["Bearer new-token"] if parallel_status != 200 else []
+            await tg_collect([lambda: generate("auth"), lambda: generate("parallel")])
+        assert seen["auth"] == ["old-token", "new-token"]
+        assert seen["parallel"] == ["old-token"] + (
+            ["new-token"] if parallel_status != 200 else []
         )
     finally:
         await api.aclose()
         await http_client.aclose()
     assert http_client.is_closed
+
+
+async def test_anthropic_auth_token_refresh_rereads_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The key hooks don't cover ANTHROPIC_AUTH_TOKEN, so a refresh re-reads it."""
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    api = AnthropicAPI("claude-sonnet-4-6", api_key="api-key")
+    try:
+        monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "new-token")
+        await api.refresh_credentials()
+        assert isinstance(api.client, anthropic.AsyncAnthropic)
+        assert api.client.auth_headers == {"Authorization": "Bearer new-token"}
+    finally:
+        await api.aclose()
 
 
 @pytest.mark.parametrize("provider", [VLLMAPI, VLLMCompletionsAPI])
