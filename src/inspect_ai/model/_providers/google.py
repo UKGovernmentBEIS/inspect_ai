@@ -4,7 +4,6 @@ import functools
 import hashlib
 import json
 import os
-import re
 import ssl
 from copy import copy
 from io import BytesIO
@@ -116,9 +115,21 @@ from inspect_ai.model._providers._google_computer_use import (
     maybe_computer_use_tool,
     tool_call_from_gemini_computer_action,
 )
+from inspect_ai.model._providers._google_reasoning import (
+    gemini_3_plus,
+    gemini_is_latest,
+    gemini_supports_minimal_thinking,
+    gemini_thinking_budget,
+    gemini_thinking_level,
+    gemini_thinking_only,
+    gemini_version,
+    is_gemini,
+    is_gemini_1_5,
+    is_gemini_2_0,
+    is_gemini_2_5,
+    is_gemini_3,
+)
 from inspect_ai.model._reasoning import (
-    clamp_reasoning_effort_to_minimal_low_medium_high,
-    effort_to_reasoning_tokens,
     reasoning_to_think_tag,
 )
 from inspect_ai.model._retry import batch_admin_retry_config
@@ -165,18 +176,6 @@ def _is_truthy(value: Any) -> bool:
     """Truthy check for boolean model args / env vars (repo convention)."""
     return str(value).lower() in ("true", "1", "yes")
 
-
-# Google model-name tokens for non-generative / non-frontier models that must
-# never be treated as a "latest" frontier chat model by is_latest().
-_NON_GENERATIVE_TOKENS = (
-    "embedding",
-    "imagen",
-    "veo",
-    "gemma",
-    "aqa",
-    "learnlm",
-    "tts",
-)
 
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
@@ -869,76 +868,40 @@ class GoogleGenAIAPI(ModelAPI):
         # Mirrors OpenAI's is_latest_model() / Anthropic's is_claude_latest().
         if self.is_vertex():
             return False
-        name = self.model_family().lower()
-        if any(token in name for token in _NON_GENERATIVE_TOKENS):
-            return False
-        # known family naming — future gemini versions are already covered by
-        # is_gemini_3_plus() and the DB-miss branch of input_tokens_name()
-        if "gemini" in name:
-            return False
-        return True
+        return gemini_is_latest(self.model_family())
 
     def is_gemini(self) -> bool:
-        return "gemini-" in self.model_family() or self.is_latest()
+        return is_gemini(self.model_family(), self.is_latest())
 
     def is_gemini_flash(self) -> bool:
         return "flash" in self.model_family()
 
     def is_gemini_1_5(self) -> bool:
-        return "gemini-1.5" in self.model_family()
+        return is_gemini_1_5(self.model_family())
 
     def is_gemini_2_0(self) -> bool:
-        return "gemini-2.0" in self.model_family()
+        return is_gemini_2_0(self.model_family())
 
     def is_gemini_2_5(self) -> bool:
-        return "gemini-2.5" in self.model_family()
+        return is_gemini_2_5(self.model_family())
 
     def is_gemini_3(self) -> bool:
-        return "gemini-3" in self.model_family()
+        return is_gemini_3(self.model_family())
 
     def gemini_version(self) -> tuple[int, ...] | None:
-        """Numeric version parsed from a gemini-N[.N] model name (None if absent).
-
-        Only the final path segment is inspected so a vertex resource path
-        takes its version from the model, not the project id.
-        """
-        name = self.model_family().rsplit("/", 1)[-1]
-        match = re.search(r"gemini-(\d+(?:\.\d+)*)", name)
-        if match is None:
-            return None
-        return tuple(int(part) for part in match.group(1).split("."))
+        return gemini_version(self.model_family())
 
     def supports_minimal_thinking(self) -> bool:
-        """Whether the model accepts thinking_level=MINIMAL.
-
-        True only for releases documented to accept it: Flash 3.0-3.6 and
-        Flash-Lite 3.1-3.5. Gemini 3 Pro never has, 3.7 Flash and later reject
-        it with a 400, and anything unverified (newer versions, codenames,
-        rolling aliases such as gemini-flash-lite-latest) is downgraded to LOW
-        rather than risk a 400. https://ai.google.dev/gemini-api/docs/thinking
-        """
-        version = self.gemini_version()
-        name = self.model_family().rsplit("/", 1)[-1]
-        if version is None or "flash" not in name:
-            return False
-        low, high = ((3, 1), (3, 6)) if "flash-lite" in name else ((3,), (3, 7))
-        return low <= version < high
+        return gemini_supports_minimal_thinking(self.model_family())
 
     def is_gemini_3_plus(self) -> bool:
-        return (
-            self.is_gemini()
-            and not self.is_gemini_1_5()
-            and not self.is_gemini_2_0()
-            and not self.is_gemini_2_5()
-        )
+        return gemini_3_plus(self.model_family(), self.is_latest())
 
     def is_gemini_thinking(self) -> bool:
         return not self.is_gemini_1_5() and not self.is_gemini_2_0()
 
     def is_gemini_thinking_only(self) -> bool:
-        return (
-            self.is_gemini_2_5() or self.is_gemini_3() or self.is_latest()
-        ) and "-pro" in self.model_family()
+        return gemini_thinking_only(self.model_family(), self.is_latest())
 
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
@@ -1174,16 +1137,15 @@ class GoogleGenAIAPI(ModelAPI):
             # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
             # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
             elif config.reasoning_effort is not None and self.is_gemini_3_plus():
-                tier = clamp_reasoning_effort_to_minimal_low_medium_high(
-                    config.reasoning_effort
+                tier = gemini_thinking_level(
+                    config.reasoning_effort, self.model_family()
                 )
-                if tier == "minimal" and not self.supports_minimal_thinking():
+                if config.reasoning_effort == "minimal" and tier == "low":
                     warn_once(
                         logger,
                         f"Model {self.service_model_name()} does not "
                         "support minimal thinking; using low instead.",
                     )
-                    tier = "low"
                 return ThinkingConfig(
                     include_thoughts=True,
                     thinking_level=ThinkingLevel(tier.upper()) if tier else None,
@@ -1200,7 +1162,9 @@ class GoogleGenAIAPI(ModelAPI):
             # by 2.5 itself, but users sweeping across model versions expect
             # --reasoning-effort to do *something* on 2.5).
             elif config.reasoning_effort is not None and self.is_gemini_2_5():
-                budget = effort_to_reasoning_tokens(config.reasoning_effort)
+                budget = gemini_thinking_budget(
+                    config.reasoning_effort, self.model_family()
+                )
                 if budget is not None:
                     return ThinkingConfig(include_thoughts=True, thinking_budget=budget)
                 return ThinkingConfig(include_thoughts=True)
