@@ -508,7 +508,7 @@ def withhold_client_request_settings(
 
 
 def warn_ignored_client_setting(
-    bridge: AgentBridge,
+    bridge: AgentBridge | None,
     setting: str,
     client_value: Any,
     eval_value: Any,
@@ -517,10 +517,13 @@ def warn_ignored_client_setting(
     """Warn, once per setting per bridge, that the client's value was ignored.
 
     Nothing is logged when the client sent no value or the eval's value is the
-    same. `how_to_set` tells the eval author where the setting is configured.
+    same, or when there is no bridge (a caller converting declarations it only
+    observes). `how_to_set` tells the eval author where the setting is
+    configured.
     """
     if (
-        client_value is None
+        bridge is None
+        or client_value is None
         or client_value == eval_value
         or setting in bridge._warned_request_settings
     ):
@@ -546,7 +549,7 @@ ToolOptionNarrowing = Callable[[Any, Any], Any]
 
 
 def eval_tool_options(
-    bridge: AgentBridge,
+    bridge: AgentBridge | None,
     setting: str,
     client_options: dict[str, Any],
     eval_options: dict[str, Any],

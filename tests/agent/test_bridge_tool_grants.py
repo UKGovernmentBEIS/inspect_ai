@@ -27,7 +27,10 @@ from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY, BridgePolicyErr
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.anthropic_api_impl import tools_from_anthropic_tools
 from inspect_ai.agent._bridge.responses import inspect_responses_api_request
-from inspect_ai.agent._bridge.responses_impl import tools_from_responses_tool
+from inspect_ai.agent._bridge.responses_impl import (
+    tool_from_responses_tool,
+    tools_from_responses_tool,
+)
 from inspect_ai.agent._bridge.sandbox.service import (
     _forward_provider_errors,
     generate_anthropic,
@@ -161,21 +164,13 @@ def test_responses_native_tools_withheld_by_default() -> None:
 
     assert (
         tools_from_responses_tool(
-            WEB_SEARCH_PARAM,
-            web_search,
-            code_execution,
-            allow_remote_mcp=False,
-            bridge=sandbox_bridge(),
+            WEB_SEARCH_PARAM, web_search, code_execution, allow_remote_mcp=False
         )
         == []
     )
     assert (
         tools_from_responses_tool(
-            MCP_PARAM,
-            web_search,
-            code_execution,
-            allow_remote_mcp=False,
-            bridge=sandbox_bridge(),
+            MCP_PARAM, web_search, code_execution, allow_remote_mcp=False
         )
         == []
     )
@@ -188,21 +183,13 @@ def test_responses_native_tools_honored_when_granted() -> None:
     assert (
         len(
             tools_from_responses_tool(
-                WEB_SEARCH_PARAM,
-                web_search,
-                code_execution,
-                allow_remote_mcp=True,
-                bridge=sandbox_bridge(),
+                WEB_SEARCH_PARAM, web_search, code_execution, allow_remote_mcp=True
             )
         )
         == 1
     )
     mcp = tools_from_responses_tool(
-        MCP_PARAM,
-        web_search,
-        code_execution,
-        allow_remote_mcp=True,
-        bridge=sandbox_bridge(),
+        MCP_PARAM, web_search, code_execution, allow_remote_mcp=True
     )
     assert [getattr(t, "name", None) for t in mcp] == ["mcp_server_elsewhere"]
 
@@ -223,7 +210,6 @@ def test_responses_function_tools_are_never_withheld() -> None:
         None,
         None,
         allow_remote_mcp=False,
-        bridge=sandbox_bridge(),
     )
     assert [getattr(t, "name", None) for t in tools] == ["grep"]
 
@@ -231,12 +217,7 @@ def test_responses_function_tools_are_never_withheld() -> None:
 def test_anthropic_native_tools_withheld_by_default() -> None:
     assert (
         tools_from_anthropic_tools(
-            [ANTHROPIC_WEB_SEARCH],
-            [ANTHROPIC_MCP_SERVER],
-            None,
-            None,
-            False,
-            bridge=sandbox_bridge(),
+            [ANTHROPIC_WEB_SEARCH], [ANTHROPIC_MCP_SERVER], None, None, False
         )
         == []
     )
@@ -249,7 +230,6 @@ def test_anthropic_native_tools_honored_when_granted() -> None:
         resolve_bridge_web_search(True, default_grant=False),
         None,
         True,
-        bridge=sandbox_bridge(),
     )
     assert len(tools) == 2
     assert "mcp_server_elsewhere" in [getattr(t, "name", None) for t in tools]
@@ -269,7 +249,6 @@ def test_anthropic_web_fetch_alone_grants_nothing(granted: bool) -> None:
             resolve_bridge_web_search(granted, default_grant=False),
             None,
             False,
-            bridge=sandbox_bridge(),
         )
         == []
     )
@@ -294,7 +273,6 @@ def test_tool_choice_forcing_a_withheld_tool_relaxes_to_auto() -> None:
         None,
         None,
         allow_remote_mcp=False,
-        bridge=sandbox_bridge(),
     )
     assert (
         relax_tool_choice_for_withheld(ToolFunction(name="web_search"), tools) == "auto"
@@ -777,6 +755,52 @@ def tool_options(tools: list[ToolInfo | Tool]) -> dict[str, Any]:
     tool = tools[0]
     info = tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
     return info.options or {}
+
+
+def test_observer_converts_declarations_without_a_bridge(
+    bridge_warnings: list[str],
+) -> None:
+    """Callers that only record declarations (e.g. inspect_scout) pass no bridge."""
+    function = cast(
+        Any,
+        {
+            "type": "function",
+            "name": "grep",
+            "description": "search files",
+            "parameters": {"type": "object", "properties": {}},
+            "strict": False,
+        },
+    )
+    tool = tool_from_responses_tool(function, {}, {}, allow_remote_mcp=True)
+    assert isinstance(tool, ToolInfo) and tool.name == "grep"
+
+    search = tools_from_responses_tool(
+        cast(Any, {"type": "web_search", **CLIENT_SEARCH_OPTIONS}),
+        WebSearchProviders(openai={}),
+        {},
+        allow_remote_mcp=True,
+    )
+    assert tool_options(search)["openai"] == {"search_context_size": "high"}
+
+    anthropic_tools = tools_from_anthropic_tools(
+        [
+            cast(
+                Any,
+                {
+                    "name": "grep",
+                    "description": "search files",
+                    "input_schema": {"type": "object", "properties": {}},
+                },
+            ),
+            ANTHROPIC_CLIENT_SEARCH,
+        ],
+        None,
+        {},
+        {},
+        allow_remote_mcp=True,
+    )
+    assert [getattr(t, "name", None) for t in anthropic_tools][0] == "grep"
+    assert bridge_warnings == []
 
 
 CLIENT_CONTAINER = {"type": "auto", "file_ids": ["file-from-agent"]}

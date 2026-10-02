@@ -689,7 +689,7 @@ def tool_from_responses_tool(
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
     *,
-    bridge: AgentBridge,
+    bridge: AgentBridge | None = None,
 ) -> ToolInfo | Tool | None:
     """Convert a responses ToolParam into an inspect tool, or None to skip it.
 
@@ -698,7 +698,8 @@ def tool_from_responses_tool(
     set a web search `user_location` or `search_context_size` the eval leaves
     unset (they shape results without widening what can be searched), and may
     turn `external_web_access` off. Other differing options are ignored, with a
-    warning once per `bridge`.
+    warning once per `bridge`. Without a bridge (a caller that only observes
+    the declarations) the same options are used and nothing is logged.
     """
     if is_function_tool_param(tool_param):
         # stash the original param so the OpenAI Responses provider can re-emit
@@ -813,7 +814,7 @@ def tools_from_responses_tool(
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
     *,
-    bridge: AgentBridge,
+    bridge: AgentBridge | None = None,
 ) -> list[ToolInfo | Tool]:
     """Convert a responses ToolParam into zero or more inspect tools.
 

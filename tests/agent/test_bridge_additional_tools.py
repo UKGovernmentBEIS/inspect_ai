@@ -19,12 +19,10 @@ from typing import Any, cast
 
 from openai.types.responses import ResponseInputItemParam
 
-from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.responses_impl import (
     messages_from_responses_input,
     tool_from_responses_tool,
 )
-from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._openai_responses import (
@@ -33,8 +31,6 @@ from inspect_ai.model._openai_responses import (
     openai_responses_tools,
 )
 from inspect_ai.tool._tool_info import ToolInfo
-
-BRIDGE = AgentBridge(AgentState(messages=[]))
 
 WEB_SEARCH_PROVIDERS: Any = {}
 CODE_EXECUTION_PROVIDERS: Any = {}
@@ -144,7 +140,6 @@ def test_function_tool_round_trips_verbatim() -> None:
         WEB_SEARCH_PROVIDERS,
         CODE_EXECUTION_PROVIDERS,
         allow_remote_mcp=True,
-        bridge=BRIDGE,
     )
     assert isinstance(tool_info, ToolInfo)
     assert RESPONSES_VERBATIM in (tool_info.options or {})
@@ -160,7 +155,6 @@ def test_custom_tool_round_trips_verbatim() -> None:
         WEB_SEARCH_PROVIDERS,
         CODE_EXECUTION_PROVIDERS,
         allow_remote_mcp=True,
-        bridge=BRIDGE,
     )
     assert isinstance(tool_info, ToolInfo)
     assert RESPONSES_VERBATIM in (tool_info.options or {})
@@ -178,7 +172,6 @@ def test_reconstruction_without_verbatim_drifts() -> None:
         WEB_SEARCH_PROVIDERS,
         CODE_EXECUTION_PROVIDERS,
         allow_remote_mcp=True,
-        bridge=BRIDGE,
     )
     assert isinstance(tool_info, ToolInfo)
 

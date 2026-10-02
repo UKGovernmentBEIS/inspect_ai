@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 from inspect_ai._util.content import ContentText
-from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.responses_impl import (
     responses_output_items_from_assistant_message,
     tool_from_responses_tool,
     tools_from_responses_tool,
 )
-from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._openai_responses import (
     RESPONSES_NAMESPACE,
@@ -19,8 +17,6 @@ from inspect_ai.model._openai_responses import (
 )
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
-
-BRIDGE = AgentBridge(AgentState(messages=[]))
 
 
 def _function_tool(name: str) -> dict:
@@ -69,7 +65,7 @@ def test_tools_from_responses_tool_flattens_namespace():
         "description": "Submission tools",
         "tools": [_function_tool("submit_pov"), _function_tool("submit_patch")],
     }
-    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True, bridge=BRIDGE)
+    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True)
     assert [t.name for t in tools] == ["submit_pov", "submit_patch"]
     for t in tools:
         assert isinstance(t, ToolInfo)
@@ -82,7 +78,7 @@ def test_tools_from_responses_tool_stashes_namespace_on_options():
         "description": "Multi-agent orchestration tools",
         "tools": [_function_tool("spawn_agent"), _custom_tool("wait_agent")],
     }
-    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True, bridge=BRIDGE)
+    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True)
     for t in tools:
         assert isinstance(t, ToolInfo)
         assert t.options is not None
@@ -94,7 +90,7 @@ def test_tools_from_responses_tool_stashes_namespace_on_options():
 
 def test_tools_from_responses_tool_single_function():
     tools = tools_from_responses_tool(
-        _function_tool("calc"), {}, {}, allow_remote_mcp=True, bridge=BRIDGE
+        _function_tool("calc"), {}, {}, allow_remote_mcp=True
     )
     assert len(tools) == 1
     assert tools[0].name == "calc"
@@ -102,7 +98,7 @@ def test_tools_from_responses_tool_single_function():
 
 def test_tools_from_responses_tool_passes_through_custom():
     tools = tools_from_responses_tool(
-        _custom_tool("exec"), {}, {}, allow_remote_mcp=True, bridge=BRIDGE
+        _custom_tool("exec"), {}, {}, allow_remote_mcp=True
     )
     assert len(tools) == 1
     assert tools[0].name == "exec"
@@ -115,22 +111,17 @@ def test_namespace_with_mixed_inner_tools():
         "description": "mixed",
         "tools": [_function_tool("fn"), _custom_tool("ct")],
     }
-    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True, bridge=BRIDGE)
+    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True)
     assert [t.name for t in tools] == ["fn", "ct"]
 
 
 def test_empty_namespace_returns_empty_list():
     ns = {"type": "namespace", "name": "empty", "description": "empty", "tools": []}
-    assert (
-        tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True, bridge=BRIDGE)
-        == []
-    )
+    assert tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True) == []
 
 
 def test_tool_from_responses_tool_unchanged_for_function():
-    t = tool_from_responses_tool(
-        _function_tool("x"), {}, {}, allow_remote_mcp=True, bridge=BRIDGE
-    )
+    t = tool_from_responses_tool(_function_tool("x"), {}, {}, allow_remote_mcp=True)
     assert isinstance(t, ToolInfo)
     assert t.name == "x"
 

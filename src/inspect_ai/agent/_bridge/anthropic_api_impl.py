@@ -354,7 +354,7 @@ def tools_from_anthropic_tools(
     code_execution_providers: CodeExecutionProviders | None,
     allow_remote_mcp: bool,
     *,
-    bridge: AgentBridge,
+    bridge: AgentBridge | None = None,
 ) -> list[ToolInfo | Tool]:
     """Convert Anthropic tool declarations and MCP servers into inspect tools.
 
@@ -362,7 +362,8 @@ def tools_from_anthropic_tools(
     search tool. The client may set a `user_location` the eval leaves unset (it
     shapes results without widening what can be searched) and may lower
     `max_uses`. Other differing options are ignored, with a warning once per
-    `bridge`.
+    `bridge`. Without a bridge (a caller that only observes the declarations)
+    the same options are used and nothing is logged.
     """
     tools: list[ToolInfo | Tool] = []
 
