@@ -56,10 +56,25 @@ from .._openai_responses import (
     _maybe_native_tool_param,
     _tool_param_for_tool_info,
 )
+from .._reasoning import (
+    clamp_reasoning_effort_to_minimal_low_medium_high,
+)
+from .._stream import report_model_stream_restart
 from ._anthropic_max_tokens import (
     ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
     ANTHROPIC_MAX_TOKENS,
     anthropic_effort_max_tokens,
+)
+from ._gemini_function_calling import MAX_TOOL_CALLING_ATTEMPTS
+from ._google_reasoning import (
+    gemini_3_plus,
+    gemini_has_thinking_config,
+    gemini_is_latest,
+    gemini_thinking_budget,
+    gemini_thinking_level,
+    gemini_thinking_only,
+    is_gemini,
+    is_gemini_2_5,
 )
 from ._litellm_proxy_caching import (
     cache_write_ttl,
@@ -67,6 +82,15 @@ from ._litellm_proxy_caching import (
     with_tool_cache_breakpoint,
 )
 from ._litellm_proxy_errors import litellm_error_model_output, upstream_message
+from ._litellm_proxy_gemini import (
+    add_usage,
+    malformed_function_call,
+    malformed_function_retry,
+    with_function_calling_hint,
+    with_json_tool_results_wrapped,
+    with_malformed_function_apology,
+    with_tool_call_signatures,
+)
 from ._litellm_proxy_model_info import (
     ProxyDeployment,
     proxy_aliases,
@@ -718,6 +742,10 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         self, input: list[ChatMessage]
     ) -> list[ChatCompletionMessageParam]:
         messages = await litellm_messages_to_openai(input)
+        if self._vendor in (None, "google"):
+            messages = with_tool_call_signatures(messages)
+        if self._vendor == "google":
+            messages = with_json_tool_results_wrapped(messages)
         return with_cache_breakpoints(messages) if _cache_prompt.get() else messages
 
     @override
@@ -744,10 +772,16 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         breakpoints unless `cache_prompt` is false (see
         `_litellm_proxy_caching`).
 
-        A rejection (see `_litellm_proxy_reasoning_effort`) is remembered for
-        this model, a warning names the value used instead, and the request is
-        retried. Later requests use the lowered value directly. A rejected
-        `thinking` parameter (see `_thinking_for`) is dropped the same way.
+        Gemini efforts are first mapped as in the native provider (see
+        `_gemini_effort`). A rejection (see `_litellm_proxy_reasoning_effort`)
+        is remembered for this model, a warning names the value used instead,
+        and the request is retried. Later requests use the lowered value
+        directly. A rejected `thinking` parameter (see `_thinking_for`) is
+        dropped the same way.
+
+        Requests with tools to a Gemini upstream carry the function-calling
+        hint, and a turn that comes back as a malformed function call is
+        retried with a corrective exchange (see `_litellm_proxy_gemini`).
         """
         if config.reasoning_tokens is not None:
             warn_once(
@@ -758,11 +792,18 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         _cache_prompt.set(self._is_claude() and config.cache_prompt is not False)
         _cache_write_ttl.set(None)
         requested = config.reasoning_effort
+        gemini_tools = self._vendor == "google" and len(tools) > 0
+        if gemini_tools:
+            input = with_function_calling_hint(input)
+        tool_calling_attempts = 0
+        discarded_usage: ModelUsage | None = None
         # ends: each rejection is recorded, so the next attempt sends a value
-        # not yet rejected, no effort, or no thinking
+        # not yet rejected, no effort, or no thinking; malformed function
+        # calls are bounded by MAX_TOOL_CALLING_ATTEMPTS
         while True:
-            effort = self._effort_for(requested)
-            thinking = self._thinking_for(effort, config)
+            mapped = self._mapped_effort(requested, config)
+            effort = self._effort_for(mapped)
+            thinking = self._thinking_for(requested, effort, config)
             update: dict[str, Any] = {"reasoning_effort": effort}
             if thinking is not None:
                 update["extra_body"] = (config.extra_body or {}) | {
@@ -787,15 +828,22 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                 and rejected_thinking(message)
             ):
                 self._thinking_unsupported = True
+                consequence = (
+                    "so its thinking may not be summarized"
+                    if self._is_claude()
+                    else "sending reasoning_effort instead"
+                )
                 warn_once(
                     logger,
                     f"LiteLLM proxy model '{self.service_model_name()}' does not "
                     f"accept thinking={thinking}; sending no thinking parameter, "
-                    "so its thinking may not be summarized.",
+                    f"{consequence}.",
                 )
                 continue
             if rejection is None:
-                if requested is not None and effort != requested:
+                # a mapping in _mapped_effort is expected, so only a lowering
+                # after a rejection warns
+                if requested is not None and effort != mapped:
                     instead = (
                         f"using '{effort}'" if effort else "sending no reasoning_effort"
                     )
@@ -805,6 +853,34 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
                         f"not accept reasoning_effort='{requested}'; {instead}."
                         + self._effort_unsupported_fix(),
                     )
+                if gemini_tools and isinstance(output, ModelOutput):
+                    call = result[1] if isinstance(result, tuple) else None
+                    malformed = malformed_function_call(
+                        output, call.response if call is not None else None
+                    )
+                    if malformed is not None:
+                        tool_calling_attempts += 1
+                        if tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
+                            # the retry regenerates the turn, so streamed output
+                            # of this attempt is stale
+                            await report_model_stream_restart()
+                            discarded_usage = add_usage(discarded_usage, output.usage)
+                            input = input + malformed_function_retry(malformed)
+                            if tool_choice == "auto":
+                                tool_choice = "any"
+                            continue
+                        output = with_malformed_function_apology(output, malformed)
+                    if tool_calling_attempts:
+                        output = output.model_copy(
+                            update={
+                                "usage": add_usage(discarded_usage, output.usage),
+                                "metadata": (output.metadata or {})
+                                | {
+                                    "malformed_function_call_attempts": tool_calling_attempts
+                                },
+                            }
+                        )
+                        result = (output, call) if call is not None else output
                 return result
             if rejection.kind == "parameter":
                 self._effort_unsupported = True
@@ -842,6 +918,77 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
             f"{base_model}{_ADAPTIVE_THINKING_MODEL_INFO}"
         )
 
+    def _mapped_effort(
+        self, requested: str | None, config: GenerateConfig
+    ) -> str | None:
+        """The effort to ask for, before any rejections.
+
+        `requested`, except for Google models (see `_gemini_effort`).
+        """
+        if requested is None or self._vendor != "google":
+            return requested
+        return self._gemini_effort(requested, config)
+
+    def _gemini_effort(self, requested: str, config: GenerateConfig) -> str | None:
+        """The effort to send to a Gemini model, as the native provider maps it.
+
+        Gemini 1.5 and 2.0 take none, and thinking-only (Pro) models cannot
+        turn thinking off. Gemini 3 and later (including codenames) take
+        `minimal` (where supported) to `high`. Gemini 2.5 gets a thinking
+        budget instead (see `_thinking_for`), or, if the proxy rejects that,
+        the effort with `xhigh` and `max` lowered to `high`. Other Google
+        models (e.g. Gemma) get `requested`.
+        """
+        family = self._gemini_family()
+        latest = gemini_is_latest(family)
+        if not is_gemini(family, latest):
+            return requested
+        if not gemini_has_thinking_config(family, latest):
+            return None
+        if requested == "none":
+            if gemini_thinking_only(family, latest):
+                warn_once(
+                    logger,
+                    f"Thinking cannot be disabled for model "
+                    f"{self.service_model_name()}.",
+                )
+                return None
+            return requested
+        if gemini_3_plus(family, latest):
+            level = gemini_thinking_level(requested, family)
+            if requested == "minimal" and level == "low":
+                warn_once(
+                    logger,
+                    f"Model {self.service_model_name()} does not support "
+                    "minimal thinking; using low instead.",
+                )
+            return level
+        if self._gemini_thinking_budget(requested, config) is not None:
+            return None
+        return clamp_reasoning_effort_to_minimal_low_medium_high(requested)
+
+    def _gemini_thinking_budget(
+        self, requested: str | None, config: GenerateConfig
+    ) -> int | None:
+        """The thinking budget to send to a Gemini 2.5 model, if any.
+
+        Inspect's budget for the effort (see `gemini_thinking_budget`), as
+        the native provider sends, rather than LiteLLM's smaller ones. None if the proxy rejected the `thinking`
+        parameter or `extra_body` has one.
+        """
+        if (
+            self._vendor != "google"
+            or self._thinking_unsupported
+            or "thinking" in (config.extra_body or {})
+            or not is_gemini_2_5(self._gemini_family())
+        ):
+            return None
+        return gemini_thinking_budget(requested, self._gemini_family())
+
+    def _gemini_family(self) -> str:
+        """The model family without a route (e.g. `gemini/` on an alias)."""
+        return self.model_family().rsplit("/", 1)[-1]
+
     def _effort_for(self, requested: str | None) -> str | None:
         """The effort to send for `requested`, given the rejections so far."""
         if requested is None or self._effort_unsupported:
@@ -851,9 +998,12 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         return requested
 
     def _thinking_for(
-        self, effort: str | None, config: GenerateConfig
-    ) -> dict[str, str] | None:
+        self, requested: str | None, effort: str | None, config: GenerateConfig
+    ) -> dict[str, Any] | None:
         """The `thinking` parameter to send with `effort`, if any.
+
+        For Gemini 2.5, a thinking budget for the `requested` effort (see
+        `_gemini_thinking_budget`).
 
         Claude 4.7+ omits thinking text unless asked for a summary, and then
         streams nothing until its reply. LiteLLM sends `display: summarized`
@@ -868,6 +1018,9 @@ class LiteLLMProxyAPI(OpenAICompatibleAPI):
         replacing the one it derives from the effort. A `thinking` in
         `extra_body` is sent instead.
         """
+        budget = self._gemini_thinking_budget(requested, config)
+        if budget is not None:
+            return {"type": "enabled", "budget_tokens": budget}
         if (
             effort is None
             or effort == "none"
