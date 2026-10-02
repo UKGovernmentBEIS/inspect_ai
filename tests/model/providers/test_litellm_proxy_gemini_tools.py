@@ -485,6 +485,8 @@ async def test_malformed_function_call_is_retried(
     # usage counts the discarded attempt (7 reasoning tokens) as well
     assert output.usage is not None
     assert output.usage.output_tokens == 7 + 20
+    # the context size is the first request's prompt, not the sum
+    assert output.input_context_tokens == 100
 
 
 @skip_if_no_openai_package
@@ -525,6 +527,7 @@ async def test_malformed_function_call_exhausts_attempts(
     assert output.usage == ModelUsage(
         input_tokens=300, output_tokens=21, total_tokens=321, reasoning_tokens=21
     )
+    assert output.input_context_tokens == 100
     assert gemini_proxy.script.queue == []
 
 
