@@ -47,7 +47,7 @@ from inspect_ai.model._generate_config import (
 )
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
 from inspect_ai.model._model import ModelName
-from inspect_ai.model._model_output import ModelUsage, StopReason
+from inspect_ai.model._model_output import ModelUsage, StopDetails, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
     ToolParamDef,
@@ -200,7 +200,9 @@ async def inspect_anthropic_api_request_impl(
         content=await assistant_message_blocks(output.message, beta=beta),
         model=output.model,
         role="assistant",
-        stop_reason=anthropic_stop_reason(output.stop_reason),
+        stop_reason=anthropic_stop_reason(
+            output.stop_reason, output.choices[0].stop_details
+        ),
         type="message",
         usage=anthropic_usage(output.usage or ModelUsage(), beta=beta),
     )
@@ -670,7 +672,17 @@ def base_64_data(data: str | IO[bytes] | PathLike[str]) -> str:
         raise RuntimeError(f"Unsupported image content type: {data}")
 
 
-def anthropic_stop_reason(stop_reason: StopReason) -> AnthropicStopReason:
+def anthropic_stop_reason(
+    stop_reason: StopReason, stop_details: StopDetails | None = None
+) -> AnthropicStopReason:
+    # a turn the provider stopped continuing (its pause_turn continuation
+    # bound) goes back as pause_turn, so the client resends it to continue
+    if (
+        stop_reason == "unknown"
+        and stop_details is not None
+        and stop_details.type == "pause_turn"
+    ):
+        return "pause_turn"
     match stop_reason:
         case "stop":
             return "end_turn"
