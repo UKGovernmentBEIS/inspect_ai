@@ -452,8 +452,7 @@ async def _bridge_request(
     beta: bool,
 ) -> Any:
     import inspect_ai.agent._bridge.anthropic_api_impl as impl
-
-    bridge_generate = impl.bridge_generate
+    from inspect_ai.agent._bridge.util import bridge_generate
 
     async def recording_generate(*args: Any, **kwargs: Any) -> Any:
         output, c_message = await bridge_generate(*args, **kwargs)
