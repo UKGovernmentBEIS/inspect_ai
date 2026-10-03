@@ -15,7 +15,7 @@ from inspect_sentinel import (
     Reported,
     Step,
 )
-from inspect_sentinel._integration import HostContext, run_root
+from inspect_sentinel._integration import HostContext, run_sentinel
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
@@ -140,7 +140,7 @@ async def _run(step: Step) -> Decision | None:
     try:
         async with span(name="sentinel", type="sentinel"):
             with suspend_token_limit(), suspend_turn_limit():
-                decision = await run_root(root, _host_context(), step)
+                decision = await run_sentinel(root, _host_context(), step)
     except TimeoutError as ex:
         # the sample runner treats a bare TimeoutError as benign
         raise RuntimeError(
