@@ -198,10 +198,10 @@ def _host_context() -> HostContext:
             ),
             metadata={**active_task_metadata(), **sample_metadata},
             path="",
-            _store=store(),
             host=_Host(),
         ),
         recorder=_Recorder(),
+        store=store(),
     )
 
 
