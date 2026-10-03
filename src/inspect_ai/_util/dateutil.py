@@ -19,8 +19,12 @@ logger = getLogger(__name__)
 
 
 def _normalize_iso_z_suffix(input: str) -> str:
-    """Normalize trailing Z/z UTC suffixes for fromisoformat()."""
+    """Replace a trailing Z/z UTC designator with +00:00.
+
+    fromisoformat() rejects Z on Python 3.10 and lowercase z on all versions.
+    """
     return input[:-1] + "+00:00" if input.endswith(("Z", "z")) else input
+
 
 def is_file_older_than(path: str | Path, delta: timedelta, *, default: bool) -> bool:
     """Check if a file's modification time is older than a given time delta.
