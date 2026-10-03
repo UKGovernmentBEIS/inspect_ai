@@ -63,7 +63,7 @@ def dump_sample_runtime() -> dict[str, Any]:
     working_root = _tree_root(working_limit_tree)
     if isinstance(working_root, _WorkingLimit):
         working_elapsed = working_root.usage
-        working_waiting = working_root._waiting_time
+        working_waiting = working_root._waiting_time + working_root._waits.elapsed()
 
     return {
         "token_usage": token_usage.model_dump(mode="json"),
@@ -118,7 +118,7 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
 
     import anyio
 
-    from inspect_ai._util.working import _sample_timing
+    from inspect_ai._util.working import WaitingTime, _sample_timing
     from inspect_ai.model._model import (
         sample_model_fallbacks_context_var,
         sample_model_usage_context_var,
@@ -188,6 +188,7 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
             and working_root._start_time is not None
         ):
             working_root._waiting_time = working_waiting
+            working_root._waits = WaitingTime()
             working_root._start_time = (
                 anyio.current_time() - working_elapsed - working_waiting
             )
