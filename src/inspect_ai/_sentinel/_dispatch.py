@@ -545,6 +545,7 @@ class _Recorder:
         _emit(
             context,
             step,
+            self._step_id,
             "observation",
             "error",
             function=failed.function,

@@ -1491,11 +1491,16 @@ def d3_generate_raises() -> Monitor:
     return check
 
 
-def test_a_failing_generate_monitor_fails_the_sample_with_its_error() -> None:
+def test_a_failing_generate_monitor_is_recorded_and_the_sample_continues() -> None:
     log = run([d3_generate_raises()])
-    assert log.status == "error"
-    assert log.samples
-    error = log.samples[0].error
-    assert error is not None
-    assert "monitor broke" in error.message
-    assert "SentinelFailure" not in error.message
+    assert log.status == "success", log.error
+    failures = [e for e in sentinel_events(log) if e.status == "error"]
+    assert failures
+    for failed in failures:
+        assert (failed.stage, failed.path, failed.function) == (
+            "model_input",
+            "d3_generate_raises",
+            "check",
+        )
+        assert failed.error == "ValueError: monitor broke"
+        assert failed.step_id
