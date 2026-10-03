@@ -35,6 +35,7 @@ class Sample(BaseModel):
         choices: list[str] | None = None,
         target: str | list[str] = "",
         id: int | str | None = None,
+        description: str | None = None,
         metadata: dict[str, Any] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
         files: dict[str, str] | None = None,
@@ -50,6 +51,8 @@ class Sample(BaseModel):
             target: Optional. Ideal target output. May be a literal value
                 or narrative text to be used by a model grader.
             id: Optional. Unique identifier for sample.
+            description: Optional. Short statement of what the sample asks
+                of the agent (recorded in the eval log).
             metadata: Optional. Arbitrary metadata associated with the sample.
             sandbox: Optional. Sandbox specification for this sample.
             files: Optional. Files that go along with the sample (copied to
@@ -66,6 +69,7 @@ class Sample(BaseModel):
             choices=choices,
             target=target,
             id=id,
+            description=description,
             metadata=metadata,
             sandbox=resolve_sandbox_environment(sandbox),
             files=files,
@@ -84,6 +88,9 @@ class Sample(BaseModel):
 
     id: int | str | None = Field(default=None)
     """Unique identifier for sample."""
+
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Arbitrary metadata associated with the sample."""
@@ -235,6 +242,9 @@ class FieldSpec:
 
     id: str = field(default="id")
     """ Unique identifier for the sample."""
+
+    description: str | None = field(default=None)
+    """Name of the field containing a short statement of what the sample asks of the agent (not read unless specified)."""
 
     metadata: list[str] | Type[BaseModel] | None = field(default=None)
     """List of additional field names that should be read as metadata."""

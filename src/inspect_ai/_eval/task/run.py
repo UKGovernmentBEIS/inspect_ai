@@ -2562,6 +2562,7 @@ async def _task_run_sample_attempt(
                     input=sample.input,
                     choices=sample.choices,
                     target=sample.target,
+                    description=sample.description,
                     metadata=sample.metadata or {},
                     started_at=sample_admitted_at.isoformat(),
                 )
@@ -3382,6 +3383,7 @@ def create_eval_sample(
         input=sample.input,
         choices=sample.choices,
         target=sample.target,
+        description=sample.description,
         metadata=state.metadata or {},
         sandbox=sample.sandbox,
         files=list(sample.files.keys()) if sample.files else None,

@@ -301,6 +301,9 @@ class EvalSampleSummary(BaseModel):
     target: str | list[str]
     """Sample target value(s)"""
 
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
+
     metadata: dict[str, Any] = Field(default_factory=dict)
     """Sample metadata (only fields < 1k; strings truncated to 1k)."""
 
@@ -437,6 +440,9 @@ class EvalSample(BaseModel):
 
     target: str | list[str]
     """Sample target value(s)"""
+
+    description: str | None = Field(default=None)
+    """Short statement of what the sample asks of the agent."""
 
     sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
@@ -591,6 +597,7 @@ class EvalSample(BaseModel):
             input=self.input,
             choices=self.choices,
             target=self.target,
+            description=self.description,
             metadata=self.metadata,
             scores=self.scores,
             model_usage=self.model_usage,
@@ -1039,6 +1046,9 @@ class EvalSpec(BaseModel):
 
     task_display_name: str | None = Field(default=None)
     """Task display name."""
+
+    task_description: str | None = Field(default=None)
+    """Short statement of what the task asks of the agent."""
 
     task_registry_name: str | None = Field(default=None)
     """Task registry name."""

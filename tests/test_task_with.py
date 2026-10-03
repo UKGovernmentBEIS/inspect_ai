@@ -94,3 +94,17 @@ def test_task_with_agent_as_solver():
         solver=minimal_agent(),
     )
     assert str(task.solver).find("agent_to_solver") != -1
+
+
+def test_task_description() -> None:
+    assert Task().description is None
+    assert Task(description="Solve the puzzle.").description == "Solve the puzzle."
+
+
+def test_task_with_description() -> None:
+    task = task_with(Task(description="Original."), description="Changed.")
+    assert task.description == "Changed."
+    assert task_with(task, description=None).description is None
+    # unspecified leaves the description in place
+    task = task_with(Task(description="Kept."), time_limit=30)
+    assert task.description == "Kept."

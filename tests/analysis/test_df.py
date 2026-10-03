@@ -24,6 +24,7 @@ from inspect_ai.analysis._dataframe.evals.columns import EvalTask
 from inspect_ai.analysis._dataframe.extract import score_details
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
 from inspect_ai.analysis._dataframe.util import resolve_logs
+from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalLog,
     MetadataEdit,
@@ -381,6 +382,31 @@ def test_eval_df_display_name():
         eval(Task(name="my_task"), model="mockllm/model", log_dir=log_dir)
         df = evals_df(log_dir)
         assert df["task_display_name"].to_list().sort() == ["My Task", "my_task"].sort()
+
+
+def test_df_description_columns():
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval(
+            Task(
+                dataset=[
+                    Sample(id=1, input="x", description="Say x."),
+                    Sample(id=2, input="y"),
+                ],
+                description="Say the input.",
+            ),
+            model="mockllm/model",
+            log_dir=log_dir,
+        )
+        assert evals_df(log_dir)["task_description"].to_list() == ["Say the input."]
+        for full in [False, True]:
+            df = samples_df(log_dir, full=full).sort_values("id")
+            descriptions = df["description"].to_list()
+            assert descriptions[0] == "Say x."
+            assert pd.isna(descriptions[1])
+
+    # logs written before descriptions existed read as missing
+    assert evals_df(LOGS_DIR)["task_description"].isna().all()
+    assert samples_df(LOGS_DIR)["description"].isna().all()
 
 
 def test_samples_df_with_sample_scores():
