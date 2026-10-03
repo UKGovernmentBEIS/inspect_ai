@@ -1551,8 +1551,10 @@ async def test_copy_out_cancelled_mid_transfer_leaves_no_partial(
     async with anyio.create_task_group() as tg:
         tg.start_soon(_copy)
         await second_chunk_started.wait()
-        # One chunk has landed in the partial file by now.
-        assert partial.exists() and partial.stat().st_size == _COPY_CHUNK
+        # The first chunk has been written to the partial file, but may
+        # still sit in Python's write buffer (128 KiB from Python 3.14),
+        # so check only that the file exists on disk.
+        assert partial.exists()
         tg.cancel_scope.cancel()
 
     assert not dest.exists()
