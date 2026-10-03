@@ -1390,6 +1390,49 @@ async def test_baseline_shortcut_trips_only_with_redacted_reasoning_correction(
     )
 
 
+@pytest.mark.parametrize(
+    ("input_context_tokens", "compacts"),
+    [
+        # a multi-request call: usage sums several requests, the context
+        # size is the one request built from the input
+        (1500, False),
+        # unknown size (e.g. a rejected request after a billed probe): no
+        # baseline from usage
+        (None, False),
+        # an output logged before input_context_tokens existed falls back to
+        # usage
+        ("absent", True),
+    ],
+)
+async def test_baseline_uses_input_context_tokens(
+    input_context_tokens: int | Literal["absent"] | None, compacts: bool
+) -> None:
+    """The compaction baseline is the input's context size, not billed usage."""
+    from inspect_ai.model._model_output import ModelUsage
+
+    model = get_model("mockllm/model")
+    compact = compaction(
+        CompactionTrim(threshold=2000, preserve=0.5), prefix=[], model=model
+    )
+
+    initial: list[ChatMessage] = []
+    for i in range(3):
+        initial.append(user_msg(f"q{i}", f"u{i}"))
+        initial.append(assistant_msg(f"answer {i}", f"a{i}"))
+    await compact.compact_input(initial)
+
+    # billed usage of three requests, well over the threshold
+    output = ModelOutput.from_message(initial[-1])
+    output.usage = ModelUsage(input_tokens=4500, output_tokens=30, total_tokens=4530)
+    if input_context_tokens != "absent":
+        output.input_context_tokens = input_context_tokens
+    await compact.record_output(initial, output)
+
+    next_messages = initial + [user_msg("q-new", "u-new")]
+    result, _ = await compact.compact_input(next_messages)
+    assert (len(result) < len(next_messages)) == compacts
+
+
 # ==============================================================================
 # Checkpointing support
 # ==============================================================================

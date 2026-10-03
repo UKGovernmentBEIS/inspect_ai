@@ -2,7 +2,15 @@ import uuid
 from logging import Logger
 from typing import Any, Callable, Literal, Type, TypeVar
 
-from pydantic import BaseModel, Field, JsonValue, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    JsonValue,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 
 from inspect_ai._util.content import Content
 from inspect_ai._util.logger import warn_once
@@ -11,6 +19,19 @@ from inspect_ai.tool._tool_call import ToolCall
 from ._chat_message import ChatMessage, ChatMessageAssistant
 
 _T = TypeVar("_T", int, float)
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def _keeps_model_schema(fn: _F) -> _F:
+    """Drop a model serializer's return annotation at runtime.
+
+    Pydantic builds a model's serialization schema (and so the viewer's
+    generated types) from a wrap serializer's return annotation; without one
+    it keeps the model's own schema, which is right for a serializer that only
+    adjusts which keys are written.
+    """
+    fn.__annotations__ = {k: v for k, v in fn.__annotations__.items() if k != "return"}
+    return fn
 
 
 class ModelUsage(BaseModel):
@@ -67,6 +88,31 @@ class ModelUsage(BaseModel):
             ),
             total_cost=optional_sum(self.total_cost, other.total_cost),
         )
+
+
+def usage_input_tokens(usage: ModelUsage | None) -> int | None:
+    """All input tokens of one request's usage: full rate, cache read and cache write."""
+    if usage is None:
+        return None
+    return (
+        usage.input_tokens
+        + (usage.input_tokens_cache_read or 0)
+        + (usage.input_tokens_cache_write or 0)
+    )
+
+
+def sum_usage(*usages: ModelUsage | None) -> ModelUsage | None:
+    """Sum the usage of several billed requests, skipping any without usage.
+
+    Returns `None` when no request reported usage.
+    """
+    reported = [usage for usage in usages if usage is not None]
+    if not reported:
+        return None
+    total = reported[0]
+    for usage in reported[1:]:
+        total = total + usage
+    return total
 
 
 class ModelFallback(BaseModel):
@@ -269,7 +315,17 @@ class ModelOutput(BaseModel):
     """Model completion."""
 
     usage: ModelUsage | None = Field(default=None)
-    """Model token usage"""
+    """Token usage billed for this generate call, summed over every request it made."""
+
+    input_context_tokens: int | None = Field(default=None)
+    """Tokens the input occupied in the model's context window.
+
+    Counts the system prompt, tools and input messages, cached tokens included.
+    For a call that made several requests, this is the size of the request built
+    from the input, not a sum. None when unknown, e.g. the request was rejected;
+    logs record that as null, while logs written before this field existed omit
+    it.
+    """
 
     fallback: ModelFallback | None = Field(default=None)
     """Model fallback that served this output (None if served by the requested model)."""
@@ -304,6 +360,31 @@ class ModelOutput(BaseModel):
                 self.choices[0].message.text if len(self.choices) > 0 else ""
             )
         return self
+
+    @model_serializer(mode="wrap")
+    @_keeps_model_schema
+    def _serialize_unknown_input_context(
+        self, handler: SerializerFunctionWrapHandler, info: SerializationInfo
+    ) -> Any:
+        """Write `input_context_tokens=None` only when it was assigned.
+
+        An assigned None means the size is unknown, while a missing key means a
+        log from before the field existed (read with a fallback to usage), so
+        every dump, with or without `exclude_none`, keeps the two apart.
+        """
+        data = handler(self)
+        if isinstance(data, dict) and self.input_context_tokens is None:
+            if "input_context_tokens" in self.model_fields_set:
+                data["input_context_tokens"] = None
+            else:
+                data.pop("input_context_tokens", None)
+        return data
+
+    def __setstate__(self, state: dict[Any, Any]) -> None:
+        super().__setstate__(state)
+        # pickles from before input_context_tokens existed (e.g. model cache
+        # entries) restore without it; leave it unset so readers fall back to usage
+        self.__dict__.setdefault("input_context_tokens", None)
 
     @staticmethod
     def from_message(
@@ -421,6 +502,19 @@ class ModelOutput(BaseModel):
                 )
             ],
         )
+
+
+def output_input_context_tokens(output: ModelOutput) -> int | None:
+    """The input's context size for a consumer of an output.
+
+    An output from generate always has `input_context_tokens` set, and None
+    there means the size is unknown (e.g. the request was rejected). An output
+    read from a log written before the field existed lacks it, so this falls
+    back to the input side of its usage.
+    """
+    if "input_context_tokens" in output.model_fields_set:
+        return output.input_context_tokens
+    return usage_input_tokens(output.usage)
 
 
 def as_stop_reason(reason: str | None) -> StopReason:

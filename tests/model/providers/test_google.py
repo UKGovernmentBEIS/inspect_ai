@@ -16,6 +16,7 @@ from google.genai.types import (
     FunctionCall,
     FunctionCallingConfigMode,
     GenerateContentResponse,
+    GenerateContentResponseUsageMetadata,
     HttpOptions,
     JobState,
     Part,
@@ -35,7 +36,12 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessage, ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ModelOutput,
+)
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 from inspect_ai.model._model import ModelAPI, RetryDecision
@@ -997,6 +1003,134 @@ async def test_malformed_function_call_retry_adds_feedback_messages():
         roles = [c.role for c in contents]
         assert "model" in roles
         assert "user" in roles
+
+
+def _with_usage(
+    response: GenerateContentResponse, prompt: int, candidates: int, thoughts: int
+) -> GenerateContentResponse:
+    response.usage_metadata = GenerateContentResponseUsageMetadata(
+        prompt_token_count=prompt,
+        cached_content_token_count=1,
+        candidates_token_count=candidates,
+        thoughts_token_count=thoughts,
+        total_token_count=prompt + candidates + thoughts,
+    )
+    return response
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_sums_usage():
+    """Usage covers every billed attempt of the retry loop, not just the last."""
+    mock_generate = AsyncMock(
+        side_effect=[
+            _with_usage(_create_malformed_response(), 10, 2, 3),
+            _with_usage(_create_malformed_response(), 20, 4, 5),
+            _with_usage(_create_success_response_with_tool_call(), 30, 6, 7),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert mock_generate.call_count == 3
+    assert output.choices[0].message.tool_calls is not None
+    assert output.usage is not None
+    # input excludes the 1 cached token per request
+    assert output.usage.input_tokens == 9 + 19 + 29
+    assert output.usage.input_tokens_cache_read == 3
+    assert output.usage.output_tokens == 5 + 9 + 13
+    assert output.usage.reasoning_tokens == 3 + 5 + 7
+    assert output.usage.total_tokens == 15 + 29 + 43
+    # the context size is the first attempt's prompt, not the sum
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_exhausted_sums_usage():
+    """When every attempt is malformed, usage still covers all of them once."""
+    mock_generate = AsyncMock(
+        side_effect=[
+            _with_usage(_create_malformed_response(), 10, 2, 0),
+            _with_usage(_create_malformed_response(), 20, 4, 0),
+            _with_usage(_create_malformed_response(), 30, 6, 0),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert mock_generate.call_count == 3
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9 + 19 + 29
+    assert output.usage.output_tokens == 2 + 4 + 6
+    assert output.usage.total_tokens == 12 + 24 + 36
+    assert output.input_context_tokens == 10
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_error_keeps_earlier_usage():
+    """A retry rejected as too long keeps the usage of the attempts before it."""
+    mock_generate = AsyncMock(
+        side_effect=[
+            _with_usage(_create_malformed_response(), 10, 2, 0),
+            ClientError(
+                400,
+                {
+                    "error": {
+                        "code": 400,
+                        "message": "input exceeds the maximum number of tokens",
+                        "status": "INVALID_ARGUMENT",
+                    }
+                },
+            ),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "model_length"
+    assert output.usage is not None
+    assert output.usage.input_tokens == 9
+    assert output.usage.output_tokens == 2
+    assert output.input_context_tokens == 10
 
 
 # Tests for count_tokens with unpaired tool messages

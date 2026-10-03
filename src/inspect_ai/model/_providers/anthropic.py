@@ -197,6 +197,8 @@ from .._model_output import (
     StopDetails,
     StopReason,
     collect_stop_details,
+    sum_usage,
+    usage_input_tokens,
 )
 from .._providers._anthropic_citations import (
     to_anthropic_citation,
@@ -296,6 +298,11 @@ _REMINDER_SYSTEM_HOISTED_WARNING = (
 # rest of the sample from further expiry.
 CACHE_TTL_ESCALATION_GAP = 300.0  # seconds (= the default 5m cache TTL)
 
+# Most pause_turn continuations sent for one generate call. Each pause_turn ends
+# a server-side tool loop, so this allows a long turn while bounding a chain of
+# billed requests that never finishes.
+MAX_PAUSE_TURN_CONTINUATIONS = 10
+
 # TTL sent on the request whose usage is currently being recorded, read back by
 # cache_write_ttl() for cost accounting: escalation state is sticky and shared,
 # so a sibling that escalates mid-flight (or a batched call, which never
@@ -314,6 +321,23 @@ _cache_write_ttl: ContextVar[Literal["5m", "1h"] | None] = ContextVar(
 _last_request_start: ContextVar[float | None] = ContextVar(
     "anthropic_last_request_start", default=None
 )
+
+
+@dataclass
+class _ContinuationChain:
+    """The requests sent so far for one generate call (a head and its continuations)."""
+
+    requests: int = 0
+    """Number of requests that returned a response."""
+
+    usage: ModelUsage | None = None
+    """Usage summed over those requests (each one is billed)."""
+
+    input_context_tokens: int | None = None
+    """Input size of the head request, the one built from the generate input.
+
+    Later requests also carry the partial turn, which the returned message holds.
+    """
 
 
 @dataclass
@@ -726,6 +750,10 @@ class AnthropicAPI(ModelAPI):
 
         model_call: ModelCall | None = None
 
+        # an error converted to an output below still reports the usage of
+        # the requests that succeeded before it
+        chain = _ContinuationChain()
+
         # generate
         try:
             resolved_cache_ttl = self._resolve_cache_ttl(config)
@@ -890,7 +918,7 @@ class AnthropicAPI(ModelAPI):
 
             try:
                 response, output = await self._perform_request_and_continuations(
-                    request, streaming, tools, config
+                    request, streaming, tools, config, chain=chain
                 )
             except (BadRequestError, APIStatusError) as ex:
                 model_call.set_error(
@@ -912,22 +940,31 @@ class AnthropicAPI(ModelAPI):
             return output, model_call
 
         except BadRequestError as ex:
-            return self.handle_bad_request(ex), model_call or ModelCall(request={})
+            handled = self.handle_bad_request(ex)
+            if isinstance(handled, ModelOutput):
+                handled.usage = chain.usage
+                handled.input_context_tokens = chain.input_context_tokens
+            return handled, model_call or ModelCall(request={})
 
         except APIStatusError as ex:
             if ex.status_code == 413:
-                return ModelOutput.from_content(
+                too_large = ModelOutput.from_content(
                     model=self.service_model_name(),
                     content=ex.message,
                     stop_reason="model_length",
                     error=ex.message,
-                ), model_call or ModelCall(request={})
+                )
+                too_large.usage = chain.usage
+                too_large.input_context_tokens = chain.input_context_tokens
+                return too_large, model_call or ModelCall(request={})
             # Content-filter errors that arrive mid-stream surface as a plain
             # APIStatusError (the SDK can't infer the 400 subclass once the
             # HTTP response was 200), so route through handle_bad_request to
             # convert them into a content_filter refusal.
             handled = self.handle_bad_request(ex)
             if isinstance(handled, ModelOutput):
+                handled.usage = chain.usage
+                handled.input_context_tokens = chain.input_context_tokens
                 return handled, model_call or ModelCall(request={})
             raise ex
 
@@ -1093,12 +1130,22 @@ class AnthropicAPI(ModelAPI):
         | None = None,
         pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
         span_recorder: "_ServerToolSpanRecorder | None" = None,
+        chain: _ContinuationChain | None = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
 
         It considers the result from the initial request the "head" and the result
-        from the continuation the "tail".
+        from the continuation the "tail". The returned output's usage is the sum
+        over the head and every continuation, since each one is billed; `chain`
+        holds that sum as requests complete, so a caller can still report it
+        when a later continuation raises.
+
+        After `MAX_PAUSE_TURN_CONTINUATIONS` continuations a further pause_turn
+        is not continued: the content generated so far is returned with stop
+        reason "unknown" and `stop_details.type` "pause_turn". Returning it
+        rather than raising keeps the usage of the billed requests, and matches
+        Anthropic's contract that a paused turn can be resumed by sending it back.
         """
         # each continuation re-sends the same cache_control, so it refreshes the
         # cache entry at its own prefill -- record it as the gap baseline
@@ -1112,6 +1159,8 @@ class AnthropicAPI(ModelAPI):
             # block in the head message, result in the tail) so the recorder
             # is threaded through continuations like pending_tool_uses
             span_recorder = _ServerToolSpanRecorder()
+        if chain is None:
+            chain = _ContinuationChain()
 
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.
@@ -1147,8 +1196,25 @@ class AnthropicAPI(ModelAPI):
             cache_diagnostics=self.cache_diagnostics_enabled(config),
             span_recorder=span_recorder,
         )
+        chain.requests += 1
+        chain.usage = sum_usage(chain.usage, head_model_output.usage)
+        if chain.requests == 1:
+            chain.input_context_tokens = usage_input_tokens(head_model_output.usage)
+        continuations = chain.requests - 1
 
-        if continuation_required:
+        if continuation_required and continuations >= MAX_PAUSE_TURN_CONTINUATIONS:
+            logger.warning(
+                f"{self.model_name}: stopped after {continuations} pause_turn "
+                "continuations; returning the paused turn."
+            )
+            head_model_output.choices[0].stop_details = StopDetails(
+                type="pause_turn",
+                explanation=(
+                    f"Turn still paused after {continuations} continuations "
+                    "(the continuation limit)."
+                ),
+            )
+        elif continuation_required:
             tail_request = dict(request)
             tail_request["messages"] = request["messages"] + [
                 MessageParam(role=head_message.role, content=head_message.content)
@@ -1165,6 +1231,7 @@ class AnthropicAPI(ModelAPI):
                 pending_tool_uses=pending_tool_uses,
                 pending_mcp_tool_uses=pending_mcp_tool_uses,
                 span_recorder=span_recorder,
+                chain=chain,
             )
 
             head_content = _content_list(head_model_output.message.content)
@@ -1184,6 +1251,10 @@ class AnthropicAPI(ModelAPI):
             # even when it has needed to recurse. This is because model_call()
             # above doesn't currently support multiple requests
             return head_message.model_dump(warnings="none"), tail_model_output
+
+        # the last request of the chain reports the usage of all of them
+        head_model_output.usage = chain.usage
+        head_model_output.input_context_tokens = chain.input_context_tokens
 
         # NOTE: we do warnings="none" here because we are including beta API message
         # params (for MCP tool use/result) in the payload which causes Message to emit

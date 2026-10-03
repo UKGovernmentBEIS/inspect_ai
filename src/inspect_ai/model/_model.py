@@ -122,7 +122,12 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost
-from ._model_output import ModelFallback, ModelOutput, ModelUsage
+from ._model_output import (
+    ModelFallback,
+    ModelOutput,
+    ModelUsage,
+    usage_input_tokens,
+)
 from ._stream import (
     ModelStreamObserver,
     NoStreamDataError,
@@ -1662,6 +1667,15 @@ class Model:
                     status_code=status_code_of(output),
                     provider_message=str(output),
                 ) from output
+
+            # a provider whose generate makes one request leaves the context
+            # size to be read from its usage; one that assigned the field
+            # (None included, for an input it could not measure) has set it
+            if (
+                "input_context_tokens" not in output.model_fields_set
+                and output.usage is not None
+            ):
+                output.input_context_tokens = usage_input_tokens(output.usage)
 
             # update output with time (call.time captures time spent
             # on the actual request that succeeds w/ status 200)

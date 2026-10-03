@@ -1,16 +1,25 @@
-"""Unit tests for OpenAIAPI.reasoning_summaries() error handling.
+"""Unit tests for OpenAIAPI.reasoning_summaries() error handling and usage.
 
 These run without network access: the provider is constructed with a dummy key
 and ``client.responses.create`` is monkeypatched to raise the exception shapes
-the OpenAI SDK would produce.
+the OpenAI SDK would produce, or to return a canned response.
 """
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx2
 import pytest
 from openai import APITimeoutError, BadRequestError
+from openai.types.responses import Response, ResponseUsage
+from openai.types.responses.response_usage import (
+    InputTokensDetails,
+    OutputTokensDetails,
+)
 
+from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput, ModelUsage
+from inspect_ai.model._providers import openai as openai_provider
 from inspect_ai.model._providers.openai import OpenAIAPI
 
 
@@ -22,6 +31,20 @@ def _make_api() -> OpenAIAPI:
 
 def _request() -> httpx2.Request:
     return httpx2.Request("POST", "https://api.openai.com/v1/responses")
+
+
+def _probe_response() -> Response:
+    return Response.model_construct(
+        usage=ResponseUsage(
+            input_tokens=12,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=2, cache_write_tokens=0
+            ),
+            output_tokens=30,
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=20),
+            total_tokens=42,
+        )
+    )
 
 
 @pytest.mark.anyio
@@ -37,15 +60,15 @@ async def test_reasoning_summaries_transient_error_not_cached(
             calls["n"] += 1
             if calls["n"] == 1:
                 raise APITimeoutError(request=_request())
-            return object()
+            return _probe_response()
 
         monkeypatch.setattr(api.client.responses, "create", flaky)
 
         # The first probe hits a transient timeout: degrade gracefully for this
         # call, but don't cache the failure...
-        assert await api.reasoning_summaries() is False
+        assert (await api.reasoning_summaries()).supported is False
         # ...so once the blip clears the next probe still discovers support.
-        assert await api.reasoning_summaries() is True
+        assert (await api.reasoning_summaries()).supported is True
         assert calls["n"] == 2
     finally:
         await api.aclose()
@@ -72,8 +95,130 @@ async def test_reasoning_summaries_unsupported_error_cached(
 
         # A deterministic 400 means summaries really aren't available: cache it
         # and don't re-probe on every later sample.
-        assert await api.reasoning_summaries() is False
-        assert await api.reasoning_summaries() is False
+        assert (await api.reasoning_summaries()).supported is False
+        assert (await api.reasoning_summaries()).supported is False
         assert calls["n"] == 1
+    finally:
+        await api.aclose()
+
+
+@pytest.mark.anyio
+async def test_reasoning_summaries_probe_usage_reported_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The billed probe's usage is added to the generate call that sent it."""
+    api = _make_api()
+    try:
+        probes = {"n": 0}
+
+        async def probe(**kwargs: object) -> Response:
+            probes["n"] += 1
+            return _probe_response()
+
+        async def generate_responses(**kwargs: Any) -> ModelOutput:
+            output = ModelOutput.from_content(model="gpt-5", content="hello")
+            output.usage = ModelUsage(
+                input_tokens=100, output_tokens=10, total_tokens=110
+            )
+            return output
+
+        monkeypatch.setattr(api.client.responses, "create", probe)
+        monkeypatch.setattr(openai_provider, "generate_responses", generate_responses)
+
+        async def generate() -> ModelOutput:
+            output = await api.generate(
+                input=[ChatMessageUser(content="hi")],
+                tools=[],
+                tool_choice="none",
+                config=GenerateConfig(),
+            )
+            assert isinstance(output, ModelOutput)
+            return output
+
+        first = await generate()
+        assert first.usage == ModelUsage(
+            input_tokens=110,
+            output_tokens=40,
+            total_tokens=152,
+            input_tokens_cache_read=2,
+            reasoning_tokens=20,
+        )
+        # the probe's prompt was never part of the input
+        assert first.input_context_tokens == 100
+
+        # the probe runs once per provider instance, so later calls report
+        # only their own usage
+        second = await generate()
+        assert probes["n"] == 1
+        assert second.usage == ModelUsage(
+            input_tokens=100, output_tokens=10, total_tokens=110
+        )
+    finally:
+        await api.aclose()
+
+
+@pytest.mark.parametrize(
+    ("code", "stop_reason"),
+    [
+        ("context_length_exceeded", "model_length"),
+        ("content_policy_violation", "content_filter"),
+    ],
+)
+@pytest.mark.anyio
+async def test_reasoning_summaries_probe_then_rejected_request(
+    monkeypatch: pytest.MonkeyPatch, code: str, stop_reason: str
+) -> None:
+    """A rejected request after the probe bills the probe but has no context size."""
+    from inspect_ai.agent._acp.event_mapping import _build_usage_update
+    from inspect_ai.event import ModelEvent
+    from inspect_ai.model import get_model
+    from inspect_ai.model._model_output import output_input_context_tokens
+
+    model = get_model(
+        "openai/gpt-5",
+        memoize=False,
+        api_key="test-key",
+        responses_api=True,
+        config=GenerateConfig(max_retries=0),
+    )
+    api = model.api
+    assert isinstance(api, OpenAIAPI)
+    try:
+
+        async def create(**kwargs: object) -> Response:
+            if kwargs.get("input") == "Please say 'hello, world'":
+                return _probe_response()
+            raise BadRequestError(
+                message="rejected",
+                response=httpx2.Response(status_code=400, request=_request()),
+                body={"message": "rejected", "code": code},
+            )
+
+        monkeypatch.setattr(api.client.responses, "create", create)
+
+        output = await model.generate("hi")
+
+        assert output.stop_reason == stop_reason
+        # the probe was billed...
+        assert output.usage == ModelUsage(
+            input_tokens=10,
+            output_tokens=30,
+            total_tokens=42,
+            input_tokens_cache_read=2,
+            reasoning_tokens=20,
+        )
+        # ...but the rejected request's context size is unknown, and
+        # consumers do not read it from the probe's usage
+        assert output.input_context_tokens is None
+        assert output_input_context_tokens(output) is None
+        event = ModelEvent(
+            model="openai/gpt-5",
+            input=[],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+            output=output,
+        )
+        assert _build_usage_update(event) is None
     finally:
         await api.aclose()

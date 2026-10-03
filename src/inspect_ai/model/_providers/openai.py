@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 import anyio
 from openai import (
@@ -35,7 +35,7 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
-from .._model_output import ModelOutput, ModelUsage
+from .._model_output import ModelOutput, ModelUsage, sum_usage, usage_input_tokens
 from .._openai import (
     always_reasons_model,
     is_gpt_5_model,
@@ -51,6 +51,7 @@ from .._openai_responses import (
     chat_messages_from_compact_response,
     is_native_tool_configured,
     model_usage_from_compact_response,
+    model_usage_from_response_usage,
     openai_responses_inputs,
     pad_tool_messages_for_token_counting,
 )
@@ -95,6 +96,14 @@ BEDROCK_OPENAI_BASE_URL_VARS = [
     "BEDROCK_OPENAI_BASE_URL",
     "AWS_BEDROCK_BASE_URL",
 ]
+
+
+class _ReasoningSummariesProbe(NamedTuple):
+    supported: bool
+    """Whether the account can request reasoning summaries."""
+
+    usage: ModelUsage | None
+    """Usage of the probe request, when this call sent it (it is billed)."""
 
 
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAIAPI.
@@ -562,8 +571,11 @@ class OpenAIAPI(ModelAPI):
         self._resolve_batcher(config, use_responses)
 
         # if reasoning summaries are unset then try to auto-detect
+        probe_usage: ModelUsage | None = None
         if config.reasoning_summary is None:
-            if not await self.reasoning_summaries():
+            probe = await self.reasoning_summaries()
+            probe_usage = probe.usage
+            if not probe.supported:
                 config = config.model_copy(update={"reasoning_summary": "none"})
 
         streaming = self._resolve_streaming(use_responses)
@@ -643,6 +655,17 @@ class OpenAIAPI(ModelAPI):
                 "delivered)",
             )
             response = await generate_once(False)
+
+        # the probe is billed, so this call's output reports its usage too.
+        # Its prompt was never part of the input, so the context size comes
+        # from the primary request only, and stays None (assigned, so it is
+        # not filled from usage) when that request was rejected
+        if probe_usage is not None:
+            output = response[0] if isinstance(response, tuple) else response
+            if isinstance(output, ModelOutput):
+                if "input_context_tokens" not in output.model_fields_set:
+                    output.input_context_tokens = usage_input_tokens(output.usage)
+                output.usage = sum_usage(probe_usage, output.usage)
 
         return response
 
@@ -732,7 +755,7 @@ class OpenAIAPI(ModelAPI):
         # added back. Chat Completions is unaffected.
         return self.responses_api
 
-    async def reasoning_summaries(self) -> bool:
+    async def reasoning_summaries(self) -> _ReasoningSummariesProbe:
         # validate that reasoning summaries are supported for this account
         # (needs to be a 'verified organization'). we do this by making a
         # simple request with reasoning summaries and if it succeeds we
@@ -747,17 +770,17 @@ class OpenAIAPI(ModelAPI):
         # bottleneck. the read is a sync attribute lookup of a bool so it is
         # safe outside the lock.
         if self._reasoning_summaries is not None:
-            return self._reasoning_summaries
+            return _ReasoningSummariesProbe(self._reasoning_summaries, None)
         async with self._reasoning_summaries_lock:
+            usage: ModelUsage | None = None
             if self._reasoning_summaries is None:
                 if self.responses_api and self.has_reasoning_options():
                     try:
-                        await self.client.responses.create(
+                        response = await self.client.responses.create(
                             model=self.api_model_name(),
                             input="Please say 'hello, world'",
                             reasoning={"effort": "low", "summary": "auto"},
                         )
-                        self._reasoning_summaries = True
                     except Exception as ex:
                         # A transient failure (timeout, dropped connection,
                         # rate limit, 5xx) tells us nothing about whether
@@ -768,12 +791,15 @@ class OpenAIAPI(ModelAPI):
                         # isn't a verified organization) does mean they aren't
                         # available, so cache that.
                         if openai_should_retry(ex):
-                            return False
+                            return _ReasoningSummariesProbe(False, None)
                         self._reasoning_summaries = False
+                    else:
+                        usage = model_usage_from_response_usage(response.usage)
+                        self._reasoning_summaries = True
                 else:
                     self._reasoning_summaries = False
 
-            return self._reasoning_summaries
+            return _ReasoningSummariesProbe(self._reasoning_summaries, usage)
 
     def _resolve_batcher(self, config: GenerateConfig, for_responses_api: bool) -> None:
         def _resolve_retry_config() -> ModelRetryConfig:

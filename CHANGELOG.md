@@ -1,3 +1,8 @@
+## Unreleased
+
+- Bugfix: Model usage now counts every billed request in a generate call (Anthropic pause_turn continuations, Gemini malformed tool call retries, OpenAI's reasoning summary check); Anthropic continues a paused turn at most 10 times, then returns it as paused (`pause_turn` to bridged clients).
+- Model output: New `input_context_tokens` field gives the input's size in the context window, which compaction, the ACP context display and the viewer's activity view now use instead of billed usage.
+
 ## 0.3.276 (02 October 2026)
 
 - LiteLLM Proxy: Gemini tool results that are JSON objects are sent under `content`, as the `google` provider sends them; LiteLLM otherwise passed the object as the function response itself and Vertex rejected documents with `$ref` keys (an OpenAPI spec read with `curl`) with a 400.
