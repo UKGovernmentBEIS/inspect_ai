@@ -561,13 +561,14 @@ is what the whole-task view shows.
 **Provenance and ledger: a new header field.** Decision (Ransom,
 2026-09-21): the merged log carries a new typed `EvalSpec` field (not
 `eval.metadata`) holding the shards' provenance and the merge ledger: the
-companion directory (derivable from the name, recorded so a moved or renamed
-merged log still says where it came from), the intended selection last
-merged against,
-and one entry per shard `<k>` with its file name, `eval_id`, the number of
+intended selection last merged against,
+and one entry per shard `<k>` with its file name, the number of
 samples merged from it, its status at merge time, its error message when
 that status is `error` or `cancelled` (see "Errored shards"), and its mtime
-or ETag. The merged log's
+or ETag. The companion directory and each shard's `eval_id` are not
+recorded (decision: Ransom, 2026-09-29): nothing reads them, the companion
+is derived from the merged log's name, and a recorded location goes stale
+when the log moves. The merged log's
 own `samples/` members are the set of merged `(id, epoch)` samples. With
 this, a fully merged `success` shard is skipped without opening it, a grown
 shard is re-read only for the members the merged log lacks, and the ledger
