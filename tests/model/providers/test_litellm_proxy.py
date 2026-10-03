@@ -2281,6 +2281,11 @@ EFFORT_DEPLOYMENTS = {
     "claude-opus-5-5": "anthropic/claude-opus-5-5",
     "gemini-2.5-pro": "gemini/gemini-2.5-pro",
     "gemini-3-pro": "gemini/gemini-3-pro-preview",
+    "gemini-3.7-flash": "gemini/gemini-3.7-flash",
+    "gemini-2.0-flash": "gemini/gemini-2.0-flash",
+    # Gemini codenames (current frontier)
+    "nimbus": "gemini/nimbus-preview",
+    "orion-pro": "gemini/orion-pro-preview",
     "gpt-5": "openai/gpt-5",
     "gpt-5.5": "openai/gpt-5.5",
     "gpt-4.1": "openai/gpt-4.1",
@@ -2404,6 +2409,41 @@ async def test_litellm_proxy_reasoning_effort_never_fails(
             "max",
             {"thinkingLevel": "high", "includeThoughts": True},
         ),
+        (
+            "gemini-3-pro",
+            False,
+            "minimal",
+            {"thinkingLevel": "low", "includeThoughts": True},
+        ),
+        (
+            "gemini-3.7-flash",
+            False,
+            "minimal",
+            {"thinkingLevel": "low", "includeThoughts": True},
+        ),
+        # codenames need the deployment (model info) to be known as Gemini
+        (
+            "nimbus",
+            None,
+            "max",
+            {"thinkingLevel": "high", "includeThoughts": True},
+        ),
+        ("gemini-3-pro", False, "none", None),
+        ("orion-pro", None, "none", None),
+        (
+            "gemini-2.5-pro",
+            False,
+            "high",
+            {"thinkingBudget": 16000, "includeThoughts": True},
+        ),
+        (
+            "gemini-2.5-pro",
+            False,
+            "max",
+            {"thinkingBudget": 32000, "includeThoughts": True},
+        ),
+        ("gemini-2.5-pro", False, "none", None),
+        ("gemini-2.0-flash", False, "high", None),
         ("gpt-5", False, "xhigh", "high"),
         ("gpt-5.5", False, "minimal", "low"),
         ("gpt-4.1", False, "high", None),
@@ -2416,7 +2456,7 @@ async def test_litellm_proxy_reasoning_effort_never_fails(
 async def test_litellm_proxy_reasoning_effort_lowered(
     effort_proxy: LiteLLMProxy,
     alias: str,
-    responses_api: bool,
+    responses_api: bool | None,
     effort: Effort,
     sent: Any,
 ) -> None:
@@ -2425,6 +2465,106 @@ async def test_litellm_proxy_reasoning_effort_lowered(
     )
     assert isinstance(output, ModelOutput), output
     assert upstream == sent
+
+
+def _gemini_request(
+    alias: str, effort: Effort, config: GenerateConfig | None = None
+) -> tuple[str | None, dict[str, Any] | None]:
+    """The effort and `thinking` the provider would first send for `alias`."""
+    api = _proxy_api(
+        get_model(
+            f"litellm-proxy/{alias}",
+            base_url="http://localhost:4000",
+            api_key="sk-test",
+            model_info=False,
+            memoize=False,
+        )
+    )
+    return _first_request(api, effort, config or GenerateConfig())
+
+
+def _first_request(
+    api: LiteLLMProxyAPI, effort: Effort, config: GenerateConfig
+) -> tuple[str | None, dict[str, Any] | None]:
+    sent = api._effort_for(api._mapped_effort(effort, config))
+    return sent, api._thinking_for(effort, sent, config)
+
+
+def _budget(tokens: int) -> dict[str, Any]:
+    return {"type": "enabled", "budget_tokens": tokens}
+
+
+@pytest.mark.parametrize(
+    "alias,effort,sent,thinking",
+    [
+        # Gemini 3+: levels, minimal only where supported
+        ("gemini-3-pro-preview", "minimal", "low", None),
+        ("gemini-3-pro-preview", "max", "high", None),
+        ("gemini-3-pro-preview", "medium", "medium", None),
+        ("gemini-3.6-flash", "minimal", "minimal", None),
+        ("gemini-3.7-flash", "minimal", "low", None),
+        ("gemini-3.7-flash", "none", "none", None),
+        # thinking-only models keep thinking
+        ("gemini-3-pro-preview", "none", None, None),
+        ("gemini-2.5-pro", "none", None, None),
+        # codenames are the current frontier
+        ("gemini/nimbus-preview", "xhigh", "high", None),
+        ("gemini/nimbus-preview", "minimal", "low", None),
+        ("gemini/orion-pro-preview", "none", None, None),
+        # Gemini 2.5: Inspect's thinking budgets
+        ("gemini-2.5-pro", "minimal", None, _budget(2048)),
+        ("gemini-2.5-pro", "high", None, _budget(16000)),
+        ("gemini-2.5-flash", "max", None, _budget(24576)),
+        ("gemini-2.5-pro", "max", None, _budget(32000)),
+        ("gemini-2.5-flash", "none", "none", None),
+        # no thinking config
+        ("gemini-2.0-flash", "high", None, None),
+        ("gemini-1.5-pro", "low", None, None),
+        # other Google models and other vendors are unchanged
+        ("google/gemma-3-27b-it", "high", "high", None),
+        ("claude-opus-4-1", "max", "max", None),
+        ("gpt-5", "minimal", "minimal", None),
+    ],
+)
+def test_litellm_proxy_gemini_effort(
+    alias: str, effort: Effort, sent: str | None, thinking: dict[str, Any] | None
+) -> None:
+    assert _gemini_request(alias, effort) == (sent, thinking)
+
+
+def test_litellm_proxy_gemini_budget_yields_to_extra_body() -> None:
+    config = GenerateConfig(extra_body={"thinking": _budget(500)})
+    assert _gemini_request("gemini-2.5-pro", "max", config) == ("high", None)
+
+
+def test_litellm_proxy_gemini_budget_rejected_sends_effort() -> None:
+    api = _proxy_api(
+        get_model(
+            "litellm-proxy/gemini-2.5-flash",
+            base_url="http://localhost:4000",
+            api_key="sk-test",
+            model_info=False,
+            memoize=False,
+        )
+    )
+    api._thinking_unsupported = True
+    assert _first_request(api, "max", GenerateConfig()) == ("high", None)
+    assert _first_request(api, "minimal", GenerateConfig()) == ("minimal", None)
+
+
+def test_litellm_proxy_gemini_effort_warnings(monkeypatch: pytest.MonkeyPatch) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr(litellm_proxy_module.logger, "warning", warnings.append)
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    _gemini_request("gemini-3-pro-preview", "minimal")
+    _gemini_request("gemini-3-pro-preview", "none")
+    _gemini_request("gemini-3-pro-preview", "max")
+    _gemini_request("gemini-2.5-pro", "high")
+    assert warnings == [
+        "Model gemini-3-pro-preview does not support minimal thinking; "
+        "using low instead.",
+        "Thinking cannot be disabled for model gemini-3-pro-preview.",
+    ]
 
 
 @skip_if_no_openai_package
@@ -2731,6 +2871,8 @@ async def test_litellm_proxy_codename_adaptive_thinking_flag(
         (["xai/mimas"], "grok"),
         (["openrouter/x-ai/grok-5"], "grok"),
         (["gemini/gemini-4-pro"], "google"),
+        (["google/nimbus-preview"], "google"),
+        (["gemini/nimbus-preview"], "google"),
         (["openai/gpt-7-preview"], "openai"),
         (["azure/o5-mini"], "openai"),
         (["bedrock/converse/us.openai.gpt-6-astra"], "openai"),
