@@ -6,6 +6,7 @@ from weakref import WeakKeyDictionary
 from inspect_sentinel import (
     AfterToolCall,
     BeforeToolCall,
+    Context,
     Decision,
     Failed,
     HumanAnswer,
@@ -170,36 +171,37 @@ def _host_context() -> HostContext:
     else:
         sample_metadata = {}
     return HostContext(
-        task=active.task if active is not None else None,
-        task_description=None,
-        sample_id=(
-            state.sample_id
-            if state is not None
-            else active.sample.id
-            if active is not None
-            else None
+        context=Context(
+            task=active.task if active is not None else None,
+            task_description=None,
+            sample_id=(
+                state.sample_id
+                if state is not None
+                else active.sample.id
+                if active is not None
+                else None
+            ),
+            epoch=(
+                state.epoch
+                if state is not None
+                else active.epoch
+                if active is not None
+                else None
+            ),
+            sample_description=None,
+            sample_input=(
+                state.input
+                if state is not None
+                else active.sample.input
+                if active is not None
+                else ""
+            ),
+            metadata={**active_task_metadata(), **sample_metadata},
+            path="",
+            _store=store(),
+            host=_Host(),
         ),
-        epoch=(
-            state.epoch
-            if state is not None
-            else active.epoch
-            if active is not None
-            else None
-        ),
-        sample_description=None,
-        sample_input=(
-            state.input
-            if state is not None
-            else active.sample.input
-            if active is not None
-            else ""
-        ),
-        metadata={**active_task_metadata(), **sample_metadata},
-        path="",
-        _store=store(),
-        host=_Host(),
         recorder=_Recorder(),
-        factory="",
     )
 
 
@@ -398,12 +400,13 @@ def _human_view(step: Step) -> ToolCallView:
 
 class _Recorder:
     def record(
-        self, context: HostContext, step: Step, reported: Reported[Report]
+        self, context: Context, factory: str, step: Step, reported: Reported[Report]
     ) -> None:
         report = reported.report
         if isinstance(report, Observation):
             _emit(
                 context,
+                factory,
                 step,
                 "observation",
                 "reported",
@@ -414,11 +417,16 @@ class _Recorder:
                 metadata=report.metadata,
             )
         else:
-            _emit_decision(context, step, "reported", reported.function, report)
+            _emit_decision(
+                context, factory, step, "reported", reported.function, report
+            )
 
-    def failed(self, context: HostContext, step: Step, failed: Failed) -> None:
+    def failed(
+        self, context: Context, factory: str, step: Step, failed: Failed
+    ) -> None:
         _emit(
             context,
+            factory,
             step,
             "observation",
             "error",
@@ -426,16 +434,22 @@ class _Recorder:
             error=f"{type(failed.error).__name__}: {failed.error}",
         )
 
-    def cancelled(self, context: HostContext, step: Step, name: str) -> None:
-        _emit(context, step, _factory_kind(context.factory), "cancelled")
+    def cancelled(self, context: Context, factory: str, step: Step, name: str) -> None:
+        _emit(context, factory, step, _factory_kind(factory), "cancelled")
 
-    def bypassed(self, context: HostContext, step: Step, name: str) -> None:
-        _emit(context, step, "decision", "bypassed")
+    def bypassed(self, context: Context, factory: str, step: Step, name: str) -> None:
+        _emit(context, factory, step, "decision", "bypassed")
 
     def superseded(
-        self, context: HostContext, step: Step, reported: Reported[Decision]
+        self,
+        context: Context,
+        factory: str,
+        step: Step,
+        reported: Reported[Decision],
     ) -> None:
-        _emit_decision(context, step, "superseded", reported.function, reported.report)
+        _emit_decision(
+            context, factory, step, "superseded", reported.function, reported.report
+        )
 
 
 def _factory_kind(factory: str) -> _Kind:
@@ -447,7 +461,8 @@ def _factory_kind(factory: str) -> _Kind:
 
 
 def _emit_decision(
-    context: HostContext,
+    context: Context,
+    factory: str,
     step: Step,
     status: _Status,
     function: str,
@@ -455,6 +470,7 @@ def _emit_decision(
 ) -> None:
     _emit(
         context,
+        factory,
         step,
         "decision",
         status,
@@ -470,7 +486,8 @@ def _emit_decision(
 
 
 def _emit(
-    context: HostContext,
+    context: Context,
+    factory: str,
     step: Step,
     kind: _Kind,
     status: _Status,
@@ -488,7 +505,7 @@ def _emit(
 ) -> None:
     transcript()._event(
         SentinelEvent(
-            factory=context.factory,
+            factory=factory,
             path=context.path,
             function=function,
             step_id=step.call.id,

@@ -1111,7 +1111,7 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
     )
     with pytest.raises(ValueError, match="modified is set only"):
         _Recorder().record(
-            replace(_host_context(), factory="p", path="p"), step, reported
+            replace(_host_context().context, path="p"), "p", step, reported
         )
 
 
