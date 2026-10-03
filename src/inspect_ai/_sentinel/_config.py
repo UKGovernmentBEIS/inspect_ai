@@ -115,8 +115,11 @@ def resolve_sentinel_spec(spec: SentinelSpec) -> "Sentinels":
     from inspect_sentinel._integration import sentinel_from_config
 
     if isinstance(spec, str | SentinelConfig) or not _is_constructed(spec):
-        return sentinel_from_config(cast(str | SentinelConfig, spec))
-    return cast("Sentinels", spec)
+        sentinels = sentinel_from_config(cast(str | SentinelConfig, spec))
+    else:
+        sentinels = cast("Sentinels", spec)
+    resolve_sentinel_root(sentinels)
+    return sentinels
 
 
 def _is_constructed(spec: object) -> bool:

@@ -386,7 +386,7 @@ def eval_set(
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
             Defaults to no review policy.
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
-            A monitor, a protocol, a list or mapping of them, a config file path or registered name, or a parsed configuration.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to

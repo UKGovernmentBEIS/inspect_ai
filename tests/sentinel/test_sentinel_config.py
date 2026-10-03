@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,7 @@ try:
         Observation,
         Protocol,
         monitor,
+        observe_only,
         protocol,
         threshold,
     )
@@ -120,14 +122,33 @@ def test_no_sentinel_leaves_the_config_empty() -> None:
     assert active_root(log) is None
 
 
-def test_monitors_only_resolve_to_observe() -> None:
+def test_observe_only_records_monitors_with_nothing_acting() -> None:
     log = eval(
-        sentinel_task({"watch": d2_suspicion(score=0.2)}), model="mockllm/model"
+        sentinel_task(observe_only({"watch": d2_suspicion(score=0.2)})),
+        model="mockllm/model",
     )[0]
     assert config_data(log) == {
-        "watch": {"name": "d2_suspicion", "params": {"score": 0.2}}
+        "name": "observe_only",
+        "params": {},
+        "monitors": {"watch": {"name": "d2_suspicion", "params": {"score": 0.2}}},
     }
-    assert active_root(log) == "inspect_sentinel/observe"
+    assert active_root(log) == "inspect_sentinel/observe_only"
+
+
+@pytest.mark.parametrize(
+    "sentinel",
+    [
+        lambda: d2_suspicion(),
+        lambda: {"watch": d2_suspicion()},
+        lambda: [{"name": "d2_suspicion"}],
+        lambda: "d2_suspicion",
+    ],
+)
+def test_monitors_alone_fail_at_task_construction(
+    sentinel: Callable[[], Any],
+) -> None:
+    with pytest.raises(ValueError, match=r"only monitors: .*observe_only\(\)"):
+        sentinel_task(sentinel())
 
 
 def test_task_with_sets_and_clears_the_sentinel() -> None:
@@ -146,10 +167,13 @@ def test_eval_sentinel_overrides_the_task() -> None:
     log = eval(
         sentinel_task(d2_rule(reason="task")),
         model="mockllm/model",
-        sentinel=[d2_suspicion(score=0.7)],
+        sentinel=[d2_suspicion(score=0.7), d2_rule(reason="eval")],
     )[0]
-    assert config_data(log) == [{"name": "d2_suspicion", "params": {"score": 0.7}}]
-    assert active_root(log) == "inspect_sentinel/observe"
+    assert config_data(log) == [
+        {"name": "d2_suspicion", "params": {"score": 0.7}},
+        {"name": "d2_rule", "params": {"reason": "eval"}},
+    ]
+    assert active_root(log) == "inspect_sentinel/concurrent"
 
 
 def test_config_file_and_registered_name(tmp_path: Path) -> None:
@@ -255,11 +279,14 @@ def test_log_config_without_version_loads() -> None:
 
 def test_version_round_trips_through_the_log(tmp_path: Path) -> None:
     log = eval(
-        sentinel_task([d2_versioned(score=0.1)]),
+        sentinel_task([d2_versioned(score=0.1), d2_rule(reason="no")]),
         model="mockllm/model",
         log_dir=str(tmp_path),
     )[0]
-    expected = [{"name": "d2_versioned", "params": {"score": 0.1}, "version": 3}]
+    expected = [
+        {"name": "d2_versioned", "params": {"score": 0.1}, "version": 3},
+        *RULE_CONFIG,
+    ]
     assert config_data(log) == expected
     read = read_eval_log(log.location)
     assert read.eval.config.sentinel == log.eval.config.sentinel
@@ -429,6 +456,8 @@ def mark_ran() -> Solver:
         ("no_such_file.yaml", ValueError, "neither a config file"),
         ([], ValueError, "at least one monitor or protocol"),
         (42, TypeError, "sentinel must be"),
+        ("d2_suspicion", ValueError, "observe_only"),
+        ([{"name": "d2_suspicion"}], ValueError, "observe_only"),
     ],
 )
 def test_bad_config_fails_at_eval_start(

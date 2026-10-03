@@ -14,7 +14,7 @@ from inspect_sentinel import (
     Reported,
     Step,
 )
-from inspect_sentinel._integration import RunnerContext, run_root
+from inspect_sentinel._integration import HostContext, run_root
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
@@ -139,7 +139,7 @@ async def _run(step: Step) -> Decision | None:
     try:
         async with span(name="sentinel", type="sentinel"):
             with suspend_token_limit(), suspend_turn_limit():
-                decision = await run_root(root, _context(), step)
+                decision = await run_root(root, _host_context(), step)
     except TimeoutError as ex:
         # the sample runner treats a bare TimeoutError as benign
         raise RuntimeError(
@@ -160,7 +160,7 @@ def _stage(step: Step) -> Literal["tool_call", "tool_result"]:
     return "tool_call" if isinstance(step, BeforeToolCall) else "tool_result"
 
 
-def _context() -> RunnerContext:
+def _host_context() -> HostContext:
     active = sample_active()
     state = sample_state()
     if state is not None:
@@ -169,7 +169,7 @@ def _context() -> RunnerContext:
         sample_metadata = active.sample.metadata or {}
     else:
         sample_metadata = {}
-    return RunnerContext(
+    return HostContext(
         task=active.task if active is not None else None,
         task_description=None,
         sample_id=(
@@ -187,7 +187,7 @@ def _context() -> RunnerContext:
             else None
         ),
         sample_description=None,
-        input=(
+        sample_input=(
             state.input
             if state is not None
             else active.sample.input
@@ -196,7 +196,7 @@ def _context() -> RunnerContext:
         ),
         metadata={**active_task_metadata(), **sample_metadata},
         path="",
-        store=store(),
+        _store=store(),
         host=_Host(),
         recorder=_Recorder(),
         factory="",
@@ -398,7 +398,7 @@ def _human_view(step: Step) -> ToolCallView:
 
 class _Recorder:
     def record(
-        self, context: RunnerContext, step: Step, reported: Reported[Report]
+        self, context: HostContext, step: Step, reported: Reported[Report]
     ) -> None:
         report = reported.report
         if isinstance(report, Observation):
@@ -416,7 +416,7 @@ class _Recorder:
         else:
             _emit_decision(context, step, "reported", reported.function, report)
 
-    def failed(self, context: RunnerContext, step: Step, failed: Failed) -> None:
+    def failed(self, context: HostContext, step: Step, failed: Failed) -> None:
         _emit(
             context,
             step,
@@ -426,14 +426,14 @@ class _Recorder:
             error=f"{type(failed.error).__name__}: {failed.error}",
         )
 
-    def cancelled(self, context: RunnerContext, step: Step, name: str) -> None:
+    def cancelled(self, context: HostContext, step: Step, name: str) -> None:
         _emit(context, step, _factory_kind(context.factory), "cancelled")
 
-    def bypassed(self, context: RunnerContext, step: Step, name: str) -> None:
+    def bypassed(self, context: HostContext, step: Step, name: str) -> None:
         _emit(context, step, "decision", "bypassed")
 
     def superseded(
-        self, context: RunnerContext, step: Step, reported: Reported[Decision]
+        self, context: HostContext, step: Step, reported: Reported[Decision]
     ) -> None:
         _emit_decision(context, step, "superseded", reported.function, reported.report)
 
@@ -447,7 +447,7 @@ def _factory_kind(factory: str) -> _Kind:
 
 
 def _emit_decision(
-    context: RunnerContext,
+    context: HostContext,
     step: Step,
     status: _Status,
     function: str,
@@ -470,7 +470,7 @@ def _emit_decision(
 
 
 def _emit(
-    context: RunnerContext,
+    context: HostContext,
     step: Step,
     kind: _Kind,
     status: _Status,
