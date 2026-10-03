@@ -166,7 +166,7 @@ class Task:
             review: Tool result review policies.
                 Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
             sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
-                A monitor, a protocol, a list or mapping of them, a config file path or registered name, or a parsed configuration. Defaults to no sentinel.
+                A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting. Defaults to no sentinel.
             epochs: Epochs to repeat samples for and optional score
                 reducer function(s) used to combine sample scores (defaults to "mean")
             fail_on_error: `True` to fail on first sample error
@@ -400,7 +400,7 @@ def task_with(
         review: Tool result review policies.
             Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies. Defaults to no review policy.
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
-            A monitor, a protocol, a list or mapping of them, a config file path or registered name, or a parsed configuration. Defaults to no sentinel.
+            A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting. Defaults to no sentinel.
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error

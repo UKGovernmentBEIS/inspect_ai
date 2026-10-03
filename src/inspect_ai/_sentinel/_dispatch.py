@@ -9,6 +9,7 @@ from inspect_sentinel import (
     AfterToolCall,
     BeforeGenerate,
     BeforeToolCall,
+    Context,
     Decision,
     Failed,
     HumanAnswer,
@@ -17,7 +18,7 @@ from inspect_sentinel import (
     Reported,
     Step,
 )
-from inspect_sentinel._integration import RunnerContext, run_root, watched_stages
+from inspect_sentinel._integration import HostContext, run_sentinel, watched_stages
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
@@ -230,7 +231,7 @@ async def _run(step: Step) -> Decision | None:
     try:
         async with span(name="sentinel", type="sentinel"):
             with suspend_token_limit(), suspend_turn_limit(), not_agent_generates():
-                decision = await run_root(root, _context(_step_id(step)), step)
+                decision = await run_sentinel(root, _host_context(_step_id(step)), step)
     except TimeoutError as ex:
         # the sample runner treats a bare TimeoutError as benign
         raise RuntimeError(
@@ -274,7 +275,7 @@ def _step_id(step: Step) -> str:
 _model_inputs: "WeakKeyDictionary[Transcript, Counter[str]]" = WeakKeyDictionary()
 
 
-def _context(step_id: str) -> RunnerContext:
+def _host_context(step_id: str) -> HostContext:
     active = sample_active()
     state = sample_state()
     if state is not None:
@@ -283,37 +284,38 @@ def _context(step_id: str) -> RunnerContext:
         sample_metadata = active.sample.metadata or {}
     else:
         sample_metadata = {}
-    return RunnerContext(
-        task=active.task if active is not None else None,
-        task_description=None,
-        sample_id=(
-            state.sample_id
-            if state is not None
-            else active.sample.id
-            if active is not None
-            else None
+    return HostContext(
+        context=Context(
+            task=active.task if active is not None else None,
+            task_description=None,
+            sample_id=(
+                state.sample_id
+                if state is not None
+                else active.sample.id
+                if active is not None
+                else None
+            ),
+            epoch=(
+                state.epoch
+                if state is not None
+                else active.epoch
+                if active is not None
+                else None
+            ),
+            sample_description=None,
+            sample_input=(
+                state.input
+                if state is not None
+                else active.sample.input
+                if active is not None
+                else ""
+            ),
+            metadata={**active_task_metadata(), **sample_metadata},
+            path="",
+            host=_Host(),
         ),
-        epoch=(
-            state.epoch
-            if state is not None
-            else active.epoch
-            if active is not None
-            else None
-        ),
-        sample_description=None,
-        input=(
-            state.input
-            if state is not None
-            else active.sample.input
-            if active is not None
-            else ""
-        ),
-        metadata={**active_task_metadata(), **sample_metadata},
-        path="",
-        store=store(),
-        host=_Host(),
         recorder=_Recorder(step_id),
-        factory="",
+        store=store(),
     )
 
 
@@ -520,12 +522,13 @@ class _Recorder:
         self._step_id = step_id
 
     def record(
-        self, context: RunnerContext, step: Step, reported: Reported[Report]
+        self, context: Context, factory: str, step: Step, reported: Reported[Report]
     ) -> None:
         report = reported.report
         if isinstance(report, Observation):
             _emit(
                 context,
+                factory,
                 step,
                 self._step_id,
                 "observation",
@@ -538,12 +541,21 @@ class _Recorder:
             )
         else:
             _emit_decision(
-                context, step, self._step_id, "reported", reported.function, report
+                context,
+                factory,
+                step,
+                self._step_id,
+                "reported",
+                reported.function,
+                report,
             )
 
-    def failed(self, context: RunnerContext, step: Step, failed: Failed) -> None:
+    def failed(
+        self, context: Context, factory: str, step: Step, failed: Failed
+    ) -> None:
         _emit(
             context,
+            factory,
             step,
             self._step_id,
             "observation",
@@ -552,17 +564,24 @@ class _Recorder:
             error=f"{type(failed.error).__name__}: {failed.error}",
         )
 
-    def cancelled(self, context: RunnerContext, step: Step, name: str) -> None:
-        _emit(context, step, self._step_id, _factory_kind(context.factory), "cancelled")
+    def cancelled(self, context: Context, factory: str, step: Step, name: str) -> None:
+        _emit(
+            context, factory, step, self._step_id, _factory_kind(factory), "cancelled"
+        )
 
-    def bypassed(self, context: RunnerContext, step: Step, name: str) -> None:
-        _emit(context, step, self._step_id, "decision", "bypassed")
+    def bypassed(self, context: Context, factory: str, step: Step, name: str) -> None:
+        _emit(context, factory, step, self._step_id, "decision", "bypassed")
 
     def superseded(
-        self, context: RunnerContext, step: Step, reported: Reported[Decision]
+        self,
+        context: Context,
+        factory: str,
+        step: Step,
+        reported: Reported[Decision],
     ) -> None:
         _emit_decision(
             context,
+            factory,
             step,
             self._step_id,
             "superseded",
@@ -580,7 +599,8 @@ def _factory_kind(factory: str) -> _Kind:
 
 
 def _emit_decision(
-    context: RunnerContext,
+    context: Context,
+    factory: str,
     step: Step,
     step_id: str,
     status: _Status,
@@ -589,6 +609,7 @@ def _emit_decision(
 ) -> None:
     _emit(
         context,
+        factory,
         step,
         step_id,
         "decision",
@@ -605,7 +626,8 @@ def _emit_decision(
 
 
 def _emit(
-    context: RunnerContext,
+    context: Context,
+    factory: str,
     step: Step,
     step_id: str,
     kind: _Kind,
@@ -624,7 +646,7 @@ def _emit(
 ) -> None:
     transcript()._event(
         SentinelEvent(
-            factory=context.factory,
+            factory=factory,
             path=context.path,
             function=function,
             step_id=step_id,

@@ -57,6 +57,7 @@ try:
         concurrent,
         decide_final,
         monitor,
+        observe_only,
         protocol,
         threshold,
     )
@@ -418,7 +419,7 @@ def test_a_rejected_handoff_does_not_run() -> None:
 
 def test_a_handoff_runs_and_its_sub_agent_calls_are_checked() -> None:
     seen: list[Any] = []
-    log = run_handoff([d3_recording(seen), d3_suspicion()])
+    log = run_handoff(observe_only([d3_recording(seen), d3_suspicion()]))
     assert log.status == "success", log.error
     assert [step.call.function for _, step in seen] == [
         "transfer_to_helper",
@@ -434,7 +435,7 @@ def test_a_handoff_runs_and_its_sub_agent_calls_are_checked() -> None:
 
 
 def test_a_handoff_result_is_checked() -> None:
-    log = run_handoff([d3_trajectory()])
+    log = run_handoff(observe_only([d3_trajectory()]))
     assert log.status == "success", log.error
     after = [e for e in sentinel_events(log) if e.stage == "tool_result"]
     assert handoff_call_id(log) in {e.step_id for e in after}
@@ -462,8 +463,8 @@ def test_terminate_after_a_handoff_ends_the_sample() -> None:
     assert event.step_id == handoff_call_id(log)
 
 
-def test_observe_records_observations_without_effect() -> None:
-    log = run([d3_suspicion(score=0.4)])
+def test_observe_only_records_observations_without_effect() -> None:
+    log = run(observe_only([d3_suspicion(score=0.4)]))
     assert log.status == "success", log.error
 
     [message] = tool_messages(log)
@@ -527,7 +528,7 @@ def test_an_escalate_at_the_root_proceeds_and_warns_once(
 
 
 def test_multi_function_monitor_shares_state_across_calls() -> None:
-    log = run([d3_trajectory()], turns=2)
+    log = run(observe_only([d3_trajectory()]), turns=2)
     assert log.status == "success", log.error
 
     events = sentinel_events(log)
@@ -545,7 +546,7 @@ def test_host_generate_uses_the_monitor_role() -> None:
         custom_outputs=[ModelOutput.from_content("mockllm/model", content="0.75")],
         memoize=False,
     )
-    log = run([d3_asks_model()], model_roles={"monitor": monitor_model})
+    log = run(observe_only([d3_asks_model()]), model_roles={"monitor": monitor_model})
     assert log.status == "success", log.error
 
     [event] = sentinel_events(log)
@@ -567,7 +568,7 @@ def test_sentinel_events_nest_under_a_sentinel_span() -> None:
         custom_outputs=[ModelOutput.from_content("mockllm/model", content="0.5")],
         memoize=False,
     )
-    log = run([d3_asks_model()], model_roles={"monitor": monitor_model})
+    log = run(observe_only([d3_asks_model()]), model_roles={"monitor": monitor_model})
     assert log.status == "success", log.error
     assert log.samples
     events = log.samples[0].events
@@ -588,7 +589,7 @@ def test_sentinel_events_nest_under_a_sentinel_span() -> None:
 
 
 def test_each_stage_runs_in_its_own_sentinel_span() -> None:
-    log = run([d3_trajectory()], turns=2)
+    log = run(observe_only([d3_trajectory()]), turns=2)
     assert log.status == "success", log.error
     assert log.samples
     events = log.samples[0].events
@@ -599,11 +600,11 @@ def test_each_stage_runs_in_its_own_sentinel_span() -> None:
     assert {e.span_id for e in sentinel_events(log)} <= set(span_ids)
 
 
-def test_a_raising_monitor_under_observe_is_recorded_and_the_sample_continues(
+def test_a_raising_monitor_under_observe_only_is_recorded_and_the_sample_continues(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING):
-        log = run([d3_raises(), d3_suspicion()])
+        log = run(observe_only([d3_raises(), d3_suspicion()]))
     assert log.status == "success", log.error
     [message] = tool_messages(log)
     assert message.text == "2"
@@ -647,7 +648,7 @@ def test_context_and_step_come_from_the_sample(
 ) -> None:
     seen: Seen = []
     with caplog.at_level(logging.WARNING):
-        log = run([d3_recording(seen)])
+        log = run(observe_only([d3_recording(seen)]))
     assert not [r for r in caplog.records if "sentinel step's input" in r.message]
     assert log.status == "success", log.error
     assert log.samples
@@ -657,7 +658,7 @@ def test_context_and_step_come_from_the_sample(
     assert context.task == log.eval.task
     assert context.sample_id == sample.id
     assert context.epoch == 1
-    assert context.input == "What is 1 + 1?"
+    assert context.sample_input == "What is 1 + 1?"
     assert context.metadata == {"t": 1, "s": 1}
     assert context.path == "d3_recording"
     assert context.task_description is None
@@ -715,7 +716,7 @@ async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
     started = anyio.Event()
     cleaned_up = anyio.Event()
 
-    with active([d3_waiting(started, cleaned_up)]):
+    with active(observe_only([d3_waiting(started, cleaned_up)])):
         with anyio.CancelScope() as scope:
 
             async def cancel_sample() -> None:
@@ -747,7 +748,7 @@ async def test_sample_cancellation_during_the_sentinel_propagates() -> None:
 def test_sample_time_limit_during_the_sentinel_ends_the_sample() -> None:
     started = anyio.Event()
     cleaned_up = anyio.Event()
-    log = run([d3_waiting(started, cleaned_up)], time_limit=1)
+    log = run(observe_only([d3_waiting(started, cleaned_up)]), time_limit=1)
     assert log.status == "success", log.error
     assert log.samples
     sample = log.samples[0]
@@ -771,7 +772,7 @@ async def test_operator_cancel_during_the_after_call_sentinel() -> None:
         [event] = transcript_tool_events()
         event._cancel()
 
-    with active([d3_waiting(started, cleaned_up, after=True)]):
+    with active(observe_only([d3_waiting(started, cleaned_up, after=True)])):
         async with anyio.create_task_group() as tg:
             tg.start_soon(cancel_call)
             with pytest.raises(TerminateSampleError, match="cancelled"):
@@ -819,7 +820,7 @@ async def test_parallel_calls_run_their_sentinels_concurrently() -> None:
         ToolCall(id=id, function="parallel_addition", arguments={"x": 1, "y": 1})
         for id in ("a", "b")
     ]
-    with active([d3_rendezvous()]):
+    with active(observe_only([d3_rendezvous()])):
         with anyio.fail_after(10):
             result = await execute_tools(
                 [ChatMessageAssistant(content=[], tool_calls=calls)],
@@ -837,7 +838,7 @@ def test_conversation_is_the_enclosing_agent_span() -> None:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?")],
         solver=as_solver(react(tools=[addition()], submit=False)),
-        sentinel=[d3_recording(seen)],
+        sentinel=observe_only([d3_recording(seen)]),
     )
     log = eval(task, model=agent_model())[0]
     assert log.status == "success", log.error
@@ -909,7 +910,7 @@ def test_host_generate_without_a_monitor_role_labels_the_agent_model() -> None:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?")],
         solver=[use_tools(addition()), generate()],
-        sentinel=[d3_asks_model()],
+        sentinel=observe_only([d3_asks_model()]),
     )
     log = eval(task, model=model)[0]
     assert log.status == "success", log.error
@@ -931,7 +932,8 @@ def _scoring_model(score: str) -> Model:
 
 def test_host_generate_uses_a_named_role() -> None:
     log = run(
-        [d3_asks_with(role="trusted")], model_roles={"trusted": _scoring_model("0.25")}
+        observe_only([d3_asks_with(role="trusted")]),
+        model_roles={"trusted": _scoring_model("0.25")},
     )
     assert log.status == "success", log.error
     [event] = sentinel_events(log)
@@ -944,7 +946,7 @@ def test_host_generate_uses_a_named_role() -> None:
 def test_host_generate_model_is_always_a_model_name() -> None:
     # a role named like the model must not shadow an explicit model
     log = run(
-        [d3_asks_with(model="mockllm/model")],
+        observe_only([d3_asks_with(model="mockllm/model")]),
         model_roles={"mockllm/model": _scoring_model("0.9")},
     )
     [event] = sentinel_events(log)
@@ -954,7 +956,7 @@ def test_host_generate_model_is_always_a_model_name() -> None:
 
 def test_host_generate_prefers_a_configured_role_to_the_model() -> None:
     log = run(
-        [d3_asks_with(model=_scoring_model("0.6"), role="trusted")],
+        observe_only([d3_asks_with(model=_scoring_model("0.6"), role="trusted")]),
         model_roles={"trusted": _scoring_model("0.25")},
     )
     assert log.status == "success", log.error
@@ -966,7 +968,9 @@ def test_host_generate_uses_the_model_when_the_role_is_not_configured(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING):
-        log = run([d3_asks_with(model=_scoring_model("0.6"), role="trusted")])
+        log = run(
+            observe_only([d3_asks_with(model=_scoring_model("0.6"), role="trusted")])
+        )
     assert log.status == "success", log.error
     [event] = sentinel_events(log)
     assert event.suspicion == 0.6
@@ -980,7 +984,7 @@ def test_host_generate_warns_once_without_the_role(
 
     monkeypatch.setattr(logger_module, "_warned", [])
     with caplog.at_level(logging.WARNING):
-        run([d3_asks_with(role="judge")])
+        run(observe_only([d3_asks_with(role="judge")]))
     warnings = [
         r.getMessage()
         for r in caplog.records
@@ -1014,7 +1018,7 @@ async def test_missing_model_event_falls_back_to_the_prior_conversation(
         ToolCall(id=id, function="parallel_addition", arguments={"x": 1, "y": 1})
         for id in ("a", "b")
     ]
-    with active([d3_recording(seen)]), caplog.at_level(logging.WARNING):
+    with active(observe_only([d3_recording(seen)])), caplog.at_level(logging.WARNING):
         await execute_tools(
             [prompt, ChatMessageAssistant(content=[], tool_calls=calls)],
             [parallel_addition()],
@@ -1093,7 +1097,7 @@ def test_model_input_index_skips_monitor_calls() -> None:
 def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
     action: Any,
 ) -> None:
-    from inspect_ai._sentinel._dispatch import _context, _Recorder
+    from inspect_ai._sentinel._dispatch import _host_context, _Recorder
 
     init_transcript(Transcript())
     call = addition_call()
@@ -1110,7 +1114,7 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
     )
     with pytest.raises(ValueError, match="modified is set only"):
         _Recorder(call.id).record(
-            replace(_context(call.id), factory="p", path="p"), step, reported
+            replace(_host_context(call.id).context, path="p"), "p", step, reported
         )
 
 
@@ -1144,7 +1148,7 @@ def test_a_modify_decision_without_a_modified_call_fails_the_sample(
         return Decision(action="modify")
 
     monkeypatch.setattr(_dispatch, "sentinel_before_tool_call", modify_without_call)
-    log = run([d3_suspicion()])
+    log = run(observe_only([d3_suspicion()]))
     assert log.status == "error"
     assert log.samples
     sample_error = log.samples[0].error
@@ -1185,7 +1189,7 @@ def test_sentinel_limits_end_the_sample_before_the_call(
 def test_each_turn_sees_its_own_model_input(caplog: pytest.LogCaptureFixture) -> None:
     seen: Seen = []
     with caplog.at_level(logging.WARNING):
-        log = run([d3_recording(seen)], turns=3)
+        log = run(observe_only([d3_recording(seen)]), turns=3)
     assert log.status == "success", log.error
     assert not [r for r in caplog.records if "sentinel step's input" in r.message]
     assert log.samples
@@ -1261,7 +1265,7 @@ def agent_events(log: EvalLog) -> list[ModelEvent]:
 
 def test_a_monitor_sees_each_agent_generate_before_and_after() -> None:
     seen: GenerateSeen = []
-    log = run([d3_generates(seen)])
+    log = run(observe_only([d3_generates(seen)]))
     assert log.status == "success", log.error
 
     model_events = agent_events(log)
@@ -1317,7 +1321,7 @@ def test_generate_stages_check_only_the_agents_own_calls() -> None:
         dataset=[Sample(input="Grade hi.", target="ok")],
         solver=[use_tools(graded()), generate()],
         scorer=d3_model_scorer(),
-        sentinel=[d3_generates(seen, ask=True)],
+        sentinel=observe_only([d3_generates(seen, ask=True)]),
     )
     log = eval(task, model=agent, model_roles={"monitor": monitor_model})[0]
     assert log.status == "success", log.error
@@ -1339,7 +1343,7 @@ def test_generate_stages_check_only_the_agents_own_calls() -> None:
 
 def test_a_sub_agent_on_another_model_is_not_checked() -> None:
     seen: GenerateSeen = []
-    log = run_handoff([d3_generates(seen)])
+    log = run_handoff(observe_only([d3_generates(seen)]))
     assert log.status == "success", log.error
     afters = [step for step in seen if isinstance(step, AfterGenerate)]
     assert [step.output.completion for step in afters][1:] == ["done"]
@@ -1365,7 +1369,7 @@ def test_an_agent_run_as_a_tool_is_checked() -> None:
     task = Task(
         dataset=[Sample(input="What is 2 + 3?", target="5")],
         solver=[use_tools(as_tool(helper)), generate()],
-        sentinel=[d3_generates(seen)],
+        sentinel=observe_only([d3_generates(seen)]),
     )
     log = eval(task, model=agent)[0]
     assert log.status == "success", log.error
@@ -1422,7 +1426,7 @@ def test_a_monitor_on_the_agents_own_model_is_not_checked() -> None:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=[use_tools(addition()), generate()],
-        sentinel=[d3_generates(seen, ask=True)],
+        sentinel=observe_only([d3_generates(seen, ask=True)]),
     )
     log = eval(task, model=agent, max_connections=1)[0]
     assert log.status == "success", log.error
@@ -1446,7 +1450,7 @@ def test_a_repeated_request_gets_its_own_step_id() -> None:
     task = Task(
         dataset=[Sample(input="Say hi.")],
         solver=d3_generates_twice(),
-        sentinel=[d3_generates(seen)],
+        sentinel=observe_only([d3_generates(seen)]),
     )
     log = eval(task, model="mockllm/model")[0]
     assert log.status == "success", log.error
@@ -1475,7 +1479,7 @@ def test_an_empty_output_is_checked_after_the_generate() -> None:
     task = Task(
         dataset=[Sample(input="Say hi.")],
         solver=d3_generates_once(),
-        sentinel=[d3_generates(seen)],
+        sentinel=observe_only([d3_generates(seen)]),
     )
     log = eval(task, model=agent)[0]
     assert log.status == "success", log.error
@@ -1492,7 +1496,7 @@ def d3_generate_raises() -> Monitor:
 
 
 def test_a_failing_generate_monitor_is_recorded_and_the_sample_continues() -> None:
-    log = run([d3_generate_raises()])
+    log = run(observe_only([d3_generate_raises()]))
     assert log.status == "success", log.error
     failures = [e for e in sentinel_events(log) if e.status == "error"]
     assert failures
