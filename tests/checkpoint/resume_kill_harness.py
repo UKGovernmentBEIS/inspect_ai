@@ -60,19 +60,24 @@ SCRIPTED_MODEL = "scripteddecode/model"
 # Write under $HOME (not /workspace) so the default-user home-dir auto-backup
 # captures it — the task declares no capture paths, exercising
 # `resolve_sandbox_backup_paths` / `_resolve_home_and_cache`. Also drop a file
-# under the XDG cache dir ($HOME/.cache) to prove auto-home mode excludes it.
+# under the XDG cache dir ($HOME/.cache) to prove auto-home mode excludes it,
+# and a symlink inside $HOME, which the scoped restore must bring back as a
+# symlink.
 WRITE_CMD = (
     'mkdir -p "$HOME/workspace/decoded" "$HOME/.cache" && '
     f"printf '{LAYER1_CONTENT}' > \"$HOME/workspace/decoded/layer1.txt\" && "
+    'ln -sfn decoded/layer1.txt "$HOME/workspace/layer1-link.txt" && '
     'printf cache > "$HOME/.cache/junk.txt"'
 )
 # Written on each post-resume turn so the new snapshot has a non-empty diff vs
 # its parent — used to assert file listing records the *changed* file. Also
-# cats the turn-0 file so the live post-resume ToolEvent's result proves the
-# sandbox filesystem was actually restored (not just that resume succeeded).
+# cats the turn-0 file *through the symlink* so the live post-resume
+# ToolEvent's result proves the sandbox filesystem — symlink included — was
+# actually restored (not just that resume succeeded).
 RESUME_WRITE_CMD = (
     'printf resumed > "$HOME/workspace/resumed.txt" && '
-    'cat "$HOME/workspace/decoded/layer1.txt"'
+    'test -L "$HOME/workspace/layer1-link.txt" && '
+    'cat "$HOME/workspace/layer1-link.txt"'
 )
 
 # The crash count + target live in a host file named by an env var, not module

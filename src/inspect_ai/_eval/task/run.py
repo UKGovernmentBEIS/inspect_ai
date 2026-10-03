@@ -1175,10 +1175,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # the cancel handle the control channel's task-cancel
                 # directive fires (with "abort" — the display's user-cancel)
                 task_cancel=task_cancel,
-                # a SampleSource-driven eval's totals grow while it runs, so
-                # counters reaching total must not read as "finished" (e.g.
-                # while blocked in next_samples() with an empty seed)
-                dynamic=sample_feed is not None,
+                # a source-driven eval's counters reaching total must not
+                # read as "finished": a SampleSource's totals grow while it
+                # runs (e.g. blocked in next_samples() with an empty seed),
+                # and either source's sample_abandoned callback runs after
+                # the run's terminal count -- a task that read finished
+                # there could not be cancelled while the callback blocks
+                dynamic=sample_feed is not None or options.task_source is not None,
             )
 
             # call hook (after the retry-abandon check above: every task
@@ -1509,7 +1512,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         )
                         return sample, state
 
-                    return await task_run_sample(
+                    result = await task_run_sample(
                         task=task,
                         task_name=task.name,
                         log_location=profile.log_location,
@@ -1554,6 +1557,44 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         task_id=logger.eval.eval_id,
                         scan_id=options.scan_id,
                     )
+
+                    # a DISCARDED run was cancelled without ever being logged
+                    # (cancelled while queued, abandoned at queue exit by a
+                    # graceful task cancel, or an interrupt in an errored
+                    # attempt's pre-retry drain window), so sample_complete
+                    # has nothing to deliver: the run's sources hear it via
+                    # sample_abandoned instead -- the task keeps running, and
+                    # a source waiting on the sample would otherwise wait
+                    # forever. Not while the task is unwinding (no follow-up
+                    # could run; the sample_complete delivery rule), and not
+                    # for a re-run (a withdrawn or abandoned requeue leaves
+                    # the prior, already-reported outcome standing). Runs
+                    # here, outside the semaphore and any shield, so user
+                    # callback code holds no sample slot and stays
+                    # cancellable.
+                    task_unwinding = task_cancel is not None and (
+                        task_cancel.cancel_type in ("abort", "retry")
+                    )
+                    if (
+                        result is DISCARDED
+                        and requeue_prior is None
+                        and not task_unwinding
+                        and (sample_feed is not None or options.task_source is not None)
+                    ):
+                        # a copy, as materialization would have handed the
+                        # run: the store's own object must not reach user code
+                        abandoned = deepcopy(get_sample(sample_index))
+                        if sample_feed is not None:
+                            _enqueue_source_samples(
+                                await sample_feed.sample_abandoned(abandoned, epoch)
+                            )
+                        if options.task_source is not None:
+                            _enqueue_source_tasks(
+                                await options.task_source.sample_abandoned(
+                                    abandoned, epoch, task
+                                )
+                            )
+                    return result
 
                 async def run_samples_dynamic(
                     feed: SampleSource,
@@ -2498,6 +2539,7 @@ async def _task_run_sample_attempt(
             error: EvalError | None = None
             raise_error: BaseException | None = None
             cancelled_error: BaseException | None = None
+            solver_cancel: BaseException | None = None
             operator_cancelled = False
             results: ScoresByScorer = {}
             limit: EvalSampleLimit | None = None
@@ -2653,6 +2695,7 @@ async def _task_run_sample_attempt(
                                 # access to state, limit, and errors
                                 nonlocal state, limit, error, raise_error
                                 nonlocal cancelled_error, operator_cancelled
+                                nonlocal solver_cancel
 
                                 try:
                                     # start the sample
@@ -2810,8 +2853,11 @@ async def _task_run_sample_attempt(
                                             reason=err.message,
                                         )
 
-                                    # this was not a user interrupt or working time limit so propagate
+                                    # not an interrupt or a limit: either an external cancel
+                                    # (which the task group re-raises) or a cancellation nothing
+                                    # in inspect is delivering (which the group absorbs)
                                     else:
+                                        solver_cancel = ex
                                         raise
                                 finally:
                                     # ensures that monitor_working_limit() and any coroutines
@@ -2845,6 +2891,14 @@ async def _task_run_sample_attempt(
 
                                 async with anyio.create_task_group() as tg:
                                     tg.start_soon(run, tg)
+                                if solver_cancel is not None:
+                                    # the group exited normally, so no enclosing scope was
+                                    # cancelled: nothing inspect issued cancelled the solver
+                                    raise RuntimeError(
+                                        "Sample errored: solver cancelled by an unattributed "
+                                        "cancellation (not a sample limit, an operator "
+                                        "interrupt, or an eval cancel)"
+                                    ) from solver_cancel
                             except Exception as ex:
                                 raise inner_exception(ex)
                             finally:
@@ -3574,6 +3628,23 @@ def eval_log_sample_source(
         next((sample for sample in dataset if sample.id is None), None) is None
     )
 
+    # A dataset that GREW since the prior run (a strict superset) with stable
+    # sample ids is a safe resume rather than a reason to discard prior work:
+    # samples are reused by (id, epoch), so a newly added sample simply has no
+    # prior record and runs fresh while every existing sample is reused. This
+    # lets `eval_set` top up a completed log in place when the dataset is
+    # extended (e.g. a corpus that grows over time) instead of re-running
+    # everything. Only growth qualifies: a SHRUNK dataset would drop scored
+    # samples from the successor log (no longer a superset), and growth without
+    # stable ids can map position-assigned ids onto different samples — so both
+    # of those stay a full re-run.
+    prior_dataset_samples = eval_log.eval.dataset.samples
+    dataset_grew_with_stable_ids = (
+        prior_dataset_samples is not None
+        and len(dataset) > prior_dataset_samples
+        and samples_have_ids
+    )
+
     # the stability guards below deliberately withhold `prior_checkpoints_dir`
     # too: checkpoint resume keys purely on (id, epoch), so unstable ids or a
     # changed dataset could restore a prior sample's state onto a different
@@ -3585,13 +3656,24 @@ def eval_log_sample_source(
         )
         return EvalSampleSource(no_sample_source)
 
-    elif eval_log.eval.dataset.samples != len(dataset):
+    if (
+        eval_log.eval.dataset.samples != len(dataset)
+        and not dataset_grew_with_stable_ids
+    ):
         py_logger.warning(
             "Unable to re-use samples from retry log file because the dataset size changed "
             + f"(log samples {eval_log.eval.dataset.samples}, dataset samples {len(dataset)})"
         )
         return EvalSampleSource(no_sample_source)
-    elif eval_log_info:
+
+    if dataset_grew_with_stable_ids:
+        py_logger.info(
+            "Dataset grew since the prior run "
+            + f"(log samples {prior_dataset_samples}, dataset samples {len(dataset)}); "
+            + "reusing prior samples by id and running only the newly added samples."
+        )
+
+    if eval_log_info:
         reader: AsyncZipReader | None = None
 
         async def read_from_file(id: int | str, epoch: int) -> PriorResolution:

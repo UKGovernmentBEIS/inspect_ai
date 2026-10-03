@@ -28,7 +28,9 @@ sandbox's bulk state for checkpointing, honoring these guarantees:
   these checks authenticates the captured state. Root-only tooling and
   staging protect against an unprivileged agent, not one controlling
   sandbox root. Secrets reach the sandbox via per-exec environment
-  variables, which also do not hide them from sandbox root.
+  variables, which also do not hide them from sandbox root. A restore
+  is scoped to this attempt's capture roots and structurally validated
+  on the host before any byte enters the sandbox (``_restore_scope``).
 """
 
 from __future__ import annotations
@@ -141,7 +143,10 @@ class SandboxSnapshotStrategy(Protocol):
         tooling (for restic, this is where the restic binary is
         installed into the sandbox); when ``ctx.resuming`` is false,
         also initialize fresh strategy state (restic: init the
-        in-sandbox repo).
+        in-sandbox repo). On resume the core has already deleted every
+        symlink the image ships under a capture root, so tooling placed
+        under one (``/root/.cache/inspect`` when the default user is
+        root) lands in real directories.
         """
         ...
 
@@ -163,17 +168,30 @@ class SandboxSnapshotStrategy(Protocol):
     async def restore(
         self,
         env: SandboxEnvironment,
-        ref: SnapshotDetails | None,
+        paths: SandboxBackupPaths,
+        ref: SnapshotDetails,
         ctx: SnapshotContext,
     ) -> None:
         """Materialize the latest committed snapshot into a fresh sandbox.
 
         ``ref`` is that snapshot's details from the latest committed
-        checkpoint file (``None`` only in degenerate resume states with
-        no per-sandbox record; strategies that need it must raise). May
-        assume ``setup`` and ``discard_orphans`` ran first, and that the
-        storage area holds the prior attempt's state (the core copied
-        it there before this attempt started).
+        checkpoint file (the core refuses to resume a sandbox no
+        committed checkpoint records). ``paths`` is *this attempt's*
+        resolved capture set: the only paths the restore may write at or
+        under. The snapshot is untrusted data, so before any of it enters
+        the sandbox the strategy must list it on the host and reject any
+        node outside ``paths.include`` (directories on the way to a root
+        excepted), any node that is not a regular file, directory,
+        symlink, or hard link whose target is under a root, and any
+        regular file with a setuid/setgid/sticky mode — see
+        ``_restore_scope`` — then restore each root individually so
+        nothing above it is touched. May assume ``setup`` and
+        ``discard_orphans`` ran first, that the storage area holds the
+        prior attempt's state (the core copied it there before this
+        attempt started), and that no symlink the image shipped under a
+        root remains in the sandbox (the core deleted them before
+        ``setup``, so neither the strategy's own state nor a restored
+        node is written through one).
         """
         ...
 

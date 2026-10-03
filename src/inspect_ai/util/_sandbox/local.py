@@ -1,5 +1,5 @@
+import os
 import tempfile
-import warnings
 from logging import getLogger
 from pathlib import Path
 from typing import Literal, Union, overload
@@ -11,6 +11,7 @@ from ._cli import SANDBOX_CLI
 from .environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUserUnsupportedError,
 )
 from .limits import (
     SandboxEnvironmentLimits,
@@ -64,6 +65,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
                 sandbox.directory.cleanup()
 
     def __init__(self) -> None:
+        super().__init__()
         self.directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self._sandbox_tools_dir = Path(self.directory.name) / "sandbox-tools"
         self._sandbox_tools_used = False
@@ -80,10 +82,10 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        if user is not None:
-            warnings.warn(
-                "The 'user' parameter is ignored in LocalSandboxEnvironment. Commands will run as the current user.",
-                UserWarning,
+        if user is not None and not _is_current_user(user):
+            raise SandboxUserUnsupportedError(
+                f"LocalSandboxEnvironment cannot execute as {user!r}; "
+                "only the current effective user is supported."
             )
 
         final_cwd = Path(self.directory.name if cwd is None else cwd)
@@ -166,3 +168,16 @@ class LocalSandboxEnvironment(SandboxEnvironment):
             return file
         else:
             return (Path(self.directory.name) / Path(file)).as_posix()
+
+
+def _is_current_user(user: str) -> bool:
+    if os.name != "posix":
+        return False
+
+    import pwd
+
+    try:
+        uid = int(user) if user.isdecimal() else pwd.getpwnam(user).pw_uid
+    except KeyError:
+        return False
+    return uid == os.geteuid()

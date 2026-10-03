@@ -1,6 +1,7 @@
 import textwrap
 import uuid
 from pathlib import Path
+from typing import Iterator
 
 import pytest
 from test_helpers.tool_call_utils import (
@@ -10,7 +11,8 @@ from test_helpers.tool_call_utils import (
 )
 from test_helpers.utils import flaky_retry
 
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, eval_async
+from inspect_ai._util import logger as inspect_logger
 from inspect_ai.dataset import Sample
 from inspect_ai.model import (
     ContentText,
@@ -27,6 +29,9 @@ from inspect_ai.solver import (
     use_tools,
 )
 from inspect_ai.tool import ToolCallError, bash_session, mcp_server_sandbox, text_editor
+from inspect_ai.tool._sandbox_tools_utils.sandbox import (
+    _AMBIGUOUS_ROOT_ACCESS_WARNING,
+)
 from inspect_ai.util import ExecRemoteAwaitableOptions, sandbox, store
 from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox.limits import override_max_exec_output_size
@@ -86,6 +91,59 @@ def test_text_editor_read(sandbox: str | tuple[str, str]):
     assert "root:x:0:0:root" in response.content, (
         f"Unexpected output from file read: {response.content}"
     )
+
+
+@pytest.mark.parametrize(
+    "sandbox_config",
+    [
+        "docker",
+        ("docker", NONROOT_COMPOSE),
+        (
+            "docker",
+            str(Path(__file__).parent / ".." / "test_sandbox_compose_alpine.yaml"),
+        ),
+    ],
+)
+@pytest.mark.slow
+async def test_text_editor_directory_path_is_literal(
+    sandbox_config: str | tuple[str, str],
+) -> None:
+    @solver
+    def check_directory_view() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            sb = sandbox()
+            directory = await sb.exec(["mktemp", "-d"])
+            assert directory.success, directory.stderr
+            base = directory.stdout.strip()
+            marker = f"inspect-463-{uuid.uuid4().hex}"
+            target = f"{base}/x$(touch {marker})"
+            created = await sb.exec(["mkdir", target])
+            assert created.success, created.stderr
+            await sb.write_file(f"{target}/child.txt", "hello")
+            link = f"{base}/link"
+            linked = await sb.exec(["ln", "-s", target, link])
+            assert linked.success, linked.stderr
+
+            for user in [None, "root"]:
+                for path in [target, link]:
+                    result = str(
+                        await text_editor(user=user)(command="view", path=path)
+                    )
+                    assert f"{target}/child.txt" in result
+                    assert not (await sb.exec(["test", "-e", marker])).success
+            return state
+
+        return solve
+
+    [log] = await eval_async(
+        Task(
+            dataset=[Sample(input="View a directory containing shell syntax")],
+            solver=check_directory_view(),
+            sandbox=sandbox_config,
+        ),
+        model="mockllm/model",
+    )
+    assert log.status == "success", log.error
 
 
 @pytest.mark.slow
@@ -315,23 +373,21 @@ def _identity_parity(check_root: bool = True) -> Solver:
         if not check_root:
             return state
 
-        # Responses over the exec output limit spill into a shared 1733 chunk root
-        # that the CLI, running as root for the daemon tools, may create first. A
-        # chunked text_editor response as the default user must still work then.
-        # (The limit is lowered because the editor clips its output at 16k chars.)
-        chunk_root = f"{SANDBOX_TOOLS_DIR}-json-rpc-chunks"
-        made = await sb.exec(["mkdir", "-m", "1733", chunk_root], user="root")
-        assert made.success, made.stderr
+        # Responses over the exec output limit spill into root's private chunk
+        # directory, which the CLI reserves a file in before switching to the
+        # default user. (The limit is lowered because the editor clips its output
+        # at 16k chars.)
         big = f"{path}.big"
         await sb.write_file(big, "".join(f"line {i}\n" for i in range(800)))
         with override_max_exec_output_size(4096):
             view = str(await text_editor()(command="view", path=big))
         assert "line 799" in view, view[-200:]
-        # the response really was chunked, by the default user
         spilled = await sb.exec(
-            ["stat", "-c", "%u", f"{chunk_root}/{uid}"], user="root"
+            ["stat", "-c", "%u %a", f"{SERVER_DIR}/chunks"], user="root"
         )
-        assert spilled.success and spilled.stdout.strip() == uid, spilled
+        assert spilled.success and spilled.stdout.strip() == "0 700", spilled
+        sibling = await sb.exec(["test", "-e", f"{SANDBOX_TOOLS_DIR}-json-rpc-chunks"])
+        assert not sibling.success, "no shared chunk root beside the tools dir"
 
         # explicit user= still overrides the default
         root = ExecRemoteAwaitableOptions(user="root")
@@ -398,6 +454,71 @@ def test_tools_match_default_exec_identity_without_setuid_caps(tmp_path: Path) -
     )
     log = eval(task, model=get_model("mockllm/model"))[0]
     assert log.status == "success", log.error
+
+
+@pytest.fixture
+def _warn_once_messages() -> Iterator[list[str]]:
+    # warn_once dedupes via a module-level list; clear it and yield it so the test
+    # can assert on what was emitted.
+    inspect_logger._warned.clear()
+    yield inspect_logger._warned
+    inspect_logger._warned.clear()
+
+
+@solver
+def _record_root_access() -> Solver:
+    """Store the root-access decision as the solver first sees it, before any tool runs."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        access = sandbox()._root_access
+        store().set("root_access", None if access is None else access.state)
+        return state
+
+    return solve
+
+
+# The root-access decision is made at sample init, before the solver runs. On Docker
+# it is definitive except when `root` cannot be resolved at all (no passwd entry:
+# the rootless fixture), which gives no verdict; the tools then still install as
+# the default user, but with a warning.
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "fixture, expected, warned",
+    [
+        pytest.param("nonroot", "usable", False, id="root-can-switch-users"),
+        pytest.param("cap_drop", "unusable", False, id="root-without-setuid-caps"),
+        pytest.param("rootless", "ambiguous", True, id="root-not-in-passwd"),
+    ],
+)
+def test_root_access_is_decided_before_the_solver_runs(
+    tmp_path: Path,
+    _warn_once_messages: list[str],
+    fixture: str,
+    expected: str,
+    warned: bool,
+) -> None:
+    sandbox_spec = {
+        "nonroot": ("docker", NONROOT_COMPOSE),
+        "cap_drop": _compose(tmp_path, "nonroot", None, cap_drop=True),
+        "rootless": ("docker", ROOTLESS_COMPOSE),
+    }[fixture]
+    task = Task(
+        dataset=[Sample(input="whoami")],
+        solver=[_record_root_access(), use_tools([bash_session()]), generate()],
+        scorer=match(),
+        sandbox=sandbox_spec,
+    )
+
+    log = eval(task, model=_whoami_model())[0]
+
+    assert log.status == "success", log.error
+    assert log.samples
+    assert log.samples[0].store["root_access"] == expected
+    tool_call = get_tool_call(log.samples[0].messages, "bash_session")
+    assert tool_call
+    response = get_tool_response(log.samples[0].messages, tool_call)
+    assert response and "start nonroot end" in response.content, response
+    assert (_AMBIGUOUS_ROOT_ACCESS_WARNING in _warn_once_messages) is warned
 
 
 @solver
