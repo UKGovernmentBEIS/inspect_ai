@@ -391,21 +391,22 @@ async def test_cleanup_s3_sessions_disarms_s3fs_finalizer(real_s3fs: Any) -> Non
     """cleanup_s3_sessions detaches s3fs's GC-time close_session finalizer.
 
     The finalizer would otherwise exit the already-exited client a second time
-    as a bare task on the running loop, failing with "Session was never entered".
+    as a bare task on the running loop, which fails with "Session was never
+    entered" on aiobotocore < 3.9.2.
     """
     fs = real_s3fs(cache_regions=False)
     await fs.set_session()
     finalizers = _close_session_finalizers(fs)
     assert len(finalizers) == 1 and finalizers[0].alive
-    creator = fs._s3creator
+    http_session = fs._s3creator._client._endpoint.http_session
+    assert http_session._sessions is not None
 
     await cleanup_s3_sessions()
 
     assert _close_session_finalizers(fs) == []
     assert not finalizers[0].alive
-    # the creator was exited once; a second exit is what the finalizer would do
-    with pytest.raises(AssertionError, match="Session was never entered"):
-        await creator.__aexit__(None, None, None)
+    # the creator's HTTP session was exited
+    assert http_session._sessions is None
 
 
 @skip_if_trio
