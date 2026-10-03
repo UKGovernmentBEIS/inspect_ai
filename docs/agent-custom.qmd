@@ -228,6 +228,16 @@ from inspect_ai.util import store_as
 activity = store_as(Activity)
 ```
 
+### Strict Reads
+
+The `Store` is shared and untyped, so a value read through your model may not actually match the declared field type (for example, if other code wrote a different shape to the same key). By default, a stored value that fails validation against the declared field type is returned as-is, and it is up to you to check its type. If you would rather fail fast, pass `strict=True` to `store_as()` to get a model instance whose reads raise an error (naming the store key, declared type, and actual value type) whenever a stored value fails validation:
+
+``` python
+activity = store_as(Activity, strict=True)
+```
+
+Values already in the store are validated when `store_as()` is called; values written afterwards are validated when read. Strictness is a property of the returned instance, so live reads (e.g. in a solver or scorer) and reads of the same model from historical logs can use different settings. Validation uses Pydantic's default (lax) mode, so stored values that Pydantic can coerce to the declared type (e.g. `"5"` for an `int` field) are converted rather than rejected. Fields whose declared types Pydantic cannot validate (e.g. arbitrary types) are always returned as-is.
+
 ### Agent Instances
 
 If you want an agent to have a store-per-instance by default, add an `instance` parameter to your `@agent` function and pass it a unique value. Then, forward the `instance` on to `store_as()` as well as any tools you call that are also stateful (e.g. `bash_session()`). For example:
