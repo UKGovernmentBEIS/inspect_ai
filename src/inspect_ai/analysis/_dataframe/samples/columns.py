@@ -66,6 +66,7 @@ SampleSummary: list[Column] = [
     SampleColumn("input", path=sample_input_as_str, required=True),
     SampleColumn("choices", path="choices", full=False),
     SampleColumn("target", path="target", required=True, value=list_as_str),
+    SampleColumn("description", path="description"),
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),
     SampleColumn("model_usage", path="model_usage"),

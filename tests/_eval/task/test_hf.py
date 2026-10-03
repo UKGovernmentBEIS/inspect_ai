@@ -101,6 +101,15 @@ def test_record_to_sample_hf_with_metadata():
     assert sample.metadata == {"meta1": "val1", "meta2": "val2"}
 
 
+def test_record_to_sample_hf_with_description():
+    record = {"input": "test", "target": "yes", "goal": "Say yes."}
+    field_spec = HFFieldSpec(input="input", target="target", description="goal")
+    assert _record_to_sample_hf(record, field_spec).description == "Say yes."
+
+    unmapped = HFFieldSpec(input="input", target="target")
+    assert _record_to_sample_hf(record, unmapped).description is None
+
+
 def test_record_to_sample_hf_with_literal_target():
     record = {"input": "test"}
     field_spec = HFFieldSpec(input="input", target="literal:fixed_answer")

@@ -116,6 +116,7 @@ class Task:
         early_stopping: "EarlyStopping" | None = None,
         display_name: str | None = None,
         name: str | None = None,
+        description: str | None = None,
         version: int | str = 0,
         metadata: dict[str, Any] | None = None,
         tags: list[str] | None = None,
@@ -189,6 +190,8 @@ class Task:
             name: Task name. If not specified is automatically
                 determined based on the registered name of the task.
             display_name: Task display name (e.g. for plotting). If not specified then defaults to the registered task name.
+            description: Short statement of what the task asks of the agent
+                (recorded in the eval log).
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
@@ -263,6 +266,7 @@ class Task:
         self.version = version
         self._display_name = display_name
         self._name = name
+        self.description = description
         self.metadata = metadata
         self.tags = tags
         self.viewer = viewer
@@ -340,6 +344,7 @@ def task_with(
     cost_limit: float | None | NotGiven = NOT_GIVEN,
     early_stopping: EarlyStopping | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
+    description: str | None | NotGiven = NOT_GIVEN,
     version: int | str | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
     tags: list[str] | None | NotGiven = NOT_GIVEN,
@@ -420,6 +425,8 @@ def task_with(
             determined based on the name of the task directory (or "task")
             if its anonymous task (e.g. created in a notebook and passed to
             eval() directly)
+        description: Short statement of what the task asks of the agent
+            (recorded in the eval log).
         version: Version of task (to distinguish evolutions
             of the task spec or breaking changes to it)
         metadata:  Additional metadata to associate with the task.
@@ -493,6 +500,8 @@ def task_with(
         task.version = version
     if not isinstance(name, NotGiven):
         task._name = name
+    if not isinstance(description, NotGiven):
+        task.description = description
     if not isinstance(metadata, NotGiven):
         task.metadata = metadata
     if not isinstance(tags, NotGiven):

@@ -70897,7 +70897,7 @@ var useEvalSpec = () => {
 * The selected log's running metrics — the selection binding over the
 * param-driven `useRunningMetrics` acquisition hook.
 */ var useSelectedRunningMetrics = () => {
-	return useRunningMetrics(useLogDir(), useStore(_temp6$10));
+	return useRunningMetrics(useLogDir(), useStore(_temp6$11));
 };
 /**
 * Capability + plumbing for an edit-the-current-log surface (tag, metadata,
@@ -71275,7 +71275,7 @@ function _temp4$32(state_0) {
 function _temp5$19(state) {
 	return state.logs.selectedLogFile;
 }
-function _temp6$10(state) {
+function _temp6$11(state) {
 	return state.logs.selectedLogFile;
 }
 function _temp7$6(s) {
@@ -73255,7 +73255,7 @@ var ColumnSelectorPopover = (t0) => {
 		t13 = () => {
 			onVisibilityChange({
 				...currentVisibility,
-				...Object.fromEntries(columnGroups.scores.map(_temp6$9))
+				...Object.fromEntries(columnGroups.scores.map(_temp6$10))
 			});
 		};
 		$[32] = columnGroups.scores;
@@ -73521,7 +73521,7 @@ function _temp4$30(col_3) {
 function _temp5$17(col_4) {
 	return [getFieldKey(col_4), true];
 }
-function _temp6$9(col_5) {
+function _temp6$10(col_5) {
 	return [getFieldKey(col_5), false];
 }
 //#endregion
@@ -81061,13 +81061,20 @@ var ColumnFilterControl = ({ columnId, filterType, spec, onChange, operators, su
 *    log list), capped at `maxSize`.
 * A column is never auto-compressed below its declared width; when the
 * declared widths overflow the viewport the grid scrolls horizontally.
-* `minSize` gates user drag-resizes, not the auto layout (it serves as the
-* layout floor only for a flex column with no declared size).
 *
 * User-resized widths (`overrides`) always win and never redistribute.
+*
+* Every width, override or declared, is first clamped to `[minSize,
+* maxSize]` exactly as TanStack's `column.getSize()` clamps what renders;
+* otherwise a stored width outside the current def's bounds (e.g. a
+* compact-mode score width after compact scores is turned off) makes the
+* fit disagree with the rendered total.
 */ var kDefaultWidth = 150;
-var baseWidth = (c) => c.size ?? c.minSize ?? kDefaultWidth;
+/** TanStack's built-in `minSize` for a def that leaves it unset. */ var kDefaultMinSize = 20;
 var hi = (c) => c.maxSize ?? Infinity;
+/** Mirrors TanStack's `column_getSize` clamp: min first, so `maxSize` wins
+*  when the two conflict. */ var renderedWidth = (w, c) => Math.min(Math.max(c.minSize ?? kDefaultMinSize, w), hi(c));
+var baseWidth = (c) => renderedWidth(c.size ?? c.minSize ?? kDefaultWidth, c);
 var clampWidth = (w, c) => Math.min(Math.max(w, baseWidth(c)), hi(c));
 /**
 * Resolve the width of every visible column for the given available width.
@@ -81075,7 +81082,10 @@ var clampWidth = (w, c) => Math.min(Math.max(w, baseWidth(c)), hi(c));
 * so the first paint has sane widths until the container reports in.
 */ function resolveColumnWidths(columns, availableWidth, overrides) {
 	const widths = {};
-	for (const c of columns) widths[c.id] = overrides[c.id] ?? baseWidth(c);
+	for (const c of columns) {
+		const override = overrides[c.id];
+		widths[c.id] = override === void 0 ? baseWidth(c) : renderedWidth(override, c);
+	}
 	if (availableWidth <= 0) return widths;
 	const fitted = columns.filter((c) => overrides[c.id] === void 0);
 	if (fitted.length === 0) return widths;
@@ -81284,63 +81294,70 @@ var kRotatedHeaderHeight = 115;
 		return 0;
 	}
 }
-/** Header sort indicator: direction arrow plus, when several columns are
-*  sorted, this column's 1-based position in the sort order (the number is
-*  noise for a single sort, so it only appears for multi-sorts — matching
-*  the previous AG grid). */ function SortIndicator(t0) {
-	const $ = (0, import_compiler_runtime.c)(12);
-	const { header } = t0;
-	const sorted = header.column.getIsSorted();
+/** Header sort indicator: direction arrow plus, when set, this column's
+*  1-based position in a multi-column sort. Takes plain values rather than
+*  the header: `header` keeps its identity across sort changes, so the
+*  compiled component would reuse an indicator read off it. */ function SortIndicator(t0) {
+	const $ = (0, import_compiler_runtime.c)(9);
+	const { sorted, sortOrder } = t0;
 	if (!sorted) return null;
-	const sortIndex = header.column.getSortIndex();
 	let t1;
-	if ($[0] !== header) {
-		t1 = header.getContext();
-		$[0] = header;
+	if ($[0] !== sortOrder) {
+		t1 = sortOrder !== void 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: DataGrid_module_default.sortOrder,
+			children: sortOrder
+		});
+		$[0] = sortOrder;
 		$[1] = t1;
 	} else t1 = $[1];
-	const multiSorted = t1.table.store.state.sorting.length > 1;
-	let t2;
-	if ($[2] !== multiSorted || $[3] !== sortIndex) {
-		t2 = multiSorted && sortIndex >= 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: DataGrid_module_default.sortOrder,
-			children: sortIndex + 1
-		});
-		$[2] = multiSorted;
-		$[3] = sortIndex;
-		$[4] = t2;
-	} else t2 = $[4];
-	const t3 = sorted === "asc" ? "bi bi-arrow-up" : "bi bi-arrow-down";
+	const t2 = sorted === "asc" ? "bi bi-arrow-up" : "bi bi-arrow-down";
+	let t3;
+	if ($[2] !== t2) {
+		t3 = clsx(t2, DataGrid_module_default.sortIcon);
+		$[2] = t2;
+		$[3] = t3;
+	} else t3 = $[3];
 	let t4;
-	if ($[5] !== t3) {
-		t4 = clsx(t3, DataGrid_module_default.sortIcon);
-		$[5] = t3;
-		$[6] = t4;
-	} else t4 = $[6];
-	let t5;
-	if ($[7] !== t4) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
-			className: t4,
+	if ($[4] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("i", {
+			className: t3,
 			"aria-hidden": "true"
 		});
+		$[4] = t3;
+		$[5] = t4;
+	} else t4 = $[5];
+	let t5;
+	if ($[6] !== t1 || $[7] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: DataGrid_module_default.sortIndicator,
+			children: [t1, t4]
+		});
+		$[6] = t1;
 		$[7] = t4;
 		$[8] = t5;
 	} else t5 = $[8];
-	let t6;
-	if ($[9] !== t2 || $[10] !== t5) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: DataGrid_module_default.sortIndicator,
-			children: [t2, t5]
-		});
-		$[9] = t2;
-		$[10] = t5;
-		$[11] = t6;
-	} else t6 = $[11];
-	return t6;
+	return t5;
 }
 var kRotatedTrailingPad = 95;
 var kAfterRotatedGap = 24;
 var kFitSlack = 4;
+function buildColumnLayout(columns, afterRotatedIds) {
+	return {
+		columns,
+		byId: new Map(columns.map((column) => [column.id, {
+			width: column.getSize() + (afterRotatedIds.has(column.id) ? kAfterRotatedGap : 0),
+			pinnedLeft: column.getIsPinned() === "start" ? column.getStart("start") : void 0
+		}]))
+	};
+}
+function isSameColumnLayout(a, b) {
+	if (a.columns !== b.columns) return false;
+	for (const [id, layout] of a.byId) {
+		const other = b.byId.get(id);
+		if (other?.width !== layout.width || other.pinnedLeft !== layout.pinnedLeft) return false;
+	}
+	return true;
+}
 /**
 * Inspect-local DataGrid: a minimal TanStack Table wrapper with row
 * virtualization, controlled column visibility, fit-to-width column sizing
@@ -81564,6 +81581,8 @@ var kFitSlack = 4;
 	const { rows } = table.getRowModel();
 	const totalWidth = table.getTotalSize();
 	const visibleColumns = table.getVisibleLeafColumns();
+	const multiSorted = table.store.state.sorting.length > 1;
+	const columnLayout = useStableValue(buildColumnLayout(visibleColumns, afterRotatedIds_0), isSameColumnLayout);
 	const rowVirtualizer = useVirtualizer({
 		count: rows.length,
 		getScrollElement: () => containerRef.current,
@@ -81687,8 +81706,14 @@ var kFitSlack = 4;
 							const filterSpec = columnFilters?.[header.column.id]?.spec ?? null;
 							const isDragSource = draggedColId === header.column.id;
 							const dropSide = dropTarget?.colId === header.column.id ? dropTarget.side : null;
+							const sorted = header.column.getIsSorted();
+							const sortIndex = header.column.getSortIndex();
+							const sortOrder = multiSorted && sortIndex >= 0 ? sortIndex + 1 : void 0;
 							if (columnDef.meta?.rotateHeader) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RotatedHeaderCell, {
 								header,
+								width: columnLayout.byId.get(header.column.id)?.width,
+								sorted,
+								sortOrder,
 								ariaColIndex: colIndex + 1,
 								filterSpec,
 								onColumnFilterChange,
@@ -81705,8 +81730,10 @@ var kFitSlack = 4;
 							const align = columnDef.meta?.align;
 							const filterType = columnDef.meta?.filterType;
 							const pinned = header.column.getIsPinned() === "start";
-							const sorted = header.column.getIsSorted();
-							const sortCaret = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SortIndicator, { header });
+							const sortCaret = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SortIndicator, {
+								sorted,
+								sortOrder
+							});
 							const headerLabel = header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext());
 							const filterControl = columnDef.meta?.filterable && filterType && !hideColumnFilters ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 								columnId: header.column.id,
@@ -81719,10 +81746,10 @@ var kFitSlack = 4;
 							return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 								className: clsx(DataGrid_module_default.headerCell, header.column.getCanSort() && DataGrid_module_default.headerCellSortable, anyRotated_0 && DataGrid_module_default.headerCellTall, afterRotatedIds_0.has(header.column.id) && DataGrid_module_default.afterRotatedGap, pinned && DataGrid_module_default.headerCellPinned, isDragSource && DataGrid_module_default.headerCellDragSource, dropSide === "left" && DataGrid_module_default.headerCellDropLeft, dropSide === "right" && DataGrid_module_default.headerCellDropRight),
 								style: {
-									width: header.getSize() + (afterRotatedIds_0.has(header.column.id) ? kAfterRotatedGap : 0),
+									width: columnLayout.byId.get(header.column.id)?.width,
 									...pinned && {
 										position: "sticky",
-										left: header.column.getStart("start"),
+										left: columnLayout.byId.get(header.column.id)?.pinnedLeft,
 										zIndex: 3
 									}
 								},
@@ -81784,12 +81811,11 @@ var kFitSlack = 4;
 						return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GridRow, {
 							row: row_2,
 							ariaRowIndex: virtualRow.index + 2,
-							visibleColumns,
 							isSelected: row_2.id === selectedId,
 							rowHeight,
 							width: totalWidth + gapExtra,
 							top: virtualRow.start - effectiveHeaderHeight,
-							afterRotatedIds: afterRotatedIds_0,
+							columnLayout,
 							href: getRowHref?.(row_2.original),
 							onRowClick: handleRowClick
 						}, row_2.id);
@@ -81805,7 +81831,7 @@ var kFitSlack = 4;
 }
 function GridRowInner(t0) {
 	const $ = (0, import_compiler_runtime.c)(34);
-	const { row, ariaRowIndex, isSelected, rowHeight, width, top, afterRotatedIds, href, onRowClick } = t0;
+	const { row, ariaRowIndex, isSelected, rowHeight, width, top, columnLayout, href, onRowClick } = t0;
 	const t1 = isSelected && DataGrid_module_default.rowSelected;
 	let t2;
 	if ($[0] !== t1) {
@@ -81838,21 +81864,22 @@ function GridRowInner(t0) {
 	} else t5 = $[9];
 	const handleClick = t5;
 	let t6;
-	if ($[10] !== afterRotatedIds || $[11] !== row) {
+	if ($[10] !== columnLayout || $[11] !== row) {
 		let t7;
-		if ($[13] !== afterRotatedIds || $[14] !== row.original) {
+		if ($[13] !== columnLayout || $[14] !== row.original) {
 			t7 = (cell, colIndex) => {
 				const cellDef = cell.column.columnDef;
 				const align = cellDef.meta?.align;
 				const cellStyle = cellDef.meta?.cellStyle?.(row.original);
-				const pinned = cell.column.getIsPinned() === "start";
+				const layout = columnLayout.byId.get(cell.column.id);
+				const pinned = layout?.pinnedLeft !== void 0;
 				return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					className: clsx(DataGrid_module_default.cell, align === "center" && DataGrid_module_default.cellCenter, pinned && DataGrid_module_default.cellPinned),
 					style: {
-						width: cell.column.getSize() + (afterRotatedIds.has(cell.column.id) ? kAfterRotatedGap : 0),
+						width: layout?.width,
 						...pinned && {
 							position: "sticky",
-							left: cell.column.getStart("start"),
+							left: layout.pinnedLeft,
 							zIndex: 1
 						},
 						...cellStyle
@@ -81864,12 +81891,12 @@ function GridRowInner(t0) {
 					children: flexRender(cell.column.columnDef.cell, cell.getContext())
 				}, cell.id);
 			};
-			$[13] = afterRotatedIds;
+			$[13] = columnLayout;
 			$[14] = row.original;
 			$[15] = t7;
 		} else t7 = $[15];
 		t6 = row.getVisibleCells().map(t7);
-		$[10] = afterRotatedIds;
+		$[10] = columnLayout;
 		$[11] = row;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -81943,12 +81970,11 @@ function GridRowInner(t0) {
 * non-rotated element at the cell's bottom so it opens below the header
 * (under the column) instead of over the headers next to the funnel.
 */ function RotatedHeaderCell(t0) {
-	const $ = (0, import_compiler_runtime.c)(64);
-	const { header, ariaColIndex, filterSpec, onColumnFilterChange, hideColumnFilters, isDragSource, dropSide, onHeaderDragStart, onHeaderDragEnd, onHeaderDragOver, onHeaderDragLeave, onHeaderDrop, onAutoSize } = t0;
+	const $ = (0, import_compiler_runtime.c)(63);
+	const { header, width, sorted, sortOrder, ariaColIndex, filterSpec, onColumnFilterChange, hideColumnFilters, isDragSource, dropSide, onHeaderDragStart, onHeaderDragEnd, onHeaderDragOver, onHeaderDragLeave, onHeaderDrop, onAutoSize } = t0;
 	const [anchorEl, setAnchorEl] = (0, import_react.useState)(null);
 	const columnDef = header.column.columnDef;
 	const filterType = columnDef.meta?.filterType;
-	const sorted = header.column.getIsSorted();
 	let t1;
 	if ($[0] !== header) {
 		t1 = header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext());
@@ -81968,87 +81994,85 @@ function GridRowInner(t0) {
 		$[5] = t5;
 	} else t5 = $[5];
 	let t6;
-	if ($[6] !== header) {
-		t6 = header.getSize();
-		$[6] = header;
+	if ($[6] !== width) {
+		t6 = { width };
+		$[6] = width;
 		$[7] = t6;
 	} else t6 = $[7];
-	let t7;
-	if ($[8] !== t6) {
-		t7 = { width: t6 };
-		$[8] = t6;
-		$[9] = t7;
-	} else t7 = $[9];
-	const t8 = sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none";
+	const t7 = sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : "none";
+	let t8;
+	if ($[8] !== header.column.id || $[9] !== onHeaderDragOver) {
+		t8 = (e) => onHeaderDragOver(e, header.column.id);
+		$[8] = header.column.id;
+		$[9] = onHeaderDragOver;
+		$[10] = t8;
+	} else t8 = $[10];
 	let t9;
-	if ($[10] !== header.column.id || $[11] !== onHeaderDragOver) {
-		t9 = (e) => onHeaderDragOver(e, header.column.id);
-		$[10] = header.column.id;
-		$[11] = onHeaderDragOver;
-		$[12] = t9;
-	} else t9 = $[12];
-	let t10;
-	if ($[13] !== header.column.id || $[14] !== onHeaderDrop) {
-		t10 = (e_0) => onHeaderDrop(e_0, header.column.id);
-		$[13] = header.column.id;
-		$[14] = onHeaderDrop;
-		$[15] = t10;
-	} else t10 = $[15];
-	const t11 = filterSpec && DataGrid_module_default.rotatedLabelFiltered;
+	if ($[11] !== header.column.id || $[12] !== onHeaderDrop) {
+		t9 = (e_0) => onHeaderDrop(e_0, header.column.id);
+		$[11] = header.column.id;
+		$[12] = onHeaderDrop;
+		$[13] = t9;
+	} else t9 = $[13];
+	const t10 = filterSpec && DataGrid_module_default.rotatedLabelFiltered;
+	let t11;
+	if ($[14] !== t10) {
+		t11 = clsx(DataGrid_module_default.rotatedLabel, t10);
+		$[14] = t10;
+		$[15] = t11;
+	} else t11 = $[15];
 	let t12;
-	if ($[16] !== t11) {
-		t12 = clsx(DataGrid_module_default.rotatedLabel, t11);
-		$[16] = t11;
+	if ($[16] !== columnDef) {
+		t12 = resolveHeaderTitle(columnDef);
+		$[16] = columnDef;
 		$[17] = t12;
 	} else t12 = $[17];
 	let t13;
-	if ($[18] !== columnDef) {
-		t13 = resolveHeaderTitle(columnDef);
-		$[18] = columnDef;
-		$[19] = t13;
-	} else t13 = $[19];
-	let t14;
-	if ($[20] !== header) {
-		t14 = header.column.getCanSort() && {
+	if ($[18] !== header) {
+		t13 = header.column.getCanSort() && {
 			role: "button",
 			tabIndex: 0,
 			onKeyDown: makeSortKeyDownHandler(header)
 		};
-		$[20] = header;
-		$[21] = t14;
-	} else t14 = $[21];
+		$[18] = header;
+		$[19] = t13;
+	} else t13 = $[19];
+	let t14;
+	if ($[20] !== columnDef || $[21] !== header.column.id || $[22] !== onHeaderDragStart) {
+		t14 = (e_1) => onHeaderDragStart(e_1, header.column.id, resolveHeaderTitle(columnDef) ?? header.column.id);
+		$[20] = columnDef;
+		$[21] = header.column.id;
+		$[22] = onHeaderDragStart;
+		$[23] = t14;
+	} else t14 = $[23];
 	let t15;
-	if ($[22] !== columnDef || $[23] !== header.column.id || $[24] !== onHeaderDragStart) {
-		t15 = (e_1) => onHeaderDragStart(e_1, header.column.id, resolveHeaderTitle(columnDef) ?? header.column.id);
-		$[22] = columnDef;
-		$[23] = header.column.id;
-		$[24] = onHeaderDragStart;
+	if ($[24] !== header.column) {
+		t15 = header.column.getToggleSortingHandler();
+		$[24] = header.column;
 		$[25] = t15;
 	} else t15 = $[25];
 	let t16;
-	if ($[26] !== header.column) {
-		t16 = header.column.getToggleSortingHandler();
-		$[26] = header.column;
-		$[27] = t16;
-	} else t16 = $[27];
-	let t17;
-	if ($[28] !== headerLabel) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	if ($[26] !== headerLabel) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedText,
 			children: headerLabel
 		});
-		$[28] = headerLabel;
-		$[29] = t17;
-	} else t17 = $[29];
+		$[26] = headerLabel;
+		$[27] = t16;
+	} else t16 = $[27];
+	let t17;
+	if ($[28] !== sortOrder || $[29] !== sorted) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SortIndicator, {
+			sorted,
+			sortOrder
+		});
+		$[28] = sortOrder;
+		$[29] = sorted;
+		$[30] = t17;
+	} else t17 = $[30];
 	let t18;
-	if ($[30] !== header) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SortIndicator, { header });
-		$[30] = header;
-		$[31] = t18;
-	} else t18 = $[31];
-	let t19;
-	if ($[32] !== anchorEl || $[33] !== columnDef.meta || $[34] !== filterSpec || $[35] !== filterType || $[36] !== header.column.id || $[37] !== hideColumnFilters || $[38] !== onColumnFilterChange) {
-		t19 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	if ($[31] !== anchorEl || $[32] !== columnDef.meta || $[33] !== filterSpec || $[34] !== filterType || $[35] !== header.column.id || $[36] !== hideColumnFilters || $[37] !== onColumnFilterChange) {
+		t18 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
 			role: "presentation",
 			onClick: _temp$74,
@@ -82062,32 +82086,33 @@ function GridRowInner(t0) {
 				onChange: (spec) => onColumnFilterChange?.(header.column.id, filterType, spec)
 			})
 		});
-		$[32] = anchorEl;
-		$[33] = columnDef.meta;
-		$[34] = filterSpec;
-		$[35] = filterType;
-		$[36] = header.column.id;
-		$[37] = hideColumnFilters;
-		$[38] = onColumnFilterChange;
-		$[39] = t19;
-	} else t19 = $[39];
-	let t20;
-	if ($[40] !== onHeaderDragEnd || $[41] !== t12 || $[42] !== t13 || $[43] !== t14 || $[44] !== t15 || $[45] !== t16 || $[46] !== t17 || $[47] !== t18 || $[48] !== t19) {
-		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t12,
-			title: t13,
-			...t14,
+		$[31] = anchorEl;
+		$[32] = columnDef.meta;
+		$[33] = filterSpec;
+		$[34] = filterType;
+		$[35] = header.column.id;
+		$[36] = hideColumnFilters;
+		$[37] = onColumnFilterChange;
+		$[38] = t18;
+	} else t18 = $[38];
+	let t19;
+	if ($[39] !== onHeaderDragEnd || $[40] !== t11 || $[41] !== t12 || $[42] !== t13 || $[43] !== t14 || $[44] !== t15 || $[45] !== t16 || $[46] !== t17 || $[47] !== t18) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t11,
+			title: t12,
+			...t13,
 			draggable: true,
-			onDragStart: t15,
+			onDragStart: t14,
 			onDragEnd: onHeaderDragEnd,
-			onClick: t16,
+			onClick: t15,
 			children: [
+				t16,
 				t17,
-				t18,
-				t19
+				t18
 			]
 		});
-		$[40] = onHeaderDragEnd;
+		$[39] = onHeaderDragEnd;
+		$[40] = t11;
 		$[41] = t12;
 		$[42] = t13;
 		$[43] = t14;
@@ -82096,20 +82121,19 @@ function GridRowInner(t0) {
 		$[46] = t17;
 		$[47] = t18;
 		$[48] = t19;
-		$[49] = t20;
-	} else t20 = $[49];
-	let t21;
-	if ($[50] === Symbol.for("react.memo_cache_sentinel")) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	} else t19 = $[48];
+	let t20;
+	if ($[49] === Symbol.for("react.memo_cache_sentinel")) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			ref: setAnchorEl,
 			className: DataGrid_module_default.rotatedFilterAnchor,
 			"aria-hidden": "true"
 		});
-		$[50] = t21;
-	} else t21 = $[50];
-	let t22;
-	if ($[51] !== header || $[52] !== onAutoSize) {
-		t22 = header.column.getCanResize() && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[49] = t20;
+	} else t20 = $[49];
+	let t21;
+	if ($[50] !== header || $[51] !== onAutoSize) {
+		t21 = header.column.getCanResize() && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			role: "separator",
 			"aria-orientation": "vertical",
 			"aria-label": `Resize ${header.column.id}`,
@@ -82118,39 +82142,39 @@ function GridRowInner(t0) {
 			onTouchStart: header.getResizeHandler(),
 			onDoubleClick: onAutoSize
 		});
-		$[51] = header;
-		$[52] = onAutoSize;
-		$[53] = t22;
-	} else t22 = $[53];
-	let t23;
-	if ($[54] !== ariaColIndex || $[55] !== onHeaderDragLeave || $[56] !== t10 || $[57] !== t20 || $[58] !== t22 || $[59] !== t5 || $[60] !== t7 || $[61] !== t8 || $[62] !== t9) {
-		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[50] = header;
+		$[51] = onAutoSize;
+		$[52] = t21;
+	} else t21 = $[52];
+	let t22;
+	if ($[53] !== ariaColIndex || $[54] !== onHeaderDragLeave || $[55] !== t19 || $[56] !== t21 || $[57] !== t5 || $[58] !== t6 || $[59] !== t7 || $[60] !== t8 || $[61] !== t9) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t5,
-			style: t7,
+			style: t6,
 			role: "columnheader",
 			"aria-colindex": ariaColIndex,
-			"aria-sort": t8,
-			onDragOver: t9,
+			"aria-sort": t7,
+			onDragOver: t8,
 			onDragLeave: onHeaderDragLeave,
-			onDrop: t10,
+			onDrop: t9,
 			children: [
+				t19,
 				t20,
-				t21,
-				t22
+				t21
 			]
 		});
-		$[54] = ariaColIndex;
-		$[55] = onHeaderDragLeave;
-		$[56] = t10;
-		$[57] = t20;
-		$[58] = t22;
-		$[59] = t5;
-		$[60] = t7;
-		$[61] = t8;
-		$[62] = t9;
-		$[63] = t23;
-	} else t23 = $[63];
-	return t23;
+		$[53] = ariaColIndex;
+		$[54] = onHeaderDragLeave;
+		$[55] = t19;
+		$[56] = t21;
+		$[57] = t5;
+		$[58] = t6;
+		$[59] = t7;
+		$[60] = t8;
+		$[61] = t9;
+		$[62] = t22;
+	} else t22 = $[62];
+	return t22;
 }
 function _temp$74(e_2) {
 	return e_2.stopPropagation();
@@ -82987,7 +83011,7 @@ var LogListGrid = (t0) => {
 				onColumnSizingChange: handleColumnSizingChange,
 				columnOrder,
 				onColumnOrderChange: handleColumnOrderChange,
-				getRowId: _temp6$8,
+				getRowId: _temp6$9,
 				selectedRowId: t29,
 				onSelectedRowChange: handleSelectedRowChange,
 				onRowActivate: handleRowActivate,
@@ -83041,7 +83065,7 @@ function _temp4$29(row_4) {
 function _temp5$16(row_6) {
 	return row_6.id;
 }
-function _temp6$8(row_7) {
+function _temp6$9(row_7) {
 	return row_7.id;
 }
 function _temp7$5(row_8) {
@@ -86660,7 +86684,7 @@ var CurveBody = (t0) => {
 	const t2 = band === "tokens" ? "Token burn" : "Context size";
 	let t3;
 	if ($[13] !== values) {
-		t3 = values.map(_temp6$7);
+		t3 = values.map(_temp6$8);
 		$[13] = values;
 		$[14] = t3;
 	} else t3 = $[14];
@@ -86889,7 +86913,7 @@ function _temp5$13(member, i) {
 		]
 	}, i);
 }
-function _temp6$7(t0) {
+function _temp6$8(t0) {
 	const { row, value, aggregate } = t0;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: ActivityTooltip_module_default.listRow,
@@ -111556,6 +111580,620 @@ function resolveGradient(palette, min, max) {
 }
 var clamp01 = (n) => n < 0 ? 0 : n > 1 ? 1 : n;
 //#endregion
+//#region src/app/samples/sample-tools/filterSpecRegistry.ts
+var STATIC_ENTRIES = [
+	["sampleUuid", {
+		variable: "uuid",
+		kind: "string"
+	}],
+	["epoch", {
+		variable: "epoch",
+		kind: "number"
+	}],
+	["input", {
+		variable: "input",
+		kind: "string",
+		containsFn: "input_contains"
+	}],
+	["target", {
+		variable: "target",
+		kind: "string",
+		containsFn: "target_contains"
+	}],
+	["answer", {
+		variable: "answer",
+		kind: "string",
+		containsFn: "answer_contains"
+	}],
+	["tokens", {
+		variable: "tokens",
+		kind: "number"
+	}],
+	["duration", {
+		variable: "duration",
+		kind: "number"
+	}],
+	["error", {
+		variable: "error",
+		kind: "string",
+		containsFn: "error_contains"
+	}],
+	["limit", {
+		variable: "limit",
+		kind: "string"
+	}],
+	["retries", {
+		variable: "retries",
+		kind: "number"
+	}],
+	["fallbacks", {
+		variable: "fallbacks",
+		kind: "number"
+	}]
+];
+/** Build the column↔filtrex-variable registry. Score columns are added
+*  dynamically from `evalDescriptor.scores` so the variable name matches
+*  the same short/qualified rule used by `scoreVariables` in filters.ts. */ var buildSampleFilterSpecRegistry = (evalDescriptor) => {
+	const entries = [...STATIC_ENTRIES];
+	if (evalDescriptor) {
+		const banned = bannedShortScoreNames(evalDescriptor.scores);
+		for (const { name, scorer } of evalDescriptor.scores) {
+			const colId = perScorerFieldKey({
+				name,
+				scorer
+			});
+			if (name === scorer && builtinFilterVariables.has(name)) continue;
+			const variable = name === scorer || !banned.has(name) ? name : `${scorer}.${name}`;
+			const scoreType = evalDescriptor.scoreDescriptor({
+				name,
+				scorer
+			})?.scoreType;
+			let kind;
+			if (scoreType === "numeric") kind = "number";
+			else if (scoreType === "categorical" || scoreType === "passfail") kind = "string";
+			else continue;
+			entries.push([colId, {
+				variable,
+				kind
+			}]);
+		}
+	}
+	return {
+		byColId: new Map(entries),
+		byVariable: new Map(entries.map(([colId, m]) => [m.variable, colId]))
+	};
+};
+/**
+* Operator choices offered on the samples tab, narrowed to what round-trips
+* through the filtrex bridge: no `in`/`not in` (the recognizer has no filtrex
+* `in` mapping) and no `not between` (no filtrex form existed on main).
+*/ var samplesOperatorsForKind = (kind) => kind === "number" ? [
+	"=",
+	"!=",
+	"<",
+	"<=",
+	">",
+	">=",
+	"between",
+	"is blank",
+	"is not blank"
+] : [
+	"contains",
+	"does not contain",
+	"starts with",
+	"ends with",
+	"=",
+	"!=",
+	"is blank",
+	"is not blank"
+];
+var gridCells_module_default = {
+	cell: "_cell_8nkqa_2",
+	wrapAnywhere: "_wrapAnywhere_8nkqa_6",
+	noLeft: "_noLeft_8nkqa_10",
+	score: "_score_8nkqa_14"
+};
+//#endregion
+//#region src/app/shared/samples-grid/cells.tsx
+/** Wraps truncated markdown in a 3-line-clamped cell. Used by list-mode
+*  renderers for `input`, `target`, `answer`. */ var MarkdownCellDiv = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(11);
+	const { semanticClass, text, trimRenderedText, truncateAt: t1 } = t0;
+	const truncateAt = t1 === void 0 ? 250 : t1;
+	let t2;
+	if ($[0] !== semanticClass) {
+		t2 = clsx(semanticClass, "three-line-clamp", gridCells_module_default.cell, gridCells_module_default.wrapAnywhere);
+		$[0] = semanticClass;
+		$[1] = t2;
+	} else t2 = $[1];
+	let t3;
+	if ($[2] !== trimRenderedText) {
+		t3 = trimRenderedText ? clsx("no-last-para-padding", gridCells_module_default.noLeft) : void 0;
+		$[2] = trimRenderedText;
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] !== t3 || $[5] !== text || $[6] !== truncateAt) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedText, {
+			markdown: text,
+			truncateAt,
+			className: t3,
+			forceRender: true,
+			renderer: "fragment"
+		});
+		$[4] = t3;
+		$[5] = text;
+		$[6] = truncateAt;
+		$[7] = t4;
+	} else t4 = $[7];
+	let t5;
+	if ($[8] !== t2 || $[9] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t2,
+			children: t4
+		});
+		$[8] = t2;
+		$[9] = t4;
+		$[10] = t5;
+	} else t5 = $[10];
+	return t5;
+};
+/** Centered single-line cell for score values. */ var ScoreCellDiv = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(3);
+	const { children } = t0;
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = clsx(gridCells_module_default.cell, gridCells_module_default.score);
+		$[0] = t1;
+	} else t1 = $[0];
+	let t2;
+	if ($[1] !== children) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t1,
+			children
+		});
+		$[1] = children;
+		$[2] = t2;
+	} else t2 = $[2];
+	return t2;
+};
+//#endregion
+//#region src/app/shared/samples-grid/columns.tsx
+var numberCompare = (a, b, isDescending) => comparators.number(a, b, isDescending);
+var dateCompare = (a, b) => comparators.date(a, b);
+var stringCompare = (a, b) => valueAsString(a ?? "").localeCompare(valueAsString(b ?? ""));
+var EmptyCell = () => {
+	const $ = (0, import_compiler_runtime.c)(1);
+	let t0;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: "-" });
+		$[0] = t0;
+	} else t0 = $[0];
+	return t0;
+};
+var SCORE_FIELD_RAW_PREFIX = "score_";
+var SCORE_FIELD_PER_SCORER_PREFIX = "score__";
+var perScorerFieldKey = (label) => `${SCORE_FIELD_PER_SCORER_PREFIX}${label.scorer}__${label.name}`;
+var rawScoreFieldKey = (name) => `${SCORE_FIELD_RAW_PREFIX}${name}`;
+var statusValue = (row) => {
+	const completed = row.completed ?? row.data?.completed;
+	const error = row.error ?? row.data?.error;
+	return statusSortValue(deriveSampleStatus(completed, error), error);
+};
+var inputText = (row) => {
+	if (row.input !== void 0) return row.input;
+	if (row.data) return inputString(row.data.input).join(" ");
+	return "";
+};
+var targetText = (row) => {
+	if (row.target !== void 0) return row.target;
+	if (row.data?.target != null) return arrayToString(row.data.target);
+	return "";
+};
+/** Build the superset of sample columns. Visibility is *not* applied here —
+*  the caller controls it via the DataGrid `columnVisibility` map. */ function buildSampleColumns(ctx) {
+	const { viewMode, multiLog, descriptor } = ctx;
+	const isList = viewMode === "list";
+	const shape = descriptor?.messageShape;
+	const cols = [];
+	if (multiLog) cols.push({
+		id: "displayIndex",
+		header: "#",
+		size: 65,
+		minSize: 50,
+		maxSize: 80,
+		enableSorting: false,
+		enableResizing: false,
+		pinned: "start",
+		accessorFn: (row) => row.displayIndex,
+		cell: ({ row }) => {
+			const value = row.original.displayIndex;
+			if (value === void 0) return "";
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: value });
+		}
+	});
+	cols.push({
+		id: "sampleStatus",
+		header: isList ? "" : "Sample Status",
+		headerTitle: "Sample Status",
+		size: isList ? 28 : 100,
+		minSize: isList ? 28 : 80,
+		enableResizing: false,
+		accessorFn: (row) => statusValue(row),
+		titleValue: (row) => {
+			const completed = row.completed ?? row.data?.completed;
+			const error = row.error ?? row.data?.error;
+			return error ? error : deriveSampleStatus(completed, error);
+		},
+		cell: ({ row }) => {
+			const item = row.original;
+			const completed = item.completed ?? item.data?.completed;
+			const error = item.error ?? item.data?.error;
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleStatusIcon, { status: deriveSampleStatus(completed, error) });
+		}
+	});
+	if (multiLog) cols.push({
+		id: "status",
+		header: "Eval Status",
+		size: 110,
+		minSize: 80,
+		accessorFn: (row) => row.status,
+		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
+	}, {
+		id: "task",
+		header: "Task",
+		size: 160,
+		minSize: 100,
+		flex: 1,
+		accessorFn: (row) => row.task,
+		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
+	}, {
+		id: "model",
+		header: "Model",
+		size: 160,
+		minSize: 100,
+		flex: 1,
+		accessorFn: (row) => row.model,
+		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
+	}, {
+		id: "logFile",
+		header: "Log File",
+		size: 200,
+		minSize: 150,
+		flex: 1,
+		accessorFn: (row) => row.logFile,
+		cell: ({ getValue }) => {
+			const value = getValue();
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: value ? filename(value) : "" });
+		}
+	}, {
+		id: "completed_at",
+		header: "Completed",
+		size: 140,
+		minSize: 80,
+		maxSize: 160,
+		meta: { sortComparator: dateCompare },
+		accessorFn: (row) => row.data?.completed_at ?? void 0,
+		cell: ({ getValue }) => {
+			const value = getValue();
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: value ? formatDateTime(new Date(value)) : "" });
+		}
+	});
+	cols.push({
+		id: "sampleId",
+		header: "Id",
+		size: shape ? Math.max(35, shape.idSize * 16) : 120,
+		minSize: 35,
+		accessorFn: (row) => String(row.sampleId),
+		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
+	});
+	cols.push({
+		id: "sampleUuid",
+		header: "UUID",
+		size: 280,
+		minSize: 80,
+		accessorFn: (row) => row.data?.uuid ?? "",
+		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
+	});
+	cols.push({
+		id: "epoch",
+		header: "Epoch",
+		size: 60,
+		minSize: 40,
+		meta: {
+			align: "center",
+			sortComparator: numberCompare
+		},
+		accessorFn: (row) => row.epoch,
+		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
+	});
+	cols.push({
+		id: "input",
+		header: "Input",
+		size: 360,
+		minSize: 240,
+		flex: shape?.inputSize ? shape.inputSize : 3,
+		accessorFn: (row) => inputText(row),
+		cell: isList ? ({ row }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownCellDiv, {
+			semanticClass: "sample-input",
+			text: inputText(row.original)
+		}) : ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
+	});
+	cols.push({
+		id: "target",
+		header: "Target",
+		size: 200,
+		minSize: 120,
+		flex: shape?.targetSize ? shape.targetSize : 1,
+		accessorFn: (row) => targetText(row),
+		cell: isList ? ({ row }) => {
+			const text = targetText(row.original);
+			if (!text) return null;
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownCellDiv, {
+				semanticClass: "sample-target",
+				text,
+				trimRenderedText: true
+			});
+		} : ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
+	});
+	if (descriptor) cols.push({
+		id: "answer",
+		header: "Answer",
+		size: 200,
+		minSize: 120,
+		flex: shape?.answerSize ? shape.answerSize : 1,
+		accessorFn: (row) => row.answer ?? "",
+		cell: isList ? ({ row }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownCellDiv, {
+			semanticClass: "sample-answer",
+			text: row.original.answer || "",
+			trimRenderedText: true
+		}) : ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
+	});
+	cols.push({
+		id: "tokens",
+		header: "Tokens",
+		size: 100,
+		minSize: 60,
+		maxSize: 140,
+		meta: { sortComparator: numberCompare },
+		accessorFn: (row) => row.tokens,
+		cell: ({ getValue }) => {
+			const value = getValue();
+			return value === void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell, {}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: formatNumber(value) });
+		}
+	});
+	cols.push({
+		id: "cost",
+		header: "Cost",
+		size: 100,
+		minSize: 60,
+		maxSize: 140,
+		meta: { sortComparator: numberCompare },
+		accessorFn: (row) => row.cost,
+		cell: ({ getValue }) => {
+			const value = getValue();
+			return value === void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell, {}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: formatCurrency(value) });
+		}
+	});
+	cols.push({
+		id: "duration",
+		header: "Duration",
+		size: 120,
+		minSize: 70,
+		maxSize: 160,
+		meta: { sortComparator: numberCompare },
+		accessorFn: (row) => row.duration,
+		titleValue: (row) => row.duration === void 0 ? void 0 : formatTime(row.duration),
+		cell: ({ getValue }) => {
+			const value = getValue();
+			return value === void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell, {}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: formatTime(value) });
+		}
+	});
+	cols.push({
+		id: "error",
+		header: "Error",
+		size: 200,
+		minSize: 100,
+		accessorFn: (row) => row.error ?? row.data?.error ?? "",
+		cell: isList ? ({ getValue }) => {
+			const text = getValue();
+			if (!text) return null;
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: clsx("sample-error", gridCells_module_default.cell, gridCells_module_default.wrapAnywhere, "three-line-clamp"),
+				children: text
+			});
+		} : ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
+	}, {
+		id: "limit",
+		header: "Limit",
+		size: shape ? shape.limitSize * 16 : 100,
+		minSize: 28,
+		accessorFn: (row) => row.limit ?? row.data?.limit,
+		cell: ({ getValue, row }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			title: row.original.limit_reason ?? row.original.data?.limit_reason ?? void 0,
+			children: valueAsString(getValue() ?? "")
+		})
+	}, {
+		id: "retries",
+		header: "Retries",
+		size: shape ? shape.retriesSize * 16 : 80,
+		minSize: 28,
+		meta: {
+			align: "center",
+			sortComparator: numberCompare
+		},
+		accessorFn: (row) => row.retries ?? row.data?.retries,
+		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
+	}, {
+		id: "fallbacks",
+		header: "Fallbacks",
+		size: 95,
+		minSize: 28,
+		meta: {
+			align: "center",
+			sortComparator: numberCompare
+		},
+		accessorFn: (row) => row.fallbacks,
+		titleValue: (row) => {
+			const lines = modelFallbackLines(row.data?.model_fallbacks);
+			return lines.length > 0 ? lines.join("\n") : void 0;
+		},
+		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
+	});
+	cols.push(...buildScoreColumns(ctx));
+	if (multiLog) cols.push({
+		id: "created",
+		header: "Eval Created",
+		size: 140,
+		minSize: 80,
+		maxSize: 160,
+		meta: { sortComparator: dateCompare },
+		accessorFn: (row) => row.created,
+		cell: ({ getValue }) => {
+			const value = getValue();
+			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: value ? formatDateTime(new Date(value)) : "" });
+		}
+	});
+	for (const col of cols) {
+		if (col.id === "sampleStatus" || col.id === "displayIndex") continue;
+		const cmp = col.meta?.sortComparator;
+		const filterType = cmp === numberCompare ? "number" : cmp === dateCompare ? "date" : "string";
+		if (ctx.filterSpecRegistry) {
+			const mapping = col.id ? ctx.filterSpecRegistry.byColId.get(col.id) : void 0;
+			if (!mapping) continue;
+			col.meta = {
+				...col.meta,
+				filterable: true,
+				filterType,
+				operators: samplesOperatorsForKind(mapping.kind)
+			};
+		} else col.meta = {
+			...col.meta,
+			filterable: true,
+			filterType
+		};
+	}
+	return cols;
+}
+/** Score columns — emitted in one of two modes. */ function buildScoreColumns(ctx) {
+	const { descriptor, scores, samples, scoreLabels, scoreColorScales, compactScores } = ctx;
+	const compactSizing = (isNumeric) => {
+		if (!compactScores) return null;
+		const w = isNumeric ? 40 : 55;
+		return {
+			size: w,
+			minSize: w - 4
+		};
+	};
+	const labelFor = (name) => getOwn(scoreLabels, name) ?? name;
+	const cellStyleFor = (name, bounds) => {
+		const wire = getOwn(scoreColorScales, name);
+		if (!wire) return void 0;
+		const resolved = resolveScale(wire, bounds);
+		if (!resolved) return void 0;
+		return (value) => {
+			const c = colorForValue(resolved, value);
+			return c ? { backgroundColor: c } : void 0;
+		};
+	};
+	if (descriptor && scores && scores.length > 0) {
+		const useLabelHeader = scores.length !== 1;
+		return scores.map((label) => {
+			const colId = perScorerFieldKey(label);
+			const headerName = useLabelHeader ? labelFor(label.name) : "Score";
+			const scoreDesc = descriptor.evalDescriptor.scoreDescriptor(label);
+			const scoreType = scoreDesc?.scoreType;
+			const isNumeric = scoreType === kScoreTypeNumeric;
+			const valueToStyle = scoreType !== "passfail" && scoreType !== "boolean" ? cellStyleFor(label.name, {
+				min: scoreDesc?.min,
+				max: scoreDesc?.max
+			}) : void 0;
+			return {
+				id: colId,
+				header: headerName,
+				...compactSizing(isNumeric) ?? {
+					size: Math.max(70, Math.round(headerName.length * 6.2) + 40),
+					minSize: 60,
+					maxSize: 120
+				},
+				meta: {
+					align: "center",
+					rotateHeader: compactScores,
+					sortComparator: isNumeric ? numberCompare : stringCompare,
+					cellStyle: valueToStyle ? (row) => {
+						if (!row.data) return void 0;
+						const value = descriptor.evalDescriptor.score(row.data, label)?.value;
+						return valueToStyle(value);
+					} : void 0
+				},
+				accessorFn: (row) => {
+					const data = row.data;
+					if (!data) return void 0;
+					return descriptor.evalDescriptor.score(data, label)?.value;
+				},
+				cell: ({ row }) => {
+					const item = row.original;
+					if (!item.data) return null;
+					const completed = item.completed ?? item.data.completed;
+					const rendered = descriptor.evalDescriptor.score(item.data, label)?.render();
+					if (completed && rendered !== void 0) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreCellDiv, { children: rendered });
+					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreCellDiv, {});
+				}
+			};
+		});
+	}
+	const types = /* @__PURE__ */ new Map();
+	const ranges = /* @__PURE__ */ new Map();
+	for (const sample of samples ?? []) {
+		if (!sample.scores) continue;
+		for (const [name, score] of Object.entries(sample.scores)) {
+			let nameTypes = types.get(name);
+			if (!nameTypes) {
+				nameTypes = /* @__PURE__ */ new Set();
+				types.set(name, nameTypes);
+			}
+			nameTypes.add(typeof score.value);
+			if (typeof score.value === "number" && Number.isFinite(score.value)) {
+				const r = ranges.get(name);
+				if (!r) ranges.set(name, {
+					min: score.value,
+					max: score.value
+				});
+				else {
+					if (score.value < r.min) r.min = score.value;
+					if (score.value > r.max) r.max = score.value;
+				}
+			}
+		}
+	}
+	return [...types.keys()].sort((a, b) => a.localeCompare(b)).map((name) => {
+		const nameTypes = types.get(name);
+		const isUniformNumber = nameTypes?.size === 1 && nameTypes.has("number");
+		const valueToStyle = cellStyleFor(name, ranges.get(name) ?? {});
+		return {
+			id: rawScoreFieldKey(name),
+			header: labelFor(name),
+			...compactSizing(isUniformNumber) ?? {
+				size: 100,
+				minSize: 60
+			},
+			meta: {
+				align: "center",
+				rotateHeader: compactScores,
+				sortComparator: isUniformNumber ? numberCompare : stringCompare,
+				cellStyle: valueToStyle ? (row) => valueToStyle(row[rawScoreFieldKey(name)]) : void 0
+			},
+			accessorFn: (row) => row[rawScoreFieldKey(name)],
+			cell: ({ getValue }) => {
+				const v = getValue();
+				if (v === "" || v === null || v === void 0) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreCellDiv, {});
+				const text = Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : typeof v === "number" ? v.toFixed(3) : String(v);
+				return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreCellDiv, { children: text });
+			}
+		};
+	});
+}
+//#endregion
 //#region src/app/samples/list/samplesView.ts
 /**
 * The default view applied when neither the user nor the eval author
@@ -111730,7 +112368,7 @@ var kNoScoreColorScales$1 = Object.freeze({});
 * Selected-scores projection (the `score__*` ↔ `selectedScores` split)
 * stays in `SamplesTab` for now.
 */ function useSamplesView(allColumns, options) {
-	const $ = (0, import_compiler_runtime.c)(45);
+	const $ = (0, import_compiler_runtime.c)(46);
 	let t0;
 	if ($[0] !== options) {
 		t0 = options ?? {};
@@ -111850,21 +112488,23 @@ var kNoScoreColorScales$1 = Object.freeze({});
 	} else t6 = $[21];
 	const setMultiline = t6;
 	let t7;
-	if ($[22] !== patchView || $[23] !== view.userOverrides) {
+	if ($[22] !== patchView || $[23] !== view.columnWidths || $[24] !== view.userOverrides) {
 		t7 = (compactScores) => patchView({
 			compactScores,
 			userOverrides: {
 				...view.userOverrides,
 				compactScores
-			}
+			},
+			columnWidths: view.columnWidths && Object.fromEntries(Object.entries(view.columnWidths).filter(_temp5$11))
 		});
 		$[22] = patchView;
-		$[23] = view.userOverrides;
-		$[24] = t7;
-	} else t7 = $[24];
+		$[23] = view.columnWidths;
+		$[24] = view.userOverrides;
+		$[25] = t7;
+	} else t7 = $[25];
 	const setCompactScores = t7;
 	let t8;
-	if ($[25] !== patchView || $[26] !== view.userOverrides) {
+	if ($[26] !== patchView || $[27] !== view.userOverrides) {
 		t8 = (colorScalesEnabled) => patchView({
 			colorScalesEnabled,
 			userOverrides: {
@@ -111872,46 +112512,46 @@ var kNoScoreColorScales$1 = Object.freeze({});
 				colorScalesEnabled
 			}
 		});
-		$[25] = patchView;
-		$[26] = view.userOverrides;
-		$[27] = t8;
-	} else t8 = $[27];
+		$[26] = patchView;
+		$[27] = view.userOverrides;
+		$[28] = t8;
+	} else t8 = $[28];
 	const setColorScalesEnabled = t8;
 	let t9;
-	if ($[28] !== setSampleListView) {
+	if ($[29] !== setSampleListView) {
 		t9 = (next_0) => setSampleListView(next_0);
-		$[28] = setSampleListView;
-		$[29] = t9;
-	} else t9 = $[29];
+		$[29] = setSampleListView;
+		$[30] = t9;
+	} else t9 = $[30];
 	const setView = t9;
 	let t10;
-	if ($[30] !== allColumns || $[31] !== evalDefault || $[32] !== patchView || $[33] !== seedDefaultVisibility) {
+	if ($[31] !== allColumns || $[32] !== evalDefault || $[33] !== patchView || $[34] !== seedDefaultVisibility) {
 		t10 = () => {
 			if (!allColumns) return;
 			const evalCols = liftEvalView(evalDefault).columns;
-			const evalMap = new Map(evalCols.map(_temp5$11));
+			const evalMap = new Map(evalCols.map(_temp6$7));
 			const nextColumns_0 = allColumns.map((col_1) => {
-				const id_1 = getFieldKey(col_1);
-				if (evalMap.has(id_1)) return {
-					id: id_1,
-					visible: evalMap.get(id_1)
+				const id_2 = getFieldKey(col_1);
+				if (evalMap.has(id_2)) return {
+					id: id_2,
+					visible: evalMap.get(id_2)
 				};
 				return {
-					id: id_1,
+					id: id_2,
 					visible: seedDefaultVisibility ? seedDefaultVisibility(col_1) : true
 				};
 			});
 			patchView({ columns: nextColumns_0 });
 		};
-		$[30] = allColumns;
-		$[31] = evalDefault;
-		$[32] = patchView;
-		$[33] = seedDefaultVisibility;
-		$[34] = t10;
-	} else t10 = $[34];
+		$[31] = allColumns;
+		$[32] = evalDefault;
+		$[33] = patchView;
+		$[34] = seedDefaultVisibility;
+		$[35] = t10;
+	} else t10 = $[35];
 	const resetColumns = t10;
 	let t11;
-	if ($[35] !== columnVisibility || $[36] !== patchView || $[37] !== resetColumns || $[38] !== setColorScalesEnabled || $[39] !== setColumnVisibility || $[40] !== setCompactScores || $[41] !== setMultiline || $[42] !== setView || $[43] !== view) {
+	if ($[36] !== columnVisibility || $[37] !== patchView || $[38] !== resetColumns || $[39] !== setColorScalesEnabled || $[40] !== setColumnVisibility || $[41] !== setCompactScores || $[42] !== setMultiline || $[43] !== setView || $[44] !== view) {
 		t11 = {
 			view,
 			columnVisibility,
@@ -111923,21 +112563,25 @@ var kNoScoreColorScales$1 = Object.freeze({});
 			setColorScalesEnabled,
 			resetColumns
 		};
-		$[35] = columnVisibility;
-		$[36] = patchView;
-		$[37] = resetColumns;
-		$[38] = setColorScalesEnabled;
-		$[39] = setColumnVisibility;
-		$[40] = setCompactScores;
-		$[41] = setMultiline;
-		$[42] = setView;
-		$[43] = view;
-		$[44] = t11;
-	} else t11 = $[44];
+		$[36] = columnVisibility;
+		$[37] = patchView;
+		$[38] = resetColumns;
+		$[39] = setColorScalesEnabled;
+		$[40] = setColumnVisibility;
+		$[41] = setCompactScores;
+		$[42] = setMultiline;
+		$[43] = setView;
+		$[44] = view;
+		$[45] = t11;
+	} else t11 = $[45];
 	return t11;
 }
-function _temp5$11(c_1) {
+function _temp6$7(c_1) {
 	return [c_1.id, c_1.visible];
+}
+function _temp5$11(t0) {
+	const [id_1] = t0;
+	return !id_1.startsWith(SCORE_FIELD_RAW_PREFIX);
 }
 function _temp4$21(c) {
 	return c.id;
@@ -138700,620 +139344,6 @@ var binaryToSpec = (ast, registry) => {
 	if (!ast) return null;
 	return astToSpecs(ast, registry);
 }
-var gridCells_module_default = {
-	cell: "_cell_8nkqa_2",
-	wrapAnywhere: "_wrapAnywhere_8nkqa_6",
-	noLeft: "_noLeft_8nkqa_10",
-	score: "_score_8nkqa_14"
-};
-//#endregion
-//#region src/app/shared/samples-grid/cells.tsx
-/** Wraps truncated markdown in a 3-line-clamped cell. Used by list-mode
-*  renderers for `input`, `target`, `answer`. */ var MarkdownCellDiv = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(11);
-	const { semanticClass, text, trimRenderedText, truncateAt: t1 } = t0;
-	const truncateAt = t1 === void 0 ? 250 : t1;
-	let t2;
-	if ($[0] !== semanticClass) {
-		t2 = clsx(semanticClass, "three-line-clamp", gridCells_module_default.cell, gridCells_module_default.wrapAnywhere);
-		$[0] = semanticClass;
-		$[1] = t2;
-	} else t2 = $[1];
-	let t3;
-	if ($[2] !== trimRenderedText) {
-		t3 = trimRenderedText ? clsx("no-last-para-padding", gridCells_module_default.noLeft) : void 0;
-		$[2] = trimRenderedText;
-		$[3] = t3;
-	} else t3 = $[3];
-	let t4;
-	if ($[4] !== t3 || $[5] !== text || $[6] !== truncateAt) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedText, {
-			markdown: text,
-			truncateAt,
-			className: t3,
-			forceRender: true,
-			renderer: "fragment"
-		});
-		$[4] = t3;
-		$[5] = text;
-		$[6] = truncateAt;
-		$[7] = t4;
-	} else t4 = $[7];
-	let t5;
-	if ($[8] !== t2 || $[9] !== t4) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t2,
-			children: t4
-		});
-		$[8] = t2;
-		$[9] = t4;
-		$[10] = t5;
-	} else t5 = $[10];
-	return t5;
-};
-/** Centered single-line cell for score values. */ var ScoreCellDiv = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(3);
-	const { children } = t0;
-	let t1;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = clsx(gridCells_module_default.cell, gridCells_module_default.score);
-		$[0] = t1;
-	} else t1 = $[0];
-	let t2;
-	if ($[1] !== children) {
-		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t1,
-			children
-		});
-		$[1] = children;
-		$[2] = t2;
-	} else t2 = $[2];
-	return t2;
-};
-//#endregion
-//#region src/app/shared/samples-grid/columns.tsx
-var numberCompare = (a, b, isDescending) => comparators.number(a, b, isDescending);
-var dateCompare = (a, b) => comparators.date(a, b);
-var stringCompare = (a, b) => valueAsString(a ?? "").localeCompare(valueAsString(b ?? ""));
-var EmptyCell = () => {
-	const $ = (0, import_compiler_runtime.c)(1);
-	let t0;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: "-" });
-		$[0] = t0;
-	} else t0 = $[0];
-	return t0;
-};
-var SCORE_FIELD_RAW_PREFIX = "score_";
-var SCORE_FIELD_PER_SCORER_PREFIX = "score__";
-var perScorerFieldKey = (label) => `${SCORE_FIELD_PER_SCORER_PREFIX}${label.scorer}__${label.name}`;
-var rawScoreFieldKey = (name) => `${SCORE_FIELD_RAW_PREFIX}${name}`;
-var statusValue = (row) => {
-	const completed = row.completed ?? row.data?.completed;
-	const error = row.error ?? row.data?.error;
-	return statusSortValue(deriveSampleStatus(completed, error), error);
-};
-var inputText = (row) => {
-	if (row.input !== void 0) return row.input;
-	if (row.data) return inputString(row.data.input).join(" ");
-	return "";
-};
-var targetText = (row) => {
-	if (row.target !== void 0) return row.target;
-	if (row.data?.target != null) return arrayToString(row.data.target);
-	return "";
-};
-/** Build the superset of sample columns. Visibility is *not* applied here —
-*  the caller controls it via the DataGrid `columnVisibility` map. */ function buildSampleColumns(ctx) {
-	const { viewMode, multiLog, descriptor } = ctx;
-	const isList = viewMode === "list";
-	const shape = descriptor?.messageShape;
-	const cols = [];
-	if (multiLog) cols.push({
-		id: "displayIndex",
-		header: "#",
-		size: 65,
-		minSize: 50,
-		maxSize: 80,
-		enableSorting: false,
-		enableResizing: false,
-		pinned: "start",
-		accessorFn: (row) => row.displayIndex,
-		cell: ({ row }) => {
-			const value = row.original.displayIndex;
-			if (value === void 0) return "";
-			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: value });
-		}
-	});
-	cols.push({
-		id: "sampleStatus",
-		header: isList ? "" : "Sample Status",
-		headerTitle: "Sample Status",
-		size: isList ? 28 : 100,
-		minSize: isList ? 28 : 80,
-		enableResizing: false,
-		accessorFn: (row) => statusValue(row),
-		titleValue: (row) => {
-			const completed = row.completed ?? row.data?.completed;
-			const error = row.error ?? row.data?.error;
-			return error ? error : deriveSampleStatus(completed, error);
-		},
-		cell: ({ row }) => {
-			const item = row.original;
-			const completed = item.completed ?? item.data?.completed;
-			const error = item.error ?? item.data?.error;
-			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleStatusIcon, { status: deriveSampleStatus(completed, error) });
-		}
-	});
-	if (multiLog) cols.push({
-		id: "status",
-		header: "Eval Status",
-		size: 110,
-		minSize: 80,
-		accessorFn: (row) => row.status,
-		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
-	}, {
-		id: "task",
-		header: "Task",
-		size: 160,
-		minSize: 100,
-		flex: 1,
-		accessorFn: (row) => row.task,
-		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
-	}, {
-		id: "model",
-		header: "Model",
-		size: 160,
-		minSize: 100,
-		flex: 1,
-		accessorFn: (row) => row.model,
-		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
-	}, {
-		id: "logFile",
-		header: "Log File",
-		size: 200,
-		minSize: 150,
-		flex: 1,
-		accessorFn: (row) => row.logFile,
-		cell: ({ getValue }) => {
-			const value = getValue();
-			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: value ? filename(value) : "" });
-		}
-	}, {
-		id: "completed_at",
-		header: "Completed",
-		size: 140,
-		minSize: 80,
-		maxSize: 160,
-		meta: { sortComparator: dateCompare },
-		accessorFn: (row) => row.data?.completed_at ?? void 0,
-		cell: ({ getValue }) => {
-			const value = getValue();
-			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: value ? formatDateTime(new Date(value)) : "" });
-		}
-	});
-	cols.push({
-		id: "sampleId",
-		header: "Id",
-		size: shape ? Math.max(35, shape.idSize * 16) : 120,
-		minSize: 35,
-		accessorFn: (row) => String(row.sampleId),
-		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
-	});
-	cols.push({
-		id: "sampleUuid",
-		header: "UUID",
-		size: 280,
-		minSize: 80,
-		accessorFn: (row) => row.data?.uuid ?? "",
-		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
-	});
-	cols.push({
-		id: "epoch",
-		header: "Epoch",
-		size: 60,
-		minSize: 40,
-		meta: {
-			align: "center",
-			sortComparator: numberCompare
-		},
-		accessorFn: (row) => row.epoch,
-		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
-	});
-	cols.push({
-		id: "input",
-		header: "Input",
-		size: 360,
-		minSize: 240,
-		flex: shape?.inputSize ? shape.inputSize : 3,
-		accessorFn: (row) => inputText(row),
-		cell: isList ? ({ row }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownCellDiv, {
-			semanticClass: "sample-input",
-			text: inputText(row.original)
-		}) : ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
-	});
-	cols.push({
-		id: "target",
-		header: "Target",
-		size: 200,
-		minSize: 120,
-		flex: shape?.targetSize ? shape.targetSize : 1,
-		accessorFn: (row) => targetText(row),
-		cell: isList ? ({ row }) => {
-			const text = targetText(row.original);
-			if (!text) return null;
-			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownCellDiv, {
-				semanticClass: "sample-target",
-				text,
-				trimRenderedText: true
-			});
-		} : ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
-	});
-	if (descriptor) cols.push({
-		id: "answer",
-		header: "Answer",
-		size: 200,
-		minSize: 120,
-		flex: shape?.answerSize ? shape.answerSize : 1,
-		accessorFn: (row) => row.answer ?? "",
-		cell: isList ? ({ row }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownCellDiv, {
-			semanticClass: "sample-answer",
-			text: row.original.answer || "",
-			trimRenderedText: true
-		}) : ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
-	});
-	cols.push({
-		id: "tokens",
-		header: "Tokens",
-		size: 100,
-		minSize: 60,
-		maxSize: 140,
-		meta: { sortComparator: numberCompare },
-		accessorFn: (row) => row.tokens,
-		cell: ({ getValue }) => {
-			const value = getValue();
-			return value === void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell, {}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: formatNumber(value) });
-		}
-	});
-	cols.push({
-		id: "cost",
-		header: "Cost",
-		size: 100,
-		minSize: 60,
-		maxSize: 140,
-		meta: { sortComparator: numberCompare },
-		accessorFn: (row) => row.cost,
-		cell: ({ getValue }) => {
-			const value = getValue();
-			return value === void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell, {}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: formatCurrency(value) });
-		}
-	});
-	cols.push({
-		id: "duration",
-		header: "Duration",
-		size: 120,
-		minSize: 70,
-		maxSize: 160,
-		meta: { sortComparator: numberCompare },
-		accessorFn: (row) => row.duration,
-		titleValue: (row) => row.duration === void 0 ? void 0 : formatTime(row.duration),
-		cell: ({ getValue }) => {
-			const value = getValue();
-			return value === void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EmptyCell, {}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: formatTime(value) });
-		}
-	});
-	cols.push({
-		id: "error",
-		header: "Error",
-		size: 200,
-		minSize: 100,
-		accessorFn: (row) => row.error ?? row.data?.error ?? "",
-		cell: isList ? ({ getValue }) => {
-			const text = getValue();
-			if (!text) return null;
-			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-				className: clsx("sample-error", gridCells_module_default.cell, gridCells_module_default.wrapAnywhere, "three-line-clamp"),
-				children: text
-			});
-		} : ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: getValue() })
-	}, {
-		id: "limit",
-		header: "Limit",
-		size: shape ? shape.limitSize * 16 : 100,
-		minSize: 28,
-		accessorFn: (row) => row.limit ?? row.data?.limit,
-		cell: ({ getValue, row }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			title: row.original.limit_reason ?? row.original.data?.limit_reason ?? void 0,
-			children: valueAsString(getValue() ?? "")
-		})
-	}, {
-		id: "retries",
-		header: "Retries",
-		size: shape ? shape.retriesSize * 16 : 80,
-		minSize: 28,
-		meta: {
-			align: "center",
-			sortComparator: numberCompare
-		},
-		accessorFn: (row) => row.retries ?? row.data?.retries,
-		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
-	}, {
-		id: "fallbacks",
-		header: "Fallbacks",
-		size: 95,
-		minSize: 28,
-		meta: {
-			align: "center",
-			sortComparator: numberCompare
-		},
-		accessorFn: (row) => row.fallbacks,
-		titleValue: (row) => {
-			const lines = modelFallbackLines(row.data?.model_fallbacks);
-			return lines.length > 0 ? lines.join("\n") : void 0;
-		},
-		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: valueAsString(getValue() ?? "") })
-	});
-	cols.push(...buildScoreColumns(ctx));
-	if (multiLog) cols.push({
-		id: "created",
-		header: "Eval Created",
-		size: 140,
-		minSize: 80,
-		maxSize: 160,
-		meta: { sortComparator: dateCompare },
-		accessorFn: (row) => row.created,
-		cell: ({ getValue }) => {
-			const value = getValue();
-			return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: value ? formatDateTime(new Date(value)) : "" });
-		}
-	});
-	for (const col of cols) {
-		if (col.id === "sampleStatus" || col.id === "displayIndex") continue;
-		const cmp = col.meta?.sortComparator;
-		const filterType = cmp === numberCompare ? "number" : cmp === dateCompare ? "date" : "string";
-		if (ctx.filterSpecRegistry) {
-			const mapping = col.id ? ctx.filterSpecRegistry.byColId.get(col.id) : void 0;
-			if (!mapping) continue;
-			col.meta = {
-				...col.meta,
-				filterable: true,
-				filterType,
-				operators: samplesOperatorsForKind(mapping.kind)
-			};
-		} else col.meta = {
-			...col.meta,
-			filterable: true,
-			filterType
-		};
-	}
-	return cols;
-}
-/** Score columns — emitted in one of two modes. */ function buildScoreColumns(ctx) {
-	const { descriptor, scores, samples, scoreLabels, scoreColorScales, compactScores } = ctx;
-	const compactSizing = (isNumeric) => {
-		if (!compactScores) return null;
-		const w = isNumeric ? 40 : 55;
-		return {
-			size: w,
-			minSize: w - 4
-		};
-	};
-	const labelFor = (name) => getOwn(scoreLabels, name) ?? name;
-	const cellStyleFor = (name, bounds) => {
-		const wire = getOwn(scoreColorScales, name);
-		if (!wire) return void 0;
-		const resolved = resolveScale(wire, bounds);
-		if (!resolved) return void 0;
-		return (value) => {
-			const c = colorForValue(resolved, value);
-			return c ? { backgroundColor: c } : void 0;
-		};
-	};
-	if (descriptor && scores && scores.length > 0) {
-		const useLabelHeader = scores.length !== 1;
-		return scores.map((label) => {
-			const colId = perScorerFieldKey(label);
-			const headerName = useLabelHeader ? labelFor(label.name) : "Score";
-			const scoreDesc = descriptor.evalDescriptor.scoreDescriptor(label);
-			const scoreType = scoreDesc?.scoreType;
-			const isNumeric = scoreType === kScoreTypeNumeric;
-			const valueToStyle = scoreType !== "passfail" && scoreType !== "boolean" ? cellStyleFor(label.name, {
-				min: scoreDesc?.min,
-				max: scoreDesc?.max
-			}) : void 0;
-			return {
-				id: colId,
-				header: headerName,
-				...compactSizing(isNumeric) ?? {
-					size: Math.max(70, Math.round(headerName.length * 6.2) + 40),
-					minSize: 60,
-					maxSize: 120
-				},
-				meta: {
-					align: "center",
-					rotateHeader: compactScores,
-					sortComparator: isNumeric ? numberCompare : stringCompare,
-					cellStyle: valueToStyle ? (row) => {
-						if (!row.data) return void 0;
-						const value = descriptor.evalDescriptor.score(row.data, label)?.value;
-						return valueToStyle(value);
-					} : void 0
-				},
-				accessorFn: (row) => {
-					const data = row.data;
-					if (!data) return void 0;
-					return descriptor.evalDescriptor.score(data, label)?.value;
-				},
-				cell: ({ row }) => {
-					const item = row.original;
-					if (!item.data) return null;
-					const completed = item.completed ?? item.data.completed;
-					const rendered = descriptor.evalDescriptor.score(item.data, label)?.render();
-					if (completed && rendered !== void 0) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreCellDiv, { children: rendered });
-					return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreCellDiv, {});
-				}
-			};
-		});
-	}
-	const types = /* @__PURE__ */ new Map();
-	const ranges = /* @__PURE__ */ new Map();
-	for (const sample of samples ?? []) {
-		if (!sample.scores) continue;
-		for (const [name, score] of Object.entries(sample.scores)) {
-			let nameTypes = types.get(name);
-			if (!nameTypes) {
-				nameTypes = /* @__PURE__ */ new Set();
-				types.set(name, nameTypes);
-			}
-			nameTypes.add(typeof score.value);
-			if (typeof score.value === "number" && Number.isFinite(score.value)) {
-				const r = ranges.get(name);
-				if (!r) ranges.set(name, {
-					min: score.value,
-					max: score.value
-				});
-				else {
-					if (score.value < r.min) r.min = score.value;
-					if (score.value > r.max) r.max = score.value;
-				}
-			}
-		}
-	}
-	return [...types.keys()].sort((a, b) => a.localeCompare(b)).map((name) => {
-		const nameTypes = types.get(name);
-		const isUniformNumber = nameTypes?.size === 1 && nameTypes.has("number");
-		const valueToStyle = cellStyleFor(name, ranges.get(name) ?? {});
-		return {
-			id: rawScoreFieldKey(name),
-			header: labelFor(name),
-			...compactSizing(isUniformNumber) ?? {
-				size: 100,
-				minSize: 60
-			},
-			meta: {
-				align: "center",
-				rotateHeader: compactScores,
-				sortComparator: isUniformNumber ? numberCompare : stringCompare,
-				cellStyle: valueToStyle ? (row) => valueToStyle(row[rawScoreFieldKey(name)]) : void 0
-			},
-			accessorFn: (row) => row[rawScoreFieldKey(name)],
-			cell: ({ getValue }) => {
-				const v = getValue();
-				if (v === "" || v === null || v === void 0) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreCellDiv, {});
-				const text = Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : typeof v === "number" ? v.toFixed(3) : String(v);
-				return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreCellDiv, { children: text });
-			}
-		};
-	});
-}
-//#endregion
-//#region src/app/samples/sample-tools/filterSpecRegistry.ts
-var STATIC_ENTRIES = [
-	["sampleUuid", {
-		variable: "uuid",
-		kind: "string"
-	}],
-	["epoch", {
-		variable: "epoch",
-		kind: "number"
-	}],
-	["input", {
-		variable: "input",
-		kind: "string",
-		containsFn: "input_contains"
-	}],
-	["target", {
-		variable: "target",
-		kind: "string",
-		containsFn: "target_contains"
-	}],
-	["answer", {
-		variable: "answer",
-		kind: "string",
-		containsFn: "answer_contains"
-	}],
-	["tokens", {
-		variable: "tokens",
-		kind: "number"
-	}],
-	["duration", {
-		variable: "duration",
-		kind: "number"
-	}],
-	["error", {
-		variable: "error",
-		kind: "string",
-		containsFn: "error_contains"
-	}],
-	["limit", {
-		variable: "limit",
-		kind: "string"
-	}],
-	["retries", {
-		variable: "retries",
-		kind: "number"
-	}],
-	["fallbacks", {
-		variable: "fallbacks",
-		kind: "number"
-	}]
-];
-/** Build the column↔filtrex-variable registry. Score columns are added
-*  dynamically from `evalDescriptor.scores` so the variable name matches
-*  the same short/qualified rule used by `scoreVariables` in filters.ts. */ var buildSampleFilterSpecRegistry = (evalDescriptor) => {
-	const entries = [...STATIC_ENTRIES];
-	if (evalDescriptor) {
-		const banned = bannedShortScoreNames(evalDescriptor.scores);
-		for (const { name, scorer } of evalDescriptor.scores) {
-			const colId = perScorerFieldKey({
-				name,
-				scorer
-			});
-			if (name === scorer && builtinFilterVariables.has(name)) continue;
-			const variable = name === scorer || !banned.has(name) ? name : `${scorer}.${name}`;
-			const scoreType = evalDescriptor.scoreDescriptor({
-				name,
-				scorer
-			})?.scoreType;
-			let kind;
-			if (scoreType === "numeric") kind = "number";
-			else if (scoreType === "categorical" || scoreType === "passfail") kind = "string";
-			else continue;
-			entries.push([colId, {
-				variable,
-				kind
-			}]);
-		}
-	}
-	return {
-		byColId: new Map(entries),
-		byVariable: new Map(entries.map(([colId, m]) => [m.variable, colId]))
-	};
-};
-/**
-* Operator choices offered on the samples tab, narrowed to what round-trips
-* through the filtrex bridge: no `in`/`not in` (the recognizer has no filtrex
-* `in` mapping) and no `not between` (no filtrex form existed on main).
-*/ var samplesOperatorsForKind = (kind) => kind === "number" ? [
-	"=",
-	"!=",
-	"<",
-	"<=",
-	">",
-	">=",
-	"between",
-	"is blank",
-	"is not blank"
-] : [
-	"contains",
-	"does not contain",
-	"starts with",
-	"ends with",
-	"=",
-	"!=",
-	"is blank",
-	"is not blank"
-];
 //#endregion
 //#region src/app/samples/sample-tools/specsToFilterText.ts
 var regexEscape = (s) => s.replace(/[\\^\]]/g, "\\$&").replace(/[.*+?${}()|[]/g, "[$&]");

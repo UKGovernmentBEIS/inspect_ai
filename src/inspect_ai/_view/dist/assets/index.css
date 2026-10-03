@@ -26446,6 +26446,25 @@ a._turnButton_loteg_100 {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Cell helpers exposed for column renderers. */
+._cell_8nkqa_2 {
+  line-height: var(--bs-body-line-height);
+}
+
+._wrapAnywhere_8nkqa_6 {
+  overflow-wrap: break-word;
+}
+
+._noLeft_8nkqa_10 {
+  padding-left: 0;
+}
+
+._score_8nkqa_14 {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 ._panel_h02oy_1 {
   background: transparent;
   display: flex;
@@ -27754,25 +27773,6 @@ pre._value_8citi_25 {
    * sample count past the viewport. Shrinking to the pane makes the grid
    * the horizontal scroller and keeps the footer pinned in view. */
   min-width: 0;
-}
-/* Cell helpers exposed for column renderers. */
-._cell_8nkqa_2 {
-  line-height: var(--bs-body-line-height);
-}
-
-._wrapAnywhere_8nkqa_6 {
-  overflow-wrap: break-word;
-}
-
-._noLeft_8nkqa_10 {
-  padding-left: 0;
-}
-
-._score_8nkqa_14 {
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 ._container_1tduz_1 {
   display: flex;

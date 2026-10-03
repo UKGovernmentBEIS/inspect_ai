@@ -2398,3 +2398,48 @@ async def test_eval_recorder_seed_preserves_config_updates_and_discard(
     await recorder.log_discard(spec)
     assert not Path(location).exists()
     assert Path(local_path(prior)).exists()
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_log_task_and_sample_description(
+    tmp_path: Path, log_format: Literal["eval", "json"]
+) -> None:
+    from inspect_ai.log import read_eval_log_sample_summaries
+
+    task = Task(
+        dataset=[
+            Sample(id=1, input="x", description="Say x."),
+            Sample(id=2, input="y"),
+        ],
+        description="Say the input.",
+    )
+    log = eval(
+        task, model="mockllm/model", log_dir=str(tmp_path), log_format=log_format
+    )[0]
+
+    for read in [
+        read_eval_log(log.location),
+        read_eval_log(log.location, header_only=True),
+    ]:
+        assert read.eval.task_description == "Say the input."
+    samples = sorted(read_eval_log(log.location).samples or [], key=lambda s: s.id)
+    assert [s.description for s in samples] == ["Say x.", None]
+    summaries = sorted(read_eval_log_sample_summaries(log.location), key=lambda s: s.id)
+    assert [s.description for s in summaries] == ["Say x.", None]
+
+    # rewriting the log preserves both fields
+    rewritten = tmp_path / f"rewritten.{log_format}"
+    write_eval_log(read_eval_log(log.location), str(rewritten))
+    reread = read_eval_log(str(rewritten))
+    assert reread.eval.task_description == "Say the input."
+    assert reread.samples is not None
+    assert sorted(s.description or "" for s in reread.samples) == ["", "Say x."]
+
+
+@pytest.mark.parametrize("log_file", ["log_formats.json", "log_formats.eval"])
+def test_log_without_description_reads(log_file: str) -> None:
+    log = read_eval_log(os.path.join("tests", "log", "test_eval_log", log_file))
+    assert log.eval.task_description is None
+    assert log.samples
+    assert all(sample.description is None for sample in log.samples)
+    assert all(sample.summary().description is None for sample in log.samples)

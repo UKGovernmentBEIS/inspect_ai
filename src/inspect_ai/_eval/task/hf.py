@@ -14,6 +14,7 @@ from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
 from inspect_ai.dataset._dataset import DatasetRecord
+from inspect_ai.dataset._util import read_description
 from inspect_ai.model import ChatMessageUser
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -275,5 +276,10 @@ def _record_to_sample_hf(record: DatasetRecord, field_spec: HFFieldSpec) -> Samp
         assert isinstance(metadata_keys, list)  # to appease mypy
         metadata = {name: record[name] for name in metadata_keys}
         sample_kwargs["metadata"] = metadata
+
+    if field_spec.description is not None:
+        sample_kwargs["description"] = read_description(
+            record.get(field_spec.description)
+        )
 
     return Sample(**sample_kwargs)
