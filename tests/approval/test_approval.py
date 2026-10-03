@@ -1,7 +1,8 @@
 from collections import deque
+from dataclasses import dataclass
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import Annotated, Any, Literal, Mapping, NamedTuple
+from typing import Annotated, Any, Iterable, Literal, Mapping, NamedTuple
 
 import pytest
 from pydantic import (
@@ -17,6 +18,7 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.json import json_equal
 from inspect_ai._util.registry import registry_log_name
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.approval import (
@@ -1590,3 +1592,113 @@ async def test_unchanged_model_argument_is_kept_on_modify(
     ((value, received_label),) = received
     assert value.n == 1
     assert received_label == label
+
+
+class ToFlag(BaseModel):
+    n: bool | int
+
+    @field_validator("n")
+    @classmethod
+    def as_flag(cls, n: bool | int) -> bool:
+        return bool(n)
+
+
+class ToNumber(BaseModel):
+    n: int | bool
+
+    @field_validator("n")
+    @classmethod
+    def as_number(cls, n: int | bool) -> int:
+        return int(n)
+
+
+class FlagSerialized(BaseModel):
+    n: int
+
+    @field_serializer("n")
+    def as_flag(self, n: int) -> bool:
+        return bool(n)
+
+
+@dataclass
+class Wrapper:
+    value: Bumped
+
+
+@dataclass
+class AliasWrapper:
+    value: FieldAliasTrue
+
+
+class LazyValues(BaseModel):
+    values: Iterable[float]
+
+
+@dataclass
+class LazyWrapper:
+    value: LazyValues
+
+
+@pytest.mark.parametrize(
+    "model,payload,shown",
+    [
+        (ToFlag, {"n": 1}, {"n": True}),
+        (ToFlag, {"n": 0}, {"n": False}),
+        (ToNumber, {"n": True}, {"n": 1}),
+        (ToNumber, {"n": False}, {"n": 0}),
+        (FlagSerialized, {"n": 1}, {"n": True}),
+        (Wrapper, {"value": {"n": 1}}, {"value": {"n": 2, "note": ""}}),
+        (AliasWrapper, {"value": {"N": 1}}, {"value": {"N": 1}}),
+        (LazyWrapper, {"value": {"values": [1, 2]}}, {"value": {"values": [1.0, 2.0]}}),
+    ],
+    ids=[
+        "to-flag-1",
+        "to-flag-0",
+        "to-number-true",
+        "to-number-false",
+        "flag-serializer",
+        "dataclass-wrapped-model",
+        "dataclass-wrapped-alias",
+        "dataclass-wrapped-lazy",
+    ],
+)
+async def test_constructed_value_is_approved_with_its_json_type(
+    model: Any, payload: dict[str, Any], shown: dict[str, Any]
+) -> None:
+    """Approval shows booleans as booleans and numbers as numbers, as constructed."""
+    received: list[Any] = []
+    calls: list[ToolCall] = []
+
+    async def execute(value: Any, values: Any = None) -> str:
+        received.append((value, values))
+        return "ok"
+
+    execute.__annotations__["value"] = model
+    execute.__annotations__["values"] = list[model] | None
+    tool_def = ToolDef(
+        execute,
+        name="typed_tool",
+        description="Take a value.",
+        parameters=ToolParams(
+            properties={"value": ToolParam(), "values": ToolParam()},
+            required=["value"],
+        ),
+    )
+    message = await execute_with_approval(
+        ToolCall(
+            id="1",
+            function="typed_tool",
+            arguments={"value": payload, "values": [payload]},
+        ),
+        [tool_def],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    assert message.error is None
+    (call,) = calls
+    # json_equal distinguishes JSON booleans from numbers (unlike `==`)
+    assert json_equal(call.arguments, {"value": shown, "values": [shown]})
+    ((value, values),) = received
+    # the tool receives what approval saw
+    assert json_equal(to_jsonable_python(value), shown)
+    assert json_equal(to_jsonable_python(values[0]), shown)

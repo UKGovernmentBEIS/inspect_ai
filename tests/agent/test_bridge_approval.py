@@ -10,6 +10,7 @@ import itertools
 import json
 import logging
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any, Awaitable, Callable, Iterator, Sequence, cast
 from unittest.mock import AsyncMock
@@ -19,6 +20,7 @@ from pydantic import BaseModel, Field, field_serializer, field_validator
 
 from inspect_ai import Task, eval
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.json import json_equal
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge._approval import MAX_CONSECUTIVE_REJECTIONS
 from inspect_ai.agent._bridge._declared import with_declared_schema
@@ -3582,3 +3584,84 @@ async def test_grant_hook_override_with_the_old_signature_still_runs(
     )
 
     assert registered == [[call]]
+
+
+# ---------------------------------------------------------------------------
+# approval shows the JSON type the host tool receives
+# ---------------------------------------------------------------------------
+
+
+class ToFlag(BaseModel):
+    n: bool | int
+
+    @field_validator("n")
+    @classmethod
+    def as_flag(cls, n: bool | int) -> bool:
+        return bool(n)
+
+
+@dataclass
+class WrappedBump:
+    value: Bumped
+
+
+FLAG_DESCRIPTION = "Record a flag."
+
+
+@tool
+def flag_tool(received: list[Any]) -> Tool:
+    async def execute(flag: ToFlag, wrapped: WrappedBump | None = None) -> str:
+        """Record a flag.
+
+        Args:
+            flag: The flag.
+            wrapped: A dataclass holding a model.
+        """
+        received.append((flag.n, wrapped.value.n if wrapped else None))
+        return "ok"
+
+    return ToolDef(execute, name="flag_tool").as_tool()
+
+
+@pytest.mark.parametrize("dispatcher", [False, True], ids=["renamed", "dispatcher"])
+@pytest.mark.parametrize("modify", [False, True], ids=["approve", "unchanged-modify"])
+async def test_host_tool_is_approved_and_run_with_constructed_json_types(
+    dispatcher: bool, modify: bool
+) -> None:
+    received: list[Any] = []
+    seen: list[tuple[str, ToolCall, list[ChatMessage]]] = []
+    shown = {"flag": {"n": True}, "wrapped": {"value": {"n": 2}}}
+    bridge = sandbox_bridge_with_servers({"host": {"flag_tool": flag_tool(received)}})
+    bridge.approval = [
+        ApprovalPolicy(
+            modifying_approver(shown) if modify else recording_approver(seen), "*"
+        )
+    ]
+    original: dict[str, object] = {
+        "flag": {"n": 1},
+        "wrapped": {"value": {"n": 1}},
+    }
+    proposed = (
+        dispatched("1", original, tool="flag_tool")
+        if dispatcher
+        else ToolCall(id="1", function="mcp__host__flag", arguments=original)
+    )
+
+    run = await run_bridge(
+        [tool_calls_output(proposed)],
+        bridge=bridge,
+        tools=declare_dispatcher()
+        if dispatcher
+        else declare("mcp__host__flag", description=FLAG_DESCRIPTION, parameters=()),
+    )
+
+    if not modify:
+        ((_, approved, _),) = seen
+        # json_equal tells a JSON true from 1 (`==` does not)
+        assert json_equal(approved.arguments, shown)
+    (handed,) = run.output.message.tool_calls or []
+    sent = handed.arguments["Arguments"] if dispatcher else handed.arguments
+    await call_host_tool(bridge)("host", "flag_tool", dict(sent))
+    ((flag, wrapped),) = received
+    assert flag is True
+    assert wrapped == 2

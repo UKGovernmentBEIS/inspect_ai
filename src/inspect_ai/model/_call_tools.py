@@ -1397,9 +1397,7 @@ def validated_tool_call(
 
     canonical_arguments = tool_canonical_arguments(tool_def.tool)
     if canonical_arguments is not None:
-        arguments = canonical_arguments(call.arguments)
-        if arguments != call.arguments:
-            call = replace(call, arguments=arguments)
+        call = replace(call, arguments=canonical_arguments(call.arguments))
 
     from inspect_ai.agent._handoff import AgentTool
 
@@ -1416,8 +1414,8 @@ def validated_tool_call(
         elif name in arguments and _contains_model(arguments[name]):
             arguments[name] = _materialized(arguments[name])
             call_arguments[name] = _serialized_models(arguments[name])
-    if call_arguments != call.arguments:
-        call = replace(call, arguments=call_arguments)
+    # always adopted: `==` would treat a serialized `True` as the original `1`
+    call = replace(call, arguments=call_arguments)
     return ValidatedToolCall(call, arguments)
 
 
@@ -1477,6 +1475,11 @@ def _serialized_models(value: Any) -> Any:
     """
     if isinstance(value, BaseModel):
         return value.model_dump(mode="json")
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            field.name: _serialized_models(getattr(value, field.name))
+            for field in fields(value)
+        }
     if isinstance(value, str | bytes | bytearray):
         return to_jsonable_python(value, fallback=str)
     if isinstance(value, Mapping):
@@ -1492,6 +1495,10 @@ def _serialized_models(value: Any) -> Any:
 def _contains_model(value: Any) -> bool:
     if isinstance(value, BaseModel):
         return True
+    if is_dataclass(value) and not isinstance(value, type):
+        return any(
+            _contains_model(getattr(value, field.name)) for field in fields(value)
+        )
     if isinstance(value, str | bytes | bytearray):
         return False
     if isinstance(value, Mapping):
