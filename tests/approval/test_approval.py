@@ -11,6 +11,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    TypeAdapter,
     field_serializer,
     field_validator,
 )
@@ -1627,7 +1628,7 @@ class Wrapper:
 
 @dataclass
 class AliasWrapper:
-    value: FieldAliasTrue
+    value: FieldAlias
 
 
 class LazyValues(BaseModel):
@@ -1648,7 +1649,7 @@ class LazyWrapper:
         (ToNumber, {"n": False}, {"n": 0}),
         (FlagSerialized, {"n": 1}, {"n": True}),
         (Wrapper, {"value": {"n": 1}}, {"value": {"n": 2, "note": ""}}),
-        (AliasWrapper, {"value": {"N": 1}}, {"value": {"N": 1}}),
+        (AliasWrapper, {"value": {"N": 1}}, {"value": {"n": 1}}),
         (LazyWrapper, {"value": {"values": [1, 2]}}, {"value": {"values": [1.0, 2.0]}}),
     ],
     ids=[
@@ -1699,6 +1700,7 @@ async def test_constructed_value_is_approved_with_its_json_type(
     # json_equal distinguishes JSON booleans from numbers (unlike `==`)
     assert json_equal(call.arguments, {"value": shown, "values": [shown]})
     ((value, values),) = received
-    # the tool receives what approval saw
-    assert json_equal(to_jsonable_python(value), shown)
-    assert json_equal(to_jsonable_python(values[0]), shown)
+    # the tool receives what approval saw (dumped as the value's type dumps it)
+    adapter = TypeAdapter(model)
+    assert json_equal(adapter.dump_python(value, mode="json"), shown)
+    assert json_equal(adapter.dump_python(values[0], mode="json"), shown)
