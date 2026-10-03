@@ -14,6 +14,7 @@
 - Control Channel: `inspect ctl ... --log-dir` now shows running and completed-but-unflushed samples, with current counts and their events, for evals run with `--log-shared`.
 - OpenAI Compatible: Fixed concurrent sample failures during credential refresh, including OpenRouter evaluations on Hawk, and added an overridable `ModelAPI.refresh_credentials()` for model API extensions.
 - OpenAI: Biological-risk policy responses now produce content-filter stops instead of failing samples.
+- Mistral: Image URLs in model output are no longer downloaded from any host; they are recorded as text with the URL. Inline images are unchanged.
 - Log viewer: Tasks can set `ViewerConfig(trust_content=False)` to have the viewer show all of a log's content as plain text, with no markdown, media, or clickable links.
 - Log viewer: `inspect view --no-trust-content` (or `INSPECT_VIEW_TRUST_CONTENT=false`) shows every log's content as plain text.
 
