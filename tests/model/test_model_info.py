@@ -1,6 +1,8 @@
 """Tests for model_info lookup functionality."""
 
+import re
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -972,3 +974,32 @@ class TestDoesNotReinstantiateProvider:
         record_and_check_model_usage(model, usage)
         # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
         assert usage.total_cost == pytest.approx(0.007)
+
+
+def test_bundled_model_data_yaml_io_has_explicit_encoding() -> None:
+    """Bundled model-data YAML must be read and written with an explicit encoding.
+
+    The YAML ships inside the package and is UTF-8, but a plain `open()`
+    decodes with the platform locale: on Windows with a CJK ANSI code page
+    (cp932/936/949/950) every model call died on the em dash in `zai.yml`
+    (#5433). CI cannot observe this — ubuntu coerces non-UTF-8 locales to
+    UTF-8 (PEP 538/540) — so the guard is a source scan, mirroring
+    `tests/_control/test_ctl.py::test_no_bare_click_exit_in_ctl_error_sites`.
+    """
+    import inspect_ai.model._model_data as model_data_package
+
+    package_dir = Path(model_data_package.__file__).parent
+    offenders = [
+        f"{path.name}:{lineno}"
+        for path in sorted(package_dir.glob("*.py"))
+        for lineno, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        )
+        if re.search(r"(?<![\w.])open\(", line)
+        and "encoding=" not in line
+        and not re.search(r"[\"'](rb|br|wb|bw)[\"']", line)
+    ]
+    assert not offenders, (
+        "open() without an explicit encoding in _model_data/ — bundled YAML "
+        f"is UTF-8 and must be read as such (#5433): {offenders}"
+    )
