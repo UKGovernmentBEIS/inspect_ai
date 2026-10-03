@@ -210,14 +210,44 @@ class SandboxAgentBridge(AgentBridge):
         Arguments match by JSON semantics (`_json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
         JSON round-trip cannot turn a proposed call into a denial; any other
-        difference (including bool vs number) is denied.
+        difference (including bool vs number) is denied -- except a granted
+        key the served tool's own input schema does not declare, which is
+        dropped from the granted side before comparison.
+
+        A scaffold may propose bookkeeping fields alongside a tool's real
+        arguments that it never forwards when it actually dispatches the
+        call (Antigravity's `toolSummary` is the one observed in the wild).
+        Those fields are captured verbatim in the grant by
+        `register_tool_execution_grants`, so an executed call that
+        legitimately omits them would otherwise always be denied. Filtering
+        the grant down to the schema's declared `properties` before
+        comparison tolerates exactly that gap: every key the schema DOES
+        declare must still be equal and present on both sides, so an
+        executed argument that is absent, changed, or added beyond what the
+        schema declares still denies -- only an undeclared *granted* key can
+        be dropped. When the served tool is unknown here, or its schema
+        declares no properties at all, there is no declared set to filter
+        by, so this keeps today's exact comparison.
         """
+        schema = self.served_tools.get(_BridgedToolId(server=server, tool=tool))
+        declared_properties = (
+            schema.parameters.properties
+            if schema is not None
+            and schema.parameters.type == "object"
+            and schema.parameters.properties
+            else None
+        )
         for index, grant in enumerate(self._tool_execution_grants):
-            if (
-                grant.server == server
-                and grant.tool == tool
-                and _json_equal(grant.arguments, arguments)
-            ):
+            if grant.server != server or grant.tool != tool:
+                continue
+            granted_arguments = grant.arguments
+            if declared_properties is not None and isinstance(granted_arguments, dict):
+                granted_arguments = {
+                    key: value
+                    for key, value in granted_arguments.items()
+                    if key in declared_properties
+                }
+            if _json_equal(granted_arguments, arguments):
                 del self._tool_execution_grants[index]
                 return True
         return False
@@ -401,33 +431,8 @@ Antigravity's is the one known: the sentence "This is a tool from the <server>
 MCP server." and a blank line, 38 characters plus the server name, so 96
 allows a server name of up to 58 characters while keeping an accidental
 suffix match (a declaration that merely ends with another tool's description)
-bounded. Measured against the canonical form (`_canonical_whitespace`), so a
-scaffold that also dedents the served text does not inflate the apparent
-preamble length.
+bounded.
 """
-
-
-def _canonical_whitespace(text: str) -> str:
-    """`text` with each line's leading and trailing whitespace removed.
-
-    A served MCP description is a Python docstring and commonly carries the
-    source file's own indentation (every line prefixed by the method's
-    indentation level). A scaffold that renders the description for a model
-    (Antigravity and Claude Code both do, independently) typically dedents it
-    first, so a byte-exact comparison between the served text and a scaffold's
-    declaration breaks on indentation alone even when the content is
-    identical -- and since dedenting removes more characters than any
-    preamble adds, the declaration can end up shorter than the served text it
-    is a copy of, not longer. Stripping each line's own surrounding
-    whitespace -- not just the common indentation, so this tolerates a
-    scaffold that dedents and one that does not -- normalizes both sides to
-    the same form before they are compared. This is scaffold-agnostic: no
-    scaffold's wording is looked for, only incidental whitespace is ignored.
-    Two descriptions whose content is identical except for a nested block's
-    relative indentation become indistinguishable under this normalization;
-    no tool in this codebase relies on such indentation being significant.
-    """
-    return "\n".join(line.strip() for line in text.split("\n"))
 
 
 def _prefixed_copies(
@@ -435,27 +440,20 @@ def _prefixed_copies(
 ) -> list[_BridgedToolId]:
     """The served tools whose whole description `declared` ends with, after a preamble.
 
-    Scaffold-agnostic: no scaffold's wording is looked for. Both texts are
-    compared after normalizing incidental per-line whitespace
-    (`_canonical_whitespace`), so a scaffold that dedents a served
-    description before showing it to the model resolves exactly as one that
-    forwards the source indentation verbatim. A served description qualifies
-    when its canonical form is at least `_MIN_TRUNCATED_PREFIX` characters
-    (so a short description can never match as another tool's accidental
-    suffix), `declared`'s canonical form ends with all of it, and what stands
-    in front is at most `_MAX_SCAFFOLD_PREAMBLE` characters. Of the
-    qualifying descriptions only the longest are returned: a declaration
-    carrying the whole of a longer served description names that tool, not a
-    shorter one whose description is the longer one's tail. Two tools served
-    the same description are both returned. A scaffold that rewrites the
-    description itself is not tolerated.
+    Scaffold-agnostic: no scaffold's wording is looked for. A served description
+    qualifies when it is at least `_MIN_TRUNCATED_PREFIX` characters (so a short
+    description can never match as another tool's accidental suffix), `declared`
+    ends with all of it, and what stands in front is at most
+    `_MAX_SCAFFOLD_PREAMBLE` characters. Of the qualifying descriptions only the
+    longest are returned: a declaration carrying the whole of a longer served
+    description names that tool, not a shorter one whose description is the
+    longer one's tail. Two tools served the same description are both returned.
+    A scaffold that rewrites the description itself is not tolerated.
     """
-    canonical_declared = _canonical_whitespace(declared)
     candidates = [
-        (len(canonical_served), tool_id)
+        (len(info.description.strip()), tool_id)
         for tool_id, info in served.items()
-        for canonical_served in (_canonical_whitespace(info.description.strip()),)
-        if _is_prefixed_copy_of(canonical_declared, canonical_served)
+        if _is_prefixed_copy_of(declared, info.description.strip())
     ]
     if not candidates:
         return []
@@ -464,12 +462,7 @@ def _prefixed_copies(
 
 
 def _is_prefixed_copy_of(declared: str, served: str) -> bool:
-    """Whether `declared` is `served` with at most a scaffold preamble in front.
-
-    Both arguments must already be in canonical whitespace form
-    (`_canonical_whitespace`); callers compare raw declarations through
-    `_prefixed_copies`, not this function directly.
-    """
+    """Whether `declared` is `served` with at most a scaffold preamble in front."""
     return (
         len(served) >= _MIN_TRUNCATED_PREFIX
         and declared.endswith(served)
