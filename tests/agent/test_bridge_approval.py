@@ -9,12 +9,13 @@ than by editing the response the scaffold sees.
 import itertools
 import json
 import logging
+from copy import deepcopy
 from pathlib import PurePosixPath
-from typing import Any, Awaitable, Callable, Iterator, cast
+from typing import Any, Awaitable, Callable, Iterator, Sequence, cast
 from unittest.mock import AsyncMock
 
 import pytest
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 from inspect_ai import Task, eval
 from inspect_ai._util.exception import TerminateSampleError
@@ -3364,3 +3365,220 @@ async def test_each_host_target_runs_its_own_prepared_model() -> None:
     await execute("a", "stamped_tool", {"stamped": {}})
     await execute("b", "stamped_tool", {"stamped": {}})
     assert sorted(received) == sorted(approved)
+
+
+# ---------------------------------------------------------------------------
+# modify keeps the arguments the approver left as approved
+# ---------------------------------------------------------------------------
+
+BRIDGE_BUILDS: list[int] = []
+
+
+class TextNumber(BaseModel):
+    """Serializes its integer as text, so the approved JSON fails its own schema."""
+
+    n: int
+
+    @field_validator("n")
+    @classmethod
+    def count(cls, n: int) -> int:
+        BRIDGE_BUILDS.append(n)
+        return n
+
+    @field_serializer("n")
+    def as_text(self, n: int) -> str:
+        return str(n)
+
+
+LABELLED_DESCRIPTION = "Record a labelled number."
+
+
+@tool
+def labelled_tool(received: list[tuple[int, str]]) -> Tool:
+    async def execute(value: TextNumber, label: str) -> str:
+        """Record a labelled number.
+
+        Args:
+            value: The number.
+            label: The label.
+        """
+        received.append((value.n, label))
+        return "ok"
+
+    return ToolDef(execute, name="labelled_tool").as_tool()
+
+
+@pytest.mark.parametrize("dispatcher", [False, True], ids=["renamed", "dispatcher"])
+@pytest.mark.parametrize(
+    "label", ["after", "before"], ids=["unrelated-changed", "nothing-changed"]
+)
+async def test_host_modification_keeps_unchanged_model(
+    dispatcher: bool, label: str
+) -> None:
+    BRIDGE_BUILDS.clear()
+    received: list[tuple[int, str]] = []
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"labelled_tool": labelled_tool(received)}}
+    )
+    selected: dict[str, object] = {"value": {"n": "1"}, "label": label}
+    bridge.approval = [ApprovalPolicy(modifying_approver(selected), "*")]
+    original: dict[str, object] = {"value": {"n": 1}, "label": "before"}
+    proposed = (
+        dispatched("1", original, tool="labelled_tool")
+        if dispatcher
+        else ToolCall(id="1", function="mcp__host__label", arguments=original)
+    )
+
+    run = await run_bridge(
+        [tool_calls_output(proposed)],
+        bridge=bridge,
+        tools=declare_dispatcher()
+        if dispatcher
+        else declare(
+            "mcp__host__label", description=LABELLED_DESCRIPTION, parameters=()
+        ),
+    )
+
+    # the scaffold re-sends the modified arguments; the kept model runs
+    (handed,) = run.output.message.tool_calls or []
+    sent = handed.arguments["Arguments"] if dispatcher else handed.arguments
+    await call_host_tool(bridge)("host", "labelled_tool", dict(sent))
+    assert received == [(1, label)]
+    assert BRIDGE_BUILDS == [1]
+
+
+# ---------------------------------------------------------------------------
+# each proposal runs its own prepared call
+# ---------------------------------------------------------------------------
+
+
+async def test_repeated_call_ids_run_their_own_arguments() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+    first = ToolCall(id="same", function="read_file", arguments={"path": "a"})
+    second = ToolCall(id="same", function="read_file", arguments={"path": "b"})
+
+    await run_bridge(
+        [tool_calls_output(first, second)],
+        bridge=bridge,
+        tools=declare("read_file"),
+    )
+
+    execute = call_host_tool(bridge)
+    await execute("host", "read_file", {"path": "a"})
+    await execute("host", "read_file", {"path": "b"})
+    assert [c.kwargs for c in tool.await_args_list] == [{"path": "a"}, {"path": "b"}]
+
+
+SHARED_DESCRIPTION = "Update shared data."
+
+
+@tool
+def appending_tool(seen: list[Any], typed: bool = True) -> Tool:
+    async def execute(data: dict[str, Any]) -> str:
+        """Update shared data.
+
+        Args:
+            data: The data.
+        """
+        seen.append(deepcopy(data))
+        data["values"].append(99)
+        return "ok"
+
+    async def execute_kwargs(**kwargs: Any) -> str:
+        seen.append(deepcopy(kwargs["data"]))
+        kwargs["data"]["values"].append(99)
+        return "ok"
+
+    if typed:
+        return ToolDef(execute, name="appending_tool").as_tool()
+    return ToolDef(
+        execute_kwargs,
+        name="appending_tool",
+        description=SHARED_DESCRIPTION,
+        parameters=ToolParams(
+            properties={"data": ToolParam(type="object", description="The data.")},
+            required=["data"],
+        ),
+    ).as_tool()
+
+
+@pytest.mark.parametrize("approval", [True, False], ids=["approval", "no-approval"])
+@pytest.mark.parametrize("typed", [True, False], ids=["dict", "kwargs"])
+async def test_sibling_target_cannot_change_another_grant(
+    approval: bool, typed: bool
+) -> None:
+    seen: list[Any] = []
+    bridge = sandbox_bridge_with_servers(
+        {
+            "a": {"appending_tool": appending_tool(seen, typed)},
+            "b": {"appending_tool": appending_tool(seen, typed)},
+        }
+    )
+    if approval:
+        bridge.approval = [ApprovalPolicy(auto_approver("approve"), "*")]
+    proposed = ToolCall(
+        id="1", function="mcp__shared", arguments={"data": {"values": [1]}}
+    )
+
+    await run_bridge(
+        [tool_calls_output(proposed)],
+        bridge=bridge,
+        tools=declare("mcp__shared", description=SHARED_DESCRIPTION, parameters=()),
+    )
+
+    execute = call_host_tool(bridge)
+    await execute("a", "appending_tool", {"data": {"values": [1]}})
+    await execute("b", "appending_tool", {"data": {"values": [1]}})
+    assert seen == [{"values": [1]}, {"values": [1]}]
+
+
+# ---------------------------------------------------------------------------
+# the grant hook keeps its two-argument contract
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "sandbox", [False, True], ids=["agent-bridge", "sandbox-bridge"]
+)
+async def test_grant_hook_override_with_the_old_signature_still_runs(
+    sandbox: bool,
+) -> None:
+    registered: list[list[ToolCall]] = []
+
+    class OldAgentBridge(AgentBridge):
+        def register_tool_execution_grants(
+            self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+        ) -> None:
+            registered.append(list(calls))
+
+    class OldSandboxBridge(SandboxAgentBridge):
+        def register_tool_execution_grants(
+            self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
+        ) -> None:
+            registered.append(list(calls))
+            super().register_tool_execution_grants(calls, tools)
+
+    call = ToolCall(id="1", function="read_file", arguments={"path": "a"})
+    bridge: AgentBridge = (
+        OldSandboxBridge(
+            state=AgentState(messages=[]),
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+            bridged_tools={"host": {"read_file": read_file(AsyncMock())}},
+        )
+        if sandbox
+        else OldAgentBridge(AgentState(messages=[]))
+    )
+
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare("read_file")
+    )
+
+    assert registered == [[call]]

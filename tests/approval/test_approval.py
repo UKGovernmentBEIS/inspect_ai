@@ -8,6 +8,7 @@ from pydantic import (
     AliasChoices,
     AliasPath,
     BaseModel,
+    ConfigDict,
     Field,
     field_serializer,
     field_validator,
@@ -1359,6 +1360,7 @@ class Bumped(BaseModel):
 
 
 class Aliased(BaseModel):
+    model_config = ConfigDict(serialize_by_alias=True)
     n: int = Field(alias="N")
 
 
@@ -1397,7 +1399,8 @@ def model_tool(received: list[Any]):
         ({"bumped": {"n": 1}}, {"bumped": {"n": 2, "note": ""}}, True, Bumped(n=1)),
         # a changed value that a validator would change again: not run
         ({"bumped": {"n": 1}}, {"bumped": {"n": 5, "note": ""}}, False, None),
-        # a changed value that serializes as selected (under its alias): runs
+        # a changed value that serializes as selected (a model that serializes
+        # by alias): runs
         ({"aliased": {"N": 1}}, {"aliased": {"N": 5}}, True, Aliased(N=5)),
         # the approved serialization, unchanged: the prepared model runs
         ({"scaled": {"n": 1}}, {"scaled": {"n": 10}}, True, Scaled(n=1)),
@@ -1431,3 +1434,159 @@ async def test_modified_model_runs_only_as_selected(
         assert message.error.type == "approval"
         assert "changes when it is converted" in message.error.message
         assert received == []
+
+
+class FieldAlias(BaseModel):
+    n: int = Field(alias="N")
+
+
+class FieldAliasFalse(BaseModel):
+    model_config = ConfigDict(serialize_by_alias=False)
+    n: int = Field(alias="N")
+
+
+class FieldAliasTrue(BaseModel):
+    model_config = ConfigDict(serialize_by_alias=True)
+    n: int = Field(alias="N")
+
+
+class SerializationAlias(BaseModel):
+    n: int = Field(serialization_alias="N")
+
+
+class SerializationAliasTrue(BaseModel):
+    model_config = ConfigDict(serialize_by_alias=True)
+    n: int = Field(serialization_alias="N")
+
+
+class NestedAlias(BaseModel):
+    inner: FieldAlias
+    items: list[SerializationAliasTrue]
+
+
+@pytest.mark.parametrize(
+    "model,payload",
+    [
+        (FieldAlias, {"N": 1}),
+        (FieldAliasFalse, {"N": 1}),
+        (FieldAliasTrue, {"N": 1}),
+        (SerializationAlias, {"n": 1}),
+        (SerializationAliasTrue, {"n": 1}),
+        (NestedAlias, {"inner": {"N": 1}, "items": [{"n": 2}]}),
+    ],
+    ids=[
+        "field-alias",
+        "field-alias-false",
+        "field-alias-true",
+        "serialization-alias",
+        "serialization-alias-true",
+        "nested",
+    ],
+)
+async def test_model_is_approved_as_it_dumps_itself(
+    model: Any, payload: dict[str, Any]
+) -> None:
+    """Approval shows a model as `model_dump(mode="json")` does, aliases included."""
+    received: list[Any] = []
+    calls: list[ToolCall] = []
+
+    async def execute(value: Any, values: Any = None) -> str:
+        received.append((value, values))
+        return "ok"
+
+    execute.__annotations__["value"] = model
+    execute.__annotations__["values"] = list[model] | None
+    tool_def = ToolDef(
+        execute,
+        name="aliased_tool",
+        description="Take a model.",
+        parameters=ToolParams(
+            properties={"value": ToolParam(), "values": ToolParam()},
+            required=["value"],
+        ),
+    )
+    message = await execute_with_approval(
+        ToolCall(
+            id="1",
+            function="aliased_tool",
+            arguments={"value": payload, "values": [payload]},
+        ),
+        [tool_def],
+        [ApprovalPolicy(recording_approver(calls), "*")],
+    )
+
+    assert message.error is None
+    ((value, values),) = received
+    assert [call.arguments for call in calls] == [
+        {
+            "value": value.model_dump(mode="json"),
+            "values": [item.model_dump(mode="json") for item in values],
+        }
+    ]
+
+
+BUILDS: list[int] = []
+
+
+class TextNumber(BaseModel):
+    """A model whose serialization changes the JSON type, and that counts builds."""
+
+    n: int
+
+    @field_validator("n")
+    @classmethod
+    def count(cls, n: int) -> int:
+        BUILDS.append(n)
+        return n
+
+    @field_serializer("n")
+    def as_text(self, n: int) -> str:
+        return str(n)
+
+
+@tool
+def labelled_tool(received: list[Any]):
+    async def execute(value: TextNumber, label: str) -> str:
+        """Record a model and a label.
+
+        Args:
+            value: The model.
+            label: The label.
+        """
+        received.append((value, label))
+        return "ok"
+
+    return execute
+
+
+@pytest.mark.parametrize(
+    "modified,label",
+    [
+        ({"value": {"n": "1"}, "label": "after"}, "after"),
+        ({"value": {"n": "1"}, "label": "before"}, "before"),
+    ],
+    ids=["unrelated-argument-changed", "nothing-changed"],
+)
+async def test_unchanged_model_argument_is_kept_on_modify(
+    modified: dict[str, Any], label: str
+) -> None:
+    """The approved model runs as approved, without being validated or built again."""
+    BUILDS.clear()
+    received: list[Any] = []
+    call = ToolCall(
+        id="1",
+        function="labelled_tool",
+        arguments={"value": {"n": 1}, "label": "before"},
+    )
+    message = await execute_with_approval(
+        call,
+        [labelled_tool(received)],
+        [ApprovalPolicy(modifying_approver(modified), "*")],
+    )
+
+    assert message.error is None
+    # built once, for approval; the modification kept it
+    assert BUILDS == [1]
+    ((value, received_label),) = received
+    assert value.n == 1
+    assert received_label == label

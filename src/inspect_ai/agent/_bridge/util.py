@@ -617,10 +617,9 @@ async def bridge_generate(
             bridge, output, input_messages, declarations
         )
         if reviewed.rejection is None:
+            bridge.record_approved_preparations(reviewed.prepared)
             bridge.register_tool_execution_grants(
-                reviewed.output.message.tool_calls or [],
-                declarations,
-                reviewed.prepared,
+                reviewed.output.message.tool_calls or [], declarations
             )
             return reviewed.output, c_message
 

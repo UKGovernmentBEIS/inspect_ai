@@ -17,6 +17,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Collection,
     Dict,
     List,
     Literal,
@@ -906,6 +907,7 @@ async def call_tool(
 
     # approvers and viewers see the validated call, so an invalid call is
     # never presented for approval
+    source = call
     try:
         prepared = validated_tool_call(call, tool_def)
     except ToolParsingError as ex:
@@ -927,13 +929,11 @@ async def call_tool(
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
         try:
-            modified = validated_tool_call(approval.modified, tool_def)
+            call, arguments = approved_modification(
+                source, prepared, approval.modified, tool_def
+            )
         except ToolParsingError as ex:
             raise await record_tool_parsing_error(ex.message)
-        try:
-            call, arguments = approved_modification(
-                prepared, approval.modified, modified
-            )
         except ToolApprovalError:
             await record_pending_tool_event()
             raise
@@ -1290,7 +1290,14 @@ def type_hint_includes_none(type_hint: Type[Any] | None) -> bool:
     return False
 
 
-def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
+def tool_params(
+    input: dict[str, Any], func: Callable[..., Any], skip: Collection[str] = ()
+) -> dict[str, Any]:
+    """Convert a call's arguments for `func`, leaving out the parameters in `skip`.
+
+    The caller supplies the values for the parameters in `skip` (already
+    converted ones, e.g. kept from an earlier conversion).
+    """
     # parse function typeinfo
     signature = inspect.signature(func)
     type_hints = get_type_hints(func)
@@ -1313,6 +1320,8 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
         # argument may share the name of the ** parameter itself)
         if param.kind == inspect.Parameter.VAR_KEYWORD:
             params.update({k: v for k, v in input.items() if k not in named})
+            continue
+        if param_name in skip:
             continue
 
         # Parse docstring
@@ -1358,14 +1367,25 @@ class ValidatedToolCall(NamedTuple):
     """The arguments to pass to the tool."""
 
 
-def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
+def validated_tool_call(
+    call: ToolCall,
+    tool_def: ToolDef,
+    kept: ValidatedToolCall | None = None,
+    kept_names: Collection[str] = (),
+) -> ValidatedToolCall:
     """Validate and convert a call's arguments before it is approved.
 
     The arguments are checked against the tool's schema, canonicalized by the
     function the tool set with `set_tool_canonical_arguments()` (if any), and
     converted to the tool's parameter types. The returned call is what approvers
     and viewers see, and the returned arguments are what the tool receives.
-    Conversions are exact (see `tool_param()`), so both describe the same action.
+    Conversions are exact (see `tool_param()`), so both describe the same
+    action; an argument holding a Pydantic model is shown as the model
+    serializes (`model_dump(mode="json")`), since its own validation can change
+    a value.
+
+    The arguments in `kept_names` are validated but not converted again: their
+    approved and converted values are taken from `kept`.
 
     Raises:
         ToolParsingError: The arguments fail the schema or cannot be converted
@@ -1384,57 +1404,89 @@ def validated_tool_call(call: ToolCall, tool_def: ToolDef) -> ValidatedToolCall:
     from inspect_ai.agent._handoff import AgentTool
 
     if isinstance(tool_def.tool, AgentTool):
-        arguments = _handoff_arguments(tool_def.tool, call.arguments)
+        arguments = _handoff_arguments(tool_def.tool, call.arguments, kept_names)
     else:
-        arguments = tool_params(call.arguments, tool_def.tool)
+        arguments = tool_params(call.arguments, tool_def.tool, kept_names)
 
-    # a Pydantic model applies its own validation, which can change a value
-    # (e.g. round a large integer), so approval sees what the model holds
-    serialized: dict[str, Any] = {}
+    call_arguments = dict(call.arguments)
     for name in call.arguments:
-        if name in arguments and _contains_model(arguments[name]):
+        if kept is not None and name in kept_names:
+            call_arguments[name] = kept.call.arguments[name]
+            arguments[name] = kept.arguments[name]
+        elif name in arguments and _contains_model(arguments[name]):
             arguments[name] = _materialized(arguments[name])
-            serialized[name] = to_jsonable_python(arguments[name], fallback=str)
-    if serialized:
-        call = replace(call, arguments={**call.arguments, **serialized})
+            call_arguments[name] = _serialized_models(arguments[name])
+    if call_arguments != call.arguments:
+        call = replace(call, arguments=call_arguments)
     return ValidatedToolCall(call, arguments)
 
 
 def approved_modification(
-    approved: ValidatedToolCall, selected: ToolCall, modified: ValidatedToolCall
+    source: ToolCall,
+    approved: ValidatedToolCall,
+    selected: ToolCall,
+    tool_def: ToolDef,
 ) -> ValidatedToolCall:
     """The call to run for an approver's `modify` decision.
 
-    An argument the approver left as approved keeps the value prepared for
-    approval (a model is not built again). A changed argument must prepare to
-    the value the approver selected: if converting it for the tool would change
-    it (e.g. a model validator), the call is not run.
+    `source` is the call as proposed and `approved` the call prepared from it
+    for approval. An argument the approver left as approved keeps its prepared
+    value, without being converted (or a model built) again. A changed argument
+    must prepare to the value the approver selected: if converting it for the
+    tool would change it (e.g. a model validator), the call is not run.
 
     Raises:
+        ToolParsingError: The modified arguments fail the schema or cannot be
+            converted.
         ToolApprovalError: A changed argument would not run as selected.
     """
-    call_arguments = dict(modified.call.arguments)
-    arguments = dict(modified.arguments)
-    for name, value in to_jsonable_python(selected.arguments, fallback=str).items():
-        if (
-            name in approved.call.arguments
-            and name in approved.arguments
-            and json_equal(
-                value, to_jsonable_python(approved.call.arguments[name], fallback=str)
-            )
-        ):
-            call_arguments[name] = approved.call.arguments[name]
-            arguments[name] = approved.arguments[name]
-        elif not json_equal(
-            value, to_jsonable_python(call_arguments.get(name), fallback=str)
+    selected_json = to_jsonable_python(selected.arguments, fallback=str)
+    kept_names = [
+        name
+        for name, value in selected_json.items()
+        if name in approved.call.arguments
+        and name in approved.arguments
+        and name in source.arguments
+        and json_equal(
+            value, to_jsonable_python(approved.call.arguments[name], fallback=str)
+        )
+    ]
+    composite = {
+        name: source.arguments[name] if name in kept_names else value
+        for name, value in selected.arguments.items()
+    }
+    modified = validated_tool_call(
+        replace(selected, arguments=composite), tool_def, approved, kept_names
+    )
+    for name, value in selected_json.items():
+        if name not in kept_names and not json_equal(
+            value, to_jsonable_python(modified.call.arguments.get(name), fallback=str)
         ):
             raise ToolApprovalError(
                 f"The approver's modified value for '{name}' changes when it is "
                 "converted for the tool, so the call was not run."
             )
-    return ValidatedToolCall(
-        replace(modified.call, arguments=call_arguments), arguments
-    )
+    return modified
+
+
+def _serialized_models(value: Any) -> Any:
+    """`value`, holding Pydantic models, as JSON: each model as it dumps itself.
+
+    `model_dump(mode="json")` applies the model's own serialization settings
+    (field names or aliases, custom serializers).
+    """
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    if isinstance(value, str | bytes | bytearray):
+        return to_jsonable_python(value, fallback=str)
+    if isinstance(value, Mapping):
+        return {
+            to_jsonable_python(key, fallback=str): _serialized_models(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, Sequence | AbstractSet):
+        return [_serialized_models(item) for item in value]
+    return to_jsonable_python(value, fallback=str)
 
 
 def _contains_model(value: Any) -> bool:
@@ -1526,13 +1578,13 @@ def _rebuilt(original: Any, contents: Any) -> Any:
 
 
 def _handoff_arguments(
-    agent_tool: "AgentTool", arguments: dict[str, Any]
+    agent_tool: "AgentTool", arguments: dict[str, Any], skip: Collection[str] = ()
 ) -> dict[str, Any]:
     """Arguments for a handoff's agent: the call's, plus curried ones, converted."""
     # inject a `state` placeholder so tool_params doesn't treat the agent's
     # required `state` parameter as missing (agent_handoff passes the real one)
     arguments = tool_params(
-        {**arguments, **agent_tool.kwargs, "state": None}, agent_tool.agent
+        {**arguments, **agent_tool.kwargs, "state": None}, agent_tool.agent, skip
     )
     del arguments["state"]
     return arguments

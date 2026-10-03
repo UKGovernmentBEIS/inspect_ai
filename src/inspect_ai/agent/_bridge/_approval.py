@@ -36,12 +36,11 @@ from typing import (
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.tool._tool import Tool, ToolParsingError
+from inspect_ai.tool._tool import Tool, ToolApprovalError, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -97,9 +96,10 @@ class BridgeApproval(NamedTuple):
     rejection: list[ChatMessage] | None
     """When set, the response was rejected: replay these and generate again."""
 
-    prepared: Mapping[tuple[str, str, str], "ValidatedToolCall"] = {}
-    """The prepared host-tool calls the approvals authorized, by call id, server
-    and tool (`AgentBridge.register_tool_execution_grants` runs these)."""
+    prepared: Mapping[tuple[int, str, str], "ValidatedToolCall"] = {}
+    """The prepared host-tool calls the approvals authorized, by the call's
+    position in the response, server and tool (the grants run these). Keyed by
+    position, not call id: a response can repeat an id."""
 
 
 async def apply_bridge_tool_approval(
@@ -175,9 +175,9 @@ async def apply_bridge_tool_approval(
         for declaration in declarations:
             if isinstance(declaration, ToolInfo):
                 declared.setdefault(declaration.name, []).append(declaration)
-        modified: dict[str, dict[str, Any]] = {}
-        prepared: dict[tuple[str, str, str], "ValidatedToolCall"] = {}
-        for call in tool_calls:
+        modified: dict[int, dict[str, Any]] = {}
+        prepared: dict[tuple[int, str, str], "ValidatedToolCall"] = {}
+        for index, call in enumerate(tool_calls):
             try:
                 reviews = bridge.reviewed_calls(call, declared)
             except ToolParsingError as ex:
@@ -220,52 +220,38 @@ async def apply_bridge_tool_approval(
                         return BridgeApproval(
                             output, rejection_messages(output, call, explanation)
                         )
-                    arguments = approval.modified.arguments
-                    if reviewed.dispatch is not None:
-                        arguments = reviewed.dispatch(arguments)
-                    # validated as the JSON the scaffold will re-send
+                    # what the scaffold will re-send: the selection, as JSON
+                    selected = to_jsonable_python(
+                        approval.modified.arguments, fallback=str
+                    )
                     try:
-                        (modified_review,) = bridge.reviewed_calls(
-                            ToolCall(
-                                id=call.id,
-                                function=call.function,
-                                arguments=to_jsonable_python(arguments, fallback=str),
-                                type=call.type,
-                            ),
-                            declared,
+                        modified_review = bridge.reviewed_modification(
+                            call, reviewed, selected, declared
                         )
                     except ToolParsingError as ex:
                         return BridgeApproval(
                             output,
                             rejection_messages(output, call, ex.message, "parsing"),
                         )
-                    # a host tool must run what the approver selected
-                    if not json_equal(
-                        to_jsonable_python(
-                            modified_review.call.arguments, fallback=str
-                        ),
-                        to_jsonable_python(approval.modified.arguments, fallback=str),
-                    ):
-                        explanation = (
-                            f"The approver's modified arguments for '{call.function}' "
-                            "change when they are converted for the tool, so the call "
-                            "was not run."
-                        )
+                    except ToolApprovalError as ex:
                         record_approval(
                             "policy",
                             message,
-                            modified_review.call,
+                            reviewed.call,
                             None,
-                            Approval(decision="reject", explanation=explanation),
+                            Approval(decision="reject", explanation=ex.message),
                         )
                         return BridgeApproval(
-                            output, rejection_messages(output, call, explanation)
+                            output, rejection_messages(output, call, ex.message)
                         )
-                    modified[call.id] = arguments
+                    arguments = approval.modified.arguments
+                    if reviewed.dispatch is not None:
+                        arguments = reviewed.dispatch(arguments)
+                    modified[index] = arguments
                     reviewed = modified_review
 
                 if reviewed.target is not None and reviewed.prepared is not None:
-                    prepared[(call.id, *reviewed.target)] = reviewed.prepared
+                    prepared[(index, *reviewed.target)] = reviewed.prepared
 
     # modifications are adopted only now that the whole response is approved: a later
     # rejection discards every call, and rewriting an earlier one as we went would
@@ -277,9 +263,9 @@ async def apply_bridge_tool_approval(
 
 
 def with_modified_arguments(
-    output: ModelOutput, modified: dict[str, dict[str, Any]]
+    output: ModelOutput, modified: dict[int, dict[str, Any]]
 ) -> ModelOutput:
-    """Copy of `output` with approved argument rewrites applied, keyed by call id.
+    """Copy of `output` with approved argument rewrites applied, by call position.
 
     A copy, because `output` is the object the `ModelEvent` already recorded and its
     tool calls are the ones each `ApprovalEvent` holds — pydantic stores both by
@@ -293,9 +279,9 @@ def with_modified_arguments(
     substituted one.
     """
     result = output.model_copy(deep=True)
-    for call in result.message.tool_calls or []:
-        if call.id in modified:
-            call.arguments = modified[call.id]
+    for index, call in enumerate(result.message.tool_calls or []):
+        if index in modified:
+            call.arguments = modified[index]
     return result
 
 

@@ -82,6 +82,10 @@ class ReviewedCall(NamedTuple):
     """The host tool's prepared call: what an approval of `call` authorizes it to
     run (None for a tool the scaffold runs itself)."""
 
+    source: ToolCall | None = None
+    """The host tool's call as proposed, before it was prepared (None for a tool
+    the scaffold runs itself)."""
+
 
 class AgentBridge:
     """Agent bridge."""
@@ -253,11 +257,45 @@ class AgentBridge:
     decide whether alternate choices must be dropped without an approval policy.
     """
 
-    def register_tool_execution_grants(
+    def record_approved_preparations(
+        self, prepared: Mapping[tuple[int, str, str], "ValidatedToolCall"]
+    ) -> None:
+        """Hold the host-tool calls approval prepared for the next grant registration.
+
+        Keyed by the call's position in the response and the (server, tool) it
+        runs. `bridge_generate` calls this just before
+        `register_tool_execution_grants`; in-process bridges run no host tools,
+        so the base implementation discards them.
+        """
+
+    def reviewed_modification(
         self,
-        calls: Sequence[ToolCall],
-        tools: Sequence[ToolInfo | Tool],
-        prepared: Mapping[tuple[str, str, str], "ValidatedToolCall"] | None = None,
+        call: ToolCall,
+        reviewed: ReviewedCall,
+        selected: dict[str, Any],
+        declared: dict[str, list[ToolInfo]],
+    ) -> ReviewedCall:
+        """The review of `call` after an approver selected `selected` for `reviewed`.
+
+        A tool the scaffold runs itself is checked against its declaration as
+        `reviewed_calls` does. `SandboxAgentBridge` prepares a host tool's
+        modified call, keeping the arguments the approver left as approved.
+
+        Raises:
+            ToolParsingError: The modified arguments are invalid.
+            ToolApprovalError: A changed argument would not run as selected.
+        """
+        arguments = reviewed.dispatch(selected) if reviewed.dispatch else selected
+        (review,) = self.reviewed_calls(
+            ToolCall(
+                id=call.id, function=call.function, arguments=arguments, type=call.type
+            ),
+            declared,
+        )
+        return review
+
+    def register_tool_execution_grants(
+        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
     ) -> None:
         """Register the calls in a response handed to the scaffold for execution-edge checks.
 

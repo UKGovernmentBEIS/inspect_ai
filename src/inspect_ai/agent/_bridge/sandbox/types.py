@@ -1,4 +1,6 @@
 from collections import deque
+from copy import deepcopy
+from dataclasses import replace
 from logging import getLogger
 from os.path import commonprefix
 from typing import TYPE_CHECKING, Any, Callable, Mapping, NamedTuple, NoReturn, Sequence
@@ -13,6 +15,7 @@ from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall, ReviewedCall
 from inspect_ai.model._call_tools import (
     ValidatedToolCall,
+    approved_modification,
     get_tools_info,
     validated_tool_call,
 )
@@ -92,6 +95,7 @@ class SandboxAgentBridge(AgentBridge):
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
         self._failure_requested = anyio.Event()
+        self._approved_preparations: dict[tuple[int, str, str], ValidatedToolCall] = {}
         self._failure: Exception | None = None
 
     port: int
@@ -130,11 +134,37 @@ class SandboxAgentBridge(AgentBridge):
         if not require_proposal:
             self.proposal_exempt_servers.add(server)
 
-    def register_tool_execution_grants(
+    def record_approved_preparations(
+        self, prepared: Mapping[tuple[int, str, str], ValidatedToolCall]
+    ) -> None:
+        """Hold the calls approval prepared for `register_tool_execution_grants`."""
+        self._approved_preparations = dict(prepared)
+
+    def reviewed_modification(
         self,
-        calls: Sequence[ToolCall],
-        tools: Sequence[ToolInfo | Tool],
-        prepared: Mapping[tuple[str, str, str], ValidatedToolCall] | None = None,
+        call: ToolCall,
+        reviewed: ReviewedCall,
+        selected: dict[str, Any],
+        declared: dict[str, list[ToolInfo]],
+    ) -> ReviewedCall:
+        """Prepare a host tool's modified call (`approved_modification()`)."""
+        if (
+            reviewed.target is None
+            or reviewed.prepared is None
+            or reviewed.source is None
+        ):
+            return super().reviewed_modification(call, reviewed, selected, declared)
+        tool_def = ToolDef(self.bridged_tools[reviewed.target[0]][reviewed.target[1]])
+        prepared = approved_modification(
+            reviewed.source,
+            reviewed.prepared,
+            replace(reviewed.source, arguments=deepcopy(selected)),
+            tool_def,
+        )
+        return reviewed._replace(call=prepared.call, prepared=prepared)
+
+    def register_tool_execution_grants(
+        self, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
     ) -> None:
         """Add one-shot host-tool grants for the calls in a response handed to the scaffold.
 
@@ -149,8 +179,9 @@ class SandboxAgentBridge(AgentBridge):
         `proposal_exempt_servers`.
 
         A grant also carries the host tool's prepared call, which is what runs:
-        the one approval reviewed (`prepared`, keyed by call id, server and
-        tool), or one prepared here for a call no approval reviewed. The tool is
+        the one approval reviewed (`record_approved_preparations`, by the call's
+        position in the response and its target), or one prepared here from its
+        own copy of the arguments for a call no approval reviewed. The tool is
         not prepared again at execution, so a model whose construction varies
         (a `default_factory`, a stateful validator) runs as approved.
 
@@ -163,7 +194,9 @@ class SandboxAgentBridge(AgentBridge):
         for tool in tools:
             if isinstance(tool, ToolInfo):
                 declared.setdefault(tool.name, []).append(tool)
-        for call in calls:
+        prepared = self._approved_preparations
+        self._approved_preparations = {}
+        for index, call in enumerate(calls):
             targets, arguments = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
@@ -178,8 +211,8 @@ class SandboxAgentBridge(AgentBridge):
             for target in targets:
                 if target.server in self.proposal_exempt_servers:
                     continue
-                target_prepared = (prepared or {}).get(
-                    (call.id, target.server, target.tool)
+                target_prepared = prepared.get(
+                    (index, target.server, target.tool)
                 ) or _prepared_host_call(
                     self.bridged_tools[target.server][target.tool],
                     target.tool,
@@ -501,23 +534,29 @@ def _reviewed_host_call(
     dispatch: Callable[[dict[str, Any]], dict[str, Any]] | None,
     target: _BridgedToolId,
 ) -> ReviewedCall:
-    """`call` as `tool` will run it, for approval (raises `ToolParsingError`)."""
+    """`call` as `tool` will run it, for approval (raises `ToolParsingError`).
+
+    Prepared from its own copy of the arguments, so a target sharing the
+    proposal with others cannot change what another runs.
+    """
     tool_def = ToolDef(tool)
-    prepared = validated_tool_call(call, tool_def)
+    source = replace(call, arguments=deepcopy(call.arguments))
+    prepared = validated_tool_call(source, tool_def)
     return ReviewedCall(
         prepared.call,
         tool_def.viewer,
         dispatch,
         (target.server, target.tool),
         prepared,
+        source,
     )
 
 
 def _prepared_host_call(
     tool: Tool, name: str, arguments: dict[str, Any]
 ) -> ValidatedToolCall | None:
-    """The host tool's prepared call for `arguments`, or None if they are invalid."""
-    call = ToolCall(id="", function=name, arguments=arguments)
+    """The host tool's prepared call for (a copy of) `arguments`, or None if invalid."""
+    call = ToolCall(id="", function=name, arguments=deepcopy(arguments))
     try:
         return validated_tool_call(call, ToolDef(tool))
     except ToolParsingError:
