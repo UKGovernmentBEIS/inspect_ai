@@ -131,7 +131,7 @@ def _is_constructed(spec: object) -> bool:
         values = list(cast(Sequence[object], spec))
     else:
         raise TypeError(
-            f"sentinel must be a monitor, a protocol, a list or mapping of them, or a configuration, not {type(spec).__name__}."
+            f"sentinel must be a protocol, a list or mapping of monitors and protocols, or a configuration, not {type(spec).__name__}."
         )
     constructed = [is_registry_object(value) for value in values]
     if any(constructed) and not all(constructed):

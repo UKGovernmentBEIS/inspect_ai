@@ -389,7 +389,7 @@ class EvalSetOverrides(BaseModel):
     """
 
     sentinel: str | SentinelConfig | None = None
-    """Sentinel config file path, registered name, or parsed configuration, overriding the definition's.
+    """Sentinel config file path, registered protocol name, or parsed configuration, overriding the definition's.
 
     Constructed monitors and protocols are absent for the same reason as approvers.
     """
