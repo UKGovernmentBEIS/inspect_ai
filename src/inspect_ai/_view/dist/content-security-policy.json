@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "directives": {
+    "default-src": [
+      "'none'"
+    ],
+    "script-src": [
+      "'self'",
+      "'sha256-dh/kDr+xuzejmjkOpzVExtX8ZIgsN1sFWP5R9yk1x24='",
+      "'sha256-hTEVLGs7U/evjCQ3XH4NKheOkIqC/G7OvOjQBCIXFrw='",
+      "'wasm-unsafe-eval'"
+    ],
+    "worker-src": [
+      "'self'"
+    ],
+    "style-src-elem": [
+      "'self'"
+    ],
+    "style-src-attr": [
+      "'unsafe-inline'"
+    ],
+    "img-src": [
+      "'self'",
+      "data:"
+    ],
+    "media-src": [
+      "data:"
+    ],
+    "font-src": [
+      "'self'"
+    ],
+    "connect-src": [
+      "'self'"
+    ],
+    "object-src": [
+      "'none'"
+    ],
+    "frame-src": [
+      "'none'"
+    ],
+    "base-uri": [
+      "'none'"
+    ],
+    "form-action": [
+      "'none'"
+    ]
+  }
+}

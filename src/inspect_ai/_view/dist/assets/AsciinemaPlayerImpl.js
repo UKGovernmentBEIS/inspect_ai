@@ -6620,19 +6620,19 @@ function create(src, elem, opts = {}) {
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var AsciinemaPlayerImpl = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(18);
-	const { id, rows, cols, inputUrl, outputUrl, timingUrl, fit, speed, autoPlay, loop, theme, idleTimeLimit: t1, style } = t0;
+	const { id, rows, cols, input, output, timing, fit, speed, autoPlay, loop, theme, idleTimeLimit: t1, style } = t0;
 	const idleTimeLimit = t1 === void 0 ? 2 : t1;
 	const playerContainerRef = (0, import_react.useRef)(null);
 	let t2;
 	let t3;
-	if ($[0] !== autoPlay || $[1] !== cols || $[2] !== fit || $[3] !== idleTimeLimit || $[4] !== inputUrl || $[5] !== loop || $[6] !== outputUrl || $[7] !== rows || $[8] !== speed || $[9] !== theme || $[10] !== timingUrl) {
+	if ($[0] !== autoPlay || $[1] !== cols || $[2] !== fit || $[3] !== idleTimeLimit || $[4] !== input || $[5] !== loop || $[6] !== output || $[7] !== rows || $[8] !== speed || $[9] !== theme || $[10] !== timing) {
 		t2 = () => {
 			if (!playerContainerRef.current) return;
 			const player = create({
-				url: [
-					timingUrl,
-					outputUrl,
-					inputUrl
+				data: () => [
+					new Response(timing),
+					new Response(output),
+					new Response(input)
 				],
 				parser: "typescript"
 			}, playerContainerRef.current, {
@@ -6651,9 +6651,9 @@ var AsciinemaPlayerImpl = (t0) => {
 			};
 		};
 		t3 = [
-			timingUrl,
-			outputUrl,
-			inputUrl,
+			timing,
+			output,
+			input,
 			rows,
 			cols,
 			autoPlay,
@@ -6667,13 +6667,13 @@ var AsciinemaPlayerImpl = (t0) => {
 		$[1] = cols;
 		$[2] = fit;
 		$[3] = idleTimeLimit;
-		$[4] = inputUrl;
+		$[4] = input;
 		$[5] = loop;
-		$[6] = outputUrl;
+		$[6] = output;
 		$[7] = rows;
 		$[8] = speed;
 		$[9] = theme;
-		$[10] = timingUrl;
+		$[10] = timing;
 		$[11] = t2;
 		$[12] = t3;
 	} else {

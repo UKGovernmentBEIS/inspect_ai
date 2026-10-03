@@ -1,7 +1,7 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./prismHighlighter.js","./rolldown-runtime.js","./src.js","./type.js","./AnsiDisplayRich.js","./compiler-runtime.js","./ToolButton.js","./ToolButton.css","./AnsiDisplayRich.css","./AsciinemaPlayerImpl.js","./AsciinemaPlayerImpl.css","./markdownPipeline.js","./markdownText.js","./preload-helper.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./prismHighlighter.js","./rolldown-runtime.js","./src.js","./type.js","./AnsiDisplayRich.js","./compiler-runtime.js","./ToolButton.js","./ToolButton.css","./AnsiDisplayRich.css","./AsciinemaPlayerImpl.js","./AsciinemaPlayerImpl.css","./markdownPipeline.js","./markdownText.js","./preload-helper.js","./markdownPipeline.css"])))=>i.map(i=>d[i]);
 import { i as __toESM, t as __commonJSMin } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
-import { a as revealHiddenCharacters, c as compose, d as map, f as isAnsiOutput, i as require_dist, l as data, n as asyncJsonParse, o as fetchRange, p as stripAnsi, r as asyncJsonParseBytes, s as logFetchInit, t as createLogger, u as loading$2 } from "./src.js";
+import { a as require_dist, c as logFetchInit, d as loading$2, f as map, i as workerLauncher, l as compose, m as stripAnsi, n as asyncJsonParse, o as revealHiddenCharacters, p as isAnsiOutput, r as asyncJsonParseBytes, s as fetchRange, t as createLogger, u as data } from "./src.js";
 import { i as toArray, n as isReadonlyArray, r as isRecord, t as isNumeric } from "./type.js";
 import { a as base64DataUriMimeType, c as isRenderableImageSource, d as parseDataUri, i as truncationWindow, l as normalizedImageMimeType, n as escapeHtmlCharacters, r as simpleMarkdownTruncate, s as isRasterImageMimeType, u as parseAbsoluteHttpUrl } from "./markdownText.js";
 import { t as __vitePreload } from "./preload-helper.js";
@@ -28887,7 +28887,7 @@ var ContentTrustProvider = (t0) => {
 */ var usePlainText = () => {
 	return useHasAllContentPermissions() ? {
 		trusted: true,
-		present: _temp$112,
+		present: _temp$111,
 		className: void 0
 	} : {
 		trusted: false,
@@ -28982,7 +28982,7 @@ var UntrustedText = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$112(text) {
+function _temp$111(text) {
 	return text;
 }
 //#endregion
@@ -29028,7 +29028,7 @@ var onDemandModule = (importer) => {
 			let cancelled = false;
 			module.load().then((loaded) => {
 				if (!cancelled) setValue(() => loaded);
-			}).catch(_temp$111);
+			}).catch(_temp$110);
 			return () => {
 				cancelled = true;
 			};
@@ -29050,7 +29050,7 @@ var onDemandModule = (importer) => {
 	(0, import_react.useEffect)(t2, t3);
 	return value;
 };
-function _temp$111(error) {
+function _temp$110(error) {
 	console.error("Unable to load module", error);
 }
 //#endregion
@@ -29113,12 +29113,12 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useLayoutEffect)(t0, t1);
 };
-function _temp$110(node) {
+function _temp$109(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
 function _temp2$65(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$110);
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$109);
 	return false;
 }
 function _temp3$49(error) {
@@ -29640,47 +29640,6 @@ function selectTrackedElement(rects, elementIds, viewportTop, viewportBottom, de
 		t6 = $[19];
 	}
 	(0, import_react.useEffect)(t5, t6);
-}
-//#endregion
-//#region ../../packages/react/src/hooks/useRevokableUrls.ts
-function useRevokableUrls() {
-	const $ = (0, import_compiler_runtime.c)(4);
-	let t0;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t0 = [];
-		$[0] = t0;
-	} else t0 = $[0];
-	const urlsRef = (0, import_react.useRef)(t0);
-	let t1;
-	if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = (data, t2) => {
-			const blob = new Blob([data], { type: t2 === void 0 ? "text/plain" : t2 });
-			const url = URL.createObjectURL(blob);
-			urlsRef.current.push(url);
-			return url;
-		};
-		$[1] = t1;
-	} else t1 = $[1];
-	const createRevokableUrl = t1;
-	let t2;
-	let t3;
-	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = () => () => {
-			urlsRef.current.forEach(_temp$109);
-			urlsRef.current = [];
-		};
-		t3 = [];
-		$[2] = t2;
-		$[3] = t3;
-	} else {
-		t2 = $[2];
-		t3 = $[3];
-	}
-	(0, import_react.useEffect)(t2, t3);
-	return createRevokableUrl;
-}
-function _temp$109(url_0) {
-	return URL.revokeObjectURL(url_0);
 }
 //#endregion
 //#region ../../packages/react/src/hooks/useListKeyboardNavigation.ts
@@ -43297,7 +43256,7 @@ var LoadingBar = (t0) => {
 };
 //#endregion
 //#region ../../packages/react/src/components/MarkdownDiv.tsx
-var markdownPipeline = onDemandModule(() => __vitePreload(() => import("./markdownPipeline.js"), __vite__mapDeps([11,1,2,12,13]), import.meta.url));
+var markdownPipeline = onDemandModule(() => __vitePreload(() => import("./markdownPipeline.js"), __vite__mapDeps([11,1,2,12,13,14]), import.meta.url));
 var sanitizeMarkdown = (md) => {
 	return escapeHtmlCharacters(md).replace(/\n/g, "<br/>");
 };
@@ -47818,11 +47777,10 @@ var HumanBaselineView_module_default = {
 /**
 * Renders the HumanBaselineView component.
 */ var HumanBaselineView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(24);
+	const $ = (0, import_compiler_runtime.c)(23);
 	const { id, started, runtime, answer, completed, running, sessionLogs } = t0;
-	const createRevokableUrl = useRevokableUrls();
 	let player_fns;
-	if ($[0] !== createRevokableUrl || $[1] !== id || $[2] !== sessionLogs) {
+	if ($[0] !== id || $[1] !== sessionLogs) {
 		player_fns = [];
 		let count = 1;
 		let maxCols = 0;
@@ -47836,9 +47794,9 @@ var HumanBaselineView_module_default = {
 				label: title,
 				render: () => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AsciinemaPlayer, {
 					id: `${id}-player-${currentCount}`,
-					inputUrl: createRevokableUrl(sessionLog.input),
-					outputUrl: createRevokableUrl(sessionLog.output),
-					timingUrl: createRevokableUrl(sessionLog.timing),
+					input: sessionLog.input,
+					output: sessionLog.output,
+					timing: sessionLog.timing,
 					rows,
 					cols,
 					style: {
@@ -47850,45 +47808,44 @@ var HumanBaselineView_module_default = {
 			});
 			count = count + 1;
 		}
-		$[0] = createRevokableUrl;
-		$[1] = id;
-		$[2] = sessionLogs;
-		$[3] = player_fns;
-	} else player_fns = $[3];
+		$[0] = id;
+		$[1] = sessionLogs;
+		$[2] = player_fns;
+	} else player_fns = $[2];
 	let t1;
-	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
 		t1 = clsx(HumanBaselineView_module_default.asciinemaHeaderLeft, "text-style-label");
-		$[4] = t1;
-	} else t1 = $[4];
+		$[3] = t1;
+	} else t1 = $[3];
 	let t2;
-	if ($[5] !== started) {
+	if ($[4] !== started) {
 		t2 = started ? formatDateTime$1(started) : "";
-		$[5] = started;
-		$[6] = t2;
-	} else t2 = $[6];
+		$[4] = started;
+		$[5] = t2;
+	} else t2 = $[5];
 	let t3;
-	if ($[7] !== runtime) {
+	if ($[6] !== runtime) {
 		t3 = runtime ? ` (${formatTime$1(Math.floor(runtime))})` : "";
-		$[7] = runtime;
-		$[8] = t3;
-	} else t3 = $[8];
+		$[6] = runtime;
+		$[7] = t3;
+	} else t3 = $[7];
 	let t4;
-	if ($[9] !== t2 || $[10] !== t3) {
+	if ($[8] !== t2 || $[9] !== t3) {
 		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t1,
 			children: [t2, t3]
 		});
-		$[9] = t2;
-		$[10] = t3;
-		$[11] = t4;
-	} else t4 = $[11];
+		$[8] = t2;
+		$[9] = t3;
+		$[10] = t4;
+	} else t4 = $[10];
 	let t5;
-	if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
 		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(HumanBaselineView_module_default.asciinemaHeaderCenter, "text-style-label") });
-		$[12] = t5;
-	} else t5 = $[12];
+		$[11] = t5;
+	} else t5 = $[11];
 	let t6;
-	if ($[13] !== answer || $[14] !== completed || $[15] !== running) {
+	if ($[12] !== answer || $[13] !== completed || $[14] !== running) {
 		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: HumanBaselineView_module_default.asciinemaHeaderRight,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StatusMessage, {
@@ -47897,14 +47854,14 @@ var HumanBaselineView_module_default = {
 				answer
 			})
 		});
-		$[13] = answer;
-		$[14] = completed;
-		$[15] = running;
-		$[16] = t6;
-	} else t6 = $[16];
+		$[12] = answer;
+		$[13] = completed;
+		$[14] = running;
+		$[15] = t6;
+	} else t6 = $[15];
 	const t7 = `${id}-ascii-cinema`;
 	let t8;
-	if ($[17] !== player_fns || $[18] !== t7) {
+	if ($[16] !== player_fns || $[17] !== t7) {
 		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: HumanBaselineView_module_default.asciinemaBody,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LightboxCarousel, {
@@ -47912,12 +47869,12 @@ var HumanBaselineView_module_default = {
 				slides: player_fns
 			})
 		});
-		$[17] = player_fns;
-		$[18] = t7;
-		$[19] = t8;
-	} else t8 = $[19];
+		$[16] = player_fns;
+		$[17] = t7;
+		$[18] = t8;
+	} else t8 = $[18];
 	let t9;
-	if ($[20] !== t4 || $[21] !== t6 || $[22] !== t8) {
+	if ($[19] !== t4 || $[20] !== t6 || $[21] !== t8) {
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: HumanBaselineView_module_default.asciinemaWrapper,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -47930,11 +47887,11 @@ var HumanBaselineView_module_default = {
 				]
 			})
 		});
-		$[20] = t4;
-		$[21] = t6;
-		$[22] = t8;
-		$[23] = t9;
-	} else t9 = $[23];
+		$[19] = t4;
+		$[20] = t6;
+		$[21] = t8;
+		$[22] = t9;
+	} else t9 = $[22];
 	return t9;
 };
 var StatusMessage = (t0) => {
@@ -65436,549 +65393,34 @@ var stringOr = (value, fallback) => typeof value === "string" ? value : fallback
 	};
 };
 //#endregion
-//#region ../../node_modules/.pnpm/fflate@0.8.3/node_modules/fflate/esm/browser.js
-var ch2 = {};
-var wk = (function(c, id, msg, transfer, cb) {
-	var w = new Worker(ch2[id] || (ch2[id] = URL.createObjectURL(new Blob([c + ";addEventListener(\"error\",function(e){e=e.error;postMessage({$e$:[e.message,e.code,e.stack]})})"], { type: "text/javascript" }))));
-	w.onmessage = function(e) {
-		var d = e.data, ed = d.$e$;
-		if (ed) {
-			var err = new Error(ed[0]);
-			err["code"] = ed[1];
-			err.stack = ed[2];
-			cb(err, null);
-		} else cb(null, d);
-	};
-	w.postMessage(msg, transfer);
-	return w;
-});
-var u8$1 = Uint8Array;
-var u16$1 = Uint16Array;
-var i32$1 = Int32Array;
-var fleb = new u8$1([
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	1,
-	1,
-	1,
-	1,
-	2,
-	2,
-	2,
-	2,
-	3,
-	3,
-	3,
-	3,
-	4,
-	4,
-	4,
-	4,
-	5,
-	5,
-	5,
-	5,
-	0,
-	0,
-	0,
-	0
-]);
-var fdeb = new u8$1([
-	0,
-	0,
-	0,
-	0,
-	1,
-	1,
-	2,
-	2,
-	3,
-	3,
-	4,
-	4,
-	5,
-	5,
-	6,
-	6,
-	7,
-	7,
-	8,
-	8,
-	9,
-	9,
-	10,
-	10,
-	11,
-	11,
-	12,
-	12,
-	13,
-	13,
-	0,
-	0
-]);
-var clim = new u8$1([
-	16,
-	17,
-	18,
-	0,
-	8,
-	7,
-	9,
-	6,
-	10,
-	5,
-	11,
-	4,
-	12,
-	3,
-	13,
-	2,
-	14,
-	1,
-	15
-]);
-var freb = function(eb, start) {
-	var b = new u16$1(31);
-	for (var i = 0; i < 31; ++i) b[i] = start += 1 << eb[i - 1];
-	var r = new i32$1(b[30]);
-	for (var i = 1; i < 30; ++i) for (var j = b[i]; j < b[i + 1]; ++j) r[j] = j - b[i] << 5 | i;
-	return {
-		b,
-		r
-	};
-};
-var _a$1 = freb(fleb, 2);
-var fl = _a$1.b;
-var revfl = _a$1.r;
-fl[28] = 258, revfl[258] = 28;
-var _b = freb(fdeb, 0);
-var fd = _b.b;
-_b.r;
-var rev = new u16$1(32768);
-for (var i$1 = 0; i$1 < 32768; ++i$1) {
-	var x = (i$1 & 43690) >> 1 | (i$1 & 21845) << 1;
-	x = (x & 52428) >> 2 | (x & 13107) << 2;
-	x = (x & 61680) >> 4 | (x & 3855) << 4;
-	rev[i$1] = ((x & 65280) >> 8 | (x & 255) << 8) >> 1;
-}
-var hMap = (function(cd, mb, r) {
-	var s = cd.length;
-	var i = 0;
-	var l = new u16$1(mb);
-	for (; i < s; ++i) if (cd[i]) ++l[cd[i] - 1];
-	var le = new u16$1(mb);
-	for (i = 1; i < mb; ++i) le[i] = le[i - 1] + l[i - 1] << 1;
-	var co;
-	if (r) {
-		co = new u16$1(1 << mb);
-		var rvb = 15 - mb;
-		for (i = 0; i < s; ++i) if (cd[i]) {
-			var sv = i << 4 | cd[i];
-			var r_1 = mb - cd[i];
-			var v = le[cd[i] - 1]++ << r_1;
-			for (var m = v | (1 << r_1) - 1; v <= m; ++v) co[rev[v] >> rvb] = sv;
-		}
-	} else {
-		co = new u16$1(s);
-		for (i = 0; i < s; ++i) if (cd[i]) co[i] = rev[le[cd[i] - 1]++] >> 15 - cd[i];
-	}
-	return co;
-});
-var flt = new u8$1(288);
-for (var i$1 = 0; i$1 < 144; ++i$1) flt[i$1] = 8;
-for (var i$1 = 144; i$1 < 256; ++i$1) flt[i$1] = 9;
-for (var i$1 = 256; i$1 < 280; ++i$1) flt[i$1] = 7;
-for (var i$1 = 280; i$1 < 288; ++i$1) flt[i$1] = 8;
-var fdt = new u8$1(32);
-for (var i$1 = 0; i$1 < 32; ++i$1) fdt[i$1] = 5;
-var flrm = /*#__PURE__*/ hMap(flt, 9, 1);
-var fdrm = /*#__PURE__*/ hMap(fdt, 5, 1);
-var max = function(a) {
-	var m = a[0];
-	for (var i = 1; i < a.length; ++i) if (a[i] > m) m = a[i];
-	return m;
-};
-var bits = function(d, p, m) {
-	var o = p / 8 | 0;
-	return (d[o] | d[o + 1] << 8) >> (p & 7) & m;
-};
-var bits16 = function(d, p) {
-	var o = p / 8 | 0;
-	return (d[o] | d[o + 1] << 8 | d[o + 2] << 16) >> (p & 7);
-};
-var shft = function(p) {
-	return (p + 7) / 8 | 0;
-};
-var slc$1 = function(v, s, e) {
-	if (s == null || s < 0) s = 0;
-	if (e == null || e > v.length) e = v.length;
-	return new u8$1(v.subarray(s, e));
-};
-var ec$1 = [
-	"unexpected EOF",
-	"invalid block type",
-	"invalid length/literal",
-	"invalid distance",
-	"stream finished",
-	"no stream handler",
-	,
-	"no callback",
-	"invalid UTF-8 data",
-	"extra field too long",
-	"date not in range 1980-2099",
-	"filename too long",
-	"stream finishing",
-	"invalid zip data"
-];
-var err$1 = function(ind, msg, nt) {
-	var e = new Error(msg || ec$1[ind]);
-	e.code = ind;
-	if (Error.captureStackTrace) Error.captureStackTrace(e, err$1);
-	if (!nt) throw e;
-	return e;
-};
-var inflt = function(dat, st, buf, dict) {
-	var sl = dat.length, dl = dict ? dict.length : 0;
-	if (!sl || st.f && !st.l) return buf || new u8$1(0);
-	var noBuf = !buf;
-	var resize = noBuf || st.i != 2;
-	var noSt = st.i;
-	if (noBuf) buf = new u8$1(sl * 3);
-	var cbuf = function(l) {
-		var bl = buf.length;
-		if (l > bl) {
-			var nbuf = new u8$1(Math.max(bl * 2, l));
-			nbuf.set(buf);
-			buf = nbuf;
-		}
-	};
-	var final = st.f || 0, pos = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
-	var tbts = sl * 8;
-	do {
-		if (!lm) {
-			final = bits(dat, pos, 1);
-			var type = bits(dat, pos + 1, 3);
-			pos += 3;
-			if (!type) {
-				var s = shft(pos) + 4, l = dat[s - 4] | dat[s - 3] << 8, t = s + l;
-				if (t > sl) {
-					if (noSt) err$1(0);
-					break;
-				}
-				if (resize) cbuf(bt + l);
-				buf.set(dat.subarray(s, t), bt);
-				st.b = bt += l, st.p = pos = t * 8, st.f = final;
-				continue;
-			} else if (type == 1) lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
-			else if (type == 2) {
-				var hLit = bits(dat, pos, 31) + 257, hcLen = bits(dat, pos + 10, 15) + 4;
-				var tl = hLit + bits(dat, pos + 5, 31) + 1;
-				pos += 14;
-				var ldt = new u8$1(tl);
-				var clt = new u8$1(19);
-				for (var i = 0; i < hcLen; ++i) clt[clim[i]] = bits(dat, pos + i * 3, 7);
-				pos += hcLen * 3;
-				var clb = max(clt), clbmsk = (1 << clb) - 1;
-				var clm = hMap(clt, clb, 1);
-				for (var i = 0; i < tl;) {
-					var r = clm[bits(dat, pos, clbmsk)];
-					pos += r & 15;
-					var s = r >> 4;
-					if (s < 16) ldt[i++] = s;
-					else {
-						var c = 0, n = 0;
-						if (s == 16) n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i - 1];
-						else if (s == 17) n = 3 + bits(dat, pos, 7), pos += 3;
-						else if (s == 18) n = 11 + bits(dat, pos, 127), pos += 7;
-						while (n--) ldt[i++] = c;
-					}
-				}
-				var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
-				lbt = max(lt);
-				dbt = max(dt);
-				lm = hMap(lt, lbt, 1);
-				dm = hMap(dt, dbt, 1);
-			} else err$1(1);
-			if (pos > tbts) {
-				if (noSt) err$1(0);
-				break;
-			}
-		}
-		if (resize) cbuf(bt + 131072);
-		var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
-		var lpos = pos;
-		for (;; lpos = pos) {
-			var c = lm[bits16(dat, pos) & lms], sym = c >> 4;
-			pos += c & 15;
-			if (pos > tbts) {
-				if (noSt) err$1(0);
-				break;
-			}
-			if (!c) err$1(2);
-			if (sym < 256) buf[bt++] = sym;
-			else if (sym == 256) {
-				lpos = pos, lm = null;
-				break;
-			} else {
-				var add = sym - 254;
-				if (sym > 264) {
-					var i = sym - 257, b = fleb[i];
-					add = bits(dat, pos, (1 << b) - 1) + fl[i];
-					pos += b;
-				}
-				var d = dm[bits16(dat, pos) & dms], dsym = d >> 4;
-				if (!d) err$1(3);
-				pos += d & 15;
-				var dt = fd[dsym];
-				if (dsym > 3) {
-					var b = fdeb[dsym];
-					dt += bits16(dat, pos) & (1 << b) - 1, pos += b;
-				}
-				if (pos > tbts) {
-					if (noSt) err$1(0);
-					break;
-				}
-				if (resize) cbuf(bt + 131072);
-				var end = bt + add;
-				if (bt < dt) {
-					var shift = dl - dt, dend = Math.min(dt, end);
-					if (shift + bt < 0) err$1(3);
-					for (; bt < dend; ++bt) buf[bt] = dict[shift + bt];
-				}
-				for (; bt < end; ++bt) buf[bt] = buf[bt - dt];
-			}
-		}
-		st.l = lm, st.p = lpos, st.b = bt, st.f = final;
-		if (lm) final = 1, st.m = lbt, st.d = dm, st.n = dbt;
-	} while (!final);
-	return bt != buf.length && noBuf ? slc$1(buf, 0, bt) : buf.subarray(0, bt);
-};
-var et = /*#__PURE__*/ new u8$1(0);
-var mrg = function(a, b) {
-	var o = {};
-	for (var k in a) o[k] = a[k];
-	for (var k in b) o[k] = b[k];
-	return o;
-};
-var wcln = function(fn, fnStr, td) {
-	var dt = fn();
-	var st = fn.toString();
-	var ks = st.slice(st.indexOf("[") + 1, st.lastIndexOf("]")).replace(/\s+/g, "").split(",");
-	for (var i = 0; i < dt.length; ++i) {
-		var v = dt[i], k = ks[i];
-		if (typeof v == "function") {
-			fnStr += ";" + k + "=";
-			var st_1 = v.toString();
-			if (v.prototype) {
-				if (st_1.indexOf("[native code]") != -1) {
-					var spInd = st_1.indexOf(" ", 8) + 1;
-					fnStr += st_1.slice(spInd, st_1.indexOf("(", spInd));
-				} else {
-					fnStr += st_1;
-					for (var t in v.prototype) fnStr += ";" + k + ".prototype." + t + "=" + v.prototype[t].toString();
-				}
-			} else fnStr += st_1;
-		} else td[k] = v;
-	}
-	return fnStr;
-};
-var ch = [];
-var cbfs = function(v) {
-	var tl = [];
-	for (var k in v) if (v[k].buffer) tl.push((v[k] = new v[k].constructor(v[k])).buffer);
-	return tl;
-};
-var wrkr = function(fns, init, id, cb) {
-	if (!ch[id]) {
-		var fnStr = "", td_1 = {}, m = fns.length - 1;
-		for (var i = 0; i < m; ++i) fnStr = wcln(fns[i], fnStr, td_1);
-		ch[id] = {
-			c: wcln(fns[m], fnStr, td_1),
-			e: td_1
-		};
-	}
-	var td = mrg({}, ch[id].e);
-	return wk(ch[id].c + ";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=" + init.toString() + "}", id, td, cbfs(td), cb);
-};
-var bInflt = function() {
-	return [
-		u8$1,
-		u16$1,
-		i32$1,
-		fleb,
-		fdeb,
-		clim,
-		fl,
-		fd,
-		flrm,
-		fdrm,
-		rev,
-		ec$1,
-		hMap,
-		max,
-		bits,
-		bits16,
-		shft,
-		slc$1,
-		err$1,
-		inflt,
-		inflateSync,
-		pbf,
-		gopt
-	];
-};
-var pbf = function(msg) {
-	return postMessage(msg, [msg.buffer]);
-};
-var gopt = function(o) {
-	return o && {
-		out: o.size && new u8$1(o.size),
-		dictionary: o.dictionary
-	};
-};
-var astrm = function(strm) {
-	strm.ondata = function(dat, final) {
-		return postMessage([dat, final], [dat.buffer]);
-	};
-	return function(ev) {
-		if (ev.data[0]) {
-			strm.push(ev.data[0], ev.data[1]);
-			postMessage([ev.data[0].length]);
-		} else strm.flush(ev.data[1]);
-	};
-};
-var astrmify = function(fns, strm, opts, init, id, flush, ext) {
-	var t;
-	var w = wrkr(fns, init, id, function(err, dat) {
-		if (err) w.terminate(), strm.ondata.call(strm, err);
-		else if (!Array.isArray(dat)) ext(dat);
-		else if (dat.length == 1) {
-			strm.queuedSize -= dat[0];
-			if (strm.ondrain) strm.ondrain(dat[0]);
-		} else {
-			if (dat[1]) w.terminate();
-			strm.ondata.call(strm, err, dat[0], dat[1]);
-		}
-	});
-	w.postMessage(opts);
-	strm.queuedSize = 0;
-	strm.push = function(d, f) {
-		if (!strm.ondata) err$1(5);
-		if (t) strm.ondata(err$1(4, 0, 1), null, !!f);
-		strm.queuedSize += d.length;
-		w.postMessage([d, t = f], d.buffer instanceof ArrayBuffer ? [d.buffer] : []);
-	};
-	strm.terminate = function() {
-		w.terminate();
-	};
-	if (flush) strm.flush = function(sync) {
-		w.postMessage([0, sync]);
-	};
-};
-function StrmOpt(opts, cb) {
-	if (typeof opts == "function") cb = opts, opts = {};
-	this.ondata = cb;
-	return opts;
-}
-/**
-* Streaming DEFLATE decompression
-*/
-var Inflate = /* @__PURE__ */ function() {
-	function Inflate(opts, cb) {
-		if (typeof opts == "function") cb = opts, opts = {};
-		this.ondata = cb;
-		var dict = opts && opts.dictionary && opts.dictionary.subarray(-32768);
-		this.s = {
-			i: 0,
-			b: dict ? dict.length : 0
-		};
-		this.o = new u8$1(32768);
-		this.p = new u8$1(0);
-		if (dict) this.o.set(dict);
-	}
-	Inflate.prototype.e = function(c) {
-		if (!this.ondata) err$1(5);
-		if (this.d) err$1(4);
-		if (!this.p.length) this.p = c;
-		else if (c.length) {
-			var n = new u8$1(this.p.length + c.length);
-			n.set(this.p), n.set(c, this.p.length), this.p = n;
-		}
-	};
-	Inflate.prototype.c = function(final) {
-		this.s.i = +(this.d = final || false);
-		var bts = this.s.b;
-		var dt = inflt(this.p, this.s, this.o);
-		this.ondata(slc$1(dt, bts, this.s.b), this.d);
-		this.o = slc$1(dt, this.s.b - 32768), this.s.b = this.o.length;
-		this.p = slc$1(this.p, this.s.p / 8 | 0), this.s.p &= 7;
-	};
-	/**
-	* Pushes a chunk to be inflated
-	* @param chunk The chunk to push
-	* @param final Whether this is the final chunk
-	*/
-	Inflate.prototype.push = function(chunk, final) {
-		this.e(chunk), this.c(final);
-	};
-	return Inflate;
-}();
-/**
-* Asynchronous streaming DEFLATE decompression
-*/
-var AsyncInflate = /* @__PURE__ */ function() {
-	function AsyncInflate(opts, cb) {
-		astrmify([bInflt, function() {
-			return [astrm, Inflate];
-		}], this, StrmOpt.call(this, opts, cb), function(ev) {
-			onmessage = astrm(new Inflate(ev.data));
-		}, 7, 0);
-	}
-	return AsyncInflate;
-}();
-function inflateSync(data, opts) {
-	return inflt(data, { i: 2 }, opts && opts.out, opts && opts.dictionary);
-}
-var td = typeof TextDecoder != "undefined" && /*#__PURE__*/ new TextDecoder();
-try {
-	td.decode(et, { stream: true });
-} catch (e) {}
-//#endregion
 //#region ../../node_modules/.pnpm/fzstd@0.1.1/node_modules/fzstd/esm/index.mjs
 var ab = ArrayBuffer;
-var u8 = Uint8Array;
-var u16 = Uint16Array;
+var u8$1 = Uint8Array;
+var u16$1 = Uint16Array;
 var i16 = Int16Array;
-var i32 = Int32Array;
-var slc = function(v, s, e) {
-	if (u8.prototype.slice) return u8.prototype.slice.call(v, s, e);
+var i32$1 = Int32Array;
+var slc$1 = function(v, s, e) {
+	if (u8$1.prototype.slice) return u8$1.prototype.slice.call(v, s, e);
 	if (s == null || s < 0) s = 0;
 	if (e == null || e > v.length) e = v.length;
-	var n = new u8(e - s);
+	var n = new u8$1(e - s);
 	n.set(v.subarray(s, e));
 	return n;
 };
 var fill$1 = function(v, n, s, e) {
-	if (u8.prototype.fill) return u8.prototype.fill.call(v, n, s, e);
+	if (u8$1.prototype.fill) return u8$1.prototype.fill.call(v, n, s, e);
 	if (s == null || s < 0) s = 0;
 	if (e == null || e > v.length) e = v.length;
 	for (; s < e; ++s) v[s] = n;
 	return v;
 };
 var cpw = function(v, t, s, e) {
-	if (u8.prototype.copyWithin) return u8.prototype.copyWithin.call(v, t, s, e);
+	if (u8$1.prototype.copyWithin) return u8$1.prototype.copyWithin.call(v, t, s, e);
 	if (s == null || s < 0) s = 0;
 	if (e == null || e > v.length) e = v.length;
 	while (s < e) v[t++] = v[s++];
 };
-var ec = [
+var ec$1 = [
 	"invalid zstd data",
 	"window size too large (>2046MB)",
 	"invalid block type",
@@ -65986,10 +65428,10 @@ var ec = [
 	"match distance too far back",
 	"unexpected EOF"
 ];
-var err = function(ind, msg, nt) {
-	var e = new Error(msg || ec[ind]);
+var err$1 = function(ind, msg, nt) {
+	var e = new Error(msg || ec$1[ind]);
 	e.code = ind;
-	if (Error.captureStackTrace) Error.captureStackTrace(e, err);
+	if (Error.captureStackTrace) Error.captureStackTrace(e, err$1);
 	if (!nt) throw e;
 	return e;
 };
@@ -66006,7 +65448,7 @@ var rzfh = function(dat, w) {
 	if (n3 == 3126568 && dat[3] == 253) {
 		var flg = dat[4];
 		var ss = flg >> 5 & 1, cc = flg >> 2 & 1, df = flg & 3, fcf = flg >> 6;
-		if (flg & 8) err(0);
+		if (flg & 8) err$1(0);
 		var bt = 6 - ss;
 		var db = df == 3 ? 4 : df;
 		var di = rb(dat, bt, db);
@@ -66018,8 +65460,8 @@ var rzfh = function(dat, w) {
 			var wb = 1 << 10 + (dat[5] >> 3);
 			ws = wb + (wb >> 3) * (dat[5] & 7);
 		}
-		if (ws > 2145386496) err(1);
-		var buf = new u8((w == 1 ? fss || ws : w ? 0 : ws) + 12);
+		if (ws > 2145386496) err$1(1);
+		var buf = new u8$1((w == 1 ? fss || ws : w ? 0 : ws) + 12);
 		buf[0] = 1, buf[4] = 4, buf[8] = 8;
 		return {
 			b: bt + fsb,
@@ -66028,13 +65470,13 @@ var rzfh = function(dat, w) {
 			d: di,
 			w: w && w != 1 ? w : buf.subarray(12),
 			e: ws,
-			o: new i32(buf.buffer, 0, 3),
+			o: new i32$1(buf.buffer, 0, 3),
 			u: fss,
 			c: cc,
 			m: Math.min(131072, ws)
 		};
 	} else if ((n3 >> 4 | dat[3] << 20) == 25481893) return b4(dat, 4) + 8;
-	err(0);
+	err$1(0);
 };
 var msb = function(val) {
 	var bits = 0;
@@ -66044,16 +65486,16 @@ var msb = function(val) {
 var rfse = function(dat, bt, mal) {
 	var tpos = (bt << 3) + 4;
 	var al = (dat[bt] & 15) + 5;
-	if (al > mal) err(3);
+	if (al > mal) err$1(3);
 	var sz = 1 << al;
 	var probs = sz, sym = -1, re = -1, i = -1, ht = sz;
 	var buf = new ab(512 + (sz << 2));
 	var freq = new i16(buf, 0, 256);
-	var dstate = new u16(buf, 0, 256);
-	var nstate = new u16(buf, 512, sz);
+	var dstate = new u16$1(buf, 0, 256);
+	var nstate = new u16$1(buf, 512, sz);
 	var bb1 = 512 + (sz << 1);
-	var syms = new u8(buf, bb1, sz);
-	var nbits = new u8(buf, bb1 + sz);
+	var syms = new u8$1(buf, bb1, sz);
+	var nbits = new u8$1(buf, bb1 + sz);
 	while (sym < 255 && probs > 0) {
 		var bits = msb(probs + 1);
 		var cbt = tpos >> 3;
@@ -66079,7 +65521,7 @@ var rfse = function(dat, bt, mal) {
 			sym += re;
 		} while (re == 3);
 	}
-	if (sym > 255 || probs) err(0);
+	if (sym > 255 || probs) err$1(0);
 	var sympos = 0;
 	var sstep = (sz >> 1) + (sz >> 3) + 3;
 	var smask = sz - 1;
@@ -66096,7 +65538,7 @@ var rfse = function(dat, bt, mal) {
 			while (sympos >= ht);
 		}
 	}
-	if (sympos) err(0);
+	if (sympos) err$1(0);
 	for (i = 0; i < sz; ++i) {
 		var ns = dstate[syms[i]]++;
 		var nb = nbits[i] = al - msb(ns);
@@ -66111,16 +65553,16 @@ var rfse = function(dat, bt, mal) {
 };
 var rhu = function(dat, bt) {
 	var i = 0, wc = -1;
-	var buf = new u8(292), hb = dat[bt];
+	var buf = new u8$1(292), hb = dat[bt];
 	var hw = buf.subarray(0, 256);
 	var rc = buf.subarray(256, 268);
-	var ri = new u16(buf.buffer, 268);
+	var ri = new u16$1(buf.buffer, 268);
 	if (hb < 128) {
 		var _a = rfse(dat, bt + 1, 6), ebt = _a[0], fdt = _a[1];
 		bt += hb;
 		var epos = ebt << 3;
 		var lb = dat[bt];
-		if (!lb) err(0);
+		if (!lb) err$1(0);
 		var st1 = 0, st2 = 0, btr1 = fdt.b, btr2 = btr1;
 		var fpos = (++bt << 3) - 8 + msb(lb);
 		for (;;) {
@@ -66139,7 +65581,7 @@ var rhu = function(dat, bt) {
 			btr2 = fdt.n[st2];
 			st2 = fdt.t[st2];
 		}
-		if (++wc > 255) err(0);
+		if (++wc > 255) err$1(0);
 	} else {
 		wc = hb - 127;
 		for (; i < wc; i += 2) {
@@ -66152,26 +65594,26 @@ var rhu = function(dat, bt) {
 	var wes = 0;
 	for (i = 0; i < wc; ++i) {
 		var wt = hw[i];
-		if (wt > 11) err(0);
+		if (wt > 11) err$1(0);
 		wes += wt && 1 << wt - 1;
 	}
 	var mb = msb(wes) + 1;
 	var ts = 1 << mb;
 	var rem = ts - wes;
-	if (rem & rem - 1) err(0);
+	if (rem & rem - 1) err$1(0);
 	hw[wc++] = msb(rem) + 1;
 	for (i = 0; i < wc; ++i) {
 		var wt = hw[i];
 		++rc[hw[i] = wt && mb + 1 - wt];
 	}
-	var hbuf = new u8(ts << 1);
+	var hbuf = new u8$1(ts << 1);
 	var syms = hbuf.subarray(0, ts), nb = hbuf.subarray(ts);
 	ri[mb] = 0;
 	for (i = mb; i > 0; --i) {
 		var pv = ri[i];
 		fill$1(nb, i, pv, ri[i - 1] = pv + rc[i] * (1 << mb - i));
 	}
-	if (ri[0] != ts) err(0);
+	if (ri[0] != ts) err$1(0);
 	for (i = 0; i < wc; ++i) {
 		var bits = hw[i];
 		if (bits) {
@@ -66185,7 +65627,7 @@ var rhu = function(dat, bt) {
 		s: syms
 	}];
 };
-var dllt = (/*#__PURE__*/ rfse(/*#__PURE__*/ new u8([
+var dllt = (/*#__PURE__*/ rfse(/*#__PURE__*/ new u8$1([
 	81,
 	16,
 	99,
@@ -66206,7 +65648,7 @@ var dllt = (/*#__PURE__*/ rfse(/*#__PURE__*/ new u8([
 	146,
 	4
 ]), 0, 6))[1];
-var dmlt = (/*#__PURE__*/ rfse(/*#__PURE__*/ new u8([
+var dmlt = (/*#__PURE__*/ rfse(/*#__PURE__*/ new u8$1([
 	33,
 	20,
 	196,
@@ -66235,7 +65677,7 @@ var dmlt = (/*#__PURE__*/ rfse(/*#__PURE__*/ new u8([
 	36,
 	9
 ]), 0, 6))[1];
-var doct = (/*#__PURE__ */ rfse(/*#__PURE__*/ new u8([
+var doct = (/*#__PURE__ */ rfse(/*#__PURE__*/ new u8$1([
 	32,
 	132,
 	16,
@@ -66251,14 +65693,14 @@ var doct = (/*#__PURE__ */ rfse(/*#__PURE__*/ new u8([
 	2
 ]), 0, 5))[1];
 var b2bl = function(b, s) {
-	var len = b.length, bl = new i32(len);
+	var len = b.length, bl = new i32$1(len);
 	for (var i = 0; i < len; ++i) {
 		bl[i] = s;
 		s += 1 << b[i];
 	}
 	return bl;
 };
-var llb = /*#__PURE__ */ new u8((/*#__PURE__ */ new i32([
+var llb = /*#__PURE__ */ new u8$1((/*#__PURE__ */ new i32$1([
 	0,
 	0,
 	0,
@@ -66270,7 +65712,7 @@ var llb = /*#__PURE__ */ new u8((/*#__PURE__ */ new i32([
 	269422093
 ])).buffer, 0, 36);
 var llbl = /*#__PURE__ */ b2bl(llb, 0);
-var mlb = /*#__PURE__ */ new u8((/*#__PURE__ */ new i32([
+var mlb = /*#__PURE__ */ new u8$1((/*#__PURE__ */ new i32$1([
 	0,
 	0,
 	0,
@@ -66289,7 +65731,7 @@ var mlb = /*#__PURE__ */ new u8((/*#__PURE__ */ new i32([
 var mlbl = /*#__PURE__ */ b2bl(mlb, 3);
 var dhu = function(dat, out, hu) {
 	var len = dat.length, ss = out.length, lb = dat[len - 1], msk = (1 << hu.b) - 1, eb = -hu.b;
-	if (!lb) err(0);
+	if (!lb) err$1(0);
 	var st = 0, btr = hu.b, pos = (len << 3) - 8 + msb(lb) - btr, i = -1;
 	for (; pos > eb && i < ss;) {
 		var cbt = pos >> 3;
@@ -66298,7 +65740,7 @@ var dhu = function(dat, out, hu) {
 		out[++i] = hu.s[st];
 		pos -= btr = hu.n[st];
 	}
-	if (pos != eb || i + 1 != ss) err(0);
+	if (pos != eb || i + 1 != ss) err$1(0);
 };
 var dhu4 = function(dat, out, hu) {
 	var bt = 6;
@@ -66322,7 +65764,7 @@ var rzb = function(dat, st, out) {
 			fill$1(out, dat[bt], st.y, st.y += sz);
 			return out;
 		}
-		return fill$1(new u8(sz), dat[bt]);
+		return fill$1(new u8$1(sz), dat[bt]);
 	}
 	if (ebt > dat.length) return;
 	if (btype == 0) {
@@ -66332,7 +65774,7 @@ var rzb = function(dat, st, out) {
 			st.y += sz;
 			return out;
 		}
-		return slc(dat, bt, ebt);
+		return slc$1(dat, bt, ebt);
 	}
 	if (btype == 2) {
 		var b3 = dat[bt], lbt = b3 & 3, sf = b3 >> 2 & 3;
@@ -66347,7 +65789,7 @@ var rzb = function(dat, st, out) {
 			else lss |= dat[++bt] << 4 | (dat[++bt] & 63) << 12, lcs = dat[bt] >> 6 | dat[++bt] << 2 | dat[++bt] << 10;
 		}
 		++bt;
-		var buf = out ? out.subarray(st.y, st.y + st.m) : new u8(st.m);
+		var buf = out ? out.subarray(st.y, st.y + st.m) : new u8$1(st.m);
 		var spl = buf.length - lss;
 		if (lbt == 0) buf.set(dat.subarray(bt, bt += lss), spl);
 		else if (lbt == 1) fill$1(buf, dat[bt++], spl);
@@ -66357,7 +65799,7 @@ var rzb = function(dat, st, out) {
 				var hud = rhu(dat, bt);
 				lcs += bt - (bt = hud[0]);
 				st.h = hu = hud[1];
-			} else if (!hu) err(0);
+			} else if (!hu) err$1(0);
 			(s4 ? dhu4 : dhu)(dat.subarray(bt, bt += lcs), buf.subarray(spl), hu);
 		}
 		var ns = dat[bt++];
@@ -66365,7 +65807,7 @@ var rzb = function(dat, st, out) {
 			if (ns == 255) ns = (dat[bt++] | dat[bt++] << 8) + 32512;
 			else if (ns > 127) ns = ns - 128 << 8 | dat[bt++];
 			var scm = dat[bt++];
-			if (scm & 3) err(0);
+			if (scm & 3) err$1(0);
 			var dts = [
 				dmlt,
 				doct,
@@ -66374,7 +65816,7 @@ var rzb = function(dat, st, out) {
 			for (var i = 2; i > -1; --i) {
 				var md = scm >> (i << 1) + 2 & 3;
 				if (md == 1) {
-					var rbuf = new u8([
+					var rbuf = new u8$1([
 						0,
 						0,
 						dat[bt++]
@@ -66382,18 +65824,18 @@ var rzb = function(dat, st, out) {
 					dts[i] = {
 						s: rbuf.subarray(2, 3),
 						n: rbuf.subarray(0, 1),
-						t: new u16(rbuf.buffer, 0, 1),
+						t: new u16$1(rbuf.buffer, 0, 1),
 						b: 0
 					};
 				} else if (md == 2) _a = rfse(dat, bt, 9 - (i & 1)), bt = _a[0], dts[i] = _a[1];
 				else if (md == 3) {
-					if (!st.t) err(0);
+					if (!st.t) err$1(0);
 					dts[i] = st.t[i];
 				}
 			}
 			var _b = st.t = dts, mlt = _b[0], oct = _b[1], llt = _b[2];
 			var lb = dat[ebt - 1];
-			if (!lb) err(0);
+			if (!lb) err$1(0);
 			var spos = (ebt << 3) - 8 + msb(lb) - llt.b, cbt = spos >> 3, oubt = 0;
 			var lst = (dat[cbt] | dat[cbt + 1] << 8) >> (spos & 7) & (1 << llt.b) - 1;
 			cbt = (spos -= oct.b) >> 3;
@@ -66449,19 +65891,19 @@ var rzb = function(dat, st, out) {
 			if (oubt != spl) while (spl < buf.length) buf[oubt++] = buf[spl++];
 			else oubt = buf.length;
 			if (out) st.y += oubt;
-			else buf = slc(buf, 0, oubt);
+			else buf = slc$1(buf, 0, oubt);
 		} else if (out) {
 			st.y += lss;
 			if (spl) for (var i = 0; i < lss; ++i) buf[i] = buf[spl + i];
-		} else if (spl) buf = slc(buf, spl);
+		} else if (spl) buf = slc$1(buf, spl);
 		st.b = ebt;
 		return buf;
 	}
-	err(2);
+	err$1(2);
 };
 var cct = function(bufs, ol) {
 	if (bufs.length == 1) return bufs[0];
-	var buf = new u8(ol);
+	var buf = new u8$1(ol);
 	for (var i = 0, b = 0; i < bufs.length; ++i) {
 		var chk = bufs[i];
 		buf.set(chk, b);
@@ -66498,10 +65940,10 @@ var Decompress = /* @__PURE__ */ function() {
 		if (!this.s) {
 			if (final) {
 				if (!ncs) {
-					this.ondata(new u8(0), true);
+					this.ondata(new u8$1(0), true);
 					return;
 				}
-				if (ncs < 5) err(5);
+				if (ncs < 5) err$1(5);
 			} else if (ncs < 18) {
 				this.c.push(chunk);
 				this.l = ncs;
@@ -66517,7 +65959,7 @@ var Decompress = /* @__PURE__ */ function() {
 		}
 		if (typeof this.s != "number") {
 			if (ncs < (this.z || 3)) {
-				if (final) err(5);
+				if (final) err$1(5);
 				this.c.push(chunk);
 				this.l = ncs;
 				return;
@@ -66529,7 +65971,7 @@ var Decompress = /* @__PURE__ */ function() {
 				this.l = 0;
 			}
 			if (!this.z && ncs < (this.z = chunk[this.s.b] & 2 ? 4 : 3 + (chunk[this.s.b] >> 3 | chunk[this.s.b + 1] << 5 | chunk[this.s.b + 2] << 13))) {
-				if (final) err(5);
+				if (final) err$1(5);
 				this.c.push(chunk);
 				this.l = ncs;
 				return;
@@ -66537,7 +65979,7 @@ var Decompress = /* @__PURE__ */ function() {
 			for (;;) {
 				var blk = rzb(chunk, this.s);
 				if (!blk) {
-					if (final) err(5);
+					if (final) err$1(5);
 					var adc = chunk.subarray(this.s.b);
 					this.s.b = 0;
 					this.c.push(adc), this.l += adc.length;
@@ -66554,10 +65996,404 @@ var Decompress = /* @__PURE__ */ function() {
 					return;
 				}
 			}
-		} else if (final) err(5);
+		} else if (final) err$1(5);
 	};
 	return Decompress;
 }();
+//#endregion
+//#region src/client/remote/decompression.worker.ts?worker&url
+var decompression_worker_default = new URL("decompression.worker.js", import.meta.url).href;
+//#endregion
+//#region ../../node_modules/.pnpm/fflate@0.8.3/node_modules/fflate/esm/browser.js
+var u8 = Uint8Array;
+var u16 = Uint16Array;
+var i32 = Int32Array;
+var fleb = new u8([
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	1,
+	1,
+	1,
+	1,
+	2,
+	2,
+	2,
+	2,
+	3,
+	3,
+	3,
+	3,
+	4,
+	4,
+	4,
+	4,
+	5,
+	5,
+	5,
+	5,
+	0,
+	0,
+	0,
+	0
+]);
+var fdeb = new u8([
+	0,
+	0,
+	0,
+	0,
+	1,
+	1,
+	2,
+	2,
+	3,
+	3,
+	4,
+	4,
+	5,
+	5,
+	6,
+	6,
+	7,
+	7,
+	8,
+	8,
+	9,
+	9,
+	10,
+	10,
+	11,
+	11,
+	12,
+	12,
+	13,
+	13,
+	0,
+	0
+]);
+var clim = new u8([
+	16,
+	17,
+	18,
+	0,
+	8,
+	7,
+	9,
+	6,
+	10,
+	5,
+	11,
+	4,
+	12,
+	3,
+	13,
+	2,
+	14,
+	1,
+	15
+]);
+var freb = function(eb, start) {
+	var b = new u16(31);
+	for (var i = 0; i < 31; ++i) b[i] = start += 1 << eb[i - 1];
+	var r = new i32(b[30]);
+	for (var i = 1; i < 30; ++i) for (var j = b[i]; j < b[i + 1]; ++j) r[j] = j - b[i] << 5 | i;
+	return {
+		b,
+		r
+	};
+};
+var _a$1 = freb(fleb, 2);
+var fl = _a$1.b;
+var revfl = _a$1.r;
+fl[28] = 258, revfl[258] = 28;
+var _b = freb(fdeb, 0);
+var fd = _b.b;
+_b.r;
+var rev = new u16(32768);
+for (var i$1 = 0; i$1 < 32768; ++i$1) {
+	var x = (i$1 & 43690) >> 1 | (i$1 & 21845) << 1;
+	x = (x & 52428) >> 2 | (x & 13107) << 2;
+	x = (x & 61680) >> 4 | (x & 3855) << 4;
+	rev[i$1] = ((x & 65280) >> 8 | (x & 255) << 8) >> 1;
+}
+var hMap = (function(cd, mb, r) {
+	var s = cd.length;
+	var i = 0;
+	var l = new u16(mb);
+	for (; i < s; ++i) if (cd[i]) ++l[cd[i] - 1];
+	var le = new u16(mb);
+	for (i = 1; i < mb; ++i) le[i] = le[i - 1] + l[i - 1] << 1;
+	var co;
+	if (r) {
+		co = new u16(1 << mb);
+		var rvb = 15 - mb;
+		for (i = 0; i < s; ++i) if (cd[i]) {
+			var sv = i << 4 | cd[i];
+			var r_1 = mb - cd[i];
+			var v = le[cd[i] - 1]++ << r_1;
+			for (var m = v | (1 << r_1) - 1; v <= m; ++v) co[rev[v] >> rvb] = sv;
+		}
+	} else {
+		co = new u16(s);
+		for (i = 0; i < s; ++i) if (cd[i]) co[i] = rev[le[cd[i] - 1]++] >> 15 - cd[i];
+	}
+	return co;
+});
+var flt = new u8(288);
+for (var i$1 = 0; i$1 < 144; ++i$1) flt[i$1] = 8;
+for (var i$1 = 144; i$1 < 256; ++i$1) flt[i$1] = 9;
+for (var i$1 = 256; i$1 < 280; ++i$1) flt[i$1] = 7;
+for (var i$1 = 280; i$1 < 288; ++i$1) flt[i$1] = 8;
+var fdt = new u8(32);
+for (var i$1 = 0; i$1 < 32; ++i$1) fdt[i$1] = 5;
+var flrm = /*#__PURE__*/ hMap(flt, 9, 1);
+var fdrm = /*#__PURE__*/ hMap(fdt, 5, 1);
+var max = function(a) {
+	var m = a[0];
+	for (var i = 1; i < a.length; ++i) if (a[i] > m) m = a[i];
+	return m;
+};
+var bits = function(d, p, m) {
+	var o = p / 8 | 0;
+	return (d[o] | d[o + 1] << 8) >> (p & 7) & m;
+};
+var bits16 = function(d, p) {
+	var o = p / 8 | 0;
+	return (d[o] | d[o + 1] << 8 | d[o + 2] << 16) >> (p & 7);
+};
+var shft = function(p) {
+	return (p + 7) / 8 | 0;
+};
+var slc = function(v, s, e) {
+	if (s == null || s < 0) s = 0;
+	if (e == null || e > v.length) e = v.length;
+	return new u8(v.subarray(s, e));
+};
+var ec = [
+	"unexpected EOF",
+	"invalid block type",
+	"invalid length/literal",
+	"invalid distance",
+	"stream finished",
+	"no stream handler",
+	,
+	"no callback",
+	"invalid UTF-8 data",
+	"extra field too long",
+	"date not in range 1980-2099",
+	"filename too long",
+	"stream finishing",
+	"invalid zip data"
+];
+var err = function(ind, msg, nt) {
+	var e = new Error(msg || ec[ind]);
+	e.code = ind;
+	if (Error.captureStackTrace) Error.captureStackTrace(e, err);
+	if (!nt) throw e;
+	return e;
+};
+var inflt = function(dat, st, buf, dict) {
+	var sl = dat.length, dl = dict ? dict.length : 0;
+	if (!sl || st.f && !st.l) return buf || new u8(0);
+	var noBuf = !buf;
+	var resize = noBuf || st.i != 2;
+	var noSt = st.i;
+	if (noBuf) buf = new u8(sl * 3);
+	var cbuf = function(l) {
+		var bl = buf.length;
+		if (l > bl) {
+			var nbuf = new u8(Math.max(bl * 2, l));
+			nbuf.set(buf);
+			buf = nbuf;
+		}
+	};
+	var final = st.f || 0, pos = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
+	var tbts = sl * 8;
+	do {
+		if (!lm) {
+			final = bits(dat, pos, 1);
+			var type = bits(dat, pos + 1, 3);
+			pos += 3;
+			if (!type) {
+				var s = shft(pos) + 4, l = dat[s - 4] | dat[s - 3] << 8, t = s + l;
+				if (t > sl) {
+					if (noSt) err(0);
+					break;
+				}
+				if (resize) cbuf(bt + l);
+				buf.set(dat.subarray(s, t), bt);
+				st.b = bt += l, st.p = pos = t * 8, st.f = final;
+				continue;
+			} else if (type == 1) lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
+			else if (type == 2) {
+				var hLit = bits(dat, pos, 31) + 257, hcLen = bits(dat, pos + 10, 15) + 4;
+				var tl = hLit + bits(dat, pos + 5, 31) + 1;
+				pos += 14;
+				var ldt = new u8(tl);
+				var clt = new u8(19);
+				for (var i = 0; i < hcLen; ++i) clt[clim[i]] = bits(dat, pos + i * 3, 7);
+				pos += hcLen * 3;
+				var clb = max(clt), clbmsk = (1 << clb) - 1;
+				var clm = hMap(clt, clb, 1);
+				for (var i = 0; i < tl;) {
+					var r = clm[bits(dat, pos, clbmsk)];
+					pos += r & 15;
+					var s = r >> 4;
+					if (s < 16) ldt[i++] = s;
+					else {
+						var c = 0, n = 0;
+						if (s == 16) n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i - 1];
+						else if (s == 17) n = 3 + bits(dat, pos, 7), pos += 3;
+						else if (s == 18) n = 11 + bits(dat, pos, 127), pos += 7;
+						while (n--) ldt[i++] = c;
+					}
+				}
+				var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
+				lbt = max(lt);
+				dbt = max(dt);
+				lm = hMap(lt, lbt, 1);
+				dm = hMap(dt, dbt, 1);
+			} else err(1);
+			if (pos > tbts) {
+				if (noSt) err(0);
+				break;
+			}
+		}
+		if (resize) cbuf(bt + 131072);
+		var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
+		var lpos = pos;
+		for (;; lpos = pos) {
+			var c = lm[bits16(dat, pos) & lms], sym = c >> 4;
+			pos += c & 15;
+			if (pos > tbts) {
+				if (noSt) err(0);
+				break;
+			}
+			if (!c) err(2);
+			if (sym < 256) buf[bt++] = sym;
+			else if (sym == 256) {
+				lpos = pos, lm = null;
+				break;
+			} else {
+				var add = sym - 254;
+				if (sym > 264) {
+					var i = sym - 257, b = fleb[i];
+					add = bits(dat, pos, (1 << b) - 1) + fl[i];
+					pos += b;
+				}
+				var d = dm[bits16(dat, pos) & dms], dsym = d >> 4;
+				if (!d) err(3);
+				pos += d & 15;
+				var dt = fd[dsym];
+				if (dsym > 3) {
+					var b = fdeb[dsym];
+					dt += bits16(dat, pos) & (1 << b) - 1, pos += b;
+				}
+				if (pos > tbts) {
+					if (noSt) err(0);
+					break;
+				}
+				if (resize) cbuf(bt + 131072);
+				var end = bt + add;
+				if (bt < dt) {
+					var shift = dl - dt, dend = Math.min(dt, end);
+					if (shift + bt < 0) err(3);
+					for (; bt < dend; ++bt) buf[bt] = dict[shift + bt];
+				}
+				for (; bt < end; ++bt) buf[bt] = buf[bt - dt];
+			}
+		}
+		st.l = lm, st.p = lpos, st.b = bt, st.f = final;
+		if (lm) final = 1, st.m = lbt, st.d = dm, st.n = dbt;
+	} while (!final);
+	return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
+};
+var et = /*#__PURE__*/ new u8(0);
+/**
+* Streaming DEFLATE decompression
+*/
+var Inflate = /* @__PURE__ */ function() {
+	function Inflate(opts, cb) {
+		if (typeof opts == "function") cb = opts, opts = {};
+		this.ondata = cb;
+		var dict = opts && opts.dictionary && opts.dictionary.subarray(-32768);
+		this.s = {
+			i: 0,
+			b: dict ? dict.length : 0
+		};
+		this.o = new u8(32768);
+		this.p = new u8(0);
+		if (dict) this.o.set(dict);
+	}
+	Inflate.prototype.e = function(c) {
+		if (!this.ondata) err(5);
+		if (this.d) err(4);
+		if (!this.p.length) this.p = c;
+		else if (c.length) {
+			var n = new u8(this.p.length + c.length);
+			n.set(this.p), n.set(c, this.p.length), this.p = n;
+		}
+	};
+	Inflate.prototype.c = function(final) {
+		this.s.i = +(this.d = final || false);
+		var bts = this.s.b;
+		var dt = inflt(this.p, this.s, this.o);
+		this.ondata(slc(dt, bts, this.s.b), this.d);
+		this.o = slc(dt, this.s.b - 32768), this.s.b = this.o.length;
+		this.p = slc(this.p, this.s.p / 8 | 0), this.s.p &= 7;
+	};
+	/**
+	* Pushes a chunk to be inflated
+	* @param chunk The chunk to push
+	* @param final Whether this is the final chunk
+	*/
+	Inflate.prototype.push = function(chunk, final) {
+		this.e(chunk), this.c(final);
+	};
+	return Inflate;
+}();
+var td = typeof TextDecoder != "undefined" && /*#__PURE__*/ new TextDecoder();
+try {
+	td.decode(et, { stream: true });
+} catch (e) {}
+//#endregion
+//#region src/client/remote/inflate.ts
+var kChunkSize = 8192;
+/**
+* Inflates a DEFLATE ZIP entry, enforcing its directory size as output
+* arrives.
+*
+* Input goes in small chunks, so an entry that inflates past its declared
+* size fails after one chunk's output instead of after the whole stream.
+* fflate's one-shot size hint would allocate the attacker-declared size up
+* front and silently truncate excess.
+*/ function inflateBounded(data, size) {
+	const chunks = [];
+	let loaded = 0;
+	const stream = new Inflate((chunk, final) => {
+		loaded += chunk.length;
+		if (loaded > size || final && loaded !== size) throw new Error("Decompressed ZIP entry size does not match its directory");
+		chunks.push(chunk);
+	});
+	let position = 0;
+	do {
+		const end = Math.min(position + kChunkSize, data.length);
+		stream.push(data.slice(position, end), end === data.length);
+		position = end;
+	} while (position < data.length);
+	const output = new Uint8Array(loaded);
+	let offset = 0;
+	for (const part of chunks) {
+		output.set(part, offset);
+		offset += part.length;
+	}
+	return output;
+}
 //#endregion
 //#region src/client/remote/zstd-decoder.ts
 function createZstdDecoder(Decompress) {
@@ -66697,83 +66533,13 @@ function createZstdDecoder(Decompress) {
 	};
 }
 //#endregion
-//#region src/client/remote/zstd-worker-code.ts
+//#region src/client/remote/decompression-worker.ts
 /**
-* Zstandard decompression Web Worker code.
+* ZIP entry decompression (zstd and DEFLATE) via Web Worker.
 *
-* This file contains the worker code as a string constant, along with
-* the base64-encoded fzstd library. The worker is loaded via Blob URL
-* to work in VSCode webviews which have CORS restrictions.
-*/ /**
-* The worker script code that handles zstd decompression.
-*/ var kZstdWorkerCode = `
-// fzstd decompress function, loaded dynamically
-let decoder = null;
-const createZstdDecoder = ${createZstdDecoder.toString()};
-
-self.onmessage = function(e) {
-  const { type } = e.data || {};
-
-  if (type === 'init') {
-    const { scriptContent } = e.data;
-    try {
-      if (!decoder) {
-        // Decode and evaluate the fzstd UMD library
-        const script = atob(scriptContent);
-        // The UMD module self-executes and assigns to self.fzstd
-        new Function(script)();
-        if (!self.fzstd || typeof self.fzstd.Decompress !== 'function') {
-          throw new Error('Failed to initialize fzstd decompressor');
-        }
-        decoder = createZstdDecoder(self.fzstd.Decompress);
-      }
-      self.postMessage({ type: 'init_complete', success: true });
-    } catch (err) {
-      console.error('fzstd init error in worker:', err);
-      self.postMessage({ type: 'init_complete', success: false, error: err.message || 'Unknown error' });
-    }
-    return;
-  }
-
-  if (type === 'decompress') {
-    const { requestId, data, expectedSize } = e.data;
-    try {
-      if (!decoder) {
-        throw new Error('Worker not initialized');
-      }
-      const result = decoder.decompress(data, expectedSize);
-      // Transfer the result buffer back to avoid copying
-      self.postMessage(
-        { requestId, success: true, data: result },
-        [result.buffer]
-      );
-    } catch (err) {
-      self.postMessage({
-        requestId,
-        success: false,
-        error: err instanceof Error ? err.message : 'Unknown error'
-      });
-    }
-  }
-};
-`;
-/**
-* Base64-encoded fzstd library (UMD version, ~8KB).
-* Source: node_modules/fzstd/umd/index.js
-*
-* The UMD format self-executes and assigns to self.fzstd, making
-* fzstd.decompress() available in the worker context.
-*/ var kFzstdBase64 = `IWZ1bmN0aW9uKGYpe3R5cGVvZiBtb2R1bGUhPSd1bmRlZmluZWQnJiZ0eXBlb2YgZXhwb3J0cz09J29iamVjdCc/bW9kdWxlLmV4cG9ydHM9ZigpOnR5cGVvZiBkZWZpbmUhPSd1bmRlZmluZWQnJiZkZWZpbmUuYW1kP2RlZmluZShbJ2Z6c3RkJyxmXSk6KHR5cGVvZiBzZWxmIT0ndW5kZWZpbmVkJz9zZWxmOnRoaXMpLmZ6c3RkPWYoKX0oZnVuY3Rpb24oKXt2YXIgX2U9e307InVzZSBzdHJpY3QiO3ZhciByPUFycmF5QnVmZmVyLHQ9VWludDhBcnJheSxlPVVpbnQxNkFycmF5LG49SW50MTZBcnJheSxhPVVpbnQzMkFycmF5LHM9SW50MzJBcnJheSxpPWZ1bmN0aW9uKHIsZSxuKXtpZih0LnByb3RvdHlwZS5zbGljZSlyZXR1cm4gdC5wcm90b3R5cGUuc2xpY2UuY2FsbChyLGUsbik7KG51bGw9PWV8fGU8MCkmJihlPTApLChudWxsPT1ufHxuPnIubGVuZ3RoKSYmKG49ci5sZW5ndGgpO3ZhciBhPW5ldyB0KG4tZSk7cmV0dXJuIGEuc2V0KHIuc3ViYXJyYXkoZSxuKSksYX0sbz1mdW5jdGlvbihyLGUsbixhKXtpZih0LnByb3RvdHlwZS5maWxsKXJldHVybiB0LnByb3RvdHlwZS5maWxsLmNhbGwocixlLG4sYSk7Zm9yKChudWxsPT1ufHxuPDApJiYobj0wKSwobnVsbD09YXx8YT5yLmxlbmd0aCkmJihhPXIubGVuZ3RoKTtuPGE7KytuKXJbbl09ZTtyZXR1cm4gcn0sdT1mdW5jdGlvbihyLGUsbixhKXtpZih0LnByb3RvdHlwZS5jb3B5V2l0aGluKXJldHVybiB0LnByb3RvdHlwZS5jb3B5V2l0aGluLmNhbGwocixlLG4sYSk7Zm9yKChudWxsPT1ufHxuPDApJiYobj0wKSwobnVsbD09YXx8YT5yLmxlbmd0aCkmJihhPXIubGVuZ3RoKTtuPGE7KXJbZSsrXT1yW24rK119O19lLlpzdGRFcnJvckNvZGU9e0ludmFsaWREYXRhOjAsV2luZG93U2l6ZVRvb0xhcmdlOjEsSW52YWxpZEJsb2NrVHlwZToyLEZTRUFjY3VyYWN5VG9vSGlnaDozLERpc3RhbmNlVG9vRmFyQmFjazo0LFVuZXhwZWN0ZWRFT0Y6NX07dmFyIGg9WyJpbnZhbGlkIHpzdGQgZGF0YSIsIndpbmRvdyBzaXplIHRvbyBsYXJnZSAoPjIwNDZNQikiLCJpbnZhbGlkIGJsb2NrIHR5cGUiLCJGU0UgYWNjdXJhY3kgdG9vIGhpZ2giLCJtYXRjaCBkaXN0YW5jZSB0b28gZmFyIGJhY2siLCJ1bmV4cGVjdGVkIEVPRiJdLGY9ZnVuY3Rpb24ocix0LGUpe3ZhciBuPUVycm9yKHR8fGhbcl0pO2lmKG4uY29kZT1yLEVycm9yLmNhcHR1cmVTdGFja1RyYWNlJiZFcnJvci5jYXB0dXJlU3RhY2tUcmFjZShuLGYpLCFlKXRocm93IG47cmV0dXJuIG59LGw9ZnVuY3Rpb24ocix0LGUpe2Zvcih2YXIgbj0wLGE9MDtuPGU7KytuKWF8PXJbdCsrXTw8KG48PDMpO3JldHVybiBhfSx2PWZ1bmN0aW9uKHIsdCl7cmV0dXJuKHJbdF18clt0KzFdPDw4fHJbdCsyXTw8MTZ8clt0KzNdPDwyNCk+Pj4wfSxjPWZ1bmN0aW9uKHIsZSl7dmFyIG49clswXXxyWzFdPDw4fHJbMl08PDE2O2lmKDMxMjY1Njg9PW4mJjI1Mz09clszXSl7dmFyIGE9cls0XSxpPWE+PjUmMSxvPWE+PjImMSx1PTMmYSxoPWE+PjY7OCZhJiZmKDApO3ZhciBjPTYtaSxiPTM9PXU/NDp1LHk9bChyLGMsYikscD1oPzE8PGg6aSx3PWwocixjKz1iLHApKygxPT1oJiYyNTYpLGc9dztpZighaSl7dmFyIGQ9MTw8MTArKHJbNV0+PjMpO2c9ZCsoZD4+MykqKDcmcls1XSl9Zz4yMTQ1Mzg2NDk2JiZmKDEpO3ZhciBtPW5ldyB0KCgxPT1lP3d8fGc6ZT8wOmcpKzEyKTtyZXR1cm4gbVswXT0xLG1bNF09NCxtWzhdPTgse2I6YytwLHk6MCxsOjAsZDp5LHc6ZSYmMSE9ZT9lOm0uc3ViYXJyYXkoMTIpLGU6ZyxvOm5ldyBzKG0uYnVmZmVyLDAsMyksdTp3LGM6byxtOk1hdGgubWluKDEzMTA3MixnKX19aWYoMjU0ODE4OTM9PShuPj40fHJbM108PDIwKSlyZXR1cm4gdihyLDQpKzg7ZigwKX0sYj1mdW5jdGlvbihyKXtmb3IodmFyIHQ9MDsxPDx0PD1yOysrdCk7cmV0dXJuIHQtMX0seT1mdW5jdGlvbihhLHMsaSl7dmFyIG89NCsoczw8MyksdT01KygxNSZhW3NdKTt1PmkmJmYoMyk7Zm9yKHZhciBoPTE8PHUsbD1oLHY9LTEsYz0tMSx5PS0xLHA9aCx3PW5ldyByKDUxMisoaDw8MikpLGc9bmV3IG4odywwLDI1NiksZD1uZXcgZSh3LDAsMjU2KSxtPW5ldyBlKHcsNTEyLGgpLHo9NTEyKyhoPDwxKSxFPW5ldyB0KHcseixoKSxrPW5ldyB0KHcseitoKTt2PDI1NSYmbD4wOyl7dmFyIEE9YihsKzEpLFQ9bz4+Myx4PSgxPDxBKzEpLTEsRj0oYVtUXXxhW1QrMV08PDh8YVtUKzJdPDwxNik+Pig3Jm8pJngsUz0oMTw8QSktMSxCPXgtbC0xLEk9RiZTO2lmKEk8Qj8obys9QSxGPUkpOihvKz1BKzEsRj5TJiYoRi09QikpLGdbKyt2XT0tLUYsLTE9PUY/KGwrPUYsRVstLXBdPXYpOmwtPUYsIUYpZG97dmFyIFU9bz4+MztjPShhW1VdfGFbVSsxXTw8OCk+Pig3Jm8pJjMsbys9Mix2Kz1jfXdoaWxlKDM9PWMpfSh2PjI1NXx8bCkmJmYoMCk7Zm9yKHZhciBEPTAsTT0oaD4+MSkrKGg+PjMpKzMsVz1oLTEsTz0wO088PXY7KytPKXt2YXIgaj1nW09dO2lmKGo8MSlkW09dPS1qO2Vsc2UgZm9yKHk9MDt5PGo7Kyt5KXtFW0RdPU87ZG97RD1EK00mV313aGlsZShEPj1wKX19Zm9yKEQmJmYoMCkseT0wO3k8aDsrK3kpe3ZhciBDPWRbRVt5XV0rKyxIPWtbeV09dS1iKEMpO21beV09KEM8PEgpLWh9cmV0dXJuW28rNz4+Myx7Yjp1LHM6RSxuOmssdDptfV19LHA9ZnVuY3Rpb24ocixuKXt2YXIgYT0wLHM9LTEsaT1uZXcgdCgyOTIpLHU9cltuXSxoPWkuc3ViYXJyYXkoMCwyNTYpLGw9aS5zdWJhcnJheSgyNTYsMjY4KSx2PW5ldyBlKGkuYnVmZmVyLDI2OCk7aWYodTwxMjgpe3ZhciBjPXkocixuKzEsNikscD1jWzFdLHc9Y1swXTw8MyxnPXJbbis9dV07Z3x8ZigwKTtmb3IodmFyIGQ9MCxtPTAsej1wLmIsRT16LGs9KCsrbjw8MyktOCtiKGcpOyEoKGstPXopPHcpOyl7dmFyIEE9az4+MztpZihoWysrc109cC5zW2QrPShyW0FdfHJbQSsxXTw8OCk+Pig3JmspJigxPDx6KS0xXSwoay09RSk8dylicmVhaztoWysrc109cC5zW20rPShyW0E9az4+M118cltBKzFdPDw4KT4+KDcmaykmKDE8PEUpLTFdLHo9cC5uW2RdLGQ9cC50W2RdLEU9cC5uW21dLG09cC50W21dfSsrcz4yNTUmJmYoMCl9ZWxzZXtmb3Iocz11LTEyNzthPHM7YSs9Mil7dmFyIFQ9clsrK25dO2hbYV09VD4+NCxoW2ErMV09MTUmVH0rK259dmFyIHg9MDtmb3IoYT0wO2E8czsrK2EpKEk9aFthXSk+MTEmJmYoMCkseCs9SSYmMTw8SS0xO3ZhciBGPWIoeCkrMSxTPTE8PEYsQj1TLXg7Zm9yKEImQi0xJiZmKDApLGhbcysrXT1iKEIpKzEsYT0wO2E8czsrK2Epe3ZhciBJOysrbFtoW2FdPShJPWhbYV0pJiZGKzEtSV19dmFyIFU9bmV3IHQoUzw8MSksRD1VLnN1YmFycmF5KDAsUyksTT1VLnN1YmFycmF5KFMpO2Zvcih2W0ZdPTAsYT1GO2E+MDstLWEpe3ZhciBXPXZbYV07byhNLGEsVyx2W2EtMV09VytsW2FdKigxPDxGLWEpKX1mb3IodlswXSE9UyYmZigwKSxhPTA7YTxzOysrYSl7dmFyIE89aFthXTtpZihPKXt2YXIgaj12W09dO28oRCxhLGosdltPXT1qKygxPDxGLU8pKX19cmV0dXJuW24se246TSxiOkYsczpEfV19LHc9eShuZXcgdChbODEsMTYsOTksMTQwLDQ5LDE5OCwyNCw5OSwxMiwzMywxOTYsMjQsOTksMTAyLDEwMiwxMzQsNzAsMTQ2LDRdKSwwLDYpWzFdLGc9eShuZXcgdChbMzMsMjAsMTk2LDI0LDk5LDE0MCwzMywxMzIsMTYsNjYsOCwzMywxMzIsMTYsNjYsOCwzMyw2OCw2OCw2OCw2OCw2OCw2OCw2OCw2OCwzNiw5XSksMCw2KVsxXSxkPXkobmV3IHQoWzMyLDEzMiwxNiw2NiwxMDIsNzAsNjgsNjgsNjgsNjgsMzYsNzMsMl0pLDAsNSlbMV0sbT1mdW5jdGlvbihyLHQpe2Zvcih2YXIgZT1yLmxlbmd0aCxuPW5ldyBzKGUpLGE9MDthPGU7KythKW5bYV09dCx0Kz0xPDxyW2FdO3JldHVybiBufSx6PW5ldyB0KG5ldyBzKFswLDAsMCwwLDE2ODQzMDA5LDUwNTI4NzcwLDEzNDY3ODAyMCwyMDIwNTAwNTcsMjY5NDIyMDkzXSkuYnVmZmVyLDAsMzYpLEU9bSh6LDApLGs9bmV3IHQobmV3IHMoWzAsMCwwLDAsMCwwLDAsMCwxNjg0MzAwOSw1MDUyODc3MCwxMTc3NjkyMjAsMTg1MjA3MDQ4LDI1MjU3OTA4NCwxNl0pLmJ1ZmZlciwwLDUzKSxBPW0oaywzKSxUPWZ1bmN0aW9uKHIsdCxlKXt2YXIgbj1yLmxlbmd0aCxhPXQubGVuZ3RoLHM9cltuLTFdLGk9KDE8PGUuYiktMSxvPS1lLmI7c3x8ZigwKTtmb3IodmFyIHU9MCxoPWUuYixsPShuPDwzKS04K2IocyktaCx2PS0xO2w+byYmdjxhOyl7dmFyIGM9bD4+Mzt0Wysrdl09ZS5zW3U9KHU8PGh8KHJbY118cltjKzFdPDw4fHJbYysyXTw8MTYpPj4oNyZsKSkmaV0sbC09aD1lLm5bdV19bD09byYmdisxPT1hfHxmKDApfSx4PWZ1bmN0aW9uKHIsdCxlKXt2YXIgbj02LGE9dC5sZW5ndGgrMz4+MixzPWE8PDEsaT1hK3M7VChyLnN1YmFycmF5KG4sbis9clswXXxyWzFdPDw4KSx0LnN1YmFycmF5KDAsYSksZSksVChyLnN1YmFycmF5KG4sbis9clsyXXxyWzNdPDw4KSx0LnN1YmFycmF5KGEscyksZSksVChyLnN1YmFycmF5KG4sbis9cls0XXxyWzVdPDw4KSx0LnN1YmFycmF5KHMsaSksZSksVChyLnN1YmFycmF5KG4pLHQuc3ViYXJyYXkoaSksZSl9LEY9ZnVuY3Rpb24ocixuLGEpe3ZhciBzLHU9bi5iLGg9clt1XSxsPWg+PjEmMztuLmw9MSZoO3ZhciB2PWg+PjN8clt1KzFdPDw1fHJbdSsyXTw8MTMsYz0odSs9MykrdjtpZigxPT1sKXtpZih1Pj1yLmxlbmd0aClyZXR1cm47cmV0dXJuIG4uYj11KzEsYT8obyhhLHJbdV0sbi55LG4ueSs9diksYSk6byhuZXcgdCh2KSxyW3VdKX1pZighKGM+ci5sZW5ndGgpKXtpZigwPT1sKXJldHVybiBuLmI9YyxhPyhhLnNldChyLnN1YmFycmF5KHUsYyksbi55KSxuLnkrPXYsYSk6aShyLHUsYyk7aWYoMj09bCl7dmFyIG09clt1XSxGPTMmbSxTPW0+PjImMyxCPW0+PjQsST0wLFU9MDtGPDI/MSZTP0J8PXJbKyt1XTw8NHwoMiZTJiZyWysrdV08PDEyKTpCPW0+PjM6KFU9UyxTPDI/KEJ8PSg2MyZyWysrdV0pPDw0LEk9clt1XT4+NnxyWysrdV08PDIpOjI9PVM/KEJ8PXJbKyt1XTw8NHwoMyZyWysrdV0pPDwxMixJPXJbdV0+PjJ8clsrK3VdPDw2KTooQnw9clsrK3VdPDw0fCg2MyZyWysrdV0pPDwxMixJPXJbdV0+PjZ8clsrK3VdPDwyfHJbKyt1XTw8MTApKSwrK3U7dmFyIEQ9YT9hLnN1YmFycmF5KG4ueSxuLnkrbi5tKTpuZXcgdChuLm0pLE09RC5sZW5ndGgtQjtpZigwPT1GKUQuc2V0KHIuc3ViYXJyYXkodSx1Kz1CKSxNKTtlbHNlIGlmKDE9PUYpbyhELHJbdSsrXSxNKTtlbHNle3ZhciBXPW4uaDtpZigyPT1GKXt2YXIgTz1wKHIsdSk7SSs9dS0odT1PWzBdKSxuLmg9Vz1PWzFdfWVsc2UgV3x8ZigwKTsoVT94OlQpKHIuc3ViYXJyYXkodSx1Kz1JKSxELnN1YmFycmF5KE0pLFcpfXZhciBqPXJbdSsrXTtpZihqKXsyNTU9PWo/aj0zMjUxMisoclt1KytdfHJbdSsrXTw8OCk6aj4xMjcmJihqPWotMTI4PDw4fHJbdSsrXSk7dmFyIEM9clt1KytdOzMmQyYmZigwKTtmb3IodmFyIEg9W2csZCx3XSxMPTI7TD4tMTstLUwpe3ZhciBaPUM+PjIrKEw8PDEpJjM7aWYoMT09Wil7dmFyIHE9bmV3IHQoWzAsMCxyW3UrK11dKTtIW0xdPXtzOnEuc3ViYXJyYXkoMiwzKSxuOnEuc3ViYXJyYXkoMCwxKSx0Om5ldyBlKHEuYnVmZmVyLDAsMSksYjowfX1lbHNlIDI9PVo/KHU9KHM9eShyLHUsOS0oMSZMKSkpWzBdLEhbTF09c1sxXSk6Mz09WiYmKG4udHx8ZigwKSxIW0xdPW4udFtMXSl9dmFyIEc9bi50PUgsSj1HWzBdLEs9R1sxXSxOPUdbMl0sUD1yW2MtMV07UHx8ZigwKTt2YXIgUT0oYzw8MyktOCtiKFApLU4uYixSPVE+PjMsVj0wLFg9KHJbUl18cltSKzFdPDw4KT4+KDcmUSkmKDE8PE4uYiktMSxZPShyW1I9KFEtPUsuYik+PjNdfHJbUisxXTw8OCk+Pig3JlEpJigxPDxLLmIpLTEsJD0ocltSPShRLT1KLmIpPj4zXXxyW1IrMV08PDgpPj4oNyZRKSYoMTw8Si5iKS0xO2ZvcigrK2o7LS1qOyl7dmFyIF89Ti5zW1hdLHJyPU4ubltYXSx0cj1KLnNbJF0sZXI9Si5uWyRdLG5yPUsuc1tZXSxhcj1LLm5bWV0sc3I9MTw8bnIsaXI9c3IrKChyW1I9KFEtPW5yKT4+M118cltSKzFdPDw4fHJbUisyXTw8MTZ8cltSKzNdPDwyNCk+Pj4oNyZRKSZzci0xKTtSPShRLT1rW3RyXSk+PjM7dmFyIG9yPUFbdHJdKygocltSXXxyW1IrMV08PDh8cltSKzJdPDwxNik+Pig3JlEpJigxPDxrW3RyXSktMSk7Uj0oUS09eltfXSk+PjM7dmFyIHVyPUVbX10rKChyW1JdfHJbUisxXTw8OHxyW1IrMl08PDE2KT4+KDcmUSkmKDE8PHpbX10pLTEpO2lmKFI9KFEtPXJyKT4+MyxYPU4udFtYXSsoKHJbUl18cltSKzFdPDw4KT4+KDcmUSkmKDE8PHJyKS0xKSxSPShRLT1lcik+PjMsJD1KLnRbJF0rKChyW1JdfHJbUisxXTw8OCk+Pig3JlEpJigxPDxlciktMSksUj0oUS09YXIpPj4zLFk9Sy50W1ldKygocltSXXxyW1IrMV08PDgpPj4oNyZRKSYoMTw8YXIpLTEpLGlyPjMpbi5vWzJdPW4ub1sxXSxuLm9bMV09bi5vWzBdLG4ub1swXT1pci09MztlbHNle3ZhciBocj1pci0oMCE9dXIpO2hyPyhpcj0zPT1ocj9uLm9bMF0tMTpuLm9baHJdLGhyPjEmJihuLm9bMl09bi5vWzFdKSxuLm9bMV09bi5vWzBdLG4ub1swXT1pcik6aXI9bi5vWzBdfWZvcihMPTA7TDx1cjsrK0wpRFtWK0xdPURbTStMXTtNKz11cjt2YXIgZnI9KFYrPXVyKS1pcjtpZihmcjwwKXt2YXIgbHI9LWZyLHZyPW4uZStmcjtmb3IobHI+b3ImJihscj1vciksTD0wO0w8bHI7KytMKURbVitMXT1uLndbdnIrTF07Vis9bHIsb3ItPWxyLGZyPTB9Zm9yKEw9MDtMPG9yOysrTClEW1YrTF09RFtmcitMXTtWKz1vcn1pZihWIT1NKWZvcig7TTxELmxlbmd0aDspRFtWKytdPURbTSsrXTtlbHNlIFY9RC5sZW5ndGg7YT9uLnkrPVY6RD1pKEQsMCxWKX1lbHNlIGlmKGEpe2lmKG4ueSs9QixNKWZvcihMPTA7TDxCOysrTClEW0xdPURbTStMXX1lbHNlIE0mJihEPWkoRCxNKSk7cmV0dXJuIG4uYj1jLER9ZigyKX19LFM9ZnVuY3Rpb24ocixlKXtpZigxPT1yLmxlbmd0aClyZXR1cm4gclswXTtmb3IodmFyIG49bmV3IHQoZSksYT0wLHM9MDthPHIubGVuZ3RoOysrYSl7dmFyIGk9clthXTtuLnNldChpLHMpLHMrPWkubGVuZ3RofXJldHVybiBufTtmdW5jdGlvbiBCKHIsdCl7Zm9yKHZhciBlPVtdLG49KyF0LGE9MCxzPTA7ci5sZW5ndGg7KXt2YXIgaT1jKHIsbnx8dCk7aWYoIm9iamVjdCI9PXR5cGVvZiBpKXtmb3Iobj8odD1udWxsLGkudy5sZW5ndGg9PWkudSYmKGUucHVzaCh0PWkudykscys9aS51KSk6KGUucHVzaCh0KSxpLmU9MCk7IWkubDspe3ZhciBvPUYocixpLHQpO298fGYoNSksdD9pLmU9aS55OihlLnB1c2gobykscys9by5sZW5ndGgsdShpLncsMCxvLmxlbmd0aCksaS53LnNldChvLGkudy5sZW5ndGgtby5sZW5ndGgpKX1hPWkuYis0KmkuY31lbHNlIGE9aTtyPXIuc3ViYXJyYXkoYSl9cmV0dXJuIFMoZSxzKX1fZS5kZWNvbXByZXNzPUI7dmFyIEk9ZnVuY3Rpb24oKXtmdW5jdGlvbiByKHIpe3RoaXMub25kYXRhPXIsdGhpcy5jPVtdLHRoaXMubD0wLHRoaXMuej0wfXJldHVybiByLnByb3RvdHlwZS5wdXNoPWZ1bmN0aW9uKHIsZSl7aWYoIm51bWJlciI9PXR5cGVvZiB0aGlzLnMpe3ZhciBuPU1hdGgubWluKHIubGVuZ3RoLHRoaXMucyk7cj1yLnN1YmFycmF5KG4pLHRoaXMucy09bn12YXIgYT1yLmxlbmd0aCt0aGlzLmw7aWYoIXRoaXMucyl7aWYoZSl7aWYoIWEpcmV0dXJuIHZvaWQgdGhpcy5vbmRhdGEobmV3IHQoMCksITApO2E8NSYmZig1KX1lbHNlIGlmKGE8MTgpcmV0dXJuIHRoaXMuYy5wdXNoKHIpLHZvaWQodGhpcy5sPWEpO2lmKHRoaXMubCYmKHRoaXMuYy5wdXNoKHIpLHI9Uyh0aGlzLmMsYSksdGhpcy5jPVtdLHRoaXMubD0wKSwibnVtYmVyIj09dHlwZW9mKHRoaXMucz1jKHIpKSlyZXR1cm4gdGhpcy5wdXNoKHIsZSl9aWYoIm51bWJlciIhPXR5cGVvZiB0aGlzLnMpe2lmKGE8KHRoaXMuenx8MykpcmV0dXJuIGUmJmYoNSksdGhpcy5jLnB1c2gociksdm9pZCh0aGlzLmw9YSk7aWYodGhpcy5sJiYodGhpcy5jLnB1c2gocikscj1TKHRoaXMuYyxhKSx0aGlzLmM9W10sdGhpcy5sPTApLCF0aGlzLnomJmE8KHRoaXMuej0yJnJbdGhpcy5zLmJdPzQ6Mysoclt0aGlzLnMuYl0+PjN8clt0aGlzLnMuYisxXTw8NXxyW3RoaXMucy5iKzJdPDwxMykpKXJldHVybiBlJiZmKDUpLHRoaXMuYy5wdXNoKHIpLHZvaWQodGhpcy5sPWEpO2Zvcih0aGlzLno9MDs7KXt2YXIgcz1GKHIsdGhpcy5zKTtpZighcyl7ZSYmZig1KTt2YXIgaT1yLnN1YmFycmF5KHRoaXMucy5iKTtyZXR1cm4gdGhpcy5zLmI9MCx0aGlzLmMucHVzaChpKSx2b2lkKHRoaXMubCs9aS5sZW5ndGgpfWlmKHRoaXMub25kYXRhKHMsITEpLHUodGhpcy5zLncsMCxzLmxlbmd0aCksdGhpcy5zLncuc2V0KHMsdGhpcy5zLncubGVuZ3RoLXMubGVuZ3RoKSx0aGlzLnMubCl7dmFyIG89ci5zdWJhcnJheSh0aGlzLnMuYik7cmV0dXJuIHRoaXMucz00KnRoaXMucy5jLHZvaWQgdGhpcy5wdXNoKG8sZSl9fX1lbHNlIGUmJmYoNSl9LHJ9KCk7X2UuRGVjb21wcmVzcz1JO3JldHVybiBfZX0p`;
-//#endregion
-//#region src/client/remote/zstd-worker.ts
-/**
-* Zstandard decompression via Web Worker.
-*
-* Provides a simple async interface for zstd decompression that automatically
-* uses a Web Worker for large payloads to avoid blocking the main thread.
-*
-* Uses Blob URL to load the worker, which works in VSCode webviews that have
-* CORS restrictions preventing external worker script loading.
+* Small entries decompress synchronously; larger ones go to a worker so they
+* don't block the main thread. The worker is a bundled script started through
+* workerLauncher, which also covers VS Code webviews' cross-origin assets.
 */
 /**
 * Threshold for using a Web Worker (1MB compressed or expected output).
@@ -66781,40 +66547,38 @@ self.onmessage = function(e) {
 */ var WORKER_THRESHOLD = 1048576;
 var decoder = createZstdDecoder(Decompress);
 decoder.ZstdWindowSizeError;
-var zstdWorker = null;
+var worker = null;
 var workerInitPromise = null;
 var nextRequestId = 0;
 var pendingRequests = /* @__PURE__ */ new Map();
 function messageError$1(message, fallback) {
 	return new Error("error" in message && typeof message.error === "string" ? message.error : fallback);
 }
-function getZstdWorker() {
-	if (workerInitPromise) return workerInitPromise;
-	const blobURL = URL.createObjectURL(new Blob([kZstdWorkerCode], { type: "application/javascript" }));
-	let worker;
-	try {
-		worker = new Worker(blobURL);
-	} finally {
-		URL.revokeObjectURL(blobURL);
-	}
-	zstdWorker = worker;
-	workerInitPromise = new Promise((resolve, reject) => {
+async function startWorker() {
+	const launcher = await workerLauncher(decompression_worker_default);
+	const started = launcher.start();
+	launcher.release();
+	return started;
+}
+function initWorker(started) {
+	return new Promise((resolve, reject) => {
+		worker = started;
 		const fail = (error) => {
-			if (zstdWorker !== worker) return;
+			if (worker !== started) return;
 			reject(error);
 			for (const pending of pendingRequests.values()) pending.reject(error);
 			pendingRequests.clear();
-			worker.terminate();
-			zstdWorker = null;
+			started.terminate();
+			worker = null;
 			workerInitPromise = null;
 		};
-		worker.addEventListener("error", (event) => fail(/* @__PURE__ */ new Error(`Worker error: ${event.message}`)));
-		worker.addEventListener("messageerror", () => fail(/* @__PURE__ */ new Error("Worker response could not be deserialized")));
-		worker.addEventListener("message", (event) => {
+		started.addEventListener("error", (event) => fail(/* @__PURE__ */ new Error(`Worker error: ${event.message}`)));
+		started.addEventListener("messageerror", () => fail(/* @__PURE__ */ new Error("Worker response could not be deserialized")));
+		started.addEventListener("message", (event) => {
 			const message = event.data;
 			if (typeof message !== "object" || message === null) return;
 			if ("type" in message && message.type === "init_complete") {
-				if ("success" in message && message.success === true) resolve(worker);
+				if ("success" in message && message.success === true) resolve(started);
 				else fail(messageError$1(message, "Worker initialization failed"));
 				return;
 			}
@@ -66825,19 +66589,45 @@ function getZstdWorker() {
 			if ("success" in message && message.success === true && "data" in message && message.data instanceof Uint8Array) pending.resolve(message.data);
 			else pending.reject(messageError$1(message, "Decompression failed"));
 		});
-		queueMicrotask(() => {
-			try {
-				worker.postMessage({
-					type: "init",
-					scriptContent: kFzstdBase64
-				});
-			} catch (error) {
-				fail(error instanceof Error ? error : new Error(String(error)));
-			}
-		});
+		try {
+			started.postMessage({ type: "init" });
+		} catch (error) {
+			fail(error instanceof Error ? error : new Error(String(error)));
+		}
 	});
-	return workerInitPromise;
 }
+function getWorker() {
+	if (workerInitPromise) return workerInitPromise;
+	const init = startWorker().then(initWorker);
+	workerInitPromise = init;
+	init.catch(() => {
+		if (workerInitPromise === init) workerInitPromise = null;
+	});
+	return init;
+}
+async function decompressInWorker(method, data, expectedSize) {
+	const ready = await getWorker();
+	return new Promise((resolve, reject) => {
+		const requestId = nextRequestId++;
+		pendingRequests.set(requestId, {
+			resolve,
+			reject
+		});
+		try {
+			ready.postMessage({
+				type: "decompress",
+				method,
+				requestId,
+				data,
+				expectedSize
+			}, [data.buffer]);
+		} catch (error) {
+			pendingRequests.delete(requestId);
+			reject(error instanceof Error ? error : new Error(String(error)));
+		}
+	});
+}
+var isSmall = (data, expectedSize) => data.length < WORKER_THRESHOLD && expectedSize < WORKER_THRESHOLD;
 /**
 * Decompresses zstd-compressed data.
 *
@@ -66852,26 +66642,19 @@ function getZstdWorker() {
 * @param expectedSize - Validated ZIP output size, enforced while streaming
 * @returns Promise resolving to the decompressed data
 */ async function decompressZstd(data, expectedSize) {
-	if (!(decoder.scanFrames(data, expectedSize) >= WORKER_THRESHOLD) && data.length < WORKER_THRESHOLD && expectedSize < WORKER_THRESHOLD) return decoder.decompress(data, expectedSize);
-	const worker = await getZstdWorker();
-	return new Promise((resolve, reject) => {
-		const requestId = nextRequestId++;
-		pendingRequests.set(requestId, {
-			resolve,
-			reject
-		});
-		try {
-			worker.postMessage({
-				type: "decompress",
-				requestId,
-				data,
-				expectedSize
-			}, [data.buffer]);
-		} catch (error) {
-			pendingRequests.delete(requestId);
-			reject(error instanceof Error ? error : new Error(String(error)));
-		}
-	});
+	if (!(decoder.scanFrames(data, expectedSize) >= WORKER_THRESHOLD) && isSmall(data, expectedSize)) return decoder.decompress(data, expectedSize);
+	return decompressInWorker("zstd", data, expectedSize);
+}
+/**
+* Decompresses DEFLATE data, with the same size threshold and transfer
+* behaviour as decompressZstd.
+*
+* @param data - The DEFLATE-compressed data
+* @param expectedSize - Validated ZIP output size, enforced while streaming
+* @returns Promise resolving to the decompressed data
+*/ async function decompressDeflate(data, expectedSize) {
+	if (isSmall(data, expectedSize)) return inflateBounded(data, expectedSize);
+	return decompressInWorker("deflate", data, expectedSize);
 }
 //#endregion
 //#region src/client/remote/decompression.ts
@@ -66909,48 +66692,6 @@ function getZstdWorker() {
 		case CompressionMethod.ZSTANDARD: return decompressZstd(data, uncompressedSize);
 		default: throw new UnsupportedCompressionError(compressionMethod, filename);
 	}
-}
-async function decompressDeflate(data, size) {
-	return new Promise((resolve, reject) => {
-		const chunks = [];
-		let loaded = 0;
-		let position = 0;
-		const stream = new AsyncInflate((error, chunk, final) => {
-			if (error) {
-				stream.terminate();
-				reject(error);
-				return;
-			}
-			loaded += chunk.length;
-			if (loaded > size || final && loaded !== size) {
-				stream.terminate();
-				reject(/* @__PURE__ */ new Error("Decompressed ZIP entry size does not match its directory"));
-				return;
-			}
-			chunks.push(chunk);
-			if (final) {
-				stream.terminate();
-				const output = new Uint8Array(loaded);
-				let offset = 0;
-				for (const part of chunks) {
-					output.set(part, offset);
-					offset += part.length;
-				}
-				resolve(output);
-			} else push();
-		});
-		function push() {
-			const end = Math.min(position + 8192, data.length);
-			try {
-				stream.push(data.slice(position, end), end === data.length);
-				position = end;
-			} catch (error) {
-				stream.terminate();
-				reject(error instanceof Error ? error : new Error(String(error)));
-			}
-		}
-		push();
-	});
 }
 //#endregion
 //#region src/client/remote/remoteZipFile.ts
@@ -67761,18 +67502,27 @@ var createMiddlewareWrapper = (middlewares) => {
 //#region src/client/api/shared/api-shared.ts
 /**
 * Downloads the provided content as a file using the browser's DOM API
-*/ async function download_file(filename, filecontents) {
-	let blob;
-	if (typeof filecontents === "string" && filecontents.startsWith("data:")) blob = await (await fetch(filecontents)).blob();
-	else blob = new Blob([filecontents], { type: "text/plain" });
-	const link = document.createElement("a");
-	link.href = URL.createObjectURL(blob);
-	link.download = filename;
-	document.body.appendChild(link);
-	link.click();
-	document.body.removeChild(link);
-	URL.revokeObjectURL(link.href);
+*/ function download_file(filename, filecontents) {
+	return new Promise((resolve) => {
+		const blob = typeof filecontents === "string" && filecontents.startsWith("data:") ? dataUrlBlob(filecontents) : new Blob([filecontents], { type: "text/plain" });
+		const link = document.createElement("a");
+		link.href = URL.createObjectURL(blob);
+		link.download = filename;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		URL.revokeObjectURL(link.href);
+		resolve();
+	});
 }
+var dataUrlBlob = (url) => {
+	const comma = url.indexOf(",");
+	if (comma < 0) throw new TypeError("Malformed data URL: no comma");
+	const [mimeType = "", ...parameters] = url.slice(5, comma).split(";");
+	const payload = url.slice(comma + 1);
+	const bytes = parameters.some((parameter) => parameter.trim().toLowerCase() === "base64") ? Uint8Array.from(atob(payload), (char) => char.charCodeAt(0)) : new TextEncoder().encode(decodeURIComponent(payload));
+	return new Blob([bytes], { type: mimeType.trim() || "text/plain" });
+};
 //#endregion
 //#region src/client/api/static-http/fetch.ts
 /**
@@ -126095,7 +125845,7 @@ function findColumn(string, col, tabSize, strict) {
 	return strict === true ? -1 : string.length;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/style-mod@4.1.4/node_modules/style-mod/src/style-mod.js
+//#region ../../node_modules/.pnpm/style-mod@4.1.4_patch_hash=291c22119f0b56ac1abf87cd3e4e3a817bc3d941e6d4a794efc429b8aee7d2f8/node_modules/style-mod/src/style-mod.js
 var C$1 = "ͼ";
 var COUNT$1 = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C$1);
 var SET$1 = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
@@ -126141,7 +125891,7 @@ var adoptedSet$1 = /* @__PURE__ */ new Map();
 var StyleSet$1 = class {
 	constructor(root, nonce) {
 		let doc = root.ownerDocument || root, win = doc.defaultView;
-		if (!root.head && root.adoptedStyleSheets && win.CSSStyleSheet) {
+		if (root.adoptedStyleSheets && win.CSSStyleSheet) {
 			let adopted = adoptedSet$1.get(doc);
 			if (adopted) return root[SET$1] = adopted;
 			this.sheet = new win.CSSStyleSheet();
@@ -136222,7 +135972,7 @@ tagHighlighter([
 	}
 ]);
 //#endregion
-//#region ../../node_modules/.pnpm/style-mod@4.1.3/node_modules/style-mod/src/style-mod.js
+//#region ../../node_modules/.pnpm/style-mod@4.1.3_patch_hash=291c22119f0b56ac1abf87cd3e4e3a817bc3d941e6d4a794efc429b8aee7d2f8/node_modules/style-mod/src/style-mod.js
 var C = "ͼ";
 var COUNT = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C);
 var SET = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
@@ -136268,7 +136018,7 @@ var adoptedSet = /* @__PURE__ */ new Map();
 var StyleSet = class {
 	constructor(root, nonce) {
 		let doc = root.ownerDocument || root, win = doc.defaultView;
-		if (!root.head && root.adoptedStyleSheets && win.CSSStyleSheet) {
+		if (root.adoptedStyleSheets && win.CSSStyleSheet) {
 			let adopted = adoptedSet.get(doc);
 			if (adopted) return root[SET] = adopted;
 			this.sheet = new win.CSSStyleSheet();
