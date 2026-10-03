@@ -139,6 +139,7 @@ class AgentBridge:
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
+        self._warned_request_settings: set[str] = set()
 
     state: AgentState
     """State updated from messages traveling over the bridge."""

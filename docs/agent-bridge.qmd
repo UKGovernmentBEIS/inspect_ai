@@ -247,6 +247,28 @@ async with agent_bridge(state, forward_generation_config=True) as bridge:
 
 This option is available on both `agent_bridge()` and `sandbox_agent_bridge()`.
 
+## Request Settings
+
+Some request fields and tool options change billing, storage at the model provider, how much of the conversation the provider keeps, or what provider tools may do. On both `agent_bridge()` and `sandbox_agent_bridge()` the eval's configuration decides these, not the agent:
+
+-   `service_tier`, `store` and `truncation` (OpenAI Responses) and `service_tier` (Anthropic) are not forwarded. Set them with the provider's model args (for OpenAI, `-M service_tier=flex` or `-M responses_store=true`) or with `GenerateConfig(extra_body=...)`. If the agent asks for a different value, a warning is logged once per field.
+
+-   A Responses request with `previous_response_id` is refused with a 400 error (raised as a `BridgePolicyError` from the client call for `agent_bridge()`). The bridge keeps no stored responses, so the agent must send the whole conversation in `input`.
+
+-   `metadata`, `safety_identifier`, `prompt_cache_key`, `prompt_cache_retention` and `max_tool_calls` are forwarded.
+
+-   Options the agent sets on a provider tool it declares do not replace the bridge's `web_search` and `code_execution` options. This covers the code interpreter's `container` (OpenAI), and web search filters and allowed or blocked domains (OpenAI and Anthropic). For anything that differs, a warning is logged once per tool.
+
+-   The agent may set a web search `user_location` (OpenAI and Anthropic) or `search_context_size` (OpenAI) that the bridge's `web_search` options leave unset. These shape the results but do not widen what can be searched or change billing or storage. When the eval sets one, the eval's value is used.
+
+-   The agent may also ask for less: a lower Anthropic `max_uses`, or OpenAI `external_web_access: false`, is applied.
+
+-   An OpenAI computer tool needs storage at the provider. If the eval turns storage off (`-M responses_store=false` or `store: False` in `GenerateConfig(extra_body=...)`), a request that declares the computer tool is refused with a 400 error. When the eval does not set storage, Inspect turns it on for these requests, as it does for any OpenAI computer tool.
+
+OpenAI Chat Completions and Google requests forward none of these fields, and Google tool declarations carry no options into the request.
+
+HTTP headers an agent sends to the sandbox bridge's proxy are not forwarded; only the request body reaches the model provider. The in-process `agent_bridge()` forwards the agent's headers other than credentials and SDK-managed ones.
+
 ## Tool Approval
 
 Tool calls made by a bridged agent can be governed by [approval policies](approval.qmd), even though the agent executes its own tools. Approval is applied to the tool calls in each model response before that response reaches the agent, so a rejected call is never run.
