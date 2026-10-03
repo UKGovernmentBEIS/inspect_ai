@@ -1,24 +1,18 @@
 import contextlib
 from collections.abc import Iterator
 from contextvars import ContextVar
-from logging import getLogger
 
-from inspect_ai._util.format import format_function_call
-from inspect_ai._util.logger import warn_once
 from inspect_ai.approval._approval import Approval
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import (
     ToolCall,
-    ToolCallContent,
-    ToolCallView,
     ToolCallViewer,
+    resolve_tool_call_view,
 )
 from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 
 from ._approver import Approver
 from ._policy import ApprovalPolicy, policy_approver
-
-logger = getLogger(__name__)
 
 
 async def apply_tool_approval(
@@ -29,21 +23,7 @@ async def apply_tool_approval(
 ) -> tuple[bool, Approval | None]:
     approver = _tool_approver.get(None)
     if approver:
-        # resolve view
-        if viewer:
-            try:
-                view = viewer(call)
-                if not view.call:
-                    view.call = default_tool_call_viewer(call).call
-            except Exception as ex:
-                warn_once(
-                    logger,
-                    f"Error in viewer for tool '{call.function}': {ex}. "
-                    "Falling back to default rendering.",
-                )
-                view = default_tool_call_viewer(call)
-        else:
-            view = default_tool_call_viewer(call)
+        view = resolve_tool_call_view(call, viewer)
 
         # call approver (approvers which use model inference — e.g. LLM monitors —
         # shouldn't have that inference charged to the agent's own budget)
@@ -69,17 +49,6 @@ async def apply_tool_approval(
     # no approval system registered
     else:
         return True, None
-
-
-def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
-    return ToolCallView(
-        call=ToolCallContent(
-            format="markdown",
-            content="```python\n"
-            + format_function_call(call.function, call.arguments)
-            + "\n```\n",
-        )
-    )
 
 
 @contextlib.contextmanager

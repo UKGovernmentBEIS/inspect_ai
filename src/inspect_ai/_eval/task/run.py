@@ -37,6 +37,7 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
+from inspect_ai._sentinel._config import SentinelRoot
 from inspect_ai._util._async import Wake, aexit_shielded_when
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -628,6 +629,8 @@ class TaskRunOptions:
     logger: TaskLogger
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
+    sentinel: "SentinelRoot | None" = field(default=None)
+    """Resolved root protocol of the task's sentinel."""
     solver: Solver | None = field(default=None)
     scanner: "Scanners | None" = field(default=None)
     scan_id: str | None = field(default=None)
@@ -771,6 +774,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         generate_config,
         options.task.approval,
         options.task.review,
+        options.sentinel,
+        options.task.metadata,
     )
 
     # track stats, results, and log. progress results are keyed by

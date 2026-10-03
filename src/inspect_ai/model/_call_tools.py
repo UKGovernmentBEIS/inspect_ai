@@ -40,6 +40,7 @@ from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel
 from typing_extensions import is_typeddict
 
+from inspect_ai._sentinel._context import SentinelFailure, active_sentinel
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -336,6 +337,9 @@ async def _execute_tools_impl(
                     inner_ex = inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
+            # a sentinel's own error must fail the sample, not become a tool error the model sees
+            except SentinelFailure as ex:
+                tool_exception = ex.error
             except Exception as ex:
                 mapped = tool_call_error(ex, call.function)
                 if mapped is not None:
@@ -913,6 +917,21 @@ async def call_tool(
     if approval and approval.modified:
         call = approval.modified
 
+    if active_sentinel() is not None:
+        from inspect_ai._sentinel._dispatch import (
+            apply_sentinel_decision,
+            sentinel_before_tool_call,
+        )
+
+        try:
+            decision = await sentinel_before_tool_call(
+                message, call, tool_def.viewer, conversation
+            )
+            call = apply_sentinel_decision(decision, call)
+        except (SentinelFailure, ToolApprovalError, TerminateSampleError):
+            await record_pending_tool_event()
+            raise
+
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
@@ -929,6 +948,8 @@ async def call_tool(
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
+                    if on_execute is not None:
+                        on_execute(call)
                     handoff_result = await agent_handoff(tool_def, call, conversation)
                     return CalledTool(*handoff_result, None)
 
@@ -951,23 +972,18 @@ async def _apply_tool_review(
     output: ToolResult,
     conversation: list[ChatMessage],
 ) -> None:
-    """Give the active review policies the executed call's result.
+    """Give the active review policies and sentinel the executed call's result.
 
     Only calls that actually ran are reviewed (the caller checks this): a call
     rejected at the call stage or failed by argument parsing produced no result,
-    and the error the model receives is its feedback. Handoffs are not reviewed
-    either: their "result" is a transfer notice, and the sub-agent's own tool
-    calls are reviewed individually as they execute.
+    and the error the model receives is its feedback.
 
     Raises:
-        TerminateSampleError: A reviewer requested termination.
+        TerminateSampleError: A reviewer or the sentinel requested termination.
     """
-    from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.review._apply import apply_tool_review
 
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
-    if tool_def is not None and isinstance(tool_def.tool, AgentTool):
-        return
     review = await apply_tool_review(
         message,
         call,
@@ -978,6 +994,18 @@ async def _apply_tool_review(
     )
     if review is not None and review.decision == "terminate":
         raise TerminateSampleError("Tool result reviewer requested termination.")
+
+    if active_sentinel() is not None:
+        from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
+
+        await sentinel_after_tool_call(
+            message,
+            call,
+            result,
+            output,
+            tool_def.viewer if tool_def else None,
+            conversation,
+        )
 
 
 async def agent_handoff(

@@ -113,6 +113,7 @@ EvalConfiguration: list[Column] = [
     EvalColumn("epochs_reducer", path="eval.config.epochs_reducer"),
     EvalColumn("approval", path="eval.config.approval"),
     EvalColumn("review", path="eval.config.review"),
+    EvalColumn("sentinel", path="eval.config.sentinel"),
     EvalColumn("message_limit", path="eval.config.message_limit"),
     EvalColumn("token_limit", path="eval.config.token_limit"),
     EvalColumn("token_limit_type", path="eval.config.token_limit_type"),

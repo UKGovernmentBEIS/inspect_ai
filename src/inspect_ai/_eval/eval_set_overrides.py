@@ -98,6 +98,7 @@ from pydantic import (
     field_validator,
 )
 
+from inspect_ai._sentinel._config import SentinelConfig
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import file
 from inspect_ai.approval._policy import ApprovalPolicyConfig
@@ -385,6 +386,12 @@ class EvalSetOverrides(BaseModel):
     """Review policy (or a path to one), overriding the definition's.
 
     As for `approval`, the `list[ReviewPolicy]` arm is absent because its reviewers are callables.
+    """
+
+    sentinel: str | SentinelConfig | None = None
+    """Sentinel config file path, registered protocol name, or parsed configuration, overriding the definition's.
+
+    Constructed monitors and protocols are absent for the same reason as approvers.
     """
 
     # --- what happens when something goes wrong -------------------------------
