@@ -564,6 +564,12 @@
       "undescribed": 1
     }
   },
+  "src/inspect_ai/core/_generate_config.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
   "src/inspect_ai/dataset/__init__.py": {
     "noqa:F403 (file-wide)": {
       "count": 1,
@@ -640,12 +646,6 @@
     "type: ignore": {
       "count": 2,
       "undescribed": 2
-    }
-  },
-  "src/inspect_ai/model/_generate_config.py": {
-    "type: ignore": {
-      "count": 1,
-      "undescribed": 1
     }
   },
   "src/inspect_ai/model/_message_ids.py": {
