@@ -1221,6 +1221,85 @@ async def test_prefixed_copy_of_a_shared_description_grants_both() -> None:
     assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
 
 
+_INDENTED_SERVED_DESCRIPTION = """
+        Perform advanced browser actions using Chrome DevTools Protocol via websocat subprocess calls.
+
+        The complete set of valid actions (must stay in sync with BrowserAction;
+        test_browser_action_docstring_matches_enum locks this):
+        - Navigation: navigate
+        - Clicking: left_click, right_click, middle_click, double_click, triple_click
+        - Dragging: left_click_drag, left_mouse_down, left_mouse_up
+        - Typing: type, key, press_key, hold_key
+        - Scrolling: scroll (with direction and amount), scroll_to
+        - Page reading: screenshot, read_page, get_page_text (optionally scoped to `ref`)
+        - Form actions: form_input
+        - Zoom: zoom
+        - Tabs: create_tab, close_tab, switch_tab, list_tabs
+        - Timing: wait
+
+        Element refs from read_page target elements precisely; role+name is the
+        DOM-change-tolerant alternative.
+        """
+"""The agent-c `browser` tool's real docstring (`sandbox_core.tools.browser.
+BrowserTool.__call__`), 8-space indented exactly as FastMCP serves it over the
+wire: `Tool.from_function` uses `fn.__doc__` unprocessed, and the MCP server
+registers this method through `functools.wraps`, so the indentation is the
+method's own. Measured from a real agent-c CI run's eval log
+(`agent-c-mcp/browser`, browser-shard-4, run 37087524414)."""
+
+
+_DEDENTED_DECLARED_BROWSER = (
+    ANTIGRAVITY_PREAMBLE
+    + """Perform advanced browser actions using Chrome DevTools Protocol via websocat subprocess calls.
+
+The complete set of valid actions (must stay in sync with BrowserAction;
+test_browser_action_docstring_matches_enum locks this):
+- Navigation: navigate
+- Clicking: left_click, right_click, middle_click, double_click, triple_click
+- Dragging: left_click_drag, left_mouse_down, left_mouse_up
+- Typing: type, key, press_key, hold_key
+- Scrolling: scroll (with direction and amount), scroll_to
+- Page reading: screenshot, read_page, get_page_text (optionally scoped to `ref`)
+- Form actions: form_input
+- Zoom: zoom
+- Tabs: create_tab, close_tab, switch_tab, list_tabs
+- Timing: wait
+
+Element refs from read_page target elements precisely; role+name is the
+DOM-change-tolerant alternative.
+"""
+)
+"""Antigravity's measured declaration of the same tool (same CI run): the
+served docstring with its Python-source indentation removed line by line and
+the scaffold's preamble sentence in front. Byte-identical to the real
+captured request body; the declaration is 62 characters SHORTER than the
+served description it is a copy of, because dedenting 14 embedded lines by 8
+spaces each removes more text than the 49-character preamble adds."""
+
+
+async def test_description_with_a_scaffold_preamble_and_source_indentation_resolves() -> (
+    None
+):
+    """A served multi-line docstring carries its Python source indentation.
+
+    A scaffold may both prefix a sentence and dedent the body (measured from
+    Antigravity's real `browser` tool declaration). The declaration must still
+    resolve even though, unlike the plain-preamble case above, dedenting makes
+    it shorter than the served text rather than longer.
+    """
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_servers(
+        {"host": {"read_file": served_tool(tool, _INDENTED_SERVED_DESCRIPTION)}}
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="read_file", arguments={"path": "x"})],
+        declare("read_file", description=_DEDENTED_DECLARED_BROWSER),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x"})
+
+
 # ---------------------------------------------------------------------------
 # the dispatcher shape (Antigravity's call_mcp_tool)
 # ---------------------------------------------------------------------------

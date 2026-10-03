@@ -401,8 +401,33 @@ Antigravity's is the one known: the sentence "This is a tool from the <server>
 MCP server." and a blank line, 38 characters plus the server name, so 96
 allows a server name of up to 58 characters while keeping an accidental
 suffix match (a declaration that merely ends with another tool's description)
-bounded.
+bounded. Measured against the canonical form (`_canonical_whitespace`), so a
+scaffold that also dedents the served text does not inflate the apparent
+preamble length.
 """
+
+
+def _canonical_whitespace(text: str) -> str:
+    """`text` with each line's leading and trailing whitespace removed.
+
+    A served MCP description is a Python docstring and commonly carries the
+    source file's own indentation (every line prefixed by the method's
+    indentation level). A scaffold that renders the description for a model
+    (Antigravity and Claude Code both do, independently) typically dedents it
+    first, so a byte-exact comparison between the served text and a scaffold's
+    declaration breaks on indentation alone even when the content is
+    identical -- and since dedenting removes more characters than any
+    preamble adds, the declaration can end up shorter than the served text it
+    is a copy of, not longer. Stripping each line's own surrounding
+    whitespace -- not just the common indentation, so this tolerates a
+    scaffold that dedents and one that does not -- normalizes both sides to
+    the same form before they are compared. This is scaffold-agnostic: no
+    scaffold's wording is looked for, only incidental whitespace is ignored.
+    Two descriptions whose content is identical except for a nested block's
+    relative indentation become indistinguishable under this normalization;
+    no tool in this codebase relies on such indentation being significant.
+    """
+    return "\n".join(line.strip() for line in text.split("\n"))
 
 
 def _prefixed_copies(
@@ -410,20 +435,27 @@ def _prefixed_copies(
 ) -> list[_BridgedToolId]:
     """The served tools whose whole description `declared` ends with, after a preamble.
 
-    Scaffold-agnostic: no scaffold's wording is looked for. A served description
-    qualifies when it is at least `_MIN_TRUNCATED_PREFIX` characters (so a short
-    description can never match as another tool's accidental suffix), `declared`
-    ends with all of it, and what stands in front is at most
-    `_MAX_SCAFFOLD_PREAMBLE` characters. Of the qualifying descriptions only the
-    longest are returned: a declaration carrying the whole of a longer served
-    description names that tool, not a shorter one whose description is the
-    longer one's tail. Two tools served the same description are both returned.
-    A scaffold that rewrites the description itself is not tolerated.
+    Scaffold-agnostic: no scaffold's wording is looked for. Both texts are
+    compared after normalizing incidental per-line whitespace
+    (`_canonical_whitespace`), so a scaffold that dedents a served
+    description before showing it to the model resolves exactly as one that
+    forwards the source indentation verbatim. A served description qualifies
+    when its canonical form is at least `_MIN_TRUNCATED_PREFIX` characters
+    (so a short description can never match as another tool's accidental
+    suffix), `declared`'s canonical form ends with all of it, and what stands
+    in front is at most `_MAX_SCAFFOLD_PREAMBLE` characters. Of the
+    qualifying descriptions only the longest are returned: a declaration
+    carrying the whole of a longer served description names that tool, not a
+    shorter one whose description is the longer one's tail. Two tools served
+    the same description are both returned. A scaffold that rewrites the
+    description itself is not tolerated.
     """
+    canonical_declared = _canonical_whitespace(declared)
     candidates = [
-        (len(info.description.strip()), tool_id)
+        (len(canonical_served), tool_id)
         for tool_id, info in served.items()
-        if _is_prefixed_copy_of(declared, info.description.strip())
+        for canonical_served in (_canonical_whitespace(info.description.strip()),)
+        if _is_prefixed_copy_of(canonical_declared, canonical_served)
     ]
     if not candidates:
         return []
@@ -432,7 +464,12 @@ def _prefixed_copies(
 
 
 def _is_prefixed_copy_of(declared: str, served: str) -> bool:
-    """Whether `declared` is `served` with at most a scaffold preamble in front."""
+    """Whether `declared` is `served` with at most a scaffold preamble in front.
+
+    Both arguments must already be in canonical whitespace form
+    (`_canonical_whitespace`); callers compare raw declarations through
+    `_prefixed_copies`, not this function directly.
+    """
     return (
         len(served) >= _MIN_TRUNCATED_PREFIX
         and declared.endswith(served)
