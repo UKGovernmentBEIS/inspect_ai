@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 from test_helpers.utils import skip_if_no_package
 
@@ -88,6 +89,47 @@ def test_no_retry_readtimeout_other_host():
     from requests.exceptions import ReadTimeout
 
     assert _should_retry_hf_error(ReadTimeout("timed out: example.com")) is False
+
+
+@pytest.mark.parametrize("error_type", [httpx.ReadTimeout, httpx.ConnectTimeout])
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_retry_httpx_timeout(error_type, wrapped, fast_retry):
+    error = error_type(
+        "timed out",
+        request=httpx.Request("GET", "https://huggingface.co/api/datasets/test"),
+    )
+    if wrapped:
+        error = ConnectionError(
+            f"Couldn't reach 'test' on the Hub ({error_type.__name__})"
+        )
+
+    fn = MagicMock(side_effect=[error, "ok"])
+    assert _call_with_hf_retry(fn) == "ok"
+    assert fn.call_count == 2
+
+
+def test_no_retry_connection_error_with_unrelated_cause():
+    error = ConnectionError("failed")
+    error.__cause__ = ValueError("invalid configuration")
+    assert _should_retry_hf_error(error) is False
+
+
+def test_retry_hub_connection_error_without_cause(fast_retry):
+    error = ConnectionError(
+        "Couldn't reach 'test' on the Hub (LocalEntryNotFoundError)"
+    )
+    assert error.__cause__ is None
+    fn = MagicMock(side_effect=[error, "ok"])
+    assert _call_with_hf_retry(fn) == "ok"
+    assert fn.call_count == 2
+
+
+def test_no_retry_hub_offline_mode(fast_retry):
+    error = ConnectionError("Couldn't reach 'test' on the Hub (OfflineModeIsEnabled)")
+    fn = MagicMock(side_effect=error)
+    with pytest.raises(ConnectionError):
+        _call_with_hf_retry(fn)
+    assert fn.call_count == 1
 
 
 def test_no_retry_unrelated_exception():
