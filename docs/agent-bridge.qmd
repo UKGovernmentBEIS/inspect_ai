@@ -135,6 +135,17 @@ Ordinary function tools are never withheld — those are executed by the bridged
 
 For the same reason, all media content (images, audio, video, and documents) in a request to a sandbox bridge must be an inline `data:` URI. A remote URL or host path would otherwise be dereferenced outside the sandbox, on the agent's behalf.
 
+Anthropic beta features are granted the same way. An agent's SDK requests them in the `anthropic-beta` header, and some change the billing, output limits, or thinking behavior of the host's requests, so `sandbox_agent_bridge()` forwards only the betas the evaluation lists and drops others with a warning:
+
+``` python
+async with sandbox_agent_bridge(
+    state, allowed_anthropic_betas=["context-management-2025-06-27"]
+) as bridge:
+    ...
+```
+
+Betas configured on the Inspect model itself (e.g. with the `betas` model arg) are not affected.
+
 None of this restricts the in-process `agent_bridge()`, where the scaffold
 already runs with the host's network and filesystem and there is no boundary to
 defend. Inspect explicitly materializes its non-inline media before model

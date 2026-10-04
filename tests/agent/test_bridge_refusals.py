@@ -225,7 +225,9 @@ async def test_sandbox_refusal_unwinds_the_bridge_task_group() -> None:
     """
     bridge = _sandbox_bridge()
 
-    async def refusing_generate(json_data: dict[str, Any]) -> dict[str, Any]:
+    async def refusing_generate(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         raise ModelRefusalError(REFUSAL, "mockllm/model")
 
     wrapped = _forward_provider_errors(refusing_generate, bridge)
