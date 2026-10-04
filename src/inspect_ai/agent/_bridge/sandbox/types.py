@@ -210,10 +210,10 @@ class SandboxAgentBridge(AgentBridge):
         Arguments match by JSON semantics (`_json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
         JSON round-trip cannot turn a proposed call into a denial; any other
-        difference (including bool vs number) is denied -- except that,
-        failing an exact match, a granted key the served tool's own input
-        schema does not declare is dropped from the granted side and the
-        comparison is repeated.
+        difference (including bool vs number) is denied -- except that, when
+        no pending grant for this (server, tool) matches exactly, each is
+        compared again with the granted keys the served tool's own input
+        schema does not declare dropped from the granted side.
 
         A scaffold may propose bookkeeping fields alongside a tool's real
         arguments that it never forwards when it actually dispatches the
@@ -225,10 +225,11 @@ class SandboxAgentBridge(AgentBridge):
         `properties` tolerates exactly that gap: every key the schema DOES
         declare must still be equal and present on both sides, and an
         executed argument that is absent or changed still denies, as does an
-        undeclared one the proposal did not carry with the same value. When
-        the served tool is unknown here, or its schema declares no properties
-        at all, there is no declared set to filter by, so only the exact
-        comparison applies.
+        undeclared one the proposal did not carry with the same value. On a
+        schema that admits additional properties, this also lets an executed
+        call omit an undeclared key the model proposed. When the served tool
+        is unknown here, or its schema declares no properties at all, there
+        is no declared set to filter by, so only the exact comparison applies.
         """
         schema = self.served_tools.get(_BridgedToolId(server=server, tool=tool))
         declared_properties = (
@@ -238,25 +239,36 @@ class SandboxAgentBridge(AgentBridge):
             and schema.parameters.properties
             else None
         )
-        for index, grant in enumerate(self._tool_execution_grants):
-            if grant.server != server or grant.tool != tool:
-                continue
-            granted_arguments = grant.arguments
-            if _json_equal(granted_arguments, arguments) or (
-                declared_properties is not None
-                and isinstance(granted_arguments, dict)
-                and _json_equal(
-                    {
-                        key: value
-                        for key, value in granted_arguments.items()
-                        if key in declared_properties
-                    },
-                    arguments,
-                )
-            ):
-                del self._tool_execution_grants[index]
-                return True
-        return False
+        pending = [
+            (index, grant.arguments)
+            for index, grant in enumerate(self._tool_execution_grants)
+            if grant.server == server and grant.tool == tool
+        ]
+        matched = next(
+            (index for index, granted in pending if _json_equal(granted, arguments)),
+            None,
+        )
+        if matched is None and declared_properties is not None:
+            matched = next(
+                (
+                    index
+                    for index, granted in pending
+                    if isinstance(granted, dict)
+                    and _json_equal(
+                        {
+                            key: value
+                            for key, value in granted.items()
+                            if key in declared_properties
+                        },
+                        arguments,
+                    )
+                ),
+                None,
+            )
+        if matched is None:
+            return False
+        del self._tool_execution_grants[matched]
+        return True
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""

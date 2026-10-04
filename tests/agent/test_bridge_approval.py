@@ -1329,6 +1329,33 @@ async def test_executed_args_repeating_a_proposed_undeclared_key_still_grants() 
     assert len(bridge._tool_execution_grants) == 0
 
 
+async def test_an_exact_grant_wins_over_an_earlier_filtered_one() -> None:
+    """A call consumes the grant it repeats exactly before one it matches only after filtering."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {
+                "browser": served_tool(
+                    AsyncMock(), parameters=("action", "url"), name="browser"
+                )
+            }
+        }
+    )
+    without_extra = {"action": "navigate", "url": "https://example.com/product/814207"}
+    with_extra = {**without_extra, "unexpected": "value"}
+
+    bridge.register_tool_execution_grants(
+        [
+            ToolCall(id="first", function="browser", arguments=with_extra),
+            ToolCall(id="second", function="browser", arguments=without_extra),
+        ],
+        declare("browser", parameters=("action", "url")),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "browser", dict(without_extra))
+    assert bridge.consume_tool_execution_grant("host", "browser", dict(with_extra))
+    assert len(bridge._tool_execution_grants) == 0
+
+
 async def test_executed_args_changing_a_declared_value_still_denies() -> None:
     """A declared key must still match exactly, value included."""
     bridge = sandbox_bridge_with_servers(
