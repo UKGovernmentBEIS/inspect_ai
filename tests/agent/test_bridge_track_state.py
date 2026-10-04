@@ -152,10 +152,8 @@ async def test_track_state_does_not_replace_primary_with_longer_side_model() -> 
 
     With no initial input to anchor descent on, the legacy length heuristic
     alone would let any longer call take over (see
-    `test_length_heuristic_fallback_without_initial_input`). Model identity
-    now gates that fallback: once a call establishes a primary model, a
-    longer call from a *different* model is rejected outright instead of
-    winning the length comparison.
+    `test_length_heuristic_fallback_without_initial_input`). A call for a
+    different model than the tracked thread never wins that comparison.
     """
     bridge = AgentBridge(AgentState(messages=[]))
 
@@ -223,6 +221,98 @@ async def test_track_state_recovers_compacted_primary_model_conversation() -> No
     await track(bridge, recovered_input, "recovered response", "openai/agent")
 
     assert bridge.state.output.completion == "recovered response"
+
+
+async def test_track_state_follows_conversation_continued_on_another_model() -> None:
+    """A call that extends the tracked thread is adopted whatever its model.
+
+    Scaffolds can continue one conversation on more than one model (Claude
+    Code's `opusplan` plans on one model and executes on another). A side
+    call to a third model in between must not stop the state following it.
+    """
+    bridge = task_bridge()
+
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    plan = await track(bridge, turn1, "let me look into that", "anthropic/opus")
+    await track(
+        bridge,
+        title_generation_input(),
+        "Doctor Who Series 9 setting",
+        "anthropic/haiku",
+    )
+    turn2 = turn1 + [plan.message, ChatMessageTool(content="tool result")]
+    await track(bridge, turn2, "Castle", "anthropic/sonnet")
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_track_state_other_model_fed_the_conversation_does_not_displace() -> None:
+    """A longer call to another model that reads the conversation is not adopted.
+
+    A reviewer or classifier gets the agent's messages under its own system
+    prompt plus an instruction, so it descends from the initial input as
+    strongly as the main loop and has more messages: the length heuristic
+    alone would adopt it.
+    """
+    bridge = task_bridge()
+
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "let me look into that", "openai/agent")
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    out2 = await track(bridge, turn2, "Castle", "openai/agent")
+
+    classifier_input: list[ChatMessage] = [
+        ChatMessageSystem(content="You are a safety classifier ..."),
+        *turn2[1:],
+        out2.message,
+        ChatMessageUser(content="Classify the agent's last action."),
+    ]
+    await track(bridge, classifier_input, "SAFE", "openai/classifier")
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_track_state_other_model_landing_first_is_displaced() -> None:
+    """A side call to another model that lands first doesn't keep the state.
+
+    A topic detector resends the prompt verbatim, so it anchors as strongly
+    as the main loop and descent can't separate them; the main loop's
+    continuation still takes over tracking.
+    """
+    bridge = task_bridge()
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="Is this a new topic? ..."),
+            ChatMessageUser(content=TASK),
+        ],
+        "new topic",
+        "anthropic/haiku",
+    )
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "let me look into that", "anthropic/sonnet")
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    await track(bridge, turn2, "Castle", "anthropic/sonnet")
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_track_state_other_model_landing_first_without_initial_input() -> None:
+    """Without initial input, a side call that lands first is displaced too.
+
+    The main loop's first call is longer but can't win on length against a
+    different model's thread; it is promoted once its next call extends it.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    await track(bridge, [ChatMessageUser(content="quota")], "quota", "anthropic/haiku")
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "let me look into that", "anthropic/sonnet")
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    await track(bridge, turn2, "Castle", "anthropic/sonnet")
+
+    assert bridge.state.output.completion == "Castle"
 
 
 # ---------------------------------------------------------------------------

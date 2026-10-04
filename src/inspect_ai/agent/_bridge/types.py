@@ -125,7 +125,6 @@ class AgentBridge:
         self._compact: Compact | None = None
         self._last_message_counts: dict[str | None, int] = {}
         self._tracked_model: str | None = None
-        self._primary_model: str | None = None
         # thread-tracking state for _track_state (see its docstring). the
         # descent anchor is the initial input (via _compaction_prefix, which
         # restores to the original input on checkpoint resume).
@@ -332,9 +331,10 @@ class AgentBridge:
         first call and carries an extra preamble message) would permanently
         displace the real conversation. Instead we track thread identity:
 
-        - Model identity is locked only after arbitration identifies a main
-          conversation. When there is no initial input to arbitrate against,
-          the first model remains primary for legacy behavior.
+        - A call whose messages extend the tracked thread (the tracked messages
+          are a prefix of it, compared by role + text) always updates the state,
+          whichever model it is for (a scaffold may continue the conversation
+          on another model).
         - Otherwise the call starts a new thread and we consult *descent*: a
           thread descends from the initial input if its non-system messages
           start with the initial input's non-system messages (verbatim, as
@@ -357,9 +357,12 @@ class AgentBridge:
         - When descent can't discriminate (equal verdicts, or no initial input
           to anchor on — e.g. a scaffold that rewrites the input prompt), fall
           back to the legacy length heuristic: adopt the new thread when it
-          has more messages than the previous generation (or, when both
-          threads descend, than the tracked thread — so a parked side call
-          can't lower the bar for a stray descending one-shot).
+          has more messages than the previous generation for the same model
+          (or, when both threads descend, than the tracked thread — so a parked
+          side call can't lower the bar for a stray descending one-shot). A
+          call for a different model than the tracked thread never wins on
+          length: a side call to another model that is fed the conversation
+          (a reviewer or classifier) is longer than the thread it reads.
         - A new thread that isn't adopted is remembered as a candidate; if the
           next call extends it, it's a live agent loop and is promoted. This is
           what recovers tracking after history compaction (scaffold-side
@@ -372,21 +375,8 @@ class AgentBridge:
           displacement above when it makes only one.
         """
         messages = input + [output.message]
-        initial_call = self._tracked_fps is None
-        adopted = False
         fps = [_message_fingerprint(m) for m in messages]
-        if initial_call and model is not None and not self._initial_fps:
-            self._primary_model = model
-
         last_message_count = self._last_message_counts.get(model, 0)
-        if (
-            model is not None
-            and self._primary_model is not None
-            and model != self._primary_model
-        ):
-            self._last_message_counts[model] = len(messages)
-            await self._cp.tick()
-            return
 
         if self._tracked_fps is None:
             # first observed call: best information available so far (if it is
@@ -400,14 +390,17 @@ class AgentBridge:
                 calls=self._tracked_calls + 1,
                 model=model,
             )
-            adopted = True
         elif self._candidate_fps is not None and _extends(self._candidate_fps, fps):
             # the candidate got continued so it is a live agent loop (e.g. the
             # post-compaction conversation): promote it over the tracked thread
             self._adopt_thread(messages, output, fps, calls=2, model=model)
-            adopted = True
         else:
             descends = self._descends_from_initial(messages, fps)
+            other_model = (
+                model is not None
+                and self._tracked_model is not None
+                and model != self._tracked_model
+            )
             if (
                 descends is not None
                 and self._tracked_descends is not None
@@ -423,10 +416,11 @@ class AgentBridge:
                 # still can't displace an established weaker-anchored thread
                 # (flapping guard).
                 self._adopt_thread(messages, output, fps, calls=1, model=model)
-                self._primary_model = model
-                adopted = True
-            elif descends == self._tracked_descends and len(messages) > (
-                len(self._tracked_fps) if descends else last_message_count
+            elif (
+                descends == self._tracked_descends
+                and not other_model
+                and len(messages)
+                > (len(self._tracked_fps) if descends else last_message_count)
             ):
                 # legacy length heuristic. when both threads descend, compare
                 # against the tracked thread so a parked side call can't lower
@@ -436,18 +430,9 @@ class AgentBridge:
                 # continuity and descent) recovers from compaction only
                 # through it.
                 self._adopt_thread(messages, output, fps, calls=1, model=model)
-                adopted = True
             else:
                 self._candidate_fps = fps
 
-        if (
-            self._primary_model is None
-            and not adopted
-            and model is not None
-            and self._tracked_model is not None
-            and model != self._tracked_model
-        ):
-            self._primary_model = self._tracked_model
         self._last_message_counts[model] = len(messages)
 
         # tick the checkpointer
