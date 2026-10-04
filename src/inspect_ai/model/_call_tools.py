@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from typing_extensions import is_typeddict
 
 from inspect_ai._util.content import (
@@ -1310,7 +1310,12 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
 
         # yield parameter (fail if not passed and there is no default)
         if param_name in input:
-            params[param_name] = tool_param(type_hint, input.get(param_name))
+            try:
+                params[param_name] = tool_param(type_hint, input.get(param_name))
+            except ValidationError as ex:
+                raise ToolParsingError(
+                    f"Unable to convert the value provided for parameter {param_name}: {ex}"
+                ) from ex
         elif param.default is not inspect.Parameter.empty:
             params[param_name] = param.default
         elif type_hint_includes_none(type_hint):
