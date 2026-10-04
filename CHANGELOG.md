@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Tools: Dataclass parameters defined in modules using `from __future__ import annotations` now get typed JSON schemas and no longer fail with a `TypeError` when called.
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 
 ## 0.3.277 (06 October 2026)
