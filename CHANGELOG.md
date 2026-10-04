@@ -1,8 +1,28 @@
 ## Unreleased
 
+- Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
+- Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.
+- Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
+- Agent Bridge: Client-executed tool search can now expose discovered tools to model providers that do not use the OpenAI Responses API.
+
+## 0.3.276 (02 October 2026)
+
+- LiteLLM Proxy: Gemini tool results that are JSON objects are sent under `content`, as the `google` provider sends them; LiteLLM otherwise passed the object as the function response itself and Vertex rejected documents with `$ref` keys (an OpenAPI spec read with `curl`) with a 400.
+
+## 0.3.275 (01 October 2026)
+
+- LiteLLM Proxy: Gemini models accept any `reasoning_effort`, mapped to the levels or thinking budgets the native Google provider uses.
+- LiteLLM Proxy: Gemini tool calls replayed through the proxy keep their thought signatures when the proxy's `model_name` does not contain "gemini" (LiteLLM otherwise replaced them with a placeholder); requests with tools carry the function-calling hint; and a turn returned as a malformed function call (no text or tool call, or a call written as code) is retried with a corrective exchange, as with the `google` provider.
+
+## 0.3.274 (01 October 2026)
+
 - Sandbox tools: the root check now runs once at sample start, before solver/agent execution begins; an inconclusive check warns before falling back to the sandbox's default user, and a check that could not run, or a later root failure, is an error.
 - Local sandbox: `exec(user=...)` now rejects unsupported users instead of ignoring them; the current effective user's name or UID is accepted on POSIX.
-- Agent Bridge: Client-executed tool search can now expose discovered tools to model providers that do not use the OpenAI Responses API.
+- Control Channel: `inspect ctl ... --log-dir` now shows running and completed-but-unflushed samples, with current counts and their events, for evals run with `--log-shared`.
+- OpenAI Compatible: Fixed concurrent sample failures during credential refresh, including OpenRouter evaluations on Hawk, and added an overridable `ModelAPI.refresh_credentials()` for model API extensions.
+- OpenAI: Biological-risk policy responses now produce content-filter stops instead of failing samples.
+- Log viewer: Tasks can set `ViewerConfig(trust_content=False)` to have the viewer show all of a log's content as plain text, with no markdown, media, or clickable links.
+- Log viewer: `inspect view --no-trust-content` (or `INSPECT_VIEW_TRUST_CONTENT=false`) shows every log's content as plain text.
 
 ## 0.3.273 (29 September 2026)
 
