@@ -108,6 +108,45 @@ def test_grok_unrelated_bad_request_is_returned_as_error() -> None:
     assert result is ex
 
 
+@pytest.mark.parametrize(
+    "details",
+    [
+        "Request blocked by safety_check",
+        "I can't help with that request.",
+        "Request rejected: I CAN'T HELP WITH THAT REQUEST",
+    ],
+)
+def test_grok_refusal_maps_to_content_filter(details: str) -> None:
+    from inspect_ai.model._providers._grok_batch import _BatchRpcError
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4.3", api_key="test-key")
+    ex = _BatchRpcError(status_code=grpc.StatusCode.PERMISSION_DENIED, message=details)
+
+    output = api._handle_grpc_permission_denied(ex)
+
+    assert output is not None
+    assert output.stop_reason == "content_filter"
+    assert output.completion == details
+    stop_details = output.choices[0].stop_details
+    assert stop_details is not None
+    assert stop_details.type == "refusal"
+    assert stop_details.explanation == details
+
+
+def test_grok_unrelated_permission_denied_is_not_a_refusal() -> None:
+    from inspect_ai.model._providers._grok_batch import _BatchRpcError
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4.3", api_key="test-key")
+    ex = _BatchRpcError(
+        status_code=grpc.StatusCode.PERMISSION_DENIED,
+        message="Permission denied for this model",
+    )
+
+    assert api._handle_grpc_permission_denied(ex) is None
+
+
 def test_grok_service_tier_requires_sdk_support(monkeypatch) -> None:
     """SDKs predating chat.create(service_tier=...) (< 1.17) fail fast."""
     from xai_sdk.chat import usage_pb2  # type: ignore[import-untyped]
