@@ -986,9 +986,9 @@ class Transcript:
         callback to retain that form, since later notifications of the same
         event carry the condensed copy. `call` is `None` when `log_model_api`
         drops it: by default this happens for successful calls after the
-        first few per model (`log_model_api=True` keeps every call). Events
-        restored from a checkpoint are delivered as stored, with `call`
-        already condensed. The event is owned by the transcript: a callback
+        first few per model (`log_model_api=True` keeps every call). For
+        events restored from a checkpoint, `call` is delivered already
+        condensed. The event is owned by the transcript: a callback
         may read it and retain references, but must not mutate it. A callback
         that raises is logged and does not affect other subscribers.
 
