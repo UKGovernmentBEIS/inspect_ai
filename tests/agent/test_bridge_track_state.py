@@ -315,6 +315,82 @@ async def test_track_state_other_model_landing_first_without_initial_input() -> 
     assert bridge.state.output.completion == "Castle"
 
 
+async def rewriting_loop(bridge: AgentBridge, models: list[str]) -> list[str]:
+    """Drive a scaffold that rewrites its prompt every call, one call per model.
+
+    Its calls never extend each other or descend from the input, so only the
+    length heuristic can adopt them. Returns the tracked completion after
+    each call.
+    """
+    completions: list[str] = []
+    history: list[ChatMessage] = []
+    for i, model in enumerate(models, start=1):
+        messages: list[ChatMessage] = [TASK_SYSTEM, rewritten_task(i), *history]
+        output = await track(bridge, messages, f"step {i}", model)
+        completions.append(bridge.state.output.completion)
+        history = history + [
+            ChatMessageAssistant(content=output.message.text),
+            ChatMessageTool(content=f"result {i}"),
+        ]
+    return completions
+
+
+async def test_track_state_rewriting_scaffold_displaces_other_model_side_call() -> None:
+    """A rewriting loop takes over from a side call to another model.
+
+    Its first longer call may be held like a one-off side call to another
+    model; by its second call the loop is tracked.
+    """
+    bridge = task_bridge()
+
+    await track(bridge, [ChatMessageUser(content="quota")], "quota", "anthropic/haiku")
+
+    completions = await rewriting_loop(bridge, ["anthropic/sonnet"] * 3)
+
+    assert completions[1:] == ["step 2", "step 3"]
+
+
+async def test_track_state_rewriting_scaffold_switching_model_is_followed() -> None:
+    """A rewriting loop that moves to another model is followed."""
+    bridge = task_bridge()
+
+    models = ["anthropic/opus"] * 2 + ["anthropic/sonnet"] * 3
+
+    completions = await rewriting_loop(bridge, models)
+
+    assert completions[3:] == ["step 4", "step 5"]
+
+
+async def test_track_state_agent_reclaims_state_from_other_model_sub_agent() -> None:
+    """A model whose thread was tracked before can win it back on length.
+
+    Without initial input, a sub-agent loop on another model is promoted
+    once it extends itself; the agent's single final call must still become
+    the state.
+    """
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    agent: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    for i in range(3):
+        output = await track(bridge, agent, f"step {i}", "anthropic/sonnet")
+        agent = agent + [output.message, ChatMessageTool(content=f"result {i}")]
+
+    sub_agent: list[ChatMessage] = [
+        ChatMessageSystem(content="You are a file search sub-agent ..."),
+        ChatMessageUser(content="Find the castle file."),
+    ]
+    for i in range(3):
+        output = await track(bridge, sub_agent, f"sub step {i}", "anthropic/haiku")
+        sub_agent = sub_agent + [
+            output.message,
+            ChatMessageTool(content=f"sub result {i}"),
+        ]
+
+    await track(bridge, agent, "Castle", "anthropic/sonnet")
+
+    assert bridge.state.output.completion == "Castle"
+
+
 # ---------------------------------------------------------------------------
 # Regression: behaviors the previous heuristic already supported
 # ---------------------------------------------------------------------------

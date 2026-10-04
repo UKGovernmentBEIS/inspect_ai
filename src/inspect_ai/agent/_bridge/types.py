@@ -125,6 +125,8 @@ class AgentBridge:
         self._compact: Compact | None = None
         self._last_message_counts: dict[str | None, int] = {}
         self._tracked_model: str | None = None
+        self._adopted_models: set[str] = set()
+        self._held_model: str | None = None
         # thread-tracking state for _track_state (see its docstring). the
         # descent anchor is the initial input (via _compaction_prefix, which
         # restores to the original input on checkpoint resume).
@@ -360,9 +362,13 @@ class AgentBridge:
           has more messages than the previous generation for the same model
           (or, when both threads descend, than the tracked thread — so a parked
           side call can't lower the bar for a stray descending one-shot). A
-          call for a different model than the tracked thread never wins on
-          length: a side call to another model that is fed the conversation
-          (a reviewer or classifier) is longer than the thread it reads.
+          longer call for a different model than the tracked thread is held as
+          the candidate instead, unless that model's thread has been tracked
+          before or its previous longer call was also held: a one-off side call
+          to another model that is fed the conversation (a reviewer or
+          classifier) is longer than the thread it reads, while a scaffold that
+          rewrites its messages every call (so it never extends or gets
+          promoted) takes over on its second call.
         - A new thread that isn't adopted is remembered as a candidate; if the
           next call extends it, it's a live agent loop and is promoted. This is
           what recovers tracking after history compaction (scaffold-side
@@ -396,11 +402,6 @@ class AgentBridge:
             self._adopt_thread(messages, output, fps, calls=2, model=model)
         else:
             descends = self._descends_from_initial(messages, fps)
-            other_model = (
-                model is not None
-                and self._tracked_model is not None
-                and model != self._tracked_model
-            )
             if (
                 descends is not None
                 and self._tracked_descends is not None
@@ -416,11 +417,8 @@ class AgentBridge:
                 # still can't displace an established weaker-anchored thread
                 # (flapping guard).
                 self._adopt_thread(messages, output, fps, calls=1, model=model)
-            elif (
-                descends == self._tracked_descends
-                and not other_model
-                and len(messages)
-                > (len(self._tracked_fps) if descends else last_message_count)
+            elif descends == self._tracked_descends and len(messages) > (
+                len(self._tracked_fps) if descends else last_message_count
             ):
                 # legacy length heuristic. when both threads descend, compare
                 # against the tracked thread so a parked side call can't lower
@@ -429,7 +427,16 @@ class AgentBridge:
                 # rewrites message text every call (breaking fingerprint
                 # continuity and descent) recovers from compaction only
                 # through it.
-                self._adopt_thread(messages, output, fps, calls=1, model=model)
+                if (
+                    model is not None
+                    and self._tracked_model is not None
+                    and model not in self._adopted_models
+                    and model != self._held_model
+                ):
+                    self._held_model = model
+                    self._candidate_fps = fps
+                else:
+                    self._adopt_thread(messages, output, fps, calls=1, model=model)
             else:
                 self._candidate_fps = fps
 
@@ -458,6 +465,9 @@ class AgentBridge:
         self._tracked_calls = calls
         self._tracked_descends = self._descends_from_initial(messages, fps)
         self._tracked_model = model
+        if model is not None:
+            self._adopted_models.add(model)
+        self._held_model = None
         self._candidate_fps = None
 
     def _descends_from_initial(
