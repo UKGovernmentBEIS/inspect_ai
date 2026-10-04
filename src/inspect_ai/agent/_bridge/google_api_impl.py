@@ -23,7 +23,12 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._model import ModelName
-from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
+from inspect_ai.model._model_output import (
+    ModelOutput,
+    ModelUsage,
+    StopReason,
+    model_usage_input_tokens,
+)
 from inspect_ai.model._providers._google_computer_use import (
     gemini_action_from_tool_call,
 )
@@ -797,6 +802,8 @@ def gemini_usage_metadata(usage: ModelUsage | None) -> dict[str, int]:
     # "not reported" stay distinguishable.
     if usage.reasoning_tokens is not None:
         metadata["thoughtsTokenCount"] = usage.reasoning_tokens
+    if usage.input_tokens_cache_read is not None:
+        metadata["cachedContentTokenCount"] = usage.input_tokens_cache_read
     return metadata
 
 

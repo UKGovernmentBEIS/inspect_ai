@@ -1446,3 +1446,45 @@ def test_openai_completions_schema_warning_names_dialect_field(_warn_once_messag
     assert len(_warn_once_messages) == 1
     assert "response_format.json_schema.schema" in _warn_once_messages[0]
     assert "$ref" in _warn_once_messages[0]
+
+
+def test_google_usage_metadata_restores_cached_input_tokens():
+    from inspect_ai.agent._bridge.google_api_impl import gemini_usage_metadata
+    from inspect_ai.model._model_output import ModelUsage
+
+    metadata = gemini_usage_metadata(
+        ModelUsage(
+            input_tokens=70,
+            input_tokens_cache_read=20,
+            output_tokens=5,
+            total_tokens=95,
+        )
+    )
+
+    assert metadata["promptTokenCount"] == 70
+    assert metadata["cachedContentTokenCount"] == 20
+    assert metadata["totalTokenCount"] == 95
+
+
+def test_openai_responses_usage_round_trips_cached_input_tokens():
+    from inspect_ai.model._model_output import ModelUsage
+    from inspect_ai.model._openai_responses import (
+        model_usage_from_response_usage,
+        responses_model_usage,
+    )
+
+    usage = ModelUsage(
+        input_tokens=70,
+        input_tokens_cache_read=20,
+        output_tokens=5,
+        total_tokens=95,
+    )
+
+    provider_usage = responses_model_usage(usage)
+    assert provider_usage is not None
+    assert provider_usage.input_tokens == 90
+    assert provider_usage.input_tokens_details.cached_tokens == 20
+    assert provider_usage.input_tokens_details.cache_write_tokens == 0
+
+    round_trip = model_usage_from_response_usage(provider_usage)
+    assert round_trip == usage

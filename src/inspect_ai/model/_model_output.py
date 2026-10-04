@@ -436,3 +436,8 @@ def as_stop_reason(reason: str | None) -> StopReason:
             return reason
         case _:
             return "unknown"
+
+
+def model_usage_input_tokens(usage: ModelUsage) -> int:
+    """Return input tokens including confirmed cached-read tokens."""
+    return usage.input_tokens + (usage.input_tokens_cache_read or 0)
