@@ -15,6 +15,7 @@ from google.genai.types import (
     FinishReason,
     FunctionCall,
     FunctionCallingConfigMode,
+    GenerateContentConfig,
     GenerateContentResponse,
     HttpOptions,
     JobState,
@@ -35,7 +36,12 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessage, ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ModelOutput,
+)
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 from inspect_ai.model._model import ModelAPI, RetryDecision
@@ -2216,3 +2222,56 @@ def test_model_client_preserves_verify_false_for_aiohttp() -> None:
     client = api.model_client(HttpOptions(client_args={"verify": False}))
 
     assert client._api_client._async_client_session_request_args["ssl"] is False
+
+
+@pytest.mark.anyio
+async def test_google_output_records_response_id() -> None:
+    mock_generate = AsyncMock(
+        return_value=GenerateContentResponse(candidates=[], response_id="g-response")
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+        result = await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "g-response"
+
+
+@pytest.mark.anyio
+async def test_google_streamed_response_keeps_response_id() -> None:
+    async def chunks() -> Any:
+        for text in ["hel", "lo"]:
+            yield GenerateContentResponse(
+                candidates=[
+                    Candidate(
+                        content=Content(parts=[Part(text=text)], role="model"),
+                        index=0,
+                    )
+                ],
+                response_id="g-stream-response",
+            )
+
+    client = MagicMock()
+    client.aio.models.generate_content_stream = AsyncMock(return_value=chunks())
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    response = await api._stream_generate_content(
+        client, "gemini-2.0-flash", [], GenerateContentConfig()
+    )
+
+    assert response.response_id == "g-stream-response"

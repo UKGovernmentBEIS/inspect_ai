@@ -898,6 +898,7 @@ class BedrockAPI(ModelAPI):
                                 "bedrock:InvokeModelWithResponseStream or "
                                 "pass -M streaming=false.",
                             )
+                            self._http_hooks.restart_request(request_id)
                             model_call = set_active_model_event_call(
                                 request=replace_bytes_with_placeholder(
                                     request.model_dump(exclude_none=True)
