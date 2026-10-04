@@ -392,13 +392,16 @@ class AgentBridge:
           has more messages than the previous generation (or, when both
           threads descend, than the tracked thread — so a parked side call
           can't lower the bar for a stray descending one-shot).
-        - A new thread that isn't adopted is remembered as a candidate. If the
-          next call extends the candidate, it is a live agent loop and is
-          promoted. This recovers tracking after history compaction
-          (scaffold-side compaction replaces the conversation with a summary,
-          so the post-compaction loop neither extends the tracked thread nor
-          descends from the initial input). Promotion is unconditional, so a
-          multi-call sub-agent loop transiently takes over.
+        - A new thread that isn't adopted is remembered as a candidate; if the
+          next call extends it, it's a live agent loop and is promoted. This is
+          what recovers tracking after history compaction (scaffold-side
+          compaction replaces the conversation with a summary, so the
+          post-compaction loop neither extends the tracked thread nor descends
+          from the initial input). Promotion is unconditional, so a multi-call
+          sub-agent loop transiently takes over tracking this way — the main
+          loop reclaims it on resumption, by extension when it makes several
+          further calls (candidate promotion) or by the longer-descending-call
+          displacement above when it makes only one.
         """
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
@@ -456,7 +459,12 @@ class AgentBridge:
         fps: list["_MessageFingerprint"],
         calls: int,
     ) -> None:
-        """Make `messages` the tracked main thread (see `_track_state`)."""
+        """Make `messages` the tracked main thread (see `_track_state`).
+
+        `calls` is the number of bridge calls attributed to the thread; a
+        stronger-descending thread may displace a weaker-anchored one-shot
+        (`calls == 1`) thread regardless of length.
+        """
         self.state.messages = messages
         self.state.output = output
         self._tracked_fps = fps

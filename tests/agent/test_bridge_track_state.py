@@ -1,7 +1,11 @@
 """Tests for AgentBridge._track_state main-thread tracking.
 
-The bridge tracks selected model generations as agent state while side requests
-can remain outside the canonical conversation.
+The bridge observes every generation a scaffold makes (main agent loop,
+side calls like opencode's session title generation, sub-agent loops,
+post-compaction continuations) and must surface the *main* conversation
+as the agent state. See meridianlabs-ai/inspect_ai#140 for the failure
+mode where a longer side call permanently displaced the real conversation.
+The `state_filter` tests cover requests a caller excludes from that state.
 """
 
 from collections.abc import Sequence
