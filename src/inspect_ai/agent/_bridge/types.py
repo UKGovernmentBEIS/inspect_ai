@@ -1,6 +1,15 @@
 from enum import IntEnum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, NoReturn, Sequence, Set
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    NamedTuple,
+    NoReturn,
+    Sequence,
+    Set,
+    TypeAlias,
+)
 
 from shortuuid import uuid
 
@@ -38,6 +47,16 @@ if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
 
 
+StateFilter: TypeAlias = Callable[[Sequence[ChatMessage]], bool]
+"""Predicate over the translated request messages for one generation request.
+
+Evaluated once per request, after operator-provenance restoration and before
+generation or compaction. Returning `False` excludes the request from
+`AgentBridge.state` and from canonical compaction history; the request still
+generates, still emits events and usage, and still ticks the checkpointer.
+"""
+
+
 class DispatchedCall(NamedTuple):
     """A bridged tool call the model made through a scaffold's dispatcher function."""
 
@@ -69,6 +88,7 @@ class AgentBridge:
         allow_remote_mcp: bool = True,
         allow_remote_media: bool = False,
         model_resolver: ModelResolver | None = None,
+        state_filter: StateFilter | None = None,
     ) -> None:
         # Capabilities a client-declared request may reach for. Media defaults
         # closed so new bridge subclasses cannot accidentally grant host I/O.
@@ -121,6 +141,7 @@ class AgentBridge:
         self.model_event_sink = model_event_sink
         self.forward_generation_config = forward_generation_config
         self.approval = approval
+        self.state_filter = state_filter
         self._compaction = compaction
         self._compact: Compact | None = None
         self._last_message_count = 0
@@ -138,7 +159,12 @@ class AgentBridge:
         self._tracked_descends: _Descent | None = None
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
-        self._operator_keys: set[str] = set()
+        self._operator_keys = self._cp.track(
+            "bridge_operator_keys",
+            lambda: self._operator_keys,
+            set(),
+            value_type=set[str],
+        )
 
     state: AgentState
     """State updated from messages traveling over the bridge."""
@@ -147,6 +173,17 @@ class AgentBridge:
     """Filter for bridge model generation.
 
     A filter may substitute for the default model generation by returning a ModelOutput or return None to allow default processing to continue.
+    """
+
+    state_filter: StateFilter | None
+    """Optional predicate that selects requests whose generations update state.
+
+    The predicate sees the translated request, including restored operator
+    provenance, before generation or compaction.
+    Requests rejected by the predicate still generate responses, emit model
+    events, and tick the checkpointer, but bypass canonical compaction and leave
+    tracked conversation state unchanged. Predicate exceptions propagate before
+    generation begins.
     """
 
     model: str | None
@@ -320,6 +357,9 @@ class AgentBridge:
         We need to distinguish the "main" thread of generation from side /
         sub-agent model calls (e.g. claude code does bash path detection with a
         side call; opencode names the session with a title-generation call).
+        The shared generation path applies the optional state filter before
+        calling this method.
+
         Message counts alone can't do this: a side call that is longer than the
         main conversation (opencode's title call fires before the main loop's
         first call and carries an extra preamble message) would permanently

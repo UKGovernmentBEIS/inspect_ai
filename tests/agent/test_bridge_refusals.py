@@ -72,7 +72,7 @@ async def _generate(
         filter=filter,
         retry_refusals=retry_refusals,
     )
-    output, _ = await bridge_generate(bridge, model, list(messages), [], None, config)
+    output = await bridge_generate(bridge, model, list(messages), [], None, config)
     return output, len(generations)
 
 

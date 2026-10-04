@@ -272,6 +272,12 @@ For `bridged_tools`, the approved call is also what the agent may execute on the
 
 An agent that reaches every bridged tool through one dispatcher function (Antigravity's `call_mcp_tool`) is approved as if the model had called the bridged tool directly: policies match the tool's own name, and approvers see and modify the tool's own arguments.
 
+## Canonical State
+
+Both `agent_bridge()` and `sandbox_agent_bridge()` accept a `state_filter` predicate over the translated request messages. Return `False` for auxiliary requests, such as title generation, that must not update `bridge.state`. Returning `True` makes a request eligible for the usual conversation-tracking heuristics; it does not force the bridge to adopt that request.
+
+The predicate runs once before generation and compaction. Excluded requests still generate responses, emit model events, and tick the checkpointer, but bypass canonical compaction and cannot enter its retained history. Predicate exceptions propagate before generation. Omitting `state_filter` preserves the default tracking behavior.
+
 ## Transcript
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.
