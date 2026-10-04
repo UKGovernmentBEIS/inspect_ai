@@ -206,7 +206,7 @@ In some cases agents will want to retain state across multiple invocations, or e
 
 ### Typed Store
 
-When developing agents, you should use the [typed-interface](agent-custom.qmd#store-typing) to the per-sample store, which provides both type-checking and namespacing for store access.
+When developing agents, you should use the [typed interface](agent-custom.qmd#typed-store) to the per-sample store, which provides both type-checking and namespacing for store access.
 
 For example, here we define a typed accessor to the store by deriving from the `StoreModel` class (which in turn derives from Pydantic `BaseModel`):
 
@@ -282,7 +282,7 @@ blue_team_activity = store_as(Activity, instance="blue_team")
 
 ## Agent Limits
 
-The Inspect [limits system](setting-limits.qmd#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in converations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).
+The Inspect [limits system](setting-limits.qmd#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in conversations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).
 
 Limits are often applied at the sample level or using a context manager. It is also possible to specify limits when executing an agent using any of the techniques described above.
 

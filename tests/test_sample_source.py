@@ -410,6 +410,239 @@ def test_sample_complete_skipped_for_task_cancel() -> None:
         assert completed == []
 
 
+async def _wait_at_queue(eval_id: str, sample_id: str) -> None:
+    """Poll a dry-run cancel until ``sample_id`` reads as parked at the queue.
+
+    Only the queued row carries ``status == "cancelled"`` (a running sample's
+    interrupt row reports ``changed`` with no status), so matching on it
+    guarantees the follow-up real cancel exercises the queued path.
+    """
+    from inspect_ai._control.cancel import cancel_sample
+
+    with anyio.fail_after(60):
+        while True:
+            probe = await cancel_sample(
+                eval_id, sample_id, 1, action="cancel", dry_run=True
+            )
+            if (
+                probe is not None
+                and probe.get("ok")
+                and probe.get("changed")
+                and probe.get("status") == "cancelled"
+            ):
+                return
+            await anyio.sleep(0.01)
+
+
+def test_sample_abandoned_fires_for_queued_sample_cancel() -> None:
+    """Cancelling a sample still parked in the queue notifies the source.
+
+    The orchestrator pattern: sample `a` enqueues a rollout `b` and waits for
+    the source to hear about it. `b` parks behind `blocker` (two slots, both
+    held), the operator cancels it before it starts, and — since nothing was
+    ever logged for it — the source is told via `sample_abandoned` (not
+    `sample_complete`) once the run leaves the queue. The follow-up the
+    callback returns runs like any enqueued sample.
+    """
+    from inspect_ai._control.cancel import cancel_sample
+    from inspect_ai._control.eval_state import get_eval_states
+
+    completed: list[str] = []
+    abandoned: list[tuple[str, str, int]] = []
+    abandoned_event = anyio.Event()
+    blocker_started = anyio.Event()
+    blocker_release = anyio.Event()
+
+    async def on_complete(sample: EvalSample) -> list[Sample] | None:
+        completed.append(str(sample.id))
+        return None
+
+    async def on_abandoned(sample: Sample, epoch: int) -> list[Sample] | None:
+        abandoned.append((str(sample.id), str(sample.input), epoch))
+        abandoned_event.set()
+        return [Sample(id="c", input="replacement")]
+
+    @solver(name="queued_cancel_orchestrator")
+    def orchestrator() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "blocker":
+                blocker_started.set()
+                await blocker_release.wait()
+            elif state.sample_id == "a":
+                # both slots held before the rollout is enqueued, so it parks
+                await blocker_started.wait()
+                enqueue_sample(Sample(id="b", input="rollout"))
+                eval_id = get_eval_states()[0].eval_id
+                await _wait_at_queue(eval_id, "b")
+                result = await cancel_sample(eval_id, "b", 1, action="cancel")
+                assert result is not None
+                assert result["ok"] is True and result["changed"] is True
+                # the cancelled run leaves the queue once a slot frees
+                blocker_release.set()
+                with anyio.fail_after(30):
+                    await abandoned_event.wait()
+            return state
+
+        return solve
+
+    source = SampleSource.from_samples(
+        [Sample(id="a", input="orchestrator"), Sample(id="blocker", input="x")],
+        sample_complete=on_complete,
+        sample_abandoned=on_abandoned,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        logs = eval(
+            Task(dataset=source, solver=orchestrator(), name="queued_cancel"),
+            model="mockllm/model",
+            log_dir=log_dir,
+            max_samples=2,
+        )
+        log = read_eval_log(logs[0].location)
+        assert log.status == "success"
+        assert abandoned == [("b", "rollout", 1)]
+        # the cancelled sample completes nowhere; the replacement ran
+        assert sorted(completed) == ["a", "blocker", "c"]
+        assert _sample_inputs(log) == ["orchestrator", "replacement", "x"]
+
+
+def test_sample_abandoned_fires_for_drain_window_cancel() -> None:
+    """A cancel landing in an errored sample's pre-retry drain window notifies.
+
+    The interrupt arrives after the attempt's task group exited and before
+    the retry decision, so it only suppresses the retry: the sample is
+    abandoned as cancelled with nothing logged. The source hears about it via
+    `sample_abandoned`; `sample_complete` never fires for it.
+    """
+    from inspect_ai._control.cancel import cancel_sample
+    from inspect_ai._control.eval_state import get_eval_states
+
+    attempts = 0
+    completed: list[str] = []
+    abandoned: list[tuple[str, int]] = []
+
+    class _Src(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="a", input="x"), Sample(id="b", input="x")]
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            completed.append(str(sample.id))
+            return None
+
+        async def sample_abandoned(
+            self, sample: Sample, epoch: int
+        ) -> list[Sample] | None:
+            abandoned.append((str(sample.id), epoch))
+            return None
+
+    @solver(name="drain_window_cancel_solver")
+    def erroring_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal attempts
+            if state.sample_id == "a":
+                attempts += 1
+                raise RuntimeError("boom")
+            return state
+
+        return solve
+
+    async def cleanup(state: TaskState) -> None:
+        # runs in the errored attempt's drain window, where the sample still
+        # reads as in flight and a per-sample cancel stamps its interrupt
+        if state.sample_id == "a" and attempts == 1:
+            eval_id = get_eval_states()[0].eval_id
+            result = await cancel_sample(eval_id, "a", 1, action="cancel")
+            assert result is not None
+            assert result["ok"] is True and result["changed"] is True
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        logs = eval(
+            Task(
+                dataset=_Src(),
+                solver=erroring_solver(),
+                cleanup=cleanup,
+                name="drain_window_cancel",
+            ),
+            model="mockllm/model",
+            log_dir=log_dir,
+            retry_on_error=2,
+        )
+        log = read_eval_log(logs[0].location)
+        assert log.status == "success"
+        # the retry was suppressed and the sample abandoned, never logged
+        assert attempts == 1
+        assert abandoned == [("a", 1)]
+        assert completed == ["b"]
+        assert _sample_inputs(log) == ["x"]
+        assert log.samples is not None and log.samples[0].id == "b"
+
+
+def test_sample_abandoned_fires_for_drain_of_queued_sample() -> None:
+    """A graceful task drain abandoning a queued sample notifies the source.
+
+    `ctl task cancel --action drain` leaves in-flight samples to finish and
+    abandons queued ones at queue exit. An in-flight orchestrator waiting on
+    its queued rollout would otherwise wait forever, so the abandon is
+    delivered via `sample_abandoned` — the graceful stamp doesn't unwind the
+    task (unlike an abort, which notifies for nothing).
+    """
+    from inspect_ai._control.cancel import drain_task
+    from inspect_ai._control.eval_state import get_eval_states
+
+    completed: list[str] = []
+    abandoned: list[tuple[str, int]] = []
+    abandoned_event = anyio.Event()
+    blocker_started = anyio.Event()
+    blocker_release = anyio.Event()
+
+    class _Src(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="a", input="x"), Sample(id="blocker", input="x")]
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            completed.append(str(sample.id))
+            return None
+
+        async def sample_abandoned(
+            self, sample: Sample, epoch: int
+        ) -> list[Sample] | None:
+            abandoned.append((str(sample.id), epoch))
+            abandoned_event.set()
+            return None
+
+    @solver(name="drain_orchestrator")
+    def orchestrator() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "blocker":
+                blocker_started.set()
+                await blocker_release.wait()
+            elif state.sample_id == "a":
+                await blocker_started.wait()
+                enqueue_sample(Sample(id="b", input="rollout"))
+                state_ = get_eval_states()[0]
+                await _wait_at_queue(state_.eval_id, "b")
+                result = drain_task(state_.task_id)
+                assert result is not None and result["ok"] is True
+                blocker_release.set()
+                with anyio.fail_after(30):
+                    await abandoned_event.wait()
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        logs = eval(
+            Task(dataset=_Src(), solver=orchestrator(), name="drain_queued"),
+            model="mockllm/model",
+            log_dir=log_dir,
+            max_samples=2,
+        )
+        log = read_eval_log(logs[0].location)
+        assert log.status == "success"
+        assert abandoned == [("b", 1)]
+        assert sorted(completed) == ["a", "blocker"]
+        assert sorted(str(s.id) for s in (log.samples or [])) == ["a", "blocker"]
+
+
 def test_enqueue_sample_rejected_outside_sample_source_task() -> None:
     # enqueue_sample() requires a running SampleSource-driven task: a plain
     # task has a fixed sample set (no loop to run additions)

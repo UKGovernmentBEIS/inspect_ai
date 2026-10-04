@@ -290,12 +290,26 @@ async def init_sandbox_environments_sample(
         if setup:
             await setup_sandbox_environment(setup, environments)
 
+        from inspect_ai.tool._sandbox_tools_utils.sandbox import resolve_root_access
+
+        # after the trusted files and setup, before solver/agent execution begins
+        for environment in environments.values():
+            await resolve_root_access(environment)
+
         # return environments
         return environments
 
     except Exception as ex:
         environments = unproxy_environments(environments)
         await sample_cleanup(task_name, config, environments, True)
+        raise ex
+
+    except anyio.get_cancelled_exc_class() as ex:
+        # cancellation is not an Exception, and the caller only cleans up
+        # environments it was handed, which init never returns when cancelled
+        environments = unproxy_environments(environments)
+        with anyio.CancelScope(shield=True):
+            await sample_cleanup(task_name, config, environments, True)
         raise ex
 
 

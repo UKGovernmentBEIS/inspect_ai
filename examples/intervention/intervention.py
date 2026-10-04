@@ -67,6 +67,8 @@ def intervention_agent(mode: Mode) -> Solver:
             return chain(
                 system_message(MULTI_TOOL_PROMPT),
                 user_prompt(),
+                # web_browser() is deprecated and will be removed in a future
+                # release (see inspect_ai issue #5497)
                 use_tools([bash_session(), text_editor()] + web_browser()),
                 agent_loop(),
             )

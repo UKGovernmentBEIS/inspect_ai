@@ -776,6 +776,19 @@ def test_mistral_500_classifies_as_transient() -> None:
     assert decision.kind == "transient"
 
 
+def test_mistral_httpx2_transport_error_classifies_as_transient() -> None:
+    """Mistral (mistralai >= 3) is built on httpx2 — raw httpx2 transport errors that escape the SDK unwrapped must still retry."""
+    pytest.importorskip("mistralai")
+    from inspect_ai.model._providers.mistral import MistralAPI
+
+    api = MistralAPI.__new__(MistralAPI)
+    ex = httpx2.ConnectError("connection reset")
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+
 # ---------- Azure OpenAI ----------
 
 

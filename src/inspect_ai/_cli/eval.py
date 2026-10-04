@@ -44,6 +44,7 @@ from inspect_ai._util.generate_config_args import (
     config_from_locals,
 )
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
+from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.log import IncompleteAction
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
@@ -859,7 +860,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--cache-prompt",
         type=click.Choice(["auto", "true", "false"]),
-        help="Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only.",
+        help="Whether to cache the prompt prefix. Enabled by default. Set to False to disable: on OpenAI this only disables explicit ContentText.cache_breakpoint marks — the model's own implicit caching stays in effect.",
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
     @click.option(
@@ -923,6 +924,18 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         help="JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.",
         envvar="INSPECT_EVAL_RESPONSE_SCHEMA",
+    )
+    @click.option(
+        "--extra-headers",
+        type=str,
+        help='Extra headers to send with requests, as a JSON or YAML mapping (e.g. \'{"X-Trace-Id": "abc"}\'). Not supported by all providers.',
+        envvar="INSPECT_EVAL_EXTRA_HEADERS",
+    )
+    @click.option(
+        "--extra-body",
+        type=str,
+        help='Extra fields to add to the request body, as a JSON or YAML mapping (e.g. \'{"chat_template_kwargs": {"enable_thinking": true}}\'). Not supported by all providers.',
+        envvar="INSPECT_EVAL_EXTRA_BODY",
     )
     @click.option(
         "--cache",
@@ -1177,6 +1190,8 @@ def _eval_command_impl(
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    extra_headers: str | None,
+    extra_body: str | None,
     cache: int | str | None,
     batch: int | str | None,
     modalities: str | None,
@@ -1498,6 +1513,8 @@ def eval_set_command(
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    extra_headers: str | None,
+    extra_body: str | None,
     cache: int | str | None,
     batch: int | str | None,
     modalities: str | None,
@@ -1759,6 +1776,8 @@ class RunConfigInput(BaseModel):
 
         # Eval config — combine epochs + epochs_reducer into Epochs
         ec = self.eval_config.model_dump(exclude_none=True)
+        if "approval" in ec:
+            ec["approval"] = ApprovalPolicyConfig.model_validate(ec["approval"])
         epochs = ec.pop("epochs", None)
         epochs_reducer = ec.pop("epochs_reducer", None)
         if epochs is not None:

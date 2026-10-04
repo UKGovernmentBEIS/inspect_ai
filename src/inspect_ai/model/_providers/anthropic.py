@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
     Any,
+    Collection,
     Iterable,
     Literal,
     NamedTuple,
@@ -85,10 +86,10 @@ from anthropic.types.beta import (
     BetaCompact20260112EditParam,
     BetaCompactionBlock,
     BetaCompactionBlockParam,
+    BetaComputerToolset20260801Param,
     BetaDirectCaller,
     BetaFallbackBlock,
     BetaFallbackBlockParam,
-    BetaFallbackInfoParam,
     BetaInputTokensTriggerParam,
     BetaMCPToolResultBlock,
     BetaMCPToolUseBlock,
@@ -176,6 +177,7 @@ from inspect_ai.util._json import (
 )
 
 from ..._util.httpx import httpx_classify_retry
+from .._call_tools import TOOL_CALLS_FAIL_FAST
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -211,14 +213,23 @@ from .._stream import (
     report_model_stream_start,
 )
 from ._anthropic_batch import AnthropicBatcher
+from ._anthropic_max_tokens import (
+    ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
+    ANTHROPIC_MAX_TOKENS,
+    anthropic_effort_max_tokens,
+)
+from ._first_party import FRONTIER_MODELS
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
     forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
+    is_claude_opus_5_5_model,
+    is_claude_sonnet_5_5_model,
     is_forced_tool_choice,
     model_base_url,
     normalize_stream_arg,
+    rejects_forced_tool_choice,
     require_azure_base_url,
     resolve_api_key,
 )
@@ -243,13 +254,18 @@ _REASONING_TOKENS_UNSUPPORTED_ERROR = (
     "'reasoning_effort' to control reasoning depth instead."
 )
 _DISABLED_THINKING_EFFORT_WARNING = (
-    "anthropic model '{model}' rejects disabled thinking (reasoning_effort="
+    "anthropic model '{model}' rejects turning thinking off (reasoning_effort="
     "'none') combined with effort above 'high'; clamping effort to 'high'."
 )
 _FORCED_TOOL_CHOICE_WARNING = (
     "anthropic model '{model}' does not support forced tool choice "
     "(tool_choice 'any' or a specific tool returns a 400 error); using "
     "tool_choice 'auto' instead."
+)
+_COMPUTER_TOOLSET_TOOL_CHOICE_WARNING = (
+    "anthropic model '{model}' declares the computer tool as Anthropic's "
+    "computer toolset, which cannot be forced with tool_choice (the API "
+    "rejects a tool choice naming the toolset); using tool_choice 'auto' instead."
 )
 _THINKING_DROPPED_WARNING = (
     "anthropic model '{model}' dropped replayed thinking block(s) from the "
@@ -332,6 +348,15 @@ AZURE_ANTHROPIC_BASE_URL_VARS = [
 
 INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
+# Anthropic's computer toolset: one `tools` entry (no name, no display
+# dimensions) whose members arrive as `tool_use` blocks named for the member
+# (e.g. `left_click`) with `toolset_name="computer"`, which every answering
+# `tool_result` must echo.
+COMPUTER_TOOLSET_TYPE: Literal["computer_toolset_20260801"] = (
+    "computer_toolset_20260801"
+)
+COMPUTER_TOOLSET_NAME = "computer"
+
 
 class AnthropicAPI(ModelAPI):
     def __init__(
@@ -343,6 +368,7 @@ class AnthropicAPI(ModelAPI):
         streaming: bool | Literal["auto"] = "auto",
         betas: str | list[str] = [],
         cache_ttl: Literal["5m", "1h", "auto"] | None = None,
+        computer_toolset: bool | None = None,
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -363,6 +389,11 @@ class AnthropicAPI(ModelAPI):
                 "and 'auto'."
             )
         self.cache_ttl = cache_ttl
+
+        # computer use mode override (None selects the mode per model/platform)
+        self.computer_toolset = normalize_stream_arg(
+            computer_toolset, "computer_toolset"
+        )
 
         # collect generate model_args (then delete them so we can pass the rest on)
         def collect_model_arg(name: str) -> Any | None:
@@ -508,12 +539,11 @@ class AnthropicAPI(ModelAPI):
             # we must use one or the other — not both.
             auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
             if auth_token:
+                default_headers = self._oauth_default_headers(model_args)
                 return AsyncAnthropic(
                     base_url=base_url,
                     auth_token=auth_token,
-                    default_headers={
-                        "anthropic-beta": "oauth-2025-04-20",
-                    },
+                    default_headers=default_headers,
                     **model_args,
                 )
             # resolve api_key
@@ -706,21 +736,19 @@ class AnthropicAPI(ModelAPI):
                 tools_param,
                 mcp_servers_param,
                 messages,
-                cache_prompt,
+                auto_cache,
             ) = await self.resolve_chat_input(input, tools, config, cache_ttl)
 
             # prepare request params (assembled this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
 
-            # automatic caching for messages (system/tools use explicit breakpoints).
-            # Per Anthropic's docs, the top-level `cache_control` field is only
-            # supported on the direct Claude API and Azure AI Foundry (preview);
-            # "support for Amazon Bedrock and Google Vertex AI is coming later." On
-            # those services it is rejected as
-            # `cache_control: Extra inputs are not permitted`. Fall back to the
-            # per-block markers added in resolve_chat_input on those services.
+            # automatic caching for messages (system/tools use explicit
+            # breakpoints; `auto_cache` is False when caching is off or the
+            # request has its own explicit breakpoints). Top-level
+            # `cache_control` is rejected on Bedrock/Vertex, which fall back
+            # to per-block markers instead.
             # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
-            if cache_prompt and not (self.is_bedrock() or self.is_vertex()):
+            if auto_cache and not (self.is_bedrock() or self.is_vertex()):
                 request["cache_control"] = cache_control_param(cache_ttl)
 
             # system messages and tools
@@ -733,6 +761,21 @@ class AnthropicAPI(ModelAPI):
             tool_choice_degraded = False
             if len(tools_param) > 0:
                 resolved_choice = self.resolved_tool_choice(tool_choice)
+                # the computer toolset has no tool named `computer` to force
+                # (the API rejects a tool choice naming the toolset or a
+                # member), so degrade a forced computer tool choice to auto
+                if (
+                    isinstance(resolved_choice, ToolFunction)
+                    and resolved_choice.name == INTERNAL_COMPUTER_TOOL_NAME
+                    and any(is_computer_toolset(tool) for tool in tools_param)
+                ):
+                    warn_once(
+                        logger,
+                        _COMPUTER_TOOLSET_TOOL_CHOICE_WARNING.format(
+                            model=self.service_model_name()
+                        ),
+                    )
+                    resolved_choice = "auto"
                 tool_choice_degraded = resolved_choice != tool_choice
                 if not self.is_using_thinking(config):
                     request["tool_choice"] = message_tool_choice(
@@ -903,6 +946,13 @@ class AnthropicAPI(ModelAPI):
             ChatMessageUser(content=m.content) if m.role == "system" else m
             for m in input
         ]
+
+        # count_tokens skips the eligibility gate generation uses, so an
+        # invalid mark (over budget, or on a tool result) would otherwise
+        # reach Anthropic unchanged and get the same 400 generation would
+        # (verified live). Caching hints don't affect the counted result.
+        if _has_cache_breakpoint_hints(input):
+            input = _strip_cache_breakpoints(input)
 
         # Check for content requiring beta opt-ins before conversion
         has_compaction = _messages_contain_compaction(input)
@@ -1170,6 +1220,19 @@ class AnthropicAPI(ModelAPI):
             if (beta := b.strip())
         ]
 
+    def _oauth_default_headers(self, model_args: dict[str, Any]) -> dict[str, str]:
+        """Default headers for the OAuth client, merging in the caller's own.
+
+        Pops `default_headers` out of `model_args` to avoid passing it twice,
+        and merges the OAuth beta with any caller-supplied `anthropic-beta`.
+        """
+        headers: dict[str, str] = dict(model_args.pop("default_headers", None) or {})
+        caller_betas = self._pull_betas_from_headers(headers)
+        headers["anthropic-beta"] = ",".join(
+            dict.fromkeys(["oauth-2025-04-20", *caller_betas])
+        )
+        return headers
+
     def _beta_header_value(self, betas: list[str]) -> str:
         """Value for a per-request anthropic-beta header.
 
@@ -1272,13 +1335,19 @@ class AnthropicAPI(ModelAPI):
             # Claude 4.7+ (incl. Sonnet 5 and Opus 5) run adaptive thinking by
             # default, so `reasoning_effort="none"` must explicitly disable it.
             # Pre-4.7 models default to no thinking, so omitting the field
-            # already suffices.
-            params["thinking"] = {"type": "disabled"}
-            # Opus 5 returns a 400 for disabled thinking combined with effort
-            # above `high` (Opus 4.8 and Sonnet 5 accept the combination).
+            # already suffices. Sonnet 5.5 rejects `disabled` and names
+            # `between_tools` (no up-front thinking) as its lowest setting.
+            params["thinking"] = {
+                "type": "between_tools"
+                if self.is_claude_sonnet_5_5_or_later()
+                else "disabled"
+            }
+            # Opus 5 and Sonnet 5.5 return a 400 for turned-off thinking
+            # combined with effort above `high` (Opus 4.8 and Sonnet 5 accept
+            # the combination).
             output_config = params.get("output_config")
             if (
-                self.is_claude_opus_5()
+                (self.is_claude_opus_5() or self.is_claude_sonnet_5_5_or_later())
                 and isinstance(output_config, dict)
                 and output_config.get("effort") in ("xhigh", "max")
             ):
@@ -1351,7 +1420,7 @@ class AnthropicAPI(ModelAPI):
         if self.is_claude_3() or self.is_claude_3_5():
             return 4096
         else:
-            return 32000
+            return ANTHROPIC_MAX_TOKENS
 
     @override
     def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
@@ -1361,14 +1430,7 @@ class AnthropicAPI(ModelAPI):
             if reasoning_effort is not None:
                 # xhigh/max sized to reach the migration-guide floor of 64k
                 # on top of the 32k base for thinking models.
-                effort_tokens = {
-                    "low": 4096,
-                    "medium": 10000,
-                    "high": 16000,
-                    "xhigh": 32000,
-                    "max": 32000,
-                }
-                max_tokens = max_tokens + effort_tokens.get(reasoning_effort, 16000)
+                max_tokens = max_tokens + anthropic_effort_max_tokens(reasoning_effort)
             else:
                 # pre-4.6 path: size for explicit reasoning_tokens, or for
                 # the bridged effort->tokens translation when only effort is set.
@@ -1378,8 +1440,8 @@ class AnthropicAPI(ModelAPI):
 
         # migration-guide floor: xhigh/max effort wants ≥64k max_tokens
         # (model caps below will still clamp on older models)
-        if config.effort in ("xhigh", "max") and max_tokens < 64000:
-            max_tokens = 64000
+        if config.effort in ("xhigh", "max"):
+            max_tokens = max(max_tokens, ANTHROPIC_HIGH_EFFORT_MAX_TOKENS)
 
         # apply caps after bumping for reasoning
         if self.is_claude_frontier() and self.is_claude_4_opus():
@@ -1407,11 +1469,14 @@ class AnthropicAPI(ModelAPI):
         )
 
     def _supports_disabling_thinking(self) -> bool:
-        """Whether `reasoning_effort="none"` should send `thinking:{type:"disabled"}`.
+        """Whether `reasoning_effort="none"` should send a thinking-off config.
 
         Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5) run adaptive thinking by
         default and accept `disabled` to turn it off (on Opus 5 only at effort
-        `high` or below — see completion_config).
+        `high` or below — see completion_config). Sonnet 5.5 rejects `disabled`
+        but accepts `between_tools`, which turns off up-front thinking.
+        Fable/Mythos 5 and Opus 5.5 always think and reject `disabled` (400),
+        so `"none"` leaves thinking on for them (the field is omitted).
         """
         if not self.is_claude_4_7_or_later():
             # pre-4.7 models default to no thinking, so `"none"` is honored by
@@ -1420,6 +1485,9 @@ class AnthropicAPI(ModelAPI):
         if not self.is_claude_5():
             # Opus 4.7 / 4.8 (and future 4.x minors)
             return True
+        if self.is_claude_opus_5_5_or_later():
+            # unlike Opus 5, Opus 5.5 can't disable thinking at any effort
+            return False
         # Claude 5: only tier-named models accept `disabled`. Fable/Mythos also
         # always think but reject `disabled` (400) — as do unknown codename
         # Claude 5 models, which are assumed to follow Fable rather than the
@@ -1429,40 +1497,55 @@ class AnthropicAPI(ModelAPI):
     def apply_thinking_block_binding(
         self, request: dict[str, Any], betas: list[str]
     ) -> None:
-        """Opt into dropping prefix-mismatched thinking blocks on Fable 5.1.
+        """Opt into dropping prefix-mismatched thinking blocks on bound-thinking models.
 
-        Fable 5.1 binds thinking blocks to the request prefix that produced
-        them; solvers legitimately edit history, and without drop_block such an
-        edit fails the replay with a 400. Applied to every Fable 5.1 request —
-        not only those replaying thinking blocks — so the beta header stays
-        uniform across a task's requests (the batcher submits a single header
-        set per batch). Mythos 5.1 does not run the binding check, so it is
-        excluded. First-party API only for now: the binding-controls beta
-        arrives per model on bedrock/vertex (the header is rejected until
-        then) and is not offered on foundry — until those platforms enable it,
-        a history edit there will still 400. A caller-supplied
+        Fable 5.1, Opus 5.5, and Sonnet 5.5 bind thinking blocks to the request
+        prefix that produced them; solvers legitimately edit history, and without
+        drop_block such an edit fails the replay with a 400. Applied to every
+        request for these models — not only those replaying thinking blocks —
+        so the beta header stays uniform across a task's requests (the batcher
+        submits a single header set per batch). Mythos 5.1 does not run the
+        binding check, so it is excluded. Applied on the first-party API and,
+        for Sonnet 5.5 (verified live), on Bedrock: the binding-controls beta
+        arrives per model on bedrock/vertex and is not offered on foundry, so
+        other model/platform pairs stay opted out until verified, and a
+        history edit there can still 400. The API accepts `block_binding`
+        only with adaptive thinking, so Sonnet 5.5's
+        `between_tools` (`reasoning_effort="none"`) requests carry the beta
+        header but no binding config, and a history edit before a replayed
+        thinking block can still 400 there. A caller-supplied
         `extra_body.thinking` shallow-merges over the request body and
         replaces this binding config.
         """
-        if (
-            self.is_claude_fable_5_1_or_later()
-            and "mythos" not in self.model_family()
-            and not (self.is_bedrock() or self.is_vertex() or self.is_azure())
-        ):
+        binds_thinking = (
+            (
+                self.is_claude_fable_5_1_or_later()
+                and "mythos" not in self.model_family()
+            )
+            or self.is_claude_opus_5_5_or_later()
+            or self.is_claude_sonnet_5_5_or_later()
+        )
+        binding_offered = not (
+            self.is_bedrock() or self.is_vertex() or self.is_azure()
+        ) or (self.is_bedrock() and self.is_claude_sonnet_5_5_or_later())
+        if binds_thinking and binding_offered:
             betas.append(_THINKING_BINDING_BETA)
-            # thinking is always on for these models, so explicit adaptive
-            # (the server default) is accepted when the field was omitted
-            request.setdefault("thinking", {"type": "adaptive"})["block_binding"] = {
-                "prefix_mismatch_behavior": "drop_block"
-            }
+            # adaptive thinking is the server default for these models, so
+            # sending it explicitly is accepted when the field was omitted
+            thinking = request.setdefault("thinking", {"type": "adaptive"})
+            if thinking.get("type") == "adaptive":
+                thinking["block_binding"] = {"prefix_mismatch_behavior": "drop_block"}
 
     def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
         """Degrade forced tool choice to auto on models that reject it (400).
 
         "auto" and "none" pass through unchanged; strict tool use with auto
-        remains the schema-enforcement path on Fable/Mythos 5.1.
+        remains the schema-enforcement path on Fable/Mythos 5.1, Opus 5.5, and
+        Sonnet 5.5.
         """
-        if is_forced_tool_choice(tool_choice) and self.is_claude_fable_5_1_or_later():
+        if is_forced_tool_choice(tool_choice) and rejects_forced_tool_choice(
+            self.model_family()
+        ):
             warn_once(
                 logger,
                 _FORCED_TOOL_CHOICE_WARNING.format(model=self.service_model_name()),
@@ -1546,6 +1629,64 @@ class AnthropicAPI(ModelAPI):
 
     def is_claude_fable_5_1_or_later(self) -> bool:
         return is_claude_fable_5_1_model(self.model_family())
+
+    def is_claude_opus_5_5_or_later(self) -> bool:
+        """Opus 5.5 or a later point release (a subset of is_claude_opus_5)."""
+        return is_claude_opus_5_5_model(self.model_family())
+
+    def is_claude_sonnet_5_5_or_later(self) -> bool:
+        """Sonnet 5.5 or a later point release (a subset of is_claude_sonnet_5)."""
+        return is_claude_sonnet_5_5_model(self.model_family())
+
+    def computer_use_toolset(self) -> bool:
+        """Whether the computer tool is declared as Anthropic's computer toolset.
+
+        Auto mode (no `computer_toolset` model arg) uses the toolset where the
+        legacy `computer_20251124` tool is rejected (Opus 5.5 and Sonnet 5.5 on
+        the Claude API and Vertex) and, where the platform offers it, for Fable/Mythos 5.x and
+        any other non-Sonnet/Opus Claude 5 model. Every other model keeps the
+        legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock and
+        Foundry, which offer only the legacy tool.
+        """
+        if self.computer_toolset is not None:
+            return self.computer_toolset
+        return self.computer_toolset_required() or (
+            self.computer_toolset_preferred() and self.computer_toolset_available()
+        )
+
+    def computer_toolset_preferred(self) -> bool:
+        """Whether the toolset is the default computer use path where offered.
+
+        Fable/Mythos 5.x (and any other non-Sonnet/Opus Claude 5 codename)
+        default to the toolset, which is GA for them on the Claude API and
+        Vertex; they also accept the legacy tool, so `computer_toolset=false`
+        and platforms without the toolset fall back to it.
+        """
+        return self.is_claude_5() and not (
+            self.is_claude_sonnet_5() or self.is_claude_opus_5()
+        )
+
+    def computer_toolset_available(self) -> bool:
+        """Whether this platform offers the computer toolset at all.
+
+        Per Anthropic's computer-use docs, platforms other than the Claude API
+        and Google Cloud (Vertex) currently offer only the earlier tool
+        versions. (Claude Platform on AWS also offers only those, but this
+        provider has no client for it, so it needs no case here.)
+        """
+        return not (self.is_bedrock() or self.is_azure())
+
+    def computer_toolset_required(self) -> bool:
+        """Whether the legacy computer tool is rejected for this model/platform.
+
+        Only Opus 5.5 and Sonnet 5.5 on the Claude API and Vertex reject
+        `computer_20251124`; Bedrock and Foundry keep accepting it there, and
+        every other model listed for the legacy tool (Fable/Mythos 5.x
+        included) still accepts it.
+        """
+        return (
+            self.is_claude_opus_5_5_or_later() or self.is_claude_sonnet_5_5_or_later()
+        ) and self.computer_toolset_available()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -1660,7 +1801,7 @@ class AnthropicAPI(ModelAPI):
             return "anthropic/claude-opus-4-6"  # 1MM
         elif self.is_claude_latest():
             # Unknown future version: assume the current 1M frontier.
-            return "anthropic/claude-opus-5"  # 1MM
+            return FRONTIER_MODELS["anthropic"]  # 1MM
         elif (
             self.is_claude_5() and _get_model_info_direct(self.canonical_name()) is None
         ):
@@ -1670,7 +1811,7 @@ class AnthropicAPI(ModelAPI):
             # Claude 5 models (Opus/Sonnet/Fable/Mythos and their point
             # releases, which fuzzy-match their base entry) fall through to the
             # database below.
-            return "anthropic/claude-opus-5"  # 1MM
+            return FRONTIER_MODELS["anthropic"]  # 1MM
         else:
             return super().input_tokens_name()
 
@@ -1810,6 +1951,38 @@ class AnthropicAPI(ModelAPI):
         list[MessageParam],
         bool,
     ]:
+        # explicit hints route to _resolve_chat_input_explicit only when
+        # caching is enabled and every hint can be honored; otherwise they
+        # are stripped and the automatic path below runs instead. An
+        # over-budget mark count raises rather than falling back, since
+        # falling back would resume caching the tail the marks meant to
+        # exclude.
+        if _has_cache_breakpoint_hints(input):
+            cache_prompt = (
+                config.cache_prompt if isinstance(config.cache_prompt, bool) else True
+            )
+            if cache_prompt:
+                model_name = self.model_family()
+                if (
+                    "claude-3-sonnet" in model_name
+                    or "claude-2" in model_name
+                    or "claude-instant" in model_name
+                ):
+                    cache_prompt = False
+            if cache_prompt:
+                marked = _count_cache_breakpoints(input)
+                if marked > MAX_CACHE_BREAKPOINTS:
+                    raise ValueError(
+                        f"Request has {marked} ContentText.cache_breakpoint marks; "
+                        f"Anthropic allows at most {MAX_CACHE_BREAKPOINTS} cache "
+                        "breakpoints per request."
+                    )
+                if _can_honor_cache_breakpoints(input):
+                    return await self._resolve_chat_input_explicit(
+                        input, tools, config, cache_ttl
+                    )
+            input = _strip_cache_breakpoints(input)
+
         # Convert orphaned tool results to text messages before processing
         # (handles case where native compaction summarized away tool_use blocks)
         input = _convert_orphaned_tool_results(input)
@@ -1826,14 +1999,6 @@ class AnthropicAPI(ModelAPI):
         else:
             system_messages, messages = _split_system_as_reminders(input)
 
-        # messages
-        message_params = [(await message_param(message)) for message in messages]
-
-        # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
-        message_params = functools.reduce(
-            consecutive_user_message_reducer, message_params, []
-        )
-
         # cleave out MCP servers from tools
         tools, mcp_servers = self.partition_tools(tools)
 
@@ -1843,6 +2008,35 @@ class AnthropicAPI(ModelAPI):
             for tool in tools
             for param in self.tool_params_for_tool_info(tool, config)
         ]
+
+        # with the computer toolset declared, every call to the computer tool
+        # in the history replays as a toolset member (name = action, with
+        # toolset_name) and its result must echo toolset_name -- whichever
+        # tool declaration originally produced it
+        computer_toolset_call_ids: set[str] = set()
+        if any(is_computer_toolset(param) for param in tools_params):
+            computer_toolset_call_ids = {
+                tool_call.id
+                for message in messages
+                if isinstance(message, ChatMessageAssistant)
+                for tool_call in message.tool_calls or []
+                if tool_call.function == INTERNAL_COMPUTER_TOOL_NAME
+            }
+
+        # messages
+        message_params = [
+            (
+                await message_param(
+                    message, computer_toolset_call_ids=computer_toolset_call_ids
+                )
+            )
+            for message in messages
+        ]
+
+        # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
+        message_params = functools.reduce(
+            consecutive_user_message_reducer, message_params, []
+        )
 
         # mcp servers
         mcp_server_params = [
@@ -1902,6 +2096,133 @@ class AnthropicAPI(ModelAPI):
             mcp_server_params,
             message_params,
             cache_prompt,
+        )
+
+    async def _resolve_chat_input_explicit(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        cache_ttl: Literal["5m", "1h"] | None,
+    ) -> Tuple[
+        list[TextBlockParam] | None,
+        list["ToolParamDef"],
+        list[BetaRequestMCPServerURLDefinitionParam],
+        list[MessageParam],
+        bool,
+    ]:
+        """Resolve `input` when it carries honorable caller `ContentText.cache_breakpoint` marks.
+
+        Only reached once `resolve_chat_input` has confirmed caching is
+        enabled and `_can_honor_cache_breakpoints(input)`. Automatic caching
+        (system, tools, message lookback/final markers) is suppressed in
+        favor of the caller's own boundaries.
+        """
+        input = _convert_orphaned_tool_results(input)
+
+        messages: list[ChatMessage]
+        if self.supports_mid_conversation_system():
+            system_messages, messages = _split_for_mid_conversation_system(input)
+        else:
+            system_messages, messages = _split_system_as_reminders(input)
+
+        # cleave out MCP servers from tools
+        standard_tools, mcp_servers = self.partition_tools(tools)
+
+        # tools
+        tools_params = [
+            param
+            for tool in standard_tools
+            for param in self.tool_params_for_tool_info(tool, config)
+        ]
+
+        # with the computer toolset declared, every call to the computer tool
+        # in the history replays as a toolset member (name = action, with
+        # toolset_name) and its result must echo toolset_name -- whichever
+        # tool declaration originally produced it
+        computer_toolset_call_ids: set[str] = set()
+        if any(is_computer_toolset(param) for param in tools_params):
+            computer_toolset_call_ids = {
+                tool_call.id
+                for message in messages
+                if isinstance(message, ChatMessageAssistant)
+                for tool_call in message.tool_calls or []
+                if tool_call.function == INTERNAL_COMPUTER_TOOL_NAME
+            }
+
+        message_params = [
+            (
+                await message_param(
+                    message, computer_toolset_call_ids=computer_toolset_call_ids
+                )
+            )
+            for message in messages
+        ]
+
+        # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
+        message_params = functools.reduce(
+            consecutive_user_message_reducer, message_params, []
+        )
+
+        # mcp servers
+        mcp_server_params = [
+            self.mcp_server_param(mcp_server) for mcp_server in mcp_servers
+        ]
+
+        # preserve per-block boundaries so a stable block isn't flattened
+        # together with a varying one into a single cached string
+        system_param: list[TextBlockParam] | None = None
+        if len(system_messages) > 0:
+            system_param = [
+                block
+                for m in system_messages
+                for block in system_content_blocks(m, cache_ttl)
+            ]
+            if len(system_param) == 0:
+                system_param = None
+        else:
+            system_param = None
+
+        # explicit breakpoints replace the heuristic message/lookback
+        # breakpoints, so the caller's chosen boundaries stand alone
+        explicit_message_breakpoints = count_message_cache_control(message_params)
+        explicit_system_breakpoints = (
+            count_block_list_cache_control(system_param) if system_param else 0
+        )
+        # a native tool (e.g. web_search) can already carry its own
+        # cache_control from tool options, before any automatic marking below
+        existing_tool_breakpoints = count_block_list_cache_control(tools_params)
+
+        fixed_breakpoints = (
+            explicit_message_breakpoints
+            + explicit_system_breakpoints
+            + existing_tool_breakpoints
+        )
+        if fixed_breakpoints > MAX_CACHE_BREAKPOINTS:
+            raise ValueError(
+                f"Request has {fixed_breakpoints} cache breakpoints (explicit "
+                "ContentText marks plus native tool cache_control); Anthropic "
+                f"allows at most {MAX_CACHE_BREAKPOINTS} per request."
+            )
+
+        # auto-mark system/tools only where nothing already marked that
+        # scope and there's still budget for it
+        room = MAX_CACHE_BREAKPOINTS - fixed_breakpoints
+        if system_param and not explicit_system_breakpoints and room > 0:
+            add_cache_control(system_param[-1], cache_ttl)
+            room -= 1
+        if tools_params and not existing_tool_breakpoints and room > 0:
+            add_cache_control(tools_params[-1], cache_ttl)
+
+        normalize_document_citations(message_params)
+
+        return (
+            system_param,
+            tools_params,
+            mcp_server_params,
+            message_params,
+            # explicit breakpoints replace automatic caching entirely
+            False,
         )
 
     def partition_tools(
@@ -1968,7 +2289,12 @@ class AnthropicAPI(ModelAPI):
 
     def computer_use_tool_param(
         self, tool: ToolInfo
-    ) -> BetaToolComputerUse20250124Param | BetaToolComputerUse20251124Param | None:
+    ) -> (
+        BetaToolComputerUse20250124Param
+        | BetaToolComputerUse20251124Param
+        | BetaComputerToolset20260801Param
+        | None
+    ):
         # check for compatible 'computer' tool
         if is_computer_tool_info(tool):
             if self.is_claude_3_5():
@@ -1977,18 +2303,38 @@ class AnthropicAPI(ModelAPI):
                     "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
                 )
                 return None
-            # Among Claude 5 models only Sonnet 5 and Opus 5 are documented to
-            # support native computer use (the computer-use-2025-11-24 tool).
-            # Fable/Mythos 5 are not listed in Anthropic's computer-use docs, so
-            # error for those rather than degrade to a non-native fallback tool.
-            if self.is_claude_5() and not (
-                self.is_claude_sonnet_5() or self.is_claude_opus_5()
-            ):
+            if self.computer_use_toolset():
+                # only reachable when forced: auto mode never picks the toolset
+                # on a platform that does not offer it
+                if not self.computer_toolset_available():
+                    raise PrerequisiteError(
+                        f"Anthropic's computer toolset (computer_toolset_20260801) "
+                        f"is only offered on the Claude API and Vertex, not for "
+                        f"'{self.service_model_name()}' on this platform. Remove "
+                        "computer_toolset=true to use the legacy computer tool."
+                    )
+                # the toolset is documented for Opus 4.8, Sonnet 5/5.5, Opus 5/5.5
+                # and Fable/Mythos 5.x (so a forced opt-in on older models errors)
+                if not self.is_claude_4_8_or_later():
+                    raise PrerequisiteError(
+                        f"Anthropic's computer toolset (computer_toolset_20260801) is "
+                        f"not supported by the model '{self.service_model_name()}'. "
+                        "It requires Claude Opus 4.8, Sonnet 5, Opus 5 or later; "
+                        "remove the computer_toolset model arg to use the legacy "
+                        "computer tool."
+                    )
+                # no display dimensions (coordinates are in the pixel space of
+                # the screenshots we return); zoom is enabled by default and the
+                # inspect computer tool always supports it, so no configs.
+                return BetaComputerToolset20260801Param(type=COMPUTER_TOOLSET_TYPE)
+            # legacy path forced (computer_toolset=false) where the legacy tool
+            # is rejected (Opus 5.5 / Sonnet 5.5 on the Claude API / Vertex)
+            if self.computer_toolset_required():
                 raise PrerequisiteError(
-                    f"Computer use is not supported by the model '{self.service_model_name()}'. "
-                    "Anthropic's native computer use requires a Claude 4.x model, "
-                    "Claude Sonnet 5, or Claude Opus 5 (e.g. claude-opus-4-8, "
-                    "claude-sonnet-5, or claude-opus-5)."
+                    f"The legacy computer tool (computer_20251124) is not supported "
+                    f"by the model '{self.service_model_name()}' on this platform. "
+                    "Remove computer_toolset=false to use Anthropic's computer "
+                    "toolset (computer_toolset_20260801)."
                 )
             # Note: The dimensions passed here for display_width_px and display_height_px
             # should match the dimensions of screenshots returned by the tool. Those
@@ -2001,7 +2347,8 @@ class AnthropicAPI(ModelAPI):
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
             # computer_20251124 is supported by Claude Opus 5, Sonnet 5,
-            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5
+            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5 (and by Opus 5.5 and
+            # Sonnet 5.5 on Bedrock and Foundry, where the toolset is not offered)
             if self.is_claude_frontier() or (
                 self.is_claude_4_5() and self.is_claude_4_opus()
             ):
@@ -2325,6 +2672,7 @@ ToolParamDef = (
     ToolParam
     | BetaToolComputerUse20250124Param
     | BetaToolComputerUse20251124Param
+    | BetaComputerToolset20260801Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
     | BetaToolTextEditor20250429Param
@@ -2361,6 +2709,12 @@ def is_computer_tool(
     param: ToolParamDef,
 ) -> TypeGuard[BetaToolComputerUse20250124Param | BetaToolComputerUse20251124Param]:
     return param.get("name") == "computer" and not is_tool_param(param)
+
+
+def is_computer_toolset(
+    param: ToolParamDef,
+) -> TypeGuard[BetaComputerToolset20260801Param]:
+    return param.get("type") == COMPUTER_TOOLSET_TYPE
 
 
 def is_web_search_tool(
@@ -2433,11 +2787,32 @@ def add_lookback_cache_control(
                     return
 
 
+# Anthropic rejects requests with more cache_control markers than this.
+MAX_CACHE_BREAKPOINTS = 4
+
+
+def count_block_list_cache_control(blocks: Sequence[object]) -> int:
+    """Number of blocks in `blocks` carrying `cache_control`."""
+    return sum(
+        1 for block in blocks if isinstance(block, dict) and "cache_control" in block
+    )
+
+
+def count_message_cache_control(message_params: list[MessageParam]) -> int:
+    """Number of top-level content blocks in `message_params` carrying `cache_control`."""
+    return sum(
+        count_block_list_cache_control(msg["content"])
+        for msg in message_params
+        if isinstance(msg["content"], list)
+    )
+
+
 def add_cache_control(
     param: TextBlockParam
     | ToolParam
     | BetaToolComputerUse20250124Param
     | BetaToolComputerUse20251124Param
+    | BetaComputerToolset20260801Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
     | BetaToolTextEditor20250429Param
@@ -2588,6 +2963,109 @@ def _convert_orphaned_tool_results(
     return result
 
 
+def _cache_breakpoint(block: ContentText) -> bool:
+    """Whether `block` requests an explicit cache breakpoint.
+
+    Uses `getattr` since Inspect's local response cache persists pickled
+    `ModelOutput` objects across version upgrades; unpickling bypasses
+    pydantic defaults, so a `ContentText` pickled before this field existed
+    genuinely lacks the attribute. A missing attribute means unmarked.
+    """
+    return bool(getattr(block, "cache_breakpoint", None))
+
+
+def _message_has_cache_breakpoint(message: ChatMessage) -> bool:
+    return isinstance(message.content, list) and any(
+        isinstance(block, ContentText) and _cache_breakpoint(block)
+        for block in message.content
+    )
+
+
+def _has_cache_breakpoint_hints(messages: list[ChatMessage]) -> bool:
+    """Cheap presence check for any `ContentText.cache_breakpoint` mark."""
+    return any(_message_has_cache_breakpoint(message) for message in messages)
+
+
+def _count_cache_breakpoints(messages: list[ChatMessage]) -> int:
+    """Number of `ContentText.cache_breakpoint` marks across `messages`."""
+    return sum(
+        1
+        for message in messages
+        if isinstance(message.content, list)
+        for block in message.content
+        if isinstance(block, ContentText) and _cache_breakpoint(block)
+    )
+
+
+def _strip_cache_breakpoints(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Copy of `messages` with every `ContentText.cache_breakpoint` mark removed.
+
+    Non-mutating: only messages that actually carry a mark are copied.
+    """
+    result: list[ChatMessage] = []
+    for message in messages:
+        if not _message_has_cache_breakpoint(message):
+            result.append(message)
+            continue
+        content = cast(list[Content], message.content)
+        stripped_content: list[Content] = [
+            block.model_copy(update={"cache_breakpoint": None})
+            if isinstance(block, ContentText) and _cache_breakpoint(block)
+            else block
+            for block in content
+        ]
+        result.append(message.model_copy(update={"content": stripped_content}))
+    return result
+
+
+def _can_honor_cache_breakpoints(input: list[ChatMessage]) -> bool:
+    """Whether every `ContentText.cache_breakpoint` mark in `input` can be honored.
+
+    Checked once, up front — the whole request falls back to normal
+    automatic caching (every mark stripped) rather than honoring some marks
+    and not others. Supported: a leading system message, or an ordinary
+    non-empty user/assistant block. Not supported: a mid-conversation system
+    message, a tool result (no way to mark a boundary inside either), or an
+    empty text block (Anthropic rejects those outright and Inspect
+    substitutes a placeholder, so a mark there would attach to the
+    placeholder instead of real content).
+    """
+    if _count_cache_breakpoints(input) > MAX_CACHE_BREAKPOINTS:
+        return False
+
+    if any(
+        isinstance(block, ContentText) and _cache_breakpoint(block) and not block.text
+        for message in input
+        if isinstance(message.content, list)
+        for block in message.content
+    ):
+        return False
+
+    i = 0
+    while i < len(input) and isinstance(input[i], ChatMessageSystem):
+        leading = cast(ChatMessageSystem, input[i])
+        if isinstance(leading.content, list):
+            text_blocks = [
+                block for block in leading.content if isinstance(block, ContentText)
+            ]
+            marked = [
+                idx for idx, block in enumerate(text_blocks) if _cache_breakpoint(block)
+            ]
+            if marked:
+                trailing = text_blocks[marked[-1] + 1 :]
+                if len(trailing) == 1 and not trailing[0].text:
+                    # a lone trailing empty block would be dropped as an
+                    # invalid empty text block, losing its separator
+                    return False
+        i += 1
+
+    return not any(
+        isinstance(message, ChatMessageSystem | ChatMessageTool)
+        and _message_has_cache_breakpoint(message)
+        for message in input[i:]
+    )
+
+
 def _split_system_as_reminders(
     input: list[ChatMessage],
 ) -> tuple[list[ChatMessageSystem], list[ChatMessage]]:
@@ -2607,6 +3085,9 @@ def _split_system_as_reminders(
     result would fold into the tool-result turn. Non-tool-result content in a
     tool-result turn restarts the assistant loop and strips prior thinking /
     cache context on tool-use continuations, so those reminders are hoisted.
+
+    A mid-conversation `cache_breakpoint` mark is disqualified and stripped
+    by `_can_honor_cache_breakpoints` before this runs, so none reach here.
     """
     top: list[ChatMessageSystem] = []
     i = 0
@@ -2662,6 +3143,9 @@ def _split_for_mid_conversation_system(
     as `role="system"` turns). Enforces the API's placement invariants by
     merging consecutive mid-conversation systems and hoisting any in invalid
     positions back to the top-level field.
+
+    A mid-conversation `cache_breakpoint` mark is disqualified and stripped
+    by `_can_honor_cache_breakpoints` before this runs, so none reach here.
     """
     # 1. Pull leading contiguous block.
     top: list[ChatMessageSystem] = []
@@ -2742,7 +3226,59 @@ def _previous_assistant_message_id(input: list[ChatMessage]) -> str | None:
     return None
 
 
-async def message_param(message: ChatMessage) -> MessageParam:
+def system_content_blocks(
+    message: ChatMessageSystem,
+    cache_ttl: Literal["5m", "1h"] | None,
+) -> list[TextBlockParam]:
+    r"""`message`'s content as text blocks.
+
+    Unmarked requests keep the prior single flattened block. When a
+    `cache_breakpoint` mark is present, blocks are split only at the marked
+    boundaries — unmarked runs on either side stay joined with `"\n"`, same
+    as the flattened representation.
+    """
+    if isinstance(message.content, str):
+        return (
+            [TextBlockParam(type="text", text=message.content)]
+            if message.content
+            else []
+        )
+    if not any(
+        isinstance(block, ContentText) and _cache_breakpoint(block)
+        for block in message.content
+    ):
+        text = message.text
+        return [TextBlockParam(type="text", text=text)] if text else []
+
+    blocks: list[TextBlockParam] = []
+    run: list[str] = []
+    for block in message.content:
+        if not isinstance(block, ContentText):
+            continue
+        run.append(block.text)
+        if _cache_breakpoint(block):
+            text_block = TextBlockParam(type="text", text="\n".join(run))
+            add_cache_control(text_block, cache_ttl)
+            blocks.append(text_block)
+            run = []
+    if run:
+        trailing_text = "\n".join(run)
+        # the API rejects empty text content parts, so drop a fully-empty
+        # trailing run rather than emit one
+        if trailing_text:
+            blocks.append(TextBlockParam(type="text", text=trailing_text))
+    return blocks
+
+
+async def message_param(
+    message: ChatMessage, *, computer_toolset_call_ids: Collection[str] = frozenset()
+) -> MessageParam:
+    """Convert a chat message to an Anthropic message param.
+
+    `computer_toolset_call_ids` holds the tool call ids that replay as computer
+    toolset members (their `tool_use` and `tool_result` blocks carry
+    `toolset_name`); it is empty whenever the toolset is not declared.
+    """
     # if content is empty that is going to result in an error when we replay
     # this message to claude, so in that case insert a NO_CONTENT message
     if isinstance(message.content, list) and len(message.content) == 0:
@@ -2761,6 +3297,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
     # before this function is called, so role=="system" is unreachable
     # there.
     if message.role == "system":
+        assert isinstance(message, ChatMessageSystem)
         if isinstance(message.content, str):
             return MessageParam(role="system", content=message.content or NO_CONTENT)
         text_blocks: list[TextBlockParam] = [
@@ -2792,21 +3329,21 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 for item in await message_block_params(content)
             ]
 
-        return MessageParam(
-            role="user",
-            content=[
-                ToolResultBlockParam(
-                    tool_use_id=str(message.tool_call_id),
-                    type="tool_result",
-                    content=cast(list[TextBlockParam | ImageBlockParam], content),
-                    is_error=message.error is not None,
-                )
-            ],
+        tool_result = ToolResultBlockParam(
+            tool_use_id=str(message.tool_call_id),
+            type="tool_result",
+            content=cast(list[TextBlockParam | ImageBlockParam], content),
+            is_error=message.error is not None,
         )
+        if message.tool_call_id in computer_toolset_call_ids:
+            tool_result["toolset_name"] = COMPUTER_TOOLSET_NAME
+        return MessageParam(role="user", content=[tool_result])
 
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant":
-        block_params = await assistant_message_block_params(message)
+        block_params = await assistant_message_block_params(
+            message, computer_toolset_call_ids=computer_toolset_call_ids
+        )
 
         return MessageParam(
             role=message.role,
@@ -3016,6 +3553,8 @@ async def assistant_message_blocks(
 
 async def assistant_message_block_params(
     message: ChatMessageAssistant,
+    *,
+    computer_toolset_call_ids: Collection[str] = frozenset(),
 ) -> list[MessageBlockParam]:
     block_params: list[MessageBlockParam] = []
 
@@ -3091,15 +3630,17 @@ async def assistant_message_block_params(
             )
         )
         position = min(max(position, 0), content_len)
-        internal_name = _internal_name_from_tool_call(tool_call)
-        tools_by_position.setdefault(position, []).append(
-            ToolUseBlockParam(
+        if tool_call.id in computer_toolset_call_ids:
+            tool_use = computer_toolset_tool_use_param(tool_call)
+        else:
+            internal_name = _internal_name_from_tool_call(tool_call)
+            tool_use = ToolUseBlockParam(
                 type="tool_use",
                 id=tool_call.id,
                 name=internal_name or tool_call.function,
                 input=tool_call.arguments,
             )
-        )
+        tools_by_position.setdefault(position, []).append(tool_use)
     for position, segment in enumerate(segments):
         block_params.extend(tools_by_position.get(position, []))
         block_params.extend(segment)
@@ -3717,6 +4258,12 @@ async def model_output_from_message(
         if msg_id:
             asst_metadata["message_id"] = msg_id
 
+    # computer toolset members in one response form a batch that stops at
+    # the first failure (Anthropic's batch contract); tell execute_tools
+    fail_fast_tools = _computer_toolset_fail_fast_tools(message, tool_calls)
+    if fail_fast_tools:
+        asst_metadata[TOOL_CALLS_FAIL_FAST] = fail_fast_tools
+
     # server-side refusal fallback: collect handoffs (in content order) so we
     # can surface the serving model and a structured metadata entry. on a
     # streaming mid-output decline `message.model` names the *requested* model,
@@ -3809,9 +4356,9 @@ async def model_output_from_message(
         {"extra_body": dict(extra_body)} if extra_body else None
     )
 
-    # thinking block binding (Fable 5.1): with the thinking-binding
-    # beta, replayed thinking blocks the server dropped (e.g. after a history
-    # edit) are reported via input_transformations. Warn so callers know
+    # thinking block binding (Fable 5.1, Opus 5.5, Sonnet 5.5): with the
+    # thinking-binding beta, replayed thinking blocks the server dropped (e.g.
+    # after a history edit) are reported via input_transformations. Warn so callers know
     # reasoning context was lost; the raw entries (including the message path
     # of each dropped block) are captured under metadata["extra_body"] above.
     for transformation in extra_body.get("input_transformations") or []:
@@ -4154,7 +4701,19 @@ def content_and_tool_calls_from_assistant_content_blocks(
             )
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
-            (tool_name, internal_name) = _names_for_tool_call(content_block.name, tools)
+            arguments: dict[str, Any] = content_block.model_dump().get("input", {})
+            if getattr(content_block, "toolset_name", None) == COMPUTER_TOOLSET_NAME:
+                # computer toolset member: dispatch to the inspect computer
+                # tool with the member name as its `action`
+                tool_name, internal_name = _names_for_computer_toolset_call(
+                    content_block.name, tools
+                )
+                # the member name is authoritative for `action`
+                arguments = arguments | {"action": content_block.name}
+            else:
+                (tool_name, internal_name) = _names_for_tool_call(
+                    content_block.name, tools
+                )
             assistant_internal().tool_call_internal_names[content_block.id] = (
                 internal_name
             )
@@ -4169,7 +4728,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
                 ToolCall(
                     id=content_block.id,
                     function=tool_name,
-                    arguments=content_block.model_dump().get("input", {}),
+                    arguments=arguments,
                 )
             )
         elif isinstance(content_block, (ServerToolUseBlock, BetaServerToolUseBlock)):
@@ -4422,15 +4981,13 @@ def _fallback_from_content_data(
             from_info = fallback_metadata.get("from")
             to_info = fallback_metadata.get("to")
             to_model = to_info.get("model") if isinstance(to_info, dict) else None
-            param = BetaFallbackBlockParam(
-                type="fallback",
-                to=BetaFallbackInfoParam(model=to_model),  # type: ignore[typeddict-item]
-            )
-            # `from` is a reserved keyword — set via dict key
             from_model = from_info.get("model") if isinstance(from_info, dict) else None
+            # a plain dict: `from` is a reserved keyword, and the SDK marks
+            # it Required, so the TypedDict constructor can't express it
+            param: dict[str, Any] = {"type": "fallback", "to": {"model": to_model}}
             if from_model is not None:
-                cast(dict[str, Any], param)["from"] = {"model": from_model}
-            return param
+                param["from"] = {"model": from_model}
+            return cast(BetaFallbackBlockParam, param)
 
     return None
 
@@ -4684,6 +5241,54 @@ def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
     return assistant_internal().tool_call_internal_names.get(tool_call.id, None)
 
 
+def _computer_toolset_fail_fast_tools(
+    message: Message, tool_calls: list[ToolCall] | None
+) -> list[str]:
+    """Names of the tools called through computer toolset members in `message`."""
+    member_ids = {
+        block.id
+        for block in message.content
+        if isinstance(block, ToolUseBlock)
+        and getattr(block, "toolset_name", None) == COMPUTER_TOOLSET_NAME
+    }
+    if not member_ids:
+        return []
+    return sorted({call.function for call in tool_calls or [] if call.id in member_ids})
+
+
+def _names_for_computer_toolset_call(
+    member: str, tools: list[ToolInfo]
+) -> tuple[str, str | None]:
+    """Return the tool to call for a computer toolset member `tool_use`.
+
+    Members dispatch to inspect's computer tool (the only tool the toolset is
+    declared for). The member name is carried in the call's `action` argument
+    rather than as an internal name, so replay derives the wire shape from the
+    logged arguments (see `computer_toolset_tool_use_param`).
+    """
+    if any(tool.name == INTERNAL_COMPUTER_TOOL_NAME for tool in tools):
+        return INTERNAL_COMPUTER_TOOL_NAME, None
+    return member, None
+
+
+def computer_toolset_tool_use_param(tool_call: ToolCall) -> ToolUseBlockParam:
+    """Replay a computer tool call as a computer toolset member `tool_use`.
+
+    The member name is the call's `action` and the member input is the rest of
+    the arguments. Calls recorded under the legacy `computer` tool replay the
+    same way, so a conversation can move onto a toolset-only model.
+    """
+    arguments = dict(tool_call.arguments)
+    member = str(arguments.pop("action", tool_call.function))
+    return ToolUseBlockParam(
+        type="tool_use",
+        id=tool_call.id,
+        name=member,
+        toolset_name=COMPUTER_TOOLSET_NAME,
+        input=arguments,
+    )
+
+
 def _names_for_tool_call(
     tool_called: str, tools: list[ToolInfo]
 ) -> tuple[str, str | None]:
@@ -4730,8 +5335,9 @@ def message_stop_reason(message: Message) -> tuple[StopReason, bool]:
 def message_stop_details(message: Message) -> StopDetails | None:
     """Extract refusal detail from an Anthropic `Message.stop_details` (Opus 4.7+).
 
-    Anthropic reports a single named category (`cyber`/`bio`); it is mirrored into
-    `categories` so callers can read the list uniformly across providers.
+    Anthropic reports a single named category (`cyber`/`bio`/`reasoning_extraction`);
+    it is mirrored into `categories` so callers can read the list uniformly across
+    providers.
     """
     details = getattr(message, "stop_details", None)
     if details is None:
@@ -4780,7 +5386,10 @@ async def message_block_params(
             else None
         )
 
-        return [TextBlockParam(type="text", text=text, citations=citations)]
+        text_block = TextBlockParam(type="text", text=text, citations=citations)
+        if _cache_breakpoint(content):
+            add_cache_control(text_block, _cache_write_ttl.get())
+        return [text_block]
     elif isinstance(content, ContentImage):
         return [await image_block_param(content.image)]
 
