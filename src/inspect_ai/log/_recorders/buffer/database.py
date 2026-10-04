@@ -731,6 +731,11 @@ class SampleBufferDatabase(SampleBuffer):
 
         try:
             with self._get_connection() as conn:
+                # One snapshot for all the queries below: the eval process removes
+                # flushed samples concurrently, which could otherwise pair events
+                # with an already emptied message pool.
+                conn.execute("BEGIN")
+
                 # This should be checking whether the sample data actually
                 # exists in the database, otherwise once the sample is deleted
                 # this will just return no events and no attachments until the
