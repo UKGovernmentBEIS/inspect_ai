@@ -1394,6 +1394,7 @@ _EXPECTED_SELECTION_FIELDS: dict[int, dict[str, set[str]]] = {
             "model_cost_config",
             "notification",
             "retry_on_error",
+            "review",
             "sample_id",
             "sample_shuffle",
             "sandbox",

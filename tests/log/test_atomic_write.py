@@ -11,6 +11,7 @@ import pytest
 
 from inspect_ai._util.atomic_write import atomic_write, atomic_write_bytes
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log, write_eval_log
+from inspect_ai.log._recorders.recorder import SampleRecordKey
 
 
 class TestAtomicWriteBasics:
@@ -405,7 +406,7 @@ class TestFlushPermissionError:
         # survive a skipped flush (buffered_sample falls back to the
         # on-disk log once cleared, which a skipped flush hasn't written)
         sample = EvalSample(id="s1", epoch=1, input="x", target="y")
-        log._streaming_samples[("s1", 1)] = sample
+        log._streaming_samples[SampleRecordKey("s1", 1)] = sample
 
         locked = PermissionError(13, "The process cannot access the file")
         with mock.patch("os.replace", side_effect=locked):

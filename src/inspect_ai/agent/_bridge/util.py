@@ -3,7 +3,7 @@ import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Iterator, Sequence, cast
+from typing import Any, Callable, Iterator, Sequence, cast
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
@@ -41,6 +41,7 @@ from inspect_ai.model._model import (
     Model,
     ModelGenerateFilter,
     ModelName,
+    ModelRefusalError,
     ModelResolver,
     active_model,
     get_model,
@@ -485,8 +486,18 @@ async def bridge_generate(
     tools: Sequence[ToolInfo | Tool],
     tool_choice: ToolChoice | None,
     config: GenerateConfig,
+    declared_in_input: Callable[[list[ChatMessage]], Sequence[ToolInfo]] | None = None,
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Generate model output through the agent bridge.
+
+    `declared_in_input` extracts the tools a scaffold declared to the model inside
+    the conversation rather than the request's tools array (Responses tools
+    discovered through `tool_search`, which the model sees in a
+    `tool_search_output` result). It is applied to the input the model actually
+    generated from on each attempt, after compaction and any filter rewrite, so a
+    declaration the filter removed cannot authorize a host call and one it added
+    can; the result takes part only in resolving execution grants and is never
+    sent to the model.
 
     If a filter is configured, it will be called on each attempt (including retries).
     The filter can either return a ModelOutput directly or modify the generation inputs.
@@ -559,12 +570,23 @@ async def bridge_generate(
         # control when / under which span events appear.
         if output is None:
             with bridge_model_generate(), use_model_event_sink(bridge.model_event_sink):
-                output = await model.generate(
-                    input=input_messages,
-                    tool_choice=tool_choice,
-                    tools=tools,
-                    config=config,
-                )
+                # with fail_on_refusal set a refusal raises rather than
+                # returning; it still gets its retries, the last one propagates
+                try:
+                    output = await model.generate(
+                        input=input_messages,
+                        tool_choice=tool_choice,
+                        tools=tools,
+                        config=config,
+                    )
+                except ModelRefusalError:
+                    if (
+                        bridge.retry_refusals is not None
+                        and refusals < bridge.retry_refusals
+                    ):
+                        refusals += 1
+                        continue
+                    raise
 
         # Update the compaction baseline with the actual input token
         # count from the generate call (most accurate source of truth)
@@ -572,22 +594,29 @@ async def bridge_generate(
             await compact.record_output(input_messages, output)
 
         # Check for refusal and retry if needed
-        if (
-            output.stop_reason == "content_filter"
-            and bridge.retry_refusals is not None
-            and refusals < bridge.retry_refusals
-        ):
-            refusals += 1
-            continue
+        if not output.empty and output.stop_reason == "content_filter":
+            if bridge.retry_refusals is not None and refusals < bridge.retry_refusals:
+                refusals += 1
+                continue
+            # a refusal produced by the filter never went through
+            # model.generate(), so fail_on_refusal is applied here instead
+            if model._resolve_config(config).fail_on_refusal:
+                raise ModelRefusalError(output, str(model), model.role)
 
         # Approve the tool calls the scaffold is about to run. A rejection comes back
         # as the messages to replay to the model (the rejected call plus a result for
         # every call in the response) so it can propose something else; the scaffold
-        # never sees the rejected response.
+        # never sees the rejected response. The calls in the response handed over
+        # are the only ones the scaffold may run as host tools, once each; they
+        # resolve against the declarations this attempt generated with (tools and
+        # in-input declarations alike), which a filter may have rewritten.
         reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
         if reviewed.rejection is None:
+            declarations: list[ToolInfo | Tool] = list(tools)
+            if declared_in_input is not None:
+                declarations.extend(declared_in_input(input_messages))
             bridge.register_tool_execution_grants(
-                reviewed.output.message.tool_calls or []
+                reviewed.output.message.tool_calls or [], declarations
             )
             return reviewed.output, c_message
 

@@ -121,9 +121,16 @@ def test_dry_run_never_calls_gh(
     publisher.main()
 
 
-def test_publication_retry_does_not_repeat_trigger(
+def test_publication_never_labels_or_triggers_and_retries_skip_evidence(
     snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Publishing a finding must not authorize its implementation.
+
+    A finding is model output. No `auto` label and no trigger comment on a
+    create, on a retry of the same run, or on a later run (Claude Security
+    finding 4628345 in meridianlabs-ai/actions: the machine account's label
+    used to start the fork's coding agent).
+    """
     stored: list[dict[str, Any]] = []
     posted: dict[int, list[dict[str, Any]]] = {}
     labeled: list[int] = []
@@ -148,8 +155,6 @@ def test_publication_retry_does_not_repeat_trigger(
             return issue
         number = int(path.split("/")[1])
         if path.endswith("/labels"):
-            assert fields == {"labels": ["auto"]}
-            stored[number - 1]["labels"] = [{"name": "auto"}]
             labeled.append(number)
             return fields
         posted.setdefault(number, []).append(fields)
@@ -173,11 +178,9 @@ def test_publication_retry_does_not_repeat_trigger(
             "https://github.com/meridianlabs-ai/actions/actions/runs/123",
         )
     assert len(stored) == 2
-    assert [
-        c["body"].startswith("<!-- ci-perf-trigger:slow-job -->") for c in posted[1]
-    ] == [True]
-    assert labeled == [1]
-    stored[0]["labels"] = []
+    assert stored[0]["labels"] == [] and "labels" not in stored[0].get("body", "")
+    assert labeled == []
+    assert posted.get(1, []) == []  # the evidence is the issue body; no trigger
     assert len(posted[2]) == 1
     publish(
         findings,
@@ -186,8 +189,8 @@ def test_publication_retry_does_not_repeat_trigger(
         "https://github.com/meridianlabs-ai/actions/actions/runs/123",
         run_attempt=2,
     )
-    assert sum(c["body"].startswith("<!-- ci-perf-trigger:") for c in posted[1]) == 1
-    assert labeled == [1]
+    assert labeled == []
+    assert not any("<!-- ci-perf-trigger:" in c["body"] for c in posted.get(1, []))
     assert len(posted[2]) == 2
     assert "<!-- ci-perf-summary:123:2 -->" in posted[2][-1]["body"]
 
@@ -341,9 +344,9 @@ def test_existing_issue_identity_and_empty_body(
             "Report",
             "https://github.com/meridianlabs-ai/actions/actions/runs/123",
         )
-        assert len(writes) == 3
-        assert writes[-2] == {"labels": ["auto"]}
-        assert writes[-1]["body"].startswith("<!-- ci-perf-trigger:slow-job -->")
+        # The evidence comment alone: no label, no trigger comment.
+        assert len(writes) == 1
+        assert "<!-- ci-perf-evidence:123:1:slow-job -->" in writes[0]["body"]
     else:
         with pytest.raises(ValueError, match="title does not match"):
             publish(
@@ -563,6 +566,72 @@ def test_collection_repeated_page_is_bounded(monkeypatch: pytest.MonkeyPatch) ->
     assert calls == 6
 
 
+def test_untrusted_head_repository_runs_are_dropped_before_any_fetch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import collect_ci_data as collector
+
+    started, updated = "2026-09-09T00:00:00Z", "2026-09-09T00:10:00Z"
+
+    def run(run_id: int, head_repo: str | None) -> dict[str, Any]:
+        return {
+            "id": run_id,
+            "name": "Build",
+            "head_branch": "topic",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "run_started_at": started,
+            "updated_at": updated,
+            "head_repository": {"full_name": head_repo} if head_repo else None,
+        }
+
+    fetched = [
+        run(1, "UKGovernmentBEIS/inspect_ai"),
+        run(2, "outsider/inspect_ai"),
+        run(3, "meridianlabs-ai/inspect_ai"),
+        run(4, None),
+    ]
+    requested: list[str] = []
+
+    def fake_api(path: str) -> Any:
+        requested.append(path)
+        run_id = int(path.split("/runs/")[1].split("/")[0])
+        job = {
+            "id": run_id * 10,
+            "name": "test (3.11)",
+            "conclusion": "success",
+            "started_at": started,
+            "completed_at": updated,
+            "steps": [],
+        }
+        return {"jobs": [job]}
+
+    def fake_log(path: str) -> str:
+        requested.append(path)
+        return "1.50s call tests/a.py::test_a\n== 1 passed in 1.50s =="
+
+    monkeypatch.setattr(collector, "fetch_runs", lambda repo, limit, days: fetched)
+    monkeypatch.setattr(collector, "gh_api", fake_api)
+    monkeypatch.setattr(collector, "gh_api_text", fake_log)
+    out, summary_out = tmp_path / "raw.json", tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys, "argv", ["collect", "--out", str(out), "--summary-out", str(summary_out)]
+    )
+    collector.main()
+
+    result = json.loads(out.read_text())
+    assert [r["id"] for r in result["runs"]] == [1, 3]
+    assert result["run_count"] == 2
+    assert result["excluded_untrusted_runs"] == 2
+    assert set(result["pytest_durations"]) == {"1/test (3.11)", "3/test (3.11)"}
+    assert not [p for p in requested if "/runs/2/" in p or "/jobs/20/" in p]
+    assert not [p for p in requested if "/runs/4/" in p or "/jobs/40/" in p]
+    assert "excluded 2 from untrusted head repositories" in capsys.readouterr().err
+    assert (
+        json.loads(summary_out.read_text())["workflow_wall_seconds"]["Build"]["n"] == 2
+    )
+
+
 def test_invalid_distribution_timings_are_counted_and_excluded(
     snapshot: dict[str, Any],
 ) -> None:
@@ -633,9 +702,15 @@ def test_slow_steps_rank_by_reported_p90(snapshot: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize("already_labeled", [True, False])
-def test_trigger_label_retry(
+def test_no_label_write_whether_or_not_a_human_labelled_the_issue(
     snapshot: dict[str, Any], monkeypatch: pytest.MonkeyPatch, already_labeled: bool
 ) -> None:
+    """A reused issue whose evidence is already recorded gets no write at all.
+
+    In particular no `auto` label when it has none (the write that
+    commissioned the coding agent) and no removal when a human applied one (a
+    human's label is theirs to keep).
+    """
     writes: list[str] = []
     monkeypatch.setattr(publisher, "issues", lambda: [])
     monkeypatch.setattr(publisher, "tracking_issue", lambda known=None: {"number": 2})
@@ -678,13 +753,8 @@ def test_trigger_label_retry(
         "Report",
         "https://github.com/meridianlabs-ai/actions/actions/runs/123",
     )
-    if already_labeled:
-        publish(*args)
-        assert writes == ["issues/1/comments"]
-    else:
-        with pytest.raises(RuntimeError, match="label request failed"):
-            publish(*args)
-        assert writes == ["issues/1/labels"]
+    publish(*args)
+    assert writes == []
 
 
 @pytest.mark.parametrize("human", [True, False])
@@ -754,13 +824,13 @@ def test_reused_issue_evidence_cadence_and_human_handoff(
         "Still observed: https://github.com/meridianlabs-ai/actions/actions/runs/124"
         in evidence[1]
     )
-    assert labels == ([] if human else [{"name": "auto"}])
-    assert sum("ci-perf-trigger:" in item["body"] for item in posted) == (
-        0 if human else 1
-    )
-    if human:
-        assert all("Needs a human to implement" in body for body in evidence)
-        assert len(posted) == 2
+    # No label and no trigger comment whether or not a human is needed: the
+    # publisher records the need, a maintainer decides what happens next.
+    assert labels == []
+    assert not any("ci-perf-trigger:" in item["body"] for item in posted)
+    assert len(posted) == 2
+    assert all(("Needs a human to implement" in body) is human for body in evidence)
+    assert not any("auto" in body for body in evidence)
 
 
 @pytest.mark.parametrize("value", ["true", 1, None])
