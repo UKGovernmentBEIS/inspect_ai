@@ -466,6 +466,7 @@ async def test_vllm_completions_dedicated_field_wins_over_extra_body() -> None:
 
     # Mock the client and hooks
     mock_completion = MagicMock()
+    mock_completion.id = "cmpl-test"
     mock_completion.model = "test-model"
     mock_completion.choices = []
     mock_completion.usage = None

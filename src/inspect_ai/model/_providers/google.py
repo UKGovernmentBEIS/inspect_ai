@@ -599,6 +599,7 @@ class GoogleGenAIAPI(ModelAPI):
                     model_name, response, has_computer_use
                 ),
                 usage=usage_metadata_to_model_usage(response.usage_metadata),
+                response_id=response.response_id,
             )
 
             return output, model_call
@@ -774,6 +775,7 @@ class GoogleGenAIAPI(ModelAPI):
             candidates=final_candidates,
             usage_metadata=last_chunk.usage_metadata,
             model_version=last_chunk.model_version,
+            response_id=last_chunk.response_id,
         )
 
     @override

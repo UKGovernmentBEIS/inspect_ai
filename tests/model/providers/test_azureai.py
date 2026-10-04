@@ -547,3 +547,101 @@ async def test_azureai_stream_end_to_end() -> None:
     assert len(response.completion) >= 1
     streamed = "".join(e.text for e in events if isinstance(e, StreamTextEvent))
     assert streamed == response.completion
+
+
+async def _generate_with_completion(api: AzureAIAPI, completion: Any) -> Any:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from inspect_ai.model import ChatMessageUser, ModelOutput
+
+    client = MagicMock()
+    client.close = AsyncMock()
+    client.complete = AsyncMock(return_value=completion)
+    with patch(
+        "inspect_ai.model._providers.azureai.ChatCompletionsClient",
+        return_value=client,
+    ):
+        result = await api.generate(
+            input=[ChatMessageUser(content="hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    return output
+
+
+async def test_azureai_output_records_response_id() -> None:
+    from datetime import datetime, timezone
+
+    from azure.ai.inference.models import (
+        ChatChoice,
+        ChatCompletions,
+        ChatResponseMessage,
+        CompletionsUsage,
+    )
+
+    api = AzureAIAPI(
+        model_name="test-model",
+        base_url="https://example.services.ai.azure.com/models",
+        api_key="test-key",
+        streaming=False,
+    )
+    output = await _generate_with_completion(
+        api,
+        ChatCompletions(
+            id="azure-response",
+            created=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            model="test-model",
+            choices=[
+                ChatChoice(
+                    index=0,
+                    finish_reason="stop",
+                    message=ChatResponseMessage(role="assistant", content="hi"),
+                )
+            ],
+            usage=CompletionsUsage(
+                prompt_tokens=1, completion_tokens=1, total_tokens=2
+            ),
+        ),
+    )
+
+    assert output.response_id == "azure-response"
+
+
+async def test_azureai_streamed_output_without_id_has_no_response_id() -> None:
+    class _Stream:
+        def __aiter__(self) -> Any:
+            return _updates(
+                [
+                    StreamingChatCompletionsUpdate(
+                        dict(
+                            created=123,
+                            model="test-model",
+                            choices=[
+                                dict(
+                                    index=0,
+                                    delta=dict(role="assistant", content="hi"),
+                                    finish_reason="stop",
+                                )
+                            ],
+                        )
+                    )
+                ]
+            )
+
+        async def aclose(self) -> None:
+            return None
+
+    api = AzureAIAPI(
+        model_name="test-model",
+        base_url="https://example.services.ai.azure.com/models",
+        api_key="test-key",
+        streaming=True,
+    )
+    output = await _generate_with_completion(api, _Stream())
+
+    assert output.completion == "hi"
+    assert output.response_id is None

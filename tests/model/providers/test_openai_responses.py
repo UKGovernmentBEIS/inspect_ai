@@ -496,6 +496,7 @@ async def test_responses_api_terminal_bio_policy_converts() -> None:
     assert isinstance(output, ModelOutput)
     assert output.stop_reason == "content_filter"
     assert "biological risk" in output.completion
+    assert output.response_id == "resp_test"
     assert model_call.error is True
 
 
@@ -2653,10 +2654,24 @@ async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None
     import httpx2
     from openai import APIError
     from openai._types import NOT_GIVEN
+    from openai.types.responses import Response, ResponseCreatedEvent
 
     from inspect_ai.model._providers.openai_responses import generate_responses
     from inspect_ai.model._providers.util.hooks import HttpxHooks
 
+    created = ResponseCreatedEvent(
+        type="response.created",
+        response=Response.model_construct(
+            id="resp_stream_api_error",
+            created_at=0.0,
+            model="gpt-5",
+            object="response",
+            output=[],
+            tools=[],
+            status="in_progress",
+        ),
+        sequence_number=0,
+    )
     error = APIError(
         message="Your prompt was blocked by our content policy.",
         request=httpx2.Request(method="POST", url="https://example.com"),
@@ -2676,8 +2691,8 @@ async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None
 
         def __aiter__(self) -> Any:
             async def gen() -> Any:
+                yield created
                 raise error
-                yield  # pragma: no cover
 
             return gen()
 
@@ -2720,6 +2735,7 @@ async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None
     assert isinstance(output, ModelOutput)
     assert output.choices[0].stop_reason == "content_filter"
     assert "blocked" in output.completion
+    assert output.response_id == "resp_stream_api_error"
     assert model_call.error is True
 
 
@@ -2734,19 +2750,36 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
     from unittest.mock import MagicMock
 
     from openai._types import NOT_GIVEN
-    from openai.types.responses import ResponseErrorEvent
+    from openai.types.responses import (
+        Response,
+        ResponseCreatedEvent,
+        ResponseErrorEvent,
+    )
 
     from inspect_ai.model._providers.openai_responses import generate_responses
     from inspect_ai.model._providers.util.hooks import HttpxHooks
 
     events = [
+        ResponseCreatedEvent(
+            type="response.created",
+            response=Response.model_construct(
+                id="resp_stream_blocked",
+                created_at=0.0,
+                model="gpt-5",
+                object="response",
+                output=[],
+                tools=[],
+                status="in_progress",
+            ),
+            sequence_number=0,
+        ),
         ResponseErrorEvent(
             type="error",
             code="content_policy_violation",
             message="Your prompt was blocked by our content policy.",
             param=None,
-            sequence_number=0,
-        )
+            sequence_number=1,
+        ),
     ]
 
     class _FakeStream:
@@ -2802,6 +2835,7 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
     assert isinstance(output, ModelOutput)
     assert output.choices[0].stop_reason == "content_filter"
     assert "blocked" in output.completion
+    assert output.response_id == "resp_stream_blocked"
     assert model_call.error is True
 
 
@@ -2829,3 +2863,80 @@ def test_maybe_code_interpreter_tool_model_gating(model_name, expected):
         options={"providers": {"openai": True}},
     )
     assert (maybe_code_interpreter_tool(model_name, tool) is not None) is expected
+
+
+def test_responses_api_provider_ids_logged_without_raw_calls(tmp_path) -> None:
+    """Request ids for every HTTP attempt and the response id survive `log_model_api=False`."""
+    import httpx2
+    from openai import DefaultAsyncHttpxClient
+
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.log import read_eval_log
+    from inspect_ai.model import ModelRequestId
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    generate_attempts = 0
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        nonlocal generate_attempts
+        if HttpxHooks.REQUEST_ID_HEADER in request.headers:
+            generate_attempts += 1
+        if generate_attempts == 1:
+            return httpx2.Response(
+                429,
+                headers={"x-request-id": "req_rate_limited", "retry-after-ms": "10"},
+                json={"error": {"message": "rate limited", "type": "rate_limit"}},
+                request=request,
+            )
+        return httpx2.Response(
+            200,
+            headers={"x-request-id": "req_ok"},
+            json={
+                "id": "resp_ok",
+                "object": "response",
+                "created_at": 0,
+                "model": "test",
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "id": "msg_ok",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {"type": "output_text", "text": "hi", "annotations": []}
+                        ],
+                    }
+                ],
+                "parallel_tool_calls": True,
+                "tool_choice": "auto",
+                "tools": [],
+            },
+            request=request,
+        )
+
+    model = get_model(
+        "openai/gpt-4o",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler)),
+        responses_api=True,
+        memoize=False,
+    )
+    log = eval(
+        Task(dataset=[Sample(input="hello")], solver=[generate()]),
+        model=model,
+        log_model_api=False,
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success"
+
+    log = read_eval_log(log.location)
+    assert log.samples
+    [event] = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert event.call is None
+    assert event.output.response_id == "resp_ok"
+    assert event.request_ids == [
+        ModelRequestId(id="req_rate_limited", header="x-request-id", status=429),
+        ModelRequestId(id="req_ok", header="x-request-id", status=200),
+    ]
