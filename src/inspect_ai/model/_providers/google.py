@@ -359,7 +359,10 @@ class GoogleGenAIAPI(ModelAPI):
             if use_adc_arg is not None:
                 use_adc = _is_truthy(use_adc_arg)
             else:
-                use_adc = _is_truthy(os.environ.get(GOOGLE_USE_ADC, ""))
+                # An explicitly supplied API key takes precedence over the
+                # ambient environment default. Keep an explicit use_adc=true
+                # opt-in authoritative so callers can deliberately choose ADC.
+                use_adc = _is_truthy(os.environ.get(GOOGLE_USE_ADC, "")) and not self.api_key
             scopes = model_args.pop("scopes", None)
             quota_project_id = model_args.pop("quota_project_id", None)
 
