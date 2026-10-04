@@ -106,7 +106,6 @@ def test_convert_eval_logs(
 
 @pytest.mark.parametrize("stream", [True, 3], ids=["stream", "stream-3"])
 @pytest.mark.parametrize("to", ["eval", "json"])
-@pytest.mark.parametrize("to", ["eval", "json"])
 def test_stream_convert_preserves_eval_error(
     tmp_path: pathlib.Path, to: Literal["eval", "json"]
 ) -> None:
