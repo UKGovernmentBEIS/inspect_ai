@@ -10,10 +10,14 @@ background, abandon-on-exit, timeout partials).
 
 from __future__ import annotations
 
+import sys
 from typing import Awaitable, Callable
 
 import anyio
 import pytest
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import deepagent, subagent
@@ -2199,32 +2203,33 @@ class TestNoLiveSampleTaskGroup:
         assert future.status == "cancelled"
         assert future.done.is_set()
 
-    async def test_child_cancelled_before_it_starts_is_settled(self) -> None:
-        from inspect_ai.agent._deepagent.agent_tool import _dispatch_background
-        from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+    def test_scorer_parent_exception_group_reaches_caller_intact(self) -> None:
+        from inspect_ai.agent._agent import AgentState
 
-        registry = BackgroundRegistry(max_background=1)
-        sa = subagent_factory(name="general", description="d", prompt="p")
+        errors: list[ExceptionGroup] = []
 
-        async def child_agent(state):
-            await anyio.sleep_forever()
-            return state
+        def parent_output(input, tools, tool_choice, config):
+            raise ExceptionGroup("grp", [ValueError("a"), KeyError("b")])
 
-        with background_registry(registry):
-            async with registry.owned_task_group():
-                _dispatch_background(
-                    child_agent=child_agent,
-                    sa=sa,
-                    dispatch_input="ignored",
-                    span_id="x",
-                    forked=False,
-                    from_message=None,
-                )
-                future = registry.futures["AGENT-1"]
+        agent = deepagent(
+            subagents=[_build_submit_subagent("helper", "done")],
+            model=get_model("mockllm/model", custom_outputs=parent_output),
+            background=True,
+            submit=True,
+        )
 
-        assert future.status == "cancelled"
-        assert future.done.is_set()
-        assert registry.running_count() == 0
+        async def run_agent(state: TaskState) -> None:
+            try:
+                await agent(AgentState(messages=list(state.messages)))
+            except ExceptionGroup as ex:
+                errors.append(ex)
+
+        log = _eval_in_scorer(run_agent)
+
+        assert log.status == "success"
+        assert len(errors) == 1
+        assert errors[0].message == "grp"
+        assert [type(ex) for ex in errors[0].exceptions] == [ValueError, KeyError]
 
 
 # ---------------------------------------------------------------------------

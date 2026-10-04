@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -10,6 +11,9 @@ from typing import TYPE_CHECKING, AsyncIterator, Callable, Iterator, Literal, Se
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
     from inspect_ai.tool._tools._skill import Skill
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 import anyio
 from anyio.abc import TaskGroup
@@ -143,14 +147,15 @@ class BackgroundRegistry:
         While the sample's task group is live, this does nothing: children
         run there via ``background()`` and keep the sample-scoped lifetime.
         The sample runner cancels that group when the solver chain finishes,
-        so a deepagent that starts in a scorer (or outside a sample) owns a
-        task group instead. Its children are cancelled when the deepagent
-        exits, and the exit waits for them to finish.
+        so a deepagent that starts in a scorer owns a task group instead. Its
+        children are cancelled when the deepagent exits, and the exit waits
+        for them to finish.
         """
         if _live_sample_task_group() is not None:
             yield
             return
 
+        unwrapped: Exception | None = None
         try:
             async with anyio.create_task_group() as task_group:
                 self._task_group = task_group
@@ -158,18 +163,16 @@ class BackgroundRegistry:
                     yield
                 finally:
                     task_group.cancel_scope.cancel()
-        except Exception as ex:
-            from inspect_ai.util._anyio import inner_exception
-
-            raise inner_exception(ex)
+        except ExceptionGroup as ex:
+            # The task group wraps whatever ends it. Undo that wrapper when
+            # it holds one exception, so the caller sees what was raised.
+            if len(ex.exceptions) != 1:
+                raise
+            unwrapped = ex.exceptions[0]
         finally:
             self._task_group = None
-            # A child cancelled before ``_run_background`` started never
-            # reaches its ``finally``; settle it so no future stays running.
-            for future in self.futures.values():
-                if not future.done.is_set():
-                    future.status = "cancelled"
-                    future.done.set()
+        if unwrapped is not None:
+            raise unwrapped
 
 
 def _live_sample_task_group() -> TaskGroup | None:
