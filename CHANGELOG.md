@@ -1,7 +1,79 @@
 ## Unreleased
 
+- Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
+- Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.
+- Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
+
+## 0.3.276 (02 October 2026)
+
+- LiteLLM Proxy: Gemini tool results that are JSON objects are sent under `content`, as the `google` provider sends them; LiteLLM otherwise passed the object as the function response itself and Vertex rejected documents with `$ref` keys (an OpenAPI spec read with `curl`) with a 400.
+
+## 0.3.275 (01 October 2026)
+
+- LiteLLM Proxy: Gemini models accept any `reasoning_effort`, mapped to the levels or thinking budgets the native Google provider uses.
+- LiteLLM Proxy: Gemini tool calls replayed through the proxy keep their thought signatures when the proxy's `model_name` does not contain "gemini" (LiteLLM otherwise replaced them with a placeholder); requests with tools carry the function-calling hint; and a turn returned as a malformed function call (no text or tool call, or a call written as code) is retried with a corrective exchange, as with the `google` provider.
+
+## 0.3.274 (01 October 2026)
+
+- Sandbox tools: the root check now runs once at sample start, before solver/agent execution begins; an inconclusive check warns before falling back to the sandbox's default user, and a check that could not run, or a later root failure, is an error.
+- Local sandbox: `exec(user=...)` now rejects unsupported users instead of ignoring them; the current effective user's name or UID is accepted on POSIX.
+- Control Channel: `inspect ctl ... --log-dir` now shows running and completed-but-unflushed samples, with current counts and their events, for evals run with `--log-shared`.
+- OpenAI Compatible: Fixed concurrent sample failures during credential refresh, including OpenRouter evaluations on Hawk, and added an overridable `ModelAPI.refresh_credentials()` for model API extensions.
+- OpenAI: Biological-risk policy responses now produce content-filter stops instead of failing samples.
+- Log viewer: Tasks can set `ViewerConfig(trust_content=False)` to have the viewer show all of a log's content as plain text, with no markdown, media, or clickable links.
+- Log viewer: `inspect view --no-trust-content` (or `INSPECT_VIEW_TRUST_CONTENT=false`) shows every log's content as plain text.
+
+## 0.3.273 (29 September 2026)
+
+- Anthropic: Prompts can mark a stable prefix for caching while allowing the remaining text to change.
+- OpenAI: GPT-5.6 and later support explicit prompt-cache boundaries; other models retain automatic caching.
+- OpenAI: Support for GPT-6.1 Sol (`gpt-6.1-sol`), including its context window and output limits.
+- Mistral: Support for mistralai 3.0, which is now the minimum required version.
+- Logs: Reading samples with `resolve_attachments` is much faster for long conversations; in full mode, deeply nested model API call content may keep two more nesting levels.
+- Bugfix: `self_critique()`, and `model_graded_qa()`/`model_graded_fact()` with `model_role=None`, now critique or grade with the correct model when one task is evaluated against several models.
+- Reading a remote `.eval` log from a non-S3 filesystem (e.g. `gs://`, `az://`) no longer stalls other running work for the whole download.
+- S3: Streaming uploads now read each multipart part from the source file in a single worker-thread call rather than 32 chunked calls, reducing event-loop wakeups during log flushes.
+- Recording an eval or model error no longer spends seconds syntax highlighting its traceback: the stored ANSI traceback keeps its frames and source snippets, without syntax colouring.
+- Bugfix: `subprocess()` and Docker sandbox `exec()` no longer intermittently fail with `BrokenPipeError` when the command exits before reading its input.
+
+## 0.3.272 (28 September 2026)
+
+- Anthropic: Support for Claude Sonnet 5.5 (`claude-sonnet-5-5`): `reasoning_effort="none"` turns off up-front thinking, forced tool choice degrades to auto, and computer use uses the computer toolset on the Claude API and Vertex.
+- Tools: `web_browser()` is deprecated, logs a warning when called, and will be removed in a future release.
+- Inspect View: Shard logs under `<name>.shards/` are hidden once a successful merged log covers them (`inspect view --show-shards` to list them); bundles leave them out.
+- Computer tool: click actions called without a `coordinate` now click at the current cursor position instead of failing, and the tool description states which actions require one.
+- Computer tool: `back_click` and `forward_click` now work (with a rebuilt `aisiuk/inspect-computer-tool` image); previously they failed inside the container regardless of arguments.
+
+## 0.3.271 (26 September 2026)
+
+- CLI: New `--extra-headers` and `--extra-body` options for `inspect eval` and `inspect eval-set`, taking an inline JSON or YAML mapping.
+- Google: Token counting falls back to a local estimate, with a warning, when the countTokens endpoint is unavailable or rejects the request.
+
+## 0.3.270 (25 September 2026)
+
+- `eval_set`: a task whose dataset GREW since its last run (a strict superset, with stable sample ids) is now topped up in place — the prior samples are reused and only the newly added samples run — instead of re-running the whole dataset. A shrunk dataset, or growth without stable ids, still triggers a full re-run.
+- LiteLLM Proxy: GPT-5 and later, o-series and Codex models served by OpenAI use the Responses API by default, streamed, carrying reasoning between turns (`-M responses_api=false` to opt out).
+- LiteLLM Proxy: Key and team aliases resolve to the model they route to, instead of failing for lack of model info.
+- LiteLLM Proxy: Claude 4.7 and later models with a reasoning effort record summarized thinking in the log, including through older LiteLLM versions, which returned none (`-M thinking_display=omitted` to opt out).
+- LiteLLM Proxy: Claude codename deployments that LiteLLM sends extended thinking fail with an error naming the proxy `model_info` flags that enable adaptive thinking.
+- LiteLLM Proxy: `web_search()` without a search provider usable through the proxy fails when the model is first called, with an error naming the fix.
+- Checkpointing: after a resume, restored events reach hooks, the live viewer, ACP clients and transcript readers with long text and images inline instead of as `attachment://` references; raw model API calls stay condensed until the sample completes.
+- Bugfix: `f1()` now counts repeated tokens (multiset overlap, matching SQuAD F1); scores can rise or fall for answers or targets containing repeated words.
+- Bugfix: A sample retried or requeued in a shared log directory no longer shows the previous attempt's events alongside its own while it runs.
+
+## 0.3.269 (25 September 2026)
+
+- LiteLLM Proxy: New `litellm-proxy` provider for models served by a LiteLLM proxy, which reads each model's upstream model for context window, cost, reasoning and Claude prompt caching.
+- CLI: Quoted YAML and JSON strings in `--env` arguments preserve commas as literal text (such as `--env 'NO_PROXY="localhost,127.0.0.1"'`) instead of being coerced into lists. (#5368)
+- DeepSeek: Support for DeepSeek-V4.1-Flash (`deepseek-flash`), including image input; model info notes that the retired `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` names are now served by V4.1 Flash.
 - Sandbox agent bridge: host tools exposed with `bridged_tools` are again denied unless the model proposed the call in a bridged generation, once per proposal, with or without an approval policy (0.3.265 ran them regardless as a stopgap); `BridgedToolsSpec(require_proposal=False)` opts a server out.
 - Bugfix: Docker sandboxes for samples a `SampleSource` adds (including an empty-seed task with `sandbox="docker"`) no longer fail with a `LookupError`, and their containers and generated compose files are cleaned up at the end of the run.
+- Bedrock: Models that return encrypted reasoning (OpenAI's GPT-5.6 family) no longer fail every request, and their reasoning is now carried across turns so multi-turn and tool-calling evals work, streamed or not.
+- Scoring: `match()`, `includes()`, `exact()`, `f1()`, `pattern()` and `answer()` now record `reason="no_response"` when the raw model completion is empty or whitespace only, so a model that returned nothing is distinguishable from one that answered wrong. Score values are unchanged. (#5376)
+- Grok: Non-streaming requests cut off by `attempt_timeout` are now retried, and ones cut off by a sample `time_limit` are recorded as that limit, instead of failing with a bare cancellation.
+- Grok: Safety refusals that report "I can't help with that request" now produce a content-filter response instead of failing the sample.
+- Bugfix: Samples whose solver is cut off by a cancellation that inspect did not issue are now recorded as sample errors instead of being scored as completed.
+- Control Channel: `inspect ctl task list` and the `inspect ctl sample` reads take `--log-dir <dir>` to read task and sample status, events, messages and store from the `.eval` logs in a local or S3 directory, without a live eval process.
 
 ## 0.3.268 (22 September 2026)
 

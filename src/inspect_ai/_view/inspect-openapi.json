@@ -150,6 +150,17 @@
               }
             ],
             "title": "Scout Version"
+          },
+          "trust_content": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Content"
           }
         },
         "required": [
@@ -1939,6 +1950,17 @@
       "ContentText": {
         "description": "Text content.",
         "properties": {
+          "cache_breakpoint": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Breakpoint"
+          },
           "citations": {
             "anyOf": [
               {
@@ -11656,7 +11678,7 @@
         "type": "object"
       },
       "ViewerConfig": {
-        "description": "Top-level viewer configuration.\n\nThis allows per task customization of the\nTask's sample list and each sample's score and scanner result display.",
+        "description": "Top-level viewer configuration.\n\nThis allows per task customization of the\nTask's sample list, each sample's score and scanner result display,\nand whether log content is trusted enough to render richly.",
         "properties": {
           "sample_score_view": {
             "anyOf": [
@@ -11698,6 +11720,17 @@
               }
             ],
             "title": "Task Samples View"
+          },
+          "trust_content": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Content"
           }
         },
         "required": [
