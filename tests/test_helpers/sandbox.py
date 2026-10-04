@@ -6,6 +6,7 @@ from typing import Callable, Literal, NamedTuple, overload
 from inspect_ai.util._sandbox._framework_directory import _SCRIPT
 from inspect_ai.util._sandbox._privileged import SHELL_PATH
 from inspect_ai.util._sandbox.environment import (
+    RootAccess,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
 )
@@ -14,14 +15,40 @@ from inspect_ai.util._subprocess import ExecResult
 ExecPolicy = Callable[[list[str], str | None], ExecResult[str]]
 """Decides the result of an ``exec`` from its argv and ``user``."""
 
+ROOT_USABLE = RootAccess("usable", "recorded by the test")
+ROOT_UNUSABLE = RootAccess("unusable", "recorded by the test")
+ROOT_AMBIGUOUS = RootAccess("ambiguous", "recorded by the test")
+"""Root-access decisions to record on a sandbox, as sample init would."""
+
+
+def is_root_probe(cmd: list[str]) -> bool:
+    """Whether ``cmd`` is the root-access probe (identity and capabilities as root)."""
+    return cmd[:2] == [SHELL_PATH, "-c"] and "CapEff:" in cmd[2]
+
+
+def root_probe_result(
+    cap_eff: str = "000001ffffffffff",
+    setgroups: str = "allow",
+    uid: str = "0",
+    noise: str = "",
+) -> ExecResult[str]:
+    """Output of the root-access probe; the defaults describe root that can switch users."""
+    return ExecResult(
+        success=True,
+        returncode=0,
+        stdout=f"{noise}Uid: {uid} {uid} {uid} {uid}\nCapEff: {cap_eff}\nsetgroups: {setgroups}\n",
+        stderr="",
+    )
+
 
 class CannedSandbox(SandboxEnvironment):
     """Sandbox whose ``exec`` results are decided by a per-test policy.
 
     Every ``exec`` is recorded as ``(cmd, user)`` in ``exec_calls``, its stdin in
-    ``inputs``, its ``env`` in ``envs`` and its ``concurrency`` flag in
-    ``concurrency`` (same order). ``write_file`` records the path in ``written`` and
-    stores nothing; ``read_file`` is not supported.
+    ``inputs``, its ``env`` in ``envs``, its ``concurrency`` flag in ``concurrency``
+    and its ``(timeout, timeout_retry)`` in ``timeouts`` (same order). ``write_file``
+    records the path in ``written`` and stores nothing; ``read_file`` is not
+    supported.
     """
 
     def __init__(self, policy: ExecPolicy) -> None:
@@ -31,6 +58,7 @@ class CannedSandbox(SandboxEnvironment):
         self.inputs: list[str | bytes | None] = []
         self.envs: list[dict[str, str] | None] = []
         self.concurrency: list[bool] = []
+        self.timeouts: list[tuple[int | None, bool]] = []
         self.written: list[str] = []
 
     @classmethod
@@ -53,6 +81,7 @@ class CannedSandbox(SandboxEnvironment):
         self.inputs.append(input)
         self.envs.append(env)
         self.concurrency.append(concurrency)
+        self.timeouts.append((timeout, timeout_retry))
         return self.policy(cmd, user)
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
