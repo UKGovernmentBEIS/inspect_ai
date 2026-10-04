@@ -22,6 +22,7 @@ from inspect_ai.model._model import (
     Model,
     ModelEventSink,
     ModelResolver,
+    ModelResponseFilter,
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
@@ -69,6 +70,7 @@ class AgentBridge:
         allow_remote_mcp: bool = True,
         allow_remote_media: bool = False,
         model_resolver: ModelResolver | None = None,
+        response_filter: ModelResponseFilter | None = None,
     ) -> None:
         # Capabilities a client-declared request may reach for. Media defaults
         # closed so new bridge subclasses cannot accidentally grant host I/O.
@@ -114,6 +116,7 @@ class AgentBridge:
             value_type=list[ChatMessage],
         )
         self.filter = filter
+        self.response_filter = response_filter
         self.retry_refusals = retry_refusals
         self.model = model
         self.model_aliases: dict[str, str | Model] = model_aliases or {}
@@ -147,6 +150,12 @@ class AgentBridge:
     """Filter for bridge model generation.
 
     A filter may substitute for the default model generation by returning a ModelOutput or return None to allow default processing to continue.
+    """
+
+    response_filter: ModelResponseFilter | None
+    """Filter that can replace model output after generation (see ``ModelResponseFilter``).
+
+    Return ``None`` to pass through; return a ``ModelOutput`` to replace the response.
     """
 
     model: str | None

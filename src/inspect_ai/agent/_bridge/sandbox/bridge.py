@@ -13,6 +13,7 @@ from inspect_ai.model._model import (
     Model,
     ModelEventSink,
     ModelResolver,
+    ModelResponseFilter,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
@@ -66,6 +67,7 @@ async def sandbox_agent_bridge(
     forward_generation_config: bool = False,
     approval: list["ApprovalPolicy"] | None = None,
     checkpointer: Checkpointer | None = None,
+    response_filter: ModelResponseFilter | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -145,6 +147,9 @@ async def sandbox_agent_bridge(
             state (messages, output, compaction prefix) for checkpoint backup
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
+        response_filter: Filter that can replace model output after generation
+            (see ``ModelResponseFilter``). Return ``None`` to pass through;
+            return a ``ModelOutput`` to replace the response.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -189,6 +194,7 @@ async def sandbox_agent_bridge(
                 approval=approval,
                 checkpointer=checkpointer,
                 allow_remote_mcp=allow_remote_mcp,
+                response_filter=response_filter,
             )
 
             # register bridged tools with the bridge

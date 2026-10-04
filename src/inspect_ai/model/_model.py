@@ -2080,6 +2080,40 @@ or return ``None`` to allow default processing to continue.
 """
 
 
+ModelResponseFilter: TypeAlias = Callable[
+    [Model, ModelOutput, GenerateInput], Awaitable[ModelOutput | None]
+]
+"""Filter that can replace a model's output after generation.
+
+Receives the resolved ``Model``, a deep copy of the attempt's ``ModelOutput``,
+and a ``GenerateInput`` with the messages, tools, tool choice and config sent to
+the model. The output comes from ``model.generate()``, or is the one a request
+``filter`` substituted (then there is no ``model.generate()`` call and no
+``ModelEvent``). The ``GenerateInput`` holds the bridge's live objects, which are
+recorded in the ``ModelEvent`` and bridge state: do not mutate them.
+
+Return ``None`` to keep the output, or a ``ModelOutput`` with at least one choice
+to replace it. A replacement is rebuilt from its ``model_dump()`` and validated,
+including values edited in place: valid plain dicts become models, models or
+dataclasses stored in ``metadata`` or tool-call ``arguments`` come back as plain
+dicts, and ``completion`` is re-derived from the message. A
+``stop_reason="content_filter"`` replacement is handled like a model refusal
+(``retry_refusals``, ``fail_on_refusal``). The ``ModelEvent`` keeps the model's
+own output; the replacement is what the agent, bridge state and later turns see.
+
+An exception fails the sample as a ``ResponseFilterError``, except that a
+``LimitExceededError``, ``TerminateSampleError`` or ``ModelRefusalError`` keeps
+its normal outcome. A task group raising only such errors ends the sample with the
+first; one mixing them with any other exception is a ``ResponseFilterError``. A
+replacement is also a ``ResponseFilterError`` if it fails ``ModelOutput``
+validation, has no choices, or has tool-call ``arguments`` the filter changed that
+are not JSON-serializable. Other failures to render a replacement for the agent
+behave as they would without a filter: on the sandbox bridge they reach the agent
+as an error reply it may retry, and in-process they raise from the agent's model
+call.
+"""
+
+
 ModelResolver: TypeAlias = Callable[[str], "Model | str | None"]
 """Dynamic per-request model resolver for the agent bridge.
 
