@@ -1117,7 +1117,7 @@ async def test_exact_match_wins_over_a_prefix_match() -> None:
     assert bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
 
 
-ANTIGRAVITY_PREAMBLE = "This is a tool from the agent-c-mcp MCP server.\n\n"
+ANTIGRAVITY_PREAMBLE = "This is a tool from the host MCP server.\n\n"
 
 
 async def test_description_with_a_scaffold_preamble_resolves() -> None:
@@ -1229,7 +1229,7 @@ async def test_prefixed_copy_of_a_shared_description_grants_both() -> None:
 async def test_undeclared_granted_key_absent_from_executed_args_still_grants() -> None:
     """A scaffold-proposed bookkeeping key the schema never declared is dropped.
 
-    Measured from a real agent-c CI run (job 111115777187): Antigravity proposes
+    Measured from a real Antigravity session: the scaffold proposes
     `{"action": "navigate", "url": ..., "toolSummary": ...}` to the model for the
     `browser` tool, whose own schema declares only `action` and `url`, then
     dispatches the real call without `toolSummary`. The grant must still resolve.
@@ -1251,8 +1251,8 @@ async def test_undeclared_granted_key_absent_from_executed_args_still_grants() -
                 function="browser",
                 arguments={
                     "action": "navigate",
-                    "url": "https://amazone.com/product/814207",
-                    "toolSummary": "Amazone product lookup",
+                    "url": "https://example.com/product/814207",
+                    "toolSummary": "Product page lookup",
                 },
             )
         ],
@@ -1262,7 +1262,7 @@ async def test_undeclared_granted_key_absent_from_executed_args_still_grants() -
     assert bridge.consume_tool_execution_grant(
         "host",
         "browser",
-        {"action": "navigate", "url": "https://amazone.com/product/814207"},
+        {"action": "navigate", "url": "https://example.com/product/814207"},
     )
 
 
@@ -1285,7 +1285,7 @@ async def test_executed_args_with_an_undeclared_key_still_denies() -> None:
                 function="browser",
                 arguments={
                     "action": "navigate",
-                    "url": "https://amazone.com/product/814207",
+                    "url": "https://example.com/product/814207",
                 },
             )
         ],
@@ -1297,7 +1297,7 @@ async def test_executed_args_with_an_undeclared_key_still_denies() -> None:
         "browser",
         {
             "action": "navigate",
-            "url": "https://amazone.com/product/814207",
+            "url": "https://example.com/product/814207",
             "unexpected": "value",
         },
     )
@@ -1322,8 +1322,8 @@ async def test_executed_args_changing_a_declared_value_still_denies() -> None:
                 function="browser",
                 arguments={
                     "action": "navigate",
-                    "url": "https://amazone.com/product/814207",
-                    "toolSummary": "Amazone product lookup",
+                    "url": "https://example.com/product/814207",
+                    "toolSummary": "Product page lookup",
                 },
             )
         ],
@@ -1333,7 +1333,7 @@ async def test_executed_args_changing_a_declared_value_still_denies() -> None:
     assert not bridge.consume_tool_execution_grant(
         "host",
         "browser",
-        {"action": "navigate", "url": "https://amazone.com/product/999999"},
+        {"action": "navigate", "url": "https://example.com/product/999999"},
     )
 
 
@@ -1356,8 +1356,8 @@ async def test_executed_args_dropping_a_declared_key_still_denies() -> None:
                 function="browser",
                 arguments={
                     "action": "navigate",
-                    "url": "https://amazone.com/product/814207",
-                    "toolSummary": "Amazone product lookup",
+                    "url": "https://example.com/product/814207",
+                    "toolSummary": "Product page lookup",
                 },
             )
         ],
@@ -1380,7 +1380,7 @@ async def test_schema_without_properties_keeps_exact_matching() -> None:
             ToolCall(
                 id="proposed",
                 function="browser",
-                arguments={"toolSummary": "Amazone product lookup"},
+                arguments={"toolSummary": "Product page lookup"},
             )
         ],
         declare("browser", parameters=()),
