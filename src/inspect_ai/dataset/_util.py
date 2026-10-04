@@ -1,5 +1,7 @@
 import json
 import math
+import numbers
+import sys
 from typing import Any, Iterable, NamedTuple, cast
 
 from pydantic import ValidationError
@@ -287,7 +289,7 @@ def resolve_shuffle(shuffle: bool | int | None, seed: int | None) -> ResolvedShu
     A boolean `shuffle` uses `seed` as given, and None means no shuffle. An
     integer `shuffle` (including 0) is itself the seed, so passing a non-None
     `seed` with it is an error. `bool` is a subclass of `int`, so booleans are
-    checked first.
+    checked first. numpy booleans and integers are accepted the same way.
 
     Raises:
         TypeError: If `shuffle` is not a bool, int or None.
@@ -296,16 +298,24 @@ def resolve_shuffle(shuffle: bool | int | None, seed: int | None) -> ResolvedShu
     """
     if shuffle is None:
         return ResolvedShuffle(enabled=False, seed=seed)
-    if isinstance(shuffle, bool):
-        return ResolvedShuffle(enabled=shuffle, seed=seed)
-    if not isinstance(shuffle, int):
+    if isinstance(shuffle, bool) or _is_numpy_bool(shuffle):
+        return ResolvedShuffle(enabled=bool(shuffle), seed=seed)
+    if not isinstance(shuffle, numbers.Integral):
         raise TypeError(
             f"shuffle must be a bool or an int seed, got {type(shuffle).__name__}."
         )
-    if shuffle < 0:
-        raise ValueError(f"shuffle seed must be non-negative, got {shuffle}.")
+    shuffle_seed = int(shuffle)
+    if shuffle_seed < 0:
+        raise ValueError(f"shuffle seed must be non-negative, got {shuffle_seed}.")
     if seed is not None:
         raise ValueError(
-            f"Pass either an integer shuffle seed (shuffle={shuffle}) or seed={seed}, not both."
+            f"Pass either an integer shuffle seed (shuffle={shuffle_seed}) or seed={seed}, not both."
         )
-    return ResolvedShuffle(enabled=True, seed=shuffle)
+    return ResolvedShuffle(enabled=True, seed=shuffle_seed)
+
+
+def _is_numpy_bool(value: object) -> bool:
+    # a numpy bool can only exist if numpy is already imported, so check
+    # sys.modules rather than importing numpy here
+    numpy = sys.modules.get("numpy")
+    return numpy is not None and isinstance(value, numpy.bool_)

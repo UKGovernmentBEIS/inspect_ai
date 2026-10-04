@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Type, TypeVar
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 from pydantic import BaseModel
 from test_helpers.utils import skip_if_github_action
@@ -349,6 +350,23 @@ def test_dataset_shuffle_int_with_seed_raises(
 
     with pytest.raises(ValueError, match="seed"):
         type.__call__(dataset_file, shuffle=shuffle, seed=seed)
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+def test_dataset_shuffle_numpy_values(
+    type: Type[T_ds], suffix: str, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+    unshuffled = [record["input"] for record in SHUFFLE_RECORDS]
+
+    int_seed: Dataset = type.__call__(dataset_file, shuffle=np.int64(7))
+    flag_true: Dataset = type.__call__(dataset_file, shuffle=np.bool_(True), seed=7)
+    flag_false: Dataset = type.__call__(dataset_file, shuffle=np.bool_(False), seed=7)
+
+    assert [sample.input for sample in int_seed] == seeded_shuffle_inputs(7)
+    assert [sample.input for sample in flag_true] == seeded_shuffle_inputs(7)
+    assert [sample.input for sample in flag_false] == unshuffled
+    assert flag_false.shuffled is False
 
 
 @pytest.mark.parametrize("type,suffix", shuffle_dataset_params)

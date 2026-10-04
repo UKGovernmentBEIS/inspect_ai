@@ -160,7 +160,7 @@ def hf_dataset(
         `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
           handle mapping with a custom function that returns one or more samples.
       auto_id: Assign an auto-incrementing ID for each sample.
-      shuffle: Randomly shuffle the dataset order. If an int is passed, it is used as the seed.
+      shuffle: Randomly shuffle the dataset order. An int (including 0) is used as the seed, so `shuffle=0` shuffles.
       seed: Seed used for random shuffle. Only valid with a boolean `shuffle`.
       shuffle_choices: Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
       limit: Limit the number of records to read.
