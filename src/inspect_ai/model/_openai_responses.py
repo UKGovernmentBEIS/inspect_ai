@@ -185,6 +185,7 @@ from inspect_ai.model._model_output import (
     StopReason,
     TopLogprob,
     collect_stop_details,
+    model_usage_input_tokens,
 )
 from inspect_ai.model._openai import is_gpt_5_model
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -874,7 +875,7 @@ def content_from_response_input_content_param(
 def responses_model_usage(usage: ModelUsage | None) -> ResponseUsage | None:
     if usage is not None:
         return ResponseUsage(
-            input_tokens=usage.input_tokens,
+            input_tokens=model_usage_input_tokens(usage),
             input_tokens_details=InputTokensDetails(
                 cached_tokens=usage.input_tokens_cache_read or 0,
                 cache_write_tokens=usage.input_tokens_cache_write or 0,
