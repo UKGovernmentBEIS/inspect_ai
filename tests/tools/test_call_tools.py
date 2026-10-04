@@ -536,3 +536,38 @@ async def test_tool_event_message_id_for_multiple_calls():
     # ensure each event has a distinct message_id (regression: previously
     # every event pointed at the first ChatMessageTool)
     assert len({e.message_id for e in tool_events}) == 3
+
+
+class LiteralCitation(BaseModel):
+    type: Literal["document"] = "document"
+    title: str
+
+
+@tool
+def record_literal_citation():
+    async def record_literal_citation(citation: LiteralCitation) -> str:
+        """Record a citation.
+
+        Args:
+            citation: The citation to record.
+        """
+        return citation.title
+
+
+async def test_tool_param_validation_error_is_retryable_parsing_error():
+    """Structured constructor validation failures must be returned to the model."""
+    tool_def = ToolDef(record_literal_citation())
+    call = make_call(
+        "record_literal_citation",
+        {"citation": {"type": "file", "title": "/tmp/example"}},
+    )
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+
+    assert len(messages) == 1
+    assert isinstance(messages[0], ChatMessageTool)
+    assert messages[0].error is not None
+    assert messages[0].error.type == "parsing"
+    assert "citation" in messages[0].error.message
