@@ -121,6 +121,17 @@
     ]
   },
   {
+    "id": "probity-native-result-reader",
+    "name": "Probity native result reader",
+    "url": "https://github.com/probityai/agent-evidence-observer/blob/71ac0b2126473316655184235000647a6dd0f5cf/docs/NATIVE-CONSUMER-CI.md",
+    "desc": "Offline reader and publication gate for bounded native Inspect execution records, preserving errors and unstarted attempts.",
+    "author": "Probity",
+    "author_url": "https://github.com/probityai",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
     "id": "inspect-wandb",
     "name": "Inspect WandB",
     "url": "https://github.com/DanielPolatajko/inspect_wandb",
