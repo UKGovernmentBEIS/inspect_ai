@@ -52,12 +52,17 @@ from .._model_call import ModelCall, as_error_response
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
+    apply_initial_system_checkpoint,
+    count_cache_breakpoints,
     openai_handle_bad_request,
     openai_handle_stream_error,
     openai_media_filter,
+    resolve_explicit_prompt_cache,
 )
 from .._openai_responses import (
+    RESPONSES_VERBATIM,
     ResponsesModelInfo,
+    message_bypasses_content_conversion,
     model_usage_from_response_usage,
     openai_responses_chat_choices,
     openai_responses_inputs,
@@ -117,8 +122,11 @@ async def generate_responses(
     batcher: OpenAIBatcher[Response] | None,
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
     | None = None,
+    handle_stream_error: Callable[[APIError | OpenAIResponseError], ModelOutput | None]
+    | None = None,
     model_family: str | None = None,
     streaming: bool = False,
+    supports_explicit_prompt_cache: bool = False,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
@@ -154,12 +162,34 @@ async def generate_responses(
         else NOT_GIVEN
     )
 
+    # explicit cache breakpoints (ContentText.cache_breakpoint): any
+    # ineligible condition falls back to normal implicit caching for the
+    # whole request. Also reject a mark on a message replayed natively
+    # (compaction/agent_message) — resolve_explicit_prompt_cache only sees
+    # roles, not this bypass. supports_explicit_prompt_cache gates callers
+    # other than the direct OpenAI provider (e.g. OpenRouter), whose
+    # endpoints' support for these fields is unverified.
+    explicit_cache = (
+        supports_explicit_prompt_cache
+        and resolve_explicit_prompt_cache(input, model_name, config.cache_prompt)
+        and not any(
+            message_bypasses_content_conversion(m) and count_cache_breakpoints([m]) > 0
+            for m in input
+        )
+    )
+    if explicit_cache:
+        # retain a checkpoint at the end of the initial system/developer
+        # block (cumulatively covering preceding tools) when the caller left
+        # it unmarked — see `apply_initial_system_checkpoint`.
+        input = apply_initial_system_checkpoint(input)
+
     request = dict(
         input=await openai_responses_inputs(
             input,
             model_info,
             synthesize_phase=synthesize_phase,
             swap_todo_write=swap_todo_write,
+            cache_breakpoints=explicit_cache,
         ),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
@@ -178,11 +208,18 @@ async def generate_responses(
             responses_store=responses_store,
             tools=len(tools) > 0,
             tool_params=[] if isinstance(tool_params, NotGiven) else tool_params,
-            has_computer_tool=any(is_computer_tool_info(t) for t in tools),
+            # a verbatim tool is sent as given (a function or custom tool),
+            # not as OpenAI's computer tool, which is what requires store
+            has_computer_tool=any(
+                is_computer_tool_info(t) and RESPONSES_VERBATIM not in (t.options or {})
+                for t in tools
+            ),
         ),
     )
     if isinstance(background, bool):
         request["background"] = background
+    if explicit_cache:
+        request["prompt_cache_options"] = {"mode": "explicit"}
 
     # stream goes into the request pre-snapshot so the logged ModelCall
     # matches the wire request (batched and background requests can't stream)
@@ -236,9 +273,10 @@ async def generate_responses(
         # without parsing the raw model call
         response_metadata = getattr(model_response, "metadata", None)
 
-        # return output and call
+        # `model` is typed as required but compatible services can omit it
+        # (Meta's streamed refusal has a null model); fall back to the request
         return ModelOutput(
-            model=model_response.model,
+            model=model_response.model or model_name,
             choices=choices,
             usage=model_usage_from_response(model_response),
             metadata=dict(response_metadata) if response_metadata else None,
@@ -256,7 +294,11 @@ async def generate_responses(
         # above, so recognized block codes convert on every path (streaming,
         # non-streaming, background, batch); unrecognized codes return None
         # and re-raise with their retry classification intact
-        output = openai_handle_stream_error(model_name, e)
+        output = (
+            handle_stream_error(e)
+            if handle_stream_error
+            else openai_handle_stream_error(model_name, e)
+        )
         if output is None:
             raise
         error_body = (
@@ -452,12 +494,10 @@ def completion_params_responses(
         config.extra_body.get("reasoning") if config.extra_body is not None else None
     )
 
-    # models with reasoning enabled don't do sampling params (gpt-6+ always
-    # reasons: `none` effort is rejected, so sampling params never apply)
-    reasoning_enabled = isinstance(client_reasoning, dict) or (
-        model_info.is_o_series()
-        or model_info.is_gpt_6()
-        or (model_info.is_gpt_5() and not model_info.is_gpt_5_plus())
+    # models with reasoning enabled don't do sampling params
+    reasoning_enabled = (
+        isinstance(client_reasoning, dict)
+        or model_info.always_reasons()
         or (
             model_info.is_gpt_5_plus()
             and (
@@ -530,8 +570,8 @@ def completion_params_responses(
             )
         if config.reasoning_mode is not None:
             # passed through for all models: the API accepts "pro" wherever it can
-            # be honored (gpt-5.6 and legacy -pro models; gpt-6 rejects it) and
-            # rejects it with a clear param-naming error otherwise.
+            # be honored (gpt-5.6+ and legacy -pro models) and rejects it with a
+            # clear param-naming error otherwise.
             reasoning["mode"] = config.reasoning_mode
         if config.reasoning_summary != "none":
             reasoning["summary"] = config.reasoning_summary or "auto"

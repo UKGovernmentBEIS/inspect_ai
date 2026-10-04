@@ -34,6 +34,7 @@ from inspect_ai.util import (
     OutputLimitExceededError,
     SandboxEnvironment,
     SandboxEnvironmentLimits,
+    SandboxUserUnsupportedError,
 )
 from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
@@ -639,7 +640,10 @@ async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
 
 async def test_exec_as_nonexistent_user(sandbox_env: SandboxEnvironment) -> None:
     nonexistent_username = "nonexistent"
-    result = await sandbox_env.exec(["whoami"], user=nonexistent_username)
+    try:
+        result = await sandbox_env.exec(["whoami"], user=nonexistent_username)
+    except SandboxUserUnsupportedError:
+        return
     assert not result.success, "Command should have failed for nonexistent user"
     assert (
         nonexistent_username in result.stdout or nonexistent_username in result.stderr

@@ -416,7 +416,7 @@ Pass `submit=False` to disable the submit tool entirely (the agent will terminat
 
 `deepagent()` supports several additional options from `react()`:
 
-- `retry_refusals` --- Retry when the model refuses a request due to content filters (default: 3). Applies to the top-level agent and all subagents. If a subagent refuses and retries are exhausted, the refusal text becomes the subagent's return value to the parent. See [Refusals](react-agent.qmd#refusals) for details.
+- `retry_refusals` --- Retry when the model refuses a request due to content filters (default: 3). Applies to the top-level agent and all subagents. If a subagent refuses and retries are exhausted, the refusal text becomes the subagent's return value to the parent (or, with the `fail_on_refusal` generation option set, the sample fails, including for background subagents). See [Refusals](react-agent.qmd#refusals) for details.
 
 - `on_continue` --- Control continuation behavior when the model stops calling tools. Applies to the top-level agent only. See [Continuation](react-agent.qmd#continuation) for details.
 

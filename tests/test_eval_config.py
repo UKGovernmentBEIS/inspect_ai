@@ -14,6 +14,7 @@ from inspect_ai._cli.eval import (
     eval_set_command,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import list_eval_logs, read_eval_log
 from inspect_ai.model import get_model
@@ -78,6 +79,33 @@ def test_run_config_rejects_unknown_generate_config_field():
 def test_run_config_rejects_unknown_eval_config_field():
     with pytest.raises(ValidationError, match="[Uu]nknown"):
         RunConfigInput.model_validate({"eval_config": {"limit": 10, "bad_field": 1}})
+
+
+def test_run_config_preserves_approval_policy_type(tmp_path: Path):
+    params = RunConfigInput.model_validate(
+        {
+            "eval_config": {
+                "approval": {
+                    "approvers": [
+                        {
+                            "name": "auto",
+                            "tools": "*",
+                            "params": {"decision": "approve"},
+                        }
+                    ]
+                }
+            }
+        }
+    ).to_params()
+
+    assert isinstance(params["approval"], ApprovalPolicyConfig)
+    log = eval(
+        "tests/test_eval_config.py@eval_config_task",
+        model="mockllm/model",
+        log_dir=tmp_path.as_posix(),
+        **params,
+    )[0]
+    assert log.eval.config.approval == params["approval"]
 
 
 def test_eval_config_task():

@@ -3,7 +3,7 @@ import reprlib
 from copy import deepcopy
 from fnmatch import fnmatch
 from logging import getLogger
-from typing import Callable, NamedTuple, cast
+from typing import Callable, Iterable, NamedTuple, cast
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
@@ -74,12 +74,36 @@ def sample_id_filter(
 
 
 def resolve_task_sample_ids(
-    task: str, sample_id: str | int | list[str] | list[int] | list[str | int] | None
+    task: str,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
+    task_names: Iterable[str] | None = None,
 ) -> str | int | list[str] | list[int] | list[str | int] | None:
+    """Narrow `sample_id` to the selectors that apply to `task`.
+
+    A `<task>:<id>` selector scopes an id to one task (`alpha:one,beta:two`
+    runs one sample of each): the prefix is stripped for that task and the
+    selector is dropped for every other. A prefix counts as a task selector
+    only when it names a task in the run; otherwise the colon is part of the
+    id, so namespaced ids such as `user:cybergym/arvo_6008` pass through
+    whole. An id that both names a task in the run and is a literal dataset
+    id is read as a selector.
+
+    Args:
+        task: Name of the task being resolved for.
+        sample_id: The requested sample id(s).
+        task_names: Names of every task in the run. `None` means only
+            `task` itself is known, so only its own prefix is a selector.
+
+    Returns:
+        The ids for `task`; `[]` when every selector named another task
+        (`slice_dataset` then selects nothing).
+    """
+    names = {name.lower() for name in task_names or []} | {task.lower()}
+
     def collect_for_task(sample: str | int) -> str | int | None:
         if isinstance(sample, str):
             scoped = sample.split(":", maxsplit=1)
-            if len(scoped) > 1:
+            if len(scoped) > 1 and scoped[0].lower() in names:
                 if scoped[0].lower() == task.lower():
                     return scoped[1]
                 else:
@@ -133,7 +157,15 @@ def slice_dataset(
             task runs, so unmatched `sample_id` entries neither warn nor error
             (the filter still applies to the seed; the task's dispatcher
             applies it to produced samples).
+
+    An empty `sample_id` list selects nothing: it is what
+    `resolve_task_sample_ids` yields for a task none of the `task:id`
+    selectors named, and that task runs no samples rather than failing on a
+    filter that cannot match.
     """
+    if isinstance(sample_id, list) and len(sample_id) == 0:
+        return dataset[0:0]
+
     if sample_id is not None:
         matcher = sample_id_filter(sample_id)
 
