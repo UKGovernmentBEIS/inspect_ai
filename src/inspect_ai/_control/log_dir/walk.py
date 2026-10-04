@@ -1,7 +1,7 @@
 """The delimited walk of a log directory.
 
 One listing per directory visited, never descending into ``.buffer/`` (sample
-buffer segments) or ``*.checkpoints/`` (sandbox checkpoint companions), whose
+buffer segments; its presence is recorded on the logs beside it) or ``*.checkpoints/`` (sandbox checkpoint companions), whose
 object counts grow with run age. A recursive listing would page through every
 one of those keys. See "Walking the directory" in
 ``design/ctl/log-dir-mode.md``.
@@ -44,6 +44,10 @@ class LogFile(NamedTuple):
     etag: str | None
     """Listing ETag (S3 only)."""
 
+    buffer_dir: str | None = None
+    """The ``.buffer`` directory beside the log, when its directory's listing
+    has one (shared sample buffers live under ``.buffer/<stem>/``)."""
+
 
 class LogDirListing(NamedTuple):
     """Result of :func:`walk_log_dir`."""
@@ -77,6 +81,7 @@ async def walk_log_dir(fs: AsyncFilesystem, root: str) -> LogDirListing:
             if is_root:
                 raise
             return
+        buffer_dir = next((d for d in listing.dirs if basename(d) == _BUFFER_DIR), None)
         for info in listing.files:
             name = basename(info.name)
             if name.endswith(f".{EVAL_LOG_FORMAT}"):
@@ -87,6 +92,7 @@ async def walk_log_dir(fs: AsyncFilesystem, root: str) -> LogDirListing:
                         size=info.size,
                         mtime=info.mtime / 1000 if info.mtime is not None else None,
                         etag=info.etag,
+                        buffer_dir=buffer_dir,
                     )
                 )
             elif is_log_file(name, [".json"]):
