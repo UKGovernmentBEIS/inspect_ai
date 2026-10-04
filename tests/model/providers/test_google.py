@@ -2275,3 +2275,74 @@ async def test_google_streamed_response_keeps_response_id() -> None:
     )
 
     assert response.response_id == "g-stream-response"
+
+
+def test_google_explicit_api_key_overrides_ambient_adc(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit API key must win over GOOGLE_USE_ADC's ambient default."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    monkeypatch.setenv("GOOGLE_API_KEY", "ambient-key")
+
+    def unexpected_adc_resolution(*_args: Any, **_kwargs: Any) -> Any:
+        pytest.fail(
+            "ambient ADC should not be resolved when an explicit API key is supplied"
+        )
+
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        unexpected_adc_resolution,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="explicit-key",
+    )
+
+    assert api.api_key == "explicit-key"
+    assert api._oauth is False
+
+
+def test_google_ambient_adc_overrides_environment_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ambient ADC must take precedence over an API key found only in the environment."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    monkeypatch.setenv("GOOGLE_API_KEY", "ambient-key")
+    credentials = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        lambda *_args, **_kwargs: credentials,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key=None,
+    )
+
+    assert api._oauth is True
+    assert api._credentials is credentials
+
+
+def test_google_explicit_use_adc_overrides_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit use_adc=true remains authoritative over a supplied API key."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "false")
+    credentials = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        lambda *_args, **_kwargs: credentials,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="explicit-key",
+        use_adc=True,
+    )
+
+    assert api._oauth is True
+    assert api._credentials is credentials
