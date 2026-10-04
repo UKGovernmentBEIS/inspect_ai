@@ -37,7 +37,6 @@ import ast
 import inspect
 import json
 import stat
-from pathlib import Path
 from textwrap import dedent
 
 from inspect_ai.util import SandboxEnvironment, sandbox
@@ -260,12 +259,15 @@ async def append_bashrc(
 
 
 def _human_agent_command_handler_source(command: HumanAgentCommand) -> str:
-    """Render the bound CLI method structurally from its defining source file."""
+    """Render the bound CLI method structurally from its defining module's source.
+
+    The source is read with `inspect.findsource` (through `linecache`), so a
+    handler defined where no source file exists on disk, such as a notebook
+    cell, also renders.
+    """
     handler = getattr(command.cli, "__func__", command.cli)
-    source_file = inspect.getsourcefile(handler)
-    if source_file is None:
-        raise ValueError("Could not find command handler source file")
-    tree = ast.parse(Path(source_file).read_text(encoding="utf-8"))
+    lines, _ = inspect.findsource(handler)
+    tree = ast.parse("".join(lines))
     handler_line = handler.__code__.co_firstlineno
     handler_node = next(
         (

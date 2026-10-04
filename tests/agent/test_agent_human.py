@@ -1,6 +1,7 @@
 import ast
 import concurrent.futures
 import importlib.util
+import linecache
 import os
 import re
 import shutil
@@ -955,6 +956,64 @@ def test_generated_task_py_executes_multiline_override_decorators(
 
     assert result.returncode == 0, result.stderr
     assert result.stdout == "tokenized override handler ran\n"
+
+
+def test_generated_task_py_executes_handler_with_linecache_only_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A handler whose source is only in linecache (e.g. a notebook cell) is rendered."""
+    filename = (tmp_path / "not-on-disk" / "cell.py").as_posix()
+    source = dedent("""
+        from argparse import Namespace
+
+        from typing_extensions import override
+
+        from inspect_ai.agent import HumanAgentCommand
+
+
+        class CellCommand(HumanAgentCommand):
+            @property
+            def name(self) -> str:
+                return "cell"
+
+            @property
+            def description(self) -> str:
+                return "A command defined in a notebook cell."
+
+            @override
+            def cli(self, args: Namespace) -> None:
+                del args
+                print("cell command ran")
+        """)
+    monkeypatch.setitem(
+        linecache.cache,
+        filename,
+        (len(source), None, source.splitlines(keepends=True), filename),
+    )
+    namespace: dict[str, object] = {"__name__": "notebook_cell"}
+    exec(compile(source, filename, "exec"), namespace)
+    command_class = namespace["CellCommand"]
+    assert isinstance(command_class, type)
+    assert issubclass(command_class, HumanAgentCommand)
+
+    task_py = human_agent_task_commands([command_class()])
+    (tmp_path / "human_agent.py").write_text(
+        "def call_human_agent(*args, **kwargs):\n    return None\n",
+        encoding="utf-8",
+    )
+    task_py_path = tmp_path / "task.py"
+    task_py_path.write_text(task_py, encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(task_py_path), "cell"],
+        cwd=tmp_path,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "cell command ran\n"
 
 
 def test_installer_source_runs_nothing_outside_the_helper_and_bashrc_scripts() -> None:
