@@ -206,6 +206,19 @@ def _is_openai_responses_provider(model: Model) -> bool:
     return isinstance(model.api, OpenAIAPI)
 
 
+def _sends_responses_requests(model: Model) -> bool:
+    """Whether the resolved model's requests use the OpenAI Responses API.
+
+    Only those requests carry a forwarded client `reasoning` object verbatim;
+    other providers receive its effort and summary through `GenerateConfig`.
+    """
+    try:
+        from inspect_ai.model._providers.openai import OpenAIAPI
+    except Exception:
+        return False
+    return isinstance(model.api, OpenAIAPI) and bool(model.api.responses_api)
+
+
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
     headers: dict[str, str] | None,
@@ -308,7 +321,9 @@ async def inspect_responses_api_request_impl(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_openai_responses(
-        json_data, forward_reasoning=bridge.forward_generation_config
+        json_data,
+        forward_reasoning=bridge.forward_generation_config
+        and _sends_responses_requests(model),
     )
     if not bridge.forward_generation_config:
         clear_generation_params(config)
@@ -790,7 +805,7 @@ def generate_config_from_openai_responses(
     config.top_logprobs = json_data.get("top_logprobs", None)
     config.parallel_tool_calls = json_data.get("parallel_tool_calls", None)
     reasoning = json_data.get("reasoning", None)
-    if reasoning and not forward_reasoning:
+    if reasoning:
         if "effort" in reasoning:
             config.reasoning_effort = reasoning["effort"]
         if "summary" in reasoning:

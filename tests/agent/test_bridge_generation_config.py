@@ -161,12 +161,72 @@ def test_openai_responses_preserves_opaque_reasoning_when_forwarding():
 
     config = generate_config_from_openai_responses(json_data, forward_reasoning=True)
 
-    # The provider synthesizes a new ``reasoning`` object from these structured
-    # fields, which would overwrite the opaque object below and drop ``context``.
-    assert config.reasoning_effort is None
-    assert config.reasoning_summary is None
+    # The Responses provider sends this object verbatim, keeping ``context``.
+    # Effort and summary are still mapped for the rest of the request.
+    assert config.reasoning_effort == "max"
+    assert config.reasoning_summary == "auto"
     assert config.extra_body is not None
     assert config.extra_body["reasoning"] == json_data["reasoning"]
+
+
+def test_responses_requests_detected_only_for_responses_models():
+    from inspect_ai.agent._bridge.responses_impl import _sends_responses_requests
+    from inspect_ai.model._model import get_model
+
+    assert _sends_responses_requests(get_model("openai/gpt-5", api_key="test-key"))
+    assert not _sends_responses_requests(
+        get_model("openai/gpt-4o", api_key="test-key", responses_api=False)
+    )
+    assert not _sends_responses_requests(get_model("mockllm/model"))
+
+
+@pytest.mark.anyio
+async def test_forwarded_responses_reasoning_reaches_non_responses_models():
+    """Only Responses models get the client's `reasoning` object verbatim.
+
+    Other providers never read `extra_body["reasoning"]`, so with
+    `forward_generation_config=True` they must still receive the client's
+    effort and summary through `GenerateConfig`.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.responses_impl import (
+        inspect_responses_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    configs: list[GenerateConfig] = []
+
+    def _capture(input, tools, tool_choice, config):
+        configs.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="ok")
+
+    model = get_model("mockllm/model", custom_outputs=_capture)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+        forward_generation_config=True,
+    )
+    bridge.model_aliases = {"gpt-5": model}
+
+    await inspect_responses_api_request_impl(
+        json_data={
+            "model": "gpt-5",
+            "input": [{"role": "user", "content": "hi"}],
+            "reasoning": {"effort": "high", "summary": "auto", "context": "all_turns"},
+        },
+        headers=None,
+        web_search=None,
+        code_execution=None,
+        bridge=bridge,
+    )
+
+    assert len(configs) == 1
+    assert configs[0].reasoning_effort == "high"
+    assert configs[0].reasoning_summary == "auto"
+    assert "reasoning" not in (configs[0].extra_body or {})
 
 
 def test_anthropic_forward_then_clear():
