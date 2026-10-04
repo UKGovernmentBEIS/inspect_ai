@@ -12,7 +12,10 @@ from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import click
 
-from inspect_ai._control.cancel import SAMPLE_ALREADY_FINISHED_REASON
+from inspect_ai._control.cancel import (
+    SAMPLE_ALREADY_FINISHED_REASON,
+    SAMPLE_CANCEL_OUTCOME,
+)
 from inspect_ai._control.state import DEFAULT_SAMPLE_LIST_LIMIT, SAMPLE_STATUSES
 
 # Patch seam: tests monkeypatch functions on their defining module
@@ -28,6 +31,7 @@ from ._group import (
     _echo_no_running_evals,
     _forward_group_options,
     _json_option,
+    _log_dir_option,
     _mirror_list_options,
     _model_option,
     _NounGroup,
@@ -85,6 +89,7 @@ sample_group.hint = lambda token: (
 
 
 @sample_group.command("list")
+@_log_dir_option()
 @click.argument("task", required=False)
 @_model_option()
 @click.option(
@@ -179,6 +184,7 @@ _mirror_list_options(sample_group, sample_list_command)
 
 
 @sample_group.command("errors")
+@_log_dir_option()
 @click.argument("task", required=False)
 @_model_option()
 @click.option(
@@ -204,6 +210,7 @@ def sample_errors_command(
 
 
 @sample_group.command("show")
+@_log_dir_option()
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
@@ -258,6 +265,7 @@ def sample_show_command(
 
 
 @sample_group.command("events")
+@_log_dir_option()
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
@@ -396,6 +404,7 @@ def sample_events_command(
 
 
 @sample_group.command("messages")
+@_log_dir_option()
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
@@ -472,6 +481,7 @@ def sample_messages_command(
 
 
 @sample_group.command("store")
+@_log_dir_option()
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
@@ -957,16 +967,14 @@ def _run_sample_cancel(
     terse: bool | None = None,
     model: str | None = None,
 ) -> None:
-    outcome = {
-        "score": "scored on the work done so far",
-        "error": "marked as errored",
-        "cancel": "recorded as cancelled",
-    }[action]
+    outcome = SAMPLE_CANCEL_OUTCOME[action]
 
     # the queued rows (cancel-before-start / un-requeue — see
-    # design/ctl/queued-sample-cancel.md) report what actually happened via
-    # `reason`; "it will be scored/cancelled" would misdescribe a sample that
-    # never runs, so the reason wins when the server sends one
+    # design/ctl/queued-sample-cancel.md) and the initializing row (a
+    # deferred interrupt — design/ctl/initializing-sample-cancel.md) report
+    # what actually happened via `reason`; "it will be scored/cancelled" would
+    # misdescribe a sample that never runs (or hasn't started), so the reason
+    # wins when the server sends one
     def changed_message(label: str, result: dict[str, Any]) -> str:
         reason = result.get("reason")
         if reason:

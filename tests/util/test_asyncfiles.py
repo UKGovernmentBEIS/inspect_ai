@@ -1,26 +1,272 @@
 import asyncio
 import functools
 import io
+import os
 import tempfile
+import threading
 import time
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Callable, cast
+from unittest.mock import AsyncMock, Mock
 
+import aiohttp
+import anyio
 import pytest
 from anyio import EndOfStream
-from botocore.exceptions import ClientError
+from boto3.s3.transfer import TransferConfig
+from botocore.exceptions import ClientError, ResponseStreamingError
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     _current_async_fs,
     _RetiredClient,
+    _s3_download_file_async,
+    _s3_upload_fileobj_async,
     get_async_filesystem,
     s3_bucket_and_key,
     s3_write_file_streaming,
 )
 
 S3_BUCKET = "s3://test-bucket"
+
+
+# =============================================================================
+# Tests for read_file_into(): copy a file into an open file object
+# =============================================================================
+async def test_read_file_into_local_file(tmp_path: Path) -> None:
+    # local branch: one worker thread, honouring chunk_size
+    payload = os.urandom(3 * 1024 + 100)
+    source = tmp_path / "source.bin"
+    source.write_bytes(payload)
+
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            await fs.read_file_into(str(source), dest, chunk_size=1024)
+        dest.seek(0)
+        assert dest.read() == payload
+
+
+@pytest.mark.parametrize("as_uri", [False, True])
+async def test_read_file_into_local_cancellation_joins_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, as_uri: bool
+) -> None:
+    source = tmp_path / "source file.bin"
+    source.write_bytes(b"x" * (33 * 1024))
+    writing = anyio.Event()
+    release = threading.Event()
+    exited = False
+    cancelled = False
+    writes = 0
+
+    with tempfile.TemporaryFile() as dest:
+        original_write = dest.write
+
+        def write(chunk: bytes) -> int:
+            nonlocal writes, exited
+            writes += 1
+            anyio.from_thread.run_sync(writing.set)
+            assert release.wait(timeout=10)
+            try:
+                return original_write(chunk)
+            finally:
+                exited = True
+
+        monkeypatch.setattr(dest, "write", write)
+        async with AsyncFilesystem() as fs:
+
+            async def copy() -> None:
+                nonlocal cancelled
+                try:
+                    await fs.read_file_into(
+                        source.as_uri() if as_uri else str(source), dest, 1024
+                    )
+                except anyio.get_cancelled_exc_class():
+                    cancelled = True
+                    assert exited and not dest.closed
+                    raise
+
+            async with anyio.create_task_group() as group:
+                group.start_soon(copy)
+                try:
+                    await writing.wait()
+                    group.cancel_scope.cancel()
+                finally:
+                    release.set()
+        assert cancelled and exited
+        assert writes == 1
+        assert dest.tell() == 1024
+        assert not dest.closed
+
+
+async def test_read_file_into_missing_local_file_raises(tmp_path: Path) -> None:
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            with pytest.raises(FileNotFoundError):
+                await fs.read_file_into(str(tmp_path / "missing.bin"), dest)
+
+
+async def test_read_file_into_non_s3_remote_reads_in_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a non-S3 remote filesystem (memory:// stands in for gs://, az://) has no
+    # async client and cannot be read in a worker thread (the fsspec rule), so
+    # it is read on the event loop one chunk at a time, yielding between chunks
+    import anyio.lowlevel
+
+    from inspect_ai._util.file import file
+
+    chunk_size = 1024
+    payload = os.urandom(chunk_size * 3 + 100)
+    location = "memory://read_file_into/source.bin"
+    with file(location, "wb") as f:
+        f.write(payload)
+
+    yields = 0
+    original_checkpoint = anyio.lowlevel.checkpoint
+
+    async def counting_checkpoint() -> None:
+        nonlocal yields
+        yields += 1
+        await original_checkpoint()
+
+    monkeypatch.setattr(anyio.lowlevel, "checkpoint", counting_checkpoint)
+
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            await fs.read_file_into(location, dest, chunk_size=chunk_size)
+        dest.seek(0)
+        assert dest.read() == payload
+    # one yield per chunk read (three full chunks and the partial last one)
+    assert yields == 4
+
+
+@pytest.mark.parametrize("s3_backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("failure", [None, "read", "write"])
+async def test_read_file_into_s3_streams_and_closes_response(
+    s3_backend: str, failure: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import inspect_ai._util.asyncfiles as asyncfiles
+
+    monkeypatch.setattr(asyncfiles, "current_async_backend", lambda: s3_backend)
+    payload = b"bounded download" * 1000
+    chunk_size = 1024
+
+    with tempfile.TemporaryFile() as dest:
+        position = 0
+        closed = False
+
+        def read(size: int = -1) -> bytes:
+            nonlocal position
+            assert size == chunk_size
+            # Each chunk reaches the destination before the next is fetched.
+            assert dest.tell() == position
+            if failure == "read" and position:
+                raise OSError("read failed")
+            chunk = payload[position : position + size]
+            position += len(chunk)
+            return chunk
+
+        async def read_async(size: int = -1) -> bytes:
+            await anyio.lowlevel.checkpoint()
+            return read(size)
+
+        def close() -> None:
+            nonlocal closed
+            closed = True
+
+        body = Mock(read=read_async if s3_backend == "asyncio" else read, close=close)
+        client = Mock(get_object=Mock(return_value={"Body": body}))
+        if s3_backend == "asyncio":
+            client.get_object = AsyncMock(return_value={"Body": body})
+        if failure == "write":
+            monkeypatch.setattr(
+                dest, "write", Mock(side_effect=OSError("write failed"))
+            )
+
+        async with AsyncFilesystem() as fs:
+            monkeypatch.setattr(fs, "s3_client", lambda: client)
+            monkeypatch.setattr(fs, "s3_client_async", AsyncMock(return_value=client))
+            if failure:
+                with pytest.raises(OSError, match=f"{failure} failed"):
+                    await fs.read_file_into(f"{S3_BUCKET}/prior.eval", dest, chunk_size)
+            else:
+                await fs.read_file_into(f"{S3_BUCKET}/prior.eval", dest, chunk_size)
+                dest.seek(0)
+                assert dest.read() == payload
+        assert closed
+        assert not dest.closed
+        assert client.get_object.call_count == 1
+
+
+async def test_read_file_into_s3_cancellation_closes_worker_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import inspect_ai._util.asyncfiles as asyncfiles
+
+    monkeypatch.setattr(asyncfiles, "current_async_backend", lambda: "trio")
+    reading = anyio.Event()
+    # This gate crosses the worker-thread boundary; the loop signals reading
+    # with AnyIO, and releases the blocking SDK read after cancellation.
+    release = threading.Event()
+    closed = False
+    cancelled = False
+    reads = 0
+
+    def read(size: int = -1) -> bytes:
+        nonlocal reads
+        reads += 1
+        assert size == 1024
+        anyio.from_thread.run_sync(reading.set)
+        assert release.wait(timeout=10)
+        return b"partial"
+
+    def close() -> None:
+        nonlocal closed
+        closed = True
+
+    client = Mock(get_object=Mock(return_value={"Body": Mock(read=read, close=close)}))
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            monkeypatch.setattr(fs, "s3_client", lambda: client)
+
+            async def copy() -> None:
+                nonlocal cancelled
+                try:
+                    await fs.read_file_into(f"{S3_BUCKET}/prior.eval", dest, 1024)
+                except anyio.get_cancelled_exc_class():
+                    cancelled = True
+                    raise
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(copy)
+                try:
+                    await reading.wait()
+                    tg.cancel_scope.cancel()
+                finally:
+                    release.set()
+            assert cancelled and closed
+            assert reads == 1
+            assert not dest.closed
+
+
+@pytest.mark.parametrize("code", ["NoSuchKey", "AccessDenied"])
+async def test_read_file_into_sync_s3_preserves_error_contract(
+    code: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import inspect_ai._util.asyncfiles as asyncfiles
+
+    monkeypatch.setattr(asyncfiles, "current_async_backend", lambda: "trio")
+    error = ClientError({"Error": {"Code": code}}, "GetObject")
+    client = Mock(get_object=Mock(side_effect=error))
+    with tempfile.TemporaryFile() as dest:
+        async with AsyncFilesystem() as fs:
+            monkeypatch.setattr(fs, "s3_client", lambda: client)
+            expected = FileNotFoundError if code == "NoSuchKey" else ClientError
+            with pytest.raises(expected):
+                await fs.read_file_into(f"{S3_BUCKET}/prior.eval", dest)
+            assert not dest.closed
 
 
 # =============================================================================
@@ -344,6 +590,38 @@ async def test_local_read_file():
         Path(temp_path).unlink()
 
 
+async def test_read_file_info_local_returns_the_content_and_its_mtime(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "manifest.json"
+    path.write_bytes(b"{}")
+    os.utime(path, (1_700_000_000, 1_700_000_000))
+    async with AsyncFilesystem() as fs:
+        content = await fs.read_file_info(str(path))
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file_info(str(tmp_path / "absent"))
+    assert content.data == b"{}"
+    assert content.etag is None
+    assert content.mtime == pytest.approx(1_700_000_000 * 1000)
+
+
+async def test_read_file_info_s3_returns_the_response_etag_and_last_modified(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    s3.put_object(Bucket="test-bucket", Key="read_file_info/m.json", Body=b"{}")
+    head = s3.head_object(Bucket="test-bucket", Key="read_file_info/m.json")
+    async with AsyncFilesystem() as fs:
+        content = await fs.read_file_info(f"{S3_BUCKET}/read_file_info/m.json")
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file_info(f"{S3_BUCKET}/read_file_info/absent.json")
+    assert content.data == b"{}"
+    assert content.etag == head["ETag"].strip('"')
+    assert content.mtime == head["LastModified"].timestamp() * 1000
+
+
 async def test_write_file_local():
     """Test AsyncFilesystem.write_file with local files."""
     test_data = b"Test write data"
@@ -358,6 +636,76 @@ async def test_write_file_local():
         with open(temp_path, "rb") as f:
             content = f.read()
             assert content == test_data
+
+
+# =============================================================================
+# Tests for list_dir
+# =============================================================================
+
+
+async def test_list_dir_local_lists_direct_children_only(tmp_path: Path) -> None:
+    (tmp_path / "a.eval").write_bytes(b"abc")
+    (tmp_path / "sub" / "deeper").mkdir(parents=True)
+    (tmp_path / "sub" / "b.eval").write_bytes(b"b")
+    # a directory symlink is neither listed as a directory nor followed
+    (tmp_path / "loop").symlink_to(tmp_path, target_is_directory=True)
+
+    async with AsyncFilesystem() as fs:
+        listing = await fs.list_dir(str(tmp_path))
+        uri_listing = await fs.list_dir(tmp_path.as_uri())
+
+    assert [f.name for f in listing.files] == [f"{tmp_path}/a.eval"]
+    assert listing.files[0].size == 3
+    assert listing.files[0].mtime == pytest.approx(
+        (tmp_path / "a.eval").stat().st_mtime * 1000
+    )
+    assert listing.dirs == [f"{tmp_path}/sub"]
+    # paths keep the form the base was given in
+    assert [f.name for f in uri_listing.files] == [f"{tmp_path.as_uri()}/a.eval"]
+
+
+async def test_list_dir_file_uri_encodes_reserved_characters(tmp_path: Path) -> None:
+    from inspect_ai._util.file import local_path
+
+    (tmp_path / "percent%20literal.eval").write_bytes(b"x")
+    (tmp_path / "dir #1?x").mkdir()
+
+    async with AsyncFilesystem() as fs:
+        listing = await fs.list_dir(tmp_path.as_uri())
+
+    # each child decodes back to the real path, not a sibling or a fragment
+    assert [local_path(f.name) for f in listing.files] == [
+        str(tmp_path / "percent%20literal.eval")
+    ]
+    assert [local_path(d) for d in listing.dirs] == [str(tmp_path / "dir #1?x")]
+    assert all(d.startswith("file://") for d in listing.dirs)
+
+
+async def test_list_dir_local_missing_raises(tmp_path: Path) -> None:
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(FileNotFoundError):
+            await fs.list_dir(str(tmp_path / "absent"))
+
+
+async def test_list_dir_s3_returns_files_and_prefixes_from_one_listing(
+    mock_s3: None,
+) -> None:
+    import boto3
+
+    s3 = boto3.client("s3")
+    for key in ("list_dir/a.eval", "list_dir/sub/b.eval", "list_dir/sub/c/d.eval"):
+        s3.put_object(Bucket="test-bucket", Key=key, Body=b"xy")
+    # a zero-byte "folder" marker is not a file
+    s3.put_object(Bucket="test-bucket", Key="list_dir/", Body=b"")
+
+    async with AsyncFilesystem() as fs:
+        listing = await fs.list_dir(f"{S3_BUCKET}/list_dir/")
+        empty = await fs.list_dir(f"{S3_BUCKET}/no_such_prefix")
+
+    assert [f.name for f in listing.files] == [f"{S3_BUCKET}/list_dir/a.eval"]
+    assert listing.files[0].size == 2 and listing.files[0].etag
+    assert listing.dirs == [f"{S3_BUCKET}/list_dir/sub"]
+    assert empty.files == [] and empty.dirs == []
 
 
 # =============================================================================
@@ -423,6 +771,132 @@ async def test_write_file_streaming_s3(
         assert not small.closed
 
 
+class _ThreadRecordingBytesIO(io.BytesIO):
+    """BytesIO that records the thread and requested size of each ``read``."""
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.read_threads: list[int] = []
+        self.read_sizes: list[int | None] = []
+
+    def read(self, size: int | None = -1) -> bytes:
+        self.read_threads.append(threading.get_ident())
+        self.read_sizes.append(size)
+        return super().read(size)
+
+
+@pytest.mark.parametrize(
+    "size",
+    [
+        pytest.param(1024, id="single-put"),
+        pytest.param(10 * 1024 * 1024, id="multipart"),
+    ],
+)
+async def test_write_file_streaming_s3_reads_source_off_event_loop(
+    mock_s3: None, size: int
+) -> None:
+    """S3 streaming uploads must never read the source on the event loop.
+
+    The asyncio path assembles PUT bodies and multipart parts from whole-part
+    reads of the source; a plain sync handle read on the loop would block it
+    for every part. Both the single-PUT and multipart paths
+    must hop to a worker thread for the read. The asyncio variant is the one
+    that guards this; under trio the whole upload already runs in a worker
+    thread.
+    """
+    test_data = b"\xcd" * size
+    s3_path = f"{S3_BUCKET}/streaming_test/off_loop_{size}.bin"
+    loop_thread = threading.get_ident()
+
+    source = _ThreadRecordingBytesIO(test_data)
+    async with AsyncFilesystem() as fs:
+        await fs.write_file_streaming(s3_path, source)
+        assert await fs.read_file(s3_path) == test_data
+
+    assert source.read_threads, "source was never read"
+    assert loop_thread not in source.read_threads
+
+
+class _BlockingReadBytesIO(io.BytesIO):
+    """BytesIO whose ``read`` signals ``read_started`` then waits on ``unblock``."""
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.read_started = threading.Event()
+        self.unblock = threading.Event()
+        self.read_finished = False
+
+    def read(self, size: int | None = -1) -> bytes:
+        self.read_started.set()
+        self.unblock.wait()
+        data = super().read(size)
+        self.read_finished = True
+        return data
+
+
+class _PutObjectClient:
+    """Fake async S3 client for sub-threshold uploads.
+
+    ``put_object`` checkpoints like a real client awaiting the network, so a
+    pending cancellation lands there rather than being lost.
+    """
+
+    async def put_object(self, **kwargs: Any) -> dict[str, Any]:
+        await anyio.lowlevel.checkpoint()
+        return {"ETag": '"etag-1"'}
+
+
+@skip_if_trio
+async def test_write_file_streaming_s3_cancel_waits_for_in_progress_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cancelled S3 upload must not return while a source read is in flight.
+
+    ``EvalRecorder.flush()`` reopens its temp-file zip right after the upload
+    (even on cancellation), so a worker-thread read left running would race
+    that reopen and corrupt the log. The read hop must therefore not abandon
+    its thread on cancellation.
+    """
+
+    async def s3_client_async(self: AsyncFilesystem) -> Any:
+        return _PutObjectClient()
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+
+    source = _BlockingReadBytesIO(b"contents")
+    read_finished_on_return: bool | None = None
+    upload_exited = anyio.Event()
+
+    async with AsyncFilesystem() as fs:
+        scope = anyio.CancelScope()
+
+        async def upload() -> None:
+            nonlocal read_finished_on_return
+            try:
+                with scope:
+                    await fs.write_file_streaming("s3://bucket/path/log.eval", source)
+            finally:
+                read_finished_on_return = source.read_finished
+                upload_exited.set()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(upload)
+            await anyio.to_thread.run_sync(source.read_started.wait)
+            # The read is blocked in its worker thread. Cancel the upload and
+            # give the cancellation time to land while the read is still
+            # blocked: a hop that abandons its thread unwinds here at once
+            # (and the assertion below catches it); the correct one cannot
+            # unwind until the read completes, so the wait times out and the
+            # read is then released.
+            scope.cancel()
+            with anyio.move_on_after(1):
+                await upload_exited.wait()
+            source.unblock.set()
+
+    assert scope.cancelled_caught
+    assert read_finished_on_return is True
+
+
 def test_write_file_streaming_s3_small_upload_leaves_source_open(
     mock_s3: None,
 ) -> None:
@@ -476,8 +950,14 @@ class _RetryingUploadClient:
     def upload_fileobj_sync(
         self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
     ) -> None:
+        self.record(Fileobj.read())
+
+    async def put_object(self, Body: bytes, **kwargs: Any) -> dict[str, Any]:
+        self.record(bytes(Body))
+        return {"ETag": '"etag-1"'}
+
+    def record(self, data: bytes) -> None:
         self.calls += 1
-        data = Fileobj.read()
         if self.calls <= self.fail_times:
             raise ClientError(
                 cast(
@@ -505,8 +985,15 @@ class _FailingUploadClient:
     def upload_fileobj_sync(
         self, Fileobj: Any, Bucket: str, Key: str, **kwargs: Any
     ) -> None:
-        self.calls += 1
         Fileobj.read()
+        self.fail()
+
+    async def put_object(self, **kwargs: Any) -> dict[str, Any]:
+        self.fail()
+        return {}
+
+    def fail(self) -> None:
+        self.calls += 1
         raise ClientError(
             cast(
                 Any,
@@ -646,6 +1133,287 @@ async def test_write_file_streaming_s3_does_not_retry_non_retryable_error(
     assert client.calls == 1
 
 
+class _MultipartClient:
+    """Fake aiobotocore S3 client recording a multipart upload."""
+
+    def __init__(self, fail_part: int | None = None) -> None:
+        self.created: dict[str, Any] | None = None
+        self.fail_part = fail_part
+        self.parts: list[tuple[int, bytes]] = []
+        self.completed: list[dict[str, Any]] | None = None
+        self.aborted: list[str] = []
+        self.block_part: int | None = None
+        self.blocked = anyio.Event()
+
+    async def put_object(self, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("put_object must not be used above the threshold")
+
+    async def create_multipart_upload(self, **kwargs: Any) -> dict[str, Any]:
+        self.created = kwargs
+        return {"UploadId": "upload-1"}
+
+    async def upload_part(
+        self, PartNumber: int, Body: bytes, UploadId: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        assert UploadId == "upload-1"
+        if PartNumber == self.block_part:
+            self.blocked.set()
+            await anyio.sleep_forever()
+        if PartNumber == self.fail_part:
+            raise ClientError(
+                cast(Any, {"Error": {"Code": "InternalError", "Message": "boom"}}),
+                "UploadPart",
+            )
+        self.parts.append((PartNumber, Body))
+        return {"ETag": f'"etag-{PartNumber}"'}
+
+    async def complete_multipart_upload(
+        self, MultipartUpload: dict[str, Any], **kwargs: Any
+    ) -> dict[str, Any]:
+        self.completed = MultipartUpload["Parts"]
+        return {"ETag": '"final-etag-3"'}
+
+    async def abort_multipart_upload(self, UploadId: str, **kwargs: Any) -> None:
+        self.aborted.append(UploadId)
+
+
+_SMALL_PARTS = functools.partial(
+    TransferConfig, multipart_threshold=4, multipart_chunksize=4, max_concurrency=2
+)
+
+
+async def test_s3_upload_async_multipart_exact_multiple_of_chunksize() -> None:
+    client = _MultipartClient()
+    source = io.BytesIO(b"aaaabbbbcccc")
+
+    etag = await _s3_upload_fileobj_async(
+        client, source, "bucket", "key", _SMALL_PARTS()
+    )
+
+    assert etag == "final-etag-3"
+    assert sorted(client.parts) == [(1, b"aaaa"), (2, b"bbbb"), (3, b"cccc")]
+    assert client.completed == [
+        {"ETag": '"etag-1"', "PartNumber": 1},
+        {"ETag": '"etag-2"', "PartNumber": 2},
+        {"ETag": '"etag-3"', "PartNumber": 3},
+    ]
+    assert client.aborted == []
+    assert not source.closed
+    assert client.created is not None and "ChecksumAlgorithm" not in client.created
+
+
+async def test_s3_upload_async_reads_each_part_in_one_request() -> None:
+    """Each part is read off the loop with one request for the whole part.
+
+    Reading a part as ``io_chunksize`` slices, each hopping to a worker
+    thread, costs 32 round trips per default 8 MB part; the loop over short
+    reads belongs inside the single thread hop.
+    """
+    client = _MultipartClient()
+    source = _ThreadRecordingBytesIO(b"a" * 1024 + b"b" * 1024 + b"c" * 512)
+    loop_thread = threading.get_ident()
+
+    await _s3_upload_fileobj_async(
+        client,
+        source,
+        "bucket",
+        "key",
+        TransferConfig(
+            multipart_threshold=1024,
+            multipart_chunksize=1024,
+            max_concurrency=1,
+            io_chunksize=256,
+        ),
+    )
+
+    assert sorted(client.parts) == [
+        (1, b"a" * 1024),
+        (2, b"b" * 1024),
+        (3, b"c" * 512),
+    ]
+    # one whole-part request per part, then the short read that finds EOF
+    assert source.read_sizes == [1024, 1024, 1024, 512]
+    assert loop_thread not in source.read_threads
+
+
+async def test_s3_upload_async_multipart_aborts_on_part_failure() -> None:
+    client = _MultipartClient(fail_part=2)
+
+    with pytest.raises(ClientError) as exc_info:
+        await _s3_upload_fileobj_async(
+            client, io.BytesIO(b"aaaabbbbcc"), "bucket", "key", _SMALL_PARTS()
+        )
+
+    assert exc_info.value.response["Error"]["Code"] == "InternalError"
+    assert client.completed is None
+    assert client.aborted == ["upload-1"]
+
+
+async def test_s3_upload_async_multipart_aborts_on_cancel() -> None:
+    client = _MultipartClient()
+    client.block_part = 2
+
+    async def upload() -> None:
+        await _s3_upload_fileobj_async(
+            client, io.BytesIO(b"aaaabbbbcccc"), "bucket", "key", _SMALL_PARTS()
+        )
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(upload)
+        await client.blocked.wait()
+        tg.cancel_scope.cancel()
+
+    assert client.completed is None
+    assert client.aborted == ["upload-1"]
+
+
+class _RangedGetClient:
+    def __init__(
+        self,
+        data: bytes,
+        fail_reads: int = 0,
+        read_error: Callable[[], Exception] = lambda: ResponseStreamingError(
+            error=OSError("reset")
+        ),
+        head_etag: str | None = None,
+    ) -> None:
+        self.data = data
+        self.etag = '"etag-original"'
+        self.head_etag = head_etag or self.etag
+        self.fail_reads = fail_reads
+        self.read_error = read_error
+        self.ranges: list[str] = []
+        self.in_flight = 0
+        self.max_in_flight = 0
+
+    async def head_object(self, **kwargs: Any) -> dict[str, Any]:
+        return {"ContentLength": len(self.data), "ETag": self.head_etag}
+
+    async def get_object(
+        self, Range: str, IfMatch: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        if IfMatch != self.etag:
+            raise ClientError(
+                cast(Any, {"Error": {"Code": "PreconditionFailed", "Message": ""}}),
+                "GetObject",
+            )
+        self.ranges.append(Range)
+        start, end = (int(v) for v in Range.removeprefix("bytes=").split("-"))
+
+        return {"Body": _RangedBody(self, self.data[start : end + 1])}
+
+
+class _RangedBody:
+    def __init__(self, client: _RangedGetClient, chunk: bytes) -> None:
+        self.client = client
+        self.chunk = chunk
+
+    async def read(self) -> bytes:
+        self.client.in_flight += 1
+        self.client.max_in_flight = max(
+            self.client.max_in_flight, self.client.in_flight
+        )
+        await anyio.sleep(0.01)
+        self.client.in_flight -= 1
+
+        if self.client.fail_reads > 0:
+            self.client.fail_reads -= 1
+            raise self.client.read_error()
+
+        return self.chunk
+
+    def close(self) -> None:
+        pass
+
+
+async def test_s3_download_async_concurrent_ranges() -> None:
+    data = bytes(range(256)) * 4
+    client = _RangedGetClient(data)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client,
+            "bucket",
+            "key",
+            local,
+            TransferConfig(multipart_chunksize=300, max_concurrency=3),
+        )
+        assert Path(local).read_bytes() == data
+
+    assert client.ranges == [
+        "bytes=0-299",
+        "bytes=300-599",
+        "bytes=600-899",
+        "bytes=900-1023",
+    ]
+    assert client.max_in_flight == 3
+
+
+async def test_s3_download_async_retries_failed_body_read() -> None:
+    data = b"\x01" * 1000
+    client = _RangedGetClient(data, fail_reads=2)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client,
+            "bucket",
+            "key",
+            local,
+            TransferConfig(multipart_chunksize=400, max_concurrency=1),
+        )
+        assert Path(local).read_bytes() == data
+
+    assert len(client.ranges) == 5
+
+
+async def test_s3_download_async_retries_aiohttp_payload_error() -> None:
+    data = b"\x02" * 1000
+    client = _RangedGetClient(
+        data, fail_reads=1, read_error=lambda: aiohttp.ClientPayloadError("dropped")
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client,
+            "bucket",
+            "key",
+            local,
+            TransferConfig(multipart_chunksize=400, max_concurrency=1),
+        )
+        assert Path(local).read_bytes() == data
+
+    assert len(client.ranges) == 4
+
+
+async def test_s3_download_async_rejects_object_changed_after_head() -> None:
+    client = _RangedGetClient(b"\x01" * 1000, head_etag='"etag-stale"')
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        with pytest.raises(ClientError) as exc_info:
+            await _s3_download_file_async(
+                client, "bucket", "key", local, TransferConfig(multipart_chunksize=400)
+            )
+
+    assert exc_info.value.response["Error"]["Code"] == "PreconditionFailed"
+
+
+async def test_s3_download_async_empty_object() -> None:
+    client = _RangedGetClient(b"")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        local = str(Path(temp_dir) / "out.bin")
+        await _s3_download_file_async(
+            client, "bucket", "key", local, TransferConfig(multipart_chunksize=300)
+        )
+        assert Path(local).read_bytes() == b""
+
+    assert client.ranges == []
+
+
 # =============================================================================
 # Tests for get_file()
 # =============================================================================
@@ -668,7 +1436,7 @@ async def test_get_file_local() -> None:
 
 def test_get_file_s3(mock_s3: None) -> None:
     """get_file downloads an S3 source to a local destination."""
-    test_data = b"s3 get_file payload"
+    test_data = b"\xcd" * (10 * 1024 * 1024)  # 10MB, spans two 8MB ranged GETs
     s3_path = f"{S3_BUCKET}/get_file_test/file.bin"
 
     async def run() -> None:

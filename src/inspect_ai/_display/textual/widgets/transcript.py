@@ -31,6 +31,7 @@ from inspect_ai.event._input import InputEvent
 from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._logger import LoggerEvent
 from inspect_ai.event._model import CANCEL_ERRORS, ModelEvent
+from inspect_ai.event._review import ReviewEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._score import ScoreEvent
@@ -281,8 +282,15 @@ def render_tool_event(event: ToolEvent) -> EventDisplay | None:
     # treatment — the adjacent InterruptEvent already says what
     # happened; the natural-completion result body (if it raced in
     # before cancel propagated) is preserved in the eval log but
-    # suppressed from the live transcript.
-    if event.error is not None and event.error.type == "cancelled":
+    # suppressed from the live transcript. The `cancelled` + `failed`
+    # pair is the operator-cancel fingerprint (see ToolEvent._set_result);
+    # a call skipped by a halt_on_error tool also carries `cancelled` but
+    # has no InterruptEvent to explain it, so it stays visible.
+    if (
+        event.error is not None
+        and event.error.type == "cancelled"
+        and event.failed is True
+    ):
         return None
 
     # Skip pending tool events: the tool *call* is already visible
@@ -370,6 +378,14 @@ def render_approval_event(event: ApprovalEvent) -> EventDisplay:
     ]
 
     return EventDisplay("approval", Group(*content))
+
+
+def render_review_event(event: ReviewEvent) -> EventDisplay:
+    content: list[RenderableType] = [
+        f"[bold]{event.reviewer}[/bold]: {event.decision} ({event.explanation})"
+    ]
+
+    return EventDisplay("review", Group(*content))
 
 
 def render_info_event(event: InfoEvent) -> EventDisplay:
@@ -484,6 +500,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (ScoreEvent, render_score_event),
     (InputEvent, render_input_event),
     (ApprovalEvent, render_approval_event),
+    (ReviewEvent, render_review_event),
     (InfoEvent, render_info_event),
     (BranchEvent, render_branch_event),
     (CompactionEvent, render_compaction_event),
