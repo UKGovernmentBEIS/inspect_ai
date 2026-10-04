@@ -138,7 +138,11 @@ def generate_completions(
         headers: dict[str, str] | None = None,
     ) -> dict[str, JsonValue]:
         completion = await inspect_completions_api_request(
-            json_data, filter_bridge_headers(headers), bridge
+            json_data,
+            filter_bridge_headers(
+                headers, allowed_anthropic_betas=bridge.allowed_anthropic_betas
+            ),
+            bridge,
         )
         return completion.model_dump(mode="json", warnings=False)
 
@@ -156,7 +160,9 @@ def generate_responses(
     ) -> dict[str, JsonValue]:
         completion = await inspect_responses_api_request(
             json_data,
-            filter_bridge_headers(headers),
+            filter_bridge_headers(
+                headers, allowed_anthropic_betas=bridge.allowed_anthropic_betas
+            ),
             web_search,
             code_execution,
             bridge,
@@ -177,7 +183,9 @@ def generate_anthropic(
     ) -> dict[str, JsonValue]:
         completion = await inspect_anthropic_api_request(
             json_data,
-            filter_bridge_headers(headers),
+            filter_bridge_headers(
+                headers, allowed_anthropic_betas=bridge.allowed_anthropic_betas
+            ),
             web_search,
             code_execution,
             bridge,

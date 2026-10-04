@@ -103,13 +103,11 @@ class TestFilterBridgeHeaders:
         result = filter_bridge_headers(headers)
         assert result is None
 
-    def test_anthropic_beta_allowed(self):
-        """Test that anthropic-beta header is forwarded.
+    def test_anthropic_beta_forwarded_without_beta_allowlist(self):
+        """Without a beta allowlist, the client's anthropic-beta is forwarded as sent.
 
-        This header is used for legitimate feature flags like
-        code-execution-2025-08-25, and dropping it would run Claude
-        Code against a different feature surface than the same agent
-        outside Inspect.
+        This is the in-process `agent_bridge()` path, where the agent runs
+        in the eval's own process.
         """
         headers = {
             "anthropic-beta": "code-execution-2025-08-25",
@@ -117,6 +115,34 @@ class TestFilterBridgeHeaders:
         }
         result = filter_bridge_headers(headers)
         assert result == {"anthropic-beta": "code-execution-2025-08-25"}
+
+    def test_anthropic_beta_restricted_to_allowed_betas(self, caplog):
+        """Only allowed betas survive; whitespace around values is tolerated."""
+        headers = {"Anthropic-Beta": "beta-a-2026-01-01, beta-b-2026-01-01,beta-c"}
+        result = filter_bridge_headers(
+            headers,
+            allowed_anthropic_betas=frozenset({"beta-a-2026-01-01", "beta-c"}),
+        )
+        assert result == {"Anthropic-Beta": "beta-a-2026-01-01,beta-c"}
+        assert "beta-b-2026-01-01" in caplog.text
+
+    def test_anthropic_beta_dropped_when_no_betas_allowed(self, caplog):
+        """With an empty allowlist the header is removed; other headers remain."""
+        headers = {
+            "anthropic-beta": "context-1m-2025-08-07",
+            "Accept-Encoding": "gzip, br",
+        }
+        result = filter_bridge_headers(headers, allowed_anthropic_betas=frozenset())
+        assert result == {"Accept-Encoding": "gzip, br"}
+        assert "context-1m-2025-08-07" in caplog.text
+
+    def test_anthropic_beta_only_header_dropped_returns_none(self):
+        """Dropping the only forwarded header leaves no headers to forward."""
+        result = filter_bridge_headers(
+            {"anthropic-beta": "beta-d-2026-01-01"},
+            allowed_anthropic_betas=frozenset(),
+        )
+        assert result is None
 
     def test_anthropic_version_stripped(self):
         """Test that anthropic-version header is dropped.

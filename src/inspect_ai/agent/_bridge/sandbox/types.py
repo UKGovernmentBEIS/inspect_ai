@@ -58,6 +58,7 @@ class SandboxAgentBridge(AgentBridge):
         allow_remote_mcp: bool = False,
         allow_remote_media: bool = False,
         model_resolver: ModelResolver | None = None,
+        allowed_anthropic_betas: Sequence[str] | None = None,
     ) -> None:
         super().__init__(
             state,
@@ -79,6 +80,7 @@ class SandboxAgentBridge(AgentBridge):
         self.bridged_tools = {}
         self.served_tools = {}
         self.proposal_exempt_servers = proposal_exempt_servers or set()
+        self.allowed_anthropic_betas = frozenset(allowed_anthropic_betas or ())
         for server, tools in (bridged_tools or {}).items():
             self.register_bridged_tools(server, tools)
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
@@ -108,6 +110,12 @@ class SandboxAgentBridge(AgentBridge):
 
     Their tools execute without an execution grant, so for them the bridge does
     not guarantee that a host tool runs only for a call the model proposed.
+    """
+
+    allowed_anthropic_betas: frozenset[str]
+    """Anthropic betas the sandboxed client may request via `anthropic-beta`.
+
+    Client-requested betas not listed here are dropped before the host request.
     """
 
     grants_tool_execution = True

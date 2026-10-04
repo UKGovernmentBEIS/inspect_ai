@@ -3,7 +3,7 @@
 - Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
 - Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.
 - Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
-- Agent Bridge: Client-supplied HTTP headers are now forwarded through the sandbox agent-bridge model proxy to the bridged model request.
+- Agent Bridge: `sandbox_agent_bridge()` now forwards the agent's `Accept-Encoding` header, and the Anthropic betas listed in its new `allowed_anthropic_betas` option, to the bridged model request.
 - Agent Bridge: A bridged client's `reasoning` options now reach the model request verbatim when forwarding generation config, preserving fields like `context` that were previously dropped.
 - Agent Bridge: Transparent bridged requests now decode Brotli responses when clients advertise `br` through `Accept-Encoding`.
 

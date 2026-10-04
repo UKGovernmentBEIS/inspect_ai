@@ -66,6 +66,7 @@ async def sandbox_agent_bridge(
     forward_generation_config: bool = False,
     approval: list["ApprovalPolicy"] | None = None,
     checkpointer: Checkpointer | None = None,
+    allowed_anthropic_betas: Sequence[str] | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -145,6 +146,13 @@ async def sandbox_agent_bridge(
             state (messages, output, compaction prefix) for checkpoint backup
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
+        allowed_anthropic_betas: Anthropic beta features (`anthropic-beta`
+            header values, e.g. `"context-management-2025-06-27"`) the sandboxed
+            agent may request on its model calls. Betas the agent requests that
+            are not listed are dropped with a warning. Defaults to `None` (no
+            agent-requested betas are forwarded), since a beta can change
+            billing, output limits or thinking behavior of the host's requests.
+            Betas configured on the Inspect model itself are unaffected.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -189,6 +197,7 @@ async def sandbox_agent_bridge(
                 approval=approval,
                 checkpointer=checkpointer,
                 allow_remote_mcp=allow_remote_mcp,
+                allowed_anthropic_betas=allowed_anthropic_betas,
             )
 
             # register bridged tools with the bridge
