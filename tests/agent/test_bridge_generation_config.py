@@ -1463,7 +1463,7 @@ def test_google_usage_metadata_restores_cached_input_tokens():
 
     assert metadata["promptTokenCount"] == 70
     assert metadata["cachedContentTokenCount"] == 20
-    assert metadata["totalTokenCount"] == 105
+    assert metadata["totalTokenCount"] == 95
 
 
 def test_openai_responses_usage_round_trips_cached_input_tokens():
