@@ -14,6 +14,7 @@ from typing import Any, cast
 import pytest
 from pydantic import JsonValue
 
+from inspect_ai._util import logger as inspect_logger
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent._agent import AgentState
@@ -292,9 +293,9 @@ async def test_sandbox_anthropic_filters_and_forwards_client_headers(
 
 async def test_sandbox_anthropic_forwards_only_allowed_client_betas(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Client betas reach the host request only when the eval author allows them."""
+    inspect_logger._warned.clear()
     received_headers: list[dict[str, str] | None] = []
 
     async def request(
@@ -333,8 +334,17 @@ async def test_sandbox_anthropic_forwards_only_allowed_client_betas(
         {"accept-encoding": "gzip, br"},
         {"accept-encoding": "gzip, br", "anthropic-beta": "allowed-beta-2026-01-01"},
     ]
-    assert "unlisted-beta-2026-01-01" in caplog.text
-    assert "allowed_anthropic_betas" in caplog.text
+    assert [m for m in inspect_logger._warned if "unlisted-beta" in m] == [
+        "Agent bridge dropped Anthropic beta 'unlisted-beta-2026-01-01' requested "
+        "by the sandboxed agent. To forward it, add it to "
+        "sandbox_agent_bridge(allowed_anthropic_betas=...)."
+    ]
+
+
+def test_sandbox_bridge_rejects_string_for_allowed_anthropic_betas() -> None:
+    """A bare string would otherwise become a set of its characters."""
+    with pytest.raises(TypeError, match="allowed_anthropic_betas"):
+        _bridge(allowed_anthropic_betas=cast(list[str], "context-1m-2025-08-07"))
 
 
 async def test_sandbox_google_generation_accepts_service_headers(

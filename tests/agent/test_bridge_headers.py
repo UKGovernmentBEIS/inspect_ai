@@ -5,6 +5,7 @@ import json
 
 import httpx
 
+from inspect_ai._util import logger as inspect_logger
 from inspect_ai.agent._bridge.bridge import (
     _ALLOWED_BRIDGE_HEADERS,
     filter_bridge_headers,
@@ -116,25 +117,31 @@ class TestFilterBridgeHeaders:
         result = filter_bridge_headers(headers)
         assert result == {"anthropic-beta": "code-execution-2025-08-25"}
 
-    def test_anthropic_beta_restricted_to_allowed_betas(self, caplog):
+    def test_anthropic_beta_restricted_to_allowed_betas(self):
         """Only allowed betas survive; whitespace around values is tolerated."""
+        inspect_logger._warned.clear()
         headers = {"Anthropic-Beta": "beta-a-2026-01-01, beta-b-2026-01-01,beta-c"}
         result = filter_bridge_headers(
             headers,
             allowed_anthropic_betas=frozenset({"beta-a-2026-01-01", "beta-c"}),
         )
         assert result == {"Anthropic-Beta": "beta-a-2026-01-01,beta-c"}
-        assert "beta-b-2026-01-01" in caplog.text
+        assert [m for m in inspect_logger._warned if "beta-" in m] == [
+            "Agent bridge dropped Anthropic beta 'beta-b-2026-01-01' requested by "
+            "the sandboxed agent. To forward it, add it to "
+            "sandbox_agent_bridge(allowed_anthropic_betas=...)."
+        ]
 
-    def test_anthropic_beta_dropped_when_no_betas_allowed(self, caplog):
+    def test_anthropic_beta_dropped_when_no_betas_allowed(self):
         """With an empty allowlist the header is removed; other headers remain."""
+        inspect_logger._warned.clear()
         headers = {
             "anthropic-beta": "context-1m-2025-08-07",
             "Accept-Encoding": "gzip, br",
         }
         result = filter_bridge_headers(headers, allowed_anthropic_betas=frozenset())
         assert result == {"Accept-Encoding": "gzip, br"}
-        assert "context-1m-2025-08-07" in caplog.text
+        assert any("context-1m-2025-08-07" in m for m in inspect_logger._warned)
 
     def test_anthropic_beta_only_header_dropped_returns_none(self):
         """Dropping the only forwarded header leaves no headers to forward."""

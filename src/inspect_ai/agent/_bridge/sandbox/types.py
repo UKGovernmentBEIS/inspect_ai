@@ -80,6 +80,11 @@ class SandboxAgentBridge(AgentBridge):
         self.bridged_tools = {}
         self.served_tools = {}
         self.proposal_exempt_servers = proposal_exempt_servers or set()
+        if isinstance(allowed_anthropic_betas, str):
+            raise TypeError(
+                "allowed_anthropic_betas must be a list of beta names, not a "
+                f"string (got {allowed_anthropic_betas!r})."
+            )
         self.allowed_anthropic_betas = frozenset(allowed_anthropic_betas or ())
         for server, tools in (bridged_tools or {}).items():
             self.register_bridged_tools(server, tools)
