@@ -3,7 +3,7 @@
 - Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
 - Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.
 - Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
-- Deep Agent: Background subagents now remain available while eval scorers run after the solver completes.
+- Deep Agent: `deepagent(background=True)` run from a scorer can now dispatch background subagents instead of failing.
 
 ## 0.3.276 (02 October 2026)
 
