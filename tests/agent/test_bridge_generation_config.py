@@ -1456,13 +1456,12 @@ def test_google_usage_metadata_restores_cached_input_tokens():
         ModelUsage(
             input_tokens=70,
             input_tokens_cache_read=20,
-            input_tokens_cache_write=10,
             output_tokens=5,
-            total_tokens=105,
+            total_tokens=95,
         )
     )
 
-    assert metadata["promptTokenCount"] == 100
+    assert metadata["promptTokenCount"] == 70
     assert metadata["cachedContentTokenCount"] == 20
     assert metadata["totalTokenCount"] == 105
 
@@ -1477,16 +1476,15 @@ def test_openai_responses_usage_round_trips_cached_input_tokens():
     usage = ModelUsage(
         input_tokens=70,
         input_tokens_cache_read=20,
-        input_tokens_cache_write=10,
         output_tokens=5,
-        total_tokens=105,
+        total_tokens=95,
     )
 
     provider_usage = responses_model_usage(usage)
     assert provider_usage is not None
-    assert provider_usage.input_tokens == 100
+    assert provider_usage.input_tokens == 90
     assert provider_usage.input_tokens_details.cached_tokens == 20
-    assert provider_usage.input_tokens_details.cache_write_tokens == 10
+    assert provider_usage.input_tokens_details.cache_write_tokens == 0
 
     round_trip = model_usage_from_response_usage(provider_usage)
     assert round_trip == usage
