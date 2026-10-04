@@ -2,6 +2,7 @@ import csv as csv_module
 import inspect
 import json as json_module
 import os
+import random
 from pathlib import Path
 from typing import Type, TypeVar
 from unittest.mock import Mock
@@ -265,6 +266,124 @@ def test_dataset_shuffle_choices_false_does_not_shuffle(
         type.__call__(dataset_path(file), shuffle_choices=False) for _ in range(2)
     ]
     assert dataset_1[0].choices == dataset_2[0].choices
+
+
+SHUFFLE_RECORDS = [{"input": f"q{i}", "target": f"a{i}"} for i in range(10)]
+
+shuffle_dataset_params = [
+    (csv_dataset, ".csv"),
+    (json_dataset, ".json"),
+    (json_dataset, ".jsonl"),
+    (file_dataset, ".csv"),
+    (file_dataset, ".jsonl"),
+]
+
+
+def write_shuffle_dataset(tmp_path: Path, suffix: str) -> str:
+    dataset_file = tmp_path / f"dataset{suffix}"
+    if suffix == ".csv":
+        with open(dataset_file, "w", newline="") as f:
+            writer = csv_module.DictWriter(f, fieldnames=["input", "target"])
+            writer.writeheader()
+            writer.writerows(SHUFFLE_RECORDS)
+    elif suffix == ".json":
+        dataset_file.write_text(json_module.dumps(SHUFFLE_RECORDS))
+    else:
+        dataset_file.write_text(
+            "\n".join(json_module.dumps(record) for record in SHUFFLE_RECORDS)
+        )
+    return str(dataset_file)
+
+
+def seeded_shuffle_inputs(seed: int) -> list[str]:
+    inputs = [record["input"] for record in SHUFFLE_RECORDS]
+    random.Random(seed).shuffle(inputs)
+    return inputs
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+@pytest.mark.parametrize("seed", [0, 7])
+def test_dataset_shuffle_int_is_seed(
+    type: Type[T_ds], suffix: str, seed: int, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    dataset: Dataset = type.__call__(dataset_file, shuffle=seed)
+
+    assert [sample.input for sample in dataset] == seeded_shuffle_inputs(seed)
+    assert dataset.shuffled is True
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+def test_dataset_shuffle_true_with_seed_unchanged(
+    type: Type[T_ds], suffix: str, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    dataset: Dataset = type.__call__(dataset_file, shuffle=True, seed=7)
+
+    assert [sample.input for sample in dataset] == seeded_shuffle_inputs(7)
+    assert dataset.shuffled is True
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+def test_dataset_shuffle_false_ignores_seed(
+    type: Type[T_ds], suffix: str, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    dataset: Dataset = type.__call__(dataset_file, shuffle=False, seed=7)
+
+    assert [sample.input for sample in dataset] == [
+        record["input"] for record in SHUFFLE_RECORDS
+    ]
+    assert dataset.shuffled is False
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+@pytest.mark.parametrize("shuffle,seed", [(0, 0), (7, 7), (7, 3)])
+def test_dataset_shuffle_int_with_seed_raises(
+    type: Type[T_ds], suffix: str, shuffle: int, seed: int, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    with pytest.raises(ValueError, match="seed"):
+        type.__call__(dataset_file, shuffle=shuffle, seed=seed)
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+def test_dataset_shuffle_none_does_not_shuffle(
+    type: Type[T_ds], suffix: str, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    dataset: Dataset = type.__call__(dataset_file, shuffle=None)
+
+    assert [sample.input for sample in dataset] == [
+        record["input"] for record in SHUFFLE_RECORDS
+    ]
+    assert dataset.shuffled is False
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+def test_dataset_shuffle_negative_int_raises(
+    type: Type[T_ds], suffix: str, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    with pytest.raises(ValueError, match="non-negative"):
+        type.__call__(dataset_file, shuffle=-1)
+
+
+@pytest.mark.parametrize("type,suffix", shuffle_dataset_params)
+@pytest.mark.parametrize("shuffle", ["true", 1.5])
+def test_dataset_shuffle_invalid_type_raises(
+    type: Type[T_ds], suffix: str, shuffle: object, tmp_path: Path
+) -> None:
+    dataset_file = write_shuffle_dataset(tmp_path, suffix)
+
+    with pytest.raises(TypeError, match="shuffle"):
+        type.__call__(dataset_file, shuffle=shuffle)
 
 
 @skip_if_github_action

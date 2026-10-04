@@ -1,6 +1,6 @@
 import json
 import math
-from typing import Any, Iterable, cast
+from typing import Any, Iterable, NamedTuple, cast
 
 from pydantic import ValidationError
 
@@ -269,3 +269,43 @@ def shuffle_choices_if_requested(
         pass
     elif isinstance(shuffle_choices, int):
         dataset.shuffle_choices(seed=shuffle_choices)
+
+
+class ResolvedShuffle(NamedTuple):
+    """Shuffle settings for a dataset loader.
+
+    `seed` is None for an unseeded shuffle and is ignored when `enabled` is False.
+    """
+
+    enabled: bool
+    seed: int | None
+
+
+def resolve_shuffle(shuffle: bool | int | None, seed: int | None) -> ResolvedShuffle:
+    """Resolve the `shuffle` and `seed` arguments passed to a dataset loader.
+
+    A boolean `shuffle` uses `seed` as given, and None means no shuffle. An
+    integer `shuffle` (including 0) is itself the seed, so passing a non-None
+    `seed` with it is an error. `bool` is a subclass of `int`, so booleans are
+    checked first.
+
+    Raises:
+        TypeError: If `shuffle` is not a bool, int or None.
+        ValueError: If `shuffle` is a negative integer, or an integer passed
+            with a non-None `seed`.
+    """
+    if shuffle is None:
+        return ResolvedShuffle(enabled=False, seed=seed)
+    if isinstance(shuffle, bool):
+        return ResolvedShuffle(enabled=shuffle, seed=seed)
+    if not isinstance(shuffle, int):
+        raise TypeError(
+            f"shuffle must be a bool or an int seed, got {type(shuffle).__name__}."
+        )
+    if shuffle < 0:
+        raise ValueError(f"shuffle seed must be non-negative, got {shuffle}.")
+    if seed is not None:
+        raise ValueError(
+            f"Pass either an integer shuffle seed (shuffle={shuffle}) or seed={seed}, not both."
+        )
+    return ResolvedShuffle(enabled=True, seed=shuffle)
