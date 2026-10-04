@@ -152,8 +152,9 @@ async def test_track_state_does_not_replace_primary_with_longer_side_model() -> 
 
     With no initial input to anchor descent on, the legacy length heuristic
     alone would let any longer call take over (see
-    `test_length_heuristic_fallback_without_initial_input`). A call for a
-    different model than the tracked thread never wins that comparison.
+    `test_length_heuristic_fallback_without_initial_input`). A single longer
+    call for a model whose thread has never been tracked doesn't win that
+    comparison.
     """
     bridge = AgentBridge(AgentState(messages=[]))
 
@@ -261,13 +262,7 @@ async def test_track_state_other_model_fed_the_conversation_does_not_displace() 
     turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
     out2 = await track(bridge, turn2, "Castle", "openai/agent")
 
-    classifier_input: list[ChatMessage] = [
-        ChatMessageSystem(content="You are a safety classifier ..."),
-        *turn2[1:],
-        out2.message,
-        ChatMessageUser(content="Classify the agent's last action."),
-    ]
-    await track(bridge, classifier_input, "SAFE", "openai/classifier")
+    await track(bridge, classifier_input(turn2, out2), "SAFE", "openai/classifier")
 
     assert bridge.state.output.completion == "Castle"
 
@@ -387,6 +382,114 @@ async def test_track_state_agent_reclaims_state_from_other_model_sub_agent() -> 
         ]
 
     await track(bridge, agent, "Castle", "anthropic/sonnet")
+
+    assert bridge.state.output.completion == "Castle"
+
+
+def classifier_input(
+    conversation: list[ChatMessage], output: ModelOutput
+) -> list[ChatMessage]:
+    """A classifier request: the agent's messages under its own system prompt."""
+    return [
+        ChatMessageSystem(content="You are a safety classifier ..."),
+        *conversation[1:],
+        output.message,
+        ChatMessageUser(content="Classify the agent's last action."),
+    ]
+
+
+async def classified_loop(
+    bridge: AgentBridge, calls: int, rewrite: bool = False
+) -> list[str]:
+    """Drive an agent loop with a classifier on another model after each call.
+
+    The classifier is fed the conversation, so its call is longer than the
+    agent's. With `rewrite` the agent rewrites its prompt every call (see
+    `rewriting_loop`). Returns the tracked completion after each classifier
+    call.
+    """
+    completions: list[str] = []
+    history: list[ChatMessage] = []
+    for i in range(1, calls + 1):
+        task = rewritten_task(i) if rewrite else ChatMessageUser(content=TASK)
+        messages: list[ChatMessage] = [TASK_SYSTEM, task, *history]
+        output = await track(bridge, messages, f"step {i}", "anthropic/sonnet")
+        await track(
+            bridge, classifier_input(messages, output), "SAFE", "openai/classifier"
+        )
+        completions.append(bridge.state.output.completion)
+        history = history + [output.message, ChatMessageTool(content=f"result {i}")]
+    return completions
+
+
+async def test_track_state_side_call_first_then_classified_agent_loop() -> None:
+    """A classifier after every agent call doesn't keep a side call tracked.
+
+    The agent's first call is parked behind a topic detector that landed
+    first, and the classifier's longer call is held; the agent's next call
+    must still be promoted by extending its own parked call.
+    """
+    bridge = task_bridge()
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="Is this a new topic? ..."),
+            ChatMessageUser(content=TASK),
+        ],
+        "new topic",
+        "anthropic/haiku",
+    )
+
+    completions = await classified_loop(bridge, 4)
+
+    assert completions[1:] == ["step 2", "step 3", "step 4"]
+
+
+async def test_track_state_side_call_first_then_classified_agent_loop_no_input() -> (
+    None
+):
+    """Same, with no initial input and a side call that doesn't resend it."""
+    bridge = AgentBridge(AgentState(messages=[]))
+
+    await track(bridge, [ChatMessageUser(content="quota")], "quota", "anthropic/haiku")
+
+    completions = await classified_loop(bridge, 4)
+
+    assert completions[1:] == ["step 2", "step 3", "step 4"]
+
+
+async def test_track_state_side_call_first_then_classified_rewriting_loop() -> None:
+    """Same, for a scaffold that rewrites its prompt every call.
+
+    Its calls never extend each other, so it takes over on length: its
+    second call is longer than its first, while every classifier hold is
+    dropped once the agent's thread is adopted.
+    """
+    bridge = task_bridge()
+
+    await track(bridge, [ChatMessageUser(content="quota")], "quota", "anthropic/haiku")
+
+    completions = await classified_loop(bridge, 4, rewrite=True)
+
+    assert completions[1:] == ["step 2", "step 3", "step 4"]
+
+
+async def test_track_state_repeated_classifier_call_does_not_displace() -> None:
+    """A held model called again with the same input stays held.
+
+    It wins on length only with a call longer than its previous one; a
+    classifier reviewing two tool calls against the same conversation sends
+    the same request twice.
+    """
+    bridge = task_bridge()
+
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "let me look into that", "anthropic/sonnet")
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    out2 = await track(bridge, turn2, "Castle", "anthropic/sonnet")
+    for verdict in ("SAFE", "SAFE again"):
+        await track(bridge, classifier_input(turn2, out2), verdict, "openai/classifier")
 
     assert bridge.state.output.completion == "Castle"
 

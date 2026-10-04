@@ -126,7 +126,7 @@ class AgentBridge:
         self._last_message_counts: dict[str | None, int] = {}
         self._tracked_model: str | None = None
         self._adopted_models: set[str] = set()
-        self._held_model: str | None = None
+        self._held_models: set[str] = set()
         # thread-tracking state for _track_state (see its docstring). the
         # descent anchor is the initial input (via _compaction_prefix, which
         # restores to the original input on checkpoint resume).
@@ -139,7 +139,7 @@ class AgentBridge:
         self._tracked_fps: list[_MessageFingerprint] | None = None
         self._tracked_calls = 0
         self._tracked_descends: _Descent | None = None
-        self._candidate_fps: list[_MessageFingerprint] | None = None
+        self._candidates: dict[str | None, list[_MessageFingerprint]] = {}
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
 
@@ -362,23 +362,26 @@ class AgentBridge:
           has more messages than the previous generation for the same model
           (or, when both threads descend, than the tracked thread — so a parked
           side call can't lower the bar for a stray descending one-shot). A
-          longer call for a different model than the tracked thread is held as
-          the candidate instead, unless that model's thread has been tracked
-          before or its previous longer call was also held: a one-off side call
-          to another model that is fed the conversation (a reviewer or
-          classifier) is longer than the thread it reads, while a scaffold that
-          rewrites its messages every call (so it never extends or gets
-          promoted) takes over on its second call.
-        - A new thread that isn't adopted is remembered as a candidate; if the
-          next call extends it, it's a live agent loop and is promoted. This is
-          what recovers tracking after history compaction (scaffold-side
-          compaction replaces the conversation with a summary, so the
-          post-compaction loop neither extends the tracked thread nor descends
-          from the initial input). Promotion is unconditional, so a multi-call
-          sub-agent loop transiently takes over tracking this way — the main
-          loop reclaims it on resumption, by extension when it makes several
-          further calls (candidate promotion) or by the longer-descending-call
-          displacement above when it makes only one.
+          longer call for a model whose thread has never been tracked is held
+          as that model's candidate instead; the model wins on length only if
+          its next call, before another thread is adopted, is longer still. A
+          side call to another model that is fed the conversation (a reviewer
+          or classifier) is longer than the thread it reads, but the agent
+          continuing its thread between two such calls drops the hold, while
+          a scaffold that rewrites its messages every call (so it never
+          extends or gets promoted) takes over on its second call.
+        - A new thread that isn't adopted is remembered as its model's
+          candidate (so a side call to another model can't replace the main
+          loop's); if a later call extends any candidate, it's a live agent
+          loop and is promoted. This is what recovers tracking after history
+          compaction (scaffold-side compaction replaces the conversation with
+          a summary, so the post-compaction loop neither extends the tracked
+          thread nor descends from the initial input). Promotion is
+          unconditional, so a multi-call sub-agent loop transiently takes over
+          tracking this way — the main loop reclaims it on resumption, by
+          extension when it makes several further calls (candidate promotion)
+          or by the longer-descending-call displacement above when it makes
+          only one.
         """
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
@@ -396,7 +399,7 @@ class AgentBridge:
                 calls=self._tracked_calls + 1,
                 model=model,
             )
-        elif self._candidate_fps is not None and _extends(self._candidate_fps, fps):
+        elif any(_extends(candidate, fps) for candidate in self._candidates.values()):
             # the candidate got continued so it is a live agent loop (e.g. the
             # post-compaction conversation): promote it over the tracked thread
             self._adopt_thread(messages, output, fps, calls=2, model=model)
@@ -431,14 +434,17 @@ class AgentBridge:
                     model is not None
                     and self._tracked_model is not None
                     and model not in self._adopted_models
-                    and model != self._held_model
+                    and not (
+                        model in self._held_models
+                        and len(messages) > last_message_count
+                    )
                 ):
-                    self._held_model = model
-                    self._candidate_fps = fps
+                    self._held_models.add(model)
+                    self._candidates[model] = fps
                 else:
                     self._adopt_thread(messages, output, fps, calls=1, model=model)
             else:
-                self._candidate_fps = fps
+                self._candidates[model] = fps
 
         self._last_message_counts[model] = len(messages)
 
@@ -467,8 +473,8 @@ class AgentBridge:
         self._tracked_model = model
         if model is not None:
             self._adopted_models.add(model)
-        self._held_model = None
-        self._candidate_fps = None
+        self._held_models.clear()
+        self._candidates.clear()
 
     def _descends_from_initial(
         self, messages: list[ChatMessage], fps: list["_MessageFingerprint"]
