@@ -78,9 +78,13 @@ class AppConfig(BaseModel):
 
     inspect_version: str
     scout_version: str | None = None
+    trust_content: bool | None = None
+    """Viewer-wide content trust (`inspect view --no-trust-content`). `False`
+    shows the content of every log as plain text; `None` or `True` defers to
+    each log's own `ViewerConfig(trust_content=...)`."""
 
 
-def get_app_config() -> AppConfig:
+def get_app_config(trust_content: bool | None = None) -> AppConfig:
     """Return app config, including installed inspect and scout versions.
 
     `inspect_scout` is an optional dependency, so `scout_version` is None when
@@ -93,6 +97,7 @@ def get_app_config() -> AppConfig:
     return AppConfig(
         inspect_version=version(PKG_NAME),
         scout_version=scout_version,
+        trust_content=trust_content,
     )
 
 
