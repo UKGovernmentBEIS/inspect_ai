@@ -1303,6 +1303,32 @@ async def test_executed_args_with_an_undeclared_key_still_denies() -> None:
     )
 
 
+async def test_executed_args_repeating_a_proposed_undeclared_key_still_grants() -> None:
+    """A call executed exactly as proposed is granted, undeclared keys included."""
+    bridge = sandbox_bridge_with_servers(
+        {
+            "host": {
+                "browser": served_tool(
+                    AsyncMock(), parameters=("action", "url"), name="browser"
+                )
+            }
+        }
+    )
+    proposed = {
+        "action": "navigate",
+        "url": "https://example.com/product/814207",
+        "unexpected": "value",
+    }
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="proposed", function="browser", arguments=proposed)],
+        declare("browser", parameters=("action", "url")),
+    )
+
+    assert bridge.consume_tool_execution_grant("host", "browser", dict(proposed))
+    assert len(bridge._tool_execution_grants) == 0
+
+
 async def test_executed_args_changing_a_declared_value_still_denies() -> None:
     """A declared key must still match exactly, value included."""
     bridge = sandbox_bridge_with_servers(
