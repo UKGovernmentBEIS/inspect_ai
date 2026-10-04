@@ -3,6 +3,7 @@ import logging
 import os
 import secrets
 import urllib.parse
+from collections.abc import Awaitable, Callable
 from functools import partial
 from io import BytesIO
 from logging import getLogger
@@ -22,7 +23,7 @@ from starlette.status import (
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
 )
-from starlette.types import ASGIApp, Scope
+from starlette.types import ASGIApp, Receive, Scope, Send
 from typing_extensions import override
 
 from inspect_ai._display.core.active import display
@@ -116,6 +117,34 @@ class InspectJsonResponse(JSONResponse):
         ).encode("utf-8")
 
 
+class ReleasingStreamingResponse(StreamingResponse):
+    """StreamingResponse that releases a connection-owning body.
+
+    Use instead of `StreamingResponse` when the content exposes `release()`,
+    e.g. the aiobotocore `StreamingBody` from `stream_log_bytes`.
+    """
+
+    @override
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # Nothing else releases the body: starlette never closes a body
+        # iterator, and a `send` failure on `http.response.start` leaves it
+        # unstarted, so an iterator's own `finally` won't run either. An
+        # abandoned S3 body holds its pool slot until every S3 read wedges.
+        # release() is idempotent, so releasing a finished body is free.
+        release: Callable[[], object] | None = getattr(
+            self.body_iterator, "release", None
+        )
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            if release is not None:
+                try:
+                    release()
+                except Exception:
+                    # Don't mask whatever ended the request.
+                    logger.warning("Failed to release response body", exc_info=True)
+
+
 def view_server_app(
     mapping_policy: FileMappingPolicy | None = None,
     access_policy: AccessPolicy | None = None,
@@ -123,6 +152,8 @@ def view_server_app(
     recursive: bool = True,
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
+    show_shards: bool = False,
+    trust_content: bool | None = None,
 ) -> "FastAPI":
     app = FastAPI()
 
@@ -154,6 +185,16 @@ def view_server_app(
         if access_policy is not None:
             if not await access_policy.can_write(request, file):
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
+    def _read_checker(request: Request) -> Callable[[str], Awaitable[bool]] | None:
+        if access_policy is None:
+            return None
+        policy = access_policy
+
+        async def can_read(name: str) -> bool:
+            return await policy.can_read(request, await _unmap_file(request, name))
+
+        return can_read
 
     async def _validate_list(request: Request, file: str) -> None:
         if access_policy is not None:
@@ -265,7 +306,7 @@ def view_server_app(
             # transfer encoding. The file may change between get_log_size()
             # and the actual S3 read (e.g. in-progress evals being rewritten),
             # which would cause a Content-Length mismatch.
-            return StreamingResponse(
+            return ReleasingStreamingResponse(
                 content=response,
                 media_type="application/octet-stream",
             )
@@ -280,11 +321,24 @@ def view_server_app(
 
         mapped_file = await _map_file(request, file)
 
-        file_size = await get_log_size(mapped_file)
-        stream = await stream_log_bytes(mapped_file, log_file_size=file_size)
-
         base_name = Path(file).stem
         filename = f"{base_name}.eval"
+
+        # Percent-encode names starlette can't encode as latin-1 (it encodes
+        # every header that way, so a CJK or emoji log name would raise in the
+        # response constructor). RFC 6266 form, as starlette's FileResponse.
+        quoted = urllib.parse.quote(filename)
+        disposition = (
+            f'attachment; filename="{filename}"'
+            if quoted == filename
+            else f"attachment; filename*=utf-8''{quoted}"
+        )
+        headers = {"Content-Disposition": disposition}
+
+        # Acquire the body last: anything raising before the return strands
+        # it, since only __call__ can release it.
+        file_size = await get_log_size(mapped_file)
+        stream = await stream_log_bytes(mapped_file, log_file_size=file_size)
 
         # No explicit Content-Length: the file may change between
         # get_log_size() and the read (in-progress evals are rewritten
@@ -292,10 +346,6 @@ def view_server_app(
         # The buffered branch lets the framework set it from the actual
         # body; the streaming branch uses chunked transfer encoding
         # (same rationale as /log-bytes above).
-        headers = {
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        }
-
         if isinstance(stream, BytesIO):
             return Response(
                 content=stream.getvalue(),
@@ -303,7 +353,7 @@ def view_server_app(
                 media_type="application/octet-stream",
             )
         else:
-            return StreamingResponse(
+            return ReleasingStreamingResponse(
                 content=stream,
                 headers=headers,
                 media_type="application/octet-stream",
@@ -339,6 +389,8 @@ def view_server_app(
             fs_options=fs_options,
             mtime=mtime,
             file_count=file_count,
+            show_shards=show_shards,
+            can_read=_read_checker(request),
         )
         for entry in result.files:
             entry.name = await _unmap_file(request, entry.name)
@@ -358,6 +410,8 @@ def view_server_app(
             await _map_file(request, log_dir),
             recursive=recursive,
             fs_options=fs_options,
+            show_shards=show_shards,
+            can_read=_read_checker(request),
         )
         if listing is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
@@ -580,7 +634,7 @@ def view_server_app(
 
     @app.get("/app-config", response_model=AppConfig)
     async def api_app_config() -> AppConfig:
-        return get_app_config()
+        return get_app_config(trust_content)
 
     scout_router = get_scout_search_router()
     if scout_router is not None:
@@ -626,7 +680,7 @@ class AsyncFilesystemMiddleware:
     Pure-ASGI (not BaseHTTPMiddleware) so the ContextVar set here propagates to
     the route handler and into its `tg_collect` fan-out tasks — BaseHTTPMiddleware
     runs the endpoint in a separate task and would drop it. The single instance
-    keeps one warm aioboto3 client + connection pool across all requests, so S3
+    keeps one warm aiobotocore client + connection pool across all requests, so S3
     reads don't re-pay the credential/connection cold-start on every request.
     """
 
@@ -712,6 +766,8 @@ def standalone_view_app(
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
     dist_dir: Path | None = None,
+    show_shards: bool = False,
+    trust_content: bool | None = None,
 ) -> ASGIApp:
     api = view_server_app(
         mapping_policy=None,
@@ -724,6 +780,8 @@ def standalone_view_app(
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
+        show_shards=show_shards,
+        trust_content=trust_content,
     )
 
     resolved_dist_dir = dist_dir or resolve_dist_directory()
@@ -759,6 +817,8 @@ def view_server(
     trusted_hosts: tuple[str, ...] = (),
     unsafe_allow_unauthenticated: bool = False,
     network_policy: ViewerNetworkPolicy | None = None,
+    show_shards: bool = False,
+    trust_content: bool | None = None,
 ) -> None:
     network_policy = network_policy or resolve_viewer_network_policy(
         bind_host=host,
@@ -781,6 +841,8 @@ def view_server(
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
+        show_shards=show_shards,
+        trust_content=trust_content,
     )
 
     # one server-lifetime async filesystem (shared client + connection pool)
@@ -804,7 +866,7 @@ def view_server(
             # concurrently with server startup, so the first request doesn't
             # pay the cold-start but slow credential resolution doesn't delay
             # listening. Only relevant for S3; other backends don't use the
-            # aioboto3 client.
+            # aiobotocore client.
             try:
                 await shared_fs.exists(log_dir)
             except Exception:

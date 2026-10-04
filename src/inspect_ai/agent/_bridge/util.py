@@ -3,7 +3,7 @@ import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Iterator, Sequence, cast
+from typing import Any, Callable, Iterator, Sequence, cast
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
@@ -41,6 +41,8 @@ from inspect_ai.model._model import (
     Model,
     ModelGenerateFilter,
     ModelName,
+    ModelRefusalError,
+    ModelResolver,
     active_model,
     get_model,
     model_roles,
@@ -484,8 +486,18 @@ async def bridge_generate(
     tools: Sequence[ToolInfo | Tool],
     tool_choice: ToolChoice | None,
     config: GenerateConfig,
+    declared_in_input: Callable[[list[ChatMessage]], Sequence[ToolInfo]] | None = None,
 ) -> ModelOutput:
     """Generate model output and track eligible requests through the agent bridge.
+
+    `declared_in_input` extracts the tools a scaffold declared to the model inside
+    the conversation rather than the request's tools array (Responses tools
+    discovered through `tool_search`, which the model sees in a
+    `tool_search_output` result). It is applied to the input the model actually
+    generated from on each attempt, after compaction and any filter rewrite, so a
+    declaration the filter removed cannot authorize a host call and one it added
+    can; the result takes part only in resolving execution grants and is never
+    sent to the model.
 
     If a filter is configured, it will be called on each attempt (including retries).
     The filter can either return a ModelOutput directly or modify the generation inputs.
@@ -562,12 +574,23 @@ async def bridge_generate(
         # control when / under which span events appear.
         if output is None:
             with bridge_model_generate(), use_model_event_sink(bridge.model_event_sink):
-                output = await model.generate(
-                    input=input_messages,
-                    tool_choice=tool_choice,
-                    tools=tools,
-                    config=config,
-                )
+                # with fail_on_refusal set a refusal raises rather than
+                # returning; it still gets its retries, the last one propagates
+                try:
+                    output = await model.generate(
+                        input=input_messages,
+                        tool_choice=tool_choice,
+                        tools=tools,
+                        config=config,
+                    )
+                except ModelRefusalError:
+                    if (
+                        bridge.retry_refusals is not None
+                        and refusals < bridge.retry_refusals
+                    ):
+                        refusals += 1
+                        continue
+                    raise
 
         # Update the compaction baseline with the actual input token
         # count from the generate call (most accurate source of truth)
@@ -575,22 +598,29 @@ async def bridge_generate(
             await compact.record_output(input_messages, output)
 
         # Check for refusal and retry if needed
-        if (
-            output.stop_reason == "content_filter"
-            and bridge.retry_refusals is not None
-            and refusals < bridge.retry_refusals
-        ):
-            refusals += 1
-            continue
+        if not output.empty and output.stop_reason == "content_filter":
+            if bridge.retry_refusals is not None and refusals < bridge.retry_refusals:
+                refusals += 1
+                continue
+            # a refusal produced by the filter never went through
+            # model.generate(), so fail_on_refusal is applied here instead
+            if model._resolve_config(config).fail_on_refusal:
+                raise ModelRefusalError(output, str(model), model.role)
 
         # Approve the tool calls the scaffold is about to run. A rejection comes back
         # as the messages to replay to the model (the rejected call plus a result for
         # every call in the response) so it can propose something else; the scaffold
-        # never sees the rejected response.
+        # never sees the rejected response. The calls in the response handed over
+        # are the only ones the scaffold may run as host tools, once each; they
+        # resolve against the declarations this attempt generated with (tools and
+        # in-input declarations alike), which a filter may have rewritten.
         reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
         if reviewed.rejection is None:
+            declarations: list[ToolInfo | Tool] = list(tools)
+            if declared_in_input is not None:
+                declarations.extend(declared_in_input(input_messages))
             bridge.register_tool_execution_grants(
-                reviewed.output.message.tool_calls or []
+                reviewed.output.message.tool_calls or [], declarations
             )
             if state_eligible:
                 if c_message is not None:
@@ -628,13 +658,44 @@ def resolve_inspect_model(
     model_name: str,
     model_aliases: dict[str, str | Model] | None = None,
     fallback_model: str | None = None,
+    *,
+    model_resolver: ModelResolver | None = None,
+    provider: str = "",
 ) -> Model:
     if model_aliases and model_name in model_aliases:
         return get_model(model_aliases[model_name])
 
+    # The client's original request, before provider qualification below widens a
+    # bare name (e.g. "gpt-4o" -> "openai/gpt-4o"). Kept so the active-model match
+    # at the end can still recognize a bare name that matches the active model's
+    # short name even after qualification changes `model_name`.
+    raw_model_name = model_name
+
+    # A bare model name on a provider-specific bridge endpoint resolves to that provider (the
+    # endpoint implies it); otherwise get_model rejects the unqualified name.
+    if (
+        provider
+        and "/" not in model_name
+        and model_name != "inspect"
+        and model_name not in model_roles()
+    ):
+        model_name = f"{provider}/{model_name}"
+
+    # Dynamic routing policy: checked after explicit aliases, before the static
+    # fallback. Returning None defers to the fallback / normal resolution below.
+    if model_resolver is not None:
+        resolved = model_resolver(model_name)
+        if resolved is not None:
+            return resolved if isinstance(resolved, Model) else get_model(resolved)
+
+    # An explicitly configured fallback overrides whatever the client asked for; it
+    # must win over the active-model match below rather than be silently shadowed
+    # by a bare name that happens to match the active model's short name.
+    fallback_applied = False
     if fallback_model is not None:
         if model_name != "inspect" or not fallback_model.startswith("inspect/"):
             model_name = fallback_model
+            fallback_applied = True
 
     if model_name == "inspect":
         return get_model()
@@ -653,10 +714,20 @@ def resolve_inspect_model(
     # options were silently dropped before the provider request. Returning the active
     # instance also avoids a second Model (and its connection pool) for one model.
     #
+    # A bare name is also matched against the raw pre-qualification request:
+    # provider qualification above widens e.g. "gpt-4o" to "openai/gpt-4o", which no
+    # longer matches an active model on a different provider (e.g. "azureai/gpt-4o")
+    # even though the client meant the eval's own model. That raw-name match is
+    # skipped once an explicit fallback has applied -- the fallback override must
+    # win, not be silently shadowed by this heuristic.
+    #
     # Deliberately placed last: aliases, an explicit "inspect", and model roles all
     # return above, so this cannot redirect a role or alias to the eval's model.
     active = active_model()
-    if active is not None and model_name in (str(active), ModelName(active).name):
+    if active is not None and (
+        model_name in (str(active), ModelName(active).name)
+        or (not fallback_applied and raw_model_name == ModelName(active).name)
+    ):
         return active
 
     return get_model(model_name)

@@ -221,6 +221,7 @@ def init_logger(
             # this is a bit aggressive and we already do this at
             # our own HTTP level
             getLogger("httpx").setLevel(WARNING)
+            getLogger("httpx2").setLevel(WARNING)
 
         # set the log level for our package and inspect_ai
         def configure_logger(pkg: str) -> None:

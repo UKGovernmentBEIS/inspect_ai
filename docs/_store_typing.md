@@ -44,7 +44,7 @@ The names used in the underlying `Store` are namespaced to prevent collisions wi
 
 #### Namespaces
 
-If you need to create multiple instances of a `StoreModel` within a sample, you can use the `instance` parameter to deliniate multiple named instances. For example:
+If you need to create multiple instances of a `StoreModel` within a sample, you can use the `instance` parameter to delineate multiple named instances. For example:
 
 ```python
 red_activity = state.store_as(Activity, instance="red_team")

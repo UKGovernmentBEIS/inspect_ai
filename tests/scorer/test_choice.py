@@ -4,7 +4,7 @@ import pytest
 from test_helpers.utils import simple_task_state
 
 from inspect_ai._util.answer import answer_index
-from inspect_ai.scorer import CORRECT, INCORRECT, Target, choice
+from inspect_ai.scorer import CORRECT, INCORRECT, NOANSWER, Target, choice
 
 
 @pytest.mark.anyio
@@ -130,19 +130,27 @@ async def test_score_target_beyond_choices_raises():
         "",  # empty
     ],
 )
-async def test_score_no_choices_does_not_raise(target: str):
-    # the choice scorer applied to a sample with no choices (e.g. re-scoring a
-    # non-multiple-choice log) should score incorrect, not abort the run --
-    # whatever the target looks like
+async def test_score_no_choices_raises(target: str):
     scorer = choice()
     state = simple_task_state(model_output="No", choices=[])
 
-    result = await scorer(state, Target(target))
+    with pytest.raises(
+        ValueError, match="The choice scorer requires samples with choices"
+    ):
+        await scorer(state, Target(target))
+
+
+@pytest.mark.anyio
+async def test_score_no_selection_is_incorrect():
+    scorer = choice()
+    state = simple_task_state(model_output="I don't know", choices=["Paris", "Berlin"])
+
+    result = await scorer(state, Target("A"))
 
     assert result is not None
     assert result.text == INCORRECT
     assert result.answer == ""
-    assert result.explanation == "No"
+    assert result.explanation == "I don't know"
 
 
 def test_answer_index_rejects_separators():
@@ -152,6 +160,16 @@ def test_answer_index_rejects_separators():
         answer_index(",")
     with pytest.raises(ValueError):
         answer_index(" ")
+
+
+def test_answer_index_zero_and_invalid_alpha():
+    # "0" should raise ValueError rather than colliding with index 25 ("Z")
+    with pytest.raises(ValueError, match="numeric choices start at 1"):
+        answer_index("0")
+
+    # Multi-character alpha should raise ValueError
+    with pytest.raises(ValueError):
+        answer_index("AB")
 
 
 @pytest.mark.anyio
@@ -249,6 +267,82 @@ async def test_correct_multiple_answers_all_incorrect():
     assert result.text == CORRECT
     assert result.answer == ""
     assert result.explanation == "ANSWERS: "
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("completion", ["", "   "])
+async def test_score_empty_completion_is_noanswer(completion: str):
+    # the solver leaves choices unmarked when there is nothing to parse,
+    # which the scorer reads the same as all-False
+    scorer = choice()
+    state = simple_task_state(model_output=completion, choices=["choice 1", "choice 2"])
+
+    result = await scorer(state, Target("A"))
+
+    assert result is not None
+    assert result.text == NOANSWER
+    assert result.reason == "no_response"
+    assert result.answer == ""
+
+
+@pytest.mark.anyio
+async def test_score_unparsable_completion_marks_format_reason():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="I think it is the second one, honestly.",
+        choices=["choice 1", "choice 2"],
+    )
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == INCORRECT
+    assert result.reason == "invalid_response_format"
+    assert result.answer == ""
+
+
+@pytest.mark.anyio
+async def test_score_selected_choices_carry_no_reason():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: B", choices=["choice 1", "choice 2"]
+    )
+    state.choices.mark_choice(0, False)
+    state.choices.mark_choice(1, True)
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == INCORRECT
+    assert result.reason is None
+    assert result.answer == "B"
+
+    state = simple_task_state(
+        model_output="ANSWER: A", choices=["choice 1", "choice 2"]
+    )
+    state.choices.mark_choice(0, True)
+    state.choices.mark_choice(1, False)
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == CORRECT
+    assert result.reason is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("completion", ["", "   "])
+async def test_score_marked_choice_with_empty_completion_keeps_answer(
+    completion: str,
+):
+    scorer = choice()
+    state = simple_task_state(model_output=completion, choices=["choice 1", "choice 2"])
+    state.choices.mark_choice(0, False)
+    state.choices.mark_choice(1, True)
+
+    result = await scorer(state, Target("A"))
+
+    assert result is not None
+    assert result.text == INCORRECT
+    assert result.reason is None
+    assert result.answer == "B"
 
 
 def test_target_sequences():

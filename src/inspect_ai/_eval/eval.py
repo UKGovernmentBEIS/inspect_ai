@@ -28,7 +28,6 @@ from inspect_ai._eval.handoff import (
     print_ctl_pointer,
 )
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
-from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
@@ -83,6 +82,13 @@ from inspect_ai.model._model import (
     init_model_roles,
     resolve_models,
 )
+from inspect_ai.review._apply import init_tool_review
+from inspect_ai.review._policy import (
+    ReviewPolicy,
+    ReviewPolicyConfig,
+    config_from_review_policies,
+    review_policies_from_config,
+)
 from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -109,7 +115,7 @@ from .task.enqueue import (
     register_task_enqueuer,
 )
 from .task.images import InputMediaPolicy
-from .task.resolved import ResolvedTask, resolved_model_names
+from .task.resolved import ResolvedTask, resolved_model_names, resolved_task_names
 from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
@@ -135,6 +141,7 @@ def eval(
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -173,6 +180,7 @@ def eval(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -227,6 +235,9 @@ def eval(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        review: Tool result review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
+            Defaults to no review policy.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -244,7 +255,7 @@ def eval(
             to "eval", the native high-performance format).
         limit: Limit evaluated samples
             (defaults to all samples).
-        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`)..
+        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`); a prefix that names no task in the run is part of the id, and an empty list selects no samples.
         sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
@@ -306,6 +317,7 @@ def eval(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
         **kwargs: Model generation options.
@@ -339,6 +351,7 @@ def eval(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                review=review,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -379,6 +392,7 @@ def eval(
                 acp_server=acp_server,
                 ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
+                eval_set_tasks=eval_set_tasks,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
                 **kwargs,
@@ -428,6 +442,7 @@ async def eval_async(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -466,6 +481,7 @@ async def eval_async(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -503,6 +519,9 @@ async def eval_async(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        review: Tool result review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
+            Defaults to no review policy.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -517,7 +536,7 @@ async def eval_async(
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
         limit: Limit evaluated samples (defaults to all samples).
-        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`).
+        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`); a prefix that names no task in the run is part of the id, and an empty list selects no samples.
         sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
@@ -569,6 +588,7 @@ async def eval_async(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        eval_set_tasks: Names of every task in the eval set, so `task:id` sample selectors resolve the same way for a retried subset of tasks (this is passed from `eval_set()` and should not be specified directly).
         scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
         **kwargs: Model generation options.
@@ -616,6 +636,7 @@ async def eval_async(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                review=review,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -656,6 +677,7 @@ async def eval_async(
                 acp_server=acp_server,
                 ctl_server=ctl_server,
                 eval_set_id=eval_set_id,
+                eval_set_tasks=eval_set_tasks,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
                 **kwargs,
@@ -697,6 +719,7 @@ async def _eval_async_inner(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -735,6 +758,7 @@ async def _eval_async_inner(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    eval_set_tasks: list[str] | None = None,
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -796,7 +820,7 @@ async def _eval_async_inner(
 
         # resolve tasks (a TaskSource seeds the run from initial_tasks(),
         # resolved inside eval_resolve_tasks' initialized model/role context)
-        resolved_tasks, approval = eval_resolve_tasks(
+        resolved_tasks, approval, review = eval_resolve_tasks(
             tasks,
             task_args,
             model,
@@ -809,6 +833,7 @@ async def _eval_async_inner(
             notification,
             task_source=task_source,
             input_media_policy="trusted_pre_run",
+            review=review,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -907,6 +932,7 @@ async def _eval_async_inner(
             if epochs_reducer is not None
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
+            review=config_from_review_policies(review) if review else None,
             notification=notification,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
@@ -1016,6 +1042,11 @@ async def _eval_async_inner(
         enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
         enqueuer_token = register_task_enqueuer(enqueuer)
 
+        # Imported here rather than at module level: the ACP server pulls in
+        # `acp.schema`, whose pydantic models are the single largest cost of
+        # `import inspect_ai` / `inspect` CLI startup.
+        from inspect_ai.agent._acp.server import acp_server as _acp_server
+
         async with (
             control_server(run_id=run_id, enabled=ctl.enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
@@ -1045,13 +1076,25 @@ async def _eval_async_inner(
                 # feed later iterations, all under this run_id. `debug_errors`
                 # is passed only on the parallel==1 path (the multi-task path
                 # never set it — preserved asymmetry).
+                # every task name the run has seen, so `task:id` sample
+                # selectors resolve the same way in every batch: the enclosing
+                # eval set's tasks (a retry runs a subset), then each batch as
+                # it is prepared (an enqueued task sees the ones before it)
+                task_names = list(eval_set_tasks or [])
+
                 async def run_batch(
                     tasks: list[ResolvedTask],
                     debug: bool,
                     inject: TaskInjection | None = None,
                 ) -> list[EvalLog]:
+                    task_names.extend(
+                        name
+                        for name in resolved_task_names(tasks)
+                        if name not in task_names
+                    )
                     return await eval_run(
                         eval_set_id=eval_set_id,
+                        eval_set_tasks=task_names,
                         run_id=run_id,
                         tasks=tasks,
                         parallel=parallel,
@@ -1061,6 +1104,7 @@ async def _eval_async_inner(
                         header_only=log_header_only,
                         epochs_reducer=epochs_reducer,
                         approval=approval,
+                        review=review,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -1475,6 +1519,24 @@ def eval_retry(
     return result
 
 
+def _requalify_sample_ids(
+    task: str, sample_id: str | int | list[str] | list[int] | list[str | int] | None
+) -> str | int | list[str] | list[int] | list[str | int] | None:
+    """Re-qualify a log's `sample_id` with its task name for a retry.
+
+    A log records the selection already resolved for its task (a `task:`
+    prefix stripped), and the retry resolves it again — so an id that itself
+    begins with `<task>:` would be stripped twice. Prefixing each string id
+    with the task name makes the second resolution return exactly what ran.
+    """
+    if isinstance(sample_id, list):
+        return [f"{task}:{id}" if isinstance(id, str) else id for id in sample_id]
+    elif isinstance(sample_id, str):
+        return f"{task}:{sample_id}"
+    else:
+        return sample_id
+
+
 async def eval_retry_async(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
@@ -1730,7 +1792,9 @@ async def eval_retry_async(
                     log_format = "eval"
                 case ".json":
                     log_format = "json"
-        sample_id = eval_log.eval.config.sample_id
+        sample_id = _requalify_sample_ids(
+            eval_log.eval.task, eval_log.eval.config.sample_id
+        )
         sample_shuffle = eval_log.eval.config.sample_shuffle
         epochs = (
             Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
@@ -1738,6 +1802,7 @@ async def eval_retry_async(
             else None
         )
         approval = eval_log.eval.config.approval
+        review = eval_log.eval.config.review
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         config_token_limit = eval_log.eval.config.token_limit
@@ -1880,6 +1945,7 @@ async def eval_retry_async(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                review=review,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -1980,7 +2046,8 @@ def eval_resolve_tasks(
     notification: bool | str | None = None,
     task_source: TaskSource | None = None,
     input_media_policy: InputMediaPolicy = "inline_only",
-) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None, list[ReviewPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
     # to pickup these mappings
@@ -2026,12 +2093,15 @@ def eval_resolve_tasks(
     if isinstance(approval, str | ApprovalPolicyConfig):
         approval = approval_policies_from_config(approval)
     init_tool_approval(approval)
+    if isinstance(review, str | ReviewPolicyConfig):
+        review = review_policies_from_config(review)
+    init_tool_review(review)
 
     # install Apprise notification target for the eval scope
     init_apprise(build_apprise(notification))
 
-    # return tasks and approval
-    return resolved_tasks, approval
+    # return tasks, approval, and review
+    return resolved_tasks, approval, review
 
 
 def init_eval_display(

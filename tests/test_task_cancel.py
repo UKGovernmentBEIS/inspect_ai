@@ -5,11 +5,15 @@ import signal
 import tempfile
 import threading
 import time
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, overload
 from unittest.mock import patch
 
 import anyio
+import pytest
+from typing_extensions import override
 
 from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
@@ -18,7 +22,13 @@ from inspect_ai._eval.evalset import eval_set
 from inspect_ai._eval.task.run import task_run as original_task_run
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
-from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.util import (
+    ExecResult,
+    SandboxEnvironment,
+    SandboxEnvironmentConfigType,
+    sandboxenv,
+)
 
 
 def test_abort_cancel_produces_error_status() -> None:
@@ -706,6 +716,321 @@ def test_external_interrupt_with_pending_resolution_logs_cancelled(
     log = read_eval_log(log_files[0].name)
     assert log.status == "cancelled"
     assert log.error is None
+
+
+# ---------------------------------------------------------------------------
+# per-sample cancel of an initializing sample
+# (design/ctl/initializing-sample-cancel.md)
+# ---------------------------------------------------------------------------
+
+
+_init_hook: Callable[[], Awaitable[None]] | None = None
+_init_events: list[str] = []
+
+
+@sandboxenv(name="init_cancel")
+class _InitCancelSandbox(SandboxEnvironment):
+    """A sandbox whose `sample_init` runs a test hook mid-initialization.
+
+    The hook runs after the sample's ``ActiveSample`` is registered and
+    before it starts — the initializing window — so a test can issue the
+    cancel directive from exactly where an operator's would land.
+    """
+
+    @override
+    @classmethod
+    async def sample_init(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
+    ) -> dict[str, SandboxEnvironment]:
+        _init_events.append("sample_init")
+        if _init_hook is not None:
+            await _init_hook()
+        return {"default": _InitCancelSandbox()}
+
+    @override
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        environments: dict[str, SandboxEnvironment],
+        interrupted: bool,
+    ) -> None:
+        _init_events.append("sample_cleanup")
+
+    @override
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        raise NotImplementedError
+
+    @override
+    async def write_file(self, file: str, contents: str | bytes) -> None:
+        raise NotImplementedError
+
+    @overload
+    async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
+
+    @overload
+    async def read_file(self, file: str, text: Literal[False]) -> bytes: ...
+
+    @override
+    async def read_file(self, file: str, text: bool = True) -> str | bytes:
+        raise NotImplementedError
+
+
+@contextmanager
+def _init_hook_installed(hook: Callable[[], Awaitable[None]]) -> Iterator[None]:
+    global _init_hook
+    _init_events.clear()
+    _init_hook = hook
+    try:
+        yield
+    finally:
+        _init_hook = None
+
+
+def _init_cancel_task(name: str, solve_fn: Solver) -> Task:
+    return Task(
+        dataset=[Sample(id=1, input="x", target="y")],
+        solver=[solve_fn],
+        scorer=includes(),
+        sandbox="init_cancel",
+        name=name,
+    )
+
+
+@solver(name="init_cancel_solver")
+def _init_cancel_solver(solved: list[int | str | None]) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # a deferred interrupt fires before the plan runs; its cancellation
+        # is delivered at this checkpoint (the sleep is only an upper bound
+        # on the propagation window)
+        await anyio.sleep(10)
+        solved.append(state.sample_id)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("action", ["cancel", "score"])
+def test_sample_cancel_while_initializing_resolves_at_start(
+    action: Literal["cancel", "score"], tmp_path: Path
+) -> None:
+    """`sample cancel` of an initializing sample is deferred and fires at start.
+
+    The directive lands while the sandbox is being provisioned: it is
+    accepted (`changed: true`, with a reason saying the sample will resolve
+    as it starts), a repeat is the no-op naming the pending action, and the
+    sample resolves — cancelled, or scored with an operator limit — without
+    its plan ever running. The sandbox is fully built and then torn down
+    normally, and a cancelled sample is counted cancelled, not errored.
+    """
+    from inspect_ai._control.cancel import CancelSampleResult
+    from inspect_ai._control.cancel import cancel_sample as ctl_cancel_sample
+    from inspect_ai._control.eval_state import (
+        get_eval_states,
+        record_sample_cancelled,
+        record_sample_errored,
+    )
+    from inspect_ai._util.error import is_cancellation_message
+
+    results: list[CancelSampleResult | None] = []
+    solved: list[int | str | None] = []
+    recorded: list[str] = []
+
+    async def hook() -> None:
+        eval_id = get_eval_states()[0].eval_id
+        results.append(await ctl_cancel_sample(eval_id, "1", 1, action=action))
+        # a repeat while still initializing: the no-op, first resolution wins
+        results.append(await ctl_cancel_sample(eval_id, "1", 1, action="error"))
+
+    def recording_cancelled(eval_id: str, **kwargs: Any) -> None:
+        recorded.append("cancelled")
+        record_sample_cancelled(eval_id, **kwargs)
+
+    def recording_errored(eval_id: str, **kwargs: Any) -> None:
+        recorded.append("errored")
+        record_sample_errored(eval_id, **kwargs)
+
+    with (
+        _init_hook_installed(hook),
+        patch("inspect_ai._eval.task.run.record_sample_cancelled", recording_cancelled),
+        patch("inspect_ai._eval.task.run.record_sample_errored", recording_errored),
+    ):
+        logs = inspect_eval(
+            _init_cancel_task(
+                f"task_init_cancel_{action}", _init_cancel_solver(solved)
+            ),
+            log_dir=str(tmp_path),
+            model="mockllm/model",
+        )
+
+    accepted, repeat = results
+    assert accepted is not None and accepted["ok"] is True
+    assert accepted["changed"] is True and accepted["action"] == action
+    assert "initializing" in accepted["reason"]
+    assert repeat is not None and repeat["ok"] is True
+    assert repeat["changed"] is False
+    assert repeat["reason"] == f"cancel already requested ({action})"
+
+    # the plan never ran; the sandbox was built, then torn down normally
+    assert solved == []
+    assert _init_events == ["sample_init", "sample_cleanup"]
+
+    assert len(logs) == 1
+    log = logs[0]
+    assert log.status == "success"
+    assert log.samples is not None and len(log.samples) == 1
+    sample = log.samples[0]
+    if action == "cancel":
+        assert sample.error is not None
+        assert is_cancellation_message(sample.error.message)
+        assert not sample.scores
+        assert recorded == ["cancelled"]
+    else:
+        assert sample.error is None
+        assert sample.limit is not None and sample.limit.type == "operator"
+        assert sample.scores
+        assert recorded == []
+
+
+def test_sample_cancel_while_initializing_wins_over_later_task_score(
+    tmp_path: Path,
+) -> None:
+    """A per-sample intent stamped while initializing beats a later task stamp.
+
+    The task-level `score` lands after the per-sample `cancel` and its sweep
+    skips the initializing sample (not started). At start the per-sample
+    intent fires first and exclusively — falling through to the task-level
+    branch would overwrite the operator's `cancel` with `score`, since the
+    runner handles the live `interrupt_action`.
+    """
+    from inspect_ai._control.cancel import cancel_sample as ctl_cancel_sample
+    from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
+    from inspect_ai._control.eval_state import get_eval_states
+    from inspect_ai._util.error import is_cancellation_message
+
+    solved: list[int | str | None] = []
+
+    async def hook() -> None:
+        state = get_eval_states()[0]
+        accepted = await ctl_cancel_sample(state.eval_id, "1", 1, action="cancel")
+        assert accepted is not None and accepted["ok"] is True
+        assert accepted["changed"] is True
+        stamped = ctl_cancel_task(state.task_id, action="score")
+        assert stamped is not None and stamped["ok"] is True
+        assert stamped["in_flight"] == 0  # the sweep never saw the sample
+
+    with _init_hook_installed(hook):
+        logs = inspect_eval(
+            _init_cancel_task(
+                "task_init_cancel_precedence", _init_cancel_solver(solved)
+            ),
+            log_dir=str(tmp_path),
+            model="mockllm/model",
+        )
+
+    assert solved == []
+    assert len(logs) == 1
+    log = logs[0]
+    assert log.status == "success"
+    assert log.samples is not None and len(log.samples) == 1
+    sample = log.samples[0]
+    # cancelled semantics — not the task's score resolution
+    assert sample.error is not None
+    assert is_cancellation_message(sample.error.message)
+    assert not sample.scores
+    assert sample.limit is None
+
+
+def test_sample_cancel_while_initializing_then_init_failure_abandons(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Init fails after the intent is stamped, retries remaining: abandoned.
+
+    The retry predicate requires no interrupt, so the errored attempt takes
+    the drain-window branch: resolved as cancelled (never errored), absent
+    from the log, its buffered events removed, and not retried — and the
+    error warning must say so rather than promise the retry (or, with
+    ``score_on_error``, the scoring) that will not happen.
+    """
+    caplog.set_level("WARNING", logger="inspect_ai._eval.task.run")
+    from inspect_ai._control.cancel import cancel_sample as ctl_cancel_sample
+    from inspect_ai._control.eval_state import (
+        get_eval_states,
+        record_sample_cancelled,
+        record_sample_errored,
+    )
+    from inspect_ai._eval.task.log import TaskLogger
+
+    solved: list[int | str | None] = []
+    recorded: list[str] = []
+    removed: list[tuple[str | int, int]] = []
+
+    async def hook() -> None:
+        eval_id = get_eval_states()[0].eval_id
+        accepted = await ctl_cancel_sample(eval_id, "1", 1, action="cancel")
+        assert accepted is not None and accepted["ok"] is True
+        raise RuntimeError("sandbox provisioning failed")
+
+    def recording_cancelled(eval_id: str, **kwargs: Any) -> None:
+        recorded.append("cancelled")
+        record_sample_cancelled(eval_id, **kwargs)
+
+    def recording_errored(eval_id: str, **kwargs: Any) -> None:
+        recorded.append("errored")
+        record_sample_errored(eval_id, **kwargs)
+
+    original_remove = TaskLogger.remove_sample
+
+    def recording_remove(self: TaskLogger, id: str | int, epoch: int) -> None:
+        removed.append((id, epoch))
+        original_remove(self, id, epoch)
+
+    with (
+        _init_hook_installed(hook),
+        patch("inspect_ai._eval.task.run.record_sample_cancelled", recording_cancelled),
+        patch("inspect_ai._eval.task.run.record_sample_errored", recording_errored),
+        patch.object(TaskLogger, "remove_sample", recording_remove),
+    ):
+        logs = inspect_eval(
+            _init_cancel_task("task_init_cancel_failure", _init_cancel_solver(solved)),
+            log_dir=str(tmp_path),
+            model="mockllm/model",
+            retry_on_error=2,
+            score_on_error=True,
+        )
+
+    # one init attempt, no retry; counted cancelled, never errored
+    assert _init_events.count("sample_init") == 1
+    assert solved == []
+    assert recorded == ["cancelled"]
+    assert removed == [(1, 1)]
+    assert len(logs) == 1
+    log = logs[0]
+    assert log.status == "success"
+    assert not log.samples
+    # the init error was logged, naming the cancel rather than promising the
+    # retry or the score that will not happen
+    errors = [
+        r.getMessage() for r in caplog.records if "Sample error" in r.getMessage()
+    ]
+    assert len(errors) == 1
+    assert errors[0].endswith("Sample will be cancelled.")
+    assert "will be retried" not in errors[0]
+    assert "will be scored" not in errors[0]
 
 
 def test_errored_attempt_marked_retry_pending() -> None:
