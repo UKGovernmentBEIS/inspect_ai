@@ -28,7 +28,6 @@ from inspect_ai._eval.handoff import (
     print_ctl_pointer,
 )
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
-from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
@@ -83,6 +82,13 @@ from inspect_ai.model._model import (
     init_model_roles,
     resolve_models,
 )
+from inspect_ai.review._apply import init_tool_review
+from inspect_ai.review._policy import (
+    ReviewPolicy,
+    ReviewPolicyConfig,
+    config_from_review_policies,
+    review_policies_from_config,
+)
 from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -135,6 +141,7 @@ def eval(
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -228,6 +235,9 @@ def eval(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        review: Tool result review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
+            Defaults to no review policy.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -341,6 +351,7 @@ def eval(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                review=review,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -431,6 +442,7 @@ async def eval_async(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -507,6 +519,9 @@ async def eval_async(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        review: Tool result review policies.
+            Either a path to a review policy config file, a ReviewPolicyConfig, or a list of review policies.
+            Defaults to no review policy.
         notification: Enable out-of-band notifications when a human-in-the-loop
             interaction (`ask_user`, human approval) is posted. Pass `True` to
             send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
@@ -621,6 +636,7 @@ async def eval_async(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                review=review,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -703,6 +719,7 @@ async def _eval_async_inner(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -803,7 +820,7 @@ async def _eval_async_inner(
 
         # resolve tasks (a TaskSource seeds the run from initial_tasks(),
         # resolved inside eval_resolve_tasks' initialized model/role context)
-        resolved_tasks, approval = eval_resolve_tasks(
+        resolved_tasks, approval, review = eval_resolve_tasks(
             tasks,
             task_args,
             model,
@@ -816,6 +833,7 @@ async def _eval_async_inner(
             notification,
             task_source=task_source,
             input_media_policy="trusted_pre_run",
+            review=review,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -914,6 +932,7 @@ async def _eval_async_inner(
             if epochs_reducer is not None
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
+            review=config_from_review_policies(review) if review else None,
             notification=notification,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
@@ -1023,6 +1042,11 @@ async def _eval_async_inner(
         enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
         enqueuer_token = register_task_enqueuer(enqueuer)
 
+        # Imported here rather than at module level: the ACP server pulls in
+        # `acp.schema`, whose pydantic models are the single largest cost of
+        # `import inspect_ai` / `inspect` CLI startup.
+        from inspect_ai.agent._acp.server import acp_server as _acp_server
+
         async with (
             control_server(run_id=run_id, enabled=ctl.enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
@@ -1080,6 +1104,7 @@ async def _eval_async_inner(
                         header_only=log_header_only,
                         epochs_reducer=epochs_reducer,
                         approval=approval,
+                        review=review,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -1777,6 +1802,7 @@ async def eval_retry_async(
             else None
         )
         approval = eval_log.eval.config.approval
+        review = eval_log.eval.config.review
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         config_token_limit = eval_log.eval.config.token_limit
@@ -1919,6 +1945,7 @@ async def eval_retry_async(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                review=review,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -2019,7 +2046,8 @@ def eval_resolve_tasks(
     notification: bool | str | None = None,
     task_source: TaskSource | None = None,
     input_media_policy: InputMediaPolicy = "inline_only",
-) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
+    review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
+) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None, list[ReviewPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
     # to pickup these mappings
@@ -2065,12 +2093,15 @@ def eval_resolve_tasks(
     if isinstance(approval, str | ApprovalPolicyConfig):
         approval = approval_policies_from_config(approval)
     init_tool_approval(approval)
+    if isinstance(review, str | ReviewPolicyConfig):
+        review = review_policies_from_config(review)
+    init_tool_review(review)
 
     # install Apprise notification target for the eval scope
     init_apprise(build_apprise(notification))
 
-    # return tasks and approval
-    return resolved_tasks, approval
+    # return tasks, approval, and review
+    return resolved_tasks, approval, review
 
 
 def init_eval_display(

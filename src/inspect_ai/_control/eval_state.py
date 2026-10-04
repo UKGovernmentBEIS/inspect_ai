@@ -304,13 +304,16 @@ class EvalState:
     done when the source can still add samples."""
 
     dynamic: bool = False
-    """Whether this eval's planned sample set can grow while it runs (a
-    ``SampleSource``-driven task). While set, ``terminal >= total`` is not
-    proof of completion — the task may be idle awaiting its source (or have
-    an empty seed, ``total == 0``, at registration) — so the provisional
-    ``completed_at`` stamp is suppressed and consumers (task cancel, status
-    listings) correctly see the eval as running. Cleared by
-    :func:`finalize_eval`, the task's single true finish point."""
+    """Whether this eval is source-driven (a ``SampleSource`` or
+    ``TaskSource``), so ``terminal >= total`` is not proof of completion. A
+    ``SampleSource`` can still add samples — the task may be idle awaiting
+    its source, or have an empty seed (``total == 0``) at registration — and
+    either source's ``sample_abandoned`` callback runs after the run's
+    terminal count, so the last sample's count can land while the source is
+    still being told about it. While set, the provisional ``completed_at``
+    stamp is suppressed and consumers (task cancel, status listings)
+    correctly see the eval as running. Cleared by :func:`finalize_eval`, the
+    task's single true finish point."""
 
     started_at: float | None = None
     """Earliest observed sample-start time, tracked as a running minimum.
@@ -949,7 +952,7 @@ def reset_gracefully_resolved() -> None:
 
 
 def detach_eval_live(eval_id: str) -> None:
-    """Detach a superseded attempt's live data source.
+    """Detach a superseded or discarded attempt's live data source.
 
     Called by ``TaskLogger.reinit()`` when a task retry re-points the (one,
     shared) logger at a fresh attempt: the superseded attempt's :attr:`live`
@@ -962,6 +965,9 @@ def detach_eval_live(eval_id: str) -> None:
     is deliberately left alone: it holds data read from this attempt's *own*
     log, which stays correct until that log is deleted —
     :func:`invalidate_log_sample_summaries` handles that moment.
+    ``TaskLogger.discard()`` also detaches these handles before releasing an
+    unfinished attempt's recorder, so terminal failures cannot leave live
+    control requests reaching into a removed recorder entry.
 
     The attempt-scoped :attr:`sample_requeue` handle is detached here too: a
     requeue aimed at a superseded attempt's ``eval_id`` must be rejected, not
@@ -1044,8 +1050,8 @@ def _maybe_mark_finished(state: EvalState) -> None:
     counter update from a teardown race doesn't overwrite the original
     finish time. Suppressed for a :attr:`EvalState.dynamic` eval — its
     counters reaching ``total`` doesn't mean done (the source may add more
-    samples); ``finalize_eval`` clears the flag at the task's true finish
-    point. Also drops
+    samples, or still be hearing about the last one); ``finalize_eval``
+    clears the flag at the task's true finish point. Also drops
     ``sample_ids`` — a finished eval has no pending samples, so the
     planned-id list is dead weight (it's retained on the state until the
     run boundary clears it). Caller must hold the registry lock.

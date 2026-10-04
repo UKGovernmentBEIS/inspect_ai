@@ -8,6 +8,7 @@ from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model import ContentImage
 from inspect_ai.tool import ToolError, ToolResult
+from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.util._sandbox.context import sandbox_with
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
@@ -30,10 +31,19 @@ async def wait(duration: int, timeout: int | None = None) -> ToolResult:
     return await _send_cmd(["wait", "--duration", f"{duration}"], timeout=timeout)
 
 
+def _coordinate_args(
+    coordinate: list[int] | None, name: str = "coordinate"
+) -> list[str]:
+    if coordinate is None:
+        return []
+    if len(coordinate) != 2:
+        raise ToolParsingError(f"{name} must be [x, y]")
+    return [f"--{name}", f"{coordinate[0]}", f"{coordinate[1]}"]
+
+
 async def mouse_move(coordinate: list[int], timeout: int | None = None) -> ToolResult:
     return await _send_cmd(
-        ["mouse_move", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
-        timeout=timeout,
+        ["mouse_move", *_coordinate_args(coordinate)], timeout=timeout
     )
 
 
@@ -45,10 +55,11 @@ async def left_mouse_up(timeout: int | None = None) -> ToolResult:
     return await _send_cmd(["left_mouse_up"], timeout=timeout)
 
 
-async def left_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+async def left_click(
+    coordinate: list[int] | None, timeout: int | None = None
+) -> ToolResult:
     return await _send_cmd(
-        ["left_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
-        timeout=timeout,
+        ["left_click", *_coordinate_args(coordinate)], timeout=timeout
     )
 
 
@@ -58,58 +69,58 @@ async def left_click_drag(
     return await _send_cmd(
         [
             "left_click_drag",
-            "--start_coordinate",
-            f"{start_coordinate[0]}",
-            f"{start_coordinate[1]}",
-            "--coordinate",
-            f"{coordinate[0]}",
-            f"{coordinate[1]}",
+            *_coordinate_args(start_coordinate, "start_coordinate"),
+            *_coordinate_args(coordinate),
         ],
         timeout=timeout,
     )
 
 
-async def right_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+async def right_click(
+    coordinate: list[int] | None, timeout: int | None = None
+) -> ToolResult:
     return await _send_cmd(
-        ["right_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
-        timeout=timeout,
+        ["right_click", *_coordinate_args(coordinate)], timeout=timeout
     )
 
 
-async def middle_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+async def middle_click(
+    coordinate: list[int] | None, timeout: int | None = None
+) -> ToolResult:
     return await _send_cmd(
-        ["middle_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
-        timeout=timeout,
+        ["middle_click", *_coordinate_args(coordinate)], timeout=timeout
     )
 
 
-async def back_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+async def back_click(
+    coordinate: list[int] | None, timeout: int | None = None
+) -> ToolResult:
     return await _send_cmd(
-        ["back_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
-        timeout=timeout,
+        ["back_click", *_coordinate_args(coordinate)], timeout=timeout
     )
 
 
 async def forward_click(
-    coordinate: list[int], timeout: int | None = None
+    coordinate: list[int] | None, timeout: int | None = None
 ) -> ToolResult:
     return await _send_cmd(
-        ["forward_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
-        timeout=timeout,
+        ["forward_click", *_coordinate_args(coordinate)], timeout=timeout
     )
 
 
-async def double_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+async def double_click(
+    coordinate: list[int] | None, timeout: int | None = None
+) -> ToolResult:
     return await _send_cmd(
-        ["double_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
-        timeout=timeout,
+        ["double_click", *_coordinate_args(coordinate)], timeout=timeout
     )
 
 
-async def triple_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+async def triple_click(
+    coordinate: list[int] | None, timeout: int | None = None
+) -> ToolResult:
     return await _send_cmd(
-        ["triple_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
-        timeout=timeout,
+        ["triple_click", *_coordinate_args(coordinate)], timeout=timeout
     )
 
 
@@ -127,11 +138,7 @@ async def scroll(
             "--scroll_direction",
             f"{scroll_direction}",
         ]
-        + (
-            ["--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"]
-            if coordinate
-            else []
-        ),
+        + _coordinate_args(coordinate),
         timeout=timeout,
     )
 

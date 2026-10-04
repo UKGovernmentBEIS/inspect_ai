@@ -20,6 +20,7 @@ from uuid import uuid4
 import pytest
 import typing_extensions
 from pydantic import JsonValue
+from test_helpers.local_shell_sandbox import LocalShellSandbox
 from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import skip_if_no_docker
 from typing_extensions import override
@@ -58,10 +59,10 @@ from inspect_ai.util._sandbox._framework_directory import (
     _VERIFIED_MARKER,
     _VIOLATION_MARKER,
     _WRITE_ENTRY,
-    SHELL_PATH,
     FrameworkDirectoryError,
     write_file_in_framework_directory,
 )
+from inspect_ai.util._sandbox._privileged import SHELL_PATH, SYSTEM_PATH, pinned_env
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
@@ -480,9 +481,12 @@ async def test_install_writes_task_py_into_verified_root_dir_after_bashrc(
     assert is_task_py_write(write)
     assert sandbox.inputs[3] == human_agent_task_commands([])
 
-    # Every command is launched through the absolute shell path; nothing is staged,
-    # chowned, or executed from a directory the login user could replace.
+    # Every command is launched through the absolute shell path with the shared PATH
+    # pin in its env (the framework-directory helper and the .bashrc append alike);
+    # nothing is staged, chowned, or executed from a directory the login user could
+    # replace.
     assert all(cmd[0] == SHELL_PATH for cmd, _ in sandbox.exec_calls)
+    assert sandbox.envs == [pinned_env(None)] * len(sandbox.exec_calls)
     assert sandbox.written == []
 
 
@@ -1037,7 +1041,7 @@ class _HomeSandbox(SandboxEnvironment):
         (self.bindir / "getent").chmod(0o700)
         self.env: dict[str, str] | None = None
         """Extra environment for the script (e.g. ``HOME`` for the no-getent fallback)."""
-        path_line = "PATH=/usr/sbin:/usr/bin:/sbin:/bin"
+        path_line = f"PATH={SYSTEM_PATH}"
         assert path_line in _BASHRC_APPEND_SCRIPT
         self.script = _BASHRC_APPEND_SCRIPT.replace(path_line, f"PATH={self.bindir}")
 
@@ -1057,6 +1061,7 @@ class _HomeSandbox(SandboxEnvironment):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         assert cmd[:3] == [SHELL_PATH, "-c", _BASHRC_APPEND_SCRIPT]
+        assert env == pinned_env(None)
         return await self.inner.exec(
             [SHELL_PATH, "-c", self.script, *cmd[3:]], input, env=self.env
         )
@@ -1164,7 +1169,7 @@ async def test_bashrc_append_refuses_the_wrong_uid_with_the_shipped_script(
 ) -> None:
     """The unmodified script, with the real ``getent``, refuses a uid mismatch.
 
-    ``LocalSandboxEnvironment`` ignores ``user`` and runs as the test process, which
+    ``LocalShellSandbox`` ignores ``user`` and runs as the test process, which
     is exactly the provider behavior the check exists for. The shim tests above
     replace the script's ``PATH`` line; this one runs the shipped text.
     """
@@ -1174,16 +1179,11 @@ async def test_bashrc_append_refuses_the_wrong_uid_with_the_shipped_script(
         pytest.skip("login user root matches the running uid")
     own_bashrc = Path.home() / BASHRC
     own_before = own_bashrc.read_text() if own_bashrc.is_file() else None
-    local = LocalSandboxEnvironment()
-    try:
-        with pytest.warns(UserWarning, match="'user' parameter is ignored"):
-            with pytest.raises(
-                RuntimeError,
-                match=f"refusing to append as uid {os.getuid()}: login user root is uid 0",
-            ):
-                await append_bashrc(local, "root", "payload\n")
-    finally:
-        local.directory.cleanup()
+    with pytest.raises(
+        RuntimeError,
+        match=f"refusing to append as uid {os.getuid()}: login user root is uid 0",
+    ):
+        await append_bashrc(LocalShellSandbox(), "root", "payload\n")
     own_after = own_bashrc.read_text() if own_bashrc.is_file() else None
     assert own_after == own_before
 
@@ -1266,8 +1266,6 @@ async def test_task_py_detection_against_a_real_directory(
     parent.mkdir(mode=0o755)
     target = parent / "human_agent"
     monkeypatch.setattr(human_install, "HUMAN_AGENT_DIR", str(target))
-    # The local sandbox ignores `user`, so the root probe succeeds exactly when the
-    # test process itself is root.
     owner = "root" if os.getuid() == 0 else None
     local = LocalSandboxEnvironment()
     try:
