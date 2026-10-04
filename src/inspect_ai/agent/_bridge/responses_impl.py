@@ -1,7 +1,7 @@
 import json
 from logging import getLogger
 from time import time
-from typing import Any, Iterable, Set, cast
+from typing import Any, Iterable, cast
 
 from openai.types.responses import (
     Response,
@@ -89,6 +89,7 @@ from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
     parse_content_with_internal,
+    parse_content_with_internal_blocks,
 )
 from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import StopReason
@@ -888,36 +889,33 @@ def messages_from_responses_input(
                         param_content = param["content"]
                     for c in param_content:
                         if c["type"] == "input_text":
-                            asst_content, content_internal = (
-                                parse_content_with_internal(
-                                    c["text"], CONTENT_INTERNAL_TAG
+                            for block in parse_content_with_internal_blocks(
+                                c["text"], CONTENT_INTERNAL_TAG
+                            ):
+                                asst_content, content_internal = block
+                                # Check for serialized <think> tags and restore as ContentReasoning
+                                remaining_text, reasoning_capsule = (
+                                    parse_content_with_reasoning(asst_content)
                                 )
-                            )
-                            # Check for serialized <think> tags and restore as ContentReasoning
-                            remaining_text, reasoning_capsule = (
-                                parse_content_with_reasoning(asst_content)
-                            )
-                            if reasoning_capsule is not None:
-                                content.append(
-                                    ContentReasoning(
-                                        reasoning=reasoning_capsule.reasoning,
-                                        signature=reasoning_capsule.signature,
-                                        redacted=reasoning_capsule.redacted,
-                                        summary=reasoning_capsule.summary,
-                                        # Preserve the stashed encrypted_content
-                                        # blob so it can be replayed next turn.
-                                        internal=reasoning_capsule.internal,
+                                if reasoning_capsule is not None:
+                                    content.append(
+                                        ContentReasoning(
+                                            reasoning=reasoning_capsule.reasoning,
+                                            signature=reasoning_capsule.signature,
+                                            redacted=reasoning_capsule.redacted,
+                                            summary=reasoning_capsule.summary,
+                                            # Preserve the stashed encrypted_content
+                                            # blob so it can be replayed next turn.
+                                            internal=reasoning_capsule.internal,
+                                        )
                                     )
-                                )
-                                asst_content = remaining_text
-                            if (
-                                asst_content
-                            ):  # Only add text if there's remaining content
-                                content.append(
-                                    ContentText(
-                                        text=asst_content, internal=content_internal
+                                    asst_content = remaining_text
+                                if asst_content or content_internal is not None:
+                                    content.append(
+                                        ContentText(
+                                            text=asst_content, internal=content_internal
+                                        )
                                     )
-                                )
                         elif c["type"] == "input_image" and c["image_url"] is not None:
                             content.append(
                                 ContentImage(image=c["image_url"], detail=c["detail"])
@@ -1246,18 +1244,18 @@ def _tool_content_from_openai_tool_output(
         return content
 
 
-# some scaffolds (e.g. codex) can present duplciate assistant messages
 def filter_duplicate_assistant_content(
     input: list[Content],
 ) -> list[Content]:
+    """Remove repeated scaffold content without conflating blocks sharing state."""
     filtered_input: list[Content] = []
-    messages_ids: Set[str] = set()
+    seen_content: set[str] = set()
     for c in reversed(input):
         if c.type == "text" and c.internal:
-            internal = to_json_str_safe(c.internal)
-            if internal not in messages_ids:
+            key = c.model_dump_json()
+            if key not in seen_content:
                 filtered_input.append(c)
-                messages_ids.add(internal)
+                seen_content.add(key)
         else:
             filtered_input.append(c)
     return list(reversed(filtered_input))
