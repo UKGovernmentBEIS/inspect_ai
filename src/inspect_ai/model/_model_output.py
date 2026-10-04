@@ -436,3 +436,12 @@ def as_stop_reason(reason: str | None) -> StopReason:
             return reason
         case _:
             return "unknown"
+
+
+def model_usage_input_tokens(usage: ModelUsage) -> int:
+    """Return the provider-facing total input tokens, including cached tokens."""
+    return (
+        usage.input_tokens
+        + (usage.input_tokens_cache_read or 0)
+        + (usage.input_tokens_cache_write or 0)
+    )
