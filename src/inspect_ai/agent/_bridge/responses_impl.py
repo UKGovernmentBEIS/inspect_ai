@@ -1,7 +1,7 @@
 import json
 from logging import getLogger
 from time import time
-from typing import Any, Iterable, Set, cast
+from typing import Any, Iterable, cast
 
 from openai.types.responses import (
     Response,
@@ -1244,18 +1244,18 @@ def _tool_content_from_openai_tool_output(
         return content
 
 
-# some scaffolds (e.g. codex) can present duplciate assistant messages
 def filter_duplicate_assistant_content(
     input: list[Content],
 ) -> list[Content]:
+    """Remove repeated scaffold content without conflating blocks sharing state."""
     filtered_input: list[Content] = []
-    messages_ids: Set[str] = set()
+    seen_content: set[str] = set()
     for c in reversed(input):
         if c.type == "text" and c.internal:
-            internal = to_json_str_safe(c.internal)
-            if internal not in messages_ids:
+            key = c.model_dump_json()
+            if key not in seen_content:
                 filtered_input.append(c)
-                messages_ids.add(internal)
+                seen_content.add(key)
         else:
             filtered_input.append(c)
     return list(reversed(filtered_input))

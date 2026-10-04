@@ -367,3 +367,31 @@ def test_anthropic_usage_omits_thinking_tokens_when_absent_beta() -> None:
     usage = anthropic_usage(ModelUsage(input_tokens=10, output_tokens=20), beta=True)
 
     assert usage.output_tokens_details is None
+
+
+@pytest.mark.parametrize("as_list", [False, True])
+async def test_assistant_multiple_internal_blocks(as_list: bool) -> None:
+    from anthropic.types import MessageParam
+
+    from inspect_ai._util.content import ContentText
+    from inspect_ai.model._internal import content_internal_tag
+
+    text = (
+        "first"
+        + content_internal_tag({"a": 1})
+        + content_internal_tag({"b": 2})
+        + "last"
+    )
+    item = cast(
+        MessageParam,
+        {
+            "role": "assistant",
+            "content": [{"type": "text", "text": text}] if as_list else text,
+        },
+    )
+    [message] = await messages_from_anthropic_input([item], tools=[])
+    assert message.content == [
+        ContentText(text="first", internal={"a": 1}),
+        ContentText(text="", internal={"b": 2}),
+        ContentText(text="last"),
+    ]
