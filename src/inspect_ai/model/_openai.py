@@ -1651,6 +1651,7 @@ def openai_refusal_model_output(
         code == "invalid_prompt"  # seems to happen for o1/o3
         or code == "content_policy_violation"  # seems to happen for vision
         or code == "content_filter"  # seems to happen on azure
+        or code == "bio_policy"
         or code == "cyber_policy"  # seems to happen for 5.4
         or (error_type == "invalid_request_error" and "blocked" in message)
     ):

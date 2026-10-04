@@ -107,6 +107,8 @@ There are two sandbox environments built in to Inspect and six available as exte
 | `openshell` | [inspect-openshell-sandbox](https://pypi.org/project/inspect-openshell-sandbox/) | Yes | [NVIDIA OpenShell](https://github.com/32bitsret/inspect-openshell-sandbox) sandboxes with Landlock filesystem and network policies. |
 | `local` | Built-in | No | Local file system (no sandbox). |
 
+The `local` environment always executes as the current effective user. On POSIX systems, `exec(user=...)` accepts that user's name or UID; other identities raise `SandboxUserUnsupportedError` before execution. On other platforms, omit `user`.
+
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
 
 Here is a `Task` that defines a `sandbox`:
