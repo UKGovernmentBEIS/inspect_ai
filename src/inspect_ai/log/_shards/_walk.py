@@ -27,6 +27,12 @@ _BUFFER_DIR = ".buffer"
 _EVAL_SUFFIX = f".{EVAL_LOG_FORMAT}"
 _NO_TIMESTAMP = datetime.min.replace(tzinfo=timezone.utc)
 
+_ROOT_LOG = "log directly in the shards directory, not in a shard directory"
+_HIDDEN_LOG = (
+    "log in a directory whose name starts with '.', which is not a shard directory"
+)
+_JSON_LOG = "json log in a shard directory; shards must be eval logs"
+
 
 class StrayFile(NamedTuple):
     """A log file in a shard set that is not a shard attempt."""
@@ -67,7 +73,8 @@ class ShardSetListing(NamedTuple):
     """Result of :func:`list_shard_set`."""
 
     shards: list[ShardDir]
-    """The shard directories, sorted by name."""
+    """The shard directories: all-digit names in numeric order, then the
+    rest by name."""
 
     stray: list[StrayFile]
     """Log files that are not attempts, sorted by path."""
@@ -83,16 +90,23 @@ class AttemptSortKey(NamedTuple):
 
 
 async def list_shard_set(fs: AsyncFilesystem, shards_dir: str) -> ShardSetListing:
-    """List a shards directory and each of its shard directories.
+    """List a shards directory and each directory directly under it.
 
-    ``shards_dir`` is listed once, then each ``<k>/`` directory, at most 32 at
-    a time. In ``<k>/``, ``.eval`` files are attempts, a ``.buffer/``
-    directory sets ``has_buffer``, and every other entry is ancillary. A
-    directory whose name starts with ``.`` is not a shard. An ``.eval`` file
-    directly in ``shards_dir``, and a ``.json`` log in a ``<k>/``, are stray.
+    ``shards_dir`` is listed once, then each of its directories, at most 32
+    at a time; nothing deeper is listed. In a ``<k>/`` shard directory,
+    ``.eval`` files are attempts, a ``.buffer/`` directory sets
+    ``has_buffer``, and every other entry is ancillary. A directory whose
+    name starts with ``.`` is not a shard.
+
+    Every log file :func:`is_shard_path` places in the shard set is reported,
+    as an attempt or as stray. Stray files are a log directly in
+    ``shards_dir``, a log in a directory whose name starts with ``.``, and a
+    ``.json`` log in a ``<k>/``.
 
     A missing local ``shards_dir`` and an empty S3 prefix both list as empty.
-    A ``<k>/`` directory removed during the walk is left out.
+    A ``<k>/`` with nothing in it is left out, so an empty local directory, a
+    directory removed during the walk, and an S3 prefix emptied during the
+    walk give the same listing.
 
     Args:
         fs: Filesystem to list with.
@@ -105,54 +119,54 @@ async def list_shard_set(fs: AsyncFilesystem, shards_dir: str) -> ShardSetListin
         return ShardSetListing(shards=[], stray=[])
 
     stray = [
-        StrayFile(
-            path=info.name,
-            reason="eval log directly in the shards directory, not in a shard directory",
-        )
+        StrayFile(path=info.name, reason=_ROOT_LOG)
         for info in listing.files
-        if _name(info.name).endswith(_EVAL_SUFFIX)
+        if _is_log(_name(info.name))
     ]
     limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_LISTINGS)
 
-    async def list_shard(shard_dir: str) -> ShardDir | None:
+    async def list_child(directory: str) -> ShardDir | None:
         try:
             async with limiter:
-                shard_listing = await fs.list_dir(shard_dir)
+                child = await fs.list_dir(directory)
         except FileNotFoundError:
+            return None
+        if _name(directory).startswith("."):
+            stray.extend(
+                StrayFile(path=info.name, reason=_HIDDEN_LOG)
+                for info in child.files
+                if _is_log(_name(info.name))
+            )
+            return None
+        if not child.files and not child.dirs:
             return None
         attempts: list[FileInfo] = []
         ancillary: list[str] = []
-        for info in shard_listing.files:
+        for info in child.files:
             name = _name(info.name)
             if name.endswith(_EVAL_SUFFIX):
                 attempts.append(info)
-            elif is_log_file(name, [".json"]):
-                stray.append(
-                    StrayFile(
-                        path=info.name,
-                        reason="json log in a shard directory; shards must be eval logs",
-                    )
-                )
+            elif _is_log(name):
+                stray.append(StrayFile(path=info.name, reason=_JSON_LOG))
             else:
                 ancillary.append(info.name)
         has_buffer = False
-        for subdir in shard_listing.dirs:
+        for subdir in child.dirs:
             if _name(subdir) == _BUFFER_DIR:
                 has_buffer = True
             else:
                 ancillary.append(subdir)
         attempts.sort(key=attempt_sort_key)
         return ShardDir(
-            name=_name(shard_dir),
-            dir=shard_dir,
+            name=_name(directory),
+            dir=directory,
             attempts=attempts,
             has_buffer=has_buffer,
             ancillary=sorted(ancillary),
         )
 
-    shard_dirs = [d for d in listing.dirs if not _name(d).startswith(".")]
-    listed = await tg_collect([functools.partial(list_shard, d) for d in shard_dirs])
-    shards = sorted((s for s in listed if s is not None), key=lambda s: s.name)
+    listed = await tg_collect([functools.partial(list_child, d) for d in listing.dirs])
+    shards = sorted((s for s in listed if s is not None), key=_shard_sort_key)
     stray.sort(key=lambda s: s.path)
     return ShardSetListing(shards=shards, stray=stray)
 
@@ -179,10 +193,14 @@ def attempt_sort_key(info: FileInfo) -> AttemptSortKey:
 
 
 def is_shard_path(root: str, path: str) -> bool:
-    """Whether ``path`` is inside a ``<name>.shards/`` directory below ``root``.
+    """Whether ``path`` is in the shard set of a ``<name>.shards/`` below ``root``.
 
-    Only the directory components of ``path`` relative to ``root`` count, so
+    True when ``path``, relative to ``root``, is directly in a directory
+    named ``<name>.shards`` or in a directory directly under one: the files
+    :func:`list_shard_set` lists. Only components below ``root`` count, so
     the logs of a root that is itself a shard directory are not shards of it.
+    A log nested deeper (for example in an ancillary directory of a shard) is
+    not a shard path, so it is listed as an ordinary log rather than hidden.
     ``root`` and ``path`` may each be a plain path, ``file://`` URI or remote
     URL; local forms are compared as absolute paths.
 
@@ -193,10 +211,21 @@ def is_shard_path(root: str, path: str) -> bool:
     path_parts = _location_parts(path)
     if path_parts[: len(root_parts)] != root_parts:
         raise ValueError(f"{path} is not below {root}")
-    directories = path_parts[len(root_parts) : -1]
+    relative = path_parts[len(root_parts) :]
     return any(
-        part.endswith(_SHARDS_SUFFIX) and part != _SHARDS_SUFFIX for part in directories
+        part.endswith(_SHARDS_SUFFIX) and part != _SHARDS_SUFFIX
+        for part in relative[-3:-1]
     )
+
+
+def _shard_sort_key(shard: ShardDir) -> tuple[bool, int, str]:
+    """Order shard directories with all-digit names numerically, then by name."""
+    numeric = shard.name.isascii() and shard.name.isdigit()
+    return (not numeric, int(shard.name) if numeric else 0, shard.name)
+
+
+def _is_log(name: str) -> bool:
+    return is_log_file(name, [".json"])
 
 
 def _name(location: str) -> str:
