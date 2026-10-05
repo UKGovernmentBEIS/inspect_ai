@@ -20,7 +20,15 @@ from inspect_ai import SampleSource, Task, enqueue_sample, eval, eval_set, task
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log
-from inspect_ai.scorer import SampleScore
+from inspect_ai.scorer import (
+    CORRECT,
+    SampleScore,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    scorer,
+)
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util import (
     ExecResult,
@@ -258,6 +266,199 @@ def test_sample_source_duplicate_id_errors() -> None:
     )
     assert logs[0].status == "error"
     assert "duplicate" in (logs[0].error.message if logs[0].error else "")
+
+
+@scorer(metrics=[accuracy()])
+def _record_scored_ids(scored: list[tuple[str | int, int]]) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        scored.append((state.sample_id, state.epoch))
+        return Score(value=CORRECT)
+
+    return score
+
+
+def test_enqueue_sample_epoch_runs_one_id_as_distinct_epochs() -> None:
+    # the same sample enqueued as epochs 1..4 concurrently, and as 5..6 after
+    # those completed, runs every time under its own id (an RL harness
+    # streaming repeated rollouts of one sample)
+    concurrent = 4
+    solved: list[tuple[str | int, int]] = []
+    scored: list[tuple[str | int, int]] = []
+    all_started = anyio.Event()
+
+    @solver
+    def wait_for_group() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            solved.append((state.sample_id, state.epoch))
+            if state.epoch <= concurrent:
+                if len(solved) == concurrent:
+                    all_started.set()
+                with anyio.fail_after(10):
+                    await all_started.wait()
+            return state
+
+        return solve
+
+    class _Rollouts(SampleSource):
+        def __init__(self) -> None:
+            self._started = False
+            self._completed = 0
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self._started:
+                return None
+            self._started = True
+            for epoch in range(1, concurrent + 1):
+                enqueue_sample(Sample(id="q", input="q", target="ok"), epoch=epoch)
+            return []
+
+        async def sample_complete(self, sample: EvalSample) -> None:
+            self._completed += 1
+            if self._completed == concurrent:
+                for epoch in (5, 6):
+                    enqueue_sample(Sample(id="q", input="q", target="ok"), epoch=epoch)
+
+    logs = eval(
+        Task(
+            dataset=_Rollouts(),
+            solver=[wait_for_group()],
+            scorer=_record_scored_ids(scored),
+        ),
+        model="mockllm/model",
+        display="none",
+        max_samples=concurrent,
+    )
+    log = logs[0]
+    assert log.status == "success"
+    expected = [("q", epoch) for epoch in range(1, 7)]
+    assert sorted(solved) == expected
+    assert sorted(scored) == expected
+    assert sorted((sample.id, sample.epoch) for sample in log.samples or []) == (
+        expected
+    )
+    assert log.results is not None
+    assert log.results.total_samples == 6
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+
+def test_enqueue_sample_epoch_with_task_epochs() -> None:
+    # an explicit epoch runs once, whatever the task's configured epochs; a
+    # sample added without one still runs every configured epoch
+    class _Mixed(SampleSource):
+        def __init__(self) -> None:
+            self._started = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="seed", input="seed", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self._started:
+                return None
+            self._started = True
+            enqueue_sample(Sample(id="once", input="once", target="ok"), epoch=7)
+            return [Sample(id="all", input="all", target="ok")]
+
+    logs = eval(
+        Task(dataset=_Mixed(), solver=[generate()], epochs=2),
+        model="mockllm/model",
+        display="none",
+    )
+    log = logs[0]
+    assert log.status == "success"
+    assert sorted((str(s.id), s.epoch) for s in log.samples or []) == [
+        ("all", 1),
+        ("all", 2),
+        ("once", 7),
+        ("seed", 1),
+        ("seed", 2),
+    ]
+
+
+@pytest.mark.parametrize(
+    "seed_ids,adds",
+    [
+        # the same (id, epoch) twice
+        ([], [("q", 1), ("q", 1)]),
+        # an id the seed reserves for all epochs
+        (["q"], [("q", 2)]),
+        # an id added without an epoch, then with one
+        ([], [("q", None), ("q", 2)]),
+        # an id added with an epoch, then without one
+        ([], [("q", 1), ("q", None)]),
+    ],
+)
+def test_enqueue_sample_epoch_duplicate_errors(
+    seed_ids: list[str], adds: list[tuple[str, int | None]]
+) -> None:
+    class _Dup(SampleSource):
+        def __init__(self) -> None:
+            self._started = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=id, input=id, target="ok") for id in seed_ids]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self._started:
+                return None
+            self._started = True
+            for id, epoch in adds:
+                enqueue_sample(Sample(id=id, input=id, target="ok"), epoch=epoch)
+            return []
+
+    logs = eval(
+        Task(dataset=_Dup(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+    )
+    assert logs[0].status == "error"
+    assert "duplicate" in (logs[0].error.message if logs[0].error else "")
+
+
+@pytest.mark.parametrize("epoch", [0, -1, True, 1.0])
+def test_enqueue_sample_epoch_must_be_a_positive_integer(epoch: Any) -> None:
+    errors: list[str] = []
+
+    class _Invalid(SampleSource):
+        async def next_samples(self) -> list[Sample] | None:
+            try:
+                enqueue_sample(Sample(id="q", input="q", target="ok"), epoch=epoch)
+            except ValueError as ex:
+                errors.append(str(ex))
+            return None
+
+    logs = eval(Task(dataset=_Invalid(), solver=[generate()]), display="none")
+    assert logs[0].status == "success"
+    assert errors and "epoch must be an integer of 1 or more" in errors[0]
+
+
+def test_enqueue_sample_epoch_limit_counts_samples() -> None:
+    # --limit counts samples: further epochs of an admitted id run, a new id
+    # beyond the limit (and its later epochs) is ignored
+    class _Rollouts(SampleSource):
+        def __init__(self) -> None:
+            self._started = False
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self._started:
+                return None
+            self._started = True
+            for id, epoch in [("a", 1), ("b", 1), ("a", 2), ("c", 1), ("c", 2)]:
+                enqueue_sample(Sample(id=id, input=id, target="ok"), epoch=epoch)
+            return []
+
+    logs = eval(
+        Task(dataset=_Rollouts(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+        limit=2,
+    )
+    log = logs[0]
+    assert log.status == "success"
+    assert sorted((str(s.id), s.epoch) for s in log.samples or []) == [
+        ("a", 1),
+        ("a", 2),
+        ("b", 1),
+    ]
 
 
 def test_live_injection_runs_concurrently_with_in_flight_sample() -> None:
@@ -1569,6 +1770,83 @@ def test_sample_source_retry_applies_limit_and_epochs_before_publication(
         retried = next(s for s in final.samples or [] if s.id == 3)
         assert retried.error_retries
         assert "retry task" in retried.error_retries[-1].message
+
+
+def test_sample_source_task_retry_reuses_explicit_epoch_runs() -> None:
+    # on a task retry, runs added with an explicit epoch — including epochs
+    # beyond the task's configured epochs — that completed in the prior
+    # attempt are reused, not re-run
+    flaky_runs = {"n": 0}
+    rollout_runs: list[int] = []
+    rollouts_logged: dict[str, anyio.Event] = {}
+
+    @solver
+    def fail_flaky_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "q":
+                rollout_runs.append(state.epoch)
+            if state.input_text == "flaky":
+                flaky_runs["n"] += 1
+                if flaky_runs["n"] == 1:
+                    with anyio.fail_after(30):
+                        await rollouts_logged.setdefault("done", anyio.Event()).wait()
+                    raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self._rollouts_completed = 0
+
+        async def sample_complete(self, sample: EvalSample) -> None:
+            if sample.id == 1:
+                for epoch in (1, 2, 3):
+                    enqueue_sample(Sample(id="q", input="q", target="ok"), epoch=epoch)
+            if sample.id == "q":
+                self._rollouts_completed += 1
+                if self._rollouts_completed == 3:
+                    rollouts_logged.setdefault("done", anyio.Event()).set()
+
+        def initial_samples(self) -> list[Sample]:
+            return [
+                Sample(id=1, input="seed", target="ok"),
+                Sample(id=3, input="flaky", target="ok"),
+            ]
+
+    @task
+    def reuse_epoch_runs_task() -> Task:
+        return Task(
+            dataset=_Src(),
+            solver=[fail_flaky_once()],
+            name="reuse_epoch_runs_task",
+        )
+
+    with tempfile.TemporaryDirectory() as d:
+        log_dir = str(Path(d) / "logs")
+        Path(log_dir).mkdir()
+        ok, logs = eval_set(
+            tasks=[reuse_epoch_runs_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+            max_samples=5,  # flaky blocks while the rollouts run alongside
+        )
+        assert ok, "eval-set did not succeed after task retry"
+        log = read_eval_log(logs[0].location)
+
+    assert sorted((str(sample.id), sample.epoch) for sample in log.samples or []) == [
+        ("1", 1),
+        ("3", 1),
+        ("q", 1),
+        ("q", 2),
+        ("q", 3),
+    ]
+    assert all(sample.error is None for sample in (log.samples or []))
+    # the retry reused every completed rollout rather than re-running it
+    assert sorted(rollout_runs) == [1, 2, 3]
+    assert flaky_runs["n"] == 2
 
 
 def test_sample_source_task_retry_feed_raise_leaves_reuse_counted() -> None:

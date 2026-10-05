@@ -436,11 +436,18 @@ class SampleRequeue:
         checkpoints_dir: str | None,
         on_accept: RequeueAccept,
         on_withdraw: RequeueWithdraw,
+        epoch_sample_indexes: dict[SampleKey, int] | None = None,
     ) -> None:
         self._eval_id = eval_id
         self._scheduler = scheduler
         self._sample_error = sample_error
+        # a sample id resolves to one fanout index for all its epochs, except
+        # for runs a SampleSource added with an explicit epoch, which each
+        # have their own (keyed by id and epoch)
         self._sample_indexes = sample_indexes
+        self._epoch_sample_indexes = (
+            epoch_sample_indexes if epoch_sample_indexes is not None else {}
+        )
         self._checkpoints_dir = checkpoints_dir
         self._on_accept = on_accept
         self._on_withdraw = on_withdraw
@@ -575,7 +582,9 @@ class SampleRequeue:
             return "already_pending"
         if prior.uuid is not None and prior.uuid in self._accepted_uuids:
             return "stale"
-        sample_index = self._sample_indexes.get(str(prior.id))
+        sample_index = self._epoch_sample_indexes.get(
+            key, self._sample_indexes.get(str(prior.id))
+        )
         if sample_index is None:
             return "unknown"
 
