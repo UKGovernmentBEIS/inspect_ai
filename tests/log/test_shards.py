@@ -6,7 +6,7 @@ import boto3
 import pytest
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem, DirListing
-from inspect_ai._util.file import FileInfo
+from inspect_ai._util.file import FileInfo, local_path
 from inspect_ai.log._file import is_log_file
 from inspect_ai.log._shards._walk import (
     ShardDir,
@@ -109,26 +109,97 @@ async def test_list_shard_set_applies_the_shard_set_rules(tmp_path: Path) -> Non
     assert "directly in the shards directory" in stray[f"{T1}_task_e.json"]
 
 
+def _nested_companions(shards: Path) -> tuple[Path, Path]:
+    """Companions nested in a shard's ancillary directory and a hidden one."""
+    in_shard = shards / "2" / "x.shards"
+    in_hidden = shards / ".hidden" / "y.shards"
+    for nested in (in_shard, in_hidden):
+        _touch(nested / "1" / f"{T1}_task_h.eval")
+        _touch(nested / f"{T1}_task_i.eval")
+    return in_shard, in_hidden
+
+
+@pytest.mark.parametrize("form", ["path", "uri"])
 async def test_list_shard_set_reports_every_log_is_shard_path_places_in_it(
-    tmp_path: Path,
+    tmp_path: Path, form: str
 ) -> None:
+    def location(path: Path) -> str:
+        return path.as_uri() if form == "uri" else str(path)
+
     shards_dir = _companion(tmp_path)
-    async with AsyncFilesystem() as fs:
-        listing = await list_shard_set(fs, str(shards_dir))
-    reported = {a.name for s in listing.shards for a in s.attempts} | {
-        s.path for s in listing.stray
-    }
+    nested = _nested_companions(shards_dir)
     logs = {
-        str(Path(directory) / name)
+        Path(directory) / name
         for directory, _, names in os.walk(tmp_path)
         for name in names
         if is_log_file(name, [".json"])
     }
-    shard_paths = {log for log in logs if is_shard_path(str(tmp_path), log)}
-    assert shard_paths == reported
+
+    async def reported(companion: Path) -> set[Path]:
+        async with AsyncFilesystem() as fs:
+            listing = await list_shard_set(fs, location(companion))
+        assert all(s.dir.startswith(location(companion)) for s in listing.shards)
+        return {
+            Path(local_path(a.name)) for s in listing.shards for a in s.attempts
+        } | {Path(local_path(s.path)) for s in listing.stray}
+
+    # from the log directory, the outer companion's walk reports exactly its
+    # shard paths; the logs below it that it does not list are ordinary logs
+    shard_paths = {
+        log for log in logs if is_shard_path(location(tmp_path), location(log))
+    }
+    assert shard_paths == await reported(shards_dir)
     assert logs - shard_paths == {
-        str(shards_dir / "2" / "scans" / f"{T1}_task_f.eval"),
-        str(shards_dir / ".hidden" / "sub" / f"{T1}_task_g.eval"),
+        shards_dir / "2" / "scans" / f"{T1}_task_f.eval",
+        shards_dir / ".hidden" / "sub" / f"{T1}_task_g.eval",
+        *(log for companion in nested for log in logs if companion in log.parents),
+    }
+
+    # from the directory holding a nested companion, its walk agrees in turn
+    for companion in nested:
+        root = companion.parent
+        below = {log for log in logs if root in log.parents}
+        shard_paths = {
+            log for log in below if is_shard_path(location(root), location(log))
+        }
+        assert shard_paths == await reported(companion)
+        assert len(shard_paths) == 2
+
+
+async def test_list_shard_set_on_s3_reports_every_log_is_shard_path_places_in_it(
+    mock_s3: None,
+) -> None:
+    s3 = boto3.client("s3")
+    keys = [
+        f"consistency/run.shards/0/{T1}_task_a.eval",
+        f"consistency/run.shards/0/{T1}_task_a.json",
+        f"consistency/run.shards/{T1}_task_b.eval",
+        f"consistency/run.shards/{T1}_task_b.json",
+        f"consistency/run.shards/.hidden/{T1}_task_c.eval",
+        f"consistency/run.shards/0/scans/{T1}_task_d.eval",
+        f"consistency/run.shards/0/x.shards/1/{T1}_task_e.eval",
+        f"consistency/run.shards/.hidden/y.shards/1/{T1}_task_f.eval",
+        f"consistency/{T1}_task_g.eval",
+    ]
+    for key in keys:
+        s3.put_object(Bucket="test-bucket", Key=key, Body=b"x")
+    root = "s3://test-bucket/consistency"
+    async with AsyncFilesystem() as fs:
+        listing = await list_shard_set(fs, f"{root}/run.shards")
+    reported = {a.name for s in listing.shards for a in s.attempts} | {
+        s.path for s in listing.stray
+    }
+    shard_paths = {
+        f"s3://test-bucket/{key}"
+        for key in keys
+        if is_shard_path(root, f"s3://test-bucket/{key}")
+    }
+    assert shard_paths == reported
+    assert {f"s3://test-bucket/{key}" for key in keys} - shard_paths == {
+        f"{root}/run.shards/0/scans/{T1}_task_d.eval",
+        f"{root}/run.shards/0/x.shards/1/{T1}_task_e.eval",
+        f"{root}/run.shards/.hidden/y.shards/1/{T1}_task_f.eval",
+        f"{root}/{T1}_task_g.eval",
     }
 
 
@@ -369,9 +440,18 @@ def test_attempt_sort_key_falls_back_to_mtime() -> None:
         # a root that is itself a shard directory (a worker's view)
         ("/logs/run.shards/0", "/logs/run.shards/0/a.eval", False),
         ("/logs/run.shards", "/logs/run.shards/0/a.eval", False),
-        # a root below a companion still sees nested companions
+        # a companion nested in a shard is a companion only from a root
+        # below the outer one; from above, its logs are too deep
         ("/logs/run.shards/0", "/logs/run.shards/0/x.shards/1/a.eval", True),
-        ("/logs", "/logs/run.shards/0/x.shards/1/a.eval", True),
+        ("/logs/run.shards/0", "/logs/run.shards/0/x.shards/a.eval", True),
+        ("/logs", "/logs/run.shards/0/x.shards/1/a.eval", False),
+        ("/logs", "/logs/run.shards/0/x.shards/a.eval", False),
+        ("/logs", "/logs/run.shards/.hidden/y.shards/1/a.eval", False),
+        (
+            "/logs/run.shards/.hidden",
+            "/logs/run.shards/.hidden/y.shards/1/a.eval",
+            True,
+        ),
         # directly in a companion, or in a dot-prefixed directory of one
         ("/logs", "/logs/run.shards/a.eval", True),
         ("/logs", "/logs/run.shards/.hidden/a.eval", True),

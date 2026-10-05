@@ -195,12 +195,14 @@ def attempt_sort_key(info: FileInfo) -> AttemptSortKey:
 def is_shard_path(root: str, path: str) -> bool:
     """Whether ``path`` is in the shard set of a ``<name>.shards/`` below ``root``.
 
-    True when ``path``, relative to ``root``, is directly in a directory
-    named ``<name>.shards`` or in a directory directly under one: the files
-    :func:`list_shard_set` lists. Only components below ``root`` count, so
-    the logs of a root that is itself a shard directory are not shards of it.
-    A log nested deeper (for example in an ancillary directory of a shard) is
-    not a shard path, so it is listed as an ordinary log rather than hidden.
+    True when ``path``, relative to ``root``, is directly in the first
+    directory named ``<name>.shards`` below ``root``, or in a directory
+    directly under it: the files :func:`list_shard_set` lists for that
+    companion. Only components below ``root`` count, so the logs of a root
+    that is itself a shard directory are not shards of it. A log nested
+    deeper (in an ancillary directory of a shard, including a companion
+    nested there) is not a shard path, so it is listed as an ordinary log
+    rather than hidden.
     ``root`` and ``path`` may each be a plain path, ``file://`` URI or remote
     URL; local forms are compared as absolute paths.
 
@@ -212,10 +214,10 @@ def is_shard_path(root: str, path: str) -> bool:
     if path_parts[: len(root_parts)] != root_parts:
         raise ValueError(f"{path} is not below {root}")
     relative = path_parts[len(root_parts) :]
-    return any(
-        part.endswith(_SHARDS_SUFFIX) and part != _SHARDS_SUFFIX
-        for part in relative[-3:-1]
-    )
+    for depth, part in enumerate(relative[:-1]):
+        if part.endswith(_SHARDS_SUFFIX) and part != _SHARDS_SUFFIX:
+            return len(relative) - depth <= 3
+    return False
 
 
 def _shard_sort_key(shard: ShardDir) -> tuple[bool, int, str]:
