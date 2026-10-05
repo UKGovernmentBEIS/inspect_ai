@@ -1980,6 +1980,7 @@ class Model:
         event = ModelEvent(
             model=model,
             role=self.role,
+            requested_model=_requested_model.get(),
             input=input,
             tools=tools,
             tool_choice=tool_choice,
@@ -2912,6 +2913,22 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
         yield
     finally:
         _model_event_sink.reset(token)
+
+
+_requested_model: ContextVar[str | None] = ContextVar("_requested_model", default=None)
+
+
+@contextlib.contextmanager
+def requested_model(name: str) -> Iterator[None]:
+    """Record `name` as `ModelEvent.requested_model` for every generation in the block.
+
+    Not part of the public API.
+    """
+    token = _requested_model.set(name)
+    try:
+        yield
+    finally:
+        _requested_model.reset(token)
 
 
 # shared contexts for asyncio tasks
