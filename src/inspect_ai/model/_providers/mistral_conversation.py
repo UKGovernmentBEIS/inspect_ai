@@ -128,6 +128,7 @@ async def mistral_conversation_generate(
             ),
             total_tokens=conv_response.usage.total_tokens or 0,
         ),
+        response_id=conv_response.conversation_id,
     ), model_call
 
 

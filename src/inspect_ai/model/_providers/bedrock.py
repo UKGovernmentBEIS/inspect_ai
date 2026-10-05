@@ -79,6 +79,10 @@ logger = getLogger(__name__)
 # Gemini's redacted thinking. See `redacted_content_bytes`.
 REDACTED_CONTENT_KEY = "bedrock_redacted_content"
 
+NOVA_NON_REASONING_MODEL_PATTERN = re.compile(
+    r"(?:^|[./])amazon\.nova-(?:micro|lite|pro|premier)-v1(?::|$)"
+)
+
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
 
@@ -567,6 +571,12 @@ class BedrockAPI(ModelAPI):
     def is_nova(self) -> bool:
         return "nova" in self.model_family().lower()
 
+    def supports_nova_reasoning(self) -> bool:
+        """Preserve reasoning unless the Nova model is known not to support it."""
+        return (
+            NOVA_NON_REASONING_MODEL_PATTERN.search(self.model_family().lower()) is None
+        )
+
     def supports_prompt_cache(self) -> bool:
         """Whether this model accepts Converse `cachePoint` blocks.
 
@@ -894,6 +904,7 @@ class BedrockAPI(ModelAPI):
                                     "bedrock:InvokeModelWithResponseStream or "
                                     "pass -M streaming=false.",
                                 )
+                                self._http_hooks.restart_request(request_id)
                                 model_call = set_active_model_event_call(
                                     request=replace_bytes_with_placeholder(
                                         request.model_dump(exclude_none=True)
@@ -1018,12 +1029,18 @@ class BedrockAPI(ModelAPI):
             return self._claude_reasoning_config(config)
         elif self.is_nova():
             if config.reasoning_effort is not None:
-                return {
-                    "reasoningConfig": {
-                        "type": "enabled",
-                        "maxReasoningEffort": config.reasoning_effort,
+                if self.supports_nova_reasoning():
+                    return {
+                        "reasoningConfig": {
+                            "type": "enabled",
+                            "maxReasoningEffort": config.reasoning_effort,
+                        }
                     }
-                }
+                warn_once(
+                    logger,
+                    f"bedrock model '{self.model_name}' does not support "
+                    "'reasoning_effort'; ignoring it.",
+                )
 
         return {}
 

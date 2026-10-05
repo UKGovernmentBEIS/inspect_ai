@@ -1,5 +1,6 @@
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from logging import getLogger
 from typing import Any
 
@@ -17,6 +18,7 @@ from openai._types import NOT_GIVEN
 from openai.types.responses import (
     Response,
     ResponseCompletedEvent,
+    ResponseCreatedEvent,
     ResponseErrorEvent,
     ResponseFailedEvent,
     ResponseFormatTextJSONSchemaConfigParam,
@@ -233,6 +235,7 @@ async def generate_responses(
             request=request,
             filter=openai_media_filter,
         )
+        stream_state = _StreamState()
 
         try:
             # generate response
@@ -240,7 +243,9 @@ async def generate_responses(
             if batcher:
                 model_response = await batcher.generate_for_request(request)
             elif request.get("stream"):
-                model_response = await _generate_responses_stream(client, request)
+                model_response = await _generate_responses_stream(
+                    client, request, stream_state
+                )
             else:
                 model_response = await client.responses.create(**request)
             # model_response is `Response | Any`. The lazy type inference engine
@@ -257,7 +262,9 @@ async def generate_responses(
             # convert to model output in the handler below)
             if model_response.error is not None:
                 raise OpenAIResponseError(
-                    code=model_response.error.code, message=model_response.error.message
+                    code=model_response.error.code,
+                    message=model_response.error.message,
+                    response_id=model_response.id,
                 )
 
             # save response for model_call
@@ -285,6 +292,7 @@ async def generate_responses(
                 choices=choices,
                 usage=model_usage_from_response(model_response),
                 metadata=dict(response_metadata) if response_metadata else None,
+                response_id=model_response.id,
             ), model_call
         except BadRequestError as e:
             model_call.set_error(
@@ -306,6 +314,11 @@ async def generate_responses(
             )
             if output is None:
                 raise
+            response_id = (
+                e.response_id if isinstance(e, OpenAIResponseError) else None
+            ) or stream_state.response_id
+            if response_id is not None:
+                output.response_id = response_id
             error_body = (
                 e.body
                 if isinstance(e, APIError)
@@ -317,8 +330,16 @@ async def generate_responses(
             return output, model_call
 
 
+@dataclass
+class _StreamState:
+    response_id: str | None = None
+    """Id from `response.created`, for errors that end the stream early."""
+
+
 async def _generate_responses_stream(
-    client: AsyncAzureOpenAI | AsyncOpenAI, request: dict[str, Any]
+    client: AsyncAzureOpenAI | AsyncOpenAI,
+    request: dict[str, Any],
+    state: _StreamState | None = None,
 ) -> Response:
     """Stream a Responses API request, reporting chunks to the stream observer.
 
@@ -330,7 +351,10 @@ async def _generate_responses_stream(
     arrives only on the terminal event, so intermediate chunks report bare
     heartbeats. Returns the complete `Response` carried by the terminal
     event, so downstream response handling matches the non-streaming path.
+    The response id from `response.created` is recorded on `state`.
     """
+    if state is None:
+        state = _StreamState()
     report_model_stream_start()
     # function_call items by item id, so argument fragments can be attributed
     # to their call id / function when reported as stream deltas
@@ -358,6 +382,9 @@ async def _generate_responses_stream(
                 raise OpenAIResponseError(
                     code=event.code or "server_error", message=event.message
                 )
+            elif isinstance(event, ResponseCreatedEvent):
+                state.response_id = event.response.id
+                report_model_stream_progress()
             elif not model_stream_requested():
                 # content deltas are gated on an on_stream consumer (see
                 # report_model_stream_delta); heartbeat only

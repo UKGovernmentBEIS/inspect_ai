@@ -38,6 +38,7 @@ from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
 from .openai_compatible import OpenAICompatibleAPI
+from .util.hooks import HttpxHooks
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +145,7 @@ async def generate_raw_completions(
 
     # Register ModelCall for eval log visibility.
     with api._http_hooks.request() as request_id:
+        request_kwargs["extra_headers"] = {HttpxHooks.REQUEST_ID_HEADER: request_id}
         model_call = set_active_model_event_call(request_kwargs)
 
         try:
@@ -164,7 +166,9 @@ async def generate_raw_completions(
 
     # Parse response
     if not response.choices:
-        return ModelOutput(model=response.model, choices=[]), model_call
+        return ModelOutput(
+            model=response.model, choices=[], response_id=response.id
+        ), model_call
 
     def parse_choice(choice: CompletionChoice) -> ChatCompletionChoice:
         # prompt_logprobs: vLLM extension (also implemented by SGLang), lives
@@ -198,6 +202,7 @@ async def generate_raw_completions(
             if response.usage
             else None
         ),
+        response_id=response.id,
     )
 
     return model_output, model_call
