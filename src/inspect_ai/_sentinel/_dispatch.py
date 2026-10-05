@@ -8,6 +8,7 @@ from inspect_sentinel import (
     BeforeToolCall,
     Context,
     Decision,
+    EvalContext,
     Failed,
     HumanAnswer,
     Observation,
@@ -162,46 +163,26 @@ def _stage(step: Step) -> Literal["tool_call", "tool_result"]:
 
 
 def _host_context() -> HostContext:
-    active = sample_active()
-    state = sample_state()
-    if state is not None:
-        sample_metadata = state.metadata
-    elif active is not None:
-        sample_metadata = active.sample.metadata or {}
-    else:
-        sample_metadata = {}
     return HostContext(
-        context=Context(
-            task=active.task if active is not None else None,
-            task_description=None,
-            sample_id=(
-                state.sample_id
-                if state is not None
-                else active.sample.id
-                if active is not None
-                else None
-            ),
-            epoch=(
-                state.epoch
-                if state is not None
-                else active.epoch
-                if active is not None
-                else None
-            ),
-            sample_description=None,
-            sample_input=(
-                state.input
-                if state is not None
-                else active.sample.input
-                if active is not None
-                else ""
-            ),
-            metadata={**active_task_metadata(), **sample_metadata},
-            path="",
-            host=_Host(),
-        ),
+        context=Context(path="", host=_Host(), eval=_eval_context()),
         recorder=_Recorder(),
         store=store(),
+    )
+
+
+def _eval_context() -> EvalContext | None:
+    active = sample_active()
+    state = sample_state()
+    if active is None or state is None:
+        return None
+    return EvalContext(
+        task=active.task,
+        task_description=None,
+        sample_id=state.sample_id,
+        epoch=state.epoch,
+        sample_description=None,
+        sample_input=state.input,
+        metadata={**active_task_metadata(), **state.metadata},
     )
 
 

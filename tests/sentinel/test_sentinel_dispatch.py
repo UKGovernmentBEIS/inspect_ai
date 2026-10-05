@@ -652,14 +652,15 @@ def test_context_and_step_come_from_the_sample(
     sample = log.samples[0]
 
     [(context, step)] = seen
-    assert context.task == log.eval.task
-    assert context.sample_id == sample.id
-    assert context.epoch == 1
-    assert context.sample_input == "What is 1 + 1?"
-    assert context.metadata == {"t": 1, "s": 1}
     assert context.path == "d3_recording"
-    assert context.task_description is None
-    assert context.sample_description is None
+    assert context.eval is not None
+    assert context.eval.task == log.eval.task
+    assert context.eval.sample_id == sample.id
+    assert context.eval.epoch == 1
+    assert context.eval.sample_input == "What is 1 + 1?"
+    assert context.eval.metadata == {"t": 1, "s": 1}
+    assert context.eval.task_description is None
+    assert context.eval.sample_description is None
 
     assert step.conversation == sample.uuid
     assert step.call.function == "addition"
@@ -1113,6 +1114,12 @@ def test_a_modified_call_on_a_non_modify_decision_is_not_dropped(
         _Recorder().record(
             replace(_host_context().context, path="p"), "p", step, reported
         )
+
+
+def test_host_context_outside_a_sample_has_no_eval() -> None:
+    from inspect_ai._sentinel._dispatch import _host_context
+
+    assert _host_context().context.eval is None
 
 
 def test_apply_sentinel_decision() -> None:
