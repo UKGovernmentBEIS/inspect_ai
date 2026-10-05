@@ -1715,23 +1715,27 @@ async def test_requeue_after_operator_errored_sample() -> None:
 # End to end: requeue on a SampleSource-driven (dynamic) task
 # ---------------------------------------------------------------------------
 
-_DYN_ATTEMPTS: dict[str, int] = {}
+_DYN_RUNS: list[tuple[str, int]] = []
 _DYN_RELEASE: anyio.Event | None = None
+_DYN_EPOCHS: list[int | None] = [None]
 
 
 @solver
 def _dyn_requeue_probe():
-    """The seeder enqueues `flaky` then parks; `flaky` errors its first attempt."""
+    """The seeder enqueues `flaky` per `_DYN_EPOCHS`, then parks; the last errors once."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if state.sample_id == "seeder":
-            enqueue_sample(Sample(id="flaky", input="x", target="y"))
+            for index, epoch in enumerate(_DYN_EPOCHS, start=1):
+                enqueue_sample(
+                    Sample(id="flaky", input=f"add-{index}", target="y"), epoch=epoch
+                )
             assert _DYN_RELEASE is not None
             with anyio.fail_after(60):
                 await _DYN_RELEASE.wait()
             return state
-        _DYN_ATTEMPTS["flaky"] = _DYN_ATTEMPTS.get("flaky", 0) + 1
-        if _DYN_ATTEMPTS["flaky"] == 1:
+        _DYN_RUNS.append((state.input_text, state.epoch))
+        if state.epoch == len(_DYN_EPOCHS) and _DYN_RUNS.count(_DYN_RUNS[-1]) == 1:
             raise RuntimeError("transient boom")
         return state
 
@@ -1746,7 +1750,18 @@ class _SeederSource(SampleSource):
         return None
 
 
-async def test_requeue_dynamic_injected_sample() -> None:
+@pytest.mark.parametrize(
+    "epochs",
+    [
+        [None],
+        # an explicit-epoch run has its own fanout index, so the directive
+        # must resolve (id, epoch), not the id alone (which, mixed, names the
+        # sample added for epoch 1)
+        [1, 2],
+        [None, 2],
+    ],
+)
+async def test_requeue_dynamic_injected_sample(epochs: list[int | None]) -> None:
     """An errored *injected* sample can be requeued on a SampleSource task.
 
     Exercises the injected-sample plumbing end to end: the requeue directive
@@ -1754,9 +1769,11 @@ async def test_requeue_dynamic_injected_sample() -> None:
     finds its source data resident (an errored epoch keeps the injected
     slot — it releases only once every epoch has completed).
     """
-    global _DYN_RELEASE
-    _DYN_ATTEMPTS.clear()
+    global _DYN_RELEASE, _DYN_EPOCHS
+    _DYN_RUNS.clear()
     _DYN_RELEASE = anyio.Event()
+    _DYN_EPOCHS = epochs
+    failing = len(epochs)
 
     task = Task(
         dataset=_SeederSource(),
@@ -1777,22 +1794,26 @@ async def test_requeue_dynamic_injected_sample() -> None:
                     model="mockllm/model",
                     fail_on_error=False,
                     ctl_server=False,
-                    max_samples=2,
+                    max_samples=3,
                 )
             )
 
         tg.start_soon(run_eval)
 
-        # wait for the injected flaky sample's terminal error
+        # wait for the failing run's terminal error (the others completed)
         with anyio.fail_after(60):
             while True:
                 states = get_eval_states()
-                if states and states[0].errored == 1:
+                if (
+                    states
+                    and states[0].errored == 1
+                    and states[0].completed == failing - 1
+                ):
                     break
                 await anyio.sleep(0.01)
         eval_id = states[0].eval_id
 
-        result = await requeue_sample(eval_id, "flaky", 1)
+        result = await requeue_sample(eval_id, "flaky", failing)
         assert result is not None
         assert result["ok"] is True and result["changed"] is True
         assert result["status"] == "error"
@@ -1803,127 +1824,29 @@ async def test_requeue_dynamic_injected_sample() -> None:
             while True:
                 state = get_eval_state(eval_id)
                 assert state is not None
-                if state.errored == 0 and state.completed == 1:
+                if state.errored == 0 and state.completed == failing:
                     break
                 await anyio.sleep(0.01)
         _DYN_RELEASE.set()
 
-    assert _DYN_ATTEMPTS["flaky"] == 2
+    # the re-run is the failing add's own run
+    expected_runs = [(f"add-{epoch}", epoch) for epoch in range(1, failing + 1)]
+    assert sorted(_DYN_RUNS) == sorted([*expected_runs, expected_runs[-1]])
 
     (log,) = logs
     assert log.status == "success"
     log = await read_eval_log_async(log.location)
     assert log.samples is not None
-    assert sorted(str(s.id) for s in log.samples) == ["flaky", "seeder"]
-    flaky = next(s for s in log.samples if s.id == "flaky")
+    assert sorted((str(s.id), s.epoch) for s in log.samples) == [
+        *[("flaky", epoch) for epoch in range(1, failing + 1)],
+        ("seeder", 1),
+    ]
+    flaky = next(s for s in log.samples if s.id == "flaky" and s.epoch == failing)
     assert flaky.error is None
     assert flaky.error_retries is not None and len(flaky.error_retries) == 1
     assert "transient boom" in flaky.error_retries[0].message
     assert log.results is not None
     assert log.results.scores[0].metrics["accuracy"].value == 1.0
-
-
-_EPOCH_RUNS: list[tuple[str, int]] = []
-_EPOCH_RELEASE: anyio.Event | None = None
-_EPOCH_MIXED = False
-
-
-@solver
-def _epoch_requeue_probe():
-    """The seeder enqueues `q` as epochs 1 and 2 then parks; epoch 2 errors once.
-
-    With `_EPOCH_MIXED`, epoch 1 is added without an epoch (the task's epochs).
-    """
-
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        if state.sample_id == "seeder":
-            for epoch in (1, 2):
-                enqueue_sample(
-                    Sample(id="q", input=f"epoch-{epoch}", target="y"),
-                    epoch=None if _EPOCH_MIXED and epoch == 1 else epoch,
-                )
-            assert _EPOCH_RELEASE is not None
-            with anyio.fail_after(60):
-                await _EPOCH_RELEASE.wait()
-            return state
-        _EPOCH_RUNS.append((state.input_text, state.epoch))
-        if state.epoch == 2 and len(_EPOCH_RUNS) <= 2:
-            raise RuntimeError("transient boom")
-        return state
-
-    return solve
-
-
-@pytest.mark.parametrize("mixed", [False, True])
-async def test_requeue_dynamic_explicit_epoch_run(mixed: bool) -> None:
-    """An errored run added with an explicit epoch is requeued as that run.
-
-    It has its own fanout index, so the directive must resolve ``(id, epoch)``,
-    not the id alone (which, when mixed, names the sample added for epoch 1).
-    """
-    global _EPOCH_RELEASE, _EPOCH_MIXED
-    _EPOCH_MIXED = mixed
-    _EPOCH_RUNS.clear()
-    _EPOCH_RELEASE = anyio.Event()
-
-    task = Task(
-        dataset=_SeederSource(),
-        solver=_epoch_requeue_probe(),
-        scorer=_always_correct(),
-        name="requeue_epoch",
-    )
-
-    init_display_type("none")
-    logs: list[EvalLog] = []
-
-    async with anyio.create_task_group() as tg:
-
-        async def run_eval() -> None:
-            logs.extend(
-                await eval_async(
-                    task,
-                    model="mockllm/model",
-                    fail_on_error=False,
-                    ctl_server=False,
-                    max_samples=3,
-                )
-            )
-
-        tg.start_soon(run_eval)
-
-        with anyio.fail_after(60):
-            while True:
-                states = get_eval_states()
-                if states and states[0].errored == 1 and states[0].completed == 1:
-                    break
-                await anyio.sleep(0.01)
-        eval_id = states[0].eval_id
-
-        result = await requeue_sample(eval_id, "q", 2)
-        assert result is not None
-        assert result["ok"] is True and result["changed"] is True
-
-        with anyio.fail_after(60):
-            while True:
-                state = get_eval_state(eval_id)
-                assert state is not None
-                if state.errored == 0 and state.completed == 2:
-                    break
-                await anyio.sleep(0.01)
-        _EPOCH_RELEASE.set()
-
-    assert sorted(_EPOCH_RUNS) == [("epoch-1", 1), ("epoch-2", 2), ("epoch-2", 2)]
-    (log,) = logs
-    assert log.status == "success"
-    log = await read_eval_log_async(log.location)
-    assert sorted((str(s.id), s.epoch) for s in log.samples or []) == [
-        ("q", 1),
-        ("q", 2),
-        ("seeder", 1),
-    ]
-    rerun = next(s for s in log.samples or [] if s.id == "q" and s.epoch == 2)
-    assert rerun.error is None
-    assert rerun.error_retries is not None and len(rerun.error_retries) == 1
 
 
 _DYN_IDLE_ATTEMPTS: dict[str, int] = {}

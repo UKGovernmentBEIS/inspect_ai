@@ -593,9 +593,8 @@ def test_event_counts_no_op_when_empty_or_unregistered() -> None:
 
 
 def test_explicit_epoch_runs_are_planned_individually() -> None:
-    # runs a SampleSource adds with an explicit epoch are planned as their
-    # (id, epoch) only: the per-sample listing surfaces exactly those as
-    # pending and the cancel/requeue resolvers treat only those as planned
+    # an explicit-epoch add plans its (id, epoch) only, for both the pending
+    # listing and the cancel/requeue resolvers
     from inspect_ai._control.requeue import _is_planned
     from inspect_ai._control.state import _add_pending_samples
 
