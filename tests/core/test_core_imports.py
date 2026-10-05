@@ -47,25 +47,38 @@ def _module_name(path: Path) -> str:
     )
 
 
-def _imported_modules(path: Path) -> set[str]:
-    """Every module imported anywhere in the file, with relative imports resolved."""
+def _imported_modules(path: Path) -> set[tuple[str, bool]]:
+    """Every module imported in the file, and whether the import is inside a function.
+
+    Relative imports are resolved to absolute module names.
+    """
     module = _module_name(path)
     package = module if path.name == "__init__.py" else module.rpartition(".")[0]
-    nodes = list(ast.walk(ast.parse(path.read_text())))
+    tree = ast.parse(path.read_text())
+    in_function = {
+        id(node)
+        for scope in ast.walk(tree)
+        if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef))
+        for node in ast.walk(scope)
+    }
+    nodes = list(ast.walk(tree))
     return {
-        alias.name
+        (alias.name, id(node) in in_function)
         for node in nodes
         if isinstance(node, ast.Import)
         for alias in node.names
     } | {
-        ".".join(
-            filter(
-                None,
-                (
-                    package.rsplit(".", node.level - 1)[0] if node.level else None,
-                    node.module,
-                ),
-            )
+        (
+            ".".join(
+                filter(
+                    None,
+                    (
+                        package.rsplit(".", node.level - 1)[0] if node.level else None,
+                        node.module,
+                    ),
+                )
+            ),
+            id(node) in in_function,
         )
         for node in nodes
         if isinstance(node, ast.ImportFrom)
@@ -85,19 +98,25 @@ def _is_allowed(module: str) -> bool:
 def test_core_imports_only_allowed_modules() -> None:
     disallowed = {
         str(path.relative_to(CORE_DIR)): {
-            module for module in _imported_modules(path) if not _is_allowed(module)
+            (module, in_function)
+            for module, in_function in _imported_modules(path)
+            if not _is_allowed(module)
         }
         for path in sorted(CORE_DIR.rglob("*.py"))
     }
+    excepted = {
+        file: {(module, True) for module in modules}
+        for file, modules in KNOWN_EXCEPTIONS.items()
+    }
     unexpected = {
-        file: sorted(modules - KNOWN_EXCEPTIONS.get(file, set()))
-        for file, modules in disallowed.items()
-        if modules - KNOWN_EXCEPTIONS.get(file, set())
+        file: sorted(module for module, _ in imports - excepted.get(file, set()))
+        for file, imports in disallowed.items()
+        if imports - excepted.get(file, set())
     }
     stale = {
-        file: sorted(modules - disallowed.get(file, set()))
-        for file, modules in KNOWN_EXCEPTIONS.items()
-        if modules - disallowed.get(file, set())
+        file: sorted(module for module, _ in imports - disallowed.get(file, set()))
+        for file, imports in excepted.items()
+        if imports - disallowed.get(file, set())
     }
     assert not unexpected, f"inspect_ai.core imports disallowed modules: {unexpected}"
     assert not stale, f"remove fixed entries from KNOWN_EXCEPTIONS: {stale}"

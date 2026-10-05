@@ -51,7 +51,7 @@ def test_collect_stop_details_keeps_explanation_only() -> None:
 def test_collect_stop_details_defensive_on_unexpected_shape(monkeypatch) -> None:
     warnings: list[str] = []
     monkeypatch.setattr(
-        "inspect_ai._util.logger.warn_once",
+        "inspect_ai.model._model_output.warn_once",
         lambda _logger, message: warnings.append(message),
     )
 

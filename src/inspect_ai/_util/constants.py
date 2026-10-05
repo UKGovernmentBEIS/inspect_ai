@@ -3,8 +3,8 @@ from typing import Any, Literal
 
 # isort: split
 # Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core.constants import DESERIALIZING as DESERIALIZING
-from inspect_ai.core.constants import MESSAGE_CACHE as MESSAGE_CACHE
+from inspect_ai.core._constants import DESERIALIZING as DESERIALIZING
+from inspect_ai.core._constants import MESSAGE_CACHE as MESSAGE_CACHE
 
 # End of backward-compatible re-exports.
 

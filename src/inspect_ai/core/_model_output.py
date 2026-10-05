@@ -3,8 +3,8 @@ from typing import Any, Literal, Type, TypeVar
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
+from inspect_ai.core._content import Content
 from inspect_ai.core._tool_call import ToolCall
-from inspect_ai.core.content import Content
 
 from ._chat_message import ChatMessage, ChatMessageAssistant
 

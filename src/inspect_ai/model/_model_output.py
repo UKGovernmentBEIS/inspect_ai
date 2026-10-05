@@ -1,6 +1,8 @@
 from logging import Logger
 from typing import Callable, NamedTuple
 
+from inspect_ai._util.logger import warn_once
+
 # isort: split
 # Backward-compatible re-exports of names that moved to inspect_ai.core.
 from inspect_ai.core._model_output import ChatCompletionChoice as ChatCompletionChoice
@@ -55,8 +57,6 @@ def collect_stop_details(
     try:
         details = fn()
     except Exception as ex:
-        from inspect_ai._util.logger import warn_once
-
         warn_once(
             logger,
             f"Unexpected data shape collecting stop_details from {provider}: {ex}",
