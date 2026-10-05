@@ -49,7 +49,7 @@ def _model_event() -> ModelEvent:
 def test_request_ids_recorded_for_each_http_attempt():
     """A retried attempt's request id is kept alongside the final attempt's."""
     hooks = HttpHooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
     event = _model_event()
 
     with (
@@ -91,7 +91,7 @@ def test_request_ids_read_from_response_headers(
     headers: dict[str, str], expected: list[tuple[str, str]]
 ) -> None:
     hooks = HttpHooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
     event = _model_event()
 
     with track_active_model_event(event):
@@ -104,7 +104,7 @@ def test_request_ids_read_from_response_headers(
 
 def test_response_without_request_id_header_records_nothing():
     hooks = HttpHooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
     event = _model_event()
 
     with track_active_model_event(event):
@@ -128,7 +128,7 @@ def test_request_ids_recorded_only_for_registered_requests():
 
 def test_request_ids_ignored_without_active_model_event():
     hooks = HttpHooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
 
     hooks.record_response(request_id, 200, {"x-request-id": "req_no_event"})
 
