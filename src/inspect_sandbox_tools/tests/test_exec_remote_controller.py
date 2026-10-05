@@ -12,6 +12,7 @@ from inspect_sandbox_tools._remote_tools._exec_remote import _job as job_module
 from inspect_sandbox_tools._remote_tools._exec_remote._controller import Controller
 from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
 from inspect_sandbox_tools._remote_tools._exec_remote.tool_types import PollResult
+from inspect_sandbox_tools._util.common_types import ToolException
 
 
 class TestControllerConcurrentPollAndKill:
@@ -71,6 +72,15 @@ class TestControllerConcurrentPollAndKill:
 
         # cleanup should have been called exactly once, not twice.
         assert job.cleanup.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_poll_of_unknown_pid_names_the_missing_job() -> None:
+    """The host's exec_remote client matches this message after a timed-out poll."""
+    controller = Controller()
+
+    with pytest.raises(ToolException, match=r"^No job found with pid 42"):
+        await controller.poll(42, ack_seq=0)
 
 
 @pytest.mark.asyncio

@@ -87,6 +87,7 @@ async def test_model_output_from_openai_basic() -> None:
     assert result.usage.input_tokens == 10
     assert result.usage.output_tokens == 20
     assert result.usage.total_tokens == 30
+    assert result.response_id == "chatcmpl-123"
 
 
 async def test_model_output_from_openai_with_tool_calls() -> None:
@@ -245,6 +246,7 @@ async def test_model_output_from_openai_responses_basic() -> None:
     assert result.usage.input_tokens == 100
     assert result.usage.output_tokens == 200
     assert result.usage.total_tokens == 300
+    assert result.response_id == "resp-123"
 
 
 async def test_model_output_from_openai_responses_with_reasoning() -> None:
