@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Callable, Mapping, Type
+from typing import Any, Callable, Mapping, Type, cast
 
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
@@ -44,6 +44,10 @@ class EventColumn(Column):
         return None
 
 
+# Extractors for one event type; callers pair these columns with a matching
+# events_df() filter.
+EventExtract = Callable[[Event], JsonValue]
+
 EventInfo: list[Column] = [
     EventColumn("event_id", path="uuid"),
     EventColumn("event", path="event"),
@@ -63,13 +67,13 @@ ModelEventColumns: list[Column] = [
     EventColumn("model_event_model", path="model"),
     EventColumn("model_event_role", path="role"),
     EventColumn("model_event_requested_model", path="requested_model"),
-    EventColumn("model_event_input", path=model_event_input_as_str),
+    EventColumn("model_event_input", path=cast(EventExtract, model_event_input_as_str)),
     EventColumn("model_event_tools", path="tools"),
-    EventColumn("model_event_tool_choice", path=tool_choice_as_str),
+    EventColumn("model_event_tool_choice", path=cast(EventExtract, tool_choice_as_str)),
     EventColumn("model_event_config", path="config"),
     EventColumn("model_event_usage", path="output.usage"),
     EventColumn("model_event_time", path="output.time"),
-    EventColumn("model_event_completion", path=completion_as_str),
+    EventColumn("model_event_completion", path=cast(EventExtract, completion_as_str)),
     EventColumn("model_event_retries", path="retries"),
     EventColumn("model_event_error", path="error"),
     EventColumn("model_event_cache", path="cache"),
@@ -80,7 +84,7 @@ ModelEventColumns: list[Column] = [
 ToolEventColumns: list[Column] = [
     EventColumn("tool_event_function", path="function"),
     EventColumn("tool_event_arguments", path="arguments"),
-    EventColumn("tool_event_view", path=tool_view_as_str),
+    EventColumn("tool_event_view", path=cast(EventExtract, tool_view_as_str)),
     EventColumn("tool_event_result", path="result"),
     EventColumn("tool_event_truncated", path="truncated"),
     EventColumn("tool_event_error_type", path="error.type"),

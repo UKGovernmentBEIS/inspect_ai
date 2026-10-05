@@ -7,6 +7,7 @@ from typing_extensions import override
 
 from inspect_ai._util.dateutil import iso_now
 from inspect_ai.analysis import Column, EvalColumns
+from inspect_ai.analysis._dataframe.columns import parse
 from inspect_ai.analysis._dataframe.evals.columns import EvalColumn
 from inspect_ai.analysis._dataframe.record import _resolve_value, import_record
 from inspect_ai.log._file import read_eval_log
@@ -371,8 +372,11 @@ def test_column_error_path_type() -> None:
     assert len(errors) == 2
     for err in errors:
         assert isinstance(err.path, str)
-    assert errors[0].path == "(($.eval).task)"
-    assert errors[1].path == "(($.eval).nonexistent)"
+    # str() of a path differs across jsonpath-ng versions, so check it re-parses
+    assert [parse(str(err.path)) for err in errors] == [
+        parse("$.eval.task"),
+        parse("$.eval.nonexistent"),
+    ]
     assert "Cannot coerce foo from type str to int" in str(errors[0])
     assert "field not found" in str(errors[1])
 

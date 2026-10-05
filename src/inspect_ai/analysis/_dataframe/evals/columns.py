@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Callable, Mapping, Type
+from typing import Any, Callable, Mapping, Type, cast
 
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
@@ -137,7 +137,10 @@ EvalResults: list[Column] = [
 """Eval results columns."""
 
 EvalScores: list[Column] = [
-    EvalColumn("score_*_*", path=eval_log_scores_dict),
+    EvalColumn(
+        "score_*_*",
+        path=cast(Callable[[EvalLog], JsonValue], eval_log_scores_dict),
+    ),
 ]
 """Eval scores (one score/metric per-columns)."""
 

@@ -4,12 +4,15 @@ from datetime import date, datetime, time
 from typing import Any, Callable, Mapping, Type, TypeAlias
 
 from jsonpath_ng import JSONPath  # type: ignore
-from jsonpath_ng.ext import parse  # type: ignore
+from jsonpath_ng.ext import parse as untyped_parse  # type: ignore
 from pydantic import JsonValue
 
 from inspect_ai.log._log import EvalLog
 
 from .validate import jsonpath_in_schema
+
+# jsonpath-ng >= 1.9 ships type hints but leaves `parse` unannotated
+parse: Callable[[str], JSONPath] = untyped_parse
 
 ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
 """Valid types for columns.
