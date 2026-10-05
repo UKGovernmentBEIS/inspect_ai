@@ -1,64 +1,87 @@
-import ast
-import sys
 from pathlib import Path
 
-import inspect_ai.core
+import pytest
 
-CORE_DIR = Path(inspect_ai.core.__file__).parent
-
-ALLOWED_THIRD_PARTY = {"pydantic", "pydantic_core", "typing_extensions", "shortuuid"}
-
-
-def _module_name(path: Path) -> str:
-    parts = path.relative_to(CORE_DIR).with_suffix("").parts
-    return ".".join(
-        ("inspect_ai.core", *(parts[:-1] if parts[-1] == "__init__" else parts))
-    )
-
-
-def _imported_modules(path: Path) -> set[str]:
-    """Every module imported anywhere in the file, with relative imports resolved."""
-    module = _module_name(path)
-    package = module if path.name == "__init__.py" else module.rpartition(".")[0]
-    nodes = list(ast.walk(ast.parse(path.read_text())))
-    return {
-        alias.name
-        for node in nodes
-        if isinstance(node, ast.Import)
-        for alias in node.names
-    } | {
-        ".".join(
-            filter(
-                None,
-                (
-                    package.rsplit(".", node.level - 1)[0] if node.level else None,
-                    node.module,
-                ),
-            )
-        )
-        for node in nodes
-        if isinstance(node, ast.ImportFrom)
-    }
-
-
-def _is_allowed(module: str) -> bool:
-    top = module.split(".")[0]
-    return (
-        module == "inspect_ai.core"
-        or module.startswith("inspect_ai.core.")
-        or top in sys.stdlib_module_names
-        or top in ALLOWED_THIRD_PARTY
-    )
+from inspect_ai.core._imports import ImportViolation, check_imports
 
 
 def test_core_imports_only_allowed_modules() -> None:
-    disallowed = {
-        str(path.relative_to(CORE_DIR)): sorted(
-            module for module in _imported_modules(path) if not _is_allowed(module)
-        )
-        for path in sorted(CORE_DIR.rglob("*.py"))
-    }
-    assert not any(disallowed.values()), (
-        f"inspect_ai.core imports disallowed modules: "
-        f"{ {file: modules for file, modules in disallowed.items() if modules} }"
+    assert check_imports("inspect_ai.core") == []
+
+
+def _package(root: Path, files: dict[str, str]) -> None:
+    for relative, source in files.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source)
+
+
+def _violations(violations: list[ImportViolation]) -> set[tuple[str, str, int, str]]:
+    return {(Path(v.file).name, v.module, v.line, v.scope) for v in violations}
+
+
+def test_check_imports_reports_each_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _package(
+        tmp_path,
+        {
+            "monitors/__init__.py": "",
+            "monitors/rules.py": (
+                "from typing import TYPE_CHECKING\n"
+                "import requests\n"
+                "if TYPE_CHECKING:\n"
+                "    import rich\n"
+                "def check():\n"
+                "    from inspect_ai.model import get_model\n"
+            ),
+        },
     )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    assert _violations(check_imports("monitors")) == {
+        ("rules.py", "requests", 2, "module"),
+        ("rules.py", "rich", 4, "type_checking"),
+        ("rules.py", "inspect_ai.model", 6, "function"),
+    }
+
+
+def test_check_imports_allows_own_package_core_and_extra(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _package(
+        tmp_path,
+        {
+            "monitors/__init__.py": "from . import rules\n",
+            "monitors/rules.py": (
+                "import json\n"
+                "from pydantic import BaseModel\n"
+                "from inspect_ai.core import ChatMessage\n"
+                "from .helpers import util\n"
+                "from extra_pkg.sub import thing\n"
+            ),
+            "monitors/helpers/__init__.py": "from .. import rules\n",
+        },
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    assert _violations(check_imports("monitors")) == {
+        ("rules.py", "extra_pkg.sub", 5, "module")
+    }
+    assert check_imports("monitors", allowed=["extra_pkg"]) == []
+
+
+def test_check_imports_single_module(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _package(tmp_path, {"single_monitor.py": "import inspect_ai\n"})
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    assert _violations(check_imports("single_monitor")) == {
+        ("single_monitor.py", "inspect_ai", 1, "module")
+    }
+
+
+def test_check_imports_unknown_module() -> None:
+    with pytest.raises(ModuleNotFoundError):
+        check_imports("no_such_module_for_check_imports")
