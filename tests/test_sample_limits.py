@@ -215,6 +215,27 @@ def test_token_limit():
     check_limit_event(log, "token")
 
 
+def test_token_limit_reached_exactly_refuses_next_generate():
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=repeat_forever(mock_model_output(tokens=5)),
+    )
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        token_limit=10,
+    )
+
+    log = eval(task, model=model)[0]
+    # two calls reach the limit exactly; the third is refused before it is sent
+    total_tokens = sum(usage.total_tokens for usage in log.stats.model_usage.values())
+    assert total_tokens == 10
+    event = find_limit_event(log)
+    assert event is not None and event.type == "token"
+    assert event.message == "Token limit reached. value: 10; limit: 10"
+
+
 def test_token_limit_does_not_apply_to_scorer():
     model = get_model(
         "mockllm/model",
