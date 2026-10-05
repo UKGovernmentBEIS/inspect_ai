@@ -820,8 +820,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         for index, sample in enumerate(dataset)
         if sample.id is not None
     }
-    # (sample id, epoch) -> fanout index for the runs a SampleSource adds
-    # with an explicit epoch (each such run has its own index)
+    # (sample id, epoch) -> fanout index for samples added with an explicit epoch
     epoch_sample_indexes: dict[SampleKey, int] = {}
 
     async def finish_task_log(
@@ -1004,11 +1003,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
     # samples a SampleSource injects while the task runs, indexed after the
     # seed store (kept in memory — they arrive incrementally, not up front).
-    # a slot is released (set to None) once every epoch planned for it (the
-    # task's epochs, or the one explicit epoch it was added with) has its
-    # latest run *completed*, so an open-ended source doesn't accumulate
-    # every sample it ever produced. An errored/cancelled epoch keeps the slot resident: the
-    # sample is requeueable, and its re-run needs the source data (which,
+    # a slot is released (set to None) once every epoch planned for it has its
+    # latest run *completed*, so an open-ended source doesn't accumulate every
+    # sample it ever produced. An errored/cancelled epoch keeps the slot
+    # resident: the sample is requeueable, and its re-run needs the source data (which,
     # unlike a seed sample's, exists nowhere else — the log record doesn't
     # carry file contents). The converse guards `get_sample`'s assert: a
     # released slot means every epoch completed, and the requeue resolver
@@ -1030,7 +1028,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     ) -> None:
         uncompleted = injected_uncompleted_epochs.get(sample_index)
         if uncompleted is None:
-            # released: every planned epoch already completed
             return
         if outcome == "completed":
             uncompleted.discard(epoch)
@@ -1041,8 +1038,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         if not uncompleted:
             sample = injected_samples[sample_index - store_len]
             assert sample is not None
-            # an explicit-epoch run's requeue entry goes with its slot (only
-            # an errored or cancelled run, whose slot stays, is requeueable)
             run_key = SampleKey(str(sample.id), epoch)
             if epoch_sample_indexes.get(run_key) == sample_index:
                 del epoch_sample_indexes[run_key]
@@ -1666,16 +1661,21 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # log member names and score grouping key on it). the seed
                     # ids come from the complete pre-slice seed set, so a
                     # filtered-out id cannot be reclaimed by a dynamic sample.
-                    # seen_ids are reserved for every epoch (the seed's, and
-                    # samples added without an epoch); seen_epoch_runs are the
-                    # (id, epoch) runs added with an explicit epoch, whose ids
-                    # are in seen_epoch_ids
+                    # uniqueness is on (id, epoch): a sample added without an
+                    # epoch reserves (id, 1..epochs), one with an epoch (id, epoch)
                     seen_ids = set(seed_ids)
-                    seen_epoch_runs: set[SampleKey] = set()
-                    seen_epoch_ids: set[str] = set()
-                    # explicit-epoch ids within --limit (a later epoch of an
-                    # admitted id is the same sample, so it is not counted)
-                    admitted_epoch_ids: set[str] = set()
+                    reserved_runs = {
+                        SampleKey(id, epoch)
+                        for id in seed_ids
+                        for epoch in range(1, epochs + 1)
+                    }
+                    # --limit counts distinct samples: a further epoch of an
+                    # admitted id is not counted again
+                    admitted_ids = (
+                        {str(id) for id in sample_ids}
+                        if remaining is not None
+                        else set()
+                    )
                     auto_id = store_len
 
                     class AddedSamples(NamedTuple):
@@ -1685,68 +1685,54 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         all_epoch_ids: list[int | str]
                         explicit_epoch_runs: list[SampleIdEpoch]
 
-                    def reserve_id(sample: Sample, epoch: int | None) -> None:
+                    def reserve_runs(sample: Sample, epoch: int | None) -> list[int]:
+                        """Assign an auto-id if needed and reserve the epochs to run."""
                         nonlocal auto_id
                         if sample.id is None:
                             auto_id += 1
-                            while (
-                                str(auto_id) in seen_ids
-                                or str(auto_id) in seen_epoch_ids
-                            ):
+                            while str(auto_id) in seen_ids:
                                 auto_id += 1
                             sample.id = auto_id
                         key = str(sample.id)
-                        if epoch is None:
-                            if key in seen_ids or key in seen_epoch_ids:
-                                raise ValueError(
-                                    f"SampleSource added a sample with duplicate "
-                                    f"id '{sample.id}'. Please ensure each sample "
-                                    "has a unique id."
-                                )
-                            seen_ids.add(key)
-                        else:
-                            run_key = SampleKey(key, epoch)
-                            if key in seen_ids or run_key in seen_epoch_runs:
-                                raise ValueError(
-                                    f"SampleSource added a sample with duplicate "
-                                    f"id '{sample.id}' for epoch {epoch}. Please "
-                                    "ensure each (id, epoch) is added once, and "
-                                    "that an id added with an epoch is not also "
-                                    "added without one."
-                                )
-                            seen_epoch_runs.add(run_key)
-                            seen_epoch_ids.add(key)
+                        planned = (
+                            list(range(1, epochs + 1)) if epoch is None else [epoch]
+                        )
+                        runs = {SampleKey(key, e) for e in planned}
+                        if not runs.isdisjoint(reserved_runs):
+                            for_epoch = "" if epoch is None else f" for epoch {epoch}"
+                            raise ValueError(
+                                f"SampleSource added a sample with duplicate "
+                                f"id '{sample.id}'{for_epoch}. Please ensure each "
+                                "sample id is added once per epoch."
+                            )
+                        reserved_runs.update(runs)
+                        seen_ids.add(key)
+                        return planned
 
-                    def within_limit(sample: Sample, epoch: int | None) -> bool:
+                    def within_limit(sample: Sample) -> bool:
                         nonlocal remaining
-                        if remaining is None:
-                            return True
                         key = str(sample.id)
-                        if epoch is not None and key in admitted_epoch_ids:
+                        if remaining is None or key in admitted_ids:
                             return True
                         if remaining <= 0:
                             return False
                         remaining -= 1
-                        if epoch is not None:
-                            admitted_epoch_ids.add(key)
+                        admitted_ids.add(key)
                         return True
 
                     def add_samples(samples: list[EnqueuedSample]) -> AddedSamples:
                         added = AddedSamples([], [], [], [], [])
                         over_limit = 0
                         for sample, epoch in samples:
-                            reserve_id(sample, epoch)
+                            planned_epochs = reserve_runs(sample, epoch)
                             assert sample.id is not None
                             if include_id is not None and not include_id(sample.id):
                                 continue
-                            if not within_limit(sample, epoch):
+                            if not within_limit(sample):
                                 over_limit += 1
                                 continue
                             injected_samples.append(sample)
                             index = store_len + len(injected_samples) - 1
-                            planned_epochs = (
-                                list(range(1, epochs + 1)) if epoch is None else [epoch]
-                            )
                             injected_uncompleted_epochs[index] = set(planned_epochs)
                             added.samples.append(sample)
                             added.runs.extend((index, e) for e in planned_epochs)
@@ -1782,10 +1768,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         nonlocal total_samples
 
                         added = add_samples(samples)
-                        # prior records the attempt's upfront seed left out: a
-                        # limited feed's selection is known only now, and an
-                        # explicit epoch beyond the task's epochs is outside
-                        # the seed's epoch range
+                        # prior records the upfront seed left out: a limited
+                        # feed's selection, and explicit epochs beyond `epochs`
                         seed_keys = (
                             set(added.run_ids)
                             if limited_sample_feed

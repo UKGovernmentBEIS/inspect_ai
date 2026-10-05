@@ -54,8 +54,7 @@ class SeedSamples:
 
     def __init__(self) -> None:
         self.keys: list[SampleIdEpoch] = []
-        # positions in `keys` by string-form key, so a small selection (one
-        # admitted dynamic sample) costs its own size, not the prior's
+        # positions in `keys` by string-form key, so a selection costs its own size
         self._positions: dict[SampleRecordKey, list[int]] = {}
         self._samples: dict[SampleIdEpoch, EvalSample] = {}
         self._fs = AsyncFilesystem()

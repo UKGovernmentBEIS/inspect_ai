@@ -600,14 +600,21 @@ def test_explicit_epoch_runs_are_planned_individually() -> None:
     from inspect_ai._control.state import _add_pending_samples
 
     state = register_eval("e1", 2, sample_ids=["seed"], epochs=2, dynamic=True)
-    record_samples_added("e1", 2, sample_epochs=[("q", 1), ("q", 5)])
-    assert state.total == 4
+    record_samples_added("e1", 3, sample_epochs=[("q", 1), ("q", 5), ("seed", 3)])
+    assert state.total == 5
 
     by_key: dict[tuple[Any, int], dict[str, Any]] = {}
     _add_pending_samples("e1", by_key)
-    assert sorted(by_key) == [("q", 1), ("q", 5), ("seed", 1), ("seed", 2)]
+    assert sorted(by_key) == [
+        ("q", 1),
+        ("q", 5),
+        ("seed", 1),
+        ("seed", 2),
+        ("seed", 3),
+    ]
 
     assert _is_planned(state, "q", 5)
     assert not _is_planned(state, "q", 2)
     assert _is_planned(state, "seed", 2)
+    assert _is_planned(state, "seed", 3)
     assert not _is_planned(state, "seed", 5)

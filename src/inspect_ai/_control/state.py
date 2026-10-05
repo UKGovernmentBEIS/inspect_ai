@@ -320,8 +320,9 @@ async def current_sample_summaries(
       (eval finished / torn down) — read once and memoized on the state
       (see :func:`completed_eval_sample_summaries`).
     - **pending** ← synthesized from the eval's registered planned
-      ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``,
-      plus ``EvalState.sample_epochs``) that aren't yet running or done — no live source holds these.
+      ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``
+      and ``EvalState.sample_epochs``) that aren't yet running or done — no
+      live source holds these.
 
     Merged and deduped by ``(sample_id, epoch)``; a terminal record
     (completed / error) supersedes a running one, which supersedes a

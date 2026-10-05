@@ -62,7 +62,7 @@ eval(Task(dataset=MySource(), solver=my_solver(), scorer=my_scorer()),
 
 `initial_samples()` is synchronous and returns the seed, so it must return immediately rather than `await`. It may be empty, in which case the task starts by calling `next_samples()`. `next_samples()` is async, called whenever no samples remain in flight, and may block (for example, awaiting external input); return `None` to end the task.
 
-All generated samples run within the task (one log file and one set of results), and each runs for the task's configured number of [epochs](metrics.qmd#reducing-epochs) (or as one explicit epoch — see [Running a sample again as a new epoch](#running-a-sample-again-as-a-new-epoch)). Samples without an `id` are assigned one automatically, continuing the seed's numbering.
+All generated samples run within the task (one log file and one set of results), and each runs for the task's configured number of [epochs](metrics.qmd#reducing-epochs). Samples without an `id` are assigned one automatically, continuing the seed's numbering.
 
 ## Returning follow-up samples
 
@@ -132,7 +132,7 @@ Enqueued samples share a buffer with samples returned from `sample_complete`. `e
 
 ### Running a sample again as a new epoch
 
-By default each added sample runs for the task's configured epochs, and its id can't be added again. Pass `epoch` to run a sample once, as that epoch, instead. The same id can then be added again with another epoch, whenever the source needs another run of it:
+Pass `epoch` to `enqueue_sample()` to run a sample once, as that epoch, rather than for the task's configured epochs. This lets a source run the same sample repeatedly under its own id:
 
 ```python
 class Rollouts(SampleSource):
@@ -153,9 +153,7 @@ class Rollouts(SampleSource):
         return []
 ```
 
-Each run is logged and scored under the sample's own id (so `state.sample_id` in solvers and scorers is the real id) and is told apart by `state.epoch`; `sample_complete` receives it with `sample.epoch` set. Scores for one id are reduced across its runs like any other epochs. The epoch is independent of the task's `epochs` option.
-
-An id is reserved either for all epochs (a seed sample, or one added without `epoch`) or for each epoch it is added with, not both. Adding the same `(id, epoch)` twice, or mixing the two forms for one id, fails the task — so to run a sample again after `sample_abandoned` reports a run, add it with a new epoch. `--limit` counts samples: further epochs of an id within the limit run, but once the limit is reached and nothing is in flight the task ends without calling `next_samples()` again. On a [retry](#retries), a run is reused when the source adds the same `(id, epoch)` again, so number epochs deterministically if you rely on reuse.
+Each run keeps the sample's id (`state.sample_id`) and is told apart by `state.epoch`. Each `(id, epoch)` may be added once: a sample added without `epoch` (or in the seed) takes epochs `1` to the task's `epochs`. `--limit` counts samples, not runs, so further epochs of an admitted id don't count against it.
 
 If samples contain media, paths and URLs in `initial_samples()` are trusted task
 input and are materialized before execution. Media added later by
@@ -182,7 +180,7 @@ A *fractional* `fail_on_error` threshold (e.g. `0.5`) is evaluated at the end of
 
 ## Retries
 
-On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source's `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally, and regenerated samples whose ids (and, when added with an explicit `epoch`, epochs) match the prior attempt are themselves reused rather than re-run. Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
+On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source's `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally, and regenerated samples whose ids (and explicit epochs) match the prior attempt are themselves reused rather than re-run. Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
 
 ## Logs
 

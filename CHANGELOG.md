@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Sample sources: `enqueue_sample(samples, epoch=N)` runs each sample once as epoch `N`, so a source can run one sample repeatedly under its own id (unique per `(id, epoch)`), e.g. for repeated RL rollouts.
+- Sample sources: `enqueue_sample(samples, epoch=N)` runs each sample once as epoch `N`, so a source can run one sample repeatedly under its own id.
 - Run config: `eval_config.token_limit_type` from an exported or handwritten run config is applied as the token-limit metering type instead of being rejected as an unknown generate option.
 - Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
 - Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.

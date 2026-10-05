@@ -1825,17 +1825,22 @@ async def test_requeue_dynamic_injected_sample() -> None:
 
 _EPOCH_RUNS: list[tuple[str, int]] = []
 _EPOCH_RELEASE: anyio.Event | None = None
+_EPOCH_MIXED = False
 
 
 @solver
 def _epoch_requeue_probe():
-    """The seeder enqueues `q` as epochs 1 and 2 then parks; epoch 2 errors once."""
+    """The seeder enqueues `q` as epochs 1 and 2 then parks; epoch 2 errors once.
+
+    With `_EPOCH_MIXED`, epoch 1 is added without an epoch (the task's epochs).
+    """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if state.sample_id == "seeder":
             for epoch in (1, 2):
                 enqueue_sample(
-                    Sample(id="q", input=f"epoch-{epoch}", target="y"), epoch=epoch
+                    Sample(id="q", input=f"epoch-{epoch}", target="y"),
+                    epoch=None if _EPOCH_MIXED and epoch == 1 else epoch,
                 )
             assert _EPOCH_RELEASE is not None
             with anyio.fail_after(60):
@@ -1849,14 +1854,15 @@ def _epoch_requeue_probe():
     return solve
 
 
-async def test_requeue_dynamic_explicit_epoch_run() -> None:
+@pytest.mark.parametrize("mixed", [False, True])
+async def test_requeue_dynamic_explicit_epoch_run(mixed: bool) -> None:
     """An errored run added with an explicit epoch is requeued as that run.
 
-    Each explicit-epoch run of one id has its own fanout index, so the
-    directive must resolve ``(id, epoch)`` — not the id alone — to re-run
-    the sample that epoch was added with.
+    It has its own fanout index, so the directive must resolve ``(id, epoch)``,
+    not the id alone (which, when mixed, names the sample added for epoch 1).
     """
-    global _EPOCH_RELEASE
+    global _EPOCH_RELEASE, _EPOCH_MIXED
+    _EPOCH_MIXED = mixed
     _EPOCH_RUNS.clear()
     _EPOCH_RELEASE = anyio.Event()
 

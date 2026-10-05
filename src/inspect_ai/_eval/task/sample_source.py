@@ -273,15 +273,10 @@ def enqueue_sample(
     (bounded by ``max_samples``), each for the task's configured number of
     epochs. Samples without an ``id`` are assigned one automatically.
 
-    Pass ``epoch`` to run each sample once, as that epoch, instead. A sample
-    id added this way may be added again with a different ``epoch`` — for
-    example to run the same sample repeatedly, at any time, as epochs
-    ``1, 2, 3, ...`` — so each run is logged and scored under the sample's own
-    id, keyed by ``(id, epoch)``. ``epoch`` is independent of the task's
-    configured ``epochs``. An id is reserved either for all epochs (a seed
-    sample, or one added without ``epoch``) or per epoch, not both: adding an
-    id that is already in use for the same epoch, or adding with ``epoch`` an
-    id already reserved for all epochs (or the reverse), raises in the task.
+    Pass ``epoch`` to run each sample once, as that epoch, instead, so the
+    same id can be run repeatedly. Each ``(id, epoch)`` may be added once (a
+    sample added without ``epoch`` takes epochs 1 to the task's ``epochs``);
+    a duplicate fails the task.
 
     Only available inside a task driven by a :class:`SampleSource` (i.e. a
     ``Task`` whose ``dataset`` is a ``SampleSource``) — a plain task's sample

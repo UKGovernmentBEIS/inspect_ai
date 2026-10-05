@@ -375,15 +375,56 @@ def test_enqueue_sample_epoch_with_task_epochs() -> None:
 
 
 @pytest.mark.parametrize(
+    "seed_ids,adds,expected",
+    [
+        # added without an epoch, then as a further epoch
+        ([], [("q", None), ("q", 3)], [("q", 1), ("q", 2), ("q", 3)]),
+        # added as a later epoch, then without an epoch
+        ([], [("q", 3), ("q", None)], [("q", 1), ("q", 2), ("q", 3)]),
+        # a seed id run again as a further epoch
+        (["q"], [("q", 4)], [("q", 1), ("q", 2), ("q", 4)]),
+    ],
+)
+def test_enqueue_sample_epoch_mixed_with_all_epochs(
+    seed_ids: list[str],
+    adds: list[tuple[str, int | None]],
+    expected: list[tuple[str, int]],
+) -> None:
+    class _Mixed(SampleSource):
+        def __init__(self) -> None:
+            self._started = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=id, input=id, target="ok") for id in seed_ids]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self._started:
+                return None
+            self._started = True
+            for id, epoch in adds:
+                enqueue_sample(Sample(id=id, input=id, target="ok"), epoch=epoch)
+            return []
+
+    logs = eval(
+        Task(dataset=_Mixed(), solver=[generate()], epochs=2),
+        model="mockllm/model",
+        display="none",
+    )
+    log = logs[0]
+    assert log.status == "success"
+    assert sorted((str(s.id), s.epoch) for s in log.samples or []) == expected
+
+
+@pytest.mark.parametrize(
     "seed_ids,adds",
     [
         # the same (id, epoch) twice
         ([], [("q", 1), ("q", 1)]),
-        # an id the seed reserves for all epochs
+        # an epoch the seed already runs
         (["q"], [("q", 2)]),
-        # an id added without an epoch, then with one
+        # an epoch a sample added without one already runs
         ([], [("q", None), ("q", 2)]),
-        # an id added with an epoch, then without one
+        # an epoch already added, then the id without one
         ([], [("q", 1), ("q", None)]),
     ],
 )
@@ -406,7 +447,7 @@ def test_enqueue_sample_epoch_duplicate_errors(
             return []
 
     logs = eval(
-        Task(dataset=_Dup(), solver=[generate()]),
+        Task(dataset=_Dup(), solver=[generate()], epochs=2),
         model="mockllm/model",
         display="none",
     )
@@ -458,6 +499,40 @@ def test_enqueue_sample_epoch_limit_counts_samples() -> None:
         ("a", 1),
         ("a", 2),
         ("b", 1),
+    ]
+
+
+def test_enqueue_sample_epoch_limit_counts_samples_across_forms() -> None:
+    # an id admitted in either form (seed, without an epoch, with one) is one
+    # sample: further epochs of it don't count against --limit
+    class _Rollouts(SampleSource):
+        def __init__(self) -> None:
+            self._started = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="s", input="s", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self._started:
+                return None
+            self._started = True
+            for id, epoch in [("s", 3), ("a", None), ("a", 2), ("b", 1)]:
+                enqueue_sample(Sample(id=id, input=id, target="ok"), epoch=epoch)
+            return []
+
+    logs = eval(
+        Task(dataset=_Rollouts(), solver=[generate()]),
+        model="mockllm/model",
+        display="none",
+        limit=2,
+    )
+    log = logs[0]
+    assert log.status == "success"
+    assert sorted((str(s.id), s.epoch) for s in log.samples or []) == [
+        ("a", 1),
+        ("a", 2),
+        ("s", 1),
+        ("s", 3),
     ]
 
 

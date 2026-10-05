@@ -112,36 +112,16 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
 - **Injected sample storage** — injected samples are appended to an in-memory
   list indexed after the (possibly disk-paged) seed store; `get_sample(index)`
   dispatches between the two. Each injected sample runs for the task's
-  configured `epochs`, like the seed — unless it was added with an explicit
-  epoch (below), when its slot plans that one epoch. A slot is released once
-  every epoch it plans has completed.
+  configured `epochs`, like the seed.
 - **Ids** — injected samples without ids get auto-ids continuing the seed's
   1-based numbering, skipping ids already in use; a duplicate explicit id is a
   hard error. Ids are compared by their `str()` form, matching
   `ensure_unique_ids` (log member names and score grouping key on it).
-- **Explicit epochs** — `enqueue_sample(samples, epoch=N)` adds each sample as
-  the single run `(id, N)`, so one id can be added any number of times as
-  distinct epochs (an RL harness streaming repeated rollouts of one sample
-  under its real id). Every explicit-epoch add gets its own fanout index, so
-  the scheduler's `(sample_index, epoch)` keys stay unique, and the results,
-  log, buffer and checkpoint keys `(sample_id, epoch)` are unique by
-  construction: an id is reserved either for all epochs (`seen_ids`: the
-  pre-slice seed and samples added without an epoch) or per `(id, epoch)`
-  (`seen_epoch_runs`), and a collision in either form, or mixing the two for
-  one id, is a hard error. The requeue directive resolves an explicit-epoch
-  run through `epoch_sample_indexes` (keyed `(id, epoch)`) before
-  `sample_indexes` (keyed by id), and drops the entry when the run's slot is
-  released (a completed run is not requeueable); an errored, cancelled or
-  abandoned run keeps its slot, as any injected sample does, and a source
-  re-running it uses a new epoch (the same `(id, epoch)` is a duplicate). The
-  control-channel state records these
-  runs as `EvalState.sample_epochs`, alongside `sample_ids` × `epochs`, for the
-  pending listing and the cancel/requeue `_is_planned` check. `--limit` counts
-  distinct ids (a later epoch of an admitted id is not counted; one of an id
-  over the limit is ignored too). Only `enqueue_sample` takes an epoch: the
-  callbacks' returned lists keep their meaning (all configured epochs), and a
-  source wanting explicit epochs calls `enqueue_sample` from the callback
-  (all of them run in the task's context) and returns `None` / `[]`.
+- **Explicit epochs** — `enqueue_sample(samples, epoch=N)` adds each sample
+  as the single run `(id, N)` in its own slot, so one id can run repeatedly
+  under its real id. Uniqueness is on `(id, epoch)`: a seed sample or one
+  added without an epoch reserves `(id, 1..epochs)`. `--limit` counts
+  distinct ids.
 - **Growing totals** — `total_samples` grows as samples are added, updating the
   display denominator (`td.sample_complete`), the fractional `fail_on_error`
   threshold (`SampleErrorHandler.total_samples`), the end-of-run
@@ -205,17 +185,8 @@ dropping samples.
   `next_samples()` state resumes mid-state on retry — it must be resumable
   (or derive its follow-ups from `sample_complete`) for retries to
   reconstruct the run; this is the same determinism contract as `TaskSource`
-  + eval_set (see task-source.md). A retry's upfront seed keeps prior
-  records with epochs up to the task's `epochs` only, so an explicit-epoch run
-  beyond that range is copied in when the source re-adds it
-  (`seed_added_samples`, the same admission-time copy a limited feed uses) and
-  is then reused like any other. (So an explicit-epoch record within the
-  task's `epochs` is in the attempt's log from the start, and one beyond it
-  only once re-added; a natural success prunes unconsulted seeded records
-  either way.) `SeedSamples.select` looks keys up by position index and
-  `log_seed_samples` returns before reading the attempt's summaries when the
-  prior has none of the keys, so the per-admission copy costs the size of
-  the admitted batch, not of the prior or of the attempt so far.
+  + eval_set (see task-source.md). Explicit epochs beyond `epochs` are
+  outside the upfront seed, so they are copied from the prior when re-added.
 - **Early stopping** is rejected (`PrerequisiteError`): managers register a
   fixed sample set at `start_task` (added samples would never be registered),
   and samples a manager halts complete without notifying the source, which
@@ -287,10 +258,9 @@ dropping samples.
 seed-only when `next_samples()` is `None`; `sample_complete` returning
 follow-ups chains generations; `from_samples` (callbacks and seed-only); empty
 seed; epochs applied to injected samples; explicit + auto id assignment and
-duplicate-id error; one id enqueued with explicit epochs concurrently and
-after completion (real `state.sample_id` in solver and scorer), explicit epoch
-beside task `epochs`, `(id, epoch)` / mixed-form duplicates, `epoch < 1`,
-`--limit` counting ids, retry reuse of explicit epochs beyond `epochs`; live injection discriminated from batch-at-a-time (blocker
+duplicate-id error; explicit epochs (repeated runs of one id, mixing with
+all-epoch adds, `(id, epoch)` duplicates, `--limit`, retry reuse); live
+injection discriminated from batch-at-a-time (blocker
 parks until an injected sample releases it, `fail_after` bounds a regression);
 `enqueue_sample` rejected on plain tasks and outside a task; `--limit` caps
 totals (budget spent, seed-consumed limit never consults the source, batch

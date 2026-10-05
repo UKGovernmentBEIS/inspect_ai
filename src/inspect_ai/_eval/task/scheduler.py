@@ -441,9 +441,7 @@ class SampleRequeue:
         self._eval_id = eval_id
         self._scheduler = scheduler
         self._sample_error = sample_error
-        # a sample id resolves to one fanout index for all its epochs, except
-        # for runs a SampleSource added with an explicit epoch, which each
-        # have their own (keyed by id and epoch)
+        # samples added with an explicit epoch have their own index per (id, epoch)
         self._sample_indexes = sample_indexes
         self._epoch_sample_indexes = (
             epoch_sample_indexes if epoch_sample_indexes is not None else {}
