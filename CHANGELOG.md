@@ -21,6 +21,8 @@
 - Batch mode: Requests with different HTTP headers, such as `extra_headers` or Anthropic beta headers, are now sent in separate batches, so one request's headers no longer apply to others.
 - Mistral: Image URLs in model output are no longer downloaded from any host; they are recorded as text with the URL. Inline images are unchanged.
 - Bugfix: The model output cache no longer reads, writes or deletes files outside the cache directory; unsafe model names are not cached, and `cache_path(model)` rejects them with `ValueError`.
+- Bugfix: Remote MCP servers are now refused while an approval policy is active, rather than having their tools run by the model provider without approval.
+- Bugfix: Results of `sandbox_agent_bridge()` bridged tools are now truncated at `max_tool_output` (or the tool's `max_output`), as other tool results are.
 
 ## 0.3.276 (02 October 2026)
 
