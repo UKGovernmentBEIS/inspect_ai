@@ -1,8 +1,10 @@
 import types
+from pathlib import Path
 from typing import Any, Literal, cast
 from unittest.mock import AsyncMock, create_autospec, patch
 
 import pytest
+from test_helpers.output_cache import check_output_cache_round_trip
 from test_helpers.utils import (
     setenv_if_unset,
     skip_if_no_anthropic,
@@ -48,6 +50,15 @@ async def test_anthropic_api() -> None:
     message = "This is a test string. What are you?"
     response = await model.generate(input=message)
     assert len(response.completion) >= 1
+
+
+@skip_if_no_anthropic
+async def test_anthropic_output_cache(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    await check_output_cache_round_trip(
+        "anthropic/claude-haiku-4-5", monkeypatch, tmp_path
+    )
 
 
 @skip_if_no_anthropic
