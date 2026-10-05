@@ -34,6 +34,7 @@ import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.event_loop_monitor import event_loop_monitor
+from inspect_ai._util.file import filesystem
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._view import fastapi_server
 from inspect_ai._view.common import (
@@ -1540,7 +1541,7 @@ def _patch_flat_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
     class FlatFileSystem:
         sep = "/"
 
-        def dir_as_uri(self, path: str) -> str:
+        def dir_location(self, path: str) -> str:
             return path
 
     def fake_filesystem(path: str, fs_options: dict[str, Any] = {}) -> FlatFileSystem:
@@ -1577,6 +1578,29 @@ async def test_read_eval_set_info_async_raises_non_auth_errors(
         await read_eval_set_info_async(
             "az://container/logs", cast(AsyncFilesystem, BrokenFilesystem())
         )
+
+
+@pytest.mark.parametrize("suffix", ["", "/"])
+async def test_read_eval_set_info_async_keeps_azure_account_in_url(
+    suffix: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("AZURE_STORAGE_ACCOUNT_NAME", raising=False)
+    monkeypatch.delenv("AZURE_ACCOUNT_NAME", raising=False)
+    log_dir = "abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs"
+    requested: list[str] = []
+
+    class RecordingFilesystem:
+        async def exists(self, filename: str) -> bool:
+            # AsyncFilesystem.exists opens a filesystem from the URL alone
+            filesystem(filename)
+            requested.append(filename)
+            return False
+
+    result = await read_eval_set_info_async(
+        f"{log_dir}{suffix}", cast(AsyncFilesystem, RecordingFilesystem())
+    )
+    assert result is None
+    assert requested == [f"{log_dir}/eval-set.json"]
 
 
 async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(

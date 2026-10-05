@@ -143,7 +143,7 @@ async def read_eval_set_info_async(
     when the check/read fails with an Azure auth error.
     """
     fs = filesystem(eval_set_dir)
-    manifest = f"{fs.dir_as_uri(eval_set_dir)}{fs.sep}eval-set.json"
+    manifest = f"{fs.dir_location(eval_set_dir)}{fs.sep}eval-set.json"
     try:
         if not await afs.exists(manifest):
             return None

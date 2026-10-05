@@ -508,30 +508,56 @@ _MemoryFileSystem: Any = importlib.import_module(
 ).MemoryFileSystem
 
 
-class _TrailingSlashMemoryFileSystem(_MemoryFileSystem):
-    """In-memory filesystem whose `_strip_protocol` keeps a trailing slash, as adlfs does."""
+class _AzureLikeMemoryFileSystem(_MemoryFileSystem):
+    """In-memory filesystem with adlfs's URL handling.
 
-    protocol = ("trailslash",)
+    `_strip_protocol` keeps a trailing slash and drops the account from
+    `azmem://container@account/...`. The filesystem cannot be opened without
+    an account unless `default_account` (the role of the account-name
+    environment variable) is set. Names are listed as `azmem://` even when
+    opened as `azmemalias://`, as adlfs lists `az://` paths as `abfs://`.
+    """
+
+    protocol = ("azmem", "azmemalias")
     store: dict[str, Any] = {}
     pseudo_dirs = [""]
+    cachable = False
+    default_account: str | None = None
+
+    def __init__(self, account: str | None = None, **kwargs: Any) -> None:
+        if not (account or self.default_account):
+            raise ValueError("Must provide an account")
+        super().__init__(**kwargs)
+
+    @staticmethod
+    def _get_kwargs_from_urls(path: str) -> dict[str, Any]:
+        netloc = path.split("://", 1)[-1].split("/", 1)[0]
+        return {"account": netloc.partition("@")[2]} if "@" in netloc else {}
 
     @classmethod
     def _strip_protocol(cls, path: Any) -> Any:
-        path = str(path).removeprefix("trailslash://")
-        return "/" + path.lstrip("/")
+        container, _, rest = str(path).split("://", 1)[-1].lstrip("/").partition("/")
+        return f"/{container.partition('@')[0]}" + (f"/{rest}" if rest else "")
+
+
+@pytest.fixture
+def azure_like_fs(monkeypatch: pytest.MonkeyPatch) -> type[Any]:
+    fsspec = importlib.import_module("fsspec")
+    for protocol in _AzureLikeMemoryFileSystem.protocol:
+        fsspec.register_implementation(
+            protocol, _AzureLikeMemoryFileSystem, clobber=True
+        )
+    monkeypatch.setattr(_AzureLikeMemoryFileSystem, "store", {})
+    return _AzureLikeMemoryFileSystem
 
 
 @pytest.mark.parametrize(
-    "written_as", ["trailslash://container/logs", "trailslash://container/logs/"]
+    "written_as", ["azmem://container@acct/logs", "azmem://container@acct/logs/"]
 )
-def test_eval_set_metadata_paths_ignore_trailing_slash(
-    written_as: str, monkeypatch: pytest.MonkeyPatch
+def test_eval_set_metadata_paths_keep_url_and_ignore_trailing_slash(
+    written_as: str, azure_like_fs: type[Any]
 ) -> None:
-    importlib.import_module("fsspec").register_implementation(
-        "trailslash", _TrailingSlashMemoryFileSystem, clobber=True
-    )
-    monkeypatch.setattr(_TrailingSlashMemoryFileSystem, "store", {})
-    log_dir = "trailslash://container/logs"
+    log_dir = "azmem://container@acct/logs"
 
     write_eval_set_info(
         "eval-set-id",
@@ -543,7 +569,7 @@ def test_eval_set_metadata_paths_ignore_trailing_slash(
     write_log_dir_manifest(written_as)
     write_log_listing(written_as)
 
-    assert sorted(_TrailingSlashMemoryFileSystem.store) == [
+    assert sorted(azure_like_fs.store) == [
         "/container/logs/eval-set.json",
         "/container/logs/listing.json",
         "/container/logs/logs.json",
@@ -558,6 +584,25 @@ def test_eval_set_metadata_paths_ignore_trailing_slash(
         assert info is not None and info.eval_set_id == "eval-set-id"
         info = anyio.run(read_async, read_as)
         assert info is not None and info.eval_set_id == "eval-set-id"
+
+
+def test_log_dir_manifest_keys_relative_to_listed_names(
+    azure_like_fs: type[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(azure_like_fs, "default_account", "acct")
+    log = "2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    fs = filesystem("azmem://container/logs").fs
+    fs.pipe_file(
+        f"/container/logs/{log}",
+        Path(__file__).parent.joinpath("log", "test_list_logs", log).read_bytes(),
+    )
+
+    write_log_dir_manifest("azmemalias://container/logs/")
+    write_log_listing("azmemalias://container/logs/")
+
+    for manifest in ("logs.json", "listing.json"):
+        keys = json.loads(fs.cat_file(f"/container/logs/{manifest}")).keys()
+        assert list(keys) == [log]
 
 
 def test_eval_set_retry_in_same_second_does_not_clobber_failed_log() -> None:

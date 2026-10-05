@@ -255,16 +255,30 @@ class FileSystem:
     def path_as_uri(self, path: str) -> str:
         return str(self.fs.unstrip_protocol(path))
 
-    def dir_as_uri(self, path: str) -> str:
-        """Return the URI of a directory, computed from the path alone.
+    def dir_location(self, path: str) -> str:
+        """Return the location to address files in a directory, from the path alone.
 
         Makes no filesystem request, so it works with credentials scoped to a
-        prefix. Trailing separators are removed (a root is kept), so every
-        spelling of a directory gives the same URI.
+        prefix. Trailing separators are removed (a root is kept). A local path
+        becomes an absolute `file://` URI. A remote URL otherwise keeps the form
+        given, since it can carry connection settings (e.g. the account in
+        `abfss://container@account.dfs.core.windows.net/logs`).
         """
-        return self.path_as_uri(
-            _strip_trailing_sep(self.fs._strip_protocol(path), self.sep)
-        )
+        if self.is_local():
+            return self.path_as_uri(
+                _strip_trailing_sep(self.fs._strip_protocol(path), self.sep)
+            )
+        head, delim, rest = path.rpartition("://")
+        trimmed = rest.rstrip(self.sep)
+        return f"{head}{delim}{trimmed}" if trimmed else path
+
+    def dir_as_uri(self, path: str) -> str:
+        """Return a directory's URI in the form of the names `ls()` returns.
+
+        Makes no filesystem request. Use it to make listed names relative to
+        the directory; use `dir_location()` to address files in it.
+        """
+        return self.path_as_uri(self.fs._strip_protocol(self.dir_location(path)))
 
     def ls(
         self, path: str, recursive: bool = False, **kwargs: dict[str, Any]
