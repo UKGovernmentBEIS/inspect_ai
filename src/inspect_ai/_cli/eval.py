@@ -860,7 +860,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--cache-prompt",
         type=click.Choice(["auto", "true", "false"]),
-        help="Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only.",
+        help="Whether to cache the prompt prefix. Enabled by default. Set to False to disable: on OpenAI this only disables explicit ContentText.cache_breakpoint marks — the model's own implicit caching stays in effect.",
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
     @click.option(
@@ -1782,6 +1782,18 @@ class RunConfigInput(BaseModel):
         epochs_reducer = ec.pop("epochs_reducer", None)
         if epochs is not None:
             ec["epochs"] = Epochs(epochs, create_reducers(epochs_reducer))
+        # token_limit_type is stored beside token_limit on EvalConfig, but
+        # eval() takes a single token_limit (int or TokenLimit). Leaving the
+        # type in the flattened kwargs makes GenerateConfig reject it.
+        token_limit = ec.pop("token_limit", None)
+        token_limit_type = ec.pop("token_limit_type", None)
+        if token_limit is not None:
+            if token_limit_type not in (None, "all"):
+                ec["token_limit"] = TokenLimit(
+                    tokens=token_limit, type=token_limit_type
+                )
+            else:
+                ec["token_limit"] = token_limit
         params.update(ec)
 
         # Tags and metadata

@@ -9,6 +9,7 @@ import os
 import pytest
 import yaml
 
+import inspect_ai._util.dotenv as dotenv_mod
 from inspect_ai._cli.common import CommonOptions, process_common_options
 from inspect_ai._util.config import parse_cli_args
 
@@ -156,8 +157,10 @@ def test_process_common_options_env_quoted_commas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The --env CLI option preserves quoted comma-containing values in os.environ."""
-    monkeypatch.delenv("NO_PROXY", raising=False)
-    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+    # setenv (not delenv) so teardown removes the values process_common_options sets
+    monkeypatch.setenv("NO_PROXY", "")
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
+    monkeypatch.setattr(dotenv_mod, "_cli_env", {})
 
     options: CommonOptions = {
         "log_level": "info",

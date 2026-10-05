@@ -44,7 +44,11 @@ from inspect_ai.event._pool import (
     resolve_model_event_calls,
     resolve_model_event_inputs,
 )
-from inspect_ai.event._validate import validate_chat_messages, validate_events_json
+from inspect_ai.event._validate import (
+    _chat_message_list_adapter,
+    validate_chat_messages,
+    validate_events_json,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -907,7 +911,9 @@ def _sample_attachment_refs(sample: EvalSample) -> set[str]:
             stripped_sample.model_dump(mode="python", exclude={"attachments"})
         )
         | attachment_refs_from_value(
-            [m.model_dump(mode="python") for m in messages.values()]
+            _chat_message_list_adapter.dump_python(
+                list(messages.values()), mode="python"
+            )
         )
         | attachment_refs_from_value(list(call_messages.values()))
     )

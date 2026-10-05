@@ -150,6 +150,17 @@
               }
             ],
             "title": "Scout Version"
+          },
+          "trust_content": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Content"
           }
         },
         "required": [
@@ -1939,6 +1950,17 @@
       "ContentText": {
         "description": "Text content.",
         "properties": {
+          "cache_breakpoint": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Breakpoint"
+          },
           "citations": {
             "anyOf": [
               {
@@ -7585,6 +7607,20 @@
             ],
             "title": "Pending"
           },
+          "request_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelRequestId"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Ids"
+          },
           "retries": {
             "anyOf": [
               {
@@ -7798,6 +7834,17 @@
             "title": "Model",
             "type": "string"
           },
+          "response_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Id"
+          },
           "time": {
             "anyOf": [
               {
@@ -7826,6 +7873,30 @@
           "completion"
         ],
         "title": "ModelOutput",
+        "type": "object"
+      },
+      "ModelRequestId": {
+        "description": "Provider request id from an HTTP response.",
+        "properties": {
+          "header": {
+            "title": "Header",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "header",
+          "status"
+        ],
+        "title": "ModelRequestId",
         "type": "object"
       },
       "ModelUsage": {
@@ -11656,7 +11727,7 @@
         "type": "object"
       },
       "ViewerConfig": {
-        "description": "Top-level viewer configuration.\n\nThis allows per task customization of the\nTask's sample list and each sample's score and scanner result display.",
+        "description": "Top-level viewer configuration.\n\nThis allows per task customization of the\nTask's sample list, each sample's score and scanner result display,\nand whether log content is trusted enough to render richly.",
         "properties": {
           "sample_score_view": {
             "anyOf": [
@@ -11698,6 +11769,17 @@
               }
             ],
             "title": "Task Samples View"
+          },
+          "trust_content": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Content"
           }
         },
         "required": [

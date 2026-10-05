@@ -338,6 +338,7 @@ class AzureAIAPI(ModelAPI):
                 )
                 if response.usage is not None
                 else None,
+                response_id=response.id or None,
             ), model_call
 
         except AzureError as ex:
