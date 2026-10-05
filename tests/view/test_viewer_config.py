@@ -1,5 +1,7 @@
 """Tests for the `inspect_ai.viewer` Pydantic config classes."""
 
+import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -47,6 +49,35 @@ def test_scanner_result_view_defaults() -> None:
 def test_viewer_config_defaults() -> None:
     cfg = ViewerConfig()
     assert cfg.scanner_result_view == {}
+
+
+def test_viewer_config_trust_content_defaults_to_none() -> None:
+    assert ViewerConfig().trust_content is None
+
+
+def test_viewer_config_trust_content_absent_from_persisted_config() -> None:
+    """Configs persisted before `trust_content` existed read back as unset."""
+    cfg = ViewerConfig.model_validate({"scanner_result_view": {}})
+    assert cfg.trust_content is None
+
+
+@pytest.mark.parametrize("value", [True, False, None])
+def test_viewer_config_trust_content_keeps_bool_and_none(value: bool | None) -> None:
+    assert ViewerConfig.model_validate({"trust_content": value}).trust_content is value
+
+
+def test_viewer_config_trust_content_false_roundtrips_via_json() -> None:
+    cfg = ViewerConfig(trust_content=False)
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored.trust_content is False
+
+
+@pytest.mark.parametrize("value", ["true", "True", 1, "yes", "sometimes", 0, [], {}])
+def test_viewer_config_trust_content_non_bool_is_untrusted(value: object) -> None:
+    """Non-boolean values read as untrusted, matching the viewer."""
+    assert ViewerConfig.model_validate({"trust_content": value}).trust_content is False
+    restored = ViewerConfig.model_validate_json(json.dumps({"trust_content": value}))
+    assert restored.trust_content is False
 
 
 def test_roundtrip_preserves_all_fields() -> None:

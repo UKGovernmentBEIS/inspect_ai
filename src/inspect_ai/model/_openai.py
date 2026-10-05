@@ -120,9 +120,10 @@ logger = logging.getLogger(__name__)
 
 
 class OpenAIResponseError(OpenAIError):
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, response_id: str | None = None) -> None:
         self.code = code
         self.message = message
+        self.response_id = response_id
 
     def __str__(self) -> str:
         return f"{self.code}: {self.message}"
@@ -1212,6 +1213,7 @@ def model_output_from_openai(
             if completion.usage
             else None
         ),
+        response_id=completion.id,
     )
 
 
@@ -1651,6 +1653,7 @@ def openai_refusal_model_output(
         code == "invalid_prompt"  # seems to happen for o1/o3
         or code == "content_policy_violation"  # seems to happen for vision
         or code == "content_filter"  # seems to happen on azure
+        or code == "bio_policy"
         or code == "cyber_policy"  # seems to happen for 5.4
         or (error_type == "invalid_request_error" and "blocked" in message)
     ):

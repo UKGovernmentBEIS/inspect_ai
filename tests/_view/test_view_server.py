@@ -379,6 +379,19 @@ def test_api_app_config(view_client: ViewTestClient) -> None:
     # otherwise null.
     assert "scout_version" in config
     assert config["scout_version"] is None or isinstance(config["scout_version"], str)
+    # Unset unless the viewer was started with --trust-content/--no-trust-content.
+    assert config["trust_content"] is None
+
+
+@pytest.mark.parametrize("trust_content", [False, True])
+def test_api_app_config_trust_content(tmp_path: Path, trust_content: bool) -> None:
+    app = fastapi_server.view_server_app(
+        default_dir=str(tmp_path), trust_content=trust_content
+    )
+    with fastapi.testclient.TestClient(app) as client:
+        resp = client.get("/app-config")
+    resp.raise_for_status()
+    assert resp.json()["trust_content"] is trust_content
 
 
 def test_api_log_info(view_client: ViewTestClient) -> None:
