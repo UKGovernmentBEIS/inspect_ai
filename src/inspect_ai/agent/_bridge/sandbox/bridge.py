@@ -95,7 +95,9 @@ async def sandbox_agent_bridge(
             pin. Keys are the exact names the agent sends. Use this to reach a
             model other than the eval's model (e.g.
             ``{"claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5")}``),
-            including a model role (``{"grader": get_model(role="grader")}``).
+            including a model role the agent is meant to call
+            (``{"subagent": get_model(role="subagent")}``). Every key is a
+            model the agent can call, so do not alias a role such as a grader.
         model_resolver: Dynamic routing policy called with the requested model
             name (provider-qualified on a provider-specific endpoint, e.g.
             ``openai/gpt-5.1``). Checked after ``model_aliases`` and before the ``model``

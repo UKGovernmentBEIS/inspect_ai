@@ -241,7 +241,7 @@ The `sandbox_agent_bridge()` serves only models the eval chose. A request is rou
 
 Pass `model` to send unmatched names (and the eval's own model name) to another model instead, e.g. `model="inspect/openai/gpt-4o"`.
 
-Agents often call more than one model: Claude Code, for example, makes background calls to a smaller model. These calls are served by the eval's model unless you map the names. To send a name to another model, add it to `model_aliases`. Keys are the exact names the agent sends, as shown in the warning. To expose a model role, map a name to `get_model(role=...)`:
+Agents often call more than one model: Claude Code, for example, makes background calls to a smaller model. These calls are served by the eval's model unless you map the names. To send a name to another model, add it to `model_aliases`. Keys are the exact names the agent sends, as shown in the warning. To send a sub-agent tier to a model role you define for it, map the name to `get_model(role=...)`:
 
 ``` python
 from inspect_ai.model import get_model
@@ -250,11 +250,13 @@ async with sandbox_agent_bridge(
     state,
     model_aliases={
         "claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5"),
-        "grader": get_model(role="grader"),
+        "subagent": get_model(role="subagent"),
     },
 ) as bridge:
     ...
 ```
+
+Every alias key is a model the agent can call, so do not alias a role the agent should not reach, such as a grader or monitor.
 
 Names for the eval's own model need no alias. They already get the eval's model with its generation config, which an alias to a model name string would not.
 
