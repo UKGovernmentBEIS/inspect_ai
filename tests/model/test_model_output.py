@@ -235,3 +235,11 @@ def test_from_message_prefers_explicit_and_message_model() -> None:
 
 def test_from_message_without_active_model() -> None:
     assert ModelOutput.from_message(ChatMessageAssistant(content="2")).model == ""
+
+
+def test_from_message_keeps_empty_message_model() -> None:
+    init_active_model(get_model("mockllm/model"), GenerateConfig())
+
+    output = ModelOutput.from_message(ChatMessageAssistant(content="2", model=""))
+
+    assert output.model == ""

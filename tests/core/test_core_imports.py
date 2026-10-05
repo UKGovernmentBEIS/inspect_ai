@@ -1,3 +1,4 @@
+import codecs
 from pathlib import Path
 
 import pytest
@@ -85,3 +86,38 @@ def test_check_imports_single_module(
 def test_check_imports_unknown_module() -> None:
     with pytest.raises(ModuleNotFoundError):
         check_imports("no_such_module_for_check_imports")
+
+
+def test_check_imports_namespace_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _package(tmp_path, {"ns_monitors/rules.py": "import requests\n"})
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    assert _violations(check_imports("ns_monitors")) == {
+        ("rules.py", "requests", 1, "module")
+    }
+
+
+def test_check_imports_honors_source_encoding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "encoded_monitors").mkdir()
+    (tmp_path / "encoded_monitors" / "__init__.py").write_bytes(b"")
+    (tmp_path / "encoded_monitors" / "bom.py").write_bytes(
+        codecs.BOM_UTF8 + b"import requests\n"
+    )
+    (tmp_path / "encoded_monitors" / "latin.py").write_bytes(
+        b"# -*- coding: latin-1 -*-\nimport requests\nname = 'caf\xe9'\n"
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    assert _violations(check_imports("encoded_monitors")) == {
+        ("bom.py", "requests", 1, "module"),
+        ("latin.py", "requests", 2, "module"),
+    }
+
+
+def test_check_imports_module_without_source() -> None:
+    with pytest.raises(ValueError, match="no Python source"):
+        check_imports("sys")

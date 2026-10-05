@@ -49,16 +49,27 @@ def check_imports(name: str, allowed: Iterable[str] = ()) -> list[ImportViolatio
     Allowed: the standard library, `DEFAULT_ALLOWED`, `allowed`, and modules of
     `name` itself. An entry allows the module and its submodules.
 
+    Not supported: packages inside a zip file on `sys.path` (no files are found,
+    so nothing is reported), and symlinked directories inside a package (not
+    followed, so their files are not checked).
+
     Args:
         name: Module or package name, e.g. `"my_monitors"`.
         allowed: Additional allowed module names.
 
     Returns:
         Violations ordered by file and line; empty if every import is allowed.
+
+    Raises:
+        ModuleNotFoundError: `name` can't be found.
+        ValueError: `name` has no Python source, e.g. a built-in, frozen,
+            compiled-only or extension module.
+        SyntaxError: A checked file isn't valid Python.
+        Exception: Whatever a parent package of `name` raises when imported.
     """
     spec = importlib.util.find_spec(name)
-    if spec is None or spec.origin is None:
-        raise ModuleNotFoundError(f"Cannot find source for module '{name}'")
+    if spec is None:
+        raise ModuleNotFoundError(f"No module named '{name}'")
     prefixes = (*DEFAULT_ALLOWED, *allowed, name)
     if spec.submodule_search_locations:
         roots = [Path(location) for location in spec.submodule_search_locations]
@@ -67,8 +78,12 @@ def check_imports(name: str, allowed: Iterable[str] = ()) -> list[ImportViolatio
             for root in roots
             for path in sorted(root.rglob("*.py"))
         ]
-    else:
+    elif spec.has_location and spec.origin and spec.origin.endswith(".py"):
         files = [(Path(spec.origin), name)]
+    else:
+        raise ValueError(
+            f"Module '{name}' has no Python source to check (origin: {spec.origin})"
+        )
     return [
         violation
         for path, module in files
@@ -97,7 +112,7 @@ def check_file(
             ImportViolation(
                 file=str(path), line=node.lineno, module=imported, scope=scope
             )
-            for node, scope in _imports(ast.parse(path.read_text(), str(path)))
+            for node, scope in _imports(ast.parse(path.read_bytes(), str(path)))
             for imported in _imported_modules(node, package)
             if not _is_allowed(imported, allowed)
         ),
