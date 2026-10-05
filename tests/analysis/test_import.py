@@ -6,6 +6,7 @@ from pydantic import JsonValue
 from typing_extensions import override
 
 from inspect_ai._util.dateutil import iso_now
+from inspect_ai._util.version import has_required_version
 from inspect_ai.analysis import Column, EvalColumns
 from inspect_ai.analysis._dataframe.columns import parse
 from inspect_ai.analysis._dataframe.evals.columns import EvalColumn
@@ -379,6 +380,41 @@ def test_column_error_path_type() -> None:
     ]
     assert "Cannot coerce foo from type str to int" in str(errors[0])
     assert "field not found" in str(errors[1])
+
+
+def test_index_paths_across_jsonpath_ng_versions() -> None:
+    """Integer indices that select nothing raise on jsonpath-ng < 1.9 only."""
+    record: dict[str, JsonValue] = {"mapping": {"a": 1}, "items": [1, 2]}
+    spec: list[Column] = [
+        TColumn("mapping_index", path="$.mapping[0]"),
+        TColumn("out_of_range", path="$.items[-3]"),
+        TColumn("last", path="$.items[-1]"),
+    ]
+    result, errors = import_record(eval_log(), record, spec, strict=False)
+    assert result["last"] == 2
+    if has_required_version("jsonpath-ng", "1.9.0"):
+        assert errors == []
+        assert result["mapping_index"] is None
+        assert result["out_of_range"] is None
+    else:
+        assert [(e.column, type(e.error)) for e in errors] == [
+            ("mapping_index", KeyError),
+            ("out_of_range", IndexError),
+        ]
+        assert "mapping_index" not in result
+        assert "out_of_range" not in result
+
+
+def test_integer_filter_across_jsonpath_ng_versions() -> None:
+    """Integer filters truncate non-string values on jsonpath-ng < 1.9 only."""
+    record: dict[str, JsonValue] = {
+        "values": [{"v": 1.9, "name": "float"}, {"v": "1", "name": "string"}]
+    }
+    spec: list[Column] = [TColumn("name", path="$.values[?(@.v == 1)].name")]
+    result, errors = import_record(eval_log(), record, spec, strict=False)
+    assert errors == []
+    expected = "string" if has_required_version("jsonpath-ng", "1.9.0") else "float"
+    assert result["name"] == expected
 
 
 def test_complex_import_scenario() -> None:
