@@ -94,7 +94,7 @@ Note that when using the "grok" provider, you should also specify a fallback ext
 
 ### Perplexity Options
 
-The `web_search()` tool can use Perplexity's built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what's needed for the model itself. The `perplexity` provider options are the fields of the Agent API's `web_search` tool, such as `filters`, `search_context_size`, and `max_results`. For example:
+The `web_search()` tool can use Perplexity's built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what's needed for the model itself. The `perplexity` provider options are the fields of the Agent API's `web_search` tool, such as `filters`, `search_type`, `search_context_size`, and `max_results`. For example:
 
 ``` python
 web_search({"perplexity": {"filters": {"search_domain_filter": ["arxiv.org"]}}})

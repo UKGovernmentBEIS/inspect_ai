@@ -1,3 +1,4 @@
+import uuid
 from typing import Any
 
 import anyio
@@ -10,6 +11,8 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
 from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageSystem,
     ChatMessageUser,
     GenerateConfig,
     ModelOutput,
@@ -33,7 +36,11 @@ async def test_perplexity_api() -> None:
     )
     response = await model.generate(
         input=[message],
-        tools=[web_search({"perplexity": {"search_context_size": "low"}})],
+        tools=[
+            web_search(
+                {"perplexity": {"search_context_size": "low", "search_type": "fast"}}
+            )
+        ],
     )
 
     assert len(response.completion) >= 1
@@ -61,7 +68,48 @@ async def test_perplexity_api() -> None:
         assert citation.url.startswith(("http://", "https://"))
 
 
-def _agent_response(name: str, tokens: int, cache_creation: int = 0) -> Response:
+@pytest.mark.anyio
+@skip_if_no_perplexity
+async def test_perplexity_prompt_cache() -> None:
+    model = get_model("perplexity/sonar", config=GenerateConfig(max_tokens=50))
+
+    # a long prefix unique to this run, so that the first call writes the
+    # cache and the second reads it
+    run_id = uuid.uuid4().hex
+    prefix = " ".join(
+        f"Rule {i}: the orchard at site {i} grows apples for run {run_id}."
+        for i in range(300)
+    )
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content=prefix),
+        ChatMessageUser(content="Reply with the single word OK."),
+    ]
+    config = GenerateConfig(extra_body={"prompt_cache_key": f"inspect-{run_id}"})
+
+    write = await model.generate(input, config=config)
+    read = await model.generate(input, config=config)
+
+    assert write.usage is not None
+    assert write.usage.input_tokens_cache_write is not None
+    assert write.usage.input_tokens_cache_write > 0
+    assert write.usage.input_tokens_cache_read is None
+
+    assert read.usage is not None
+    assert read.usage.input_tokens_cache_read is not None
+    assert read.usage.input_tokens_cache_read > 0
+    assert read.usage.input_tokens_cache_write is None
+
+    # both calls send the same input, split differently
+    for usage in [write.usage, read.usage]:
+        assert usage.input_tokens < 100
+    assert write.usage.input_tokens + write.usage.input_tokens_cache_write == (
+        read.usage.input_tokens + read.usage.input_tokens_cache_read
+    )
+
+
+def _agent_response(
+    name: str, tokens: int, cache_creation: int = 0, cache_read: int = 0
+) -> Response:
     """An Agent API response, parsed as the OpenAI SDK parses it."""
     response = construct_type(
         type_=Response,
@@ -104,15 +152,15 @@ def _agent_response(name: str, tokens: int, cache_creation: int = 0) -> Response
                 },
             ],
             "usage": {
-                "input_tokens": tokens + cache_creation,
+                "input_tokens": tokens + cache_creation + cache_read,
                 "input_tokens_details": {
-                    "cached_tokens": 0,
+                    "cached_tokens": cache_read,
                     "cache_creation_input_tokens": cache_creation,
-                    "cache_read_input_tokens": 0,
+                    "cache_read_input_tokens": cache_read,
                 },
                 "output_tokens": tokens,
                 "output_tokens_details": {"reasoning_tokens": 1},
-                "total_tokens": 2 * tokens + cache_creation,
+                "total_tokens": 2 * tokens + cache_creation + cache_read,
                 "cost": {"currency": "USD", "total_cost": 0.001},
             },
         },
@@ -194,8 +242,27 @@ async def test_perplexity_agent_api_response(monkeypatch: pytest.MonkeyPatch) ->
 
 
 @pytest.mark.anyio
+async def test_perplexity_cache_read_usage(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(monkeypatch, {"a": _agent_response("a", 2, cache_read=7)})
+
+    try:
+        output, _ = await provider.generate(
+            [ChatMessageUser(content="a")], [], "none", GenerateConfig()
+        )
+    finally:
+        await provider.aclose()
+
+    assert isinstance(output, ModelOutput)
+    assert output.usage is not None
+    assert output.usage.input_tokens == 2
+    assert output.usage.input_tokens_cache_read == 7
+    assert output.usage.input_tokens_cache_write is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("search_type", ["fast", "web"])
 async def test_perplexity_web_search_options_and_extra_body(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, search_type: str
 ) -> None:
     requests: list[dict[str, Any]] = []
     provider = _provider(monkeypatch, {"a": _agent_response("a", 1)}, requests)
@@ -206,6 +273,7 @@ async def test_perplexity_web_search_options_and_extra_body(
         options={
             "perplexity": {
                 "search_context_size": "low",
+                "search_type": search_type,
                 "filters": {"search_domain_filter": ["example.com"]},
             }
         },
@@ -228,6 +296,7 @@ async def test_perplexity_web_search_options_and_extra_body(
             {
                 "type": "web_search",
                 "search_context_size": "low",
+                "search_type": search_type,
                 "filters": {"search_domain_filter": ["example.com"]},
             }
         ],

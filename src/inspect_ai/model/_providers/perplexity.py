@@ -21,7 +21,8 @@ from .._model_call import ModelCall
 RETIRED_SONAR_MODELS = ["sonar-pro", "sonar-reasoning-pro", "sonar-deep-research"]
 
 # Sonar search parameters. The Agent API's web_search tool ignores them, so
-# passing one as a web_search option would silently drop it.
+# passing one as a web_search option would silently drop it. (`search_type` is
+# not listed: the tool takes it, and rejects Sonar's values for it.)
 SONAR_SEARCH_OPTIONS = [
     "search_mode",
     "web_search_options",
@@ -34,7 +35,6 @@ SONAR_SEARCH_OPTIONS = [
     "num_search_results",
     "disable_search",
     "enable_search_classifier",
-    "search_type",
 ]
 
 
