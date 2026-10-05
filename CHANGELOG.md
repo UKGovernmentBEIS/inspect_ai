@@ -1,5 +1,22 @@
 ## Unreleased
 
+- Run config: `eval_config.token_limit_type` from an exported or handwritten run config is applied as the token-limit metering type instead of being rejected as an unknown generate option.
+- Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
+- Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.
+- Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
+- Model API: Model events log provider request ids (including for retried requests) and response ids, even when raw model API calls are not logged.
+- Datasets: `shuffle` on `csv_dataset()`, `json_dataset()`, `file_dataset()` and `hf_dataset()` now treats an integer as a seed, so `shuffle=0` shuffles with seed 0.
+- Security: Text-editor undo history uses non-executable data stored privately per OS account; old pickle history is ignored.
+- Sandbox tools: killing an `exec_remote` job that has already exited now guards against signalling unrelated processes that reused its PID.
+- Sandbox: `exec_remote()` and `sandbox_agent_bridge()` take a new opt-in `poll_timeout_recovery` that keeps polling a running command through a temporary sandbox stall instead of failing.
+- Docker: Sandboxes with healthchecks now allow 60 s of startup beyond the healthcheck estimate; a start that hangs, or a service still starting after that, can take up to about 150 s longer to fail (more on a loaded host).
+- Docker: `--no-sandbox-cleanup` now lists each environment's cleanup command, and `inspect sandbox cleanup docker <project>` now removes custom networks declared in a `ComposeConfig`.
+- Eval Set: `retry_cleanup` now also removes the older interrupted (`started`) logs its own attempts left behind, and their sample buffers, once those buffers have shut down.
+- Images in tool results recorded in the transcript now follow `log_images` like images in messages: stored as attachments when enabled, removed when disabled.
+- Eval Logs: Fewer redundant log writes when samples complete during a slow log flush.
+- Model providers: Failed and cancelled requests no longer leave tracking entries that grow memory use over a long evaluation.
+- Google: Fixed audio, video and document content being sent with the MIME type of an earlier upload of the same bytes; uploads are now reused only for the same MIME type and account.
+- Limits: A model call is now refused before it is sent when a token or cost limit is already reached, including when usage exactly equals the limit.
 - Bugfix: Cost tracking and `cost_limit` now price a request at the rates of the model that served it (refusal fallbacks, Azure deployments, and routers on OpenRouter, Bedrock, Fireworks and LiteLLM proxies); providers report it with the new `ModelAPI.served_model_usage()`.
 
 ## 0.3.276 (02 October 2026)

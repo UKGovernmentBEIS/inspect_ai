@@ -297,6 +297,9 @@ class ModelOutput(BaseModel):
     error: str | None = Field(default=None)
     """Error message in the case of content moderation refusals."""
 
+    response_id: str | None = Field(default=None)
+    """Provider id for the response (e.g. `resp_...`, `chatcmpl-...`, `msg_...`)."""
+
     @property
     def empty(self) -> bool:
         return len(self.choices) == 0

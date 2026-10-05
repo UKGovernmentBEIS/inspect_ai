@@ -1536,6 +1536,10 @@ class Model:
             else:
                 cache_entry = None
 
+            # checked before the ModelEvent is recorded so that a call refused
+            # here leaves no event behind
+            _check_limits_before_dispatch()
+
             # verify that model apis are allowed
             self.verify_model_apis()
 
@@ -1587,6 +1591,9 @@ class Model:
                     )
 
                     await stream_observer.begin_attempt(event)
+                    # begin_attempt may await the on_stream retry boundary,
+                    # during which a concurrent call can reach a limit
+                    _check_limits_before_dispatch()
                     if idle_scope is not None:
                         assert stream_idle_timeout is not None
                         stream_observer.arm_stall_scope(idle_scope, stream_idle_timeout)
@@ -1997,6 +2004,7 @@ class Model:
         event = ModelEvent(
             model=model,
             role=self.role,
+            requested_model=_requested_model.get(),
             input=input,
             tools=tools,
             tool_choice=tool_choice,
@@ -2931,6 +2939,22 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
         _model_event_sink.reset(token)
 
 
+_requested_model: ContextVar[str | None] = ContextVar("_requested_model", default=None)
+
+
+@contextlib.contextmanager
+def requested_model(name: str) -> Iterator[None]:
+    """Record `name` as `ModelEvent.requested_model` for every generation in the block.
+
+    Not part of the public API.
+    """
+    token = _requested_model.set(name)
+    try:
+        yield
+    finally:
+        _requested_model.reset(token)
+
+
 # shared contexts for asyncio tasks
 def set_total_messages(input: str | list[ChatMessage]) -> None:
     from inspect_ai.log._samples import set_active_sample_total_messages
@@ -2975,6 +2999,17 @@ def init_role_usage(initial_usage: dict[str, ModelUsage] | None = None) -> None:
 
 def init_sample_role_usage() -> None:
     sample_role_usage_context_var.set({})
+
+
+def _check_limits_before_dispatch() -> None:
+    """Refuse a provider dispatch once a token or cost limit has been reached.
+
+    A further call could only exceed a reached limit. Called on every attempt
+    (a concurrent call can reach a limit while a retry waits), after the
+    cache lookup (a cache hit sends nothing, so it is never refused).
+    """
+    check_token_limit(raise_for_equal=True)
+    check_cost_limit(raise_for_equal=True)
 
 
 def record_and_check_model_usage(
