@@ -1,5 +1,6 @@
 import base64
 import json
+from contextlib import nullcontext
 from pathlib import Path
 
 import httpx2
@@ -304,7 +305,7 @@ async def test_chat_completions_forwards_config_extra_headers():
     client.chat.completions.create = AsyncMock(return_value=mock_completion)
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     openai_api = MagicMock()
@@ -556,7 +557,7 @@ async def test_chat_completions_streaming_with_non_strict_tools():
     client.chat.completions.create = AsyncMock(return_value=_FakeChunkStream())
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     openai_api = MagicMock()
@@ -641,7 +642,7 @@ async def test_chat_completions_streaming_converts_mid_stream_safeguard_block() 
     client.chat.completions.create = AsyncMock(return_value=_FakeStream())
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     openai_api = MagicMock()

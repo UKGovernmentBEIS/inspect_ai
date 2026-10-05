@@ -269,89 +269,93 @@ class MistralAPI(ModelAPI):
                 )
 
             # build request
-            request_id = http_hooks.start_request()
-            request: dict[str, Any] = dict(
-                model=self.service_model_name(),
-                messages=await mistral_chat_messages(input),
-                tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
-                tool_choice=(
-                    mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
-                ),
-                http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
-                | (config.extra_headers or {}),
-            )
-            prompt_cache_key = sample_cache_affinity_key()
-            if prompt_cache_key is not None and _sdk_supports_prompt_cache_key():
-                request["prompt_cache_key"] = prompt_cache_key
-            if config.reasoning_effort is not None:
-                request["reasoning_effort"] = mistral_reasoning_effort(
-                    config.reasoning_effort
-                )
-            if config.temperature is not None:
-                request["temperature"] = config.temperature
-            if config.top_p is not None:
-                request["top_p"] = config.top_p
-            if config.max_tokens is not None:
-                request["max_tokens"] = config.max_tokens
-            if config.seed is not None:
-                request["random_seed"] = config.seed
-            if config.response_schema is not None:
-                request["response_format"] = MistralResponseFormat(
-                    type="json_schema",
-                    json_schema=MistralJSONSchema(
-                        name=config.response_schema.name,
-                        description=config.response_schema.description,
-                        schema_definition=config.response_schema.json_schema.model_dump(
-                            exclude_none=True
-                        ),
-                        strict=config.response_schema.strict,
+            with http_hooks.request() as request_id:
+                request: dict[str, Any] = dict(
+                    model=self.service_model_name(),
+                    messages=await mistral_chat_messages(input),
+                    tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
+                    tool_choice=(
+                        mistral_chat_tool_choice(tool_choice)
+                        if len(tools) > 0
+                        else None
                     ),
+                    http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+                    | (config.extra_headers or {}),
                 )
-
-            # resolve streaming and mutate the request accordingly before the
-            # ModelCall snapshot, so the logged request matches the wire request
-            streaming = self.resolve_streaming(config)
-            if streaming:
-                request["stream"] = True
-
-            # prepare request for inclusion in model call
-            req = request.copy()
-            req.update(messages=[message.model_dump() for message in req["messages"]])
-            if req.get("tools", None) is not None:
-                req["tools"] = [tool.model_dump() for tool in req["tools"]]
-
-            model_call = set_active_model_event_call(req, None)
-
-            # send request
-            try:
-                if streaming:
-                    async with await client.chat.stream_async(**request) as events:
-                        completion = await mistral_completion_from_stream(events)
-                else:
-                    completion = await client.chat.complete_async(**request)
-
-                if completion is None:
-                    raise RuntimeError(
-                        "Mistral model did not return a response from generate."
+                prompt_cache_key = sample_cache_affinity_key()
+                if prompt_cache_key is not None and _sdk_supports_prompt_cache_key():
+                    request["prompt_cache_key"] = prompt_cache_key
+                if config.reasoning_effort is not None:
+                    request["reasoning_effort"] = mistral_reasoning_effort(
+                        config.reasoning_effort
+                    )
+                if config.temperature is not None:
+                    request["temperature"] = config.temperature
+                if config.top_p is not None:
+                    request["top_p"] = config.top_p
+                if config.max_tokens is not None:
+                    request["max_tokens"] = config.max_tokens
+                if config.seed is not None:
+                    request["random_seed"] = config.seed
+                if config.response_schema is not None:
+                    request["response_format"] = MistralResponseFormat(
+                        type="json_schema",
+                        json_schema=MistralJSONSchema(
+                            name=config.response_schema.name,
+                            description=config.response_schema.description,
+                            schema_definition=config.response_schema.json_schema.model_dump(
+                                exclude_none=True
+                            ),
+                            strict=config.response_schema.strict,
+                        ),
                     )
 
-                model_call.set_response(
-                    completion.model_dump(), http_hooks.end_request(request_id)
+                # resolve streaming and mutate the request accordingly before the
+                # ModelCall snapshot, so the logged request matches the wire request
+                streaming = self.resolve_streaming(config)
+                if streaming:
+                    request["stream"] = True
+
+                # prepare request for inclusion in model call
+                req = request.copy()
+                req.update(
+                    messages=[message.model_dump() for message in req["messages"]]
                 )
-            except SDKError as ex:
-                model_call.set_error(
-                    as_error_response(ex.body), http_hooks.end_request(request_id)
-                )
-                if ex.status_code == 400:
-                    return self.handle_bad_request(ex), model_call
-                else:
-                    raise ex
-            except MistralStreamError as ex:
-                model_call.set_error(
-                    {"error": {"message": str(ex)}},
-                    http_hooks.end_request(request_id),
-                )
-                raise
+                if req.get("tools", None) is not None:
+                    req["tools"] = [tool.model_dump() for tool in req["tools"]]
+
+                model_call = set_active_model_event_call(req, None)
+
+                # send request
+                try:
+                    if streaming:
+                        async with await client.chat.stream_async(**request) as events:
+                            completion = await mistral_completion_from_stream(events)
+                    else:
+                        completion = await client.chat.complete_async(**request)
+
+                    if completion is None:
+                        raise RuntimeError(
+                            "Mistral model did not return a response from generate."
+                        )
+
+                    model_call.set_response(
+                        completion.model_dump(), http_hooks.end_request(request_id)
+                    )
+                except SDKError as ex:
+                    model_call.set_error(
+                        as_error_response(ex.body), http_hooks.end_request(request_id)
+                    )
+                    if ex.status_code == 400:
+                        return self.handle_bad_request(ex), model_call
+                    else:
+                        raise ex
+                except MistralStreamError as ex:
+                    model_call.set_error(
+                        {"error": {"message": str(ex)}},
+                        http_hooks.end_request(request_id),
+                    )
+                    raise
 
             # return model output (w/ tool calls if they exist)
             choices = await completion_choices_from_response(completion, tools)
@@ -368,6 +372,7 @@ class MistralAPI(ModelAPI):
                     ),
                     total_tokens=completion.usage.total_tokens or 0,
                 ),
+                response_id=completion.id,
             ), model_call
 
     def resolve_streaming(self, config: GenerateConfig) -> bool:
