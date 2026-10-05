@@ -10,10 +10,10 @@ from pydantic import (
 )
 from typing_extensions import TypedDict
 
-from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai.core._adaptive_concurrency import AdaptiveConcurrency
 from inspect_ai.core._cache_policy import CachePolicy
 from inspect_ai.core._json import JSONSchema
+from inspect_ai.core.constants import DESERIALIZING
 
 
 class ResponseSchema(BaseModel):

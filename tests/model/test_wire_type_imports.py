@@ -28,8 +28,6 @@ import pytest
 # _json (inspect_ai.util): JSONSchema, JSONType
 # citation (inspect_ai.model, inspect_ai.tool): Citation, CitationBase,
 #   ContentCitation, DocumentCitation, UrlCitation
-#
-# The original modules re-export these symbols and must stay light too.
 WIRE_TYPE_MODULES = [
     "inspect_ai.core._adaptive_concurrency",
     "inspect_ai.core._cache_policy",
@@ -42,6 +40,7 @@ WIRE_TYPE_MODULES = [
     "inspect_ai.core._tool_info",
     "inspect_ai.core._tool_params",
     "inspect_ai.core.citation",
+    "inspect_ai.core.constants",
     "inspect_ai.core.content",
 ]
 
