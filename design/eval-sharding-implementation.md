@@ -1395,7 +1395,10 @@ The shard-set rules, one implementation for both consumers:
   file or directory (for example `scans/` or `<shard>.checkpoints/`) is
   recorded in `ancillary` and not descended into. A
   directory whose name starts with `.` is not a shard; it is listed only
-  to report the logs directly in it. Shards with all-digit names sort
+  to report the logs directly in it. That includes a `.buffer/` directly in
+  the companion (the buffer of a stray log there): listed once, never
+  descended, so its `<stem>/` directories and segments are not listed;
+  every other `.buffer/` (in a `<k>/`) is not listed at all. Shards with all-digit names sort
   first, numerically, then the rest by name; a `<k>/` with nothing in it
   is left out. `stray` holds every log file the walk sees that is not an
   attempt, each a `StrayFile(path, reason)`, sorted by path: a log
@@ -1685,7 +1688,9 @@ Per PR (numbers from "Implementation plan"):
    `-recovered` copy (recovered current), two attempts with the older one
    touched last (the file-name timestamp wins over mtime), an empty `<k>/`,
    a `.buffer/` prefix, a `scans/` directory and a `<shard>.checkpoints/`
-   directory (both `ancillary`), a log in the companion root, a log in a
+   directory (both `ancillary`), a `.buffer/<stem>/` with segments directly
+   in the companion (listed once, its stem never; a recording of
+   `list_dir` calls asserts it), a log in the companion root, a log in a
    directory whose name starts with `.` and a `.json` log in a `<k>/` (all
    stray); `is_shard_path` relative to the root,
    including a root that is itself a `<k>/`, a user directory named

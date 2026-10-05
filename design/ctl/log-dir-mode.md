@@ -429,9 +429,14 @@ The walk produces a listing of logical tasks without paging through
   so a symlink loop cannot hang the walk; other fsspec backends use
   `_ls(detail=True)` per directory.
 - Recursion rules, by directory name:
-  - `.buffer/`: never listed. Its presence as a prefix in the parent's
-    listing is recorded; a member's manifest path is derived as
-    `.buffer/<stem>/manifest.json` and fetched directly (below).
+  - `.buffer/`: never listed, with one exception below. Its presence as a
+    prefix in the parent's listing is recorded; a member's manifest path is
+    derived as `.buffer/<stem>/manifest.json` and fetched directly (below).
+    The exception: a `.buffer/` directly in a companion (the buffer of a
+    stray log there) is a dot-directory of the companion, which the shared
+    `list_shard_set` lists once, without descending, to report stray logs
+    directly in it. None of its directories enters `unlisted_dirs`, so its
+    `<stem>/` and segment objects are never listed.
   - `*.checkpoints/`: skip.
   - `<name>.shards/`, when no directory between it and the root is a
     companion: a companion. The shared `list_shard_set` lists it and each
@@ -1382,7 +1387,9 @@ real moto server on an ephemeral port). New tests go in a new
   supported command, cold and warm, with running and finished shards: a
   walk of 50 shards issues 52 LISTs regardless of how many
   `segment.<n>.zip` objects exist (the fixture adds hundreds) and never
-  lists a `.buffer/` or a `*.checkpoints/`, and with one
+  lists a `.buffer/` or a `*.checkpoints/`; a `.buffer/<stem>/` with
+  segments directly in the companion adds exactly one LIST (the buffer
+  itself, never its stem); and with one
   `scans/scan_id=<id>/` in every `<k>/` issues 152; a cold `task list` over 50 finished shards issues 150
   GETs and a warm one none; 50 running shards between flushes cost 50
   manifest GETs and 50 freshness checks warm, and no log reads; a warm poll after all 50 finish costs 150 GETs (CD,
