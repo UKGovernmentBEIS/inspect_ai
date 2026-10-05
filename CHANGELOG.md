@@ -12,6 +12,7 @@
 - Eval Set: `retry_cleanup` now also removes the older interrupted (`started`) logs its own attempts left behind, and their sample buffers, once those buffers have shut down.
 - Images in tool results recorded in the transcript now follow `log_images` like images in messages: stored as attachments when enabled, removed when disabled.
 - Eval Logs: Fewer redundant log writes when samples complete during a slow log flush.
+- Model providers: Failed and cancelled requests no longer leave tracking entries that grow memory use over a long evaluation.
 
 ## 0.3.276 (02 October 2026)
 
