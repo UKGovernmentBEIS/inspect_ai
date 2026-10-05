@@ -435,7 +435,7 @@ async def test_bedrock_stream_access_denied_fallback_restarts_request() -> None:
             }
 
     hooks = api._http_hooks
-    start_request = hooks.start_request
+    start_request = hooks._start_request
     restart_request = hooks.restart_request
     request_ids: list[str] = []
 
@@ -450,7 +450,7 @@ async def test_bedrock_stream_access_denied_fallback_restarts_request() -> None:
     with (
         patch.object(api.session, "create_client", return_value=_Client()),
         patch.object(api, "resolve_streaming", return_value=True),
-        patch.object(hooks, "start_request", side_effect=start),
+        patch.object(hooks, "_start_request", side_effect=start),
         patch.object(hooks, "restart_request", side_effect=restart),
     ):
         result = await api.generate(

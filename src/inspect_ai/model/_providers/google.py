@@ -457,152 +457,156 @@ class GoogleGenAIAPI(ModelAPI):
                 http_hooks: HttpHooks = HttpxHooks(async_httpx_client, api=self)
             else:
                 http_hooks = HttpHooks(api=self)
-            request_id = http_hooks.start_request()
-
-            # Create google-genai types.
-            gemini_contents = await as_chat_messages(
-                client, input, emulate_reasoning=not self.is_gemini_thinking()
-            )
-            has_native_tools, gemini_tools = (
-                self.chat_tools(tools) if len(tools) > 0 else (False, None)
-            )
-            if gemini_native_tool_combination(gemini_tools):
-                gemini_tool_config = gemini_native_tool_combination_config(tool_choice)
-            elif not has_native_tools and len(tools) > 0:
-                gemini_tool_config = chat_tool_config(tool_choice)
-            else:
-                gemini_tool_config = None
-            system_instruction = await extract_system_message_as_parts(
-                client, input, tools, include_function_calling_hint=not has_native_tools
-            )
-            # Map modalities to Google's response_modalities
-            response_modalities = None
-            if config.modalities:
-                if has_image_output(config.modalities):
-                    response_modalities = ["TEXT", "IMAGE"]
+            with http_hooks.request() as request_id:
+                # Create google-genai types.
+                gemini_contents = await as_chat_messages(
+                    client, input, emulate_reasoning=not self.is_gemini_thinking()
+                )
+                has_native_tools, gemini_tools = (
+                    self.chat_tools(tools) if len(tools) > 0 else (False, None)
+                )
+                if gemini_native_tool_combination(gemini_tools):
+                    gemini_tool_config = gemini_native_tool_combination_config(
+                        tool_choice
+                    )
+                elif not has_native_tools and len(tools) > 0:
+                    gemini_tool_config = chat_tool_config(tool_choice)
                 else:
-                    raise PrerequisiteError(
-                        f"Unsupported modalities for Google: {config.modalities}"
+                    gemini_tool_config = None
+                system_instruction = await extract_system_message_as_parts(
+                    client,
+                    input,
+                    tools,
+                    include_function_calling_hint=not has_native_tools,
+                )
+                # Map modalities to Google's response_modalities
+                response_modalities = None
+                if config.modalities:
+                    if has_image_output(config.modalities):
+                        response_modalities = ["TEXT", "IMAGE"]
+                    else:
+                        raise PrerequisiteError(
+                            f"Unsupported modalities for Google: {config.modalities}"
+                        )
+
+                parameters = GenerateContentConfig(
+                    http_options=HttpOptions(
+                        headers={HttpHooks.REQUEST_ID_HEADER: request_id}
+                        | (config.extra_headers or {})
+                    ),
+                    temperature=config.temperature,
+                    top_p=config.top_p,
+                    top_k=config.top_k,
+                    max_output_tokens=config.max_tokens,
+                    stop_sequences=config.stop_seqs,
+                    candidate_count=config.num_choices,
+                    presence_penalty=config.presence_penalty,
+                    frequency_penalty=config.frequency_penalty,
+                    response_logprobs=config.logprobs,
+                    logprobs=config.top_logprobs,
+                    safety_settings=safety_settings_to_list(self.safety_settings),
+                    tools=gemini_tools,
+                    tool_config=gemini_tool_config,
+                    system_instruction=system_instruction,  # type: ignore[arg-type]
+                    thinking_config=self.chat_thinking_config(config),
+                    response_modalities=response_modalities,
+                )
+                if config.response_schema is not None:
+                    parameters.response_mime_type = "application/json"
+                    parameters.response_json_schema = json_schema_dump(
+                        config.response_schema.json_schema
                     )
 
-            parameters = GenerateContentConfig(
-                http_options=HttpOptions(
-                    headers={HttpHooks.REQUEST_ID_HEADER: request_id}
-                    | (config.extra_headers or {})
-                ),
-                temperature=config.temperature,
-                top_p=config.top_p,
-                top_k=config.top_k,
-                max_output_tokens=config.max_tokens,
-                stop_sequences=config.stop_seqs,
-                candidate_count=config.num_choices,
-                presence_penalty=config.presence_penalty,
-                frequency_penalty=config.frequency_penalty,
-                response_logprobs=config.logprobs,
-                logprobs=config.top_logprobs,
-                safety_settings=safety_settings_to_list(self.safety_settings),
-                tools=gemini_tools,
-                tool_config=gemini_tool_config,
-                system_instruction=system_instruction,  # type: ignore[arg-type]
-                thinking_config=self.chat_thinking_config(config),
-                response_modalities=response_modalities,
-            )
-            if config.response_schema is not None:
-                parameters.response_mime_type = "application/json"
-                parameters.response_json_schema = json_schema_dump(
-                    config.response_schema.json_schema
+                model_call = start_model_call(
+                    contents=gemini_contents,  # type: ignore[arg-type]
+                    safety_settings=self.safety_settings,
+                    generation_config=parameters,
+                    tools=gemini_tools,
+                    tool_config=gemini_tool_config,
+                    system_instruction=system_instruction,
                 )
 
-            model_call = start_model_call(
-                contents=gemini_contents,  # type: ignore[arg-type]
-                safety_settings=self.safety_settings,
-                generation_config=parameters,
-                tools=gemini_tools,
-                tool_config=gemini_tool_config,
-                system_instruction=system_instruction,
-            )
+                response: GenerateContentResponse | None = None
 
-            response: GenerateContentResponse | None = None
+                try:
+                    # google sometimes requires retries for malformed function calls
+                    # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
+                    tool_calling_attempts = 0
+                    while tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
+                        if self._batcher:
+                            response = await self._batcher.generate_for_request(
+                                batch_request_dict(parameters, gemini_contents)
+                            )
+                        elif self.streaming is True or (
+                            self.streaming is None and model_stream_requested()
+                        ):
+                            response = await self._stream_generate_content(
+                                client=client,
+                                model=self.service_model_name(),
+                                contents=gemini_contents,  # type: ignore[arg-type]
+                                config=parameters,
+                            )
+                        else:
+                            response = await client.aio.models.generate_content(
+                                model=self.service_model_name(),
+                                contents=gemini_contents,  # type: ignore[arg-type]
+                                config=parameters,
+                            )
+                        # retry for MALFORMED_FUNCTION_CALL
+                        if (
+                            response.candidates
+                            and response.candidates[0].finish_reason
+                            == FinishReason.MALFORMED_FUNCTION_CALL
+                            and not has_native_tools
+                        ):
+                            # tick retries
+                            tool_calling_attempts += 1
 
-            try:
-                # google sometimes requires retries for malformed function calls
-                # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
-                tool_calling_attempts = 0
-                while tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
-                    if self._batcher:
-                        response = await self._batcher.generate_for_request(
-                            batch_request_dict(parameters, gemini_contents)
-                        )
-                    elif self.streaming is True or (
-                        self.streaming is None and model_stream_requested()
-                    ):
-                        response = await self._stream_generate_content(
-                            client=client,
-                            model=self.service_model_name(),
-                            contents=gemini_contents,  # type: ignore[arg-type]
-                            config=parameters,
-                        )
-                    else:
-                        response = await client.aio.models.generate_content(
-                            model=self.service_model_name(),
-                            contents=gemini_contents,  # type: ignore[arg-type]
-                            config=parameters,
-                        )
-                    # retry for MALFORMED_FUNCTION_CALL
-                    if (
-                        response.candidates
-                        and response.candidates[0].finish_reason
-                        == FinishReason.MALFORMED_FUNCTION_CALL
-                        and not has_native_tools
-                    ):
-                        # tick retries
-                        tool_calling_attempts += 1
+                            # the retried request regenerates the response, so any
+                            # output already streamed to observers is stale — but
+                            # only announce a restart when a retry will actually
+                            # run; on exhaustion the malformed response *is* the
+                            # returned output, so its deltas must not be discarded
+                            if tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
+                                await report_model_stream_restart()
 
-                        # the retried request regenerates the response, so any
-                        # output already streamed to observers is stale — but
-                        # only announce a restart when a retry will actually
-                        # run; on exhaustion the malformed response *is* the
-                        # returned output, so its deltas must not be discarded
-                        if tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
-                            await report_model_stream_restart()
+                            # apply retry context
+                            retry_contents, retry_tool_config = (
+                                _malformed_function_retry(response, tool_choice)
+                            )
+                            gemini_contents.extend(retry_contents)
+                            if retry_tool_config is not None:
+                                parameters.tool_config = retry_tool_config
 
-                        # apply retry context
-                        retry_contents, retry_tool_config = _malformed_function_retry(
-                            response, tool_choice
-                        )
-                        gemini_contents.extend(retry_contents)
-                        if retry_tool_config is not None:
-                            parameters.tool_config = retry_tool_config
+                        # otherwise we are done
+                        else:
+                            break
+                except ClientError as ex:
+                    model_call.set_error(
+                        {"error": {"message": str(ex.message), "code": ex.code}},
+                        http_hooks.end_request(request_id),
+                    )
+                    return self.handle_client_error(ex), model_call
 
-                    # otherwise we are done
-                    else:
-                        break
-            except ClientError as ex:
-                model_call.set_error(
-                    {"error": {"message": str(ex.message), "code": ex.code}},
-                    http_hooks.end_request(request_id),
+                assert response is not None  # mypy confused by retry loop
+
+                model_call.set_response(response, http_hooks.end_request(request_id))
+
+                model_name = response.model_version or self.service_model_name()
+                has_computer_use = gemini_tools is not None and any(
+                    isinstance(tool, Tool) and tool.computer_use is not None
+                    for tool in gemini_tools
                 )
-                return self.handle_client_error(ex), model_call
+                output = ModelOutput(
+                    model=model_name,
+                    choices=completion_choices_from_candidates(
+                        model_name, response, has_computer_use
+                    ),
+                    usage=usage_metadata_to_model_usage(response.usage_metadata),
+                    response_id=response.response_id,
+                )
 
-            assert response is not None  # mypy confused by retry loop
-
-            model_call.set_response(response, http_hooks.end_request(request_id))
-
-            model_name = response.model_version or self.service_model_name()
-            has_computer_use = gemini_tools is not None and any(
-                isinstance(tool, Tool) and tool.computer_use is not None
-                for tool in gemini_tools
-            )
-            output = ModelOutput(
-                model=model_name,
-                choices=completion_choices_from_candidates(
-                    model_name, response, has_computer_use
-                ),
-                usage=usage_metadata_to_model_usage(response.usage_metadata),
-                response_id=response.response_id,
-            )
-
-            return output, model_call
+                return output, model_call
 
     async def _stream_generate_content(
         self,
