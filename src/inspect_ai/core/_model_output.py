@@ -3,10 +3,9 @@ from typing import Any, Literal, Type, TypeVar
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
-from inspect_ai.core._content import Content
-from inspect_ai.core._tool_call import ToolCall
-
 from ._chat_message import ChatMessage, ChatMessageAssistant
+from ._content import Content
+from ._tool_call import ToolCall
 
 _T = TypeVar("_T", int, float)
 

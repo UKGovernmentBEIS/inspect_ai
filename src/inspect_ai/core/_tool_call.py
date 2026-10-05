@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import TypedDict
 
-from inspect_ai.core._content import Content
+from ._content import Content
 
 
 class ToolCallContent(BaseModel):

@@ -6,7 +6,7 @@ from typing import (
 
 from pydantic import BaseModel, Field
 
-from inspect_ai.core._json import JSONSchema
+from ._json import JSONSchema
 
 ToolParam: TypeAlias = JSONSchema
 """Description of tool parameter in JSON Schema format."""

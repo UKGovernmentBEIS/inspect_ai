@@ -7,11 +7,11 @@ from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validato
 from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
 
-from inspect_ai.core._constants import DESERIALIZING, MESSAGE_CACHE
-from inspect_ai.core._content import Content, ContentText
-from inspect_ai.core._metadata import MT, metadata_as
-from inspect_ai.core._model_validator import model_wrap_validator
-from inspect_ai.core._tool_call import ToolCall, ToolCallError
+from ._constants import DESERIALIZING, MESSAGE_CACHE
+from ._content import Content, ContentText
+from ._metadata import MT, metadata_as
+from ._model_validator import model_wrap_validator
+from ._tool_call import ToolCall, ToolCallError
 
 logger = getLogger(__name__)
 
