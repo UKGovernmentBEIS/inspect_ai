@@ -267,8 +267,9 @@ class ModelOutput(BaseModel):
         Args:
             message: Assistant message.
             stop_reason: Stop reason for generation
-            model: Model name. Defaults to the message's `model`; when neither is
-                set, `inspect_ai` uses the active model's name, otherwise `""`.
+            model: Model name. An empty string counts as not given. Defaults to
+                the message's `model` (kept even if empty); when neither is set,
+                `inspect_ai` uses the active model's name, otherwise `""`.
         """
         # narrow to assistant message
         if not isinstance(message, ChatMessageAssistant):

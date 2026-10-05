@@ -49,8 +49,9 @@ def check_imports(name: str, allowed: Iterable[str] = ()) -> list[ImportViolatio
     Allowed: the standard library, `DEFAULT_ALLOWED`, `allowed`, and modules of
     `name` itself. An entry allows the module and its submodules.
 
-    Not supported: packages inside a zip file on `sys.path` (no files are found,
-    so nothing is reported), and symlinked directories inside a package (not
+    Not supported: modules inside a zip file on `sys.path` (for a package no
+    files are found, so nothing is reported; a single module raises
+    `NotADirectoryError`), and symlinked directories inside a package (not
     followed, so their files are not checked).
 
     Args:
@@ -65,6 +66,7 @@ def check_imports(name: str, allowed: Iterable[str] = ()) -> list[ImportViolatio
         ValueError: `name` has no Python source, e.g. a built-in, frozen,
             compiled-only or extension module.
         SyntaxError: A checked file isn't valid Python.
+        NotADirectoryError: `name` is a single module inside a zip file.
         Exception: Whatever a parent package of `name` raises when imported.
     """
     spec = importlib.util.find_spec(name)
