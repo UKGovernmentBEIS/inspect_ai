@@ -121,9 +121,11 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         return result
 
     async def _batch_worker(self) -> None:
+        from inspect_ai.log._samples import clear_active_model_event
         from inspect_ai.log._transcript import Transcript, init_transcript
 
         init_transcript(Transcript())
+        clear_active_model_event()
 
         while (
             self._inflight_batches
