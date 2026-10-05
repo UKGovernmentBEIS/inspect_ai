@@ -1784,27 +1784,28 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         added = add_samples(samples)
                         if added.explicit_epoch_runs:
                             pull_after_limit = True
-                        # prior records the upfront seed may have left out: a
-                        # limited feed's selection, and explicit epochs beyond
-                        # `epochs` (it keeps only those above the prior's count)
-                        seed_keys = (
-                            set(added.run_ids)
-                            if limited_sample_feed
-                            else {
-                                run
-                                for run in added.explicit_epoch_runs
-                                if run[1] > epochs
-                            }
-                        )
                         if (
-                            seed_keys
-                            and logger.prior_seeded
+                            logger.prior_seeded
                             and sample_source is not None
                             and sample_source.seed is not None
                         ):
-                            await logger.seed_added_samples(
-                                sample_source.seed.source, seed_keys
+                            # prior records the upfront seed left out: a
+                            # limited feed's selection, and explicit epochs
+                            # above `epochs` up to the prior's own count
+                            prior_epochs = sample_source.seed.epochs
+                            seed_keys = (
+                                set(added.run_ids)
+                                if limited_sample_feed
+                                else {
+                                    run
+                                    for run in added.explicit_epoch_runs
+                                    if epochs < run[1] <= prior_epochs
+                                }
                             )
+                            if seed_keys:
+                                await logger.seed_added_samples(
+                                    sample_source.seed.source, seed_keys
+                                )
                         if added.runs:
                             total_samples += len(added.runs)
                             sample_error_handler.total_samples = total_samples

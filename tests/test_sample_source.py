@@ -1929,6 +1929,97 @@ def test_sample_source_task_retry_keeps_explicit_epochs_through_failed_attempt(
     assert sorted(rollout_runs) == [2, 3]
 
 
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_sample_source_task_retry_copies_only_epochs_the_seed_left_out(
+    log_format: Literal["eval", "json"],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a retry with fewer epochs (2 -> 1) reuses rollouts the source re-admits
+    # one at a time: those above the prior's count are in the upfront seed,
+    # so only (q, 2), which the reduced count left out, is copied on admission
+    from inspect_ai._eval.task.log import TaskLogger
+
+    rollout_runs: list[int] = []
+    rollouts_logged = anyio.Event()
+    failing = True
+
+    @solver
+    def fail_flaky_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "q":
+                rollout_runs.append(state.epoch)
+            if state.sample_id == "flaky" and state.epoch == 1 and failing:
+                with anyio.fail_after(30):
+                    await rollouts_logged.wait()
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(_EpochAdds):
+        async def sample_complete(self, sample: EvalSample) -> None:
+            await super().sample_complete(sample)
+            if (str(sample.id), sample.epoch) == ("q", 5):
+                rollouts_logged.set()
+
+    chain: dict[tuple[str, int], list[_Add]] = {("seed", 1): [("q", 2)]}
+    chain.update({("q", epoch): [("q", epoch + 1)] for epoch in range(2, 5)})
+
+    @task
+    def readmit_epoch_runs_task() -> Task:
+        return Task(
+            dataset=_Src([], seed=["seed", "flaky"], then=chain),
+            solver=[fail_flaky_once()],
+            name="readmit_epoch_runs_task",
+        )
+
+    def run(epochs: int) -> tuple[bool, list[EvalLog]]:
+        return eval_set(
+            readmit_epoch_runs_task(),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            log_format=log_format,
+            epochs=epochs,
+            retry_attempts=1,
+            retry_immediate=False,
+            fail_on_error=True,
+            retry_on_error=0,
+            display="none",
+        )
+
+    ok, _ = run(epochs=2)
+    assert not ok
+    assert sorted(rollout_runs) == [2, 3, 4, 5]
+    failing = False
+    admission_copies: list[set[tuple[str | int, int]]] = []
+    seed_added_samples = TaskLogger.seed_added_samples
+
+    async def record_copies(
+        logger: TaskLogger,
+        prior: str | list[EvalSample],
+        keep: set[tuple[str | int, int]],
+    ) -> None:
+        admission_copies.append(set(keep))
+        await seed_added_samples(logger, prior, keep)
+
+    monkeypatch.setattr(TaskLogger, "seed_added_samples", record_copies)
+    ok, logs = run(epochs=1)
+    assert ok
+    final = read_eval_log(logs[0].location)
+    assert _runs(final) == [
+        ("flaky", 1),
+        ("q", 2),
+        ("q", 3),
+        ("q", 4),
+        ("q", 5),
+        ("seed", 1),
+    ]
+    assert all(sample.error is None for sample in final.samples or [])
+    assert sorted(rollout_runs) == [2, 3, 4, 5]
+    assert admission_copies == [{("q", 2)}]
+
+
 def test_sample_source_task_retry_feed_raise_leaves_reuse_counted() -> None:
     # the reuse path reports the reused run terminal (counted `completed`)
     # *before* notifying the source, so a raising `sample_complete` tears the

@@ -191,8 +191,9 @@ dropping samples.
   + eval_set (see task-source.md). An unlimited feed's upfront seed keeps
   prior epochs above the prior's own `epochs` (only an explicit epoch can
   produce them), so a retry that fails before the source re-adds them still
-  carries them forward; other explicit epochs beyond `epochs` are copied from
-  the prior when re-added.
+  carries them forward; explicit epochs above `epochs` up to the prior's count
+  (left out only when the count was reduced) are copied from the prior when
+  re-added.
 - **Early stopping** is rejected (`PrerequisiteError`): managers register a
   fixed sample set at `start_task` (added samples would never be registered),
   and samples a manager halts complete without notifying the source, which
