@@ -1,10 +1,11 @@
 import logging
 import os
 import pickle
+import re
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from hashlib import md5
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from shutil import rmtree
 from typing import Any, Optional
 
@@ -12,6 +13,7 @@ from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.appdirs import inspect_cache_dir
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -25,12 +27,50 @@ def trace(msg: str, *args: Any) -> None:
     trace_message(logger, "Cache", msg, *args)
 
 
-def _path_is_in_cache(path: Path | str) -> bool:
-    """This ensures the path is in our cache directory, just in case the `model` is ../../../home/ubuntu/maliciousness"""
-    if isinstance(path, str):
-        path = Path(path)
+def _path_is_in_cache(path: Path | str, root: Path | None = None) -> bool:
+    """Whether `path` is strictly inside the cache directory.
 
-    return cache_path() in Path(os.path.normpath(path)).parents
+    Both paths are resolved first, so a symlink that leads out of the cache
+    directory fails the check.
+    """
+    try:
+        resolved_root = (root or _cache_root()).resolve()
+        return resolved_root in Path(path).resolve().parents
+    except (OSError, RuntimeError, ValueError):
+        # unresolvable (e.g. a symlink loop or an embedded NUL): not provably
+        # in the cache
+        return False
+
+
+def _is_safe_model_name(model: str) -> bool:
+    """Whether `model` is a relative path with no `.` or `..` segments.
+
+    Both `/` and backslash count as separators, and a segment of only dots and
+    spaces is refused (Windows trims trailing dots and spaces), so a name is
+    judged the same way on every platform.
+    """
+    if "\0" in model or PurePosixPath(model).anchor or PureWindowsPath(model).anchor:
+        return False
+    return all(
+        segment == "" or segment.strip(". ") != ""
+        for segment in re.split(r"[/\\]", model)
+    )
+
+
+def _cache_entry_path(entry: "CacheEntry") -> Path | None:
+    """Path of the cache file for `entry`, or None (with a warning) if it is outside the cache directory."""
+    try:
+        filename = cache_path(model=entry.model) / entry.key
+        if _path_is_in_cache(filename):
+            return filename
+    except ValueError:
+        pass
+    warn_once(
+        logger,
+        f"Model output caching is disabled for model {entry.model!r}: "
+        "its cache entries would be outside the cache directory.",
+    )
+    return None
 
 
 def _parse_expiry(period: str) -> int:
@@ -252,7 +292,9 @@ def cache_store(
         trace("Not caching content_filter output: %s", entry.key)
         return False
 
-    filename = cache_path(model=entry.model) / entry.key
+    filename = _cache_entry_path(entry)
+    if filename is None:
+        return False
 
     try:
         filename.parent.mkdir(parents=True, exist_ok=True)
@@ -269,7 +311,9 @@ def cache_store(
 
 def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
     """Fetch a value from the cache directory."""
-    filename = cache_path(model=entry.model) / entry.key
+    filename = _cache_entry_path(entry)
+    if filename is None:
+        return None
     try:
         trace("Fetching from cache: %s", filename)
 
@@ -305,7 +349,7 @@ def cache_clear(model: str = "") -> bool:
     try:
         path = cache_path(model)
 
-        if (model == "" or _path_is_in_cache(path)) and path.exists():
+        if path.exists():
             trace("Clearing cache: %s", path)
             rmtree(path)
             return True
@@ -321,17 +365,31 @@ def cache_path(model: str = "") -> Path:
 
     Args:
        model: Path to cache directory for specific model.
+
+    Raises:
+       ValueError: If the directory for `model` would not be inside the
+          cache directory (e.g. the name has `..` segments). Nothing is
+          created in that case.
     """
+    generate_cache = _cache_root()
+    path = generate_cache / model if model else generate_cache
+    if model and (
+        not _is_safe_model_name(model) or not _path_is_in_cache(path, generate_cache)
+    ):
+        raise ValueError(
+            f"The cache directory for model {model!r} would be outside {generate_cache}."
+        )
+    generate_cache.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _cache_root() -> Path:
+    """The cache directory, without creating it."""
     env_cache_dir = os.environ.get("INSPECT_CACHE_DIR", None)
     if env_cache_dir:
-        generate_cache = Path(env_cache_dir) / "generate"
-        generate_cache.mkdir(parents=True, exist_ok=True)
+        return Path(env_cache_dir) / "generate"
     else:
-        generate_cache = inspect_cache_dir("generate")
-    if model:
-        return generate_cache / model
-    else:
-        return generate_cache
+        return inspect_cache_dir("generate", create=False)
 
 
 def _cache_size_directories_only(filter_by: list[str]) -> list[tuple[str, int]]:
@@ -418,9 +476,12 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
             an empty list, this will search the entire cache.
     """
     expired_cache_entries = []
-    filter_by_paths = [
-        cache_path(model) for model in filter_by if _path_is_in_cache(cache_path(model))
-    ]
+    filter_by_paths = []
+    for model in filter_by:
+        try:
+            filter_by_paths.append(cache_path(model))
+        except ValueError as ex:
+            warn_once(logger, str(ex))
 
     if filter_by and not filter_by_paths:
         # An edge case where all the paths we get are invalid ones (e.g.
@@ -428,7 +489,8 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
         return []
 
     trace("Filtering by paths: %s", filter_by_paths)
-    for dirpath, _dirnames, filenames in os.walk(cache_path()):
+    root = cache_path()
+    for dirpath, _dirnames, filenames in os.walk(root):
         if filter_by_paths and Path(dirpath) not in filter_by_paths:
             trace("Skipping path %s", dirpath)
             continue
@@ -437,6 +499,9 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
         for filename in filenames:
             path = Path(dirpath) / filename
             trace("Checking path %s", path)
+            if not _path_is_in_cache(path, root):
+                trace("Skipping path outside the cache: %s", path)
+                continue
             try:
                 with open(path, "rb") as f:
                     expiry, _cache_entry = pickle.load(f)
@@ -455,12 +520,17 @@ def cache_prune(files: list[Path] = []) -> None:
 
     Args:
         files: List of files to prune. If empty, this
-            will search the entire cache.
+            will search the entire cache. Files outside the
+            cache directory are skipped.
     """
     if not files:
         files = cache_list_expired()
 
+    root = _cache_root()
     for file in files:
+        if not _path_is_in_cache(file, root):
+            logger.warning(f"Not pruning {file}: it is outside the cache directory.")
+            continue
         try:
             with open(file, "rb") as f:
                 expiry, _cache_entry = pickle.load(f)

@@ -35,7 +35,7 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
-from .._model_output import ModelOutput, ModelUsage
+from .._model_output import ModelOutput, ModelUsage, ServedModelUsage
 from .._openai import (
     always_reasons_model,
     is_gpt_5_model,
@@ -685,6 +685,19 @@ class OpenAIAPI(ModelAPI):
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return f"openai/{self.service_model_name()}"
+
+    @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        # an Azure model name is a deployment name, which need not name the
+        # model the deployment serves
+        if (
+            self.is_azure()
+            and output.usage is not None
+            and output.model
+            and output.model != self.service_model_name()
+        ):
+            return [ServedModelUsage(f"openai/{output.model}", output.usage)]
+        return None
 
     @override
     def input_tokens_name(self) -> str:

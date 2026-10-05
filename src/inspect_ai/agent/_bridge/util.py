@@ -24,6 +24,7 @@ from inspect_ai._util.url import data_uri_mime_type, is_data_uri
 from inspect_ai.agent._bridge._approval import (
     MAX_CONSECUTIVE_REJECTIONS,
     apply_bridge_tool_approval,
+    bridge_approval_scope,
     terminate_for_repeated_rejections,
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError
@@ -550,14 +551,16 @@ async def bridge_generate(
                 tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
                 for tool in tools
             ]
-            if _is_model_filter(bridge.filter):
-                result = await bridge.filter(
-                    model, input_messages, tool_info, tool_choice, config
-                )
-            else:
-                result = await bridge.filter(
-                    model.name, input_messages, tool_info, tool_choice, config
-                )
+            # under the bridge's approval policies, as a filter may generate
+            with bridge_approval_scope(bridge.approval):
+                if _is_model_filter(bridge.filter):
+                    result = await bridge.filter(
+                        model, input_messages, tool_info, tool_choice, config
+                    )
+                else:
+                    result = await bridge.filter(
+                        model.name, input_messages, tool_info, tool_choice, config
+                    )
             if isinstance(result, ModelOutput):
                 output = result
             elif isinstance(result, GenerateInput):
@@ -569,7 +572,12 @@ async def bridge_generate(
         # (instead of going straight to the transcript) so the caller can
         # control when / under which span events appear.
         if output is None:
-            with bridge_model_generate(), use_model_event_sink(bridge.model_event_sink):
+            # under the bridge's approval policies, so remote MCP servers are refused
+            with (
+                bridge_model_generate(),
+                use_model_event_sink(bridge.model_event_sink),
+                bridge_approval_scope(bridge.approval),
+            ):
                 # with fail_on_refusal set a refusal raises rather than
                 # returning; it still gets its retries, the last one propagates
                 try:
