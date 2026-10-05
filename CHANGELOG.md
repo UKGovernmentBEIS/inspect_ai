@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scoring: `answer("line")` now ignores trailing spaces, tabs and carriage returns on the captured line, so `ANSWER: 42 ` scores the same as `ANSWER: 42`.
 - Sample sources: `enqueue_sample(samples, epoch=N)` runs each sample once as epoch `N`, so a source can run one sample repeatedly under its own id.
 - Run config: `eval_config.token_limit_type` from an exported or handwritten run config is applied as the token-limit metering type instead of being rejected as an unknown generate option.
 - Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
