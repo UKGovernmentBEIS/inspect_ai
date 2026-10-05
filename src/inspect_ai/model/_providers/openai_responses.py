@@ -1,5 +1,6 @@
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from logging import getLogger
 from typing import Any
 
@@ -17,6 +18,7 @@ from openai._types import NOT_GIVEN
 from openai.types.responses import (
     Response,
     ResponseCompletedEvent,
+    ResponseCreatedEvent,
     ResponseErrorEvent,
     ResponseFailedEvent,
     ResponseFormatTextJSONSchemaConfigParam,
@@ -142,176 +144,202 @@ async def generate_responses(
         background = None
 
     # allocate request_id (so we can see it from ModelCall)
-    request_id = http_hooks.start_request()
+    with http_hooks.request() as request_id:
+        # present inspect's todo_write tool to the model under OpenAI's native update_plan
+        # name/schema (the model is post-trained on update_plan); todo_write remains the tool
+        # that is actually executed. Decided once here and threaded to outbound tools + replay.
+        swap_todo_write = should_swap_todo_write(tools, config)
+        wire_tools = substitute_update_plan_tools(tools, swap_todo_write)
 
-    # present inspect's todo_write tool to the model under OpenAI's native update_plan
-    # name/schema (the model is post-trained on update_plan); todo_write remains the tool
-    # that is actually executed. Decided once here and threaded to outbound tools + replay.
-    swap_todo_write = should_swap_todo_write(tools, config)
-    wire_tools = substitute_update_plan_tools(tools, swap_todo_write)
-
-    # prepare request (we do this so we can log the ModelCall)
-    tool_params = (
-        openai_responses_tools(
-            wire_tools,
-            model_family or model_name,
-            config,
-            is_latest=model_info.is_latest(),
+        # prepare request (we do this so we can log the ModelCall)
+        tool_params = (
+            openai_responses_tools(
+                wire_tools,
+                model_family or model_name,
+                config,
+                is_latest=model_info.is_latest(),
+            )
+            if len(tools) > 0 or has_image_output(config.modalities)
+            else NOT_GIVEN
         )
-        if len(tools) > 0 or has_image_output(config.modalities)
-        else NOT_GIVEN
-    )
 
-    # explicit cache breakpoints (ContentText.cache_breakpoint): any
-    # ineligible condition falls back to normal implicit caching for the
-    # whole request. Also reject a mark on a message replayed natively
-    # (compaction/agent_message) — resolve_explicit_prompt_cache only sees
-    # roles, not this bypass. supports_explicit_prompt_cache gates callers
-    # other than the direct OpenAI provider (e.g. OpenRouter), whose
-    # endpoints' support for these fields is unverified.
-    explicit_cache = (
-        supports_explicit_prompt_cache
-        and resolve_explicit_prompt_cache(input, model_name, config.cache_prompt)
-        and not any(
-            message_bypasses_content_conversion(m) and count_cache_breakpoints([m]) > 0
-            for m in input
+        # explicit cache breakpoints (ContentText.cache_breakpoint): any
+        # ineligible condition falls back to normal implicit caching for the
+        # whole request. Also reject a mark on a message replayed natively
+        # (compaction/agent_message) — resolve_explicit_prompt_cache only sees
+        # roles, not this bypass. supports_explicit_prompt_cache gates callers
+        # other than the direct OpenAI provider (e.g. OpenRouter), whose
+        # endpoints' support for these fields is unverified.
+        explicit_cache = (
+            supports_explicit_prompt_cache
+            and resolve_explicit_prompt_cache(input, model_name, config.cache_prompt)
+            and not any(
+                message_bypasses_content_conversion(m)
+                and count_cache_breakpoints([m]) > 0
+                for m in input
+            )
         )
-    )
-    if explicit_cache:
-        # retain a checkpoint at the end of the initial system/developer
-        # block (cumulatively covering preceding tools) when the caller left
-        # it unmarked — see `apply_initial_system_checkpoint`.
-        input = apply_initial_system_checkpoint(input)
+        if explicit_cache:
+            # retain a checkpoint at the end of the initial system/developer
+            # block (cumulatively covering preceding tools) when the caller left
+            # it unmarked — see `apply_initial_system_checkpoint`.
+            input = apply_initial_system_checkpoint(input)
 
-    request = dict(
-        input=await openai_responses_inputs(
-            input,
-            model_info,
-            synthesize_phase=synthesize_phase,
-            swap_todo_write=swap_todo_write,
-            cache_breakpoints=explicit_cache,
-        ),
-        tools=tool_params,
-        tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
-        if isinstance(tool_params, list) and tool_choice != "auto" and len(tools) > 0
-        else NOT_GIVEN,
-        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
-        | (config.extra_headers or {}),
-        **completion_params_responses(
-            model_name,
-            model_info=model_info,
-            config=config,
-            service_tier=service_tier,
-            prompt_cache_key=prompt_cache_key,
-            prompt_cache_retention=prompt_cache_retention,
-            safety_identifier=safety_identifier,
-            responses_store=responses_store,
-            tools=len(tools) > 0,
-            tool_params=[] if isinstance(tool_params, NotGiven) else tool_params,
-            # a verbatim tool is sent as given (a function or custom tool),
-            # not as OpenAI's computer tool, which is what requires store
-            has_computer_tool=any(
-                is_computer_tool_info(t) and RESPONSES_VERBATIM not in (t.options or {})
-                for t in tools
+        request = dict(
+            input=await openai_responses_inputs(
+                input,
+                model_info,
+                synthesize_phase=synthesize_phase,
+                swap_todo_write=swap_todo_write,
+                cache_breakpoints=explicit_cache,
             ),
-        ),
-    )
-    if isinstance(background, bool):
-        request["background"] = background
-    if explicit_cache:
-        request["prompt_cache_options"] = {"mode": "explicit"}
+            tools=tool_params,
+            tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
+            if isinstance(tool_params, list)
+            and tool_choice != "auto"
+            and len(tools) > 0
+            else NOT_GIVEN,
+            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+            | (config.extra_headers or {}),
+            **completion_params_responses(
+                model_name,
+                model_info=model_info,
+                config=config,
+                service_tier=service_tier,
+                prompt_cache_key=prompt_cache_key,
+                prompt_cache_retention=prompt_cache_retention,
+                safety_identifier=safety_identifier,
+                responses_store=responses_store,
+                tools=len(tools) > 0,
+                tool_params=[] if isinstance(tool_params, NotGiven) else tool_params,
+                # a verbatim tool is sent as given (a function or custom tool),
+                # not as OpenAI's computer tool, which is what requires store
+                has_computer_tool=any(
+                    is_computer_tool_info(t)
+                    and RESPONSES_VERBATIM not in (t.options or {})
+                    for t in tools
+                ),
+            ),
+        )
+        if isinstance(background, bool):
+            request["background"] = background
+        if explicit_cache:
+            request["prompt_cache_options"] = {"mode": "explicit"}
 
-    # stream goes into the request pre-snapshot so the logged ModelCall
-    # matches the wire request (batched and background requests can't stream)
-    if streaming and not background and batcher is None:
-        request["stream"] = True
+        # stream goes into the request pre-snapshot so the logged ModelCall
+        # matches the wire request (batched and background requests can't stream)
+        if streaming and not background and batcher is None:
+            request["stream"] = True
 
-    model_call = set_active_model_event_call(
-        request=request,
-        filter=openai_media_filter,
-    )
+        model_call = set_active_model_event_call(
+            request=request,
+            filter=openai_media_filter,
+        )
+        stream_state = _StreamState()
 
-    try:
-        # generate response
-        model_response: Response
-        if batcher:
-            model_response = await batcher.generate_for_request(request)
-        elif request.get("stream"):
-            model_response = await _generate_responses_stream(client, request)
-        else:
-            model_response = await client.responses.create(**request)
-        # model_response is `Response | Any`. The lazy type inference engine
-        # threw up its hands because of the `**request`.
-        assert isinstance(model_response, Response)
+        try:
+            # generate response
+            model_response: Response
+            if batcher:
+                model_response = await batcher.generate_for_request(request)
+            elif request.get("stream"):
+                model_response = await _generate_responses_stream(
+                    client, request, stream_state
+                )
+            else:
+                model_response = await client.responses.create(**request)
+            # model_response is `Response | Any`. The lazy type inference engine
+            # threw up its hands because of the `**request`.
+            assert isinstance(model_response, Response)
 
-        # if this is a background request then poll for status until we get it
-        if background:
-            model_response = await wait_for_background_response(client, model_response)
+            # if this is a background request then poll for status until we get it
+            if background:
+                model_response = await wait_for_background_response(
+                    client, model_response
+                )
 
-        # check for error (recognized block codes, including invalid_prompt,
-        # convert to model output in the handler below)
-        if model_response.error is not None:
-            raise OpenAIResponseError(
-                code=model_response.error.code, message=model_response.error.message
+            # check for error (recognized block codes, including invalid_prompt,
+            # convert to model output in the handler below)
+            if model_response.error is not None:
+                raise OpenAIResponseError(
+                    code=model_response.error.code,
+                    message=model_response.error.message,
+                    response_id=model_response.id,
+                )
+
+            # save response for model_call
+            _fix_function_tool_parameters(model_response)
+            # Use warnings=False to suppress Pydantic serialization warnings for
+            # action types the SDK may not yet support.
+            # See: https://github.com/pydantic/pydantic-ai/issues/3653
+            model_call.set_response(
+                model_response.model_dump(warnings=False),
+                http_hooks.end_request(request_id),
             )
 
-        # save response for model_call
-        _fix_function_tool_parameters(model_response)
-        # Use warnings=False to suppress Pydantic serialization warnings for
-        # action types the SDK may not yet support.
-        # See: https://github.com/pydantic/pydantic-ai/issues/3653
-        model_call.set_response(
-            model_response.model_dump(warnings=False),
-            http_hooks.end_request(request_id),
-        )
+            # parse out choices
+            choices = openai_responses_chat_choices(model_name, model_response, tools)
 
-        # parse out choices
-        choices = openai_responses_chat_choices(model_name, model_response, tools)
+            # surface response-level `metadata` (echoed request metadata, which
+            # some models augment with additional fields) so callers can read it
+            # without parsing the raw model call
+            response_metadata = getattr(model_response, "metadata", None)
 
-        # surface response-level `metadata` (echoed request metadata, which
-        # some models augment with additional fields) so callers can read it
-        # without parsing the raw model call
-        response_metadata = getattr(model_response, "metadata", None)
+            # `model` is typed as required but compatible services can omit it
+            # (Meta's streamed refusal has a null model); fall back to the request
+            return ModelOutput(
+                model=model_response.model or model_name,
+                choices=choices,
+                usage=model_usage_from_response(model_response),
+                metadata=dict(response_metadata) if response_metadata else None,
+                response_id=model_response.id,
+            ), model_call
+        except BadRequestError as e:
+            model_call.set_error(
+                as_error_response(e.body), http_hooks.end_request(request_id)
+            )
+            if handle_bad_request:
+                return handle_bad_request(e), model_call
+            else:
+                return openai_handle_bad_request(model_name, e), model_call
+        except (APIError, OpenAIResponseError) as e:
+            # intentionally also catches the terminal `model_response.error` raise
+            # above, so recognized block codes convert on every path (streaming,
+            # non-streaming, background, batch); unrecognized codes return None
+            # and re-raise with their retry classification intact
+            output = (
+                handle_stream_error(e)
+                if handle_stream_error
+                else openai_handle_stream_error(model_name, e)
+            )
+            if output is None:
+                raise
+            response_id = (
+                e.response_id if isinstance(e, OpenAIResponseError) else None
+            ) or stream_state.response_id
+            if response_id is not None:
+                output.response_id = response_id
+            error_body = (
+                e.body
+                if isinstance(e, APIError)
+                else dict(code=e.code, message=e.message)
+            )
+            model_call.set_error(
+                as_error_response(error_body), http_hooks.end_request(request_id)
+            )
+            return output, model_call
 
-        # `model` is typed as required but compatible services can omit it
-        # (Meta's streamed refusal has a null model); fall back to the request
-        return ModelOutput(
-            model=model_response.model or model_name,
-            choices=choices,
-            usage=model_usage_from_response(model_response),
-            metadata=dict(response_metadata) if response_metadata else None,
-        ), model_call
-    except BadRequestError as e:
-        model_call.set_error(
-            as_error_response(e.body), http_hooks.end_request(request_id)
-        )
-        if handle_bad_request:
-            return handle_bad_request(e), model_call
-        else:
-            return openai_handle_bad_request(model_name, e), model_call
-    except (APIError, OpenAIResponseError) as e:
-        # intentionally also catches the terminal `model_response.error` raise
-        # above, so recognized block codes convert on every path (streaming,
-        # non-streaming, background, batch); unrecognized codes return None
-        # and re-raise with their retry classification intact
-        output = (
-            handle_stream_error(e)
-            if handle_stream_error
-            else openai_handle_stream_error(model_name, e)
-        )
-        if output is None:
-            raise
-        error_body = (
-            e.body if isinstance(e, APIError) else dict(code=e.code, message=e.message)
-        )
-        model_call.set_error(
-            as_error_response(error_body), http_hooks.end_request(request_id)
-        )
-        return output, model_call
+
+@dataclass
+class _StreamState:
+    response_id: str | None = None
+    """Id from `response.created`, for errors that end the stream early."""
 
 
 async def _generate_responses_stream(
-    client: AsyncAzureOpenAI | AsyncOpenAI, request: dict[str, Any]
+    client: AsyncAzureOpenAI | AsyncOpenAI,
+    request: dict[str, Any],
+    state: _StreamState | None = None,
 ) -> Response:
     """Stream a Responses API request, reporting chunks to the stream observer.
 
@@ -323,7 +351,10 @@ async def _generate_responses_stream(
     arrives only on the terminal event, so intermediate chunks report bare
     heartbeats. Returns the complete `Response` carried by the terminal
     event, so downstream response handling matches the non-streaming path.
+    The response id from `response.created` is recorded on `state`.
     """
+    if state is None:
+        state = _StreamState()
     report_model_stream_start()
     # function_call items by item id, so argument fragments can be attributed
     # to their call id / function when reported as stream deltas
@@ -351,6 +382,9 @@ async def _generate_responses_stream(
                 raise OpenAIResponseError(
                     code=event.code or "server_error", message=event.message
                 )
+            elif isinstance(event, ResponseCreatedEvent):
+                state.response_id = event.response.id
+                report_model_stream_progress()
             elif not model_stream_requested():
                 # content deltas are gated on an on_stream consumer (see
                 # report_model_stream_delta); heartbeat only

@@ -106,6 +106,7 @@ async def model_output_from_google(
         model=model_name,
         choices=completion_choices_from_candidates(model_name, response),
         usage=usage_metadata_to_model_usage(response.usage_metadata),
+        response_id=response.response_id,
     )
 
 

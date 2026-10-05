@@ -3508,3 +3508,28 @@ async def test_reasoning_tokens_fall_back_to_counting_thinking_text() -> None:
 
     assert output.usage is not None
     assert output.usage.reasoning_tokens == 37
+
+
+@pytest.mark.anyio
+async def test_anthropic_output_records_message_id_as_response_id() -> None:
+    from anthropic.types import Message, Usage
+
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    message = Message(
+        id="msg_response",
+        type="message",
+        role="assistant",
+        model="claude-opus-4-8",
+        stop_reason="end_turn",
+        content=[],
+        usage=Usage(input_tokens=1, output_tokens=1),
+    )
+    output, _ = await model_output_from_message(
+        client=None,
+        model="claude-opus-4-8",
+        message=message,
+        tools=[],
+    )
+
+    assert output.response_id == "msg_response"

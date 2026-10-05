@@ -34,7 +34,12 @@ class DockerCleanupState:
     """Projects brought up by ``sample_init`` and not yet brought down."""
 
     auto_compose_files: set[str] = field(default_factory=set)
-    """Generated compose files (startup and per-sample) to remove at shutdown."""
+    """Generated compose files (startup and per-sample) to remove at shutdown.
+
+    A reported project's config is released instead and kept for
+    ``inspect sandbox cleanup docker <project>``; see
+    ``project_cleanup_shutdown``.
+    """
 
     closed: bool = False
     """``project_cleanup_shutdown`` has run: this lifecycle is finished."""
@@ -124,6 +129,9 @@ def project_startup(project: ComposeProject) -> None:
 def project_record_auto_compose(project: ComposeProject) -> bool:
     """Register a project's generated compose file for removal at shutdown.
 
+    A reported project's file is released at shutdown and kept instead; see
+    ``project_cleanup_shutdown``.
+
     Returns whether this call registered it: ``False`` for an explicit compose
     file, and for a generated file already registered by an earlier
     initialization or a live sample (a legacy ``.compose.yaml``, or a path
@@ -171,6 +179,11 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
     The batch's ``SandboxManager`` calls this once per Docker config it
     started, at the end of the batch. Every entry processed is released, so
     the repeat calls do nothing and no entry carries into a later batch.
+
+    Without ``cleanup``, a reported project's generated compose file is
+    released but kept on disk: ``inspect sandbox cleanup docker <project>``
+    needs that exact config, which may declare networks the generic fallback
+    cannot remove.
     """
     state = cleanup_state()
 
@@ -204,9 +217,18 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
             print(table)
             print(
                 "\n"
-                "Cleanup all containers  : [blue]inspect sandbox cleanup docker[/blue]\n"
-                "Cleanup single container: [blue]inspect sandbox cleanup docker <container-id>[/blue]",
+                "Cleanup all environments: [blue]inspect sandbox cleanup docker[/blue]\n"
+                "Cleanup each environment:\n"
+                + "\n".join(
+                    f"  [blue]inspect sandbox cleanup docker {project.name}[/blue]"
+                    for project in shutdown_projects
+                ),
                 "\n",
+            )
+
+            # handed to the user with the projects (see docstring)
+            state.auto_compose_files.difference_update(
+                project.config for project in shutdown_projects
             )
 
     # release the processed projects (brought down, or handed to the user)

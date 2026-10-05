@@ -10,7 +10,7 @@ from test_helpers.utils import (
     skip_if_no_docker,
 )
 
-from inspect_ai import Task, eval, eval_retry, task
+from inspect_ai import Task, eval, eval_retry, task, task_with
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     ProvenanceData,
@@ -24,6 +24,7 @@ from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
 from inspect_ai.solver import TaskState, generate, solver
+from inspect_ai.viewer import TaskSamplesView, ViewerConfig
 
 
 def test_eval_retry():
@@ -761,3 +762,45 @@ def test_eval_retry_incomplete_max_falls_back_to_retry():
             assert rerun.error is None
         finally:
             buffer.cleanup()
+
+
+def test_eval_retry_keeps_untrusted_content() -> None:
+    # task_with() isn't part of the task definition the retry reloads, but the
+    # retried log carries the first run's samples, so their trust must carry
+    # over too.
+    log1 = eval(
+        task_with(
+            failing_task_deterministic([False, True]),
+            viewer=ViewerConfig(trust_content=False),
+        ),
+        model="mockllm/model",
+    )[0]
+    assert log1.status == "error"
+
+    log2 = eval_retry(log1)[0]
+    assert log2.eval.viewer is not None
+    assert log2.eval.viewer.trust_content is False
+
+
+@task
+def custom_view_task() -> Task:
+    return Task(
+        dataset=[Sample(input="Say hello", target="hello")],
+        solver=[generate()],
+        scorer=exact(),
+        viewer=ViewerConfig(task_samples_view=TaskSamplesView(name="Custom")),
+    )
+
+
+def test_eval_retry_keeps_untrusted_content_and_task_viewer() -> None:
+    # The retry reloads the task's own viewer config and keeps it, adding back
+    # only the untrusted marking that task_with() applied.
+    log1 = eval(
+        task_with(custom_view_task(), viewer=ViewerConfig(trust_content=False)),
+        model="mockllm/model",
+    )[0]
+
+    log2 = eval_retry(log1)[0]
+    assert log2.eval.viewer is not None
+    assert log2.eval.viewer.trust_content is False
+    assert log2.eval.viewer.task_samples_view == TaskSamplesView(name="Custom")

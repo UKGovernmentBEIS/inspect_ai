@@ -196,6 +196,40 @@ class TestBatcher:
 
         await self._run_with_task_group(test_logic)
 
+    async def test_batch_worker_runs_outside_the_requesting_model_event(self):
+        """Batch-level API calls must not be attributed to the request that started the worker."""
+        from inspect_ai.event._model import ModelEvent
+        from inspect_ai.log._samples import (
+            has_active_model_event,
+            track_active_model_event,
+        )
+        from inspect_ai.model import GenerateConfig, ModelOutput
+
+        worker_saw_model_event: list[bool] = []
+
+        class RecordingBatcher(FakeBatcher):
+            async def _create_batch(self, batch_requests) -> str:
+                worker_saw_model_event.append(has_active_model_event())
+                return await super()._create_batch(batch_requests)
+
+        async def test_logic():
+            batcher = RecordingBatcher()
+            event = ModelEvent(
+                model="test",
+                input=[],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(model="test", choices=[]),
+            )
+            with track_active_model_event(event):
+                result = await batcher.generate_for_request({"prompt": "test"})
+
+            assert result.startswith("result-for-")
+            assert worker_saw_model_event == [False]
+
+        await self._run_with_task_group(test_logic)
+
     async def test_batch_creation_failure(self):
         """Test handling of batch creation failures."""
 
