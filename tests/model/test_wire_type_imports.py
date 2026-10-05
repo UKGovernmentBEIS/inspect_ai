@@ -42,6 +42,8 @@ WIRE_TYPE_MODULES = [
     "inspect_ai.core.citation",
     "inspect_ai.core.constants",
     "inspect_ai.core.content",
+    "inspect_ai.core.metadata",
+    "inspect_ai.core.url",
 ]
 
 # pydantic brings annotated_types and typing_inspection with it.

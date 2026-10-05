@@ -23,12 +23,13 @@ from typing import (
 from pydantic import BaseModel, Field, create_model
 from typing_extensions import is_typeddict
 
-from inspect_ai.core._json import (
-    JSONSchema as JSONSchema,
-)
-from inspect_ai.core._json import (
-    JSONType as JSONType,
-)
+# isort: split
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._json import JSONSchema as JSONSchema
+from inspect_ai.core._json import JSONType as JSONType
+
+# End of backward-compatible re-exports.
+
 
 JSON_SCHEMA_EXTENDED_FIELDS = {
     "pattern",

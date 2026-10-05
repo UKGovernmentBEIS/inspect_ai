@@ -1,36 +1,20 @@
 from logging import Logger
 from typing import Callable, NamedTuple
 
-from inspect_ai.core._model_output import (
-    ChatCompletionChoice as ChatCompletionChoice,
-)
-from inspect_ai.core._model_output import (
-    Logprob as Logprob,
-)
-from inspect_ai.core._model_output import (
-    Logprobs as Logprobs,
-)
-from inspect_ai.core._model_output import (
-    ModelFallback as ModelFallback,
-)
-from inspect_ai.core._model_output import (
-    ModelOutput as ModelOutput,
-)
-from inspect_ai.core._model_output import (
-    ModelUsage as ModelUsage,
-)
-from inspect_ai.core._model_output import (
-    StopCategory as StopCategory,
-)
-from inspect_ai.core._model_output import (
-    StopDetails as StopDetails,
-)
-from inspect_ai.core._model_output import (
-    StopReason as StopReason,
-)
-from inspect_ai.core._model_output import (
-    TopLogprob as TopLogprob,
-)
+# isort: split
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._model_output import ChatCompletionChoice as ChatCompletionChoice
+from inspect_ai.core._model_output import Logprob as Logprob
+from inspect_ai.core._model_output import Logprobs as Logprobs
+from inspect_ai.core._model_output import ModelFallback as ModelFallback
+from inspect_ai.core._model_output import ModelOutput as ModelOutput
+from inspect_ai.core._model_output import ModelUsage as ModelUsage
+from inspect_ai.core._model_output import StopCategory as StopCategory
+from inspect_ai.core._model_output import StopDetails as StopDetails
+from inspect_ai.core._model_output import StopReason as StopReason
+from inspect_ai.core._model_output import TopLogprob as TopLogprob
+
+# End of backward-compatible re-exports.
 
 from ._model_data.model_data import ModelCost
 

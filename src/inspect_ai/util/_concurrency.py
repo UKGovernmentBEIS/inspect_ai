@@ -9,9 +9,14 @@ import anyio
 
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.working import sample_waiting_for
-from inspect_ai.util._adaptive_concurrency import (
+
+# isort: split
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._adaptive_concurrency import (
     AdaptiveConcurrency as AdaptiveConcurrency,
 )
+
+# End of backward-compatible re-exports.
 
 logger = getLogger(__name__)
 

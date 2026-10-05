@@ -1,24 +1,17 @@
 from contextvars import ContextVar
 
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
-from inspect_ai.core._generate_config import (
-    BatchConfig as BatchConfig,
-)
-from inspect_ai.core._generate_config import (
-    GenerateConfig as GenerateConfig,
-)
-from inspect_ai.core._generate_config import (
-    GenerateConfigArgs as GenerateConfigArgs,
-)
-from inspect_ai.core._generate_config import (
-    ImageOutput as ImageOutput,
-)
-from inspect_ai.core._generate_config import (
-    OutputModality as OutputModality,
-)
-from inspect_ai.core._generate_config import (
-    ResponseSchema as ResponseSchema,
-)
+
+# isort: split
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._generate_config import BatchConfig as BatchConfig
+from inspect_ai.core._generate_config import GenerateConfig as GenerateConfig
+from inspect_ai.core._generate_config import GenerateConfigArgs as GenerateConfigArgs
+from inspect_ai.core._generate_config import ImageOutput as ImageOutput
+from inspect_ai.core._generate_config import OutputModality as OutputModality
+from inspect_ai.core._generate_config import ResponseSchema as ResponseSchema
+
+# End of backward-compatible re-exports.
 
 
 def active_generate_config() -> GenerateConfig:

@@ -18,10 +18,15 @@ from inspect_ai._util.trace import trace_message
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
-from ._cache_policy import CachePolicy as CachePolicy
 from ._cache_policy import _parse_expiry
 from ._chat_message import ChatMessage
 from ._model_output import ModelOutput
+
+# isort: split
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._cache_policy import CachePolicy as CachePolicy
+
+# End of backward-compatible re-exports.
 
 logger = logging.getLogger(__name__)
 

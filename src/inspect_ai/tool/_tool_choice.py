@@ -1,3 +1,4 @@
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
 from inspect_ai.core._tool_choice import (
     ToolChoice as ToolChoice,
 )
