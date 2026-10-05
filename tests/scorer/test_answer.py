@@ -92,6 +92,22 @@ async def test_line_success():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "trailing_whitespace", [" ", "  ", "\t", "\r", " \t ", " \n", "\r\n"]
+)
+async def test_line_trailing_whitespace(trailing_whitespace: str) -> None:
+    scorer = answer("line")
+    state = simple_task_state(
+        model_output=f"ANSWER: wrong\nANSWER: hello world{trailing_whitespace}"
+    )
+    result = await scorer(state, Target(["hello world"]))
+
+    assert result is not None
+    assert result.text == CORRECT
+    assert result.answer == "hello world"
+
+
+@pytest.mark.anyio
 async def test_line_failure():
     scorer = answer("line")
     state = simple_task_state(model_output="ANSWER:\nThis is a whole new line")
