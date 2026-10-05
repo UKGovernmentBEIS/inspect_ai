@@ -43,6 +43,25 @@ Discussion notes. Two proposals that change what sentinel's `workstreams.md` rec
   - Keep `inspect_ai.core` undocumented or marked experimental until then, to limit outside users.
   - `inspect-core` and `inspect_core` are both free on PyPI. Worth reserving?
 
+## Recommendation: no separate package or wheel yet
+
+- What a separate wheel buys:
+  - Smaller installs for Python processes that don't run evals. The only benefit nothing else provides.
+  - No circular requirement with sentinel. Gone anyway under the Scout pattern.
+  - A clearer boundary. The allowlist test already enforces it.
+  - An independent version for the wire contract. A schema version stamped in the payload and the bundle manifest does this without a separate wheel.
+- What it costs, permanently: a second `pyproject.toml`, release automation, an exact version pin from inspect_ai, CI and editable installs for two packages, more for contributors to understand.
+- WASM barely depends on the layout. The real risks are a wasm32-wasi build of `pydantic_core` and asyncio on WASI. Either one can stop the WASM path regardless of packaging. Copying `inspect_ai/core` with an empty `__init__.py` is a few lines in the bundler.
+- The sidecar is the case to watch. `sentinel-deployment.md` names it as the first thing to ship, and it is a Python process that doesn't run evals.
+  - Import time doesn't matter there: 1.7s once, at service startup.
+  - Image size and dependency count do: all of inspect_ai's dependencies to install and patch.
+- Plan:
+  - Stay with `inspect_ai.core`.
+  - Reserve `inspect-core` on PyPI.
+  - Keep `inspect_ai.core` undocumented or experimental, and hold the internal import rewrite.
+  - Revisit when a sidecar nears production. Measure its image size with and without inspect_ai's dependencies, and decide on that number.
+- Deferring is cheap. Core is already self-contained and enforced, so a later move to a top-level `inspect_core` is a few days of mechanical work, not a redesign.
+
 ## Questions
 
 1. Sentinel follows the Scout pattern instead of becoming a required dependency?
