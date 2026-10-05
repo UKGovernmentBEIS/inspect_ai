@@ -156,9 +156,9 @@ dropping samples.
   (`sample_limit_count(limit) - seed`) as its budget for added samples —
   additions beyond it are ignored with a warning, and once the budget is
   exhausted the loop finishes without consulting `next_samples()` again,
-  unless explicit epochs (which don't spend the budget for an admitted id)
-  were added since the last pull, or the seed alone exhausted it (one pull,
-  so the source can add epochs of a seed sample). A
+  however it was exhausted. Explicit epochs of admitted ids don't spend the
+  budget, so those enqueued from callbacks or solvers still run (the buffer
+  is drained before the budget check). A
   *range* limit (`start,end`) is rejected with a `PrerequisiteError`: it
   selects seed samples by position, and added samples have no position, so
   there is no coherent way to apply it (it would select nothing from a short
@@ -266,13 +266,13 @@ seed-only when `next_samples()` is `None`; `sample_complete` returning
 follow-ups chains generations; `from_samples` (callbacks and seed-only); empty
 seed; epochs applied to injected samples; explicit + auto id assignment and
 duplicate-id error; explicit epochs (repeated runs of one id, mixing with
-all-epoch adds, `(id, epoch)` duplicates, `--limit` across successive
-pulls and after a seed-consumed limit, retry reuse and carry-forward through
-a failed attempt); live
+all-epoch adds, `(id, epoch)` duplicates, `--limit` counting ids, ending
+the source and still running callback-added epochs, retry reuse and
+carry-forward through a failed attempt); live
 injection discriminated from batch-at-a-time (blocker
 parks until an injected sample releases it, `fail_after` bounds a regression);
 `enqueue_sample` rejected on plain tasks and outside a task; `--limit` caps
-totals (budget spent, seed-consumed limit consults the source once, batch
+totals (budget spent, seed-consumed limit never consults the source, batch
 truncation, samples-not-runs with epochs); `--sample-id` filters produced
 samples and tolerates ids missing from the seed; samples enqueued during a
 terminal `next_samples()` still run.

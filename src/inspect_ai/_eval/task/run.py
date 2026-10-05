@@ -1633,13 +1633,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     ``--limit`` caps the total samples (seed + added): once the
                     cap is reached new samples are ignored (with a warning)
                     and the feeder finishes without consulting the source
-                    again, unless the source is still adding further epochs
-                    of admitted samples (or the seed alone reached the cap,
-                    leaving the source no chance to add any): then it is
-                    consulted until a pull adds no explicit epoch.
-                    ``--sample-id`` filters added samples the
-                    same way it filters the seed (the filter and the cap are
-                    mutually exclusive, matching ``slice_dataset``).
+                    again. Further epochs of admitted samples still run when
+                    enqueued from callbacks or solvers (the buffer is drained
+                    before the cap is checked). ``--sample-id`` filters added
+                    samples the same way it filters the seed (the filter and
+                    the cap are mutually exclusive, matching
+                    ``slice_dataset``).
                     """
                     nonlocal total_samples
 
@@ -1688,9 +1687,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         else set()
                     )
                     auto_id = store_len
-                    # whether the source may still add epochs of admitted
-                    # samples once the limit is reached (see docstring)
-                    pull_after_limit = remaining == 0
 
                     class AddedSamples(NamedTuple):
                         samples: list[Sample]
@@ -1779,11 +1775,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         propagates and fails the task, matching a seed
                         config failing startup.
                         """
-                        nonlocal total_samples, pull_after_limit
+                        nonlocal total_samples
 
                         added = add_samples(samples)
-                        if added.explicit_epoch_runs:
-                            pull_after_limit = True
                         if (
                             logger.prior_seeded
                             and sample_source is not None
@@ -1824,7 +1818,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         return bool(added.runs)
 
                     async def feed_samples() -> None:
-                        nonlocal pull_after_limit
                         while True:
                             # checkpoint so a misbehaving source that never
                             # blocks (e.g. next_samples() returning []) keeps
@@ -1841,15 +1834,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 continue
                             # fully idle: the task is complete once the sample
                             # limit is exhausted (don't consult the source for
-                            # samples that could never run), unless the source
-                            # may still add epochs of admitted samples
-                            if (
-                                remaining is not None
-                                and remaining <= 0
-                                and not pull_after_limit
-                            ):
+                            # samples that could never run)
+                            if remaining is not None and remaining <= 0:
                                 break
-                            pull_after_limit = False
                             # ask the source for more (may block) and finish
                             # when it is exhausted
                             more = await feed.next_samples()

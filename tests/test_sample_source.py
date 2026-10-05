@@ -433,53 +433,85 @@ def test_enqueue_sample_epoch_limit_counts_samples(
     assert _runs(log) == expected
 
 
-class _Rollouts(SampleSource):
-    """The docs' `Rollouts`: each pull enqueues the next `group_size` epochs of `q`."""
+@pytest.mark.parametrize("epoch,expected", [(2, "dropped"), (1, "duplicate")])
+def test_enqueue_sample_epoch_of_seed_id_trimmed_by_limit(
+    epoch: int, expected: str
+) -> None:
+    # "u" is trimmed from the seed by the limit but keeps its seed epoch 1:
+    # a further epoch of it is an over-limit sample, epoch 1 a duplicate (as
+    # it would be without the limit)
+    log = eval(
+        Task(
+            dataset=_EpochAdds([], ["s", "t", "u"], then={("s", 1): [("u", epoch)]}),
+            solver=[generate()],
+        ),
+        model="mockllm/model",
+        display="none",
+        limit=2,
+    )[0]
+    if expected == "dropped":
+        assert log.status == "success"
+        assert _runs(log) == [("s", 1), ("t", 1)]
+    else:
+        assert log.status == "error"
+        assert "duplicate" in (log.error.message if log.error else "")
 
-    def __init__(self, group_size: int, groups: int, seed: bool) -> None:
+
+class _LimitedRollouts(SampleSource):
+    """Runs epochs of `q`: the seed, two per pull, and callback follow-ups.
+
+    `q` is seeded when `seed`; each pull adds two epochs from epoch 10; each
+    completion below epoch `followup_until` adds the next epoch.
+    """
+
+    def __init__(self, seed: bool, followup_until: int) -> None:
         self.sample = Sample(id="q", input="q", target="ok")
-        self.group_size = group_size
-        self.groups = groups
         self.seed = seed
-        self.group = 0
+        self.followup_until = followup_until
+        self.next_calls = 0
 
     def initial_samples(self) -> list[Sample]:
         return [self.sample] if self.seed else []
 
     async def next_samples(self) -> list[Sample] | None:
-        if self.group == self.groups:
+        self.next_calls += 1
+        if self.next_calls > 3:
             return None
-        first = 1 + int(self.seed) + self.group * self.group_size
-        for epoch in range(first, first + self.group_size):
-            enqueue_sample(self.sample, epoch=epoch)
-        self.group += 1
+        first = 8 + 2 * self.next_calls
+        enqueue_sample(self.sample, epoch=first)
+        enqueue_sample(self.sample, epoch=first + 1)
         return []
+
+    async def sample_complete(self, sample: EvalSample) -> None:
+        if sample.epoch < self.followup_until:
+            enqueue_sample(self.sample, epoch=sample.epoch + 1)
 
 
 @pytest.mark.parametrize(
-    "group_size,groups,seed,expected_epochs",
+    "seed,followup_until,expected_epochs,next_calls",
     [
-        # the limit is reached by the first pull's epoch 1
-        (1, 2, False, [1, 2]),
-        (2, 2, False, [1, 2, 3, 4]),
-        # the limit is reached by the seed, before any pull
-        (1, 2, True, [1, 2, 3]),
+        # the seed reaches the limit: the source is never pulled
+        (True, 0, [1], 0),
+        # the first pull reaches the limit: its further epoch of the admitted
+        # id runs, but there is no second pull
+        (False, 0, [10, 11], 1),
+        # further epochs enqueued from sample_complete still run
+        (True, 3, [1, 2, 3], 0),
     ],
 )
-def test_enqueue_sample_epoch_limit_keeps_pulling_further_epochs(
-    group_size: int, groups: int, seed: bool, expected_epochs: list[int]
+def test_enqueue_sample_epoch_limit_ends_the_source(
+    seed: bool, followup_until: int, expected_epochs: list[int], next_calls: int
 ) -> None:
+    source = _LimitedRollouts(seed, followup_until)
     log = eval(
-        Task(
-            dataset=_Rollouts(group_size, groups, seed),
-            solver=[generate()],
-        ),
+        Task(dataset=source, solver=[generate()]),
         model="mockllm/model",
         display="none",
         limit=1,
     )[0]
     assert log.status == "success"
     assert _runs(log) == [("q", epoch) for epoch in expected_epochs]
+    assert source.next_calls == next_calls
 
 
 def test_live_injection_runs_concurrently_with_in_flight_sample() -> None:
@@ -919,9 +951,9 @@ def test_sample_source_limit_caps_total_samples() -> None:
     assert source.next_calls == 2
 
 
-def test_sample_source_limit_consumed_by_seed_consults_source_once() -> None:
-    # a limit fully consumed by the seed consults the source once (it may add
-    # further epochs of a seed sample), ignores its new sample and ends
+def test_sample_source_limit_consumed_by_seed_skips_source() -> None:
+    # a limit fully consumed by the seed ends the task without consulting
+    # the source at all
     source = _TrackedGenerations(10)
     logs = eval(
         Task(dataset=source, solver=[generate()]),
@@ -931,7 +963,7 @@ def test_sample_source_limit_consumed_by_seed_consults_source_once() -> None:
     )
     assert logs[0].status == "success"
     assert _sample_inputs(logs[0]) == ["s0"]
-    assert source.next_calls == 1
+    assert source.next_calls == 0
 
 
 def test_sample_source_limit_truncates_batch() -> None:
