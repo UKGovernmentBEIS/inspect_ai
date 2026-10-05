@@ -19,6 +19,7 @@
 - Limits: A model call is now refused before it is sent when a token or cost limit is already reached, including when usage exactly equals the limit.
 - Bugfix: Cost tracking and `cost_limit` now price a request at the rates of the model that served it (refusal fallbacks, Azure deployments, and routers on OpenRouter, Bedrock, Fireworks and LiteLLM proxies); providers report it with the new `ModelAPI.served_model_usage()`.
 - Batch mode: Requests with different HTTP headers, such as `extra_headers` or Anthropic beta headers, are now sent in separate batches, so one request's headers no longer apply to others.
+- Mistral: Image URLs in model output are no longer downloaded from any host; they are recorded as text with the URL. Inline images are unchanged.
 
 ## 0.3.276 (02 October 2026)
 

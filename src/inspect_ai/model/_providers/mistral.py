@@ -59,7 +59,7 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai._util.http import is_retryable_http_status
-from inspect_ai._util.images import inline_media_data_uri, provider_image_data_uri
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import parse_content_with_reasoning
@@ -97,6 +97,7 @@ from .._stream import (
 )
 from .mistral_conversation import (
     mistral_conversation_generate,
+    mistral_output_image,
     mistral_reasoning_effort,
 )
 from .util import (
@@ -985,9 +986,7 @@ async def completion_content_chunks(content: ContentChunk) -> list[Content]:
         return [ContentText(text=f"file: {content.file_id}")]
     elif isinstance(content, ImageURLChunk):
         if isinstance(content.image_url, str):
-            return [
-                ContentImage(image=await provider_image_data_uri(content.image_url))
-            ]
+            return [mistral_output_image(content.image_url, "auto")]
         else:
             detail: Literal["auto", "low", "high"]
             match content.image_url.detail:
@@ -997,12 +996,7 @@ async def completion_content_chunks(content: ContentChunk) -> list[Content]:
                     detail = "high"
                 case _:
                     detail = "auto"
-            return [
-                ContentImage(
-                    image=await provider_image_data_uri(content.image_url.url),
-                    detail=detail,
-                )
-            ]
+            return [mistral_output_image(content.image_url.url, detail)]
     elif isinstance(content, ThinkChunk):
         return [
             ContentReasoning(
