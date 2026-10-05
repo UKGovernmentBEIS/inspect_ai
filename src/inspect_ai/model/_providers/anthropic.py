@@ -4409,6 +4409,7 @@ async def model_output_from_message(
             ),
             fallback=fallback,
             metadata=metadata,
+            response_id=message.id,
         ),
         pause_turn,
     )
