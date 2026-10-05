@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import logging
 import shlex
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar, Literal, TypeVar, Union, cast
 
 import anyio
@@ -29,6 +30,8 @@ from ._json_rpc_transport import SandboxJSONRPCTransport
 if TYPE_CHECKING:
     from .._subprocess import ExecResult
     from .environment import SandboxEnvironment
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -108,16 +111,46 @@ class ExecRemoteCommonOptions:
     """Interval between poll requests in seconds"""
 
     poll_timeout: float | None = None
-    """Timeout for individual RPC poll requests in seconds. Defaults to 120 seconds."""
+    """Timeout for individual RPC poll requests in seconds. Defaults to 120 seconds.
+
+    A poll that times out raises `TimeoutError` unless `poll_timeout_recovery` is
+    set."""
 
     poll_timeout_retry: bool | None = None
-    """Retry individual RPC poll requests when they time out.
+    """Retry individual RPC requests (start, poll, stdin, kill) when they time out.
     Requests will be retried up to twice, with a timeout of no greater
-    than 60 seconds for the first retry and 30 for the second."""
+    than 60 seconds for the first retry and 30 for the second. `False` cannot be
+    combined with `poll_timeout_recovery`."""
 
     concurrency: bool = True
     """For sandboxes that run locally, request that the `concurrency()`
     function be used to throttle concurrent subprocesses."""
+
+    poll_timeout_recovery: float | None = field(default=None, kw_only=True)
+    """Seconds to keep re-issuing a poll after it times out. Defaults to `None`.
+
+    Unset, a poll that times out raises `TimeoutError`. When set, a poll that
+    times out is re-issued 5 seconds later, until the sandbox answers or a poll
+    times out this many seconds or more after the first timeout, when that
+    timeout is raised. The deadline is checked only when a poll times out, and a
+    re-issued poll waits its full `poll_timeout` (plus any `poll_timeout_retry`),
+    so recovery can run past this value by the 5-second pause plus one re-issued
+    poll, including that poll's retries. While the command is running, a
+    re-issued poll replays any output the lost response carried; if the command
+    ended during the stall, its exit status is lost and `RuntimeError` is raised.
+    Only polls are re-issued, and none once `kill()` has been called, even if the
+    kill request itself timed out; the error the last poll got is raised instead.
+    A caller's `timeout` (awaitable mode) or cancellation still ends the wait at
+    once. Raises `ValueError` with `poll_timeout_retry=False`, which asks for
+    timed-out requests not to be retried.
+    """
+
+    def __post_init__(self) -> None:
+        if self.poll_timeout_recovery is not None and self.poll_timeout_retry is False:
+            raise ValueError(
+                "poll_timeout_recovery re-issues timed-out polls, which "
+                "poll_timeout_retry=False asks not to retry; set only one of them."
+            )
 
 
 @dataclass
@@ -192,6 +225,9 @@ MIN_POLL_INTERVAL = 5
 
 RPC_TIMEOUT = 120
 """Timeout for individual JSON-RPC calls in seconds."""
+
+POLL_TIMEOUT_RECOVERY_WAIT_SECONDS: float = 5.0
+"""Pause before re-issuing a timed-out poll (see `poll_timeout_recovery`)."""
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -408,10 +444,24 @@ class ExecRemoteProcess:
             raise
 
     async def _poll(self) -> _PollResult:
+        recovery_deadline: float | None = None
+        retried_repoll_error: RuntimeError | None = None
+
+        def retryable(ex: BaseException) -> bool:
+            nonlocal retried_repoll_error
+            if not isinstance(ex, RuntimeError):
+                return False
+            if recovery_deadline is not None:
+                # a re-issued poll is not retried once kill() has been called
+                if self._killed:
+                    return False
+                retried_repoll_error = ex
+            return True
+
         @retry(
             wait=wait_exponential_jitter(initial=2),
             stop=(stop_after_attempt(5) | stop_after_delay(30)),
-            retry=retry_if_exception(lambda e: isinstance(e, RuntimeError)),
+            retry=retry_if_exception(retryable),
             # reraise the underlying RuntimeError on exhaustion so callers and
             # eval logs see the sandbox's own message instead of an opaque
             # RetryError wrapping a Future
@@ -419,6 +469,11 @@ class ExecRemoteProcess:
         )
         async def poll() -> _PollResult:
             from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+
+            # tenacity decides to retry before it backs off, so kill() can be
+            # called during the backoff: raise the error again instead of polling
+            if retried_repoll_error is not None and self._killed:
+                raise retried_repoll_error
 
             sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
             with sandbox_proxy.no_events():
@@ -430,7 +485,47 @@ class ExecRemoteProcess:
             self._last_seq = result.seq
             return result
 
-        return await poll()
+        # A timed-out poll lost a response, not the process: the server keeps each
+        # output chunk until the host acknowledges it (ack_seq), so re-issuing the
+        # poll replays what the lost response carried. Each poll() call above is a
+        # fresh RuntimeError retry sequence.
+        while True:
+            try:
+                return await poll()
+            except TimeoutError as ex:
+                recovery = self._options.poll_timeout_recovery
+                if recovery is None or self._killed:
+                    raise
+                now = time.monotonic()
+                if recovery_deadline is None:
+                    recovery_deadline = now + recovery
+                if now >= recovery_deadline:
+                    raise
+                logger.warning(
+                    "exec_remote poll for pid %s timed out (%s); re-polling with "
+                    "ack_seq=%s for up to %.0fs more",
+                    self._pid,
+                    ex,
+                    self._last_seq,
+                    recovery_deadline - now,
+                )
+                await anyio.sleep(POLL_TIMEOUT_RECOVERY_WAIT_SECONDS)
+                if self._killed:
+                    raise
+            except RuntimeError as ex:
+                if (
+                    recovery_deadline is not None
+                    and not self._killed
+                    and f"No job found with pid {self._pid}" in str(ex)
+                ):
+                    raise RuntimeError(
+                        f"exec_remote process {self._pid} is no longer tracked by the "
+                        "sandbox after a poll timed out: it most likely ended during "
+                        "the stall, and its final output and exit status were lost "
+                        "with the timed-out response (a restart of the sandbox's tool "
+                        "server looks the same)."
+                    ) from ex
+                raise
 
     def _enqueue_output(self, stdout: str, stderr: str) -> None:
         """Enqueue any non-empty output as pending events for the iterator."""

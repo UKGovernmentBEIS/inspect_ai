@@ -120,9 +120,10 @@ logger = logging.getLogger(__name__)
 
 
 class OpenAIResponseError(OpenAIError):
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, response_id: str | None = None) -> None:
         self.code = code
         self.message = message
+        self.response_id = response_id
 
     def __str__(self) -> str:
         return f"{self.code}: {self.message}"
@@ -1223,6 +1224,7 @@ def model_output_from_openai(
             if completion.usage
             else None
         ),
+        response_id=completion.id,
     )
 
 

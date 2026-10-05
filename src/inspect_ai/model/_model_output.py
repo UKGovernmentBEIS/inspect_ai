@@ -1,6 +1,6 @@
 import uuid
 from logging import Logger
-from typing import Any, Callable, Literal, Type, TypeVar
+from typing import Any, Callable, Literal, NamedTuple, Type, TypeVar
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
@@ -9,6 +9,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessage, ChatMessageAssistant
+from ._model_data.model_data import ModelCost
 
 _T = TypeVar("_T", int, float)
 
@@ -67,6 +68,19 @@ class ModelUsage(BaseModel):
             ),
             total_cost=optional_sum(self.total_cost, other.total_cost),
         )
+
+
+class ServedModelUsage(NamedTuple):
+    """Part of a call's usage and the model that served it, for pricing."""
+
+    model: str
+    """Model info name of the serving model (e.g. `"anthropic/claude-opus-4-8"`)."""
+
+    usage: ModelUsage
+    """Usage served by `model`."""
+
+    cost: ModelCost | None = None
+    """Cost data for `model`, when the provider has it (otherwise looked up by `model`)."""
 
 
 class ModelFallback(BaseModel):
@@ -282,6 +296,9 @@ class ModelOutput(BaseModel):
 
     error: str | None = Field(default=None)
     """Error message in the case of content moderation refusals."""
+
+    response_id: str | None = Field(default=None)
+    """Provider id for the response (e.g. `resp_...`, `chatcmpl-...`, `msg_...`)."""
 
     @property
     def empty(self) -> bool:
