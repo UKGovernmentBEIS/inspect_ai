@@ -184,6 +184,9 @@ async def test_kill_after_leader_exited_returns_output_without_signalling(
 ) -> None:
     job = await Job.create("echo done")
     await job._process.wait()
+    # Process exit does not guarantee the readers have buffered its output.
+    await job._stdout_task
+    await job._stderr_task
     killpg = MagicMock(side_effect=AssertionError("signalled a stale process group"))
     monkeypatch.setattr(os, "killpg", killpg)
 
