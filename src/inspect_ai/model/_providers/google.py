@@ -366,7 +366,12 @@ class GoogleGenAIAPI(ModelAPI):
             if use_adc_arg is not None:
                 use_adc = _is_truthy(use_adc_arg)
             else:
-                use_adc = _is_truthy(os.environ.get(GOOGLE_USE_ADC, ""))
+                # An explicitly supplied API key takes precedence over the
+                # ambient environment default. Keep an explicit use_adc=true
+                # opt-in authoritative so callers can deliberately choose ADC.
+                use_adc = (
+                    _is_truthy(os.environ.get(GOOGLE_USE_ADC, "")) and not self.api_key
+                )
             scopes = model_args.pop("scopes", None)
             quota_project_id = model_args.pop("quota_project_id", None)
 
@@ -594,6 +599,7 @@ class GoogleGenAIAPI(ModelAPI):
                     model_name, response, has_computer_use
                 ),
                 usage=usage_metadata_to_model_usage(response.usage_metadata),
+                response_id=response.response_id,
             )
 
             return output, model_call
@@ -769,6 +775,7 @@ class GoogleGenAIAPI(ModelAPI):
             candidates=final_candidates,
             usage_metadata=last_chunk.usage_metadata,
             model_version=last_chunk.model_version,
+            response_id=last_chunk.response_id,
         )
 
     @override
