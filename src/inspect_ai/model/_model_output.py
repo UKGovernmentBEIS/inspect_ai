@@ -3,6 +3,8 @@ from typing import Callable, NamedTuple
 
 from inspect_ai._util.logger import warn_once
 
+from ._model_data.model_data import ModelCost
+
 # isort: split
 # Backward-compatible re-exports of names that moved to inspect_ai.core.
 from inspect_ai.core._model_output import ChatCompletionChoice as ChatCompletionChoice
@@ -17,7 +19,6 @@ from inspect_ai.core._model_output import StopReason as StopReason
 from inspect_ai.core._model_output import TopLogprob as TopLogprob
 
 # End of backward-compatible re-exports.
-from ._model_data.model_data import ModelCost
 
 
 class ServedModelUsage(NamedTuple):

@@ -20,7 +20,7 @@
 - Google: Fixed audio, video and document content being sent with the MIME type of an earlier upload of the same bytes; uploads are now reused only for the same MIME type and account.
 - Limits: A model call is now refused before it is sent when a token or cost limit is already reached, including when usage exactly equals the limit.
 - Core data types (`ChatMessage`, `ModelOutput`, `ToolInfo`, `GenerateConfig` and the types they use) moved to the new `inspect_ai.core` package; existing import paths still work.
-- `ModelOutput.from_message()` takes an optional `model`; when neither it nor the message has a model, the active model's name is filled in on assignment to `TaskState.output` instead of at creation.
+- `ModelOutput.from_message()` takes an optional `model` and no longer looks up the active model; any output assigned to `TaskState.output` without a model name gets the active model's name instead.
 - Bugfix: Cost tracking and `cost_limit` now price a request at the rates of the model that served it (refusal fallbacks, Azure deployments, and routers on OpenRouter, Bedrock, Fireworks and LiteLLM proxies); providers report it with the new `ModelAPI.served_model_usage()`.
 - Batch mode: Requests with different HTTP headers, such as `extra_headers` or Anthropic beta headers, are now sent in separate batches, so one request's headers no longer apply to others.
 - Mistral: Image URLs in model output are no longer downloaded from any host; they are recorded as text with the URL. Inline images are unchanged.

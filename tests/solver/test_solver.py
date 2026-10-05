@@ -223,3 +223,15 @@ def test_output_with_model_keeps_it() -> None:
     )
 
     assert state.output.model == "other"
+
+
+def test_output_fill_does_not_change_assigned_output() -> None:
+    active = get_model("mockllm/model")
+    init_active_model(active, GenerateConfig())
+    shared = ModelOutput.from_message(ChatMessageAssistant(content="2"))
+    state = _task_state()
+
+    state.output = shared
+
+    assert state.output.model == active.api.model_name
+    assert shared.model == ""

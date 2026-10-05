@@ -283,11 +283,12 @@ class TaskState:
     @output.setter
     def output(self, output: ModelOutput) -> None:
         # outputs built without a model name (e.g. `ModelOutput.from_message()`
-        # on a message with no `model`) take the active model's name
+        # on a message with no `model`) take the active model's name; copy so
+        # an output shared with other states or a ModelEvent is not changed
         if not output.model:
             active = active_model()
             if active is not None:
-                output.model = active.api.model_name
+                output = output.model_copy(update={"model": active.api.model_name})
         self._output = output
 
     @property
