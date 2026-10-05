@@ -6,6 +6,7 @@ import pytest
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import (
+    ChatMessageAssistant,
     ChatMessageUser,
     GenerateConfig,
     Model,
@@ -183,3 +184,42 @@ def test_self_critique_instance_prefers_explicit_model() -> None:
     )
 
     assert all("critique from explicit model" in message for message in messages)
+
+
+def _task_state() -> TaskState:
+    return TaskState(
+        model=ModelName("mockllm/model"),
+        sample_id=1,
+        epoch=1,
+        input="What is 1 + 1?",
+        messages=[],
+    )
+
+
+def test_from_message_does_not_use_active_model() -> None:
+    init_active_model(get_model("mockllm/model"), GenerateConfig())
+    message = ChatMessageAssistant(content="2")
+
+    assert ModelOutput.from_message(message).model == ""
+    assert ModelOutput.from_message(message, model="other").model == "other"
+
+
+def test_output_without_model_takes_active_model_name() -> None:
+    active = get_model("mockllm/model")
+    init_active_model(active, GenerateConfig())
+    state = _task_state()
+
+    state.output = ModelOutput.from_message(ChatMessageAssistant(content="2"))
+
+    assert state.output.model == active.api.model_name
+
+
+def test_output_with_model_keeps_it() -> None:
+    init_active_model(get_model("mockllm/model"), GenerateConfig())
+    state = _task_state()
+
+    state.output = ModelOutput.from_message(
+        ChatMessageAssistant(content="2", model="other")
+    )
+
+    assert state.output.model == "other"
