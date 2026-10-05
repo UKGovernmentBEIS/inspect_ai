@@ -198,9 +198,7 @@ def reconstruct_eval_sample(
     """
     summary = _summary_with_uuid_fallback(summary)
 
-    deduped_event_data = collapse_event_versions(sample_data.events)
-
-    events = validate_events([event_data.event for event_data in deduped_event_data])
+    events = reconstruct_events(sample_data)
 
     if sample_metadata is None:
         sample_init = next(
@@ -208,16 +206,6 @@ def reconstruct_eval_sample(
         )
         if sample_init is not None:
             sample_metadata = sample_init.sample.metadata
-
-    # Buffer-DB rows store events condensed; without resolving here,
-    # _extract_messages_from_events sees empty ModelEvent.input and drops
-    # every user/tool message from the recovered sample.
-    events = resolve_model_event_inputs(
-        events, _deserialize_message_pool(sample_data.message_pool)
-    )
-    events = resolve_model_event_calls(
-        events, _deserialize_call_pool(sample_data.call_pool)
-    )
 
     messages, output = _extract_messages_from_events(events)
 
@@ -271,6 +259,32 @@ def reconstruct_eval_sample(
         # doesn't merely leave it incomplete -- it erases the limit and reason
         # the buffered summary already knew
         limit=recovered_sample_limit(summary, select_limit_event(summary, events)),
+    )
+
+
+def reconstruct_events(sample_data: SampleData) -> list[Event]:
+    """A buffered sample's events: versions collapsed, validated, pools resolved.
+
+    Duplicate ``event_id`` rows collapse to their latest version (see
+    :func:`collapse_event_versions`). Buffer rows store events condensed, so
+    pooled model inputs and calls are resolved from the sample's message and
+    call pools; without that a ModelEvent's input is empty and message
+    extraction drops every user and tool message. Attachments stay as
+    ``attachment://`` references.
+
+    Raises:
+        pydantic.ValidationError: an event or a pooled message does not
+            validate.
+        ValueError: a pool entry is not JSON.
+    """
+    events = validate_events(
+        [event_data.event for event_data in collapse_event_versions(sample_data.events)]
+    )
+    events = resolve_model_event_inputs(
+        events, _deserialize_message_pool(sample_data.message_pool)
+    )
+    return resolve_model_event_calls(
+        events, _deserialize_call_pool(sample_data.call_pool)
     )
 
 

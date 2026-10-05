@@ -290,6 +290,12 @@ async def init_sandbox_environments_sample(
         if setup:
             await setup_sandbox_environment(setup, environments)
 
+        from inspect_ai.tool._sandbox_tools_utils.sandbox import resolve_root_access
+
+        # after the trusted files and setup, before solver/agent execution begins
+        for environment in environments.values():
+            await resolve_root_access(environment)
+
         # return environments
         return environments
 

@@ -20,6 +20,7 @@ from .environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
     SandboxUnavailableError,
+    SandboxUserUnsupportedError,
 )
 from .events import SandboxTimeoutError
 from .exec_remote import (
@@ -67,6 +68,7 @@ __all__ = [
     "SandboxConnection",
     "SandboxTimeoutError",
     "SandboxUnavailableError",
+    "SandboxUserUnsupportedError",
     "sandboxenv",
     "sandbox",
     "sandbox_with",
