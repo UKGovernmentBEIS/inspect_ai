@@ -1076,11 +1076,11 @@ def test_together_resolve_stream_declines_logprobs() -> None:
         assert _together_api().resolve_stream(GenerateConfig()) is True
 
 
-def test_perplexity_resolve_stream_declines_auto() -> None:
-    """Perplexity never auto-streams from an on_stream callback alone.
+def test_perplexity_resolve_stream_auto() -> None:
+    """Perplexity auto-streams from an on_stream callback.
 
-    Its citations/usage extras arrive as top-level response fields that
-    the SDK stream accumulator drops (an explicit opt-in still streams).
+    Its search results arrive on the terminal Responses event, which
+    carries the whole response (an explicit opt-out still declines).
     """
     from inspect_ai.model._providers.perplexity import PerplexityAPI
 
@@ -1095,8 +1095,8 @@ def test_perplexity_resolve_stream_declines_auto() -> None:
     config = GenerateConfig()
     collector = _StreamCollector()
     with model_stream_observer(ModelStreamObserver("test", collector)):
-        assert perplexity_api().resolve_stream(config) is False
-        assert perplexity_api(stream=True).resolve_stream(config) is True
+        assert perplexity_api().resolve_stream(config) is True
+        assert perplexity_api(stream=False).resolve_stream(config) is False
 
 
 def test_openrouter_resolve_stream_declines_reasoning() -> None:

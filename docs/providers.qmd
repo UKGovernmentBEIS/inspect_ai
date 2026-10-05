@@ -988,9 +988,13 @@ The following environment variables are supported by the Perplexity provider
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `PERPLEXITY_API_KEY` | API key credentials (required). |
-| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai`) |
+| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai/v1`) |
 
-Perplexity responses include citations when available. These are surfaced as `UrlCitation`s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
+The provider uses Perplexity's [Agent API](https://docs.perplexity.ai/docs/agent-api/quickstart). Name models as `perplexity/<provider>/<model>`, using the ids in Perplexity's [model list](https://docs.perplexity.ai/docs/agent-api/models) (for example `perplexity/openai/gpt-5.6-luna`). Perplexity's own models can omit the provider, so `perplexity/sonar` is the same as `perplexity/perplexity/sonar`. Perplexity retired `sonar-pro`, `sonar-reasoning-pro`, and `sonar-deep-research` with its Sonar API; use another Agent API model instead.
+
+Every request includes Perplexity's web search tool. To configure it, pass its options with the [`web_search()`](tools-standard.qmd#perplexity-options) tool. Other Agent API request fields can be passed with `extra_body`.
+
+The search results are recorded in `ModelOutput.metadata["search_results"]` and attached as `UrlCitation`s to the assistant message.
 
 ## Hugging Face {#hugging-face}
 

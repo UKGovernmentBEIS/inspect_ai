@@ -129,7 +129,17 @@ async def generate_responses(
     model_family: str | None = None,
     streaming: bool = False,
     supports_explicit_prompt_cache: bool = False,
+    extra_body: dict[str, Any] | None = None,
+    process_response: Callable[[Response], Response] | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+    """Generate a model output through the Responses API.
+
+    `extra_body` adds fields to the request body as given. `process_response`
+    receives each successful response after it is recorded on the model call
+    and before it is converted to model output, so a compatible service can
+    consume output items or usage fields that the OpenAI conversion does not
+    understand.
+    """
     # background in extra_body should be applied
     if background is None and config.extra_body:
         background = config.extra_body.get("background", None)
@@ -223,6 +233,8 @@ async def generate_responses(
         )
         if isinstance(background, bool):
             request["background"] = background
+        if extra_body:
+            request["extra_body"] = extra_body
         if explicit_cache:
             request["prompt_cache_options"] = {"mode": "explicit"}
 
@@ -276,6 +288,8 @@ async def generate_responses(
                 model_response.model_dump(warnings=False),
                 http_hooks.end_request(request_id),
             )
+            if process_response is not None:
+                model_response = process_response(model_response)
 
             # parse out choices
             choices = openai_responses_chat_choices(model_name, model_response, tools)

@@ -178,15 +178,7 @@ Together accepts `low` / `medium` / `high` for all reasoning models, and additio
 
 #### Perplexity
 
-Accepts `minimal` in addition to `low` / `medium` / `high`, so Inspect keeps `minimal` and clamps only the top-end values. `none` is not a supported value, so it is omitted and the provider/model default applies (reasoning is not disabled):
-
-| Inspect input            | API value                        |
-|--------------------------|----------------------------------|
-| `none`                   | omitted (provider/model default) |
-| `minimal`                | `minimal`                        |
-| `low`                    | `low`                            |
-| `medium`                 | `medium`                         |
-| `high` / `xhigh` / `max` | `high`                           |
+Perplexity's Agent API accepts every effort value, so Inspect passes `reasoning_effort` through unchanged.
 
 #### Fireworks
 

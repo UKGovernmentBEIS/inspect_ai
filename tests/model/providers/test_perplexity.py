@@ -1,19 +1,22 @@
+from typing import Any
+
+import anyio
 import pytest
+from openai._models import construct_type
+from openai.types.responses import Response
 from test_helpers.utils import skip_if_no_perplexity
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
 from inspect_ai.model import (
-    ChatMessageAssistant,
     ChatMessageUser,
     GenerateConfig,
-    ModelCall,
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._model_output import ChatCompletionChoice
-from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.perplexity import PerplexityAPI
+from inspect_ai.tool import web_search
 from inspect_ai.tool._tool_info import ToolInfo
 
 
@@ -22,165 +25,316 @@ from inspect_ai.tool._tool_info import ToolInfo
 async def test_perplexity_api() -> None:
     model = get_model(
         "perplexity/sonar",
-        config=GenerateConfig(
-            frequency_penalty=0.0,
-            stop_seqs=None,
-            max_tokens=50,
-            presence_penalty=0.0,
-            seed=None,
-            temperature=0.0,
-            top_p=1.0,
-            extra_body={
-                "search_mode": "academic",
-                "web_search_options": {"search_context_size": "low"},
-            },
-        ),
+        config=GenerateConfig(max_tokens=300, temperature=0.0),
     )
 
-    message = ChatMessageUser(content="What is Python programming language?")
-    response = await model.generate(input=[message])
+    message = ChatMessageUser(
+        content="What was NVIDIA's closing stock price on October 2, 2026? Answer in one sentence."
+    )
+    response = await model.generate(
+        input=[message],
+        tools=[web_search({"perplexity": {"search_context_size": "low"}})],
+    )
 
-    # Validate basic response structure
     assert len(response.completion) >= 1
-    # The API returns model name without provider prefix
-    assert response.model == "sonar"
+    assert response.model == "perplexity/sonar"
 
-    # Validate usage information is present
     assert response.usage is not None
     assert response.usage.input_tokens > 0
     assert response.usage.output_tokens > 0
     assert response.usage.total_tokens > 0
 
-    # Validate Perplexity-specific usage metrics
-    if (
-        hasattr(response.usage, "reasoning_tokens")
-        and response.usage.reasoning_tokens is not None
-    ):
-        assert response.usage.reasoning_tokens >= 0
-
-    # Validate metadata contains Perplexity-specific fields
+    # the search results are kept and attached as citations
     assert response.metadata is not None
-    if "search_context_size" in response.metadata:
-        context_size = response.metadata["search_context_size"]
-        # Since we explicitly requested "low", verify it matches
-        assert context_size == "low"
-    if "citation_tokens" in response.metadata:
-        citation_tokens = response.metadata["citation_tokens"]
-        assert citation_tokens >= 0
-    if "num_search_queries" in response.metadata:
-        search_queries = response.metadata["num_search_queries"]
-        assert search_queries >= 0
-
-    # Check if citations are present
-    choice = response.choices[0]
-    if hasattr(choice.message, "content") and isinstance(choice.message.content, list):
-        for part in choice.message.content:
-            if (
-                isinstance(part, ContentText)
-                and hasattr(part, "citations")
-                and part.citations
-            ):
-                # If citations exist, validate they are UrlCitation objects
-                for citation in part.citations:
-                    assert isinstance(citation, UrlCitation)
-                    assert citation.url.startswith(("http://", "https://"))
+    assert len(response.metadata["search_results"]) > 0
+    content = response.choices[0].message.content
+    assert isinstance(content, list)
+    citations = [
+        citation
+        for part in content
+        if isinstance(part, ContentText)
+        for citation in part.citations or []
+    ]
+    assert len(citations) > 0
+    for citation in citations:
+        assert isinstance(citation, UrlCitation)
+        assert citation.url.startswith(("http://", "https://"))
 
 
-@pytest.mark.anyio
-async def test_perplexity_citation_mapping(monkeypatch) -> None:
-    # Complete sample response based on Perplexity API documentation
-    # Source: https://docs.perplexity.ai/api-reference/chat-completions-post
-    sample_response = {
-        "id": "test-completion-id",
-        "model": "perplexity/sonar",
-        "created": 1234567890,
-        "object": "chat.completion",
-        "choices": [
-            {
-                "index": 0,
-                "finish_reason": "stop",
-                "message": {"content": "Test response content", "role": "assistant"},
-            }
-        ],
-        "citations": ["https://example.com"],
-        "search_results": [
-            {"title": "Example", "url": "https://example.com", "date": "2023-12-25"}
-        ],
-        "usage": {
-            "prompt_tokens": 2,
-            "completion_tokens": 3,
-            "total_tokens": 5,
-            "search_context_size": "low",
-            "citation_tokens": 1,
-            "num_search_queries": 1,
-            "reasoning_tokens": 1,
+def _agent_response(name: str, tokens: int, cache_creation: int = 0) -> Response:
+    """An Agent API response, parsed as the OpenAI SDK parses it."""
+    response = construct_type(
+        type_=Response,
+        value={
+            "id": f"resp_{name}",
+            "created_at": 1791230228,
+            "model": "perplexity/sonar",
+            "object": "response",
+            "status": "completed",
+            "parallel_tool_calls": True,
+            "tool_choice": "auto",
+            "tools": [{"type": "web_search"}],
+            "output": [
+                {
+                    "type": "search_results",
+                    "queries": [f"query {name}"],
+                    "results": [
+                        {
+                            "id": 1,
+                            "title": name,
+                            "url": f"https://example.com/{name}",
+                            "snippet": "snippet",
+                            "date": "2026-10-02",
+                            "source": "web",
+                        }
+                    ],
+                },
+                {
+                    "type": "message",
+                    "id": f"msg_{name}",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": f"answer {name}",
+                            "annotations": [],
+                        }
+                    ],
+                },
+            ],
+            "usage": {
+                "input_tokens": tokens + cache_creation,
+                "input_tokens_details": {
+                    "cached_tokens": 0,
+                    "cache_creation_input_tokens": cache_creation,
+                    "cache_read_input_tokens": 0,
+                },
+                "output_tokens": tokens,
+                "output_tokens_details": {"reasoning_tokens": 1},
+                "total_tokens": 2 * tokens + cache_creation,
+                "cost": {"currency": "USD", "total_cost": 0.001},
+            },
         },
-    }
-
-    output = ModelOutput(
-        model="perplexity/sonar",
-        choices=[ChatCompletionChoice(message=ChatMessageAssistant(content="hello"))],
     )
-    call = ModelCall.create({}, {})
+    assert isinstance(response, Response)
+    return response
 
-    async def fake_generate(self, input, tools, tool_choice, config):
-        return output, call
 
-    provider = PerplexityAPI(
-        model_name="perplexity/sonar",
-        api_key="sk-test",
-        base_url="https://api.perplexity.ai",
-    )
+def _citation_urls(output: ModelOutput) -> list[str]:
+    content = output.choices[0].message.content
+    if isinstance(content, str):
+        return []
+    return [
+        citation.url
+        for part in content
+        if isinstance(part, ContentText)
+        for citation in part.citations or []
+        if isinstance(citation, UrlCitation)
+    ]
 
-    monkeypatch.setattr(OpenAICompatibleAPI, "generate", fake_generate)
 
-    provider.on_response(sample_response)
+def _provider(
+    monkeypatch: pytest.MonkeyPatch,
+    responses: dict[str, Response],
+    requests: list[dict[str, Any]] | None = None,
+    model_name: str = "sonar",
+) -> PerplexityAPI:
+    provider = PerplexityAPI(model_name=model_name, api_key="sk-test")
 
-    result, _ = await provider.generate([], [], "none", GenerateConfig())
+    async def fake_create(**kwargs: Any) -> Response:
+        if requests is not None:
+            requests.append(kwargs)
+        # deep copy so that each call gets a response of its own
+        return responses[kwargs["input"][0]["content"][0]["text"]].model_copy(deep=True)
 
-    assert isinstance(result, ModelOutput)
-    assert isinstance(result.choices[0].message.content, list)
-    part = result.choices[0].message.content[0]
-    assert isinstance(part, ContentText)
-    assert part.citations is not None
-    assert isinstance(part.citations[0], UrlCitation)
-    assert part.citations[0].url == "https://example.com"
-    assert result.usage is not None
-    assert result.usage.input_tokens == 2
-    assert result.usage.reasoning_tokens == 1
-    assert result.metadata is not None
-    assert result.metadata["search_context_size"] == "low"
+    monkeypatch.setattr(provider.client.responses, "create", fake_create)
+    return provider
 
 
 @pytest.mark.anyio
-async def test_perplexity_web_search_options(monkeypatch) -> None:
-    captured = {}
+async def test_perplexity_agent_api_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    requests: list[dict[str, Any]] = []
+    provider = _provider(
+        monkeypatch, {"a": _agent_response("a", 2, cache_creation=5)}, requests
+    )
 
-    async def fake_generate(self, input, tools, tool_choice, config):
-        captured["tools"] = tools
-        captured["config"] = config
-        return (
-            ModelOutput(model="perplexity/sonar", choices=[]),
-            ModelCall.create({}, {}),
+    try:
+        output, call = await provider.generate(
+            [ChatMessageUser(content="a")], [], "none", GenerateConfig()
         )
+    finally:
+        await provider.aclose()
 
-    provider = PerplexityAPI(model_name="perplexity/sonar", api_key="sk-test")
-    monkeypatch.setattr(OpenAICompatibleAPI, "generate", fake_generate)
+    assert provider.base_url == "https://api.perplexity.ai/v1"
+    assert requests[0]["model"] == "perplexity/sonar"
+    assert requests[0]["extra_body"] == {"tools": [{"type": "web_search"}]}
+
+    assert isinstance(output, ModelOutput)
+    assert output.completion == "answer a"
+    assert _citation_urls(output) == ["https://example.com/a"]
+    assert output.metadata is not None
+    assert output.metadata["search_results"][0]["title"] == "a"
+
+    # cache writes are counted apart from uncached input tokens
+    assert output.usage is not None
+    assert output.usage.input_tokens == 2
+    assert output.usage.input_tokens_cache_write == 5
+    assert output.usage.output_tokens == 2
+    assert output.usage.reasoning_tokens == 1
+
+    # the logged response keeps the search results
+    assert call.response is not None
+    logged_output = call.response["output"]
+    assert isinstance(logged_output, list)
+    search_item = logged_output[0]
+    assert isinstance(search_item, dict)
+    assert search_item["type"] == "search_results"
+    assert search_item["queries"] == ["query a"]
+
+
+@pytest.mark.anyio
+async def test_perplexity_web_search_options_and_extra_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[dict[str, Any]] = []
+    provider = _provider(monkeypatch, {"a": _agent_response("a", 1)}, requests)
 
     tool = ToolInfo(
         name="web_search",
         description="",
         options={
             "perplexity": {
-                "search_mode": "academic",
-                "web_search_options": {"search_context_size": "low"},
+                "search_context_size": "low",
+                "filters": {"search_domain_filter": ["example.com"]},
             }
         },
     )
-    await provider.generate([], [tool], "none", GenerateConfig())
+    try:
+        await provider.generate(
+            [ChatMessageUser(content="a")],
+            [tool],
+            "none",
+            GenerateConfig(extra_body={"max_steps": 3, "store": True}),
+        )
+    finally:
+        await provider.aclose()
 
-    assert captured["tools"] == []
-    assert captured["config"].extra_body == {
-        "search_mode": "academic",
-        "web_search_options": {"search_context_size": "low"},
+    request = requests[0]
+    # Agent API fields pass through; Responses fields are set on the request
+    assert request["extra_body"] == {
+        "max_steps": 3,
+        "tools": [
+            {
+                "type": "web_search",
+                "search_context_size": "low",
+                "filters": {"search_domain_filter": ["example.com"]},
+            }
+        ],
     }
+    assert request["store"] is True
+
+
+@pytest.mark.anyio
+async def test_perplexity_rejects_unsupported_tools_and_options() -> None:
+    provider = PerplexityAPI(model_name="sonar", api_key="sk-test")
+    try:
+        with pytest.raises(ValueError, match="web_search"):
+            await provider.generate(
+                [ChatMessageUser(content="a")],
+                [ToolInfo(name="other", description="")],
+                "auto",
+                GenerateConfig(),
+            )
+        with pytest.raises(ValueError, match="search_mode"):
+            await provider.generate(
+                [ChatMessageUser(content="a")],
+                [
+                    ToolInfo(
+                        name="web_search",
+                        description="",
+                        options={"perplexity": {"search_mode": "academic"}},
+                    )
+                ],
+                "auto",
+                GenerateConfig(),
+            )
+        with pytest.raises(TypeError, match="perplexity_options"):
+            await provider.generate(
+                [ChatMessageUser(content="a")],
+                [
+                    ToolInfo(
+                        name="web_search",
+                        description="",
+                        options={"perplexity": "low"},
+                    )
+                ],
+                "auto",
+                GenerateConfig(),
+            )
+    finally:
+        await provider.aclose()
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("sonar", "perplexity/sonar"),
+        ("perplexity/sonar", "perplexity/sonar"),
+        ("openai/gpt-5.6-luna", "openai/gpt-5.6-luna"),
+    ],
+)
+def test_perplexity_agent_model_name(model_name: str, expected: str) -> None:
+    provider = PerplexityAPI(model_name=model_name, api_key="sk-test")
+    assert provider.service_model_name() == expected
+
+
+@pytest.mark.parametrize(
+    "model_name", ["sonar-pro", "sonar-reasoning-pro", "sonar-deep-research"]
+)
+def test_perplexity_retired_sonar_model(model_name: str) -> None:
+    with pytest.raises(ValueError, match="retired"):
+        PerplexityAPI(model_name=model_name, api_key="sk-test")
+
+
+@pytest.mark.anyio
+async def test_perplexity_concurrent_generate_uses_own_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = PerplexityAPI(model_name="sonar", api_key="sk-test")
+    responses = {"a": _agent_response("a", 1), "b": _agent_response("b", 2)}
+
+    # call "a" waits for its response until call "b" has received its own
+    b_received = anyio.Event()
+
+    async def fake_create(**kwargs: Any) -> Response:
+        name = kwargs["input"][0]["content"][0]["text"]
+        if name == "a":
+            await b_received.wait()
+        else:
+            b_received.set()
+        return responses[name]
+
+    monkeypatch.setattr(provider.client.responses, "create", fake_create)
+
+    async def generate(name: str) -> ModelOutput:
+        output, _ = await provider.generate(
+            [ChatMessageUser(content=name)], [], "none", GenerateConfig()
+        )
+        assert isinstance(output, ModelOutput)
+        return output
+
+    try:
+        output_a, output_b = await tg_collect(
+            [lambda: generate("a"), lambda: generate("b")]
+        )
+    finally:
+        await provider.aclose()
+
+    for output, name, tokens in [(output_a, "a", 1), (output_b, "b", 2)]:
+        assert output.completion == f"answer {name}"
+        assert _citation_urls(output) == [f"https://example.com/{name}"]
+        assert output.usage is not None
+        assert output.usage.input_tokens == tokens
+        assert output.metadata is not None
+        assert output.metadata["search_results"][0]["title"] == name
