@@ -563,7 +563,9 @@ async def test_reported_projects_print_their_cleanup_commands(
     # Print through a console of the test's own: the global one takes its width
     # from the environment, and an earlier `display="none"` eval in this process
     # leaves it quiet.
-    monkeypatch.setattr(cleanup_module, "print", Console(width=80).print)
+    monkeypatch.setattr(
+        cleanup_module, "print", Console(width=80, force_terminal=False).print
+    )
 
     task_name = "gpqa_diamond_long"
     with sandbox_lifecycle_scope():
