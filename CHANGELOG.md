@@ -4,6 +4,7 @@
 - Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.
 - Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
 - OpenAI and Anthropic: Fixed concurrent requests failing or restarting when another sample's request triggers a credential refresh (e.g. on an expired API key).
+- OpenAI: The OpenAI providers and agent bridge now require openai >= 3.4.0.
 
 ## 0.3.276 (02 October 2026)
 

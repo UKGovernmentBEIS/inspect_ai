@@ -14,6 +14,7 @@ from openai import AuthenticationError, DefaultAsyncHttpxClient
 
 from inspect_ai import Task, eval
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import _registry, registry_lookup
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks import ApiKeyOverride, Hooks, hooks
@@ -31,6 +32,7 @@ from inspect_ai.model._providers.anthropic import AnthropicAPI
 from inspect_ai.model._providers.openai import OpenAIAPI
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.openrouter import OpenRouterAPI
+from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.model._providers.vllm import VLLMAPI
 from inspect_ai.model._providers.vllm_completions import VLLMCompletionsAPI
 from inspect_ai.model._registry import modelapi
@@ -303,6 +305,71 @@ async def test_anthropic_auth_token_refresh_rereads_environment(
         assert api.client.auth_headers == {"Authorization": "Bearer new-token"}
     finally:
         await api.aclose()
+
+
+async def test_azure_openai_refresh_ignores_environment_ad_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refreshed Azure key is sent even when AZURE_OPENAI_AD_TOKEN is set.
+
+    openai < 3.4.0 read that variable at client construction and sent it in
+    preference to the key, so an in-place key update kept sending a stale token.
+    """
+    token = "old-key"
+    seen: list[tuple[str | None, str | None]] = []
+
+    def override_api_key(env_var_name: str, value: str) -> str:
+        return token
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        seen.append(
+            (request.headers.get("api-key"), request.headers.get("authorization"))
+        )
+        if len(seen) == 1:
+            return httpx2.Response(401, json={"error": {"message": "expired"}})
+        return httpx2.Response(200, json=_OPENAI_COMPLETION)
+
+    monkeypatch.setattr("inspect_ai.hooks._hooks.override_api_key", override_api_key)
+    monkeypatch.setenv("AZURE_OPENAI_AD_TOKEN", "old-ad-token")
+    http_client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
+    api = OpenAIAPI(
+        "azure/gpt-4o",
+        api_key=token,
+        base_url="https://example.openai.azure.com",
+        http_client=http_client,
+        max_retries=0,
+    )
+
+    async def create() -> None:
+        await api.client.chat.completions.create(
+            model="test-model", messages=[{"role": "user", "content": "hello"}]
+        )
+
+    try:
+        with pytest.raises(openai.AuthenticationError) as exc:
+            await create()
+        token = "new-key"
+        monkeypatch.setenv("AZURE_OPENAI_AD_TOKEN", "new-ad-token")
+        await Model(api=api, config=GenerateConfig()).before_retry(exc.value)
+        await create()
+        assert seen == [("old-key", None), ("new-key", None)]
+    finally:
+        await api.aclose()
+        await http_client.aclose()
+
+
+@pytest.mark.parametrize("installed,supported", [("3.3.1", False), ("3.4.0", True)])
+def test_openai_minimum_version_supports_in_place_refresh(
+    monkeypatch: pytest.MonkeyPatch, installed: str, supported: bool
+) -> None:
+    """The openai floor excludes SDKs where an in-place Azure key update is ignored."""
+    for module in ("inspect_ai._util.version", "inspect_ai._util.error"):
+        monkeypatch.setattr(f"{module}.version", lambda package: installed)
+    if supported:
+        validate_openai_client("OpenAI API")
+    else:
+        with pytest.raises(PrerequisiteError):
+            validate_openai_client("OpenAI API")
 
 
 @pytest.mark.parametrize("provider", [VLLMAPI, VLLMCompletionsAPI])
