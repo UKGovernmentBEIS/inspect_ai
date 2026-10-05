@@ -505,7 +505,7 @@ def write_log_dir_manifest(
     """
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = fs.path_as_uri(fs.fs._strip_protocol(log_dir))
+    log_dir = fs.dir_as_uri(log_dir)
 
     # list eval logs
     logs = list_eval_logs(log_dir)
@@ -1319,7 +1319,7 @@ def write_log_listing(
     """
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = fs.path_as_uri(fs.fs._strip_protocol(log_dir))
+    log_dir = fs.dir_as_uri(log_dir)
 
     # list eval logs
     if logs is None:

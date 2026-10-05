@@ -195,6 +195,38 @@ def test_strip_trailing_sep(path: str, expected: str) -> None:
     assert strip_trailing_sep(path) == expected
 
 
+_AZURE_OPTIONS = {"account_name": "inspectunittest", "anon": True}
+
+
+@pytest.mark.parametrize(
+    "path,fs_options,expected",
+    [
+        ("s3://bucket/logs/", {}, "s3://bucket/logs"),
+        ("s3://bucket/logs", {}, "s3://bucket/logs"),
+        ("s3://bucket/", {}, "s3://bucket"),
+        # adlfs keeps a trailing slash when stripping the protocol
+        ("az://container/logs/", _AZURE_OPTIONS, "abfs://container/logs"),
+        ("az://container/logs", _AZURE_OPTIONS, "abfs://container/logs"),
+        ("az://container/", _AZURE_OPTIONS, "abfs://container"),
+        ("logs/", {}, "file://{cwd}/logs"),
+        ("file://{cwd}/logs/", {}, "file://{cwd}/logs"),
+        ("/", {}, "file:///"),
+    ],
+)
+def test_dir_as_uri(
+    path: str,
+    fs_options: dict[str, Any],
+    expected: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    path = path.format(cwd=tmp_path.as_posix())
+    fs = filesystem(path, fs_options)
+    with patch.object(fs.fs, "info", side_effect=AssertionError("info called")):
+        assert fs.dir_as_uri(path) == expected.format(cwd=tmp_path.as_posix())
+
+
 @pytest.mark.parametrize(
     "path,expected_suffix",
     [
