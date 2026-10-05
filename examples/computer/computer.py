@@ -38,7 +38,7 @@ def computer_task():
             prompt=SYSTEM_MESSAGE,
             tools=[computer()],
         ),
-        messsage_limit=100,
+        message_limit=100,
         scorer=includes(),
         sandbox="docker",
     )
