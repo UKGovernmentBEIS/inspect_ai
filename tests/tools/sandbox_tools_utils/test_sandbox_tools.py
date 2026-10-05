@@ -1,3 +1,4 @@
+import json
 import textwrap
 import uuid
 from pathlib import Path
@@ -28,7 +29,13 @@ from inspect_ai.solver import (
     solver,
     use_tools,
 )
-from inspect_ai.tool import ToolCallError, bash_session, mcp_server_sandbox, text_editor
+from inspect_ai.tool import (
+    ToolCallError,
+    ToolError,
+    bash_session,
+    mcp_server_sandbox,
+    text_editor,
+)
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     _AMBIGUOUS_ROOT_ACCESS_WARNING,
 )
@@ -41,6 +48,116 @@ ROOTLESS_COMPOSE = str(
     Path(__file__).parent / ".." / "test_sandbox_compose_rootless.yaml"
 )
 SERVER_DIR = f"{SANDBOX_TOOLS_DIR}/.server"
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("victim", ["root", "nobody"])
+async def test_text_editor_history_is_private_to_effective_user(victim: str) -> None:
+    @solver
+    def check_history() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            sb = sandbox()
+            uid = (await sb.exec(["id", "-u"], user=victim)).stdout.strip()
+            attacker_uid = (await sb.exec(["id", "-u"])).stdout.strip()
+            assert uid != attacker_uid and attacker_uid != "0"
+            directory = f"/tmp/inspect-editor-{uid}"
+            history = f"{directory}/history.json"
+            target = f"/tmp/editor-{uuid.uuid4().hex}"
+            editor = text_editor(user=victim)
+
+            # A different non-root account wins the predictable-name race.
+            assert (await sb.exec(["mkdir", "-m", "777", directory])).success
+            await sb.write_file(history, json.dumps({target: ["forged"]}))
+            with pytest.raises(ToolError, match="Cannot access text_editor history"):
+                await editor(command="create", path=target, file_text="original")
+            assert not (await sb.exec(["test", "-e", target])).success
+            assert json.loads(await sb.read_file(history)) == {target: ["forged"]}
+            assert (await sb.exec(["rm", "-r", directory])).success
+
+            assert (await sb.exec(["ln", "-s", "/tmp", directory])).success
+            with pytest.raises(ToolError, match="Cannot access text_editor history"):
+                await editor(command="create", path=target, file_text="original")
+            assert (await sb.exec(["rm", directory])).success
+
+            # The legacy shared pickle must never be read, even by root.
+            marker = f"{target}.executed"
+            payload = f"cos\nsystem\n(S'touch {marker}'\ntR."
+            await sb.write_file("/tmp/inspect_editor_history.pkl", payload)
+            await editor(command="create", path=target, file_text="original")
+            await editor(
+                command="str_replace",
+                path=target,
+                old_str="original",
+                new_str="replaced",
+            )
+            await editor(
+                command="insert", path=target, insert_line=0, new_str="inserted"
+            )
+            assert not (await sb.exec(["test", "-e", marker])).success
+            assert await sb.read_file("/tmp/inspect_editor_history.pkl") == payload
+            ownership = await sb.exec(
+                ["stat", "-c", "%u:%a", directory, history], user=victim
+            )
+            assert ownership.stdout.splitlines() == [f"{uid}:700", f"{uid}:600"]
+
+            # Sticky permissions are insufficient when another user owns /tmp;
+            # without the sticky bit, any user could replace our directory.
+            for change, restore in [
+                (["chown", attacker_uid, "/tmp"], ["chown", "0", "/tmp"]),
+                (["chmod", "777", "/tmp"], ["chmod", "1777", "/tmp"]),
+            ]:
+                assert (await sb.exec(change, user="root")).success
+                try:
+                    with pytest.raises(
+                        ToolError, match="History parent.*cannot be trusted"
+                    ):
+                        await editor(command="undo_edit", path=target)
+                finally:
+                    assert (await sb.exec(restore, user="root")).success
+
+            for command in [
+                ["sh", "-c", f"echo '{{}}' > {history}"],
+                ["rm", history],
+                ["ln", "-s", "/tmp/inspect_editor_history.pkl", f"{directory}/planted"],
+                ["mv", directory, f"{directory}.stolen"],
+            ]:
+                result = await sb.exec(command)
+                assert not result.success, command
+
+            await editor(command="undo_edit", path=target)
+            assert await sb.read_file(target) == "replaced"
+            await editor(command="undo_edit", path=target)
+            assert await sb.read_file(target) == "original"
+            # Root plants a foreign-owned file to exercise the file-owner check
+            # inside a correctly owned private directory.
+            assert (
+                await sb.exec(["chown", attacker_uid, history], user="root")
+            ).success
+            with pytest.raises(ToolError, match="Cannot read text_editor history"):
+                await editor(command="undo_edit", path=target)
+            assert await sb.read_file(target) == "original"
+            assert (await sb.exec(["chown", uid, history], user="root")).success
+            await editor(command="undo_edit", path=target)
+            assert not (await sb.exec(["test", "-e", target])).success
+
+            # The default account gets its own history after the same CLI imports.
+            await text_editor()(command="create", path=target, file_text="default")
+            own_history = f"/tmp/inspect-editor-{attacker_uid}/history.json"
+            assert json.loads(await sb.read_file(own_history)) == {target: [-1]}
+            await text_editor()(command="undo_edit", path=target)
+            return state
+
+        return solve
+
+    [log] = await eval_async(
+        Task(
+            dataset=[Sample(input="Check private undo history")],
+            solver=check_history(),
+            sandbox=("docker", NONROOT_COMPOSE),
+        ),
+        model="mockllm/model",
+    )
+    assert log.status == "success", log.error
 
 
 # The Alpine variant exercises the musl injectable: detection routes musl sandboxes

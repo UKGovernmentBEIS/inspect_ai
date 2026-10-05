@@ -121,8 +121,8 @@ from ._generate_config import (
     set_active_generate_config,
 )
 from ._model_call import ModelCall, as_error_response
-from ._model_data.model_data import ModelCost
-from ._model_output import ModelFallback, ModelOutput, ModelUsage
+from ._model_data.model_data import ModelCost, ModelInfo
+from ._model_output import ModelFallback, ModelOutput, ModelUsage, ServedModelUsage
 from ._stream import (
     ModelStreamObserver,
     NoStreamDataError,
@@ -421,6 +421,21 @@ class ModelAPI(abc.ABC):
         bills cache writes at a higher rate than the default 5m). Providers
         that bill cache writes at a TTL-dependent rate override this; the
         TTL may vary per call, so it is a method rather than an attribute.
+        """
+        return None
+
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        """Usage of a generate call split by the model that served it.
+
+        Used to price a call that the provider served with a model other than
+        the one called (a refusal fallback, a router, or a deployment whose
+        name differs from its model). Each entry is priced at the rates of its
+        model; if any entry's model has no cost data, the whole call is priced
+        at the called model's rates. Return `None` (the default) when the
+        called model served the call.
+
+        Args:
+           output: Output of the generate call.
         """
         return None
 
@@ -1548,6 +1563,10 @@ class Model:
             else:
                 cache_entry = None
 
+            # checked before the ModelEvent is recorded so that a call refused
+            # here leaves no event behind
+            _check_limits_before_dispatch()
+
             # verify that model apis are allowed
             self.verify_model_apis()
 
@@ -1599,6 +1618,9 @@ class Model:
                     )
 
                     await stream_observer.begin_attempt(event)
+                    # begin_attempt may await the on_stream retry boundary,
+                    # during which a concurrent call can reach a limit
+                    _check_limits_before_dispatch()
                     if idle_scope is not None:
                         assert stream_idle_timeout is not None
                         stream_observer.arm_stall_scope(idle_scope, stream_idle_timeout)
@@ -1707,7 +1729,9 @@ class Model:
 
             # record usage
             if output.usage:
-                record_and_check_model_usage(self, output.usage, role=self.role)
+                record_and_check_model_usage(
+                    self, output.usage, role=self.role, output=output
+                )
 
                 # send telemetry to hooks
                 await emit_model_usage(
@@ -2007,6 +2031,7 @@ class Model:
         event = ModelEvent(
             model=model,
             role=self.role,
+            requested_model=_requested_model.get(),
             input=input,
             tools=tools,
             tool_choice=tool_choice,
@@ -2941,6 +2966,22 @@ def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
         _model_event_sink.reset(token)
 
 
+_requested_model: ContextVar[str | None] = ContextVar("_requested_model", default=None)
+
+
+@contextlib.contextmanager
+def requested_model(name: str) -> Iterator[None]:
+    """Record `name` as `ModelEvent.requested_model` for every generation in the block.
+
+    Not part of the public API.
+    """
+    token = _requested_model.set(name)
+    try:
+        yield
+    finally:
+        _requested_model.reset(token)
+
+
 # shared contexts for asyncio tasks
 def set_total_messages(input: str | list[ChatMessage]) -> None:
     from inspect_ai.log._samples import set_active_sample_total_messages
@@ -2987,30 +3028,36 @@ def init_sample_role_usage() -> None:
     sample_role_usage_context_var.set({})
 
 
+def _check_limits_before_dispatch() -> None:
+    """Refuse a provider dispatch once a token or cost limit has been reached.
+
+    A further call could only exceed a reached limit. Called on every attempt
+    (a concurrent call can reach a limit while a retry waits), after the
+    cache lookup (a cache hit sends nothing, so it is never refused).
+    """
+    check_token_limit(raise_for_equal=True)
+    check_cost_limit(raise_for_equal=True)
+
+
 def record_and_check_model_usage(
-    model: Model, usage: ModelUsage, role: str | None = None
+    model: Model,
+    usage: ModelUsage,
+    role: str | None = None,
+    output: ModelOutput | None = None,
 ) -> None:
     from inspect_ai.log._samples import (
         set_active_sample_token_limit_usage,
         set_active_sample_total_cost,
         set_active_sample_total_tokens,
     )
-    from inspect_ai.model._model_info import _get_model_info_direct
 
     # full "provider/model" identifier, used as the usage-bookkeeping dict key
     model_name = f"{model}"
 
     # compute cost and set on usage before recording (so ModelUsage.__add__
-    # accumulates it in the per-model usage dicts). Use the direct (non
-    # provider-resolving) lookup: the model is already instantiated, so falling
-    # back to get_model() here would re-instantiate it (reloading local weights).
-    info = _get_model_info_direct(model)
-    total_cost: float | None = None
-    # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
-    if info is not None and info.cost is not None:
-        # providers with a configurable prompt-cache TTL (currently Anthropic)
-        # report the billed TTL; longer TTLs bill cache writes at a higher rate
-        total_cost = compute_model_cost(info.cost, usage, model.api.cache_write_ttl())
+    # accumulates it in the per-model usage dicts)
+    total_cost = model_usage_cost(model, usage, output)
+    if total_cost is not None:
         usage.total_cost = total_cost
 
     # record usage
@@ -3041,6 +3088,82 @@ def record_and_check_model_usage(
         record_model_cost(total_cost)
         set_active_sample_total_cost(sample_total_cost())
         check_cost_limit()
+
+
+def model_usage_cost(
+    model: Model, usage: ModelUsage, output: ModelOutput | None = None
+) -> float | None:
+    """Cost of a call's usage, priced by the model that served it.
+
+    When the provider reports that another model served the call (see
+    `ModelAPI.served_model_usage()`), each part is priced at its serving
+    model's rates (the cost the provider gives, else the model's cost data). A serving model with no cost data that the model database
+    identifies as the called model (e.g. a dated snapshot of it) is priced at
+    the called model's rates. Otherwise, if a serving model has no cost data,
+    the whole call is priced at the called model's rates and a warning is
+    logged once.
+
+    Model info lookups are direct (not provider-resolving): the model is
+    already instantiated, so resolving a provider would re-instantiate it
+    (reloading local weights).
+
+    Returns:
+        Cost in dollars, or `None` when there is no cost data.
+    """
+    from inspect_ai.model._model_info import _get_model_info_direct
+
+    # providers with a configurable prompt-cache TTL (currently Anthropic)
+    # report the billed TTL; longer TTLs bill cache writes at a higher rate
+    cache_ttl = model.api.cache_write_ttl()
+
+    # info is None for models with no database entry (e.g. mock models)
+    info = _get_model_info_direct(model)
+    called_cost = info.cost if info is not None else None
+
+    served = model.api.served_model_usage(output) if output is not None else None
+    if served:
+        served_cost = 0.0
+        for part in served:
+            part_info = _get_model_info_direct(part.model)
+            part_cost = part.cost
+            if part_cost is None and part_info is not None:
+                part_cost = part_info.cost
+            if part_cost is None and same_model(part_info, info):
+                part_cost = called_cost
+            if part_cost is None:
+                if called_cost is not None:
+                    # set_model_cost() (and so --model-cost-config) only
+                    # accepts models the database knows
+                    how = (
+                        "Use set_model_cost() or --model-cost-config"
+                        if part_info is not None
+                        else "It is not in the model database, so use "
+                        "set_model_info() with a ModelInfo that includes cost"
+                    )
+                    warn_once(
+                        logger,
+                        f"No cost data for model '{part.model}', which served a "
+                        f"request to '{model}'. Pricing the request at the rates "
+                        f"of '{model}'. {how} to add pricing for '{part.model}'.",
+                    )
+                break
+            served_cost += compute_model_cost(part_cost, part.usage, cache_ttl)
+        else:
+            return served_cost
+
+    if called_cost is None:
+        return None
+    return compute_model_cost(called_cost, usage, cache_ttl)
+
+
+def same_model(a: ModelInfo | None, b: ModelInfo | None) -> bool:
+    """Whether two model info entries describe the same model (e.g. two snapshots)."""
+    return (
+        a is not None
+        and b is not None
+        and a.model is not None
+        and (a.organization, a.model) == (b.organization, b.model)
+    )
 
 
 def set_model_usage(
