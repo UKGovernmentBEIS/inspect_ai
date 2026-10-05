@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import anyio
 from openai import (
@@ -520,6 +520,15 @@ class OpenAIAPI(ModelAPI):
     def is_gpt(self) -> bool:
         name = self.model_family()
         return "gpt" in name
+
+    @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples. A token
+        # provider already supplies a fresh token for each request.
+        super().initialize()
+        if self.token_provider is None:
+            self.client.api_key = cast(str, self.api_key)
 
     @override
     async def aclose(self) -> None:

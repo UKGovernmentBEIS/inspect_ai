@@ -1,13 +1,16 @@
 import json
-from collections.abc import Generator
+from collections.abc import Awaitable, Callable, Generator
 from subprocess import Popen
-from typing import cast
+from typing import Any, NamedTuple, cast
 from unittest.mock import Mock
 
 import anyio
 import httpx
 import httpx2
 import pytest
+from anthropic import AuthenticationError as AnthropicAuthenticationError
+from groq import AuthenticationError as GroqAuthenticationError
+from groq import DefaultAsyncHttpxClient as GroqAsyncHttpxClient
 from openai import AuthenticationError, DefaultAsyncHttpxClient
 
 from inspect_ai import Task, eval
@@ -25,6 +28,9 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._model_info import _get_model_info_direct
+from inspect_ai.model._providers.anthropic import AnthropicAPI
+from inspect_ai.model._providers.groq import GroqAPI
+from inspect_ai.model._providers.openai import OpenAIAPI
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.openrouter import OpenRouterAPI
 from inspect_ai.model._providers.vllm import VLLMAPI
@@ -253,6 +259,263 @@ async def test_refresh_preserves_concurrent_requests(
         await api.aclose()
         await http_client.aclose()
     assert http_client.is_closed
+
+
+_CHAT_COMPLETION = {
+    "id": "test",
+    "object": "chat.completion",
+    "created": 0,
+    "model": "test-model",
+    "choices": [
+        {
+            "index": 0,
+            "finish_reason": "stop",
+            "message": {"role": "assistant", "content": "ok"},
+        }
+    ],
+}
+
+_ANTHROPIC_MESSAGE = {
+    "id": "msg_test",
+    "type": "message",
+    "role": "assistant",
+    "model": "test-model",
+    "content": [{"type": "text", "text": "ok"}],
+    "stop_reason": "end_turn",
+    "stop_sequence": None,
+    "usage": {"input_tokens": 1, "output_tokens": 1},
+}
+
+
+async def _chat_completion(client: Any, marker: str) -> str | None:
+    result = await client.chat.completions.create(
+        model="test-model", messages=[{"role": "user", "content": marker}]
+    )
+    return result.choices[0].message.content
+
+
+async def _anthropic_message(client: Any, marker: str) -> str | None:
+    result = await client.messages.create(
+        model="test-model",
+        max_tokens=1,
+        messages=[{"role": "user", "content": marker}],
+    )
+    return result.content[0].text
+
+
+class _NativeRefreshCase(NamedTuple):
+    provider: Callable[..., ModelAPI]
+    model_name: str
+    base_url: str
+    auth_header: str
+    auth_prefix: str
+    request: Callable[[Any, str], Awaitable[str | None]]
+    response: dict[str, Any]
+    auth_error: type[Exception]
+    model_args: dict[str, Any] = {}
+    oauth: bool = False
+    groq: bool = False
+
+
+_NATIVE_REFRESH_CASES = {
+    "openai": _NativeRefreshCase(
+        OpenAIAPI,
+        "test-model",
+        "https://example.com/v1",
+        "authorization",
+        "Bearer ",
+        _chat_completion,
+        _CHAT_COMPLETION,
+        AuthenticationError,
+    ),
+    "azure-openai": _NativeRefreshCase(
+        OpenAIAPI,
+        "azure/test-model",
+        "https://example.openai.azure.com",
+        "api-key",
+        "",
+        _chat_completion,
+        _CHAT_COMPLETION,
+        AuthenticationError,
+        {"api_version": "2025-03-01-preview"},
+    ),
+    "bedrock-openai": _NativeRefreshCase(
+        OpenAIAPI,
+        "bedrock/openai.test-model",
+        "https://example.com/v1",
+        "authorization",
+        "Bearer ",
+        _chat_completion,
+        _CHAT_COMPLETION,
+        AuthenticationError,
+        {"aws_region": "us-east-1"},
+    ),
+    "anthropic": _NativeRefreshCase(
+        AnthropicAPI,
+        "test-model",
+        "https://example.com",
+        "x-api-key",
+        "",
+        _anthropic_message,
+        _ANTHROPIC_MESSAGE,
+        AnthropicAuthenticationError,
+    ),
+    "anthropic-oauth": _NativeRefreshCase(
+        AnthropicAPI,
+        "test-model",
+        "https://example.com",
+        "authorization",
+        "Bearer ",
+        _anthropic_message,
+        _ANTHROPIC_MESSAGE,
+        AnthropicAuthenticationError,
+        oauth=True,
+    ),
+    "azure-anthropic": _NativeRefreshCase(
+        AnthropicAPI,
+        "azure/test-model",
+        "https://example.services.ai.azure.com/anthropic",
+        "x-api-key",
+        "",
+        _anthropic_message,
+        _ANTHROPIC_MESSAGE,
+        AnthropicAuthenticationError,
+    ),
+    "groq": _NativeRefreshCase(
+        GroqAPI,
+        "test-model",
+        "https://example.com",
+        "authorization",
+        "Bearer ",
+        _chat_completion,
+        _CHAT_COMPLETION,
+        GroqAuthenticationError,
+        groq=True,
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "case", _NATIVE_REFRESH_CASES.values(), ids=_NATIVE_REFRESH_CASES
+)
+@pytest.mark.parametrize("parallel_status", [200, 500, 401])
+async def test_native_refresh_preserves_concurrent_requests(
+    monkeypatch: pytest.MonkeyPatch,
+    case: _NativeRefreshCase,
+    parallel_status: int,
+) -> None:
+    """Refresh keeps the native provider client open and updates its key.
+
+    The parallel request is in flight with the old key during the refresh,
+    then finishes, is retried by the SDK, or fails authentication itself.
+    """
+    parallel_started = anyio.Event()
+    refreshed = anyio.Event()
+    token = "old-token"
+    seen: dict[str, list[str]] = {"auth": [], "parallel": []}
+
+    def override_api_key(env_var_name: str, value: str) -> str:
+        return token
+
+    monkeypatch.setattr("inspect_ai.hooks._hooks.override_api_key", override_api_key)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    if case.oauth:
+        monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", token)
+
+    async def respond(request: Any) -> Any:
+        status = 200
+        marker = json.loads(request.content)["messages"][0]["content"]
+        seen[marker].append(request.headers.get(case.auth_header))
+        if len(seen[marker]) == 1:
+            if marker == "auth":
+                await parallel_started.wait()
+                status = 401
+            else:
+                parallel_started.set()
+                await refreshed.wait()
+                status = parallel_status
+        httpx_module = httpx if case.groq else httpx2
+        if status != 200:
+            return httpx_module.Response(
+                status, json={"error": {"type": "error", "message": "retry"}}
+            )
+        return httpx_module.Response(200, json=case.response)
+
+    http_client = (
+        GroqAsyncHttpxClient(transport=httpx.MockTransport(respond))
+        if case.groq
+        else DefaultAsyncHttpxClient(transport=httpx2.MockTransport(respond))
+    )
+    api = case.provider(
+        case.model_name,
+        api_key=None if case.oauth else token,
+        base_url=case.base_url,
+        http_client=http_client,
+        max_retries=1,
+        **case.model_args,
+    )
+    model = Model(api=api, config=GenerateConfig())
+    client = getattr(api, "client")
+    # Keep the pre-fix recreation path offline when checking the regression.
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.openai.DefaultAsyncHttpxClient",
+        lambda **kwargs: DefaultAsyncHttpxClient(
+            transport=httpx2.MockTransport(respond)
+        ),
+    )
+
+    async def generate(marker: str) -> str | None:
+        nonlocal token
+        try:
+            return await case.request(client, marker)
+        except case.auth_error as ex:
+            token = "new-token"
+            if case.oauth:
+                monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", token)
+            await model.before_retry(ex)
+            refreshed.set()
+            return await case.request(getattr(api, "client"), marker)
+
+    old = f"{case.auth_prefix}old-token"
+    new = f"{case.auth_prefix}new-token"
+    try:
+        with anyio.fail_after(10):
+            assert await tg_collect(
+                [lambda: generate("auth"), lambda: generate("parallel")]
+            ) == ["ok", "ok"]
+        assert getattr(api, "client") is client
+        assert not client.is_closed()
+        assert seen["auth"] == [old, new]
+        assert seen["parallel"] == [old] + ([new] if parallel_status != 200 else [])
+    finally:
+        await api.aclose()
+    assert client.is_closed()
+
+
+@pytest.mark.parametrize("case", ["bedrock", "auth-token"])
+async def test_anthropic_refresh_recreates_client(
+    monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    """Bedrock, and a switch to ANTHROPIC_AUTH_TOKEN, still get a new client."""
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    api = AnthropicAPI(
+        "bedrock/test-model" if case == "bedrock" else "test-model",
+        api_key="key",
+        base_url="https://example.com",
+    )
+    client = api.client
+    if case == "auth-token":
+        monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "token")
+    try:
+        await api.refresh_credentials()
+        assert api.client is not client
+        assert client.is_closed()
+        if case == "auth-token":
+            assert getattr(api.client, "auth_token") == "token"
+    finally:
+        await api.aclose()
 
 
 @pytest.mark.parametrize("provider", [VLLMAPI, VLLMCompletionsAPI])

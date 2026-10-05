@@ -253,6 +253,13 @@ class GroqAPI(ModelAPI):
         self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples.
+        super().initialize()
+        self.client.api_key = cast(str, self.api_key)
+
+    @override
     async def aclose(self) -> None:
         await self.client.close()
 

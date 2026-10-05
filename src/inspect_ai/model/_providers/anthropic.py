@@ -565,6 +565,30 @@ class AnthropicAPI(ModelAPI):
         self._batcher: AnthropicBatcher | None = None
 
     @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples. Bedrock
+        # and Vertex sign requests with cloud credentials, and a switch
+        # between an API key and ANTHROPIC_AUTH_TOKEN needs a new client, so
+        # those still close and reinitialize.
+        client = self.client
+        if isinstance(client, AsyncAnthropicFoundry):
+            super().initialize()
+            client.api_key = self.api_key
+            return
+        auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        if isinstance(client, AsyncAnthropic) and bool(auth_token) == bool(
+            client.auth_token
+        ):
+            super().initialize()
+            if auth_token:
+                client.auth_token = auth_token
+            else:
+                client.api_key = self.api_key
+            return
+        await super().refresh_credentials()
+
+    @override
     async def aclose(self) -> None:
         await self.client.close()
 
