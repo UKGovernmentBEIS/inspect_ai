@@ -196,35 +196,57 @@ def test_strip_trailing_sep(path: str, expected: str) -> None:
 
 
 _AZURE_OPTIONS = {"account_name": "inspectunittest", "anon": True}
+_ABFSS_URL = "abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs"
 
 
 @pytest.mark.parametrize(
-    "path,fs_options,expected",
+    "path,fs_options,location,uri",
     [
-        ("s3://bucket/logs/", {}, "s3://bucket/logs"),
-        ("s3://bucket/logs", {}, "s3://bucket/logs"),
-        ("s3://bucket/", {}, "s3://bucket"),
-        # adlfs keeps a trailing slash when stripping the protocol
-        ("az://container/logs/", _AZURE_OPTIONS, "abfs://container/logs"),
-        ("az://container/logs", _AZURE_OPTIONS, "abfs://container/logs"),
-        ("az://container/", _AZURE_OPTIONS, "abfs://container"),
-        ("logs/", {}, "file://{cwd}/logs"),
-        ("file://{cwd}/logs/", {}, "file://{cwd}/logs"),
-        ("/", {}, "file:///"),
+        ("s3://bucket/logs/", {}, "s3://bucket/logs", "s3://bucket/logs"),
+        ("s3://bucket/logs", {}, "s3://bucket/logs", "s3://bucket/logs"),
+        ("s3://bucket/", {}, "s3://bucket", "s3://bucket"),
+        # adlfs keeps a trailing slash when stripping the protocol, and lists
+        # names as abfs:// without the account
+        (
+            "az://container/logs/",
+            _AZURE_OPTIONS,
+            "az://container/logs",
+            "abfs://container/logs",
+        ),
+        ("az://container/", _AZURE_OPTIONS, "az://container", "abfs://container"),
+        (f"{_ABFSS_URL}/", {}, _ABFSS_URL, "abfs://mycontainer/inspect-logs"),
+        (_ABFSS_URL, {}, _ABFSS_URL, "abfs://mycontainer/inspect-logs"),
+        (
+            "webhdfs://user@namenode:9870/logs/",
+            {},
+            "webhdfs://user@namenode:9870/logs",
+            "webhdfs:///logs",
+        ),
+        ("logs/", {}, "file://{cwd}/logs", "file://{cwd}/logs"),
+        ("file://{cwd}/logs/", {}, "file://{cwd}/logs", "file://{cwd}/logs"),
+        ("/", {}, "file:///", "file:///"),
     ],
 )
-def test_dir_as_uri(
+def test_dir_location_and_uri(
     path: str,
     fs_options: dict[str, Any],
-    expected: str,
+    location: str,
+    uri: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    path = path.format(cwd=tmp_path.as_posix())
+    monkeypatch.delenv("AZURE_STORAGE_ACCOUNT_NAME", raising=False)
+    monkeypatch.delenv("AZURE_ACCOUNT_NAME", raising=False)
+    cwd = tmp_path.as_posix()
+    path = path.format(cwd=cwd)
     fs = filesystem(path, fs_options)
     with patch.object(fs.fs, "info", side_effect=AssertionError("info called")):
-        assert fs.dir_as_uri(path) == expected.format(cwd=tmp_path.as_posix())
+        assert fs.dir_location(path) == location.format(cwd=cwd)
+        assert fs.dir_as_uri(path) == uri.format(cwd=cwd)
+    # the location opens the same filesystem without the original options
+    if not fs_options:
+        filesystem(f"{fs.dir_location(path)}/eval-set.json")
 
 
 @pytest.mark.parametrize(

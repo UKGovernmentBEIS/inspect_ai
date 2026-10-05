@@ -505,13 +505,14 @@ def write_log_dir_manifest(
     """
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = fs.dir_as_uri(log_dir)
+    log_dir_uri = fs.dir_as_uri(log_dir)
+    log_dir = fs.dir_location(log_dir)
 
     # list eval logs
     logs = list_eval_logs(log_dir)
 
     # resolve to manifest (make filenames relative to the log dir)
-    names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
+    names = [manifest_eval_log_name(log, log_dir_uri, fs.sep) for log in logs]
     headers = read_eval_log_headers(logs)
 
     manifest_logs = dict(zip(names, headers))
@@ -1319,7 +1320,8 @@ def write_log_listing(
     """
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = fs.dir_as_uri(log_dir)
+    log_dir_uri = fs.dir_as_uri(log_dir)
+    log_dir = fs.dir_location(log_dir)
 
     # list eval logs
     if logs is None:
@@ -1331,7 +1333,7 @@ def write_log_listing(
 
     # resolve to overview (make filenames relative to the log dir)
     file_overviews = {
-        manifest_eval_log_name(log, log_dir, fs.sep): to_overview(headers[log.name])
+        manifest_eval_log_name(log, log_dir_uri, fs.sep): to_overview(headers[log.name])
         for log in logs
     }
 
