@@ -193,6 +193,7 @@ from .._model_output import (
     ModelFallback,
     ModelOutput,
     ModelUsage,
+    ServedModelUsage,
     StopCategory,
     StopDetails,
     StopReason,
@@ -702,6 +703,29 @@ class AnthropicAPI(ModelAPI):
         elif request_start > state.last_cached_request_start:
             # ignore out-of-order completions from parallel calls in one sample
             state.last_cached_request_start = request_start
+
+    @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        fallback = output.fallback
+        if output.usage is None:
+            return None
+        if fallback is None:
+            # a Foundry model name is a deployment name, which need not name
+            # the model the deployment serves
+            if (
+                self.is_azure()
+                and output.model
+                and output.model != self.service_model_name()
+            ):
+                return [ServedModelUsage(f"anthropic/{output.model}", output.usage)]
+            return None
+        iterations = (fallback.metadata or {}).get("iterations")
+        if isinstance(iterations, list) and any(
+            isinstance(it, dict) and it.get("type") == "fallback_message"
+            for it in iterations
+        ):
+            return _fallback_attempts_usage(iterations, self.service_model_name())
+        return [ServedModelUsage(f"anthropic/{fallback.fallback_model}", output.usage)]
 
     @override
     def cache_write_ttl(self) -> str | None:
@@ -4373,9 +4397,16 @@ async def model_output_from_message(
     # server-side refusal fallback: record a typed ModelFallback so log
     # analysis can detect a fallback without parsing assistant content. the
     # handoff chain and per-attempt `usage.iterations` are surfaced as
-    # diagnostics on ModelFallback.metadata.
+    # diagnostics on ModelFallback.metadata. a turn that sticky routing sent
+    # straight to the fallback model has no handoff, only the
+    # `fallback_message` iteration.
     fallback: ModelFallback | None = None
-    requested_model = fallback_handoffs[0]["from"] if fallback_handoffs else None
+    if fallback_handoffs:
+        requested_model = fallback_handoffs[0]["from"]
+    elif is_fallback_iterations and model != serving_model:
+        requested_model = model
+    else:
+        requested_model = None
     if requested_model and serving_model:
         fallback = ModelFallback(
             model=requested_model,
@@ -4954,6 +4985,43 @@ def _fallback_block_models(block: Any) -> tuple[str | None, str | None]:
     if to_info is None:
         to_info = extra.get("to")
     return info_model(from_info), info_model(to_info)
+
+
+def _fallback_attempts_usage(
+    iterations: list[Any], requested_model: str
+) -> list[ServedModelUsage]:
+    """Billable usage of each attempt of a server-side fallback request.
+
+    Each attempt is billed at the rates of the model that ran it. An attempt
+    that declined before any output is billed only for some refusal
+    categories, which a fallback response does not report, so it is left out.
+    """
+    attempts: list[ServedModelUsage] = []
+    for it in iterations:
+        if not isinstance(it, dict):
+            continue
+        if it.get("type") == "message" and not it.get("output_tokens"):
+            continue
+        input_tokens = it.get("input_tokens") or 0
+        output_tokens = it.get("output_tokens") or 0
+        cache_write = it.get("cache_creation_input_tokens")
+        cache_read = it.get("cache_read_input_tokens")
+        attempts.append(
+            ServedModelUsage(
+                model=f"anthropic/{it.get('model') or requested_model}",
+                usage=ModelUsage(
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=input_tokens
+                    + output_tokens
+                    + (cache_write or 0)
+                    + (cache_read or 0),
+                    input_tokens_cache_write=cache_write,
+                    input_tokens_cache_read=cache_read,
+                ),
+            )
+        )
+    return attempts
 
 
 def _content_data_for_fallback(block: Any) -> ContentData:

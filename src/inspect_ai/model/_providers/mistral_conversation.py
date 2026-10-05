@@ -1,5 +1,6 @@
 import json
 from collections.abc import Callable
+from logging import getLogger
 from typing import Any, Literal, Sequence
 
 from mistralai.client import Mistral
@@ -41,6 +42,8 @@ from inspect_ai._util.content import (
     ContentToolUse,
 )
 from inspect_ai._util.images import inline_media_data_uri, provider_image_data_uri
+from inspect_ai._util.logger import warn_once
+from inspect_ai._util.url import is_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._providers.util.util import split_system_messages
@@ -62,6 +65,8 @@ from .._model_output import (
     ModelUsage,
 )
 from .util.hooks import HttpxHooks
+
+logger = getLogger(__name__)
 
 
 async def mistral_conversation_generate(
@@ -465,6 +470,36 @@ async def completion_choices_from_conversation_response(
     ]
 
 
+def mistral_output_image(
+    image: str, detail: Literal["auto", "low", "high"]
+) -> ContentImage | ContentText:
+    """Convert an image returned in Mistral model output to content.
+
+    Inline data URIs are validated and kept as images. Other references are
+    not downloaded, since the host would fetch whatever URL the model wrote,
+    and not kept as images, since a log viewer would fetch them. They become
+    text that records the reference.
+
+    Args:
+        image: Image reference from an `ImageURLChunk`.
+        detail: Image detail level for an inline image.
+
+    Returns:
+        The validated image, or text recording the reference that was not
+        downloaded.
+    """
+    if is_data_uri(image):
+        return ContentImage(image=provider_image_data_uri(image), detail=detail)
+    warn_once(
+        logger,
+        "Mistral returned an image URL in model output. Inspect does not download "
+        "image URLs from model output, so the URL is recorded as text.",
+    )
+    return ContentText(
+        text=f"[Image URL returned by the model, not downloaded: {image}]"
+    )
+
+
 async def content_from_mistral_content_chunk(
     chunk: TextChunk | ImageURLChunk | ThinkChunk,
     citations: Sequence[Citation] | None = None,
@@ -474,14 +509,11 @@ async def content_from_mistral_content_chunk(
             return ContentText(text=chunk.text, citations=citations)
         case ImageURLChunk():
             if isinstance(chunk.image_url, str):
-                return ContentImage(
-                    image=await provider_image_data_uri(chunk.image_url),
-                    detail="auto",
-                )
+                return mistral_output_image(chunk.image_url, "auto")
             else:
-                return ContentImage(
-                    image=await provider_image_data_uri(chunk.image_url.url),
-                    detail=chunk.image_url.detail  # type: ignore[arg-type]
+                return mistral_output_image(
+                    chunk.image_url.url,
+                    chunk.image_url.detail  # type: ignore[arg-type]
                     if isinstance(chunk.image_url.detail, str)
                     else "auto",
                 )
