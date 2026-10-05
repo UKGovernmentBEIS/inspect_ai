@@ -17,11 +17,7 @@ from inspect_ai.model import (
     ModelOutput,
 )
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._model import (
-    active_model,
-    sample_total_cost,
-    sample_total_tokens,
-)
+from inspect_ai.model._model import sample_total_cost, sample_total_tokens
 from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
@@ -282,13 +278,6 @@ class TaskState:
 
     @output.setter
     def output(self, output: ModelOutput) -> None:
-        # outputs built without a model name (e.g. `ModelOutput.from_message()`
-        # on a message with no `model`) take the active model's name; copy so
-        # an output shared with other states or a ModelEvent is not changed
-        if not output.model:
-            active = active_model()
-            if active is not None:
-                output = output.model_copy(update={"model": active.api.model_name})
         self._output = output
 
     @property

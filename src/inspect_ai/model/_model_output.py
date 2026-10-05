@@ -3,6 +3,7 @@ from typing import Callable, NamedTuple
 
 from inspect_ai._util.logger import warn_once
 
+from ._chat_message import ChatMessage, ChatMessageAssistant
 from ._model_data.model_data import ModelCost
 
 # isort: split
@@ -96,3 +97,27 @@ def as_stop_reason(reason: str | None) -> StopReason:
             return reason
         case _:
             return "unknown"
+
+
+def _from_message(
+    message: ChatMessage,
+    stop_reason: StopReason = "stop",
+    model: str | None = None,
+) -> ModelOutput:
+    """`ModelOutput.from_message` with the active model as the default model name.
+
+    `inspect_ai.core` has no notion of an active model, so this replaces the core
+    method when `inspect_ai.model` loads. When neither `model` nor the message
+    supplies a model name, the active model's name is used.
+    """
+    from ._model import active_model  # _model imports this module
+
+    message_model = message.model if isinstance(message, ChatMessageAssistant) else None
+    if not model and message_model is None:
+        active = active_model()
+        model = active.api.model_name if active is not None else None
+    return _core_from_message(message, stop_reason, model)
+
+
+_core_from_message = ModelOutput.from_message
+ModelOutput.from_message = staticmethod(_from_message)  # type: ignore[method-assign]  # core has no active model; inspect_ai supplies the default model name

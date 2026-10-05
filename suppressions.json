@@ -676,6 +676,11 @@
       "undescribed": 1
     }
   },
+  "src/inspect_ai/model/_model_output.py": {
+    "type: ignore[method-assign]": {
+      "count": 1
+    }
+  },
   "src/inspect_ai/model/_openai.py": {
     "type: ignore[arg-type]": {
       "count": 1,
