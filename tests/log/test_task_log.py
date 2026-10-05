@@ -1176,10 +1176,12 @@ async def test_json_seed_yields_between_samples(
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
 @pytest.mark.parametrize("prior_format", ["eval", "json", "memory"])
 @pytest.mark.parametrize("epochs", [None, 1])
+@pytest.mark.parametrize("prior_epochs", [None, 2])
 async def test_dynamic_seed_filters_epochs_without_sample_ids(
     recorder_type: type[EvalRecorder] | type[JSONRecorder],
     prior_format: str,
     epochs: int | None,
+    prior_epochs: int | None,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1211,7 +1213,7 @@ async def test_dynamic_seed_filters_epochs_without_sample_ids(
     logger = _seed_logger(recorder)
     logger.eval.config.epochs = epochs
     logger._location = await recorder.log_init(logger.eval)
-    await logger.seed_from_prior(prior, keep=None)
+    await logger.seed_from_prior(prior, keep=None, prior_epochs=prior_epochs)
     await logger.log_start(EvalPlan())
     for finish in (False, True):
         if finish:
@@ -1226,6 +1228,39 @@ async def test_dynamic_seed_filters_epochs_without_sample_ids(
             (s.id, s.epoch)
             for s in await read_eval_log_sample_summaries_async(logger.location)
         } == {(1, 1)}
+
+
+@pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
+@pytest.mark.parametrize("prior_format", ["eval", "json", "memory"])
+async def test_dynamic_seed_keeps_epochs_above_the_prior_count(
+    recorder_type: type[EvalRecorder] | type[JSONRecorder],
+    prior_format: str,
+    tmp_path: Path,
+) -> None:
+    # an epoch above the prior's own count was added with an explicit epoch,
+    # so the upfront seed keeps it although it exceeds the attempt's count
+    samples = [
+        _prior_samples()[0],
+        _prior_samples()[0].model_copy(update={"epoch": 3}),
+    ]
+    prior = (
+        samples
+        if prior_format == "memory"
+        else await _write_prior_log(
+            (EvalRecorder if prior_format == "eval" else JSONRecorder)(
+                str(tmp_path / "prior")
+            ),
+            samples,
+        )
+    )
+    recorder = recorder_type(str(tmp_path / "retry"))
+    logger = _seed_logger(recorder)
+    logger.eval.config.epochs = 1
+    logger._location = await recorder.log_init(logger.eval)
+    await logger.seed_from_prior(prior, keep=None, prior_epochs=2)
+    await logger.log_start(EvalPlan())
+    log = await read_eval_log_async(logger.location)
+    assert {(s.id, s.epoch) for s in log.samples or []} == {(1, 1), (1, 3)}
 
 
 @pytest.mark.parametrize("recorder_type", [EvalRecorder, JSONRecorder])
