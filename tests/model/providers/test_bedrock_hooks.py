@@ -52,7 +52,7 @@ def test_request_created_stashes_request_id_on_context() -> None:
     durable channel between the two events.
     """
     hooks = _make_hooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
     request = _make_aws_request(f"botocore/x.y ins/rid#{request_id}")
     hooks.converse_request_created(request=request)
     # the per-call context dict now carries our request_id
@@ -61,7 +61,7 @@ def test_request_created_stashes_request_id_on_context() -> None:
 
 def test_request_created_increments_attempts() -> None:
     hooks = _make_hooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
     request = _make_aws_request(f"ins/rid#{request_id}")
     # Patch report_http_retry: the second converse_request_created call would
     # otherwise call the real one and pollute the _request_had_retry ContextVar
@@ -76,7 +76,7 @@ def test_request_created_increments_attempts() -> None:
 def test_response_received_records_status_via_context() -> None:
     """The full chain: request-created stashes id → response-received reads id from context."""
     hooks = _make_hooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
     request = _make_aws_request(f"ins/rid#{request_id}")
     with patch("inspect_ai.model._providers.util.hooks.report_http_retry"):
         hooks.converse_request_created(request=request)
@@ -97,7 +97,7 @@ def test_throttle_then_retry_classifies_as_rate_limit() -> None:
     classified as transient (or dropped entirely because request_id was None).
     """
     hooks = _make_hooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
     request = _make_aws_request(f"ins/rid#{request_id}")
 
     # Attempt 1 — fires request-created, then response-received with 429
@@ -127,7 +127,7 @@ def test_throttling_exception_classified_via_parsed_response() -> None:
     ThrottlingException doesn't always come back as HTTP 429 from Bedrock.
     """
     hooks = _make_hooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
     request = _make_aws_request(f"ins/rid#{request_id}")
 
     # Attempt 1 — request-created stashes id; response-received sees a non-429
@@ -160,7 +160,7 @@ def test_validation_exception_classified_as_transient() -> None:
     would be misclassified as rate_limit by the status-based fallback.
     """
     hooks = _make_hooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
     request = _make_aws_request(f"ins/rid#{request_id}")
 
     with patch("inspect_ai.model._providers.util.hooks.report_http_retry"):
@@ -186,7 +186,7 @@ def test_validation_exception_classified_as_transient() -> None:
 def test_5xx_then_retry_classifies_as_transient() -> None:
     """5xx response should NOT scale the controller down on the next retry."""
     hooks = _make_hooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
     request = _make_aws_request(f"ins/rid#{request_id}")
 
     hooks.converse_request_created(request=request)
@@ -254,7 +254,7 @@ def test_retry_after_deadline_decays_across_sdk_backoff() -> None:
     )
 
     hooks = _make_hooks()
-    request_id = hooks.start_request()
+    request_id = hooks._start_request()
     request = _make_aws_request(f"ins/rid#{request_id}")
 
     # Attempt 1 — record a response with Retry-After: 30
@@ -300,3 +300,130 @@ def test_retry_after_deadline_decays_across_sdk_backoff() -> None:
     assert kwargs.get("kind") == "rate_limit"
     # Silence unused import warning if test infrastructure trimmed it
     _ = ConverseHooks
+
+
+def test_response_received_records_aws_request_id_on_model_event() -> None:
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.log._samples import track_active_model_event
+    from inspect_ai.model import GenerateConfig, ModelOutput, ModelRequestId
+
+    hooks = _make_hooks()
+    request_id = hooks._start_request()
+    request = _make_aws_request(f"ins/rid#{request_id}")
+    event = ModelEvent(
+        model="test",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(model="test", choices=[]),
+    )
+
+    with track_active_model_event(event):
+        hooks.converse_request_created(request=request)
+        hooks.converse_response_received(
+            response_dict={
+                "status_code": 200,
+                "headers": {"x-amzn-RequestId": "aws-request-1"},
+                "url": "",
+            },
+            context=request.context,
+        )
+
+    assert event.request_ids == [
+        ModelRequestId(id="aws-request-1", header="x-amzn-requestid", status=200)
+    ]
+
+
+@pytest.mark.parametrize("operation", ["Converse", "ConverseStream"])
+async def test_session_events_record_aws_request_id(operation: str) -> None:
+    """Both the Converse and ConverseStream operations reach the hooks."""
+    from aiobotocore.session import AioSession
+
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.log._samples import track_active_model_event
+    from inspect_ai.model import GenerateConfig, ModelOutput, ModelRequestId
+
+    session = AioSession()
+    hooks = ConverseHooks(session)
+    emitter = session.get_component("event_emitter")
+    request_id = hooks._start_request()
+    request = _make_aws_request(f"ins/rid#{request_id}")
+    event = ModelEvent(
+        model="test",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(model="test", choices=[]),
+    )
+
+    with track_active_model_event(event):
+        await emitter.emit(
+            f"request-created.bedrock-runtime.{operation}", request=request
+        )
+        await emitter.emit(
+            f"response-received.bedrock-runtime.{operation}",
+            response_dict={
+                "status_code": 200,
+                "headers": {"x-amzn-requestid": "aws-request-2"},
+                "url": "",
+            },
+            context=request.context,
+        )
+
+    assert event.request_ids == [
+        ModelRequestId(id="aws-request-2", header="x-amzn-requestid", status=200)
+    ]
+
+
+async def test_restarted_request_is_not_counted_as_a_retry() -> None:
+    """A ConverseStream request denied access, then a Converse fallback."""
+    from aiobotocore.session import AioSession
+
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.log._samples import track_active_model_event
+    from inspect_ai.model import GenerateConfig, ModelOutput, ModelRequestId
+
+    session = AioSession()
+    hooks = ConverseHooks(session)
+    emitter = session.get_component("event_emitter")
+    request_id = hooks._start_request()
+    event = ModelEvent(
+        model="test",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(model="test", choices=[]),
+    )
+
+    with (
+        track_active_model_event(event),
+        patch("inspect_ai.model._providers.util.hooks.report_http_retry") as retry,
+    ):
+        for operation, status, aws_request_id in [
+            ("ConverseStream", 403, "denied"),
+            ("Converse", 200, "ok"),
+        ]:
+            if operation == "Converse":
+                hooks.restart_request(request_id)
+            request = _make_aws_request(f"ins/rid#{request_id}")
+            await emitter.emit(
+                f"request-created.bedrock-runtime.{operation}", request=request
+            )
+            await emitter.emit(
+                f"response-received.bedrock-runtime.{operation}",
+                response_dict={
+                    "status_code": status,
+                    "headers": {"x-amzn-requestid": aws_request_id},
+                    "url": "",
+                },
+                context=request.context,
+            )
+
+    retry.assert_not_called()
+    assert event.request_ids == [
+        ModelRequestId(id="denied", header="x-amzn-requestid", status=403),
+        ModelRequestId(id="ok", header="x-amzn-requestid", status=200),
+    ]

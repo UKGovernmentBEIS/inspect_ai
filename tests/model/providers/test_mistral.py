@@ -14,6 +14,7 @@ from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
+    ModelOutput,
     get_model,
 )
 from inspect_ai.tool import (
@@ -980,3 +981,99 @@ async def test_mistral_stream_end_to_end() -> None:
     assert len(response.completion) >= 1
     streamed = "".join(e.text for e in events if isinstance(e, StreamTextEvent))
     assert streamed == response.completion
+
+
+def _mock_mistral_client() -> Any:
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    client.__enter__.return_value = client
+    client.__exit__.return_value = False
+    client.sdk_configuration.async_client = httpx2.AsyncClient()
+    return client
+
+
+@skip_if_no_mistral_package
+async def test_mistral_chat_output_records_response_id() -> None:
+    from unittest import mock
+    from unittest.mock import AsyncMock
+
+    from mistralai.client.models import (
+        AssistantMessage,
+        ChatCompletionChoice,
+        ChatCompletionResponse,
+        UsageInfo,
+    )
+
+    from inspect_ai.model._providers.mistral import MistralAPI
+
+    api = MistralAPI(
+        model_name="mistral/mistral-small-latest",
+        api_key="test-key",
+        conversation_api=False,
+    )
+    client = _mock_mistral_client()
+    client.chat.complete_async = AsyncMock(
+        return_value=ChatCompletionResponse(
+            id="mistral-response",
+            object="chat.completion",
+            model="mistral-small-latest",
+            created=0,
+            usage=UsageInfo(prompt_tokens=1, completion_tokens=1, total_tokens=2),
+            choices=[
+                ChatCompletionChoice(
+                    index=0,
+                    message=AssistantMessage(content="hi"),
+                    finish_reason="stop",
+                )
+            ],
+        )
+    )
+
+    with mock.patch("inspect_ai.model._providers.mistral.Mistral", return_value=client):
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "mistral-response"
+
+
+@skip_if_no_mistral_package
+async def test_mistral_conversation_output_records_conversation_id() -> None:
+    from unittest import mock
+    from unittest.mock import AsyncMock
+
+    from mistralai.client.models import (
+        ConversationResponse,
+        ConversationUsageInfo,
+        MessageOutputEntry,
+    )
+
+    from inspect_ai.model._providers.mistral import MistralAPI
+
+    api = MistralAPI(model_name="mistral/mistral-small-latest", api_key="test-key")
+    client = _mock_mistral_client()
+    client.beta.conversations.start_async = AsyncMock(
+        return_value=ConversationResponse(
+            conversation_id="conv_response",
+            outputs=[MessageOutputEntry(content="hi")],
+            usage=ConversationUsageInfo(
+                prompt_tokens=1, completion_tokens=1, total_tokens=2
+            ),
+        )
+    )
+
+    with mock.patch("inspect_ai.model._providers.mistral.Mistral", return_value=client):
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "conv_response"

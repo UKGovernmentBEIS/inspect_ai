@@ -80,41 +80,41 @@ async def mistral_conversation_generate(
     handle_bad_request: Callable[[SDKError], ModelOutput | Exception],
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # build request
-    request_id = http_hooks.start_request()
-    instructions, inputs = await mistral_conversation_inputs(input, config)
-    completion_args = mistral_conversation_completion_args(
-        config, tool_choice if len(tools) > 0 else None
-    )
-    request: dict[str, Any] = dict(
-        model=model,
-        instructions=instructions or UNSET,
-        inputs=inputs,
-        tools=mistral_conversation_tools(tools) if len(tools) > 0 else UNSET,
-        completion_args=completion_args,
-        store=False,
-        http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
-        | (config.extra_headers or {}),
-    )
-
-    model_call = set_active_model_event_call(
-        request=request,
-    )
-
-    # send request
-    try:
-        conv_response = await client.beta.conversations.start_async(**request)
-
-        model_call.set_response(
-            conv_response.model_dump(), http_hooks.end_request(request_id)
+    with http_hooks.request() as request_id:
+        instructions, inputs = await mistral_conversation_inputs(input, config)
+        completion_args = mistral_conversation_completion_args(
+            config, tool_choice if len(tools) > 0 else None
         )
-    except SDKError as ex:
-        model_call.set_error(
-            {"error": {"message": str(ex)}}, http_hooks.end_request(request_id)
+        request: dict[str, Any] = dict(
+            model=model,
+            instructions=instructions or UNSET,
+            inputs=inputs,
+            tools=mistral_conversation_tools(tools) if len(tools) > 0 else UNSET,
+            completion_args=completion_args,
+            store=False,
+            http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+            | (config.extra_headers or {}),
         )
-        if ex.status_code == 400:
-            return handle_bad_request(ex), model_call
-        else:
-            raise ex
+
+        model_call = set_active_model_event_call(
+            request=request,
+        )
+
+        # send request
+        try:
+            conv_response = await client.beta.conversations.start_async(**request)
+
+            model_call.set_response(
+                conv_response.model_dump(), http_hooks.end_request(request_id)
+            )
+        except SDKError as ex:
+            model_call.set_error(
+                {"error": {"message": str(ex)}}, http_hooks.end_request(request_id)
+            )
+            if ex.status_code == 400:
+                return handle_bad_request(ex), model_call
+            else:
+                raise ex
 
     # return model output (w/ tool calls if they exist)
     choices = await completion_choices_from_conversation_response(
@@ -133,6 +133,7 @@ async def mistral_conversation_generate(
             ),
             total_tokens=conv_response.usage.total_tokens or 0,
         ),
+        response_id=conv_response.conversation_id,
     ), model_call
 
 
