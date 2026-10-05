@@ -12,6 +12,7 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
+from ._first_party import FRONTIER_MODELS
 from .openai_compatible import OpenAICompatibleAPI
 from .util import (
     environment_prerequisite_error,
@@ -51,10 +52,17 @@ def supports_max_reasoning_effort(model: str) -> bool:
 
     Meta documents `max` for standard-tier `muse-spark-1.3` only: not the
     `-contributor` tier and not older versions (https://dev.meta.ai/docs/reasoning).
-    Later standard-tier versions are assumed to keep it.
+    Later standard-tier versions are assumed to keep it, as are standard-tier
+    models outside the `muse-spark-X.Y` naming (e.g. a predeployment codename),
+    which are treated as the current frontier.
     """
-    match = re.fullmatch(r"muse-spark-(\d+)\.(\d+)", model.lower())
-    return match is not None and (int(match[1]), int(match[2])) >= (1, 3)
+    name = model.lower()
+    if "-contributor" in name:
+        return False
+    match = re.match(r"muse-spark-(\d+)(?:\.(\d+))?", name)
+    if match is None:
+        return True
+    return (int(match[1]), int(match[2] or 0)) >= (1, 3)
 
 
 def _flag_refusal_stop(output: ModelOutput) -> None:
@@ -145,6 +153,20 @@ class MetaAPI(OpenAICompatibleAPI):
     def canonical_name(self) -> str:
         """Muse models are keyed under the `meta` organization in the model info database."""
         return f"meta/{self.service_model_name()}"
+
+    @override
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens (context window).
+
+        Models not yet in the model info database (new versions, predeployment
+        codenames) alias to the current frontier so the context window and
+        compaction match. Mirrors the other providers' input_tokens_name().
+        """
+        from inspect_ai.model._model_info import _get_model_info_direct
+
+        if _get_model_info_direct(self.canonical_name()) is None:
+            return FRONTIER_MODELS["meta"]
+        return super().input_tokens_name()
 
     @override
     def should_stream(self, config: GenerateConfig) -> bool:
