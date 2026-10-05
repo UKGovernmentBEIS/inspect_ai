@@ -13,9 +13,9 @@ import zlib
 from typing import Any, Iterable, Iterator
 
 import pytest
-from test_helpers.utils import skip_if_no_bedrock
+from test_helpers.utils import skip_if_no_bedrock, skip_if_trio
 
-from inspect_ai.model import ChatMessageUser, RetryDecision, get_model
+from inspect_ai.model import ChatMessageUser, ModelOutput, RetryDecision, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers.bedrock import (
     BedrockAPI,
@@ -395,3 +395,73 @@ async def test_bedrock_stream_end_to_end() -> None:
     assert len(response.completion) >= 1
     streamed = "".join(e.text for e in events if isinstance(e, StreamTextEvent))
     assert streamed == response.completion
+
+
+@skip_if_trio
+async def test_bedrock_stream_access_denied_fallback_restarts_request() -> None:
+    """The non-streaming fallback is tracked as a new request, not a retry."""
+    from unittest.mock import patch
+
+    from botocore.exceptions import ClientError
+
+    api = BedrockAPI(
+        model_name="anthropic.claude-sonnet-4-6-20260101-v1:0", base_url=None
+    )
+
+    calls: list[str] = []
+
+    class _Client:
+        async def __aenter__(self) -> "_Client":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        async def converse_stream(self, **kwargs: Any) -> Any:
+            raise ClientError(
+                {"Error": {"Code": "AccessDeniedException", "Message": "denied"}},
+                "ConverseStream",
+            )
+
+        async def converse(self, **kwargs: Any) -> Any:
+            calls.append("converse")
+            return {
+                "output": {
+                    "message": {"role": "assistant", "content": [{"text": "hi"}]}
+                },
+                "stopReason": "end_turn",
+                "usage": {"inputTokens": 1, "outputTokens": 1, "totalTokens": 2},
+                "metrics": {"latencyMs": 1},
+            }
+
+    hooks = api._http_hooks
+    start_request = hooks._start_request
+    restart_request = hooks.restart_request
+    request_ids: list[str] = []
+
+    def start(*args: Any) -> str:
+        request_ids.append(start_request(*args))
+        return request_ids[-1]
+
+    def restart(request_id: str) -> None:
+        calls.append(f"restart:{request_id}")
+        restart_request(request_id)
+
+    with (
+        patch.object(api.session, "create_client", return_value=_Client()),
+        patch.object(api, "resolve_streaming", return_value=True),
+        patch.object(hooks, "_start_request", side_effect=start),
+        patch.object(hooks, "restart_request", side_effect=restart),
+    ):
+        result = await api.generate(
+            input=[ChatMessageUser(content="hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    assert output.completion == "hi"
+    assert calls == [f"restart:{request_ids[0]}", "converse"]
