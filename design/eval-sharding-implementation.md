@@ -11,7 +11,11 @@ hiding of merged shards (#5591). Revised on 2026-09-29 so that the merged
 header carries no per-sample data beyond the `dataset.sample_ids` list
 every log header has (decision: Ransom, 2026-09-29): the ledger holds a
 count and a selection digest per shard instead of each shard's exact keys,
-and the recorded selection lives in the ordinary header fields.
+and the recorded selection lives in the ordinary header fields. Revised
+on 2026-10-05 for the shared walk as PR 3 (UKGovernmentBEIS/inspect_ai#5622)
+implements it: `is_shard_path` is true only for the files the walk lists,
+so a log nested deeper in a companion is an ordinary log, and ctl log-dir
+mode lists it as one, matching eval-set (decision: Ransom, 2026-10-05).
 
 This is the follow-on document that [`eval-sharding.md`](eval-sharding.md)
 ("the parent design") names: the public surface, the shape of the stored
@@ -640,10 +644,14 @@ downloaded and rewritten only when step 10 says so.
    rewritten outside it).
 4. **List the shard set** with `list_shard_set` ("Code shared ...") into
    shards `<k>` with their attempt files in attempt order, stray files and
-   ancillary entries. Stray files (an `.eval` directly in `<name>.shards/`,
-   or a `.json` log in any `<k>/`) raise `ShardSetError`. Ancillary entries
-   (scan results, checkpoint directories) do not affect merging; they block
-   deletion ("Deleting shards").
+   ancillary entries. Any stray file the walk reports (a log directly in
+   `<name>.shards/` or in a directory under it whose name starts with `.`,
+   or a `.json` log in any `<k>/`) raises `ShardSetError`; the walk itself
+   only reports them. Ancillary entries (scan results, checkpoint
+   directories) do not affect merging; they block deletion ("Deleting
+   shards"). A log nested inside an ancillary directory is an ordinary log,
+   not a shard ("Code shared with ctl log-dir mode"), and the merge does
+   not read it.
 5. **Classify each shard.** For each `<k>`, the current attempt is the last
    file in attempt order. It is *unchanged* when the ledger has an entry
    for `<k>` with the same `log` name and equal ETag (or equal `size` and
@@ -1011,7 +1019,10 @@ The routine:
    `eval_checkpoints_dir`, including ones kept with `retention="retain"`,
    `src/inspect_ai/util/_checkpoint/config.py:172`). Step 1 neither merges
    nor relocates them, so deleting them would lose data the merged log
-   does not hold.
+   does not hold. Also refuse when a log file lies below a directory in the
+   companion whose name starts with `.`: one directly in it is a stray file
+   the merge already refused, and one nested deeper is an ordinary log
+   (`is_shard_path`), which deletion must not remove.
 3. With `include_log`, delete the merged log first.
 4. Delete the listed objects (S3 batch deletes; file by file locally and
    on other fsspec backends), never a recursive delete of the prefix.
@@ -1198,10 +1209,13 @@ never scans the directory.
 
 1. Build `eval_set_args` and `all_tasks` (identifiers) first; they are
    pure and today are built just after the listing (`:1047`, `:1083`).
-2. `list_eval_logs(log_dir)` once. Every listed file whose path relative to
-   `log_dir` has a component ending in `.shards` marks a companion, the
-   path up to the first such component (`is_shard_path`, shared helper);
-   collect the distinct companions. A companion with no `.eval` file left
+2. `list_eval_logs(log_dir)` once. Every listed file for which
+   `is_shard_path(log_dir, name)` is true (shared helper) marks a
+   companion: the path up to the first component below `log_dir` that ends
+   in `.shards`. Collect the distinct companions. A log nested deeper in a
+   companion (inside a shard's ancillary directory, including a companion
+   nested there) is an ordinary log: it marks no companion and takes part
+   in pairing like any other log. A companion with no log file left
    (for example only `.buffer/` objects after an interrupted deletion) is
    not found, and needs no merge.
 3. For each companion (4 at a time, one `AsyncFilesystem` scope), read one
@@ -1240,7 +1254,10 @@ never scans the directory.
 
 **Shard skip before header reads.** `list_all_eval_logs` gains
 `skip_shards: bool = False`, which drops `is_shard_path(log_dir, name)`
-files before `read_eval_log_headers`. Both eval-set call sites (startup and
+files before `read_eval_log_headers`: every attempt and stray file of a
+companion, and nothing else. A log nested deeper in a companion stays in
+the listing as an ordinary log, so the skip never hides a log that the
+shard walk does not report. Both eval-set call sites (startup and
 `cleanup_older_eval_logs`) pass `True`; `inspect_flow`'s callers keep the
 default. The startup path in step 2 applies the same filter to the listing
 it already holds.
@@ -1372,14 +1389,32 @@ The shard-set rules, one implementation for both consumers:
   list[ShardDir], stray: list[StrayFile])`, with `ShardDir(name: str, dir:
   str, attempts: list[FileInfo], has_buffer: bool, ancillary: list[str])`
   and `current` the last attempt or `None`. It lists `<name>.shards/` once
-  with `list_dir`, then each `<k>/` (32 at a time). In `<k>/`: `.eval`
+  with `list_dir`, then each directory directly under it (32 at a time),
+  and nothing deeper. In `<k>/`: `.eval`
   files are attempts, a `.buffer/` prefix sets `has_buffer`, and every other
   file or directory (for example `scans/` or `<shard>.checkpoints/`) is
   recorded in `ancillary` and not descended into. A
-  `<k>` directory whose name starts with `.` is not a shard. `.eval` files
-  directly in `<name>.shards/`, and `.json` logs in any `<k>/`, are
-  `stray` with a reason. The merge refuses stray files; ctl reports them
-  (its `unreadable` list is the natural place; that choice is ctl's).
+  directory whose name starts with `.` is not a shard; it is listed only
+  to report the logs directly in it. Shards with all-digit names sort
+  first, numerically, then the rest by name; a `<k>/` with nothing in it
+  is left out. `stray` holds every log file the walk sees that is not an
+  attempt, each a `StrayFile(path, reason)`, sorted by path: a log
+  (`.eval` or `.json`) directly in `<name>.shards/`, a log directly in a
+  directory whose name starts with `.`, and a `.json` log in a `<k>/`. The
+  walk never raises for them. The merge refuses any stray file; ctl
+  reports them (its `unreadable` list is the natural place; that choice is
+  ctl's). Together, attempts and stray files are exactly the logs
+  `is_shard_path` places in the companion.
+- `ShardSetListing.unlisted_dirs: list[str]`, added by ctl log-dir mode's
+  step 4 (PR 3 does not have it): the directories the walk saw and did not
+  list, sorted. These are every directory in a `<k>/` other than
+  `.buffer/` (including `<shard>.checkpoints/`), and every directory in a
+  directory whose name starts with `.` other than a `.buffer/` (the buffer
+  of a stray log in the companion root). ctl descends them to find the
+  ordinary logs nested there (below); `ShardDir.ancillary` mixes files and
+  directories with no marker, so without this field ctl would need a
+  listing per ancillary entry to tell them apart. The merge does not read
+  it.
 - `attempt_sort_key(info)`: the `{created}` timestamp prefix of the file
   name (matched with `_timestamp_prefix_re`, `_file.py:1163`), parsed as a
   datetime rather than compared as text; then a `-recovered` file after
@@ -1388,13 +1423,30 @@ The shard-set rules, one implementation for both consumers:
   parent's "newest by the shard's `created` time", since the recorder names
   files from `eval.created`. It is not mtime-first, as `eval_set()` orders
   retries, because a running older attempt's mtime moves on every flush.
-- `is_shard_path(root, path)`: true when `path`, relative to `root`, has a
-  directory component ending in `.shards`. Relative to the listed root, so
-  a log directory that is itself a `<k>/` (a worker's view) is not a shard
-  of itself.
+- `is_shard_path(root, path)`: true when `path`, relative to `root`, is
+  directly in the first directory below `root` named `<name>.shards`, or
+  in a directory directly under it: exactly the files `list_shard_set`
+  lists for that companion. Only components below `root` count, so a log
+  directory that is itself a `<k>/` (a worker's view) is not a shard of
+  itself. Plain paths and `file://` URIs compare as absolute local paths;
+  a `path` outside `root` raises `ValueError`.
 
-ctl log-dir mode's step 4 depends on PR 3; its step 6 on PR 2. Neither
-depends on the merge.
+**Logs nested deeper in a companion are ordinary logs** (decision:
+Ransom, 2026-10-05). A log in a shard's ancillary directory (for example
+`run.shards/0/scans/<file>.eval`), or deeper than a dot-directory of the
+companion, is not a shard path, so no consumer drops it unreported:
+eval-set keeps it in pairing and header reads, ctl log-dir mode lists it as
+an ordinary log by descending `unlisted_dirs` (its "Walking the
+directory"), the merge ignores it, and deletion refuses to remove it
+("Deleting shards"). A companion nested in an ancillary directory follows
+the same rule: from a root above the outer companion its logs are
+ordinary logs, and from a root that is the outer companion or a directory
+inside it, it is a shard set. Given the same root, eval-set and ctl
+therefore agree on which files are shard attempts, which are stray and
+which are ordinary logs.
+
+ctl log-dir mode's step 4 depends on PR 3, and adds `unlisted_dirs` to the
+shared module; its step 6 depends on PR 2. Neither depends on the merge.
 
 ## Alternatives considered
 
@@ -1446,6 +1498,15 @@ depends on the merge.
   Would let deletion proceed, but it is a new relocation feature with its
   own compatibility rules (Scout's scan directory layout, checkpoint
   retention); Step 1 refuses deletion instead ("Deleting shards").
+- **A broad shard-path rule** (`is_shard_path` true for any path with a
+  directory component ending in `.shards`; this document's earlier
+  revisions). Simpler to state, but `list_shard_set` never lists below a
+  `<k>/`, so a log nested in an ancillary directory (`<k>/scans/...`, or a
+  companion nested there) would be skipped by eval-set and reported by
+  nothing. Rejected (Ransom, 2026-10-05) for the rule matching the walk
+  ("Code shared with ctl log-dir mode"). Descending ancillary directories
+  in the walk instead would make the merge list scan and checkpoint trees
+  it never uses.
 - **Keep samples from superseded attempts ("newest copy of each key across
   every file in `<k>/`").** Also deterministic, and keeps samples a newer
   attempt lacks. Rejected: every pass must read every attempt's summaries,
@@ -1513,7 +1574,9 @@ today.
   keyword argument whose default keeps its behaviour.
 - **CLI.** New `inspect log merge-shards`. No existing command changes.
 - **Eval sets.** Behaviour changes only for task groups that contain a
-  merged log: startup merges, shards skipped before header reads, merged
+  merged log: startup merges, shards skipped before header reads (attempts
+  and stray files only; a log nested deeper in a companion is listed and
+  read as today), merged
   logs classified by their status and recorded selection, not recovered, and, once an
   unsharded retry succeeds, never chosen as latest and removed with their
   companions (including a `started` merged log) unless the companion holds
@@ -1575,7 +1638,8 @@ today.
   layout widens nothing it can delete.
 - **Destructive cleanup.** Only trusted Python steps delete companions
   (`delete_shards`, retry cleanup). Both refuse, before changing anything,
-  when scan results or checkpoints are present, delete the objects they
+  when scan results, checkpoints or an ordinary log nested in the
+  companion are present, delete the objects they
   listed rather than the prefix, and report leftovers. They assume no
   concurrent operation on the same log; with one, a file written during the
   deletion may be deleted or left, which is a correctness limit, not an
@@ -1621,10 +1685,20 @@ Per PR (numbers from "Implementation plan"):
    `-recovered` copy (recovered current), two attempts with the older one
    touched last (the file-name timestamp wins over mtime), an empty `<k>/`,
    a `.buffer/` prefix, a `scans/` directory and a `<shard>.checkpoints/`
-   directory (both `ancillary`), a stray `.eval` in the companion root and a
-   `.json` log in a `<k>/` (both stray); `is_shard_path` relative to the root,
-   including a root that is itself a `<k>/`, and a user directory named
-   `shards`.
+   directory (both `ancillary`), a log in the companion root, a log in a
+   directory whose name starts with `.` and a `.json` log in a `<k>/` (all
+   stray); `is_shard_path` relative to the root,
+   including a root that is itself a `<k>/`, a user directory named
+   `shards`, logs nested deeper than a `<k>/` (not shard paths) and a path
+   outside the root (`ValueError`). A consistency test, for plain paths,
+   `file://` URIs and S3, that the logs `is_shard_path` places in a
+   companion are exactly the attempts and stray files `list_shard_set`
+   reports, including companions nested in a shard's ancillary directory
+   or a dot-directory, seen from above and from inside the outer
+   companion. Ctl log-dir mode's step 4 extends it when it adds
+   `unlisted_dirs`: those logs, plus every log a recursive listing of
+   `unlisted_dirs` finds, are every log `list_eval_logs` finds in the
+   companion.
 4. **Guard primitives.** `tests/util/test_asyncfiles.py` on `mock_s3`, for
    a body below and above a lowered multipart threshold, on asyncio and
    Trio: `if_none_match` creates an absent key and raises
@@ -1737,7 +1811,8 @@ Per PR (numbers from "Implementation plan"):
    - `delete_shards`: removes the companion after a verified `success`
      publish; a verification failure leaves the shards; combined with
      `allow_incomplete` it is a `ValueError`; a companion with a
-     `<k>/scans/` directory or a retained `<shard>.checkpoints/` is refused
+     `<k>/scans/` directory, a retained `<shard>.checkpoints/` or a log
+     nested below a dot-directory of the companion is refused
      with nothing deleted; an object created between listing and deletion
      (a storage hook) is left, and the call raises with the merged log kept;
    - interrupted `delete_shards`, local and `mock_s3`: a storage hook fails
@@ -1794,7 +1869,9 @@ Per PR (numbers from "Implementation plan"):
    limitation);
    with `retry_cleanup=False` everything stays; no shard
    header is read outside the merge (spy on `read_eval_log_headers`
-   inputs); a startup merge refusal stops `eval_set()` with
+   inputs), while an ordinary log nested in a shard's `scans/` directory is
+   kept in the listing and has its header read like any other log, and
+   marks no companion; a startup merge refusal stops `eval_set()` with
    `PrerequisiteError` before any task runs, asserted once per category
    (each with the companion path, the cause and the next step in the
    message, and the original exception as `__cause__`): a mismatched
@@ -1854,7 +1931,8 @@ Step 1 in eight PRs, of which PR 1 has landed. There is no viewer PR
    `attempt_sort_key`, `is_shard_path`) over the landed `list_dir`. Uses
    PR 1's helpers. Files: `log/_shards/__init__.py`, `log/_shards/_walk.py`,
    `tests/log/test_shards.py`. After this
-   PR, ctl log-dir mode's step 4 can land.
+   PR, ctl log-dir mode's step 4 can land; it adds `unlisted_dirs` to
+   `_walk.py`.
 4. **Guard primitives.** `AsyncFilesystem.write_file_conditional` (asyncio
    and Trio routes, pre-checks, abort, cooperative cancellation on Trio, a
    non-retrying client for the final call), `get_file_if_match`, the

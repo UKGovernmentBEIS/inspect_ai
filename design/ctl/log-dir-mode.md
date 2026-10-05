@@ -11,7 +11,10 @@
 > (the content threat model). Issue:
 > [meridianlabs-ai/inspect_ai#509](https://github.com/meridianlabs-ai/inspect_ai/issues/509).
 > Author: agent (Claude), reviewed by Codex; see the PR. Verified against
-> `06537c328c`.
+> `06537c328c`. Revised on 2026-10-05: the walk descends a shard's
+> ancillary directories, so a log nested there is listed as an ordinary
+> log, as `eval_set()` lists it (decision: Ransom, 2026-10-05; see
+> "Walking the directory").
 
 ## Why
 
@@ -430,11 +433,36 @@ The walk produces a listing of logical tasks without paging through
     listing is recorded; a member's manifest path is derived as
     `.buffer/<stem>/manifest.json` and fetched directly (below).
   - `*.checkpoints/`: skip.
-  - `<name>.shards/`: list it to get the `<k>/` prefixes, then list each
-    `<k>/` (its `.eval` files, and whether it has a `.buffer/` prefix).
-    Deeper directories under `<k>/` are ignored.
+  - `<name>.shards/`, when no directory between it and the root is a
+    companion: a companion. The shared `list_shard_set` lists it and each
+    directory directly under it (sharding implementation, "Code shared
+    with ctl log-dir mode"): each `<k>/`'s `.eval` files and whether it
+    has a `.buffer/` prefix. Its stray files (a log directly in the
+    companion or in a directory under it whose name starts with `.`, a
+    `.json` log in a `<k>/`) are reported in `unreadable`, never as rows
+    or attempts. The walk then descends each directory in the listing's
+    `unlisted_dirs` (every directory in a `<k>/` other than `.buffer/`,
+    such as `scans/`, and the directories inside a dot-directory of the
+    companion) by these same rules, so `*.checkpoints/` is skipped and no
+    `.buffer/` is listed there either.
+  - `<name>.shards/` below a companion (in a shard's ancillary directory):
+    an ordinary subdirectory, descended like any other; its logs are
+    ordinary logs.
   - Any other subdirectory: descend, as `list_eval_logs` recurses today, so
     an eval-set directory or a directory of runs works.
+
+  The companion rules are `is_shard_path` (the shared helper `eval_set()`
+  filters its listing with): a file is a shard path only when it is
+  directly in the first `<name>.shards/` below the root or in a directory
+  directly under it. Every log nested deeper is an ordinary log, so a
+  nested companion is a companion from a root that is the outer companion
+  or a directory inside it, and ordinary from a root above the outer
+  companion. Given the same root, ctl and `eval_set()` agree on which files
+  are shard attempts, which are stray and which are ordinary logs
+  (decision: Ransom, 2026-10-05); the `.buffer/` and `*.checkpoints/`
+  directories ctl does not list hold no logs. Earlier revisions of this design
+  ignored everything below a `<k>/`, which `eval_set()` lists as ordinary
+  logs under that rule.
 - `.eval` files only. `.json` logs are listed as unsupported rows: the
   format is deprecated and its reads are whole-file parses
   (`endpoint-cost-audit.md`, finding 2); the sharding design is
@@ -443,7 +471,14 @@ The walk produces a listing of logical tasks without paging through
   where the backend has no ETag), which the cache keys on.
 - A delimited listing of a directory costs one LIST per 1,000 entries, so a
   walk over one sharded run costs `N + 2` LISTs for `N` shards (root,
-  `<name>.shards/`, each `<k>/`), whatever the buffers hold.
+  `<name>.shards/`, each `<k>/`), whatever the buffers and checkpoints
+  hold, plus one LIST per directory descended below a `<k>/`. A shard
+  whose `<k>/` holds only attempts, `.buffer/` and `<shard>.checkpoints/`
+  adds nothing. A worker that ran a scanner adds `<k>/scans/` and one
+  `scans/scan_id=<id>/` per scan (Scout writes each scan directory flat):
+  two LISTs per shard for one scan, so `3N + 2` for the run. That is the
+  price of listing what `eval_set()` lists; its recursive
+  `list_eval_logs` already pages through every one of those objects.
 
 ### Logical tasks
 
@@ -459,7 +494,9 @@ file it was recovered from (recovery keeps the original's prefix and writes
 the original's records plus its buffer, so it is the more complete), then
 listing mtime. Names with no timestamp prefix sort by mtime alone.
 
-**Sharded runs.** Every directory `X.shards/` is a companion, and `X` is the
+**Sharded runs.** Every directory `X.shards/` the walk treats as a
+companion (one with no companion between it and the root; "Walking the
+directory") is a companion, and `X` is the
 basename the parent design derives with `log_basename` (which strips
 `.eval` and `-recovered`,
 `src/inspect_ai/util/_checkpoint/_layout/eval_checkpoints_dir.py:23`; the
@@ -957,8 +994,9 @@ shared `AsyncFilesystem` (entered once per invocation, so every read reuses
 its client, `asyncfiles.py:1019-1027`) and bounded at 32 in flight, the
 CLI's existing fan-out cap. Request kinds:
 
-- *walk*: `N + 2` LISTs for one sharded run of `N` shards; one LIST per
-  1,000 entries for a flat directory.
+- *walk*: `N + 2` LISTs for one sharded run of `N` shards, plus one per
+  directory descended below a `<k>/` (two per shard for one scan's output);
+  one LIST per 1,000 entries for a flat directory.
 - *plan*: CD (one GET of up to 64 KiB, or the whole object when smaller;
   one more GET when a large log's central directory does not fit) plus
   `header.json` or `start.json` (one GET). Cached per file, so paid once.
@@ -990,8 +1028,10 @@ refresh a list read does, so it costs about as much as `sample list` for
 that task plus the sample read itself.
 
 **Target case: 300 shards of one task, one sample each, `--log-shared`
-on.** `R` shards running, `C` members whose log changed since the last
-poll.
+on, no scanners.** `R` shards running, `C` members whose log changed since
+the last poll. With one scan per shard each row's LIST count is 902
+instead of 302 (about $0.0045 per invocation) and the walk takes about
+three times as many listing rounds.
 
 | Command | Cache | LIST | GET | Bytes and notes |
 |---|---|---|---|---|
@@ -1130,6 +1170,10 @@ below per-prefix limits, and the mode never touches a worker.
   tool; opening a live writer's WAL database from a second process adds
   locking concerns for no gain in the case this mode serves. Rejected; the
   mode reads the shared filestore only.
+- **Skip known ancillary directories below a `<k>/`** (`scans/`, or
+  everything below a `<k>/`, as earlier revisions did). Saves the LISTs
+  for scan output. Rejected (Ransom, 2026-10-05): `eval_set()` lists the
+  logs there as ordinary logs, and ctl must agree with it on the same root.
 - **Recursive listing, which is cheaper early in a run.** With few segment
   objects a recursive listing of `<name>.shards/` is one or two pages
   instead of 301 LISTs. Rejected for predictability: its cost grows with
@@ -1228,7 +1272,9 @@ real moto server on an ephemeral port). New tests go in a new
 - **Fixtures.** Finished logs from mock-model evals (unsharded, a retried
   task with two attempt files, a sharded layout `<name>.shards/{0,1,2}/`
   with and without `<name>.eval`, a `<k>/` holding an old attempt and its
-  retry). Running logs built with the recorder APIs (`log_init`,
+  retry, a `<k>/scans/scan_id=<id>/` holding an ordinary `.eval`, a
+  companion nested in a `<k>/scans/`, and a dot-directory in a companion
+  with a log directly in it and one a level deeper). Running logs built with the recorder APIs (`log_init`,
   `log_start`, journaled summaries, no `header.json`) plus a buffer written
   through `SampleBufferFilestore.write_manifest`/`write_segment`, including
   a running sample, a completed-but-unflushed one, and a pre-#4207 manifest.
@@ -1253,6 +1299,15 @@ real moto server on an ephemeral port). New tests go in a new
   shards, the cold `task list` row equals the full row, and cold and warm
   `sample list`, `sample show` and `sample events` return the same source
   (the shard), score and events.
+- **Shard paths agree with `eval_set()`.** For the root, the outer
+  companion and one `<k>/` of the fixture above, local and on `mock_s3`:
+  the files ctl uses as shard attempts, reports as stray and lists as
+  ordinary logs are exactly the files `list_eval_logs` finds, split by
+  `is_shard_path` and the shared walk's attempts and stray files. From the
+  root, the log in `scans/` is an ordinary row, the nested companion's
+  logs are ordinary rows, the log directly in the dot-directory is in
+  `unreadable` and the deeper one is an ordinary row; from the outer
+  companion, the nested companion is a sharded row.
 - **Sample key set.** A static selection; a `SampleSource` that adds a
   sample mid-run (the added key appears in `total`, is locatable by every
   per-sample read, and `unfinished` never goes negative); an empty seed
@@ -1327,7 +1382,8 @@ real moto server on an ephemeral port). New tests go in a new
   supported command, cold and warm, with running and finished shards: a
   walk of 50 shards issues 52 LISTs regardless of how many
   `segment.<n>.zip` objects exist (the fixture adds hundreds) and never
-  lists a `.buffer/`; a cold `task list` over 50 finished shards issues 150
+  lists a `.buffer/` or a `*.checkpoints/`, and with one
+  `scans/scan_id=<id>/` in every `<k>/` issues 152; a cold `task list` over 50 finished shards issues 150
   GETs and a warm one none; 50 running shards between flushes cost 50
   manifest GETs and 50 freshness checks warm, and no log reads; a warm poll after all 50 finish costs 150 GETs (CD,
   final `header.json`, `summaries.json`) and reports their new status and
@@ -1372,13 +1428,19 @@ Each step is one PR; steps 1–5 are the MVP.
    messages/store, the manifest-then-freshness-check ordering and
    disappearing-object re-selection. Files: `_util/asyncfiles.py`, `_control/log_dir/buffer.py`,
    `select.py`, `consistency.py`, `samples.py`, `snapshot.py`, tests.
-4. **Shard aggregation.** The `<name>.shards/` walk rules, logical sharded
+4. **Shard aggregation.** The `<name>.shards/` walk rules through the
+   shared `list_shard_set`, `attempt_sort_key` and `is_shard_path`
+   (sharding implementation PR 3), replacing `_attempt_order`; the
+   `unlisted_dirs` field added to the shared walk and the descent into
+   those directories with nested companions ordinary; stray files in
+   `unreadable`; logical sharded
    rows, newest-attempt selection per `<k>/`, the recovered-merged-log
    mapping, folding an ordinary retry with its shard set, the `shards`
    block, conflicts (counts, rows, `ambiguous` per-sample reads) and
    mismatch counts, `--shards`. Depends only on the layout convention, so it
    can land before the sharding merge exists. Files: `walk.py`,
-   `snapshot.py`, `select.py`, `_cli/ctl/_task.py`, `_group.py`, tests.
+   `snapshot.py`, `select.py`, `_cli/ctl/_task.py`, `_group.py`,
+   `log/_shards/_walk.py`, tests (including `tests/log/test_shards.py`).
 5. **Cache.** Plan, summaries, journal-member, observed-key and
    version-keyed caching, atomic validated writes, pruning, and the
    request-count tests. Files: `_control/log_dir/cache.py`, `snapshot.py`,
