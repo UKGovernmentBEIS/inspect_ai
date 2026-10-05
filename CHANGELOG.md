@@ -17,6 +17,7 @@
 - Model providers: Failed and cancelled requests no longer leave tracking entries that grow memory use over a long evaluation.
 - Google: Fixed audio, video and document content being sent with the MIME type of an earlier upload of the same bytes; uploads are now reused only for the same MIME type and account.
 - Limits: A model call is now refused before it is sent when a token or cost limit is already reached, including when usage exactly equals the limit.
+- Bugfix: Cost tracking and `cost_limit` now price a request at the rates of the model that served it (refusal fallbacks, Azure deployments, and routers on OpenRouter, Bedrock, Fireworks and LiteLLM proxies); providers report it with the new `ModelAPI.served_model_usage()`.
 
 ## 0.3.276 (02 October 2026)
 

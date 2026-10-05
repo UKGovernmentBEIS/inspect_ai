@@ -47,6 +47,7 @@ from .._model_output import (
     ChatCompletionChoice,
     ModelOutput,
     ModelUsage,
+    ServedModelUsage,
     StopCategory,
     StopDetails,
     collect_stop_details,
@@ -532,23 +533,23 @@ class BedrockAPI(ModelAPI):
         Returns the canonical format: provider/model-name
         e.g., anthropic/claude-3-5-sonnet-20241022
         """
-        name = self.model_name
-        provider: str | None = None
+        return _bedrock_canonical_name(self.model_name)
 
-        # Extract provider prefix (e.g., "anthropic." or "meta.")
-        if "." in name:
-            provider, name = name.split(".", 1)
+    @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        # a prompt router serves a request with one of its models, reported
+        # as the output model (see model_output_from_response)
+        from ._litellm_proxy_names import BEDROCK_CROSS_REGIONS
 
-        # Strip variant suffix (e.g., ":0")
-        if ":" in name:
-            name = name.split(":")[0]
-
-        # Strip version suffix like -v1, -v2
-        if name.endswith(("-v1", "-v2", "-v3")):
-            name = name[:-3]
-
-        # Return with provider prefix for database lookup
-        return f"{provider}/{name}" if provider else name
+        if output.usage is None or output.model == self.model_name:
+            return None
+        # routers invoke cross-region inference profiles (e.g.
+        # `.../inference-profile/us.amazon.nova-lite-v1:0`)
+        model_id = output.model.split("/")[-1]
+        region, dot, rest = model_id.partition(".")
+        if dot and region in BEDROCK_CROSS_REGIONS:
+            model_id = rest
+        return [ServedModelUsage(_bedrock_canonical_name(model_id), output.usage)]
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -1367,6 +1368,26 @@ def add_cache_points(
         messages[-1].content.append(cache_point())
 
 
+def _bedrock_canonical_name(name: str) -> str:
+    """Model info database name for a Bedrock model id."""
+    provider: str | None = None
+
+    # Extract provider prefix (e.g., "anthropic." or "meta.")
+    if "." in name:
+        provider, name = name.split(".", 1)
+
+    # Strip variant suffix (e.g., ":0")
+    if ":" in name:
+        name = name.split(":")[0]
+
+    # Strip version suffix like -v1, -v2
+    if name.endswith(("-v1", "-v2", "-v3")):
+        name = name[:-3]
+
+    # Return with provider prefix for database lookup
+    return f"{provider}/{name}" if provider else name
+
+
 def model_output_from_response(
     model: str, response: ConverseResponse, tools: list[ToolInfo]
 ) -> ModelOutput:
@@ -1424,6 +1445,11 @@ def model_output_from_response(
             )
         else:
             raise ValueError("Unexpected message response in Bedrock provider")
+
+    # a prompt router reports the model it invoked (an ARN)
+    prompt_router = (response.trace or {}).get("promptRouter")
+    if isinstance(prompt_router, dict) and prompt_router.get("invokedModelId"):
+        model = prompt_router["invokedModelId"]
 
     # resolve choice
     choice = ChatCompletionChoice(
