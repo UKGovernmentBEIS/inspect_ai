@@ -11,6 +11,7 @@ from inspect_ai._util.constants import DESERIALIZING, MESSAGE_CACHE
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
+from inspect_ai._util.model_validator import model_wrap_validator
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
 
@@ -56,7 +57,7 @@ class ChatMessageBase(BaseModel):
         if self.id is None and not is_deserializing:
             self.id = uuid()
 
-    @model_validator(mode="wrap")
+    @model_wrap_validator
     @classmethod
     def _wrap(
         cls,
