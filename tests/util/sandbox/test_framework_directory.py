@@ -487,13 +487,13 @@ async def test_rejects_parent_owned_by_another_non_root_uid(
 async def test_rejects_running_as_a_uid_other_than_expected(
     local: LocalSandboxEnvironment, parent: Path
 ) -> None:
-    """LocalSandboxEnvironment ignores `user`; expected_uid=0 must expose that."""
+    """A provider ignoring `user` must fail the expected-uid check."""
     if os.getuid() == 0:
         pytest.skip("requires a non-root test user")
     target = parent / "fw"
     with pytest.raises(FrameworkDirectoryUserError) as excinfo:
         await ensure_framework_directory(
-            local, str(target), user="root", expected_uid=0
+            _EnvSandbox(local, {}), str(target), user="root", expected_uid=0
         )
     assert f"running as uid {os.getuid()}, expected uid 0" in str(excinfo.value)
     assert "as the requested user root" in str(excinfo.value)
@@ -1195,17 +1195,16 @@ async def test_root_probe_rejects_bad_arguments_rather_than_falling_back() -> No
 async def test_root_probe_is_false_on_local_sandbox(
     local: LocalSandboxEnvironment, parent: Path
 ) -> None:
-    """LocalSandboxEnvironment ignores `user`, so it must not report root."""
+    """Local refuses root when running as a non-root user."""
     if os.getuid() == 0:
         pytest.skip("requires a non-root test user")
     target = parent / "fw"
-    with pytest.warns(UserWarning, match="'user' parameter is ignored"):
-        assert (
-            await try_ensure_framework_directory_as_root(
-                local, str(target), trace_tag="Test"
-            )
-            is False
+    assert (
+        await try_ensure_framework_directory_as_root(
+            local, str(target), trace_tag="Test"
         )
+        is False
+    )
     assert not target.exists()  # refused before creating anything
 
 

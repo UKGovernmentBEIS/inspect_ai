@@ -1,12 +1,12 @@
 import hashlib
 import os
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
+from typing import IO, TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
 from urllib.parse import urlparse
 from zipfile import ZipFile
 
@@ -214,7 +214,7 @@ class SampleBufferFilestore(SampleBuffer):
         update_interval: int = DEFAULT_LOG_SHARED,
     ) -> None:
         self._fs = filesystem(location)
-        self._dir = f"{sample_buffer_dir(dirname(location), self._fs)}{self._fs.sep}{os.path.splitext(basename(location))[0]}{self._fs.sep}"
+        self._dir = f"{sample_buffer_filestore_dir(location, self._fs)}{self._fs.sep}"
         self.update_interval = update_interval
 
         # Tag the ephemeral buffer objects synced to S3 (see _write_bytes for the
@@ -302,9 +302,7 @@ class SampleBufferFilestore(SampleBuffer):
     ) -> SampleData:
         segment_file = f"{self._dir}{segment_name(id)}"
         with open_file(segment_file, "rb") as f:
-            with ZipFile(f, mode="r") as zip:
-                with zip.open(segment_file_name(sample_id, epoch_id), "r") as sf:
-                    return SampleData.model_validate_json(sf.read())
+            return segment_sample_data(f, sample_id, epoch_id)
 
     def read_sample_metadata(
         self,
@@ -463,15 +461,9 @@ class SampleBufferFilestore(SampleBuffer):
 
         # collect data from the segments
         try:
-            sample_data = SampleData(
-                events=[], attachments=[], message_pool=[], call_pool=[]
+            sample_data = merge_sample_data(
+                self.read_segment_data(segment["id"], id, epoch) for segment in segments
             )
-            for segment in segments:
-                data = self.read_segment_data(segment["id"], id, epoch)
-                sample_data.events.extend(data.events)
-                sample_data.attachments.extend(data.attachments)
-                sample_data.message_pool.extend(data.message_pool)
-                sample_data.call_pool.extend(data.call_pool)
         except FileNotFoundError:
             # the sample might complete while this is running, in which case
             # we'll just return None
@@ -651,6 +643,31 @@ def cleanup_sample_buffer_filestore(buffer_dir: str, fs: FileSystem) -> None:
         )
 
 
+def segment_sample_data(
+    segment: IO[bytes], sample_id: str | int, epoch: int
+) -> SampleData:
+    """One sample's rows from a segment zip (its ``<id>_<epoch>.json`` member).
+
+    Pure parsing; callers own the I/O and the error policy. Raises
+    ``KeyError`` when the segment holds no member for the sample, and the
+    zip, decompression and validation errors of malformed data.
+    """
+    with ZipFile(segment, mode="r") as zip:
+        with zip.open(segment_file_name(sample_id, epoch), "r") as sf:
+            return SampleData.model_validate_json(sf.read())
+
+
+def merge_sample_data(parts: Iterable[SampleData]) -> SampleData:
+    """Concatenate one sample's per-segment rows, in the order given."""
+    merged = SampleData(events=[], attachments=[], message_pool=[], call_pool=[])
+    for part in parts:
+        merged.events.extend(part.events)
+        merged.attachments.extend(part.attachments)
+        merged.message_pool.extend(part.message_pool)
+        merged.call_pool.extend(part.call_pool)
+    return merged
+
+
 def segment_name(id: int) -> str:
     return f"segment.{id}.zip"
 
@@ -663,3 +680,8 @@ def sample_buffer_dir(log_dir: str, fs: FileSystem | None = None) -> str:
     log_dir = log_dir.rstrip("/\\")
     fs = fs or filesystem(log_dir)
     return f"{log_dir}{fs.sep}.buffer"
+
+
+def sample_buffer_filestore_dir(location: str, fs: FileSystem) -> str:
+    """Filestore directory for the log at ``location`` (under the log dir's `.buffer`)."""
+    return f"{sample_buffer_dir(dirname(location), fs)}{fs.sep}{os.path.splitext(basename(location))[0]}"

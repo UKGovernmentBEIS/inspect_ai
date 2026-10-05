@@ -1,5 +1,6 @@
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from logging import getLogger
 from typing import Any
 
@@ -17,6 +18,7 @@ from openai._types import NOT_GIVEN
 from openai.types.responses import (
     Response,
     ResponseCompletedEvent,
+    ResponseCreatedEvent,
     ResponseErrorEvent,
     ResponseFailedEvent,
     ResponseFormatTextJSONSchemaConfigParam,
@@ -52,13 +54,17 @@ from .._model_call import ModelCall, as_error_response
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
+    apply_initial_system_checkpoint,
+    count_cache_breakpoints,
     openai_handle_bad_request,
     openai_handle_stream_error,
     openai_media_filter,
+    resolve_explicit_prompt_cache,
 )
 from .._openai_responses import (
     RESPONSES_VERBATIM,
     ResponsesModelInfo,
+    message_bypasses_content_conversion,
     model_usage_from_response_usage,
     openai_responses_chat_choices,
     openai_responses_inputs,
@@ -122,6 +128,7 @@ async def generate_responses(
     | None = None,
     model_family: str | None = None,
     streaming: bool = False,
+    supports_explicit_prompt_cache: bool = False,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
@@ -157,12 +164,34 @@ async def generate_responses(
         else NOT_GIVEN
     )
 
+    # explicit cache breakpoints (ContentText.cache_breakpoint): any
+    # ineligible condition falls back to normal implicit caching for the
+    # whole request. Also reject a mark on a message replayed natively
+    # (compaction/agent_message) — resolve_explicit_prompt_cache only sees
+    # roles, not this bypass. supports_explicit_prompt_cache gates callers
+    # other than the direct OpenAI provider (e.g. OpenRouter), whose
+    # endpoints' support for these fields is unverified.
+    explicit_cache = (
+        supports_explicit_prompt_cache
+        and resolve_explicit_prompt_cache(input, model_name, config.cache_prompt)
+        and not any(
+            message_bypasses_content_conversion(m) and count_cache_breakpoints([m]) > 0
+            for m in input
+        )
+    )
+    if explicit_cache:
+        # retain a checkpoint at the end of the initial system/developer
+        # block (cumulatively covering preceding tools) when the caller left
+        # it unmarked — see `apply_initial_system_checkpoint`.
+        input = apply_initial_system_checkpoint(input)
+
     request = dict(
         input=await openai_responses_inputs(
             input,
             model_info,
             synthesize_phase=synthesize_phase,
             swap_todo_write=swap_todo_write,
+            cache_breakpoints=explicit_cache,
         ),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
@@ -191,6 +220,8 @@ async def generate_responses(
     )
     if isinstance(background, bool):
         request["background"] = background
+    if explicit_cache:
+        request["prompt_cache_options"] = {"mode": "explicit"}
 
     # stream goes into the request pre-snapshot so the logged ModelCall
     # matches the wire request (batched and background requests can't stream)
@@ -201,6 +232,7 @@ async def generate_responses(
         request=request,
         filter=openai_media_filter,
     )
+    stream_state = _StreamState()
 
     try:
         # generate response
@@ -208,7 +240,9 @@ async def generate_responses(
         if batcher:
             model_response = await batcher.generate_for_request(request)
         elif request.get("stream"):
-            model_response = await _generate_responses_stream(client, request)
+            model_response = await _generate_responses_stream(
+                client, request, stream_state
+            )
         else:
             model_response = await client.responses.create(**request)
         # model_response is `Response | Any`. The lazy type inference engine
@@ -223,7 +257,9 @@ async def generate_responses(
         # convert to model output in the handler below)
         if model_response.error is not None:
             raise OpenAIResponseError(
-                code=model_response.error.code, message=model_response.error.message
+                code=model_response.error.code,
+                message=model_response.error.message,
+                response_id=model_response.id,
             )
 
         # save response for model_call
@@ -251,6 +287,7 @@ async def generate_responses(
             choices=choices,
             usage=model_usage_from_response(model_response),
             metadata=dict(response_metadata) if response_metadata else None,
+            response_id=model_response.id,
         ), model_call
     except BadRequestError as e:
         model_call.set_error(
@@ -272,6 +309,11 @@ async def generate_responses(
         )
         if output is None:
             raise
+        response_id = (
+            e.response_id if isinstance(e, OpenAIResponseError) else None
+        ) or stream_state.response_id
+        if response_id is not None:
+            output.response_id = response_id
         error_body = (
             e.body if isinstance(e, APIError) else dict(code=e.code, message=e.message)
         )
@@ -281,8 +323,16 @@ async def generate_responses(
         return output, model_call
 
 
+@dataclass
+class _StreamState:
+    response_id: str | None = None
+    """Id from `response.created`, for errors that end the stream early."""
+
+
 async def _generate_responses_stream(
-    client: AsyncAzureOpenAI | AsyncOpenAI, request: dict[str, Any]
+    client: AsyncAzureOpenAI | AsyncOpenAI,
+    request: dict[str, Any],
+    state: _StreamState | None = None,
 ) -> Response:
     """Stream a Responses API request, reporting chunks to the stream observer.
 
@@ -294,7 +344,10 @@ async def _generate_responses_stream(
     arrives only on the terminal event, so intermediate chunks report bare
     heartbeats. Returns the complete `Response` carried by the terminal
     event, so downstream response handling matches the non-streaming path.
+    The response id from `response.created` is recorded on `state`.
     """
+    if state is None:
+        state = _StreamState()
     report_model_stream_start()
     # function_call items by item id, so argument fragments can be attributed
     # to their call id / function when reported as stream deltas
@@ -322,6 +375,9 @@ async def _generate_responses_stream(
                 raise OpenAIResponseError(
                     code=event.code or "server_error", message=event.message
                 )
+            elif isinstance(event, ResponseCreatedEvent):
+                state.response_id = event.response.id
+                report_model_stream_progress()
             elif not model_stream_requested():
                 # content deltas are gated on an on_stream consumer (see
                 # report_model_stream_delta); heartbeat only

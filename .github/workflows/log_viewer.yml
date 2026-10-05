@@ -58,7 +58,7 @@ jobs:
 
       - name: Install uv
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
           version: "${{ env.UV_VERSION }}"
