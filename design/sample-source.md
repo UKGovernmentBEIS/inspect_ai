@@ -155,7 +155,10 @@ dropping samples.
   is sliced as usual, and the dispatcher spends the remainder
   (`sample_limit_count(limit) - seed`) as its budget for added samples —
   additions beyond it are ignored with a warning, and once the budget is
-  exhausted the loop finishes without consulting `next_samples()` again. A
+  exhausted the loop finishes without consulting `next_samples()` again,
+  unless explicit epochs (which don't spend the budget for an admitted id)
+  were added since the last pull, or the seed alone exhausted it (one pull,
+  so the source can add epochs of a seed sample). A
   *range* limit (`start,end`) is rejected with a `PrerequisiteError`: it
   selects seed samples by position, and added samples have no position, so
   there is no coherent way to apply it (it would select nothing from a short
@@ -185,8 +188,11 @@ dropping samples.
   `next_samples()` state resumes mid-state on retry — it must be resumable
   (or derive its follow-ups from `sample_complete`) for retries to
   reconstruct the run; this is the same determinism contract as `TaskSource`
-  + eval_set (see task-source.md). Explicit epochs beyond `epochs` are
-  outside the upfront seed, so they are copied from the prior when re-added.
+  + eval_set (see task-source.md). An unlimited feed's upfront seed keeps
+  prior epochs above the prior's own `epochs` (only an explicit epoch can
+  produce them), so a retry that fails before the source re-adds them still
+  carries them forward; other explicit epochs beyond `epochs` are copied from
+  the prior when re-added.
 - **Early stopping** is rejected (`PrerequisiteError`): managers register a
   fixed sample set at `start_task` (added samples would never be registered),
   and samples a manager halts complete without notifying the source, which
@@ -259,11 +265,13 @@ seed-only when `next_samples()` is `None`; `sample_complete` returning
 follow-ups chains generations; `from_samples` (callbacks and seed-only); empty
 seed; epochs applied to injected samples; explicit + auto id assignment and
 duplicate-id error; explicit epochs (repeated runs of one id, mixing with
-all-epoch adds, `(id, epoch)` duplicates, `--limit`, retry reuse); live
+all-epoch adds, `(id, epoch)` duplicates, `--limit` across successive
+pulls and after a seed-consumed limit, retry reuse and carry-forward through
+a failed attempt); live
 injection discriminated from batch-at-a-time (blocker
 parks until an injected sample releases it, `fail_after` bounds a regression);
 `enqueue_sample` rejected on plain tasks and outside a task; `--limit` caps
-totals (budget spent, seed-consumed limit never consults the source, batch
+totals (budget spent, seed-consumed limit consults the source once, batch
 truncation, samples-not-runs with epochs); `--sample-id` filters produced
 samples and tolerates ids missing from the seed; samples enqueued during a
 terminal `next_samples()` still run.

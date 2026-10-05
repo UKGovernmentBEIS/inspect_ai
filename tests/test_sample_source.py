@@ -433,6 +433,55 @@ def test_enqueue_sample_epoch_limit_counts_samples(
     assert _runs(log) == expected
 
 
+class _Rollouts(SampleSource):
+    """The docs' `Rollouts`: each pull enqueues the next `group_size` epochs of `q`."""
+
+    def __init__(self, group_size: int, groups: int, seed: bool) -> None:
+        self.sample = Sample(id="q", input="q", target="ok")
+        self.group_size = group_size
+        self.groups = groups
+        self.seed = seed
+        self.group = 0
+
+    def initial_samples(self) -> list[Sample]:
+        return [self.sample] if self.seed else []
+
+    async def next_samples(self) -> list[Sample] | None:
+        if self.group == self.groups:
+            return None
+        first = 1 + int(self.seed) + self.group * self.group_size
+        for epoch in range(first, first + self.group_size):
+            enqueue_sample(self.sample, epoch=epoch)
+        self.group += 1
+        return []
+
+
+@pytest.mark.parametrize(
+    "group_size,groups,seed,expected_epochs",
+    [
+        # the limit is reached by the first pull's epoch 1
+        (1, 2, False, [1, 2]),
+        (2, 2, False, [1, 2, 3, 4]),
+        # the limit is reached by the seed, before any pull
+        (1, 2, True, [1, 2, 3]),
+    ],
+)
+def test_enqueue_sample_epoch_limit_keeps_pulling_further_epochs(
+    group_size: int, groups: int, seed: bool, expected_epochs: list[int]
+) -> None:
+    log = eval(
+        Task(
+            dataset=_Rollouts(group_size, groups, seed),
+            solver=[generate()],
+        ),
+        model="mockllm/model",
+        display="none",
+        limit=1,
+    )[0]
+    assert log.status == "success"
+    assert _runs(log) == [("q", epoch) for epoch in expected_epochs]
+
+
 def test_live_injection_runs_concurrently_with_in_flight_sample() -> None:
     # Discriminates live injection from batch-at-a-time: a sample injected
     # mid-run must start while another sample is still in flight. "blocker"
@@ -856,7 +905,8 @@ class _TrackedGenerations(_Generations):
 def test_sample_source_limit_caps_total_samples() -> None:
     # --limit caps the total samples (seed + produced): limit 3 with a
     # 1-sample seed leaves a budget of 2, so a source that would produce 10
-    # runs only s0..s2 (and the task still succeeds)
+    # runs only s0..s2 (and the task still succeeds), and the source is not
+    # consulted again once s2 spent the budget
     source = _TrackedGenerations(10)
     logs = eval(
         Task(dataset=source, solver=[generate()]),
@@ -866,11 +916,12 @@ def test_sample_source_limit_caps_total_samples() -> None:
     )
     assert logs[0].status == "success"
     assert _sample_inputs(logs[0]) == ["s0", "s1", "s2"]
+    assert source.next_calls == 2
 
 
-def test_sample_source_limit_consumed_by_seed_skips_source() -> None:
-    # a limit fully consumed by the seed ends the task without consulting
-    # the source at all
+def test_sample_source_limit_consumed_by_seed_consults_source_once() -> None:
+    # a limit fully consumed by the seed consults the source once (it may add
+    # further epochs of a seed sample), ignores its new sample and ends
     source = _TrackedGenerations(10)
     logs = eval(
         Task(dataset=source, solver=[generate()]),
@@ -880,7 +931,7 @@ def test_sample_source_limit_consumed_by_seed_skips_source() -> None:
     )
     assert logs[0].status == "success"
     assert _sample_inputs(logs[0]) == ["s0"]
-    assert source.next_calls == 0
+    assert source.next_calls == 1
 
 
 def test_sample_source_limit_truncates_batch() -> None:
@@ -1801,6 +1852,81 @@ def test_sample_source_task_retry_reuses_explicit_epoch_runs() -> None:
     assert all(sample.error is None for sample in (log.samples or []))
     assert sorted(rollout_runs) == [1, 2, 3]
     assert flaky_runs["n"] == 2
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_sample_source_task_retry_keeps_explicit_epochs_through_failed_attempt(
+    log_format: Literal["eval", "json"], tmp_path: Path
+) -> None:
+    # explicit epochs beyond the task's that completed in attempt 1 stay in
+    # attempt 2's log although attempt 2 fails before the source adds them
+    # again, so attempt 3 (seeded from attempt 2) reuses rather than re-runs them
+    flaky_runs = {"n": 0}
+    seed_completions = {"n": 0}
+    rollout_runs: list[int] = []
+    rollouts_completed: set[int] = set()
+    rollouts_logged = anyio.Event()
+
+    @solver
+    def fail_flaky_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == "q":
+                rollout_runs.append(state.epoch)
+            if state.sample_id == "flaky":
+                flaky_runs["n"] += 1
+                if flaky_runs["n"] == 1:
+                    with anyio.fail_after(30):
+                        await rollouts_logged.wait()
+                    raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(_EpochAdds):
+        async def sample_complete(self, sample: EvalSample) -> None:
+            if sample.id == "seed":
+                seed_completions["n"] += 1
+                if seed_completions["n"] == 2:
+                    raise RuntimeError("feed failure")
+            await super().sample_complete(sample)
+            if sample.id == "q":
+                rollouts_completed.add(sample.epoch)
+                if len(rollouts_completed) == 2:
+                    rollouts_logged.set()
+
+    source = _Src([], seed=["seed", "flaky"], then={("seed", 1): [("q", 2), ("q", 3)]})
+
+    @task
+    def keep_epoch_runs_task() -> Task:
+        return Task(
+            dataset=source, solver=[fail_flaky_once()], name="keep_epoch_runs_task"
+        )
+
+    ok, logs = eval_set(
+        tasks=[keep_epoch_runs_task()],
+        log_dir=str(tmp_path),
+        log_format=log_format,
+        model="mockllm/model",
+        retry_attempts=3,
+        retry_on_error=0,  # no sample-level retry -> task-level retry
+        retry_cleanup=False,
+        max_samples=4,  # flaky blocks while the rollouts run alongside
+    )
+    assert ok, "eval-set did not succeed after task retries"
+    attempts = sorted(
+        (
+            read_eval_log(str(path))
+            for path in tmp_path.glob(f"*_keep-epoch-runs-task_*.{log_format}")
+        ),
+        key=lambda log: log.eval.created,
+    )
+    assert [log.status for log in attempts] == ["error", "error", "success"]
+    assert attempts[1].error is not None
+    assert "feed failure" in attempts[1].error.message
+    assert {("q", 2), ("q", 3)} <= set(_runs(attempts[1]))
+    assert ("q", 2) in _runs(attempts[2]) and ("q", 3) in _runs(attempts[2])
+    assert all(sample.error is None for sample in (attempts[2].samples or []))
+    assert sorted(rollout_runs) == [2, 3]
 
 
 def test_sample_source_task_retry_feed_raise_leaves_reuse_counted() -> None:

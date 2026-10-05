@@ -157,10 +157,10 @@ Each run keeps the sample's id (`state.sample_id`) and is told apart by `state.e
 
 If samples contain media, paths and URLs in `initial_samples()` are trusted task
 input and are materialized before execution. Media added later by
-`next_samples()`, `sample_complete()`, or `enqueue_sample()` must already be an
-inline data URL. Trusted source code can explicitly opt into filesystem or
-network access with `await materialize_media(reference)` before adding the
-sample; see [Multimodal](multimodal.qmd) for the authority and MIME rules.
+`next_samples()`, `sample_complete()`, or `enqueue_sample()` (including a seed
+sample added again with `epoch`) must already be an inline data URL. Trusted
+source code can explicitly opt into filesystem or network access with
+`await materialize_media(reference)` before adding the sample; see [Multimodal](multimodal.qmd) for the authority and MIME rules.
 
 ## Concurrency
 
@@ -172,7 +172,7 @@ Samples added mid-run get the same [sandbox](sandboxing.qmd) startup as the seed
 
 ## Limits and sample filtering
 
-The `--limit` option caps the total number of samples in the task — the seed plus everything the source produces. For example, `--limit 10` on a source with 5 seed samples allows 5 more generated samples; once the cap is reached, further additions are ignored (with a warning) and the task ends when the in-flight samples finish (`next_samples()` is not consulted again). The cap counts samples, not runs: each sample within the limit still runs for the task's configured number of epochs. A *range* limit (`--limit 10,20`) is not supported for `SampleSource` tasks — it selects samples by dataset position, which generated samples don't have.
+The `--limit` option caps the total number of samples in the task — the seed plus everything the source produces. For example, `--limit 10` on a source with 5 seed samples allows 5 more generated samples; once the cap is reached, new samples are ignored (with a warning) and the task ends when the in-flight samples finish. The cap counts samples, not runs: each sample within the limit still runs for the task's configured number of epochs, and further epochs added with `enqueue_sample(..., epoch=)` still run. `next_samples()` is not consulted again once the cap is reached, unless such an epoch was added since its last call, or the seed alone reached the cap (then it is called once). A *range* limit (`--limit 10,20`) is not supported for `SampleSource` tasks — it selects samples by dataset position, which generated samples don't have.
 
 The `--sample-id` option filters generated samples the same way it filters the seed: only samples whose ids match run. Since the source may produce a requested id while the task runs, it is not an error for a `--sample-id` value to be missing from the seed.
 

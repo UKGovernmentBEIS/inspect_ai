@@ -529,6 +529,8 @@ class TaskLogger:
         self,
         prior: "str | list[EvalSample]",
         keep: set[tuple[str | int, int]] | None,
+        *,
+        prior_epochs: int | None = None,
     ) -> None:
         """Seed this retry attempt's log with the prior attempt's sample records.
 
@@ -539,7 +541,10 @@ class TaskLogger:
         re-logs samples otherwise (see ``Recorder.log_seed``). Restricted to
         the planned ``keep`` keys. With no upfront plan, sample ID and epoch
         filters still restrict the seed, including samples produced later by
-        a dynamic feed. A limited dynamic feed supplies its initial plan and
+        a dynamic feed. Epochs above the attempt's epoch count are dropped,
+        except those above the prior's own count (``prior_epochs``, when
+        given), which only an explicit ``enqueue_sample(..., epoch=)`` can
+        have produced. A limited dynamic feed supplies its initial plan and
         calls :meth:`seed_added_samples` as it admits further samples.
 
         Afterwards the log holds every prior record in the upfront selection,
@@ -564,7 +569,8 @@ class TaskLogger:
         try:
             if keep is None:
                 # a dynamic feed has no upfront plan: seed every prior record
-                # within the explicit sample-id filter and the epoch count
+                # within the explicit sample-id filter and the epoch count,
+                # plus explicit epochs above the prior's own count
                 from .util import sample_id_filter
 
                 source = await self.recorder.seed_source(self.eval, prior)
@@ -573,11 +579,18 @@ class TaskLogger:
                     if self.eval.config.sample_id is not None
                     else None
                 )
+                epochs = self.eval.config.epochs or 1
+                explicit_above = (
+                    max(epochs, prior_epochs) if prior_epochs is not None else None
+                )
                 keep = {
                     (id, epoch)
                     for id, epoch in source.keys
                     if (matcher is None or matcher.matches(id))
-                    and epoch <= (self.eval.config.epochs or 1)
+                    and (
+                        epoch <= epochs
+                        or (explicit_above is not None and epoch > explicit_above)
+                    )
                 }
             await self.recorder.log_seed(self.eval, prior, keep)
         except FileNotFoundError:

@@ -285,11 +285,13 @@ class SeedSource(NamedTuple):
     otherwise) or an in-memory prior log's samples (re-logged). `classify`
     resolves a seeded record read back from the attempt's own log — clean,
     errored, invalidated, or absent — the same way `EvalSampleSource.lookup`
-    resolves one read from the prior source.
+    resolves one read from the prior source. `epochs` is the prior's
+    configured epoch count.
     """
 
     source: str | list[EvalSample]
     classify: PriorClassifier
+    epochs: int
 
 
 class EvalSampleSource(NamedTuple):
@@ -944,6 +946,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     if sample_source is not None and sample_source.seed is not None and log_samples:
         await logger.seed_from_prior(
             sample_source.seed.source,
+            prior_epochs=sample_source.seed.epochs,
             # A limited feed's later selections are unknown until admission;
             # add_and_start seeds those records before dispatching them.
             keep=None
@@ -1528,7 +1531,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         task_name=task.name,
                         log_location=profile.log_location,
                         create_sample_state=create_sample_state,
-                        input_media_plan=input_media_plan,
+                        # the plan authorizes seed input only: an added
+                        # sample can reuse a seed id as a further epoch
+                        input_media_plan=input_media_plan
+                        if sample_index < store_len
+                        else {},
                         sandbox=sandbox,
                         checkpoint=checkpoint,
                         eval_checkpoint=eval_checkpoint,
@@ -1624,9 +1631,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     enqueue while it blocks (no lost wakeup).
 
                     ``--limit`` caps the total samples (seed + added): once the
-                    cap is reached further additions are ignored (with a
-                    warning) and the feeder finishes without consulting the
-                    source again. ``--sample-id`` filters added samples the
+                    cap is reached new samples are ignored (with a warning)
+                    and the feeder finishes without consulting the source
+                    again, unless the source is still adding further epochs
+                    of admitted samples (or the seed alone reached the cap,
+                    leaving the source no chance to add any): then it is
+                    consulted until a pull adds no explicit epoch.
+                    ``--sample-id`` filters added samples the
                     same way it filters the seed (the filter and the cap are
                     mutually exclusive, matching ``slice_dataset``).
                     """
@@ -1677,6 +1688,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         else set()
                     )
                     auto_id = store_len
+                    # whether the source may still add epochs of admitted
+                    # samples once the limit is reached (see docstring)
+                    pull_after_limit = remaining == 0
 
                     class AddedSamples(NamedTuple):
                         samples: list[Sample]
@@ -1765,11 +1779,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         propagates and fails the task, matching a seed
                         config failing startup.
                         """
-                        nonlocal total_samples
+                        nonlocal total_samples, pull_after_limit
 
                         added = add_samples(samples)
-                        # prior records the upfront seed left out: a limited
-                        # feed's selection, and explicit epochs beyond `epochs`
+                        if added.explicit_epoch_runs:
+                            pull_after_limit = True
+                        # prior records the upfront seed may have left out: a
+                        # limited feed's selection, and explicit epochs beyond
+                        # `epochs` (it keeps only those above the prior's count)
                         seed_keys = (
                             set(added.run_ids)
                             if limited_sample_feed
@@ -1806,6 +1823,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         return bool(added.runs)
 
                     async def feed_samples() -> None:
+                        nonlocal pull_after_limit
                         while True:
                             # checkpoint so a misbehaving source that never
                             # blocks (e.g. next_samples() returning []) keeps
@@ -1822,9 +1840,15 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 continue
                             # fully idle: the task is complete once the sample
                             # limit is exhausted (don't consult the source for
-                            # samples that could never run)
-                            if remaining is not None and remaining <= 0:
+                            # samples that could never run), unless the source
+                            # may still add epochs of admitted samples
+                            if (
+                                remaining is not None
+                                and remaining <= 0
+                                and not pull_after_limit
+                            ):
                                 break
+                            pull_after_limit = False
                             # ask the source for more (may block) and finish
                             # when it is exhausted
                             more = await feed.next_samples()
@@ -3751,7 +3775,11 @@ def eval_log_sample_source(
 
         return EvalSampleSource(
             read_from_file,
-            SeedSource(source=eval_log_info.name, classify=classify),
+            SeedSource(
+                source=eval_log_info.name,
+                classify=classify,
+                epochs=eval_log.eval.config.epochs or 1,
+            ),
             prior_checkpoints_dir=eval_checkpoints_dir,
         )
     else:
@@ -3769,7 +3797,11 @@ def eval_log_sample_source(
 
         return EvalSampleSource(
             read_from_memory,
-            SeedSource(source=list(eval_log.samples or []), classify=classify),
+            SeedSource(
+                source=list(eval_log.samples or []),
+                classify=classify,
+                epochs=eval_log.eval.config.epochs or 1,
+            ),
             prior_checkpoints_dir=eval_checkpoints_dir,
         )
 
