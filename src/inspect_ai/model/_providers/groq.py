@@ -356,6 +356,7 @@ class GroqAPI(ModelAPI):
                     else None
                 ),
                 metadata=metadata,
+                response_id=completion.id,
             )
 
             # return

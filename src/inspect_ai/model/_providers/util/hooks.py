@@ -30,6 +30,15 @@ logger = getLogger(__name__)
 # `None` means "infer from HTTP status" (default: status==429 is rate_limit).
 RetryKind = Literal["rate_limit", "transient"]
 
+# Request id headers (OpenAI and compatible APIs, Anthropic, AWS, Mistral). All
+# present are recorded, as gateways can add their own.
+_REQUEST_ID_HEADERS = (
+    "x-request-id",
+    "request-id",
+    "x-amzn-requestid",
+    "mistral-correlation-id",
+)
+
 
 class RequestInfo(NamedTuple):
     attempts: int
@@ -85,6 +94,11 @@ class HttpHooks:
         self._requests[request_id] = RequestInfo(0, time.monotonic())
         return request_id
 
+    def restart_request(self, request_id: str) -> None:
+        """Count the next attempt as a new request, not a retry (e.g. a fallback)."""
+        if request_id in self._requests:
+            self._requests[request_id] = RequestInfo(0, time.monotonic())
+
     def end_request(self, request_id: str) -> float:
         # read the request info (if available) and purge from dict
         request_info = self._requests.pop(request_id, None)
@@ -107,7 +121,8 @@ class HttpHooks:
 
         Called from response_hook so that the next request_hook (when this
         attempt is retried) can classify the retry based on what the previous
-        attempt actually returned.
+        attempt actually returned. Request ids in the headers are added to the
+        active model event's `request_ids`.
 
         Args:
             request_id: The Inspect request id (from User-Agent / header).
@@ -124,6 +139,13 @@ class HttpHooks:
         info = self._requests.get(request_id)
         if info is None:
             return
+        if headers is not None:
+            from inspect_ai.log._samples import report_active_model_request_id
+
+            lowered = {name.lower(): value for name, value in headers.items()}
+            for header in _REQUEST_ID_HEADERS:
+                if value := lowered.get(header):
+                    report_active_model_request_id(value, header, status)
         # Convert the relative Retry-After to an absolute monotonic deadline
         # so any SDK-side backoff between now and the next retry is accounted
         # for when we report remaining seconds to the controller. The
@@ -207,14 +229,16 @@ class ConverseHooks(HttpHooks):
         #     the *next* retry's classification. (after-call fires only once
         #     at the end of all SDK-internal retries, so it would miss the
         #     per-attempt 429s that botocore swallows via adaptive retry.)
-        session.register(
-            "request-created.bedrock-runtime.Converse",
-            self.converse_request_created,
-        )
-        session.register(
-            "response-received.bedrock-runtime.Converse",
-            self.converse_response_received,
-        )
+        # Streaming generates use the separate ConverseStream operation.
+        for operation in ("Converse", "ConverseStream"):
+            session.register(
+                f"request-created.bedrock-runtime.{operation}",
+                self.converse_request_created,
+            )
+            session.register(
+                f"response-received.bedrock-runtime.{operation}",
+                self.converse_response_received,
+            )
 
     def converse_request_created(self, **kwargs: Any) -> None:
         request = kwargs.get("request")

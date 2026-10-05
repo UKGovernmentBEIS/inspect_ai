@@ -7607,6 +7607,20 @@
             ],
             "title": "Pending"
           },
+          "request_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelRequestId"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Ids"
+          },
           "retries": {
             "anyOf": [
               {
@@ -7820,6 +7834,17 @@
             "title": "Model",
             "type": "string"
           },
+          "response_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Id"
+          },
           "time": {
             "anyOf": [
               {
@@ -7848,6 +7873,30 @@
           "completion"
         ],
         "title": "ModelOutput",
+        "type": "object"
+      },
+      "ModelRequestId": {
+        "description": "Provider request id from an HTTP response.",
+        "properties": {
+          "header": {
+            "title": "Header",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "header",
+          "status"
+        ],
+        "title": "ModelRequestId",
         "type": "object"
       },
       "ModelUsage": {
