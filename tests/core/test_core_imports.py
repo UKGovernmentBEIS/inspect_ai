@@ -4,30 +4,6 @@ from pathlib import Path
 
 import inspect_ai.core
 
-# Public symbols defined in `inspect_ai.core` (exported via its `__all__` and
-# via `__all__` of the public package in parentheses):
-#
-# _chat_message (inspect_ai.model): ChatMessage, ChatMessageAssistant,
-#   ChatMessageBase, ChatMessageSystem, ChatMessageTool, ChatMessageUser
-# content (inspect_ai.model, inspect_ai.tool): Content, ContentAudio,
-#   ContentData, ContentDocument, ContentImage, ContentReasoning, ContentText,
-#   ContentToolUse, ContentVideo
-# _tool_call (inspect_ai.tool): ToolCall, ToolCallContent, ToolCallError,
-#   ToolCallModelInput, ToolCallView, ToolCallViewer
-# _tool_info (inspect_ai.tool): INTERNAL_TOOL_TYPE, ToolInfo, internal_tool_type
-# _tool_choice (inspect_ai.tool): ToolChoice, ToolFunction
-# _tool_params (inspect_ai.tool): ToolParam, ToolParams
-# _model_output (inspect_ai.model): ChatCompletionChoice, Logprob, Logprobs,
-#   ModelFallback, ModelOutput, ModelUsage, StopCategory, StopDetails,
-#   StopReason, TopLogprob
-# _generate_config (inspect_ai.model): BatchConfig, GenerateConfig,
-#   GenerateConfigArgs, ImageOutput, OutputModality, ResponseSchema
-# _cache_policy (inspect_ai.model): CachePolicy
-# _adaptive_concurrency (inspect_ai.util): AdaptiveConcurrency
-# _json (inspect_ai.util): JSONSchema, JSONType
-# citation (inspect_ai.model, inspect_ai.tool): Citation, CitationBase,
-#   ContentCitation, DocumentCitation, UrlCitation
-
 CORE_DIR = Path(inspect_ai.core.__file__).parent
 
 ALLOWED_THIRD_PARTY = {"pydantic", "pydantic_core", "typing_extensions", "shortuuid"}
