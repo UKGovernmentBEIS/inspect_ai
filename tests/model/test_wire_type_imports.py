@@ -1,9 +1,8 @@
-import json
-import subprocess
+import ast
 import sys
-import textwrap
+from pathlib import Path
 
-import pytest
+import inspect_ai.core
 
 # Public symbols defined in `inspect_ai.core` (exported via its `__all__` and
 # via `__all__` of the public package in parentheses):
@@ -28,67 +27,77 @@ import pytest
 # _json (inspect_ai.util): JSONSchema, JSONType
 # citation (inspect_ai.model, inspect_ai.tool): Citation, CitationBase,
 #   ContentCitation, DocumentCitation, UrlCitation
-WIRE_TYPE_MODULES = [
-    "inspect_ai.core._adaptive_concurrency",
-    "inspect_ai.core._cache_policy",
-    "inspect_ai.core._chat_message",
-    "inspect_ai.core._generate_config",
-    "inspect_ai.core._json",
-    "inspect_ai.core._model_output",
-    "inspect_ai.core._tool_call",
-    "inspect_ai.core._tool_choice",
-    "inspect_ai.core._tool_info",
-    "inspect_ai.core._tool_params",
-    "inspect_ai.core.citation",
-    "inspect_ai.core.constants",
-    "inspect_ai.core.content",
-    "inspect_ai.core.metadata",
-    "inspect_ai.core.url",
-]
 
-# pydantic brings annotated_types and typing_inspection with it.
-ALLOWED_THIRD_PARTY = {
-    "pydantic",
-    "pydantic_core",
-    "annotated_types",
-    "typing_inspection",
-    "typing_extensions",
-    "shortuuid",
+CORE_DIR = Path(inspect_ai.core.__file__).parent
+
+ALLOWED_THIRD_PARTY = {"pydantic", "pydantic_core", "typing_extensions", "shortuuid"}
+
+# Function-level imports from outside `inspect_ai.core` that are still allowed,
+# keyed by file relative to the core package. Remove entries as they are fixed.
+KNOWN_EXCEPTIONS = {
+    "_chat_message.py": {"inspect_ai._util.logger"},
+    "_model_output.py": {"inspect_ai.model._model"},
 }
 
-# Replace every inspect_ai package with an empty module that only has
-# `__path__`, so no `__init__.py` runs (as if these modules lived in a
-# package of their own), then import the wire types and report which
-# third-party packages loaded.
-PROBE = textwrap.dedent(
-    """
-    import importlib, importlib.util, json, sys, types
-    from pathlib import Path
 
-    before = set(sys.modules)
-    root = Path(importlib.util.find_spec("inspect_ai").origin).parent
-    for init in root.rglob("__init__.py"):
-        name = ".".join(("inspect_ai", *init.parent.relative_to(root).parts))
-        stub = types.ModuleType(name)
-        stub.__path__ = [str(init.parent)]
-        sys.modules[name] = stub
-
-    for module in json.loads(sys.argv[1]):
-        importlib.import_module(module)
-
-    loaded = {m.split(".")[0] for m in set(sys.modules) - before if not m.startswith("_")}
-    print(json.dumps(sorted(loaded - set(sys.stdlib_module_names) - {"inspect_ai"})))
-    """
-)
-
-
-def test_wire_types_import_without_the_rest_of_inspect_ai() -> None:
-    result = subprocess.run(
-        [sys.executable, "-c", PROBE, json.dumps(WIRE_TYPE_MODULES)],
-        capture_output=True,
-        text=True,
+def _module_name(path: Path) -> str:
+    parts = path.relative_to(CORE_DIR).with_suffix("").parts
+    return ".".join(
+        ("inspect_ai.core", *(parts[:-1] if parts[-1] == "__init__" else parts))
     )
-    if result.returncode != 0:
-        pytest.fail(result.stderr, pytrace=False)
-    extra = sorted(set(json.loads(result.stdout)) - ALLOWED_THIRD_PARTY)
-    assert not extra, f"unexpected third-party imports: {', '.join(extra)}"
+
+
+def _imported_modules(path: Path) -> set[str]:
+    """Every module imported anywhere in the file, with relative imports resolved."""
+    module = _module_name(path)
+    package = module if path.name == "__init__.py" else module.rpartition(".")[0]
+    nodes = list(ast.walk(ast.parse(path.read_text())))
+    return {
+        alias.name
+        for node in nodes
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    } | {
+        ".".join(
+            filter(
+                None,
+                (
+                    package.rsplit(".", node.level - 1)[0] if node.level else None,
+                    node.module,
+                ),
+            )
+        )
+        for node in nodes
+        if isinstance(node, ast.ImportFrom)
+    }
+
+
+def _is_allowed(module: str) -> bool:
+    top = module.split(".")[0]
+    return (
+        module == "inspect_ai.core"
+        or module.startswith("inspect_ai.core.")
+        or top in sys.stdlib_module_names
+        or top in ALLOWED_THIRD_PARTY
+    )
+
+
+def test_core_imports_only_allowed_modules() -> None:
+    disallowed = {
+        str(path.relative_to(CORE_DIR)): {
+            module for module in _imported_modules(path) if not _is_allowed(module)
+        }
+        for path in sorted(CORE_DIR.rglob("*.py"))
+    }
+    unexpected = {
+        file: sorted(modules - KNOWN_EXCEPTIONS.get(file, set()))
+        for file, modules in disallowed.items()
+        if modules - KNOWN_EXCEPTIONS.get(file, set())
+    }
+    stale = {
+        file: sorted(modules - disallowed.get(file, set()))
+        for file, modules in KNOWN_EXCEPTIONS.items()
+        if modules - disallowed.get(file, set())
+    }
+    assert not unexpected, f"inspect_ai.core imports disallowed modules: {unexpected}"
+    assert not stale, f"remove fixed entries from KNOWN_EXCEPTIONS: {stale}"
