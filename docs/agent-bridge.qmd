@@ -259,7 +259,7 @@ Some request fields and tool options change billing, storage at the model provid
 
 -   Options the agent sets on a provider tool it declares do not replace the bridge's `web_search` and `code_execution` options. This covers the code interpreter's `container` (OpenAI), and web search filters and allowed or blocked domains (OpenAI and Anthropic). For anything that differs, a warning is logged once per tool.
 
--   The agent may set a web search `user_location` (OpenAI and Anthropic) or `search_context_size` (OpenAI) that the bridge's `web_search` options leave unset. These shape the results but do not widen what can be searched or change billing or storage. When the eval sets one, the eval's value is used.
+-   The agent may set a web search `user_location` (OpenAI and Anthropic) or `search_context_size` (OpenAI) that the bridge's `web_search` options leave unset. These shape the results but do not widen what can be searched. `search_context_size` can change cost, because OpenAI bills search content tokens; to control that cost, set it in the bridge's `web_search` option. When the eval sets one, the eval's value is used.
 
 -   The agent may also ask for less: a lower Anthropic `max_uses`, or OpenAI `external_web_access: false`, is applied.
 
