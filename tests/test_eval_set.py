@@ -1,4 +1,5 @@
 import gc
+import importlib
 import json
 import logging
 import math
@@ -30,6 +31,7 @@ from test_helpers.utils import (
 from inspect_ai import Epochs, Task, eval, task
 from inspect_ai._eval.evalset import (
     GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+    EvalSet,
     EvalSetArgsInTaskIdentifier,
     Log,
     _embed_viewer,
@@ -40,13 +42,16 @@ from inspect_ai._eval.evalset import (
     read_eval_set_info,
     task_identifier,
     validate_eval_set_prerequisites,
+    write_eval_set_info,
 )
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._view.common import read_eval_set_info_async
 from inspect_ai.dataset import Sample
 from inspect_ai.event import SampleInitEvent
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
@@ -55,6 +60,7 @@ from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log,
     write_eval_log,
+    write_log_dir_manifest,
     write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
@@ -495,6 +501,63 @@ def test_eval_set_s3_prefix_scoped(prefix_scoped_s3: str) -> None:
     fs = filesystem(prefix_scoped_s3)
     assert fs.exists(f"{prefix_scoped_s3}/logs.json")
     assert fs.exists(f"{prefix_scoped_s3}/listing.json")
+
+
+_MemoryFileSystem: Any = importlib.import_module(
+    "fsspec.implementations.memory"
+).MemoryFileSystem
+
+
+class _TrailingSlashMemoryFileSystem(_MemoryFileSystem):
+    """In-memory filesystem whose `_strip_protocol` keeps a trailing slash, as adlfs does."""
+
+    protocol = ("trailslash",)
+    store: dict[str, Any] = {}
+    pseudo_dirs = [""]
+
+    @classmethod
+    def _strip_protocol(cls, path: Any) -> Any:
+        path = str(path).removeprefix("trailslash://")
+        return "/" + path.lstrip("/")
+
+
+@pytest.mark.parametrize(
+    "written_as", ["trailslash://container/logs", "trailslash://container/logs/"]
+)
+def test_eval_set_metadata_paths_ignore_trailing_slash(
+    written_as: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    importlib.import_module("fsspec").register_implementation(
+        "trailslash", _TrailingSlashMemoryFileSystem, clobber=True
+    )
+    monkeypatch.setattr(_TrailingSlashMemoryFileSystem, "store", {})
+    log_dir = "trailslash://container/logs"
+
+    write_eval_set_info(
+        "eval-set-id",
+        written_as,
+        tasks=[],
+        all_logs=[],
+        eval_set_args=EvalSetArgsInTaskIdentifier(config=GenerateConfig()),
+    )
+    write_log_dir_manifest(written_as)
+    write_log_listing(written_as)
+
+    assert sorted(_TrailingSlashMemoryFileSystem.store) == [
+        "/container/logs/eval-set.json",
+        "/container/logs/listing.json",
+        "/container/logs/logs.json",
+    ]
+
+    async def read_async(dir: str) -> EvalSet | None:
+        async with AsyncFilesystem() as afs:
+            return await read_eval_set_info_async(dir, afs)
+
+    for read_as in (log_dir, f"{log_dir}/"):
+        info = read_eval_set_info(read_as)
+        assert info is not None and info.eval_set_id == "eval-set-id"
+        info = anyio.run(read_async, read_as)
+        assert info is not None and info.eval_set_id == "eval-set-id"
 
 
 def test_eval_set_retry_in_same_second_does_not_clobber_failed_log() -> None:

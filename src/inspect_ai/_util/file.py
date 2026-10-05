@@ -255,6 +255,17 @@ class FileSystem:
     def path_as_uri(self, path: str) -> str:
         return str(self.fs.unstrip_protocol(path))
 
+    def dir_as_uri(self, path: str) -> str:
+        """Return the URI of a directory, computed from the path alone.
+
+        Makes no filesystem request, so it works with credentials scoped to a
+        prefix. Trailing separators are removed (a root is kept), so every
+        spelling of a directory gives the same URI.
+        """
+        return self.path_as_uri(
+            _strip_trailing_sep(self.fs._strip_protocol(path), self.sep)
+        )
+
     def ls(
         self, path: str, recursive: bool = False, **kwargs: dict[str, Any]
     ) -> list[FileInfo]:
@@ -627,14 +638,17 @@ def strip_trailing_sep(path: str) -> str:
     Matches pathlib behavior: exactly ``//`` is preserved per POSIX,
     any other all-separator path collapses to a single separator.
     """
-    fs = filesystem(path)
-    stripped = path.rstrip(fs.sep)
+    return _strip_trailing_sep(path, filesystem(path).sep)
+
+
+def _strip_trailing_sep(path: str, sep: str) -> str:
+    stripped = path.rstrip(sep)
     if stripped:
         return stripped
     # All separators — preserve exactly "//" per POSIX, otherwise collapse
-    if path == fs.sep * 2:
+    if path == sep * 2:
         return path
-    return fs.sep
+    return sep
 
 
 logger = logging.getLogger(__name__)

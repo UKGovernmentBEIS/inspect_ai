@@ -1540,6 +1540,9 @@ def _patch_flat_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
     class FlatFileSystem:
         sep = "/"
 
+        def dir_as_uri(self, path: str) -> str:
+            return path
+
     def fake_filesystem(path: str, fs_options: dict[str, Any] = {}) -> FlatFileSystem:
         return FlatFileSystem()
 
