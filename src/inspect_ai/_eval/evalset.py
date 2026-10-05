@@ -2405,7 +2405,7 @@ def write_eval_set_info(
 ) -> None:
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = _resolve_log_dir(fs, log_dir)
+    log_dir = fs.dir_location(log_dir)
 
     # get info
     eval_set_info = to_eval_set(eval_set_id, tasks, all_logs, eval_set_args)
@@ -2420,7 +2420,7 @@ def write_eval_set_info(
 def read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> EvalSet | None:
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = _resolve_log_dir(fs, log_dir)
+    log_dir = fs.dir_location(log_dir)
 
     # form target path and read
     manifest = f"{log_dir}{fs.sep}eval-set.json"
@@ -2435,12 +2435,6 @@ def read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> EvalSet
 
     # parse and return
     return EvalSet.model_validate_json(eval_set_json)
-
-
-def _resolve_log_dir(fs: FileSystem, log_dir: str) -> str:
-    return call_with_azure_auth_fallback(
-        lambda: fs.info(log_dir).name, fallback_return_value=log_dir
-    )
 
 
 def _read_manifest_bytes(manifest: str, fs_options: dict[str, Any]) -> bytes | None:

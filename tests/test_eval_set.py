@@ -1,4 +1,5 @@
 import gc
+import importlib
 import json
 import logging
 import math
@@ -30,6 +31,7 @@ from test_helpers.utils import (
 from inspect_ai import Epochs, Task, eval, task
 from inspect_ai._eval.evalset import (
     GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+    EvalSet,
     EvalSetArgsInTaskIdentifier,
     Log,
     _embed_viewer,
@@ -37,15 +39,19 @@ from inspect_ai._eval.evalset import (
     eval_set,
     latest_completed_task_eval_logs,
     list_all_eval_logs,
+    read_eval_set_info,
     task_identifier,
     validate_eval_set_prerequisites,
+    write_eval_set_info,
 )
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._view.common import read_eval_set_info_async
 from inspect_ai.dataset import Sample
 from inspect_ai.event import SampleInitEvent
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
@@ -54,6 +60,8 @@ from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log,
     write_eval_log,
+    write_log_dir_manifest,
+    write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
 from inspect_ai.log._recorders.buffer import database as database_module
@@ -460,6 +468,141 @@ def test_eval_set_s3(mock_s3) -> None:
     )
     assert success
     assert logs[0].status == "success"
+
+
+@pytest.mark.slow
+@skip_if_trio
+def test_eval_set_s3_prefix_scoped(prefix_scoped_s3: str) -> None:
+    location = f"{prefix_scoped_s3}/"
+    tasks = failing_task(rate=0, samples=1)
+    success, logs = eval_set(
+        tasks=tasks,
+        log_dir=location,
+        retry_attempts=1,
+        retry_wait=0.1,
+        model="mockllm/model",
+    )
+    assert success
+    assert logs[0].status == "success"
+
+    success_again, reused = eval_set(
+        tasks=tasks,
+        log_dir=location,
+        retry_attempts=1,
+        retry_wait=0.1,
+        model="mockllm/model",
+    )
+    assert success_again
+    assert reused[0].eval.task_id == logs[0].eval.task_id
+
+    assert read_eval_set_info(prefix_scoped_s3) is not None
+    assert read_eval_set_info(location) is not None
+    write_log_listing(location)
+    fs = filesystem(prefix_scoped_s3)
+    assert fs.exists(f"{prefix_scoped_s3}/logs.json")
+    assert fs.exists(f"{prefix_scoped_s3}/listing.json")
+
+
+_MemoryFileSystem: Any = importlib.import_module(
+    "fsspec.implementations.memory"
+).MemoryFileSystem
+
+
+class _AzureLikeMemoryFileSystem(_MemoryFileSystem):
+    """In-memory filesystem with adlfs's URL handling.
+
+    `_strip_protocol` keeps a trailing slash and drops the account from
+    `azmem://container@account/...`. The filesystem cannot be opened without
+    an account unless `default_account` (the role of the account-name
+    environment variable) is set. Names are listed as `azmem://` even when
+    opened as `azmemalias://`, as adlfs lists `az://` paths as `abfs://`.
+    """
+
+    protocol = ("azmem", "azmemalias")
+    store: dict[str, Any] = {}
+    pseudo_dirs = [""]
+    cachable = False
+    default_account: str | None = None
+
+    def __init__(self, account: str | None = None, **kwargs: Any) -> None:
+        if not (account or self.default_account):
+            raise ValueError("Must provide an account")
+        super().__init__(**kwargs)
+
+    @staticmethod
+    def _get_kwargs_from_urls(path: str) -> dict[str, Any]:
+        netloc = path.split("://", 1)[-1].split("/", 1)[0]
+        return {"account": netloc.partition("@")[2]} if "@" in netloc else {}
+
+    @classmethod
+    def _strip_protocol(cls, path: Any) -> Any:
+        container, _, rest = str(path).split("://", 1)[-1].lstrip("/").partition("/")
+        return f"/{container.partition('@')[0]}" + (f"/{rest}" if rest else "")
+
+
+@pytest.fixture
+def azure_like_fs(monkeypatch: pytest.MonkeyPatch) -> type[Any]:
+    fsspec = importlib.import_module("fsspec")
+    for protocol in _AzureLikeMemoryFileSystem.protocol:
+        fsspec.register_implementation(
+            protocol, _AzureLikeMemoryFileSystem, clobber=True
+        )
+    monkeypatch.setattr(_AzureLikeMemoryFileSystem, "store", {})
+    return _AzureLikeMemoryFileSystem
+
+
+@pytest.mark.parametrize(
+    "written_as", ["azmem://container@acct/logs", "azmem://container@acct/logs/"]
+)
+def test_eval_set_metadata_paths_keep_url_and_ignore_trailing_slash(
+    written_as: str, azure_like_fs: type[Any]
+) -> None:
+    log_dir = "azmem://container@acct/logs"
+
+    write_eval_set_info(
+        "eval-set-id",
+        written_as,
+        tasks=[],
+        all_logs=[],
+        eval_set_args=EvalSetArgsInTaskIdentifier(config=GenerateConfig()),
+    )
+    write_log_dir_manifest(written_as)
+    write_log_listing(written_as)
+
+    assert sorted(azure_like_fs.store) == [
+        "/container/logs/eval-set.json",
+        "/container/logs/listing.json",
+        "/container/logs/logs.json",
+    ]
+
+    async def read_async(dir: str) -> EvalSet | None:
+        async with AsyncFilesystem() as afs:
+            return await read_eval_set_info_async(dir, afs)
+
+    for read_as in (log_dir, f"{log_dir}/"):
+        info = read_eval_set_info(read_as)
+        assert info is not None and info.eval_set_id == "eval-set-id"
+        info = anyio.run(read_async, read_as)
+        assert info is not None and info.eval_set_id == "eval-set-id"
+
+
+def test_log_dir_manifest_keys_relative_to_listed_names(
+    azure_like_fs: type[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(azure_like_fs, "default_account", "acct")
+    log = "2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    fs = filesystem("azmem://container/logs").fs
+    fs.pipe_file(
+        f"/container/logs/{log}",
+        Path(__file__).parent.joinpath("log", "test_list_logs", log).read_bytes(),
+    )
+
+    write_log_dir_manifest("azmemalias://container/logs/")
+    write_log_listing("azmemalias://container/logs/")
+
+    for manifest in ("logs.json", "listing.json"):
+        keys = json.loads(fs.cat_file(f"/container/logs/{manifest}")).keys()
+        assert list(keys) == [log]
 
 
 def test_eval_set_retry_in_same_second_does_not_clobber_failed_log() -> None:
