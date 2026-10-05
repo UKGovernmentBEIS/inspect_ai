@@ -20,6 +20,7 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent import BridgedToolsSpec, sandbox_agent_bridge
 from inspect_ai.agent._bridge.sandbox.service import call_tool
 from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import get_model
 from inspect_ai.model._call_tools import tool_call_error, truncate_tool_output
@@ -27,6 +28,7 @@ from inspect_ai.model._generate_config import (
     GenerateConfig,
     active_generate_config_context_var,
 )
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Solver, solver
 from inspect_ai.tool import ToolError, tool
@@ -658,6 +660,54 @@ def test_sandbox_bridge_rejection_hides_the_call_from_the_agent() -> None:
     assert log.samples is not None
     approvals = [e for e in log.samples[0].events if e.event == "approval"]
     assert [(e.decision, e.call.function) for e in approvals] == [("reject", "bash")]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_redirects_unknown_model_to_eval_model() -> None:
+    """A model name the eval did not configure is served by the eval's model.
+
+    Full round trip through the in-container proxy; the requested name is
+    recorded on the model event.
+    """
+    seen: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(state) as bridge:
+                seen.append(
+                    await post_completions(
+                        bridge.port,
+                        {
+                            "model": "claude-haiku-4-5",
+                            "messages": [{"role": "user", "content": "Hello"}],
+                        },
+                    )
+                )
+            return state
+
+        return solve
+
+    log = eval(
+        bridged_tools_task(test_solver()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content(model="mockllm/model", content="hi there")
+            ],
+        ),
+    )[0]
+    assert log.status == "success"
+
+    assert seen[0]["model"] == "model"
+    assert seen[0]["choices"][0]["message"]["content"] == "hi there"
+
+    assert log.samples is not None
+    events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert [(e.model, e.requested_model) for e in events] == [
+        ("mockllm/model", "claude-haiku-4-5")
+    ]
 
 
 # =============================================================================
