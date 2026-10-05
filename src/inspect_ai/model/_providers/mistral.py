@@ -368,6 +368,7 @@ class MistralAPI(ModelAPI):
                     ),
                     total_tokens=completion.usage.total_tokens or 0,
                 ),
+                response_id=completion.id,
             ), model_call
 
     def resolve_streaming(self, config: GenerateConfig) -> bool:
