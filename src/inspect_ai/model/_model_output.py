@@ -15,7 +15,6 @@ from inspect_ai.core._model_output import StopReason as StopReason
 from inspect_ai.core._model_output import TopLogprob as TopLogprob
 
 # End of backward-compatible re-exports.
-
 from ._model_data.model_data import ModelCost
 
 
