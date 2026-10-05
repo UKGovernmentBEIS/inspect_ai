@@ -12,6 +12,7 @@ from ._content import Content, ContentText
 from ._metadata import MT, metadata_as
 from ._model_validator import model_wrap_validator
 from ._tool_call import ToolCall, ToolCallError
+from ._warn import warn_once
 
 logger = getLogger(__name__)
 
@@ -73,8 +74,6 @@ class ChatMessageBase(BaseModel):
                 json.dumps(data, sort_keys=True).encode()
             ).digest()
         except Exception as ex:
-            from inspect_ai._util.logger import warn_once
-
             warn_once(
                 logger,
                 f"Failed to dump object with json ({ex}). Falling back to repr which is slower",
@@ -186,8 +185,6 @@ class ChatMessageTool(ChatMessageBase):
     @property
     def tool_error(self) -> str | None:
         """Tool error (deprecated)."""
-        from inspect_ai._util.logger import warn_once
-
         warn_once(
             logger,
             "The 'tool_error' field is deprecated. Access error information via 'error' instead.",

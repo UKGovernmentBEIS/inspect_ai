@@ -11,7 +11,6 @@ ALLOWED_THIRD_PARTY = {"pydantic", "pydantic_core", "typing_extensions", "shortu
 # Function-level imports from outside `inspect_ai.core` that are still allowed,
 # keyed by file relative to the core package. Remove entries as they are fixed.
 KNOWN_EXCEPTIONS = {
-    "_chat_message.py": {"inspect_ai._util.logger"},
     "_model_output.py": {"inspect_ai.model._model"},
 }
 
