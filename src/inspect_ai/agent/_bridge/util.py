@@ -497,33 +497,53 @@ async def _apply_response_filter(
             "response_filter returned a ModelOutput with no choices"
         )
     _check_provider_owned_content(output, filtered)
-    _detach_changed_messages(output, filtered)
+    _settle_message_ids(output, filtered)
     return filtered
 
 
-def _detach_changed_messages(original: ModelOutput, filtered: ModelOutput) -> None:
-    """Give a changed message that keeps no server tool items a new id.
+def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
+    """Set the ids of returned messages so id-keyed replay state matches them.
 
     Dialects key some replay state by message id. Anthropic records server work
     still pending at the end of a turn (and the container to resume it) under the
     message id; work with no content item yet is invisible to the filter. Server
     tool items are kept all or none (`_check_provider_owned_content`), so a
-    message that keeps them keeps its id and all of that work with it, while one
-    that keeps none gets a new id and drops it. Content-keyed replay state (kept
-    server tool items, signed thinking) does not depend on the message id.
+    message that keeps them takes the id of the message they came from, whatever
+    id the filter gave it, and keeps that work. A changed message that keeps none
+    gets a new id if it still has an original one, and drops the work.
+    Content-keyed replay state (kept server tool items, signed thinking) does not
+    depend on the message id.
     """
+    owners = {
+        content.id: choice.message.id
+        for choice in original.choices
+        if isinstance(choice.message.content, list)
+        for content in choice.message.content
+        if isinstance(content, ContentToolUse)
+    }
     original_messages = [choice.message for choice in original.choices]
     original_ids = {message.id for message in original_messages if message.id}
     for choice in filtered.choices:
         message = choice.message
-        if (
-            message.id in original_ids
-            and message not in original_messages
-            and not (
-                isinstance(message.content, list)
-                and any(isinstance(c, ContentToolUse) for c in message.content)
+        kept_owners = (
+            {
+                owners[content.id]
+                for content in message.content
+                if isinstance(content, ContentToolUse)
+            }
+            if isinstance(message.content, list)
+            else set()
+        )
+        if len(kept_owners) > 1:
+            raise ResponseFilterError(
+                "response_filter combined server tool items from different "
+                "choices in one message"
             )
-        ):
+        if kept_owners:
+            owner = next(iter(kept_owners))
+            if owner is not None:
+                message.id = owner
+        elif message.id in original_ids and message not in original_messages:
             message.id = uuid()
 
 

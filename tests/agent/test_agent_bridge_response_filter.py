@@ -1682,17 +1682,48 @@ async def _text_edit_filter(
     return output
 
 
+PendingKeep = Literal["unchanged", "text_edit", "rebuilt", "changed_id", "missing_id"]
+
+
+def _pending_keep_filter(keep: PendingKeep) -> ModelResponseFilter:
+    """Keep every server tool item; edit text and the message id per `keep`."""
+
+    async def response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        if keep == "unchanged":
+            return output
+        await _text_edit_filter(model, output, generate_input)
+        match keep:
+            case "text_edit":
+                pass
+            case "rebuilt":
+                output.choices[0].message = ChatMessageAssistant.model_validate(
+                    output.message.model_dump(exclude={"id"})
+                )
+            case "changed_id":
+                output.message.id = "filter-chosen-id"
+            case "missing_id":
+                output.message.id = None
+            case _:
+                assert_never(keep)
+        return output
+
+    return response_filter
+
+
 @pytest.mark.parametrize("path", get_args(BridgePath))
-@pytest.mark.parametrize("edit", [False, True], ids=["unchanged", "text_edit"])
+@pytest.mark.parametrize("keep", get_args(PendingKeep))
 async def test_response_filter_keeps_pending_work_with_its_server_items(
-    edit: bool, path: BridgePath
+    keep: PendingKeep, path: BridgePath
 ) -> None:
     """A message that keeps its server tool items keeps their pending work.
 
     The completed nested search anchors the span, but its parent code execution
     is still pending, so a follow-up request must name the container recorded
     under the message id. An approval rejection replays the filtered message to
-    the model, which must still resolve that container.
+    the model, which must still resolve that container, whatever id the filter
+    gave the message.
     """
     from inspect_ai.model._providers.anthropic import _pending_container_for_input
 
@@ -1718,7 +1749,7 @@ async def test_response_filter_keeps_pending_work_with_its_server_items(
         return ModelOutput.from_content("mockllm/model", "done")
 
     model = get_model("mockllm/model", custom_outputs=serve)
-    response_filter = _text_edit_filter if edit else _identity_filter
+    response_filter = _pending_keep_filter(keep)
     approval = [ApprovalPolicy(_rejecting_approver(), "lookup")]
 
     match path:
@@ -1774,11 +1805,59 @@ async def test_response_filter_keeps_pending_work_with_its_server_items(
         NESTED_PENDING_CE_ID,
         NESTED_WS_ID,
     }
-    if edit:
+    if keep != "unchanged":
         assert REPLACED_SENTINEL in [b.get("text") for b in replayed_blocks]
     # the provider's output and its replay record are untouched
     assert await _render_anthropic(provider_output.message) == original_blocks
     assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
+
+
+async def test_response_filter_rejects_merging_server_items_across_choices() -> None:
+    """Server tool items of two choices cannot share one message id."""
+
+    def tool_use(id: str) -> ContentToolUse:
+        return ContentToolUse(
+            tool_type="web_search", id=id, name="web_search", arguments="{}", result=""
+        )
+
+    provider_output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(id=f"msg_{n}", content=[tool_use(n)]),
+                stop_reason="stop",
+            )
+            for n in ("a", "b")
+        ],
+    )
+
+    async def merging_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        merged = [c for choice in output.choices for c in _content_items_of(choice)]
+        output.choices = [
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content=merged), stop_reason="stop"
+            )
+        ]
+        return output
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = merging_filter
+    with pytest.raises(ResponseFilterError, match="different choices"):
+        await bridge_generate(
+            bridge,
+            get_model("mockllm/model", custom_outputs=[provider_output]),
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+        )
+
+
+def _content_items_of(choice: ChatCompletionChoice) -> list[Content]:
+    assert isinstance(choice.message.content, list)
+    return choice.message.content
 
 
 class NativeTool(NamedTuple):
