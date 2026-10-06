@@ -16,7 +16,9 @@ from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
     ContentImage,
+    ContentReasoning,
     ContentText,
+    ContentToolUse,
     ContentVideo,
 )
 from inspect_ai._util.exception import TerminateSampleError
@@ -493,7 +495,68 @@ async def _apply_response_filter(
         raise ResponseFilterError(
             "response_filter returned a ModelOutput with no choices"
         )
+    _check_provider_owned_content(output, filtered)
     return filtered
+
+
+def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
+    """Reject edits a dialect would silently undo when rendering for the agent.
+
+    Dialects replay provider artifacts by identity rather than from the edited
+    values: Anthropic replays signed thinking by its `reasoning`, server tool
+    blocks as whole recorded spans (a span can cover several `ContentToolUse`
+    items), and a native tool's wire name by its call id. So reasoning and server
+    tool items may only be kept unchanged or removed, server tool items are kept
+    all or none, and a call keeping an original id keeps its function.
+    """
+    original_content = [
+        content
+        for choice in original.choices
+        if isinstance(choice.message.content, list)
+        for content in choice.message.content
+    ]
+    original_tool_uses = {
+        c.id: c for c in original_content if isinstance(c, ContentToolUse)
+    }
+    original_reasoning = [
+        c for c in original_content if isinstance(c, ContentReasoning)
+    ]
+    original_functions = {
+        call.id: call.function
+        for choice in original.choices
+        for call in choice.message.tool_calls or []
+    }
+    kept_tool_uses: set[str] = set()
+    for choice in filtered.choices:
+        for call in choice.message.tool_calls or []:
+            function = original_functions.get(call.id)
+            if function is not None and call.function != function:
+                raise ResponseFilterError(
+                    f"response_filter changed the function of tool call '{call.id}' "
+                    f"from '{function}' to '{call.function}'; give a call to a "
+                    "different function a new id"
+                )
+        if not isinstance(choice.message.content, list):
+            continue
+        for content in choice.message.content:
+            if isinstance(content, ContentToolUse):
+                if original_tool_uses.get(content.id) != content:
+                    raise ResponseFilterError(
+                        f"response_filter edited or added server tool use '{content.id}'; "
+                        "server tool items can only be kept unchanged or removed"
+                    )
+                kept_tool_uses.add(content.id)
+            elif isinstance(content, ContentReasoning):
+                if content not in original_reasoning:
+                    raise ResponseFilterError(
+                        "response_filter edited or added reasoning content; "
+                        "reasoning can only be kept unchanged or removed"
+                    )
+    if kept_tool_uses and kept_tool_uses != original_tool_uses.keys():
+        raise ResponseFilterError(
+            "response_filter removed some server tool items but kept others; "
+            "keep all of them or none"
+        )
 
 
 def _operator_message_key(message: ChatMessageUser) -> str:
@@ -659,14 +722,25 @@ async def bridge_generate(
                 tool_info = get_tools_info(tools)
                 # under the bridge's approval policies, as a filter may generate
                 with bridge_approval_scope(bridge.approval):
-                    if _is_model_filter(bridge.filter):
-                        result = await bridge.filter(
-                            model, input_messages, tool_info, tool_choice, config
-                        )
-                    else:
-                        result = await bridge.filter(
-                            model.name, input_messages, tool_info, tool_choice, config
-                        )
+                    try:
+                        if _is_model_filter(bridge.filter):
+                            result = await bridge.filter(
+                                model, input_messages, tool_info, tool_choice, config
+                            )
+                        else:
+                            result = await bridge.filter(
+                                model.name,
+                                input_messages,
+                                tool_info,
+                                tool_choice,
+                                config,
+                            )
+                    except ModelRefusalError as ex:
+                        # a filter may generate itself; its refusal reaches the
+                        # response filter as the default generation's does
+                        if bridge.response_filter is None:
+                            raise
+                        result = ex.output
                 if isinstance(result, ModelOutput):
                     output = result
                 elif isinstance(result, GenerateInput):

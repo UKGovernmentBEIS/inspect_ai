@@ -15,6 +15,12 @@ from test_helpers.utils import (
 )
 from typing_extensions import assert_never
 
+from inspect_ai._util.content import (
+    Content,
+    ContentReasoning,
+    ContentText,
+    ContentToolUse,
+)
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import AgentState
 from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY, ResponseFilterError
@@ -32,6 +38,7 @@ from inspect_ai.agent._bridge.sandbox.service import (
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate
+from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.event import ModelEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model._call_tools import parse_tool_call
@@ -55,8 +62,11 @@ from inspect_ai.model._model_output import (
     ModelUsage,
     StopReason,
 )
+from inspect_ai.model._providers.anthropic import (
+    init_sample_anthropic_assistant_internal,
+)
 from inspect_ai.model._providers.mockllm import MockLLM
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
@@ -374,7 +384,31 @@ def test_response_filter_no_retry_budget(tmp_path: Path) -> None:
 
 
 RefusalFilterMode = Literal["replace", "pass_through"]
+RefusalSource = Literal["default_generation", "request_filter"]
 REFUSAL_RETRY_BUDGETS = [None, 2]
+
+
+async def _delegating_filter(
+    model: Model,
+    messages: list[ChatMessage],
+    tools: list[ToolInfo],
+    tool_choice: ToolChoice | None,
+    config: GenerateConfig,
+) -> ModelOutput:
+    """A request filter that makes the generation itself."""
+    return await model.generate(
+        messages, tools=tools, tool_choice=tool_choice, config=config
+    )
+
+
+def _refusal_request_filter(source: RefusalSource) -> GenerateFilter | None:
+    match source:
+        case "default_generation":
+            return None
+        case "request_filter":
+            return _delegating_filter
+        case _:
+            assert_never(source)
 
 
 def _fail_on_refusal_model() -> Model:
@@ -421,19 +455,25 @@ def _expected_refusal_filter_calls(
             assert_never(mode)
 
 
+@pytest.mark.parametrize("source", get_args(RefusalSource))
 @pytest.mark.parametrize("retry_refusals", REFUSAL_RETRY_BUDGETS)
 @pytest.mark.parametrize("mode", get_args(RefusalFilterMode))
 def test_response_filter_sees_refusal_under_fail_on_refusal(
-    tmp_path: Path, mode: RefusalFilterMode, retry_refusals: int | None
+    tmp_path: Path,
+    mode: RefusalFilterMode,
+    retry_refusals: int | None,
+    source: RefusalSource,
 ) -> None:
     """With `fail_on_refusal`, a model refusal still goes through the response filter.
 
-    A replacement is returned to the agent. A kept refusal is retried within the
-    budget, and the last one fails the sample with `ModelRefusalError`.
+    This holds whether the default generation or a request filter that generates
+    raised it. A replacement is returned to the agent. A kept refusal is retried
+    within the budget, and the last one fails the sample with `ModelRefusalError`.
     """
     seen: list[str] = []
     log = _run_eval_with_filters(
         tmp_path,
+        filter=_refusal_request_filter(source),
         response_filter=_refusal_filter(mode, seen),
         retry_refusals=retry_refusals,
         model=_fail_on_refusal_model(),
@@ -978,10 +1018,11 @@ def _sandbox_bridge(
     response_filter: ModelResponseFilter,
     model: Model | None = None,
     retry_refusals: int | None = None,
+    filter: GenerateFilter | None = None,
 ) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
-        filter=None,
+        filter=filter,
         retry_refusals=retry_refusals,
         compaction=None,
         port=13131,
@@ -1085,10 +1126,11 @@ async def test_sandbox_response_filter_ends_sample_through_the_monitor(
         await _monitor_failure(bridge)
 
 
+@pytest.mark.parametrize("source", get_args(RefusalSource))
 @pytest.mark.parametrize("retry_refusals", REFUSAL_RETRY_BUDGETS)
 @pytest.mark.parametrize("mode", get_args(RefusalFilterMode))
 async def test_sandbox_response_filter_sees_refusal_under_fail_on_refusal(
-    mode: RefusalFilterMode, retry_refusals: int | None
+    mode: RefusalFilterMode, retry_refusals: int | None, source: RefusalSource
 ) -> None:
     """The sandbox bridge passes a `fail_on_refusal` refusal through the response filter.
 
@@ -1097,7 +1139,10 @@ async def test_sandbox_response_filter_sees_refusal_under_fail_on_refusal(
     """
     seen: list[str] = []
     bridge = _sandbox_bridge(
-        _refusal_filter(mode, seen), _fail_on_refusal_model(), retry_refusals
+        _refusal_filter(mode, seen),
+        _fail_on_refusal_model(),
+        retry_refusals,
+        _refusal_request_filter(source),
     )
     compact = _RecordingCompact()
     bridge._compact = compact
@@ -1194,6 +1239,332 @@ async def test_response_filter_limit_propagates(
                     assert_never(path)
     assert exc_info.value.type == "token"
     assert exc_info.value.limit == JUDGE_TOKEN_LIMIT
+
+
+# ---------------------------------------------------------------------------
+# provider-owned content: edits a dialect would replay over
+# ---------------------------------------------------------------------------
+
+THINKING_BLOCK: dict[str, Any] = {
+    "type": "thinking",
+    "thinking": "I should search for the scores.",
+    "signature": "SIGNATURE",
+}
+CE_ID = "srvtoolu_011"
+WS_ID = "srvtoolu_014"
+NESTED_SEARCH_BLOCKS: list[dict[str, Any]] = [
+    THINKING_BLOCK,
+    {"type": "text", "text": "Let me search for that."},
+    {
+        "type": "server_tool_use",
+        "id": CE_ID,
+        "name": "code_execution",
+        "input": {"code": "results = web_search('nhl scores')"},
+        "caller": {"type": "direct"},
+    },
+    {
+        "type": "server_tool_use",
+        "id": WS_ID,
+        "name": "web_search",
+        "input": {"query": "nhl scores last night"},
+        "caller": {"type": "code_execution_20260120", "tool_id": CE_ID},
+    },
+    {
+        "type": "web_search_tool_result",
+        "tool_use_id": WS_ID,
+        "content": [
+            {
+                "type": "web_search_result",
+                "title": "NHL Scores",
+                "url": "https://nhl.com/scores",
+                "encrypted_content": "ENCRYPTED_CONTENT",
+            }
+        ],
+        "caller": {"type": "code_execution_20260120", "tool_id": CE_ID},
+    },
+    {
+        "type": "code_execution_tool_result",
+        "tool_use_id": CE_ID,
+        "content": {
+            "type": "encrypted_code_execution_result",
+            "encrypted_stdout": "ENCRYPTED_STDOUT",
+            "return_code": 0,
+            "stderr": "",
+            "content": [],
+        },
+    },
+    {"type": "text", "text": "The Bruins won 3-2."},
+]
+"""A thinking block, a web search nested in code execution, and text."""
+
+
+async def _anthropic_output(
+    blocks: list[dict[str, Any]], tools: list[ToolInfo] | None = None
+) -> ModelOutput:
+    """Parse an Anthropic response, recording its replay state for this sample."""
+    from anthropic.types import Message
+
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    message = Message.model_validate(
+        {
+            "id": "msg_01",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "content": blocks,
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+    )
+    output, _ = await model_output_from_message(
+        client=None, model="claude-opus-4-8", message=message, tools=tools or []
+    )
+    return output
+
+
+async def _render_anthropic(message: ChatMessageAssistant) -> list[dict[str, Any]]:
+    from inspect_ai.model._providers.anthropic import assistant_message_block_params
+
+    return cast(list[dict[str, Any]], await assistant_message_block_params(message))
+
+
+ProviderOwnedEdit = Literal[
+    "edit_search_arguments",
+    "edit_code_execution_result",
+    "edit_thinking",
+    "add_server_tool_use",
+    "drop_search_keep_code_execution",
+]
+
+
+def _content_items(output: ModelOutput) -> list[Content]:
+    assert isinstance(output.message.content, list)
+    return output.message.content
+
+
+def _provider_owned_edit(edit: ProviderOwnedEdit) -> ModelResponseFilter:
+    """A filter that makes an edit Anthropic would replay over."""
+
+    async def response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        content = _content_items(output)
+        tool_uses = {c.id: c for c in content if isinstance(c, ContentToolUse)}
+        match edit:
+            case "edit_search_arguments":
+                tool_uses[WS_ID].arguments = '{"query": "edited"}'
+            case "edit_code_execution_result":
+                tool_uses[CE_ID].result = "edited"
+            case "edit_thinking":
+                reasoning = next(c for c in content if isinstance(c, ContentReasoning))
+                reasoning.summary = "edited"
+            case "add_server_tool_use":
+                content.append(
+                    ContentToolUse(
+                        tool_type="mcp_call",
+                        id="mcptoolu_01",
+                        name="lookup",
+                        context="docs",
+                        arguments="{}",
+                        result="added",
+                    )
+                )
+            case "drop_search_keep_code_execution":
+                content.remove(tool_uses[WS_ID])
+            case _:
+                assert_never(edit)
+        return output
+
+    return response_filter
+
+
+@pytest.mark.parametrize("edit", get_args(ProviderOwnedEdit))
+async def test_response_filter_rejects_edits_to_provider_owned_content(
+    edit: ProviderOwnedEdit,
+) -> None:
+    """Edits to reasoning or server tool items fail rather than being replayed over.
+
+    Anthropic renders signed thinking and server tool spans from its replay
+    records, so these edits would reach the agent as the original content (and a
+    partly removed span would come back whole) while bridge state kept the edit.
+    """
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _anthropic_output(NESTED_SEARCH_BLOCKS)
+    model = get_model("mockllm/model", custom_outputs=[provider_output])
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = _provider_owned_edit(edit)
+
+    with pytest.raises(ResponseFilterError):
+        await bridge_generate(
+            bridge, model, [ChatMessageUser(content="hi")], [], None, GenerateConfig()
+        )
+
+
+ProviderOwnedKeep = Literal["unchanged", "edit_text", "drop_server_tools"]
+
+
+def _provider_owned_keep(keep: ProviderOwnedKeep) -> ModelResponseFilter:
+    async def response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        content = _content_items(output)
+        match keep:
+            case "unchanged":
+                pass
+            case "edit_text":
+                text = next(c for c in content if isinstance(c, ContentText))
+                text.text = REPLACED_SENTINEL
+            case "drop_server_tools":
+                output.message.content = [
+                    c for c in content if not isinstance(c, ContentToolUse)
+                ]
+            case _:
+                assert_never(keep)
+        return output
+
+    return response_filter
+
+
+@pytest.mark.parametrize("keep", get_args(ProviderOwnedKeep))
+async def test_response_filter_keeps_provider_owned_content_it_can_render(
+    keep: ProviderOwnedKeep,
+) -> None:
+    """Unchanged or wholly removed provider-owned items render as the filter left them."""
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _anthropic_output(NESTED_SEARCH_BLOCKS)
+    provider_before = provider_output.model_copy(deep=True)
+    original_blocks = await _render_anthropic(provider_output.message)
+    model = get_model("mockllm/model", custom_outputs=[provider_output])
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = _provider_owned_keep(keep)
+
+    output, _ = await bridge_generate(
+        bridge, model, [ChatMessageUser(content="hi")], [], None, GenerateConfig()
+    )
+    blocks = await _render_anthropic(output.message)
+
+    server_block_types = {
+        "server_tool_use",
+        "web_search_tool_result",
+        "code_execution_tool_result",
+    }
+    match keep:
+        case "unchanged":
+            assert blocks == original_blocks
+        case "edit_text":
+            assert [b for b in blocks if b["type"] in server_block_types] == [
+                b for b in original_blocks if b["type"] in server_block_types
+            ]
+            assert REPLACED_SENTINEL in [b.get("text") for b in blocks]
+        case "drop_server_tools":
+            assert [b for b in blocks if b["type"] in server_block_types] == []
+            assert blocks == [
+                b for b in original_blocks if b["type"] not in server_block_types
+            ]
+        case _:
+            assert_never(keep)
+    # the provider's own output is untouched
+    assert provider_output.message == provider_before.message
+    assert await _render_anthropic(provider_output.message) == original_blocks
+
+
+class NativeTool(NamedTuple):
+    """A tool Anthropic calls by its own name, and the Inspect tool it maps to."""
+
+    wire_name: str
+    inspect_name: str
+    arguments: dict[str, Any]
+
+
+NATIVE_TOOLS = [
+    NativeTool("computer", "computer", {"action": "screenshot"}),
+    NativeTool("bash", "bash_session", {"command": "ls"}),
+    NativeTool("str_replace_editor", "text_editor", {"command": "view", "path": "/"}),
+    NativeTool(
+        "str_replace_based_edit_tool", "text_editor", {"command": "view", "path": "/"}
+    ),
+]
+
+
+@approver
+def _recording_approver(seen: list[str]) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        seen.append(call.function)
+        return Approval(decision="approve")
+
+    return approve
+
+
+@pytest.mark.parametrize("new_id", [False, True], ids=["same_id", "new_id"])
+@pytest.mark.parametrize("native", NATIVE_TOOLS, ids=lambda n: n.wire_name)
+async def test_sandbox_response_filter_renamed_native_call(
+    native: NativeTool, new_id: bool
+) -> None:
+    """A renamed call reaches the agent under the name approval reviewed.
+
+    Anthropic renders a native tool's wire name by call id, so a call that keeps
+    its id would go out under the original native name. Keeping the id while
+    changing the function fails the sample; a new id renders the new function.
+    """
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _anthropic_output(
+        [
+            {
+                "type": "tool_use",
+                "id": "toolu_01",
+                "name": native.wire_name,
+                "input": native.arguments,
+            }
+        ],
+        [ToolInfo(name=native.inspect_name, description="native tool")],
+    )
+    assert provider_output.message.tool_calls is not None
+    assert provider_output.message.tool_calls[0].function == native.inspect_name
+
+    async def renaming_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        assert output.message.tool_calls is not None
+        call = output.message.tool_calls[0]
+        call.function = "safe_echo"
+        call.arguments = {"text": "hi"}
+        if new_id:
+            call.id = "toolu_02"
+        return output
+
+    approved: list[str] = []
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={
+            "inspect": get_model("mockllm/model", custom_outputs=[provider_output])
+        },
+        approval=[ApprovalPolicy(_recording_approver(approved), "*")],
+        response_filter=renaming_filter,
+    )
+    reply = await _forward_provider_errors(
+        generate_anthropic(None, None, bridge), bridge
+    )({"model": "inspect", "max_tokens": 1024, "messages": CHAT_REQUEST["messages"]})
+
+    if new_id:
+        assert PROVIDER_ERROR_KEY not in reply
+        tool_use = cast(list[dict[str, JsonValue]], reply["content"])[-1]
+        assert tool_use["name"] == "safe_echo"
+        assert approved == ["safe_echo"]
+        assert bridge.state.output.message.tool_calls is not None
+        assert bridge.state.output.message.tool_calls[0].function == "safe_echo"
+    else:
+        assert PROVIDER_ERROR_KEY in reply
+        assert approved == []
+        with pytest.raises(ResponseFilterError, match="new id"):
+            await _monitor_failure(bridge)
 
 
 # ---------------------------------------------------------------------------
