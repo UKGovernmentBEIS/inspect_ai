@@ -277,7 +277,7 @@ Bridged agents typically tune their requests (e.g. `max_tokens`, `temperature`, 
 
 For this reason, by default the bridge does not forward client generation parameters. Instead, the resolved Inspect model configuration and the provider's defaults govern generation. Structural parameters that express the agent's intent — the system prompt, tools, tool choice, response format, `stop` sequences, and `seed` — are always forwarded.
 
-The generation parameters dropped by default are: `max_tokens`, `temperature`, `top_p`, `top_k`, `frequency_penalty`, `presence_penalty`, `n`/`num_choices`, `logprobs`, `top_logprobs`, `logit_bias`, and reasoning effort/tokens/summary.
+The generation parameters dropped by default are: `max_tokens`, `temperature`, `top_p`, `top_k`, `frequency_penalty`, `presence_penalty`, `n`/`num_choices`, `logprobs`, `top_logprobs`, `logit_bias`, and reasoning effort/tokens/summary/mode.
 
 If you want the bridge to act as a faithful proxy where the agent's generation parameters are authoritative, pass `forward_generation_config=True`:
 

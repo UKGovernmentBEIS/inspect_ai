@@ -1,7 +1,7 @@
 import json
 from logging import getLogger
 from time import time
-from typing import Any, Iterable, Set, cast
+from typing import Any, Iterable, Sequence, Set, cast
 
 from openai.types.responses import (
     Response,
@@ -207,7 +207,7 @@ def _is_openai_responses_provider(model: Model) -> bool:
 
 
 def _sends_responses_requests(
-    model: Model, tools: list[ToolInfo | Tool], config: GenerateConfig
+    model: Model, tools: Sequence[ToolInfo | Tool], config: GenerateConfig
 ) -> bool:
     """Whether the resolved model sends this request to the OpenAI Responses API.
 
@@ -347,16 +347,22 @@ async def inspect_responses_api_request_impl(
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
 
-    # the Responses provider takes the reasoning fields GenerateConfig does not
-    # model from extra_body (other providers would send them on as they are);
-    # a `reasoning` object in the Inspect model's own extra_body wins
     client_reasoning = json_data.get("reasoning", None)
-    if (
-        bridge.forward_generation_config
-        and isinstance(client_reasoning, dict)
-        and _sends_responses_requests(model, tools, config)
-    ):
-        config.extra_body = {"reasoning": client_reasoning} | (config.extra_body or {})
+
+    def with_client_reasoning(
+        model: Model, tools: Sequence[ToolInfo | Tool], config: GenerateConfig
+    ) -> GenerateConfig:
+        # the Responses provider takes the reasoning fields GenerateConfig does
+        # not model from extra_body (other providers would send them on as they
+        # are); a `reasoning` object in the Inspect model's own extra_body wins
+        if (
+            bridge.forward_generation_config
+            and isinstance(client_reasoning, dict)
+            and _sends_responses_requests(model, tools, config)
+        ):
+            extra_body = {"reasoning": client_reasoning} | (config.extra_body or {})
+            return config.model_copy(update={"extra_body": extra_body})
+        return config
 
     # if there is a bridge filter give it a shot first
     output, c_message = await bridge_generate(
@@ -370,6 +376,7 @@ async def inspect_responses_api_request_impl(
             messages, web_search, code_execution, bridge
         ),
         routing=routing,
+        finalize_config=with_client_reasoning,
     )
     if c_message is not None:
         messages.append(c_message)
@@ -828,6 +835,11 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
             config.reasoning_effort = reasoning["effort"]
         if "summary" in reasoning:
             config.reasoning_summary = reasoning["summary"]
+        elif "generate_summary" in reasoning:
+            # deprecated name for `summary`
+            config.reasoning_summary = reasoning["generate_summary"]
+        if "mode" in reasoning:
+            config.reasoning_mode = reasoning["mode"]
     config.temperature = json_data.get("temperature", None)
     config.top_p = json_data.get("top_p", None)
 
