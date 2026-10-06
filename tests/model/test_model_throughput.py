@@ -282,6 +282,7 @@ def test_throughput_report_input_and_cache_fields() -> None:
     ):
         assert key in row
     window = row["window_seconds"]
+    assert row["output_tokens_per_minute"] == pytest.approx(60 * 60 / window, rel=0.1)
     assert row["input_tokens_per_minute"] == pytest.approx(30 * 60 / window, rel=0.1)
     assert row["cache_read_tokens_per_minute"] == pytest.approx(
         40 * 60 / window, rel=0.1

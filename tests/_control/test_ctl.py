@@ -360,12 +360,12 @@ def test_throughput_table_renders_rates_and_backoff(
     )
     lines = capsys.readouterr().out.splitlines()
     header = lines[0]
-    for column in ("model", "out tok/s", "req/min", "retries/min", "in backoff"):
+    for column in ("model", "out tok/min", "req/min", "retries/min", "in backoff"):
         assert column in header
     throttled = next(ln for ln in lines if ln.startswith("anthropic/"))
-    assert "41.7" in throttled and "14" in throttled and "3h 57m" in throttled
+    assert "2.5k" in throttled and "14" in throttled and "3h 57m" in throttled
     healthy = next(ln for ln in lines if ln.startswith("openai/"))
-    assert "310.2" in healthy and healthy.rstrip().endswith("-")
+    assert "18.6k" in healthy and healthy.rstrip().endswith("-")
 
 
 def test_throughput_table_renders_input_and_cache_rates(
@@ -383,6 +383,7 @@ def test_throughput_table_renders_input_and_cache_rates(
             {
                 **base,
                 "model": "anthropic/claude-sonnet-5",
+                "output_tokens_per_minute": 2502.0,
                 "input_tokens_per_minute": 182340.0,
                 "cache_read_tokens_per_minute": 1523000.0,
                 "cache_write_tokens_per_minute": 45210.0,
@@ -390,6 +391,7 @@ def test_throughput_table_renders_input_and_cache_rates(
             {
                 **base,
                 "model": "openai/gpt-5",
+                "output_tokens_per_minute": 2502.0,
                 "input_tokens_per_minute": 950.4,
                 "cache_read_tokens_per_minute": 0.0,
                 "cache_write_tokens_per_minute": 0.0,
@@ -408,6 +410,7 @@ def test_throughput_table_renders_input_and_cache_rates(
         return row[start : start + len(column)].strip()
 
     claude = rows["anthropic/claude-sonnet-5"]
+    assert cell(claude, "out tok/min") == "2.5k"
     assert cell(claude, "in tok/min") == "182.3k"
     assert cell(claude, "cache rd/wr/min") == "1.5M/45.2k"
     gpt = rows["openai/gpt-5"]
@@ -416,7 +419,45 @@ def test_throughput_table_renders_input_and_cache_rates(
     older = rows["google/gemini-3-pro"]
     assert cell(older, "in tok/min") == ""
     assert cell(older, "cache rd/wr/min") == ""
-    assert cell(older, "out tok/s") == "41.7"
+    assert cell(older, "out tok/min") == "2.5k"
+
+
+def test_throughput_table_output_tokens_per_minute_fallback(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    base = {
+        "requests_per_minute": 1.0,
+        "retries_per_minute": 0.0,
+        "retry_waits_active": 0,
+        "cumulative": {},
+    }
+    _print_throughput_table(
+        [
+            # the per-minute field wins when present
+            {
+                **base,
+                "model": "new/m",
+                "output_tokens_per_minute": 9000.0,
+                "output_tokens_per_second": 1.0,
+            },
+            # older server: derived from the per-second rate
+            {**base, "model": "older/m", "output_tokens_per_second": 20.5},
+            # neither reported: blank, not 0
+            {**base, "model": "none/m"},
+        ]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    header = lines[0]
+    assert "out tok/s" not in header
+    start = header.index("out tok/min")
+    rows = {ln.split()[0]: ln for ln in lines[2:]}
+
+    def cell(name: str) -> str:
+        return rows[name][start : start + len("out tok/min")].strip()
+
+    assert cell("new/m") == "9.0k"
+    assert cell("older/m") == "1.2k"
+    assert cell("none/m") == ""
 
 
 def test_throughput_table_fits_120_columns_with_long_model_names(
@@ -429,6 +470,7 @@ def test_throughput_table_fits_120_columns_with_long_model_names(
     ]
     rates = {
         "output_tokens_per_second": 12345.6,
+        "output_tokens_per_minute": 740736.0,
         "input_tokens_per_minute": 182340.0,
         "cache_read_tokens_per_minute": 1523000.0,
         "cache_write_tokens_per_minute": 45210.0,
@@ -451,7 +493,7 @@ def test_throughput_table_fits_120_columns_with_long_model_names(
     for name in long_names:
         index = lines.index(name)
         row = lines[index + 1]
-        assert row[:start].split() == ["12,345.6"]
+        assert row[:start].split() == ["740.7k"]
         assert row[start:].split() == [
             "182.3k",
             "1.5M/45.2k",

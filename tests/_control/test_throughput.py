@@ -60,6 +60,9 @@ async def test_throughput_route_reports_models() -> None:
         assert row["model"] == "test/m"
         assert 0 < row["window_seconds"] <= body["window_seconds"]
         assert row["output_tokens_per_second"] > 0
+        assert row["output_tokens_per_minute"] == pytest.approx(
+            row["output_tokens_per_second"] * 60, abs=3
+        )
         assert row["retry_waits_active"] == 0
         assert row["cumulative"]["requests"] == 1
         assert row["cumulative"]["output_tokens"] == 20

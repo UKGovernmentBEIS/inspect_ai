@@ -132,11 +132,10 @@ def model_throughput_command(pid: int | None, window: int, as_json: bool) -> Non
     """Show each model's effective throughput across the run.
 
     One row per model the process has called, aggregated across every
-    sample and task: recent output tokens/sec, input and cache read/write
-    tokens/min, requests/min and retries/min over `--window`, how many
-    samples currently have a generate sleeping in a retry wait, and
-    cumulative scheduled backoff.
-    The "wait vs. switch" view for a throttled run — rates come from
+    sample and task: recent output, input and cache read/write tokens/min,
+    requests/min and retries/min over `--window`, how many samples
+    currently have a generate sleeping in a retry wait, and cumulative
+    scheduled backoff. The "wait vs. switch" view for a throttled run — rates come from
     completed generates, so a model whose every call is stuck in backoff
     reads 0. PID is required when several processes run.
     """
@@ -211,6 +210,15 @@ def _format_cache_rates(model: dict[str, Any]) -> str:
     return f"{_format_token_rate(read)}/{_format_token_rate(write)}"
 
 
+def _output_tokens_per_minute(model: dict[str, Any]) -> Any:
+    """Output tokens/min, derived from the per-second rate for an older server."""
+    per_minute = model.get("output_tokens_per_minute")
+    if per_minute is not None:
+        return per_minute
+    per_second = model.get("output_tokens_per_second")
+    return None if per_second is None else float(per_second) * 60
+
+
 _THROUGHPUT_TABLE_WIDTH = 120
 """Widest the throughput table renders; a longer model name gets its own line."""
 
@@ -220,7 +228,7 @@ def _print_throughput_table(models: list[dict[str, Any]]) -> None:
     rows = [
         (
             str(m.get("model", "?") or "?"),
-            _format_rate(m.get("output_tokens_per_second")),
+            _format_token_rate(_output_tokens_per_minute(m)),
             _format_token_rate(m.get("input_tokens_per_minute")),
             _format_cache_rates(m),
             _format_rate(m.get("requests_per_minute")),
@@ -233,7 +241,7 @@ def _print_throughput_table(models: list[dict[str, Any]]) -> None:
     _render_table(
         (
             "model",
-            "out tok/s",
+            "out tok/min",
             "in tok/min",
             "cache rd/wr/min",
             "req/min",

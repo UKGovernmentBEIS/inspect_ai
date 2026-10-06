@@ -494,6 +494,9 @@ def throughput_report(window: int = DEFAULT_WINDOW_SECONDS) -> dict[str, Any]:
                 "model": view.model,
                 "window_seconds": round(view.window_seconds, 1),
                 "output_tokens_per_second": round(view.output_tokens_per_second, 1),
+                "output_tokens_per_minute": round(
+                    view.output_tokens_per_second * 60.0, 1
+                ),
                 "input_tokens_per_minute": round(view.input_tokens_per_minute, 1),
                 "cache_read_tokens_per_minute": round(
                     view.cache_read_tokens_per_minute, 1

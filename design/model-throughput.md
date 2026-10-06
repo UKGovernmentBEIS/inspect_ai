@@ -321,6 +321,7 @@ envelope:
       "model": "anthropic/claude-sonnet-5",
       "window_seconds": 60,
       "output_tokens_per_second": 41.7,
+      "output_tokens_per_minute": 2502.0,
       "input_tokens_per_minute": 182340.0,
       "cache_read_tokens_per_minute": 1523000.0,
       "cache_write_tokens_per_minute": 45210.0,
@@ -349,10 +350,12 @@ envelope `window_seconds` is that requested (clamped) window; each model
 row carries its *effective* `window_seconds` — further clamped to
 time-since-first-activity — so a consumer recovering counts from rates
 (rate × window) isn't misled for a model younger than the window.
-Output tokens are a per-second rate; input and cache tokens are per-minute
-rates, the unit providers use for input token limits. The input and cache
-fields were added after the endpoint first shipped: a client must treat
-them as absent when talking to an older server.
+Output tokens are reported both per second (`output_tokens_per_second`,
+the original field) and per minute (`output_tokens_per_minute`); input and
+cache tokens are per minute only. Per minute is the unit providers use for
+their input and output token limits. The per-minute output field and the
+input and cache fields were added after the endpoint first shipped: a
+client must treat them as absent when talking to an older server.
 Cheap-shoveling compliance: everything is materialized at write time; the
 read is a bounded sum over ≤ 60 buckets × (number of models), a
 concurrency-bounded pass over each model's backoff intervals, plus one
@@ -371,19 +374,22 @@ the requested output, per `design/ctl/control-channel.md`). Human table
 (one row per model):
 
 ```
-model                      out tok/s  in tok/min  cache rd/wr/min  req/min  retries/min  in backoff  backoff (cum)
--------------------------  ---------  ----------  ---------------  -------  -----------  ----------  -------------
-anthropic/claude-sonnet-5  41.7       182.3k      1.5M/45.2k       12.0     33.0         14          3h 57m
-openai/gpt-5               310.2      950         0/0              45.0     0.0          0           -
+model                      out tok/min  in tok/min  cache rd/wr/min  req/min  retries/min  in backoff  backoff (cum)
+-------------------------  -----------  ----------  ---------------  -------  -----------  ----------  -------------
+anthropic/claude-sonnet-5  2.5k         182.3k      1.5M/45.2k       12.0     33.0         14          3h 57m
+openai/gpt-5               18.6k        950         0/0              45.0     0.0          0           -
 bedrock/us.anthropic.claude-sonnet-5-5-20260928-v1:0
-                           12.0       40.1k       0/0              4.0      0.0          0           -
+                           720          40.1k       0/0              4.0      0.0          0           -
 ```
 
-Token-per-minute cells use the compact `1.2k`/`3.4M` form, and cache reads
-and writes share one `read/write` cell. The table is capped at 120
-columns: a model name too long to fit is printed whole on its own line,
-with its rates on the next line. A row from an older server without the
-input and cache fields shows those cells blank (unreported, not 0).
+Every rate in the table is per minute, so it compares directly with a
+provider's per-minute token limits. Token cells use the compact
+`1.2k`/`3.4M` form, and cache reads and writes share one `read/write` cell.
+The table is capped at 120 columns: a model name too long to fit is
+printed whole on its own line, with its rates on the next line. For an
+older server without `output_tokens_per_minute`, the CLI derives it from
+`output_tokens_per_second` × 60. Its missing input and cache fields show
+blank (unreported, not 0).
 
 The `ctl task` row also gains a per-task `tokens_per_second` derived from
 data it already has (`EvalState.total_tokens` deltas are *not* windowed, so
@@ -454,7 +460,7 @@ HTTP retries: 821  out tok/s: 352
 
 Aggregate (summed across models) keeps the footer glanceable; per-model
 detail (including input and cache token rates) is ctl's job. The footer
-shows output tokens only. Gating on retries-observed avoids adding a noisy
+shows output tokens per second only. Gating on retries-observed avoids adding a noisy
 number to healthy runs — and the gate reads the new per-run registry, not
 the never-reset `_http_retries_count` scalar, so a keep-alive process's
 second run starts quiet. The footer is already `@throttle(1)`d, and the
