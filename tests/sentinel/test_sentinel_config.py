@@ -27,8 +27,8 @@ from inspect_ai.log import (
     read_eval_log,
 )
 from inspect_ai.model import ChatMessageAssistant, GenerateConfig
-from inspect_ai.model._model import ModelName
 from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._model import ModelName
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import Tool, ToolCall, tool
 

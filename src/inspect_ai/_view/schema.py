@@ -55,11 +55,9 @@ TS_MONO_DIR = os.path.abspath((VIEW_DIR / "ts-mono").as_posix())
 OUTPUT_PATH = VIEW_DIR / "inspect-openapi.json"
 
 
+# Pydantic module-qualifies classes that share a name (e.g. Scout's `Reference`);
+# merge same-shape ones under the bare name so generated type names stay stable.
 def _merge_same_shape_models(schema: dict[str, Any]) -> dict[str, Any]:
-    """Merge models that share a class name and a shape under the bare name.
-
-    Pydantic qualifies a component name by module when two classes share a name (e.g. `inspect_ai.scorer.Reference` and Scout's `Reference`), which would rename the generated type. When every such class has the same shape, apart from its docstring, they are one type to TypeScript; inspect_ai's docstring is kept. Classes that differ keep their qualified names.
-    """
     components: dict[str, Any] = schema["components"]["schemas"]
     groups: dict[str, list[str]] = {}
     for key, model in components.items():

@@ -25,6 +25,8 @@ class SentinelEntry(BaseModel):
     """One configured monitor or protocol.
 
     Any key besides `name`, `params`, `version` and `meta` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds a list or a mapping of entries, and `nested` returns them.
+
+    Experimental: not yet a stable API; may change without notice.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -84,6 +86,8 @@ class SentinelConfig(RootModel[SentinelLayer]):
     """A sentinel configuration: one entry, a list of entries, or a mapping of instance names to entries.
 
     The value of the `sentinel:` key in a configuration file, and what the eval log records. A mapping is one entry when its `name` is a string, and a mapping of instance names when every value is an entry, so an instance named `name` still configures a mapping.
+
+    Experimental: not yet a stable API; may change without notice.
     """
 
 

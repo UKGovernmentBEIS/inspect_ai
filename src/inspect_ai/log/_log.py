@@ -123,6 +123,8 @@ class EvalConfig(BaseModel):
     """Sentinel monitors and protocols, as the configuration that rebuilds them.
 
     One entry (a lone monitor or protocol, which is the root itself), a list of entries, or a mapping of instance names to entries. Logs load without `inspect_sentinel` installed.
+
+    Experimental: not yet a stable API; may change without notice.
     """
 
     notification: bool | str | None = Field(default=None)

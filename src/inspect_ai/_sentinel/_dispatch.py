@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from weakref import WeakKeyDictionary
 
 from inspect_sentinel import (
@@ -25,7 +25,12 @@ from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.event._sentinel import SentinelAction, SentinelEvent, SentinelSuspicion
+from inspect_ai.event._sentinel import (
+    SentinelAction,
+    SentinelEvent,
+    SentinelStatus,
+    SentinelSuspicion,
+)
 from inspect_ai.log._samples import sample_active
 from inspect_ai.log._transcript import Transcript, transcript
 from inspect_ai.model._chat_message import (
@@ -37,8 +42,8 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, active_model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.review._human import (
-    _escape_placeholders,
-    _fenced,
+    escape_placeholders,
+    fenced,
     view_with_result,
 )
 from inspect_ai.scorer._metric import Reference
@@ -61,7 +66,6 @@ from ._context import SentinelFailure, active_sentinel, active_task_metadata
 logger = getLogger(__name__)
 
 _Kind = Literal["observation", "decision"]
-_Status = Literal["reported", "cancelled", "bypassed", "superseded", "error"]
 
 
 async def sentinel_before_tool_call(
@@ -82,13 +86,6 @@ async def sentinel_before_tool_call(
 
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
-    """Apply a before-tool-call decision, returning the call to execute.
-
-    Raises:
-        ToolApprovalError: The sentinel rejected the call.
-        TerminateSampleError: The sentinel requested termination.
-        SentinelFailure: A modify decision carried no modified call.
-    """
     if decision is None:
         return call
     if decision.action == "reject":
@@ -325,7 +322,7 @@ class _Host:
                     f"human() cannot offer {choice!r}; the choices are "
                     f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
                 )
-            offered.append(_HUMAN_CHOICES[choice])
+            offered.append(cast(ApprovalDecision, choice))
         approval = await human_approver(choices=offered)(
             step.message, step.call, _human_view(step), step.history
         )
@@ -340,17 +337,13 @@ class _Host:
         )
 
 
-_HUMAN_CHOICES: dict[str, ApprovalDecision] = {
-    "approve": "approve",
-    "reject": "reject",
-    "terminate": "terminate",
-}
+_HUMAN_CHOICES = ("approve", "reject", "terminate")
 
 
 def _human_view(step: Step) -> ToolCallView:
     view = step.view
     if step.escalations:
-        lines = _escape_placeholders(
+        lines = escape_placeholders(
             "\n".join(
                 f"- {e.name}: {e.report.explanation}"
                 if e.report.explanation
@@ -358,7 +351,7 @@ def _human_view(step: Step) -> ToolCallView:
                 for e in step.escalations
             )
         )
-        escalated = f"**Escalated by**\n\n{_fenced(lines)}"
+        escalated = f"**Escalated by**\n\n{fenced(lines)}"
         if view.call is None:
             call = ToolCallContent(format="markdown", content=escalated)
         elif view.call.format == "markdown":
@@ -445,7 +438,7 @@ def _emit_decision(
     context: Context,
     factory: str,
     step: Step,
-    status: _Status,
+    status: SentinelStatus,
     function: str,
     decision: Decision,
 ) -> None:
@@ -471,7 +464,7 @@ def _emit(
     factory: str,
     step: Step,
     kind: _Kind,
-    status: _Status,
+    status: SentinelStatus,
     *,
     function: str | None = None,
     suspicion: SentinelSuspicion | None = None,
