@@ -58,11 +58,14 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.images import UnresolvedMediaError, inline_media_data_uri
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
+    ModelDict,
     RegistryInfo,
+    model_create_from_dict,
     registry_find,
     registry_info,
     registry_unqualified_name,
@@ -75,6 +78,7 @@ from inspect_ai._util.working import (
     sample_waiting,
     sample_working_time,
 )
+from inspect_ai.core._registry import set_model_from_dict
 from inspect_ai.model._generate_overrides import generate_config_override_for_attempt
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
@@ -970,6 +974,15 @@ class Model:
 
     def __str__(self) -> str:
         return f"{ModelName(self)}"
+
+    def _registry_value(self) -> ModelDict:
+        """Record this model in registry params, for `registry_value()`."""
+        return ModelDict(
+            model=str(self),
+            config=jsonable_python(self.config),
+            base_url=self.api.base_url,
+            model_args=self.model_args,
+        )
 
     async def generate(
         self,
@@ -3296,3 +3309,6 @@ def sample_total_cost() -> float:
         for usage in sample_model_usage().values()
         if usage.total_cost is not None
     )
+
+
+set_model_from_dict(model_create_from_dict)
