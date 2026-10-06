@@ -16,7 +16,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.tool import tool
+from inspect_ai.tool import ToolParam, ToolParams, tool
 from inspect_ai.tool._tool import tool_result_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
@@ -539,6 +539,7 @@ async def test_tool_event_message_id_for_multiple_calls():
 
 
 async def test_tool_with_varargs_and_kwargs():
+    # control: **kwargs: Any still passes tool arguments straight through
     from inspect_ai.tool._tool_info import parse_tool_info
 
     @tool
@@ -572,3 +573,80 @@ async def test_tool_with_varargs_and_kwargs():
     assert isinstance(messages[-1], ChatMessageTool)
     assert messages[-1].error is None
     assert messages[-1].content == "42_default"
+
+
+async def test_tool_with_varargs_only():
+    @tool
+    def varargs_only_tool():
+        async def execute(x: int, *args: int) -> str:
+            """Tool with varargs.
+
+            Args:
+                x (int): An integer.
+                *args (int): Variable arguments.
+            """
+            return f"{x}_{args}"
+
+        return execute
+
+    call = make_call("varargs_only_tool", {"x": 42})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [ToolDef(varargs_only_tool())],
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert messages[-1].content == "42_()"
+
+
+async def _execute_with_schema(
+    execute: Any, properties: list[str], arguments: dict[str, Any]
+) -> ChatMessageTool:
+    # explicit schema: string properties except `x`, which is an integer
+    tool_def = ToolDef(
+        execute,
+        name="schema_tool",
+        description="Tool with an explicit schema.",
+        parameters=ToolParams(
+            properties={
+                name: ToolParam(type="integer" if name == "x" else "string")
+                for name in properties
+            },
+            required=properties,
+        ),
+    )
+    call = make_call("schema_tool", arguments)
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    return messages[-1]
+
+
+async def test_tool_explicit_schema_kwargs():
+    async def execute(**kwargs: str) -> str:
+        return repr(kwargs)
+
+    message = await _execute_with_schema(execute, ["kwargs"], {"kwargs": "hello"})
+    assert message.content == repr({"kwargs": "hello"})
+
+
+async def test_tool_explicit_schema_named_kwargs():
+    async def execute(**options: str) -> str:
+        return repr(options)
+
+    message = await _execute_with_schema(execute, ["options"], {"options": "hello"})
+    assert message.content == repr({"options": "hello"})
+
+
+async def test_tool_explicit_schema_kwargs_with_named_params():
+    async def execute(x: int, *args: int, **options: str) -> str:
+        return f"{x}_{args}_{options!r}"
+
+    message = await _execute_with_schema(
+        execute,
+        ["x", "label", "mode"],
+        {"x": 1, "label": "first", "mode": "fast"},
+    )
+    assert message.content == f"1_()_{ {'label': 'first', 'mode': 'fast'}!r}"

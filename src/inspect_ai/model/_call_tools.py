@@ -1272,12 +1272,19 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
 
     # build params
     params: dict[str, Any] = {}
+    named_params: set[str] = set()
+    var_keyword: inspect.Parameter | None = None
     for param_name, param in signature.parameters.items():
-        if param.kind in (
-            inspect.Parameter.VAR_POSITIONAL,
-            inspect.Parameter.VAR_KEYWORD,
-        ):
+        # *args can't be passed by name, so tool arguments never fill it
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
             continue
+
+        # **kwargs receives the arguments that no named parameter takes
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            var_keyword = param
+            continue
+
+        named_params.add(param_name)
 
         # Parse docstring
         docstring_info = parse_docstring(docstring, param_name)
@@ -1308,6 +1315,14 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
             raise ToolParsingError(
                 f"Required parameter {param_name} not provided to tool call."
             )
+
+    # pass the remaining arguments (e.g. ones declared by an explicit tool
+    # schema) through to **kwargs, converted using its annotation if present
+    if var_keyword is not None:
+        kwargs_type: Any = type_hints.get(var_keyword.name, Any)
+        for name, value in input.items():
+            if name not in named_params:
+                params[name] = tool_param(kwargs_type, value)
 
     return params
 
