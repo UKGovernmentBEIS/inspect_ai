@@ -1052,10 +1052,17 @@ class Model:
         if config.system_message:
             input = [ChatMessageSystem(content=config.system_message)] + input
 
+        # bridge machinery (compaction, tool approval) attributes its own model
+        # calls to "utility" (see `utility_model_calls`)
+        from inspect_ai.agent._bridge.context import utility_model_generate
+
         # enforce concurrency limits
         start_time = datetime.now(timezone.utc)
         working_start = sample_working_time()
-        async with self._connection_concurrency(config) as connection:
+        async with (
+            utility_model_generate(),
+            self._connection_concurrency(config) as connection,
+        ):
             # generate
             output, event = await self._generate(
                 input=input,

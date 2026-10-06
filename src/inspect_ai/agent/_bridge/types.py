@@ -8,6 +8,7 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.context import utility_model_calls
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._compaction import (
@@ -259,12 +260,14 @@ class AgentBridge:
             model: Target model for compacted input.
         """
         if self._compact is None and self._compaction is not None:
-            self._compact = create_compaction(
-                self._compaction,
-                prefix=self._compaction_prefix,
-                tools=tools,
-                model=model,
-                checkpointer=self._cp,
+            self._compact = _UtilityCompact(
+                create_compaction(
+                    self._compaction,
+                    prefix=self._compaction_prefix,
+                    tools=tools,
+                    model=model,
+                    checkpointer=self._cp,
+                )
             )
         return self._compact
 
@@ -626,3 +629,24 @@ def _condensed_fingerprint(fp: _MessageFingerprint) -> _MessageFingerprint:
 def _extends(prefix: list[_MessageFingerprint], fps: list[_MessageFingerprint]) -> bool:
     """Whether `fps` is a proper extension (continuation) of `prefix`."""
     return len(fps) > len(prefix) and fps[: len(prefix)] == prefix
+
+
+class _UtilityCompact:
+    """Bridge compaction whose model calls read as "utility" agent context."""
+
+    def __init__(self, compact: Compact) -> None:
+        self._compact = compact
+
+    async def compact_input(
+        self,
+        messages: list[ChatMessage],
+        force: bool = False,
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        with utility_model_calls():
+            return await self._compact.compact_input(messages, force=force)
+
+    async def record_output(
+        self, input: list[ChatMessage], output: ModelOutput
+    ) -> None:
+        with utility_model_calls():
+            await self._compact.record_output(input, output)

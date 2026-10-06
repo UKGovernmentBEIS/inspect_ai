@@ -74,9 +74,8 @@ async def inspect_google_api_request_impl(
 ) -> dict[str, Any]:
     # resolve model
     requested_model = json_data.get("model")
-    bridge_model_name = (
-        str(requested_model) if requested_model is not None else "inspect"
-    )
+    requested_model = str(requested_model) if requested_model is not None else None
+    bridge_model_name = requested_model if requested_model is not None else "inspect"
     model = resolve_inspect_model(
         bridge_model_name,
         bridge.model_aliases,
@@ -145,7 +144,7 @@ async def inspect_google_api_request_impl(
         tools,
         tool_choice,
         config,
-        requested_model=str(requested_model) if requested_model is not None else None,
+        requested_model=requested_model,
     )
     if c_message is not None:
         messages.append(c_message)

@@ -62,10 +62,9 @@ from inspect_ai.tool._tools._web_search._web_search import (
 from inspect_ai.util._json import JSONSchema
 
 from .context import (
-    AgentBridgeContext,
-    agent_bridge_context_scope,
+    _UNKNOWN_CONTEXT,
     bridged_request_scope,
-    reset_agent_bridge_context_default,
+    set_agent_bridge_context,
 )
 
 # Generation-tuning fields a scaffold may set on a bridged request that describe
@@ -494,7 +493,7 @@ async def bridge_generate(
     tools: Sequence[ToolInfo | Tool],
     tool_choice: ToolChoice | None,
     config: GenerateConfig,
-    requested_model: str | None = None,
+    requested_model: str | None,
     declared_in_input: Callable[[list[ChatMessage]], Sequence[ToolInfo]] | None = None,
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Generate model output through the agent bridge.
@@ -517,8 +516,8 @@ async def bridge_generate(
     The entire call executes within a `bridged_request_scope`: the ambient
     `AgentBridgeContext` defaults to unknown, `current_bridge_request()` carries
     `requested_model` (the scaffold's pre-alias-resolution model slug), or
-    returns None when no `requested_model` was provided, and both reset when
-    the request completes.
+    returns None when the scaffold sent no model, and both reset when the
+    request completes.
 
     Tool calls in the output are approved before it is handed back to the scaffold. A
     rejected call is not edited out of the response — instead the model is told it was
@@ -550,11 +549,7 @@ async def _bridge_generate_impl(
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
     if compact is not None:
-        # compaction is the canonical "utility" kind — its own model.generate
-        # call (e.g. a summarization strategy) should read as utility rather
-        # than the ambient default.
-        with agent_bridge_context_scope(AgentBridgeContext("utility")):
-            input_messages, c_message = await compact.compact_input(input)
+        input_messages, c_message = await compact.compact_input(input)
     else:
         input_messages = input
         c_message = None
@@ -571,7 +566,7 @@ async def _bridge_generate_impl(
         # Re-stamp the ambient context to the default so a filter-set context
         # from a refused attempt doesn't leak into the next retry — attempt
         # N+1 starts clean, same as attempt 1.
-        reset_agent_bridge_context_default()
+        set_agent_bridge_context(_UNKNOWN_CONTEXT)
 
         # Reset to original inputs for each retry
         input_messages = original_input
@@ -656,11 +651,8 @@ async def _bridge_generate_impl(
         # never sees the rejected response. The calls in the response handed over
         # are the only ones the scaffold may run as host tools, once each; they
         # resolve against the declarations this attempt generated with (tools and
-        # in-input declarations alike), which a filter may have rewritten. Approval
-        # review is "utility" work — an approver's own model calls should read as
-        # utility, not as the agent whose calls are under review.
-        with agent_bridge_context_scope(AgentBridgeContext("utility")):
-            reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
+        # in-input declarations alike), which a filter may have rewritten.
+        reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
         if reviewed.rejection is None:
             declarations: list[ToolInfo | Tool] = list(tools)
             if declared_in_input is not None:

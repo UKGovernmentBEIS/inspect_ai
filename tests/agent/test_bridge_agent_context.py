@@ -1,6 +1,6 @@
 """Tests for the ambient agent bridge context (AgentBridgeContext)."""
 
-from typing import Any
+from typing import Any, Literal
 
 import anyio
 import pytest
@@ -12,7 +12,6 @@ from inspect_ai.agent._bridge.anthropic_api_impl import (
 from inspect_ai.agent._bridge.context import (
     AgentBridgeContext,
     BridgeRequest,
-    agent_bridge_context_scope,
     bridged_request_scope,
     current_agent_bridge_context,
     current_bridge_request,
@@ -27,11 +26,21 @@ from inspect_ai.agent._bridge.util import (
     default_code_execution_providers,
     internal_web_search_providers,
 )
+from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import GenerateConfig, Model, ModelOutput, get_model
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
+from inspect_ai.model._compaction.types import CompactionStrategy
+from inspect_ai.model._model_output import ChatCompletionChoice
+from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+
+Kind = Literal["root", "subagent", "utility", "unknown"]
 
 
 def test_no_context_outside_bridged_request() -> None:
@@ -69,7 +78,7 @@ def test_set_agent_bridge_context_within_scope() -> None:
 
 
 def test_is_sub_agent_only_for_subagent_kind() -> None:
-    expectations = [
+    expectations: list[tuple[Kind, bool]] = [
         ("root", False),
         ("subagent", True),
         ("utility", False),
@@ -77,7 +86,7 @@ def test_is_sub_agent_only_for_subagent_kind() -> None:
     ]
     for kind, expected in expectations:
         with bridged_request_scope(None):
-            set_agent_bridge_context(AgentBridgeContext(kind))  # type: ignore[arg-type]
+            set_agent_bridge_context(AgentBridgeContext(kind))
             assert is_sub_agent() is expected, f"kind={kind}"
 
 
@@ -87,7 +96,7 @@ def test_is_root_agent_semantics() -> None:
     with bridged_request_scope(None):
         # ...and when attribution is unknown (the unset default)
         assert is_root_agent() is True
-    expectations = [
+    expectations: list[tuple[Kind, bool]] = [
         ("root", True),
         ("subagent", False),
         ("utility", False),
@@ -95,16 +104,16 @@ def test_is_root_agent_semantics() -> None:
     ]
     for kind, expected in expectations:
         with bridged_request_scope(None):
-            set_agent_bridge_context(AgentBridgeContext(kind))  # type: ignore[arg-type]
+            set_agent_bridge_context(AgentBridgeContext(kind))
             assert is_root_agent() is expected, f"kind={kind}"
 
 
 async def test_concurrent_tasks_have_isolated_contexts() -> None:
     observed: dict[str, str | None] = {}
 
-    async def worker(name: str, kind: str) -> None:
+    async def worker(name: str, kind: Kind) -> None:
         with bridged_request_scope(f"{name}-slug"):
-            set_agent_bridge_context(AgentBridgeContext(kind))  # type: ignore[arg-type]
+            set_agent_bridge_context(AgentBridgeContext(kind))
             await anyio.sleep(0.01)  # force interleaving
             context = current_agent_bridge_context()
             request = current_bridge_request()
@@ -217,6 +226,7 @@ async def test_bridge_generate_without_requested_model() -> None:
         [],
         None,
         GenerateConfig(),
+        requested_model=None,
     )
     assert seen["context"] == AgentBridgeContext("unknown")
     assert seen["request"] is None
@@ -334,16 +344,14 @@ def test_public_exports() -> None:
 # --- final-review fixes ------------------------------------------------------
 
 
-def test_nested_scopes_restore_outer() -> None:
-    """A nested `agent_bridge_context_scope` restores the enclosing value on exit."""
-    with bridged_request_scope("slug"):  # scope A: defaults to "unknown"
+def test_nested_request_scopes_restore_outer() -> None:
+    """A nested request scope restores the enclosing value on exit."""
+    with bridged_request_scope("outer"):
         set_agent_bridge_context(AgentBridgeContext("subagent"))
-        assert current_agent_bridge_context() == AgentBridgeContext("subagent")
-        with agent_bridge_context_scope(AgentBridgeContext("unknown")):  # scope B
+        with bridged_request_scope("inner"):
             assert current_agent_bridge_context() == AgentBridgeContext("unknown")
-        # exiting B restores the subagent value set within A
+        # exiting the inner scope restores the subagent value set in the outer one
         assert current_agent_bridge_context() == AgentBridgeContext("subagent")
-    # exiting A (the outermost scope) leaves no context at all
     assert current_agent_bridge_context() is None
 
 
@@ -417,25 +425,158 @@ async def test_retry_attempts_start_with_default_context() -> None:
     assert seen["context"] == AgentBridgeContext("unknown")
 
 
-def test_agent_bridge_context_scope_utility() -> None:
-    """`agent_bridge_context_scope` stamps utility and restores the prior value.
+def _recording_model(seen: list[AgentBridgeContext | None]) -> Model:
+    """A model that records the agent context its generate calls run under."""
 
-    This stands in for `test_compaction_generates_read_utility`: wiring an
-    actual `CompactionStrategy` into `bridge_generate` so its internal
-    `model.generate()` call is observable requires the full `eval()` /
-    transcript harness used by `test_agent_bridge_compaction.py` (an OpenAI
-    client, a real compaction threshold crossing, etc.) -- heavy scaffolding
-    for something `agent_bridge_context_scope` already guarantees on its own.
-    Exercising the context manager directly covers the same guarantee that
-    `_bridge_generate_impl` relies on when it wraps `compact.compact_input()`.
-    """
-    with bridged_request_scope("slug"):
-        set_agent_bridge_context(AgentBridgeContext("subagent"))
-        with agent_bridge_context_scope(AgentBridgeContext("utility")):
-            assert current_agent_bridge_context() == AgentBridgeContext("utility")
-        # prior value (set before entering the inner scope) is restored
-        assert current_agent_bridge_context() == AgentBridgeContext("subagent")
+    def custom_outputs(
+        input: list[ChatMessage], tools: object, tool_choice: object, config: object
+    ) -> ModelOutput:
+        seen.append(current_agent_bridge_context())
+        return ModelOutput.from_content(model="mockllm/model", content="ok")
+
+    return get_model("mockllm/model", custom_outputs=custom_outputs)
+
+
+def _subagent_filter(
+    model: Model,
+    messages: list[ChatMessage],
+    tools: list[ToolInfo],
+    tool_choice: ToolChoice | None,
+    config: GenerateConfig,
+) -> Any:
+    set_agent_bridge_context(AgentBridgeContext("subagent"))
+    return None
+
+
+async def _subagent_marking_filter(
+    model: Model,
+    messages: list[ChatMessage],
+    tools: list[ToolInfo],
+    tool_choice: ToolChoice | None,
+    config: GenerateConfig,
+) -> None:
+    _subagent_filter(model, messages, tools, tool_choice, config)
+
+
+class _GeneratingCompaction(CompactionStrategy):
+    """Compaction that always runs and makes its own model call."""
+
+    def __init__(self, internal_model: Model) -> None:
+        super().__init__(type="summary", threshold=30, memory=False)
+        self.internal_model = internal_model
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        await self.internal_model.generate("summarize")
+        return [ChatMessageUser(content="summary")], None
+
+
+async def test_compaction_model_calls_read_utility() -> None:
+    internal: list[AgentBridgeContext | None] = []
+    agent: list[AgentBridgeContext | None] = []
+    bridge = AgentBridge(
+        state=AgentState(messages=[]),
+        filter=_subagent_marking_filter,
+        compaction=_GeneratingCompaction(_recording_model(internal)),
+    )
+    await bridge_generate(
+        bridge,
+        _recording_model(agent),
+        [ChatMessageUser(content="hello " * 50)],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model="scaffold-slug",
+    )
+    assert internal and all(c == AgentBridgeContext("utility") for c in internal)
+    # the agent's own generate keeps the filter's attribution
+    assert agent == [AgentBridgeContext("subagent")]
+
+
+@approver(name="test_bridge_context_attribution")
+def attribution_approver(
+    judge: Model, seen: list[AgentBridgeContext | None]
+) -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        seen.append(current_agent_bridge_context())
+        await judge.generate("review this call")
+        if is_root_agent():
+            return Approval(decision="approve")
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id, function=call.function, arguments={"cmd": "subagent"}
+            ),
+        )
+
+    return approve
+
+
+async def _run_with_attribution_approver(
+    filter: Any,
+) -> tuple[
+    ModelOutput, list[AgentBridgeContext | None], list[AgentBridgeContext | None]
+]:
+    call = ToolCall(id="1", function="bash", arguments={"cmd": "ls"})
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput(
+                model="mockllm/model",
+                choices=[
+                    ChatCompletionChoice(
+                        message=ChatMessageAssistant(content="", tool_calls=[call]),
+                        stop_reason="tool_calls",
+                    )
+                ],
+            )
+        ],
+    )
+    policy_seen: list[AgentBridgeContext | None] = []
+    judge_seen: list[AgentBridgeContext | None] = []
+    bridge = AgentBridge(state=AgentState(messages=[]), filter=filter)
+    bridge.approval = [
+        ApprovalPolicy(
+            attribution_approver(_recording_model(judge_seen), policy_seen), "*"
+        )
+    ]
+    output, _ = await bridge_generate(
+        bridge,
+        model,
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model="scaffold-slug",
+    )
+    return output, policy_seen, judge_seen
+
+
+async def test_approval_policy_sees_reviewed_request_attribution() -> None:
+    output, policy_seen, judge_seen = await _run_with_attribution_approver(
+        _subagent_marking_filter
+    )
+    # the policy sees the subagent attribution of the request under review...
+    assert policy_seen == [AgentBridgeContext("subagent")]
+    tool_calls = output.message.tool_calls
+    assert tool_calls is not None and tool_calls[0].arguments == {"cmd": "subagent"}
+    # ...while the approver's own model call reads as utility
+    assert judge_seen == [AgentBridgeContext("utility")]
     assert current_agent_bridge_context() is None
+
+
+async def test_approval_policy_treats_unattributed_request_as_root() -> None:
+    output, policy_seen, judge_seen = await _run_with_attribution_approver(None)
+    assert policy_seen == [AgentBridgeContext("unknown")]
+    tool_calls = output.message.tool_calls
+    assert tool_calls is not None and tool_calls[0].arguments == {"cmd": "ls"}
+    assert judge_seen == [AgentBridgeContext("utility")]
 
 
 def test_setter_raises_outside_scope() -> None:

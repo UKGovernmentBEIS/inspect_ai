@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
 
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
+from inspect_ai.agent._bridge.context import utility_model_calls
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
@@ -103,6 +104,9 @@ async def apply_bridge_tool_approval(
     calls no approver saw or no grant covers. Text-only alternates pass through,
     as does everything for an in-process bridge without a policy.
 
+    Approval policies read the agent context of the request under review (e.g.
+    `is_root_agent()`); model calls an approver makes read as "utility".
+
     Args:
         bridge: Bridge whose `approval` policies (if any) apply for this call.
         output: Model output about to be handed to the scaffold.
@@ -114,7 +118,7 @@ async def apply_bridge_tool_approval(
     """
     from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
 
-    with bridge_approval_scope(bridge.approval):
+    with bridge_approval_scope(bridge.approval), utility_model_calls():
         approval_active = have_tool_approval()
         if (approval_active or bridge.grants_tool_execution) and any(
             choice.message.tool_calls for choice in output.choices[1:]
