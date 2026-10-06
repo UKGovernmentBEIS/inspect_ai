@@ -2,6 +2,8 @@
 
 - Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
 - Tool review now also reviews `handoff()` calls, as approval does.
+- Fixed model calls and token counting in multiprocess Scout scans using the default model configuration.
+- Bugfix: Interrupting after scoring no longer drops the scored sample from a cancelled evaluation log while its sandbox is being cleaned up.
 - Bugfix: Overflow recovery no longer drops the sample's input from the recorded conversation, so scorers and the viewer still see the task after a forced compaction.
 - Sample sources: `enqueue_sample(samples, epoch=N)` runs each sample once as epoch `N`, so a source can run one sample repeatedly under its own id.
 - Run config: `eval_config.token_limit_type` from an exported or handwritten run config is applied as the token-limit metering type instead of being rejected as an unknown generate option.
@@ -12,6 +14,7 @@
 - Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
 - Model API: Model events log provider request ids (including for retried requests) and response ids, even when raw model API calls are not logged.
 - Datasets: `shuffle` on `csv_dataset()`, `json_dataset()`, `file_dataset()` and `hf_dataset()` now treats an integer as a seed, so `shuffle=0` shuffles with seed 0.
+- Fixed `exact()` and `f1()` scorers awarding a perfect score when a target normalizes to an empty string.
 - Security: Text-editor undo history uses non-executable data stored privately per OS account; old pickle history is ignored.
 - Sandbox tools: killing an `exec_remote` job that has already exited now guards against signalling unrelated processes that reused its PID.
 - Sandbox: `exec_remote()` and `sandbox_agent_bridge()` take a new opt-in `poll_timeout_recovery` that keeps polling a running command through a temporary sandbox stall instead of failing.
@@ -32,6 +35,14 @@
 - Bugfix: Remote MCP servers are now refused while an approval policy is active, rather than having their tools run by the model provider without approval.
 - Bugfix: Results of `sandbox_agent_bridge()` bridged tools are now truncated at `max_tool_output` (or the tool's `max_output`), as other tool results are.
 - Eval Set: Fixed logging with S3 credentials restricted to the log directory's prefix, and reading and writing `eval-set.json` for Azure log directories with a trailing slash or an account in the URL.
+- Analysis: Type checkers now accept column extract functions that take a specific event, message or sample type, or return a precise JSON type such as `list[dict[str, int]]`.
+- Hugging Face: Concurrent requests for different models or generation settings are now generated with their own model and settings, not the first request's.
+- OpenAI and Anthropic: Fixed concurrent requests failing or restarting when another sample's request triggers a credential refresh (e.g. on an expired API key).
+- OpenAI: OpenAI: The OpenAI providers, message and output converters, and agent bridge now require openai >= 3.4.0.
+- Bugfix: Tool events now record the arguments an approver's `modify` decision substituted, and a `modify` that changes the function now fails the sample instead of running the wrong call.
+- Agent Bridge: `sandbox_agent_bridge()` now serves a request for an unknown model name with the eval's model and logs a warning; add the name to `model_aliases` to send it to another model.
+- Agent Bridge: Fixed a bridge `filter` sometimes receiving the model name instead of a `Model` (or the reverse) when filters of both signatures were used in one process.
+- Perplexity: Each response now gets only its own citations and usage when one model handles concurrent requests, and a failed request no longer reuses an earlier response's.
 
 ## 0.3.276 (02 October 2026)
 

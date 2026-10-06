@@ -493,10 +493,6 @@
       "count": 1,
       "undescribed": 1
     },
-    "type: ignore[arg-type]": {
-      "count": 1,
-      "undescribed": 1
-    },
     "type: ignore[call-arg]": {
       "count": 1,
       "undescribed": 1
@@ -1661,8 +1657,8 @@
   },
   "tests/model/providers/test_hf.py": {
     "type: ignore[attr-defined]": {
-      "count": 9,
-      "undescribed": 9
+      "count": 2,
+      "undescribed": 2
     },
     "type: ignore[import-not-found]": {
       "count": 1,

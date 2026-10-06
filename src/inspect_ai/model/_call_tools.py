@@ -385,14 +385,15 @@ async def _execute_tools_impl(
                         truncated_output.truncated_bytes,
                     )
 
-            # create event
+            # create event (`call_tool` records an approver's modified arguments
+            # on `event`)
             result_event = ToolEvent(
                 id=call.id,
                 function=call.function,
-                arguments=call.arguments,
+                arguments=event.arguments,
                 result=content,
                 truncated=truncated,
-                view=call.view,
+                view=event.view,
                 error=tool_error,
                 agent=agent,
                 agent_span_id=agent_span_id,
@@ -672,10 +673,10 @@ async def _execute_tools_impl(
                     op_result_event = ToolEvent(
                         id=call.id,
                         function=call.function,
-                        arguments=call.arguments,
+                        arguments=event.arguments,
                         result=tool_result_content(op_tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=op_tool_message.error,
                     )
                     results[idx] = (
@@ -759,10 +760,10 @@ async def _execute_tools_impl(
                     cancellation_event = ToolEvent(
                         id=call.id,
                         function=call.function,
-                        arguments=call.arguments,
+                        arguments=event.arguments,
                         result=tool_result_content(tool_message.content),
                         truncated=None,
-                        view=call.view,
+                        view=event.view,
                         error=tool_message.error,
                     )
                     transcript().info(
@@ -885,7 +886,10 @@ async def call_tool(
         raise await record_tool_parsing_error(f"Tool {call.function} not found")
 
     # if we have a tool approver, apply it now
-    from inspect_ai.approval._apply import apply_tool_approval
+    from inspect_ai.approval._apply import (
+        apply_tool_approval,
+        modified_function_error,
+    )
 
     approved, approval = await apply_tool_approval(
         message, call, tool_def.viewer, conversation
@@ -898,7 +902,15 @@ async def call_tool(
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
+        error = modified_function_error(call, approval.modified)
+        if error is not None:
+            await record_pending_tool_event()
+            raise RuntimeError(error)
+        # record the arguments that run: the model's proposal stays in the
+        # ModelEvent and the ApprovalEvent
         call = approval.modified
+        event.arguments = call.arguments
+        event.view = tool_call_view(call, tools)
 
     if active_sentinel() is not None:
         from inspect_ai._sentinel._dispatch import (
