@@ -178,8 +178,8 @@ from .util import (
     client_request_string,
     client_response_schema,
     relax_tool_choice_for_withheld,
+    resolve_bridge_model,
     resolve_generate_config,
-    resolve_inspect_model,
     tool_choice_from_openai_string,
     validate_bridge_media,
     validate_client_config,
@@ -215,13 +215,15 @@ async def inspect_responses_api_request_impl(
 ) -> Response:
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(
+    routing = resolve_bridge_model(
         bridge_model_name,
-        bridge.model_aliases,
-        bridge.model,
+        model_aliases=bridge.model_aliases,
         model_resolver=bridge.model_resolver,
+        model=bridge.model,
+        allow_client_model_names=bridge.allow_client_model_names,
         provider="openai",
     )
+    model = routing.model
     model_name = model.api.model_name
     is_openai = _is_openai_responses_provider(model)
 
@@ -333,6 +335,7 @@ async def inspect_responses_api_request_impl(
         declared_in_input=lambda messages: _declarations_in_input(
             messages, web_search, code_execution, bridge
         ),
+        routing=routing,
     )
     if c_message is not None:
         messages.append(c_message)

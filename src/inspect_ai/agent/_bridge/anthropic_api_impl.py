@@ -91,8 +91,8 @@ from .util import (
     client_request_object,
     client_request_string,
     relax_tool_choice_for_withheld,
+    resolve_bridge_model,
     resolve_generate_config,
-    resolve_inspect_model,
     validate_bridge_media,
     validate_client_config,
     withheld_bridge_tool,
@@ -112,13 +112,15 @@ async def inspect_anthropic_api_request_impl(
 ) -> Message | BetaMessage:
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(
+    routing = resolve_bridge_model(
         bridge_model_name,
-        bridge.model_aliases,
-        bridge.model,
+        model_aliases=bridge.model_aliases,
         model_resolver=bridge.model_resolver,
+        model=bridge.model,
+        allow_client_model_names=bridge.allow_client_model_names,
         provider="anthropic",
     )
+    model = routing.model
 
     # tools
     anthropic_tools: list[ToolParamDef] | None = json_data.get("tools", None)
@@ -183,7 +185,7 @@ async def inspect_anthropic_api_request_impl(
 
     # if there is a bridge filter give it a shot first
     output, c_message = await bridge_generate(
-        bridge, model, messages, tools, tool_choice, config
+        bridge, model, messages, tools, tool_choice, config, routing=routing
     )
     if c_message is not None:
         messages.append(c_message)
