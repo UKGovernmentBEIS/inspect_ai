@@ -1299,7 +1299,9 @@ NESTED_SEARCH_BLOCKS: list[dict[str, Any]] = [
 
 
 async def _anthropic_output(
-    blocks: list[dict[str, Any]], tools: list[ToolInfo] | None = None
+    blocks: list[dict[str, Any]],
+    tools: list[ToolInfo] | None = None,
+    stop_reason: str = "end_turn",
 ) -> ModelOutput:
     """Parse an Anthropic response, recording its replay state for this sample."""
     from anthropic.types import Message
@@ -1313,7 +1315,7 @@ async def _anthropic_output(
             "role": "assistant",
             "model": "claude-opus-4-8",
             "content": blocks,
-            "stop_reason": "end_turn",
+            "stop_reason": stop_reason,
             "usage": {"input_tokens": 1, "output_tokens": 1},
         }
     )
@@ -1466,6 +1468,139 @@ async def test_response_filter_keeps_provider_owned_content_it_can_render(
             assert_never(keep)
     # the provider's own output is untouched
     assert provider_output.message == provider_before.message
+    assert await _render_anthropic(provider_output.message) == original_blocks
+
+
+PENDING_CODE = "print(20240101)"
+PENDING_SPAN_BLOCKS: dict[str, list[dict[str, Any]]] = {
+    "pending_only": [],
+    "completed_and_pending": [
+        {
+            "type": "server_tool_use",
+            "id": "srvtoolu_ws",
+            "name": "web_search",
+            "input": {"query": "nhl scores"},
+            "caller": {"type": "direct"},
+        },
+        {
+            "type": "web_search_tool_result",
+            "tool_use_id": "srvtoolu_ws",
+            "content": [
+                {
+                    "type": "web_search_result",
+                    "title": "NHL Scores",
+                    "url": "https://nhl.com/scores",
+                    "encrypted_content": "ENCRYPTED_CONTENT",
+                }
+            ],
+            "caller": {"type": "direct"},
+        },
+    ],
+}
+"""Server work before a code execution still pending when the turn ended."""
+
+
+async def _pending_span_output(spans: str) -> ModelOutput:
+    """A turn ending on a client tool call while a code execution is pending."""
+    return await _anthropic_output(
+        [
+            {"type": "text", "text": "Checking."},
+            *PENDING_SPAN_BLOCKS[spans],
+            {
+                "type": "server_tool_use",
+                "id": "srvtoolu_pending",
+                "name": "code_execution",
+                "input": {"code": PENDING_CODE},
+                "caller": {"type": "direct"},
+            },
+            {
+                "type": "tool_use",
+                "id": "toolu_client",
+                "name": "lookup",
+                "input": {"q": "x"},
+            },
+        ],
+        [ToolInfo(name="lookup", description="Look something up.")],
+        stop_reason="tool_use",
+    )
+
+
+async def _text_only_filter(
+    model: Model, output: ModelOutput, generate_input: GenerateInput
+) -> ModelOutput | None:
+    """Edit the output in place down to one text item, keeping its message id."""
+    output.message.content = [ContentText(text=REPLACED_SENTINEL)]
+    output.message.tool_calls = None
+    output.choices[0].stop_reason = "stop"
+    return output
+
+
+async def _identity_filter(
+    model: Model, output: ModelOutput, generate_input: GenerateInput
+) -> ModelOutput | None:
+    return output
+
+
+@pytest.mark.parametrize("path", get_args(BridgePath))
+@pytest.mark.parametrize("replace", [False, True], ids=["unchanged", "replaced"])
+@pytest.mark.parametrize("spans", list(PENDING_SPAN_BLOCKS))
+async def test_response_filter_replacement_drops_pending_server_work(
+    spans: str, replace: bool, path: BridgePath
+) -> None:
+    """Pending server work reaches the agent only with the output it belongs to.
+
+    Anthropic replays a code execution still pending at the end of a turn by
+    message id, since it has no content item. A replacement must not carry it
+    along; an unchanged output still does.
+    """
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _pending_span_output(spans)
+    original_blocks = await _render_anthropic(provider_output.message)
+    assert PENDING_CODE in json.dumps(original_blocks)
+    model = get_model("mockllm/model", custom_outputs=[provider_output])
+    response_filter = _text_only_filter if replace else _identity_filter
+
+    blocks: list[dict[str, Any]]
+    match path:
+        case "in_process":
+            bridge = AgentBridge(AgentState(messages=[]))
+            bridge.response_filter = response_filter
+            output, _ = await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content="hi")],
+                [],
+                None,
+                GenerateConfig(),
+            )
+            blocks = await _render_anthropic(output.message)
+            state_output = output
+        case "sandbox":
+            sandbox_bridge = _sandbox_bridge(response_filter, model)
+            reply = await _forward_provider_errors(
+                generate_anthropic(None, None, sandbox_bridge), sandbox_bridge
+            )(
+                {
+                    "model": "inspect",
+                    "max_tokens": 1024,
+                    "messages": CHAT_REQUEST["messages"],
+                }
+            )
+            assert PROVIDER_ERROR_KEY not in reply
+            blocks = cast(list[dict[str, Any]], reply["content"])
+            state_output = sandbox_bridge.state.output
+        case _:
+            assert_never(path)
+
+    if replace:
+        assert [(b["type"], b.get("text")) for b in blocks] == [
+            ("text", REPLACED_SENTINEL)
+        ]
+        assert state_output.message.content == [ContentText(text=REPLACED_SENTINEL)]
+    else:
+        assert PENDING_CODE in json.dumps(blocks)
+        assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
+    # the provider's output and its replay record are untouched
     assert await _render_anthropic(provider_output.message) == original_blocks
 
 
@@ -1826,3 +1961,136 @@ def test_live_response_filter_anthropic(tmp_path: Path, mode: LiveFilterMode) ->
 @pytest.mark.parametrize("mode", get_args(LiveFilterMode))
 def test_live_response_filter_google(tmp_path: Path, mode: LiveFilterMode) -> None:
     _run_live_response_filter("google/gemini-3.1-flash-lite", "google", mode, tmp_path)
+
+
+LiveNativeMode = Literal["edit_text", "drop_server_tools", "edit_search"]
+SERVER_BLOCK_TYPES = {
+    "server_tool_use",
+    "web_search_tool_result",
+    "code_execution_tool_result",
+}
+
+
+def _live_native_filter(
+    mode: LiveNativeMode, saw_server_tools: list[bool]
+) -> ModelResponseFilter:
+    """Record whether each output had server tool items, then edit it per `mode`."""
+
+    async def response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        content = output.message.content
+        if not isinstance(content, list):
+            saw_server_tools.append(False)
+            return None
+        tool_uses = [c for c in content if isinstance(c, ContentToolUse)]
+        saw_server_tools.append(bool(tool_uses))
+        match mode:
+            case "edit_text":
+                for item in content:
+                    if isinstance(item, ContentText):
+                        item.text = f"{item.text} {REPLACED_SENTINEL}"
+                        break
+            case "drop_server_tools":
+                output.message.content = [
+                    c for c in content if not isinstance(c, ContentToolUse)
+                ]
+            case "edit_search":
+                if tool_uses:
+                    tool_uses[0].arguments = '{"query": "edited"}'
+            case _:
+                assert_never(mode)
+        return output
+
+    return response_filter
+
+
+@skip_if_no_anthropic
+@pytest.mark.parametrize("mode", get_args(LiveNativeMode))
+def test_live_response_filter_anthropic_native_content(
+    tmp_path: Path, mode: LiveNativeMode
+) -> None:
+    """A filter over live Anthropic server tool content, followed by another turn.
+
+    Web search with dynamic filtering returns nested server tool spans. Keeping
+    them while editing text, or removing all of them, must render as the filter
+    left them and replay on the next turn; editing one fails the sample.
+    """
+    from anthropic import AsyncAnthropic
+
+    from inspect_ai import Task, eval
+    from inspect_ai.agent import Agent, agent
+    from inspect_ai.dataset import Sample
+
+    saw_server_tools: list[bool] = []
+    first_reply_types: list[str] = []
+    first_reply_text: list[str] = []
+    prompt = "What movie won best picture in 2025? Search the web."
+
+    @agent
+    def native_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(
+                state, response_filter=_live_native_filter(mode, saw_server_tools)
+            ) as bridge:
+                async with AsyncAnthropic(api_key="inspect") as client:
+                    tools: Any = [
+                        {
+                            "type": "web_search_20260209",
+                            "name": "web_search",
+                            "max_uses": 3,
+                        }
+                    ]
+                    messages: Any = [{"role": "user", "content": prompt}]
+                    response = await client.messages.create(
+                        model="inspect",
+                        max_tokens=4096,
+                        messages=messages,
+                        tools=tools,
+                        tool_choice={"type": "any"},
+                    )
+                    first_reply_types.extend(block.type for block in response.content)
+                    first_reply_text.extend(
+                        block.text for block in response.content if block.type == "text"
+                    )
+                    messages = messages + [
+                        {"role": "assistant", "content": response.content},
+                        {"role": "user", "content": "Answer in one short sentence."},
+                    ]
+                    await client.messages.create(
+                        model="inspect",
+                        max_tokens=4096,
+                        messages=messages,
+                        tools=tools,
+                    )
+                return bridge.state
+
+        return execute
+
+    log = eval(
+        Task(dataset=[Sample(input=prompt)], solver=native_agent()),
+        model="anthropic/claude-sonnet-4-6",
+        log_dir=str(tmp_path),
+        display="plain",
+    )[0]
+    assert log.samples is not None
+    sample = log.samples[0]
+
+    # the model actually produced server tool content on the first turn
+    assert saw_server_tools and saw_server_tools[0]
+    match mode:
+        case "edit_text":
+            assert sample.error is None, sample.error
+            assert len(saw_server_tools) == 2
+            assert SERVER_BLOCK_TYPES & set(first_reply_types)
+            assert any(REPLACED_SENTINEL in text for text in first_reply_text)
+        case "drop_server_tools":
+            assert sample.error is None, sample.error
+            assert len(saw_server_tools) == 2
+            assert not SERVER_BLOCK_TYPES & set(first_reply_types)
+        case "edit_search":
+            assert sample.error is not None
+            assert sample.error.message.startswith("ResponseFilterError(")
+            assert first_reply_types == []
+        case _:
+            assert_never(mode)

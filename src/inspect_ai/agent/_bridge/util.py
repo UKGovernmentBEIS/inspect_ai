@@ -9,6 +9,7 @@ from typing import Any, Callable, Iterator, Literal, NamedTuple, Sequence, cast
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
+from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._util.content import (
@@ -496,7 +497,28 @@ async def _apply_response_filter(
             "response_filter returned a ModelOutput with no choices"
         )
     _check_provider_owned_content(output, filtered)
+    _detach_changed_messages(output, filtered)
     return filtered
+
+
+def _detach_changed_messages(original: ModelOutput, filtered: ModelOutput) -> None:
+    """Give a message the filter changed a new id.
+
+    Dialects key replay state by message id as well as by content. Anthropic
+    server work still pending when the turn ended has no content item, so the
+    filter cannot see it, and it is replayed for the message's id: kept, it
+    would reach the agent alongside a replacement that does not contain it.
+    Content-keyed replay state (server tool items kept unchanged, signed thinking)
+    does not depend on the message id.
+    """
+    original_messages = [choice.message for choice in original.choices]
+    original_ids = {message.id for message in original_messages if message.id}
+    for choice in filtered.choices:
+        if (
+            choice.message.id in original_ids
+            and choice.message not in original_messages
+        ):
+            choice.message.id = uuid()
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
