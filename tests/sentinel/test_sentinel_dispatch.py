@@ -11,7 +11,7 @@ from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.agent import as_solver, handoff, react
+from inspect_ai.agent import as_solver, as_tool, handoff, react
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     Event,
@@ -346,7 +346,7 @@ def d3_reject_handoff() -> Protocol:
     return decide
 
 
-def run_handoff(sentinel: Any) -> EvalLog:
+def run_handoff(sentinel: Any, via_tool: bool = False) -> EvalLog:
     helper_model = get_model(
         "mockllm/model",
         custom_outputs=[
@@ -368,7 +368,9 @@ def run_handoff(sentinel: Any) -> EvalLog:
         "mockllm/model",
         custom_outputs=[
             ModelOutput.for_tool_call(
-                "mockllm/model", tool_name="transfer_to_helper", tool_arguments={}
+                "mockllm/model",
+                tool_name="helper" if via_tool else "transfer_to_helper",
+                tool_arguments={"input": "add 2 and 3"} if via_tool else {},
             ),
             ModelOutput.from_content("mockllm/model", content="done"),
         ],
@@ -376,7 +378,10 @@ def run_handoff(sentinel: Any) -> EvalLog:
     )
     task = Task(
         dataset=[Sample(input="What is 2 + 3?", target="5")],
-        solver=[use_tools(handoff(helper)), generate()],
+        solver=[
+            use_tools(as_tool(helper) if via_tool else handoff(helper)),
+            generate(),
+        ],
         sentinel=sentinel,
     )
     return eval(task, model=parent_model)[0]
@@ -895,6 +900,72 @@ def test_sentinel_errors_fail_the_sample_rather_than_the_call(
     events = log.samples[0].events
     ended = {e.id for e in events if isinstance(e, SpanEndEvent)}
     assert sentinel_span_ids(events) and set(sentinel_span_ids(events)) <= ended
+
+
+@protocol
+def d3_raising_in_helper(error: Any, after: bool = False) -> ProtocolGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Decision | None:
+        if not after and step.call.function == "addition":
+            raise error
+        return None
+
+    async def later(context: Context, step: AfterToolCall) -> Decision | None:
+        if after and step.call.function == "addition":
+            raise error
+        return None
+
+    return ProtocolGroup(before, later)
+
+
+@pytest.mark.parametrize("via_tool", [False, True])
+@pytest.mark.parametrize("after", [False, True])
+@pytest.mark.parametrize(
+    "error",
+    [FileNotFoundError("sentinel config missing"), PermissionError("sentinel denied")],
+)
+def test_sentinel_errors_in_a_sub_agent_fail_the_sample(
+    error: Exception, after: bool, via_tool: bool
+) -> None:
+    log = run_handoff([d3_raising_in_helper(error, after=after)], via_tool=via_tool)
+    assert log.status == "error"
+    assert log.samples
+    sample_error = log.samples[0].error
+    assert sample_error is not None
+    assert sample_error.message == f"{type(error).__name__}('{error}')"
+    assert "SentinelFailure" not in sample_error.message
+    assert all(
+        message.error is None
+        for message in log.samples[0].messages
+        if isinstance(message, ChatMessageTool)
+    )
+
+
+@pytest.mark.parametrize("after", [False, True])
+def test_a_sentinel_terminate_error_in_a_sub_agent_ends_the_sample(
+    after: bool,
+) -> None:
+    log = run_handoff(
+        [d3_raising_in_helper(TerminateSampleError("stop now"), after=after)]
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is not None
+    assert sample.limit.type == "operator"
+    assert sample.limit.reason == "stop now"
+
+
+@pytest.mark.parametrize("after", [False, True])
+def test_a_sentinel_limit_in_a_sub_agent_stops_the_handoff(after: bool) -> None:
+    error = LimitExceededError("working", value=10, limit=5, message="hit")
+    log = run_handoff([d3_raising_in_helper(error, after=after)])
+    assert log.status == "success", log.error
+    assert log.samples
+    assert any(
+        "helper exceeded its working limit of 5" in message.text
+        for message in log.samples[0].messages
+    )
 
 
 def test_host_generate_without_a_monitor_role_labels_the_agent_model() -> None:

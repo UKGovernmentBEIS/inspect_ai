@@ -224,6 +224,16 @@ def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
         return None
 
 
+def _sentinel_exception(ex: SentinelFailure) -> Exception:
+    # A limit keeps its meaning. Any other sentinel error must fail the sample
+    # rather than become a tool error the model sees, so it stays wrapped through
+    # enclosing agents' tool calls until the sample unwraps it.
+    inner = inner_exception(ex.error)
+    if isinstance(inner, (LimitExceededError, TerminateSampleError)):
+        return inner
+    return ex
+
+
 async def execute_tools(
     messages: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
@@ -337,9 +347,8 @@ async def _execute_tools_impl(
                     inner_ex = inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
-            # a sentinel's own error must fail the sample, not become a tool error the model sees
             except SentinelFailure as ex:
-                tool_exception = ex.error
+                tool_exception = _sentinel_exception(ex)
             except Exception as ex:
                 mapped = tool_call_error(ex, call.function)
                 if mapped is not None:
@@ -424,6 +433,8 @@ async def _execute_tools_impl(
                 except anyio.get_cancelled_exc_class():
                     on_review_cancelled(execution_result, result_event)
                     raise
+                except SentinelFailure as ex:
+                    tool_exception = _sentinel_exception(ex)
                 except Exception as ex:
                     tool_exception = ex
 

@@ -38,6 +38,7 @@ from inspect_ai._display import (
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import SentinelRoot
+from inspect_ai._sentinel._context import SentinelFailure
 from inspect_ai._util._async import Wake, aexit_shielded_when
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -3023,6 +3024,9 @@ async def _task_run_sample_attempt(
                             # convert to standard error
                             error = eval_error(ex, type(ex), ex, ex.__traceback__)
                             transcript()._event(ErrorEvent(error=error))
+
+                    except SentinelFailure as ex:
+                        error, raise_error = handle_error(inner_exception(ex.error))
 
                     except Exception as ex:
                         error, raise_error = handle_error(ex)

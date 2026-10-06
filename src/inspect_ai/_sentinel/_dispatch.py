@@ -78,10 +78,7 @@ async def sentinel_before_tool_call(
         input=_model_input(call, history),
         history=history,
     )
-    try:
-        return await _run(step)
-    except Exception as ex:
-        raise SentinelFailure(ex) from ex
+    return await _run(step)
 
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
@@ -139,14 +136,17 @@ async def _run(step: Step) -> Decision | None:
     if root is None:
         return None
     try:
-        async with span(name="sentinel", type="sentinel"):
-            with suspend_token_limit(), suspend_turn_limit():
-                decision = await run_sentinel(root, _host_context(), step)
-    except TimeoutError as ex:
-        # the sample runner treats a bare TimeoutError as benign
-        raise RuntimeError(
-            f"A sentinel timed out at the {_stage(step)} stage: {ex}"
-        ) from ex
+        try:
+            async with span(name="sentinel", type="sentinel"):
+                with suspend_token_limit(), suspend_turn_limit():
+                    decision = await run_sentinel(root, _host_context(), step)
+        except TimeoutError as ex:
+            # the sample runner treats a bare TimeoutError as benign
+            raise RuntimeError(
+                f"A sentinel timed out at the {_stage(step)} stage: {ex}"
+            ) from ex
+    except Exception as ex:
+        raise SentinelFailure(ex) from ex
     if decision is not None and decision.action == "escalate":
         # recorded as the root's decision; with nobody above to take it, the call proceeds
         warn_once(
