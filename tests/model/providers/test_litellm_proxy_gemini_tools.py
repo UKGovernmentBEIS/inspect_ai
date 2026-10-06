@@ -1,18 +1,22 @@
 """Gemini tool calling through the LiteLLM proxy.
 
-Thought signatures on replayed tool calls, the function-calling hint, and
-recovery from MALFORMED_FUNCTION_CALL, which LiteLLM reports as a plain `stop`
-(see `inspect_ai.model._providers._litellm_proxy_gemini`). The proxy alias
+Thought signatures on replayed tool calls, the function-calling hint,
+recovery from MALFORMED_FUNCTION_CALL, which LiteLLM reports as a plain `stop`,
+and tool results that are JSON objects, which LiteLLM would otherwise send as
+the function response itself (see
+`inspect_ai.model._providers._litellm_proxy_gemini`). The proxy alias
 deliberately does not contain "gemini": LiteLLM's pre-call hook then strips
 the signature it embedded in each tool call id, as it does for production
 aliases such as `google/<codename>`.
 """
 
 import base64
+import json
 from collections.abc import Iterator
 from typing import Any, NamedTuple
 
 import pytest
+from openai.types.chat import ChatCompletionMessageParam
 from test_helpers.litellm_proxy.proxy import (
     LiteLLMProxy,
     isolate_model_info,
@@ -50,11 +54,27 @@ from inspect_ai.model._providers._gemini_function_calling import (
 )
 from inspect_ai.model._providers._litellm_proxy_gemini import (
     malformed_function_call,
+    with_json_tool_results_wrapped,
 )
 from inspect_ai.tool import Tool, ToolCall, tool
 
 PLACEHOLDER_SIGNATURE = base64.b64encode(b"skip_thought_signature_validator").decode()
 TEXT_FUNCTION_CALL = "call:default_api:get_weather{city:Paris}"
+# run 1061: an OpenAPI document read with curl; Vertex rejects `$ref` keys in a
+# function response (400 "The referenced name ... does not match to a display_name
+# in the function_response.parts")
+OPENAPI_DOCUMENT = json.dumps(
+    {
+        "openapi": "3.1.0",
+        "paths": {
+            "/campaign": {
+                "post": {"requestBody": {"$ref": "#/components/schemas/ConfigBody"}}
+            }
+        },
+        "components": {"schemas": {"ConfigBody": {"type": "object"}}},
+    },
+    indent=4,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -73,6 +93,44 @@ def get_weather() -> Tool:
         return f"It is sunny in {city}."
 
     return execute
+
+
+@tool
+def get_city_api() -> Tool:
+    async def execute(city: str) -> str:
+        """Get the OpenAPI document of a city's campaign API.
+
+        Args:
+            city: Name of the city.
+        """
+        return OPENAPI_DOCUMENT
+
+    return execute
+
+
+# Unit tests for the tool result wrapping -------------------------------------
+
+
+def test_json_object_tool_results_are_wrapped_for_litellm() -> None:
+    messages: list[ChatCompletionMessageParam] = [
+        {"role": "user", "content": "{not a tool result}"},
+        {"role": "tool", "tool_call_id": "c1", "content": OPENAPI_DOCUMENT},
+        {"role": "tool", "tool_call_id": "c2", "content": '  \n{"a": 1}'},
+        {"role": "tool", "tool_call_id": "c3", "content": "[1, 2]"},
+        {"role": "tool", "tool_call_id": "c4", "content": "{not json"},
+        {"role": "tool", "tool_call_id": "c5", "content": "total 0"},
+    ]
+    wrapped = with_json_tool_results_wrapped(messages)
+    assert wrapped[0] == messages[0]
+    for index, original in ((1, OPENAPI_DOCUMENT), (2, '  \n{"a": 1}')):
+        message, wrapped_message = messages[index], wrapped[index]
+        assert message["role"] == "tool" and wrapped_message["role"] == "tool"
+        content = wrapped_message["content"]
+        assert isinstance(content, str)
+        assert json.loads(content) == {"content": original}
+        assert wrapped_message["tool_call_id"] == message["tool_call_id"]
+    # a list, broken JSON and plain text LiteLLM already sends under `content`
+    assert wrapped[3:] == messages[3:]
 
 
 # Unit tests for the turn classifier ------------------------------------------
@@ -350,6 +408,31 @@ async def test_tool_call_signature_survives_replay(
         base64.b64encode(b"stub-gemini-signature-1").decode()
     )
     assert calls[0]["thoughtSignature"] != PLACEHOLDER_SIGNATURE
+
+
+@skip_if_no_openai_package
+@skip_if_no_litellm_proxy
+async def test_json_object_tool_result_is_sent_under_content(
+    gemini_proxy: GeminiProxy,
+) -> None:
+    model = gemini_model(gemini_proxy.proxy, stream=False)
+    tools = [get_city_api()]
+    messages: list[ChatMessage] = [ChatMessageUser(content="Read the Paris API.")]
+    first, _ = await generate(gemini_proxy, model, messages, tools)
+    messages.append(first.message)
+    tool_messages, _ = await execute_tools(messages, tools)
+    messages.extend(tool_messages)
+    _, requests = await generate(gemini_proxy, model, messages, tools)
+    responses = [
+        (part.get("function_response") or part["functionResponse"])["response"]
+        for content in requests[0]["contents"]
+        for part in content["parts"]
+        if "function_response" in part or "functionResponse" in part
+    ]
+    # the fake makes two parallel calls; LiteLLM would have sent each document
+    # itself as the response, `$ref` keys and all
+    assert len(responses) == 2
+    assert all(response == {"content": OPENAPI_DOCUMENT} for response in responses)
 
 
 @skip_if_no_openai_package
