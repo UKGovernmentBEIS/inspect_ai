@@ -93,7 +93,8 @@ async def apply_bridge_tool_approval(
 
     Calls are approved in order and evaluation stops at the first non-approval, so a
     human isn't asked to decide on calls that are about to be discarded anyway.
-    `terminate` doesn't return.
+    `terminate` doesn't return, and neither does a `modify` decision that changes the
+    function called: that is an error in the approver, and fails the sample.
 
     A multi-choice response whose alternate choices carry tool calls is reduced to
     the primary choice (with a warning) when approval is active, since only the
@@ -112,7 +113,11 @@ async def apply_bridge_tool_approval(
         The response for the scaffold, plus the messages to replay to the model when
         the response was rejected.
     """
-    from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
+    from inspect_ai.approval._apply import (
+        apply_tool_approval,
+        have_tool_approval,
+        modified_function_error,
+    )
 
     with bridge_approval_scope(bridge.approval):
         approval_active = have_tool_approval()
@@ -164,6 +169,11 @@ async def apply_bridge_tool_approval(
                 )
 
             if approval is not None and approval.modified is not None:
+                error = modified_function_error(reviewed, approval.modified)
+                if error is not None:
+                    failure = RuntimeError(error)
+                    bridge.request_fail(failure)
+                    raise failure
                 arguments = approval.modified.arguments
                 modified[call.id] = (
                     dispatched.dispatch(arguments) if dispatched else arguments
@@ -188,11 +198,10 @@ def with_modified_arguments(
     reference. Rewriting in place would make the log show the approved arguments as
     the model's original proposal, erasing the evidence that approval changed them.
     The native path avoids this the same way, by rebinding rather than mutating
-    (`model/_call_tools.py:653`).
+    (`call_tool()` in `model/_call_tools.py`).
 
-    Only the arguments are adopted. The native path swaps the whole call, but here
-    the scaffold dispatches on the function name and may have no handler for a
-    substituted one.
+    Only the arguments are adopted: a `modify` decision may not change the function
+    (`apply_bridge_tool_approval` fails the sample if it does).
     """
     result = output.model_copy(deep=True)
     for call in result.message.tool_calls or []:

@@ -403,14 +403,14 @@ When you do this, you'll see a list of sandbox containers printed out which incl
 docker exec -it inspect-task-ielnkhh-default-1 bash -l
 ```
 
-When you no longer need the environments, you can clean them up either all at once or individually:
+When you no longer need the environments, you can clean them up either all at once or individually by project name. The printed list ends with the cleanup command for each environment:
 
 ``` bash
 # cleanup all environments
 inspect sandbox cleanup docker
 
 # cleanup single environment
-inspect sandbox cleanup docker inspect-task-ielnkhh-default-1
+inspect sandbox cleanup docker inspect-task-ielnkhh
 ```
 
 ## Resource Management

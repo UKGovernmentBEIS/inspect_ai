@@ -73,7 +73,7 @@ from ._model import (
     get_model,
     model_roles,
 )
-from ._model_call import ModelCall
+from ._model_call import ModelCall, ModelRequestId
 from ._model_config import ModelConfig
 from ._model_data.model_data import ModelCost, ModelInfo
 from ._model_info import get_model_info, set_model_cost, set_model_info
@@ -84,6 +84,7 @@ from ._model_output import (
     ModelFallback,
     ModelOutput,
     ModelUsage,
+    ServedModelUsage,
     StopCategory,
     StopDetails,
     StopReason,
@@ -151,6 +152,7 @@ __all__ = [
     "messages_to_openai",
     "stable_message_ids",
     "ModelCall",
+    "ModelRequestId",
     "ModelCost",
     "ModelOutput",
     "ModelConversation",
@@ -173,6 +175,7 @@ __all__ = [
     "ModelRole",
     "ModelRoles",
     "RetryDecision",
+    "ServedModelUsage",
     "ModelConfig",
     "ModelFallback",
     "ModelUsage",

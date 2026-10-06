@@ -1,29 +1,5 @@
-import re
-
-
-def is_http_url(url: str) -> bool:
-    return url.startswith("http://") or url.startswith("https://")
-
-
-def is_data_uri(url: str) -> bool:
-    # Match any data: URI with a base64 payload. Per RFC 2397 the media type is
-    # optional (e.g. "data:;base64,...") and may carry parameters such as
-    # ";charset=utf-8", so only require the ";base64," marker before the data.
-    pattern = r"^data:[^,]*;base64,"
-    return re.match(pattern, url) is not None
-
-
-def data_uri_mime_type(data_url: str) -> str | None:
-    pattern = r"^data:([^;,]+)[;,]"
-    match = re.match(pattern, data_url)
-    if match:
-        mime_type = match.group(1)
-        return mime_type
-    else:
-        return None
-
-
-def data_uri_to_base64(data_uri: str) -> str:
-    pattern = r"^data:[^,]*,"
-    stripped_uri = re.sub(pattern, "", data_uri)
-    return stripped_uri
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._url import data_uri_mime_type as data_uri_mime_type
+from inspect_ai.core._url import data_uri_to_base64 as data_uri_to_base64
+from inspect_ai.core._url import is_data_uri as is_data_uri
+from inspect_ai.core._url import is_http_url as is_http_url
