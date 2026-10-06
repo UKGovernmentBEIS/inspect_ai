@@ -10,6 +10,8 @@ import pytest
 from pydantic import ValidationError
 
 from inspect_ai import Task, eval, eval_retry, eval_set, task, task_with
+from inspect_ai._display.core.config import task_config_str
+from inspect_ai._display.core.display import TaskProfile
 from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSetCapture
 from inspect_ai._eval.eval_set_overrides import INSPECT_EVAL_SET_OVERRIDES
 from inspect_ai._sentinel._context import active_sentinel
@@ -24,7 +26,8 @@ from inspect_ai.log import (
     SentinelEntry,
     read_eval_log,
 )
-from inspect_ai.model import ChatMessageAssistant
+from inspect_ai.model import ChatMessageAssistant, GenerateConfig
+from inspect_ai.model._model import ModelName
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import Tool, ToolCall, tool
@@ -488,16 +491,48 @@ def test_mixed_constructed_and_config_is_rejected() -> None:
 
 def test_missing_package_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "inspect_sentinel._integration", None)
-    with pytest.raises(
-        PrerequisiteError, match="requires the inspect_sentinel package"
-    ):
+    with pytest.raises(PrerequisiteError) as raised:
         sentinel_task(RULE_CONFIG)
+    message = str(raised.value.message)
+    assert "not released yet" in message
+    assert (
+        "pip install git+https://github.com/meridianlabs-ai/inspect_sentinel" in message
+    )
     with pytest.raises(
         PrerequisiteError, match="requires the inspect_sentinel package"
     ):
         eval(sentinel_task(), model="mockllm/model", sentinel="d2_rule")
     log = eval(sentinel_task(), model="mockllm/model")[0]
     assert active_root(log) is None
+
+
+@pytest.mark.parametrize(
+    "config,shown",
+    [
+        ({"name": "d2_rule", "params": {"reason": "no"}}, "d2_rule"),
+        ([{"name": "d2_rule"}, {"name": "d2_suspicion"}], "d2_rule,d2_suspicion"),
+        ({"first": {"name": "d2_rule"}, "second": {"name": "d2_rule"}}, "first,second"),
+    ],
+)
+def test_task_header_shows_the_sentinel_names(config: Any, shown: str) -> None:
+    profile = TaskProfile(
+        name="task",
+        file=None,
+        model=ModelName("mockllm/model"),
+        agent=None,
+        dataset="(samples)",
+        scorer="accuracy",
+        samples=1,
+        steps=1,
+        eval_config=EvalConfig(sentinel=SentinelConfig.model_validate(config)),
+        task_args={},
+        generate_config=GenerateConfig(),
+        tags=None,
+        log_location="x",
+        task_id="id",
+        task_cancel=None,
+    )
+    assert f"sentinel: {shown}," in task_config_str(profile)
 
 
 def test_log_with_sentinel_loads_without_the_package(

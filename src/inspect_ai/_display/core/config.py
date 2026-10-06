@@ -41,11 +41,12 @@ def task_config_str(profile: TaskProfile, generate_config: bool = True) -> str:
                 f"{name}: {','.join([reviewer['name'] for reviewer in value['reviewers']])}"
             )
         elif name == "sentinel" and isinstance(value, list | dict):
-            names = (
-                list(value)
-                if isinstance(value, dict)
-                else [entry["name"] for entry in value]
-            )
+            if isinstance(value, list):
+                names = [entry["name"] for entry in value]
+            elif isinstance(value.get("name"), str):
+                names = [value["name"]]
+            else:
+                names = list(value)
             config_print.append(f"{name}: {','.join(names)}")
         elif name == "cache":
             value = (
