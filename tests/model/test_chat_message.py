@@ -60,9 +60,9 @@ def test_chat_message_text_setter_ordering():
     )
     msg4.text = "inserted text"
 
-    # Should insert text at index 0
+    # Should append text after the existing content
     assert isinstance(msg4.content, list)
     assert len(msg4.content) == 2
-    assert isinstance(msg4.content[0], ContentText)
-    assert msg4.content[0].text == "inserted text"
-    assert isinstance(msg4.content[1], ContentImage)
+    assert isinstance(msg4.content[0], ContentImage)
+    assert isinstance(msg4.content[1], ContentText)
+    assert msg4.content[1].text == "inserted text"

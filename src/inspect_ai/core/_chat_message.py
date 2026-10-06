@@ -117,9 +117,9 @@ class ChatMessageBase(BaseModel):
         engineering) often need to interact with chat messages with
         the assumption that they are a simple string. The text property
         sets text either to content directly (if it is a `str`) or to
-        the first text content item in the message (inserting one at
-        the beginning if necessary). If there are multiple text content
-        items in the message then after the set there will be only
+        the first text content item in the message, keeping its position
+        (appending one at the end if necessary). If there are multiple text
+        content items in the message then after the set there will be only
         one remaining (image content will remain).
         """
         if isinstance(self.content, str):
@@ -135,7 +135,7 @@ class ChatMessageBase(BaseModel):
                 else:
                     new_content.append(item)
             if first_text_idx is None:
-                new_content.insert(0, ContentText(text=text))
+                new_content.append(ContentText(text=text))
             self.content = new_content
 
     @property
