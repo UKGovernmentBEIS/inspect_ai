@@ -564,6 +564,12 @@
       "undescribed": 1
     }
   },
+  "src/inspect_ai/core/_generate_config.py": {
+    "type: ignore": {
+      "count": 1,
+      "undescribed": 1
+    }
+  },
   "src/inspect_ai/dataset/__init__.py": {
     "noqa:F403 (file-wide)": {
       "count": 1,
@@ -642,12 +648,6 @@
       "undescribed": 2
     }
   },
-  "src/inspect_ai/model/_generate_config.py": {
-    "type: ignore": {
-      "count": 1,
-      "undescribed": 1
-    }
-  },
   "src/inspect_ai/model/_message_ids.py": {
     "type: ignore[arg-type]": {
       "count": 1,
@@ -674,6 +674,11 @@
     "noqa:F401": {
       "count": 1,
       "undescribed": 1
+    }
+  },
+  "src/inspect_ai/model/_model_output.py": {
+    "type: ignore[method-assign]": {
+      "count": 1
     }
   },
   "src/inspect_ai/model/_openai.py": {
