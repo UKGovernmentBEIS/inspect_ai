@@ -3,7 +3,17 @@ import warnings
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Callable, Iterator, Literal, NamedTuple, Sequence, cast
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Iterator,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Sequence,
+    cast,
+)
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
@@ -378,34 +388,25 @@ def in_bridge_model_generate() -> bool:
     return _bridge_model_generate.get()
 
 
-_filter_type_cache: dict[int, bool] = {}
-
-
 def _is_model_filter(fn: GenerateFilter) -> TypeIs[ModelGenerateFilter]:
     """True when *fn* accepts a ``Model`` as its first parameter (new-style).
 
-    Returns ``False`` for legacy filters whose first parameter is ``str``.
-    Caches per object id so ``inspect.signature`` is called at most once.
-    Emits a deprecation warning the first time a legacy filter is detected.
+    Returns ``False`` for legacy filters whose first parameter is ``str``, and
+    emits a deprecation warning for them. Not cached by ``id(fn)``: a freed
+    filter's id can be reused by a filter of the other style.
     """
-    key = id(fn)
-    result = _filter_type_cache.get(key)
-    if result is None:
-        sig = inspect.signature(fn)  # type: ignore[arg-type]
-        first = next(iter(sig.parameters.values()), None)
-        if first is not None and first.annotation is str:
-            result = False
-            warnings.warn(
-                "GenerateFilter with 'str' as the first parameter is "
-                "deprecated. Update your filter to accept a 'Model' "
-                "instance instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        else:
-            result = True
-        _filter_type_cache[key] = result
-    return result
+    sig = inspect.signature(fn)  # type: ignore[arg-type]
+    first = next(iter(sig.parameters.values()), None)
+    if first is not None and first.annotation is str:
+        warnings.warn(
+            "GenerateFilter with 'str' as the first parameter is "
+            "deprecated. Update your filter to accept a 'Model' "
+            "instance instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return False
+    return True
 
 
 def _operator_message_key(message: ChatMessageUser) -> str:
@@ -487,6 +488,128 @@ def _routing_context(
 ) -> AbstractContextManager[None]:
     # a fresh context manager per attempt: a @contextmanager object is single-use
     return requested_model(routing.requested) if routing else nullcontext()
+
+
+def withhold_client_request_settings(
+    bridge: AgentBridge, config: GenerateConfig, eval_values: dict[str, Any]
+) -> None:
+    """Remove the request fields the eval's configuration governs (in place).
+
+    These fields change billing, provider-side storage or context truncation, so
+    they are the eval author's decision, not the bridged agent's. `eval_values`
+    maps each such field of the client's API to the value the eval's
+    configuration gives it. The
+    fields are removed from `config.extra_body`, so the eval's `GenerateConfig` or
+    the provider's model args govern them. A client value that differs from the
+    eval's is logged once per field per bridge, since the client cannot otherwise
+    tell that it was ignored.
+    """
+    if config.extra_body is None:
+        return
+    for field, eval_value in eval_values.items():
+        warn_ignored_client_setting(
+            bridge,
+            field,
+            config.extra_body.pop(field, None),
+            eval_value,
+            "set it with GenerateConfig extra_body or a provider model arg",
+        )
+    if not config.extra_body:
+        config.extra_body = None
+
+
+def warn_ignored_client_setting(
+    bridge: AgentBridge | None,
+    setting: str,
+    client_value: Any,
+    eval_value: Any,
+    how_to_set: str,
+) -> None:
+    """Warn, once per setting per bridge, that the client's value was ignored.
+
+    Nothing is logged when the client sent no value or the eval's value is the
+    same, or when there is no bridge (a caller converting declarations it only
+    observes). `how_to_set` tells the eval author where the setting is
+    configured.
+    """
+    if (
+        bridge is None
+        or client_value is None
+        or client_value == eval_value
+        or setting in bridge._warned_request_settings
+    ):
+        return
+    bridge._warned_request_settings.add(setting)
+    logger.warning(
+        f"The agent bridge ignored the agent's {setting}={client_value!r}: "
+        f"the eval's configuration governs {setting} ({how_to_set})."
+    )
+
+
+def client_tool_options(tool_param: Mapping[str, Any], *keys: str) -> dict[str, Any]:
+    """The options a client set on a provider tool declaration, without `keys`."""
+    return {
+        key: value
+        for key, value in tool_param.items()
+        if key not in keys and value is not None
+    }
+
+
+ToolOptionNarrowing = Callable[[Any, Any], Any]
+"""Given the eval's value (or `None`) and the client's, the narrower value, or `None`."""
+
+
+def eval_tool_options(
+    bridge: AgentBridge | None,
+    setting: str,
+    client_options: dict[str, Any],
+    eval_options: dict[str, Any],
+    how_to_set: str,
+    defaults: Mapping[str, Any] | None = None,
+    narrowing: Mapping[str, ToolOptionNarrowing] | None = None,
+    client_settable: Collection[str] = (),
+) -> dict[str, Any]:
+    """The options to use for a provider tool the client declared.
+
+    The eval's options govern. A client option is applied only when the eval
+    leaves it unset and it is in `client_settable` (options that shape results
+    without widening what the tool may reach), or when a `narrowing` for it
+    yields a value, which it does only when the client asks for less than the
+    eval allows (fewer searches, no live web access). Every other client option
+    that differs from the eval's value, or from the provider default in
+    `defaults` when the eval sets none, is ignored and warned about once per
+    bridge (`warn_ignored_client_setting`).
+    """
+    options = dict(eval_options)
+    ignored: dict[str, Any] = {}
+    for key, value in client_options.items():
+        current = options.get(key, (defaults or {}).get(key, None))
+        if value == current:
+            continue
+        if key in client_settable and key not in eval_options:
+            options[key] = value
+            continue
+        narrow = (narrowing or {}).get(key, None)
+        narrowed = narrow(current, value) if narrow is not None else None
+        if narrowed is not None:
+            options[key] = narrowed
+        else:
+            ignored[key] = value
+    warn_ignored_client_setting(bridge, setting, ignored or None, {}, how_to_set)
+    return options
+
+
+def narrow_max_uses(current: Any, value: Any) -> Any:
+    """A client's lower cap on tool uses (Anthropic `max_uses`)."""
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        if current is None or (isinstance(current, int) and value < current):
+            return value
+    return None
+
+
+def narrow_to_false(current: Any, value: Any) -> Any:
+    """A client turning an enabled option off (OpenAI `external_web_access`)."""
+    return False if value is False and current is not False else None
 
 
 async def bridge_generate(
@@ -888,14 +1011,6 @@ def _warn_redirect(routing: BridgeModelResolution, pin: str | None) -> None:
 
 def _display_model_name(name: str) -> str:
     return repr(name if len(name) <= 200 else name[:200] + "...")
-
-
-def resolve_web_search_providers(
-    providers: WebSearchProviders | None,
-) -> WebSearchProviders:
-    if providers is None:
-        providers = internal_web_search_providers()
-    return cast(WebSearchProviders, _normalize_config(providers))
 
 
 def internal_web_search_providers() -> WebSearchProviders:

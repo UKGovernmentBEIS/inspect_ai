@@ -263,6 +263,10 @@ async def agent_bridge(
     to redirect any model named "inspect" (or prefaced with
     "inspect/" for non-default models) into the Inspect model API.
 
+    The eval's configuration, not the agent's request, governs `service_tier`,
+    `store`, `truncation` and the options of provider tools the agent declares;
+    requests with `previous_response_id` are refused.
+
     See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
     documentation for additional details.
 
