@@ -421,7 +421,7 @@ The entry points:
 | Function | Use |
 |---|---|
 | `ensure_framework_directory` (`:483-561`) | Create, or adopt only if it satisfies the contract |
-| `try_ensure_framework_directory_as_root` (`:564-650`) | The same as root, reporting `False` only when root is unavailable |
+| `try_ensure_framework_directory_as_root` (`:564-650`) | Attempt preparation as root; return `False` for a wrong uid or an unclassified provider exception; re-raise classified errors |
 | `verify_framework_directory` (`:653-700`) | Re-check an existing directory immediately before acting on its contents with elevated authority |
 | `exec_in_framework_directory` (`:703-779`) | Verify, then run a command with the verified directory as its working directory, optionally with stdin |
 | `stat_in_framework_directory` (`:822-881`) | Report a direct child's own `st_mode` without following a symbolic link |
