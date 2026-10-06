@@ -156,11 +156,17 @@ class BackgroundRegistry:
             return
 
         unwrapped: Exception | None = None
+        cancelled: BaseException | None = None
         try:
             async with anyio.create_task_group() as task_group:
                 self._task_group = task_group
                 try:
                     yield
+                except anyio.get_cancelled_exc_class() as ex:
+                    # The group's own cancel below would absorb a cancellation
+                    # the body re-raises after its scope exited; keep it.
+                    cancelled = ex
+                    raise
                 finally:
                     task_group.cancel_scope.cancel()
         except ExceptionGroup as ex:
@@ -173,6 +179,8 @@ class BackgroundRegistry:
             self._task_group = None
         if unwrapped is not None:
             raise unwrapped
+        if cancelled is not None:
+            raise cancelled
 
 
 def _live_sample_task_group() -> TaskGroup | None:

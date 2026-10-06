@@ -11,7 +11,7 @@ background, abandon-on-exit, timeout partials).
 from __future__ import annotations
 
 import sys
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable
 
 import anyio
 import pytest
@@ -1972,7 +1972,9 @@ def _capture_background_registry(captured: list[BackgroundRegistry]) -> Tool:
     return capture_background_registry()
 
 
-def _eval_in_scorer(run_in_scorer: Callable[[TaskState], Awaitable[None]]) -> EvalLog:
+def _eval_in_scorer(
+    run_in_scorer: Callable[[TaskState], Awaitable[None]], **eval_kwargs: Any
+) -> EvalLog:
     """Eval one sample whose scorer awaits ``run_in_scorer`` after the solver."""
 
     @scorer(metrics=[accuracy()])
@@ -1992,7 +1994,7 @@ def _eval_in_scorer(run_in_scorer: Callable[[TaskState], Awaitable[None]]) -> Ev
         "mockllm/model",
         custom_outputs=[ModelOutput.from_content("mockllm/model", "done")],
     )
-    return eval(task, model=solver_model)[0]
+    return eval(task, model=solver_model, **eval_kwargs)[0]
 
 
 class TestNoLiveSampleTaskGroup:
@@ -2230,6 +2232,85 @@ class TestNoLiveSampleTaskGroup:
         assert len(errors) == 1
         assert errors[0].message == "grp"
         assert [type(ex) for ex in errors[0].exceptions] == [ValueError, KeyError]
+
+    @pytest.mark.parametrize("background", [False, True])
+    def test_scorer_parent_saved_cancellation_reaches_caller(
+        self, background: bool
+    ) -> None:
+        # A library may save a cancellation from a scope it cancelled itself
+        # and re-raise it after that scope exits. The owned task group's own
+        # cancel must not absorb it and turn it into a normal return.
+        from inspect_ai.agent._agent import AgentState
+
+        escaped: list[BaseException] = []
+
+        async def parent_output(input, tools, tool_choice, config):
+            saved: BaseException | None = None
+            with anyio.CancelScope() as scope:
+                scope.cancel()
+                try:
+                    await anyio.sleep(10)
+                except anyio.get_cancelled_exc_class() as ex:
+                    saved = ex
+            assert saved is not None
+            raise saved
+
+        agent = deepagent(
+            subagents=[_build_submit_subagent("helper", "done")],
+            model=get_model("mockllm/model", custom_outputs=parent_output),
+            background=background,
+            submit=True,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            try:
+                await agent(AgentState(messages=list(state.messages)))
+            except anyio.get_cancelled_exc_class() as ex:
+                escaped.append(ex)
+                raise
+
+        log = _eval_in_scorer(run_agent)
+
+        assert len(escaped) == 1
+        assert log.samples is not None
+        assert log.samples[0].error is not None
+        assert not log.samples[0].scores
+
+    def test_scorer_child_refusal_reaches_caller(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.model._model import ModelRefusalError
+
+        raised: list[BaseException] = []
+        agent = deepagent(
+            subagents=[_build_refusing_subagent("refuser")],
+            tools=[_wait_test_helper()],
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    _agent_call(prompt="go"),
+                    _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                    _submit("done"),
+                ],
+            ),
+            background=True,
+            submit=True,
+            retry_refusals=None,
+        )
+
+        async def run_agent(state: TaskState) -> None:
+            try:
+                await agent(AgentState(messages=list(state.messages)))
+            except BaseException as ex:
+                raised.append(ex)
+                raise
+
+        log = _eval_in_scorer(run_agent, fail_on_refusal=True, fail_on_error=False)
+
+        assert [type(ex) for ex in raised] == [ModelRefusalError]
+        assert log.samples is not None
+        error = log.samples[0].error
+        assert error is not None
+        assert "Model refusal (mockllm/model)" in error.message
 
 
 # ---------------------------------------------------------------------------
