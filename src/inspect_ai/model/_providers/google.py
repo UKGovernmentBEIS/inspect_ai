@@ -4,12 +4,10 @@ import functools
 import hashlib
 import json
 import os
-import re
 import ssl
 from copy import copy
 from io import BytesIO
 from logging import getLogger
-from textwrap import dedent
 from typing import Any, Literal, NamedTuple, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
@@ -116,9 +114,21 @@ from inspect_ai.model._providers._google_computer_use import (
     maybe_computer_use_tool,
     tool_call_from_gemini_computer_action,
 )
+from inspect_ai.model._providers._google_reasoning import (
+    gemini_3_plus,
+    gemini_is_latest,
+    gemini_supports_minimal_thinking,
+    gemini_thinking_budget,
+    gemini_thinking_level,
+    gemini_thinking_only,
+    gemini_version,
+    is_gemini,
+    is_gemini_1_5,
+    is_gemini_2_0,
+    is_gemini_2_5,
+    is_gemini_3,
+)
 from inspect_ai.model._reasoning import (
-    clamp_reasoning_effort_to_minimal_low_medium_high,
-    effort_to_reasoning_tokens,
     reasoning_to_think_tag,
 )
 from inspect_ai.model._retry import batch_admin_retry_config
@@ -142,6 +152,14 @@ from inspect_ai.tool import (
 from inspect_ai.util._json import json_schema_dump
 
 from ._first_party import FRONTIER_MODELS
+from ._gemini_function_calling import (
+    DEFAULT_MALFORMED_FUNCTION_MESSAGE,
+    FUNCTION_CALLING_HINT,
+    MALFORMED_FUNCTION_RETRY_PROMPT,
+    MAX_TOOL_CALLING_ATTEMPTS,
+    malformed_function_apology,
+    malformed_function_attempt,
+)
 from .util import (
     OAUTH_PLACEHOLDER_API_KEY,
     GoogleOAuthCredentials,
@@ -166,25 +184,9 @@ def _is_truthy(value: Any) -> bool:
     return str(value).lower() in ("true", "1", "yes")
 
 
-# Google model-name tokens for non-generative / non-frontier models that must
-# never be treated as a "latest" frontier chat model by is_latest().
-_NON_GENERATIVE_TOKENS = (
-    "embedding",
-    "imagen",
-    "veo",
-    "gemma",
-    "aqa",
-    "learnlm",
-    "tts",
-)
-
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
 
-# Total request budget (initial attempt + retries) for the internal
-# MALFORMED_FUNCTION_CALL retry loop. The stream-restart boundary inside the
-# loop must use the same bound: it only fires when another request will run.
-MAX_TOOL_CALLING_ATTEMPTS = 3
 
 # Key under ContentReasoning.internal that links a redacted reasoning block
 # to the function_call whose thought_signature it carries. Used to preserve
@@ -364,7 +366,12 @@ class GoogleGenAIAPI(ModelAPI):
             if use_adc_arg is not None:
                 use_adc = _is_truthy(use_adc_arg)
             else:
-                use_adc = _is_truthy(os.environ.get(GOOGLE_USE_ADC, ""))
+                # An explicitly supplied API key takes precedence over the
+                # ambient environment default. Keep an explicit use_adc=true
+                # opt-in authoritative so callers can deliberately choose ADC.
+                use_adc = (
+                    _is_truthy(os.environ.get(GOOGLE_USE_ADC, "")) and not self.api_key
+                )
             scopes = model_args.pop("scopes", None)
             quota_project_id = model_args.pop("quota_project_id", None)
 
@@ -450,151 +457,156 @@ class GoogleGenAIAPI(ModelAPI):
                 http_hooks: HttpHooks = HttpxHooks(async_httpx_client, api=self)
             else:
                 http_hooks = HttpHooks(api=self)
-            request_id = http_hooks.start_request()
-
-            # Create google-genai types.
-            gemini_contents = await as_chat_messages(
-                client, input, emulate_reasoning=not self.is_gemini_thinking()
-            )
-            has_native_tools, gemini_tools = (
-                self.chat_tools(tools) if len(tools) > 0 else (False, None)
-            )
-            if gemini_native_tool_combination(gemini_tools):
-                gemini_tool_config = gemini_native_tool_combination_config(tool_choice)
-            elif not has_native_tools and len(tools) > 0:
-                gemini_tool_config = chat_tool_config(tool_choice)
-            else:
-                gemini_tool_config = None
-            system_instruction = await extract_system_message_as_parts(
-                client, input, tools, include_function_calling_hint=not has_native_tools
-            )
-            # Map modalities to Google's response_modalities
-            response_modalities = None
-            if config.modalities:
-                if has_image_output(config.modalities):
-                    response_modalities = ["TEXT", "IMAGE"]
+            with http_hooks.request() as request_id:
+                # Create google-genai types.
+                gemini_contents = await as_chat_messages(
+                    client, input, emulate_reasoning=not self.is_gemini_thinking()
+                )
+                has_native_tools, gemini_tools = (
+                    self.chat_tools(tools) if len(tools) > 0 else (False, None)
+                )
+                if gemini_native_tool_combination(gemini_tools):
+                    gemini_tool_config = gemini_native_tool_combination_config(
+                        tool_choice
+                    )
+                elif not has_native_tools and len(tools) > 0:
+                    gemini_tool_config = chat_tool_config(tool_choice)
                 else:
-                    raise PrerequisiteError(
-                        f"Unsupported modalities for Google: {config.modalities}"
+                    gemini_tool_config = None
+                system_instruction = await extract_system_message_as_parts(
+                    client,
+                    input,
+                    tools,
+                    include_function_calling_hint=not has_native_tools,
+                )
+                # Map modalities to Google's response_modalities
+                response_modalities = None
+                if config.modalities:
+                    if has_image_output(config.modalities):
+                        response_modalities = ["TEXT", "IMAGE"]
+                    else:
+                        raise PrerequisiteError(
+                            f"Unsupported modalities for Google: {config.modalities}"
+                        )
+
+                parameters = GenerateContentConfig(
+                    http_options=HttpOptions(
+                        headers={HttpHooks.REQUEST_ID_HEADER: request_id}
+                        | (config.extra_headers or {})
+                    ),
+                    temperature=config.temperature,
+                    top_p=config.top_p,
+                    top_k=config.top_k,
+                    max_output_tokens=config.max_tokens,
+                    stop_sequences=config.stop_seqs,
+                    candidate_count=config.num_choices,
+                    presence_penalty=config.presence_penalty,
+                    frequency_penalty=config.frequency_penalty,
+                    response_logprobs=config.logprobs,
+                    logprobs=config.top_logprobs,
+                    safety_settings=safety_settings_to_list(self.safety_settings),
+                    tools=gemini_tools,
+                    tool_config=gemini_tool_config,
+                    system_instruction=system_instruction,  # type: ignore[arg-type]
+                    thinking_config=self.chat_thinking_config(config),
+                    response_modalities=response_modalities,
+                )
+                if config.response_schema is not None:
+                    parameters.response_mime_type = "application/json"
+                    parameters.response_json_schema = json_schema_dump(
+                        config.response_schema.json_schema
                     )
 
-            parameters = GenerateContentConfig(
-                http_options=HttpOptions(
-                    headers={HttpHooks.REQUEST_ID_HEADER: request_id}
-                    | (config.extra_headers or {})
-                ),
-                temperature=config.temperature,
-                top_p=config.top_p,
-                top_k=config.top_k,
-                max_output_tokens=config.max_tokens,
-                stop_sequences=config.stop_seqs,
-                candidate_count=config.num_choices,
-                presence_penalty=config.presence_penalty,
-                frequency_penalty=config.frequency_penalty,
-                response_logprobs=config.logprobs,
-                logprobs=config.top_logprobs,
-                safety_settings=safety_settings_to_list(self.safety_settings),
-                tools=gemini_tools,
-                tool_config=gemini_tool_config,
-                system_instruction=system_instruction,  # type: ignore[arg-type]
-                thinking_config=self.chat_thinking_config(config),
-                response_modalities=response_modalities,
-            )
-            if config.response_schema is not None:
-                parameters.response_mime_type = "application/json"
-                parameters.response_json_schema = json_schema_dump(
-                    config.response_schema.json_schema
+                model_call = start_model_call(
+                    contents=gemini_contents,  # type: ignore[arg-type]
+                    safety_settings=self.safety_settings,
+                    generation_config=parameters,
+                    tools=gemini_tools,
+                    tool_config=gemini_tool_config,
+                    system_instruction=system_instruction,
                 )
 
-            model_call = start_model_call(
-                contents=gemini_contents,  # type: ignore[arg-type]
-                safety_settings=self.safety_settings,
-                generation_config=parameters,
-                tools=gemini_tools,
-                tool_config=gemini_tool_config,
-                system_instruction=system_instruction,
-            )
+                response: GenerateContentResponse | None = None
 
-            response: GenerateContentResponse | None = None
+                try:
+                    # google sometimes requires retries for malformed function calls
+                    # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
+                    tool_calling_attempts = 0
+                    while tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
+                        if self._batcher:
+                            response = await self._batcher.generate_for_request(
+                                batch_request_dict(parameters, gemini_contents)
+                            )
+                        elif self.streaming is True or (
+                            self.streaming is None and model_stream_requested()
+                        ):
+                            response = await self._stream_generate_content(
+                                client=client,
+                                model=self.service_model_name(),
+                                contents=gemini_contents,  # type: ignore[arg-type]
+                                config=parameters,
+                            )
+                        else:
+                            response = await client.aio.models.generate_content(
+                                model=self.service_model_name(),
+                                contents=gemini_contents,  # type: ignore[arg-type]
+                                config=parameters,
+                            )
+                        # retry for MALFORMED_FUNCTION_CALL
+                        if (
+                            response.candidates
+                            and response.candidates[0].finish_reason
+                            == FinishReason.MALFORMED_FUNCTION_CALL
+                            and not has_native_tools
+                        ):
+                            # tick retries
+                            tool_calling_attempts += 1
 
-            try:
-                # google sometimes requires retries for malformed function calls
-                # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
-                tool_calling_attempts = 0
-                while tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
-                    if self._batcher:
-                        response = await self._batcher.generate_for_request(
-                            batch_request_dict(parameters, gemini_contents)
-                        )
-                    elif self.streaming is True or (
-                        self.streaming is None and model_stream_requested()
-                    ):
-                        response = await self._stream_generate_content(
-                            client=client,
-                            model=self.service_model_name(),
-                            contents=gemini_contents,  # type: ignore[arg-type]
-                            config=parameters,
-                        )
-                    else:
-                        response = await client.aio.models.generate_content(
-                            model=self.service_model_name(),
-                            contents=gemini_contents,  # type: ignore[arg-type]
-                            config=parameters,
-                        )
-                    # retry for MALFORMED_FUNCTION_CALL
-                    if (
-                        response.candidates
-                        and response.candidates[0].finish_reason
-                        == FinishReason.MALFORMED_FUNCTION_CALL
-                        and not has_native_tools
-                    ):
-                        # tick retries
-                        tool_calling_attempts += 1
+                            # the retried request regenerates the response, so any
+                            # output already streamed to observers is stale — but
+                            # only announce a restart when a retry will actually
+                            # run; on exhaustion the malformed response *is* the
+                            # returned output, so its deltas must not be discarded
+                            if tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
+                                await report_model_stream_restart()
 
-                        # the retried request regenerates the response, so any
-                        # output already streamed to observers is stale — but
-                        # only announce a restart when a retry will actually
-                        # run; on exhaustion the malformed response *is* the
-                        # returned output, so its deltas must not be discarded
-                        if tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
-                            await report_model_stream_restart()
+                            # apply retry context
+                            retry_contents, retry_tool_config = (
+                                _malformed_function_retry(response, tool_choice)
+                            )
+                            gemini_contents.extend(retry_contents)
+                            if retry_tool_config is not None:
+                                parameters.tool_config = retry_tool_config
 
-                        # apply retry context
-                        retry_contents, retry_tool_config = _malformed_function_retry(
-                            response, tool_choice
-                        )
-                        gemini_contents.extend(retry_contents)
-                        if retry_tool_config is not None:
-                            parameters.tool_config = retry_tool_config
+                        # otherwise we are done
+                        else:
+                            break
+                except ClientError as ex:
+                    model_call.set_error(
+                        {"error": {"message": str(ex.message), "code": ex.code}},
+                        http_hooks.end_request(request_id),
+                    )
+                    return self.handle_client_error(ex), model_call
 
-                    # otherwise we are done
-                    else:
-                        break
-            except ClientError as ex:
-                model_call.set_error(
-                    {"error": {"message": str(ex.message), "code": ex.code}},
-                    http_hooks.end_request(request_id),
+                assert response is not None  # mypy confused by retry loop
+
+                model_call.set_response(response, http_hooks.end_request(request_id))
+
+                model_name = response.model_version or self.service_model_name()
+                has_computer_use = gemini_tools is not None and any(
+                    isinstance(tool, Tool) and tool.computer_use is not None
+                    for tool in gemini_tools
                 )
-                return self.handle_client_error(ex), model_call
+                output = ModelOutput(
+                    model=model_name,
+                    choices=completion_choices_from_candidates(
+                        model_name, response, has_computer_use
+                    ),
+                    usage=usage_metadata_to_model_usage(response.usage_metadata),
+                    response_id=response.response_id,
+                )
 
-            assert response is not None  # mypy confused by retry loop
-
-            model_call.set_response(response, http_hooks.end_request(request_id))
-
-            model_name = response.model_version or self.service_model_name()
-            has_computer_use = gemini_tools is not None and any(
-                isinstance(tool, Tool) and tool.computer_use is not None
-                for tool in gemini_tools
-            )
-            output = ModelOutput(
-                model=model_name,
-                choices=completion_choices_from_candidates(
-                    model_name, response, has_computer_use
-                ),
-                usage=usage_metadata_to_model_usage(response.usage_metadata),
-            )
-
-            return output, model_call
+                return output, model_call
 
     async def _stream_generate_content(
         self,
@@ -767,6 +779,7 @@ class GoogleGenAIAPI(ModelAPI):
             candidates=final_candidates,
             usage_metadata=last_chunk.usage_metadata,
             model_version=last_chunk.model_version,
+            response_id=last_chunk.response_id,
         )
 
     @override
@@ -869,76 +882,40 @@ class GoogleGenAIAPI(ModelAPI):
         # Mirrors OpenAI's is_latest_model() / Anthropic's is_claude_latest().
         if self.is_vertex():
             return False
-        name = self.model_family().lower()
-        if any(token in name for token in _NON_GENERATIVE_TOKENS):
-            return False
-        # known family naming — future gemini versions are already covered by
-        # is_gemini_3_plus() and the DB-miss branch of input_tokens_name()
-        if "gemini" in name:
-            return False
-        return True
+        return gemini_is_latest(self.model_family())
 
     def is_gemini(self) -> bool:
-        return "gemini-" in self.model_family() or self.is_latest()
+        return is_gemini(self.model_family(), self.is_latest())
 
     def is_gemini_flash(self) -> bool:
         return "flash" in self.model_family()
 
     def is_gemini_1_5(self) -> bool:
-        return "gemini-1.5" in self.model_family()
+        return is_gemini_1_5(self.model_family())
 
     def is_gemini_2_0(self) -> bool:
-        return "gemini-2.0" in self.model_family()
+        return is_gemini_2_0(self.model_family())
 
     def is_gemini_2_5(self) -> bool:
-        return "gemini-2.5" in self.model_family()
+        return is_gemini_2_5(self.model_family())
 
     def is_gemini_3(self) -> bool:
-        return "gemini-3" in self.model_family()
+        return is_gemini_3(self.model_family())
 
     def gemini_version(self) -> tuple[int, ...] | None:
-        """Numeric version parsed from a gemini-N[.N] model name (None if absent).
-
-        Only the final path segment is inspected so a vertex resource path
-        takes its version from the model, not the project id.
-        """
-        name = self.model_family().rsplit("/", 1)[-1]
-        match = re.search(r"gemini-(\d+(?:\.\d+)*)", name)
-        if match is None:
-            return None
-        return tuple(int(part) for part in match.group(1).split("."))
+        return gemini_version(self.model_family())
 
     def supports_minimal_thinking(self) -> bool:
-        """Whether the model accepts thinking_level=MINIMAL.
-
-        True only for releases documented to accept it: Flash 3.0-3.6 and
-        Flash-Lite 3.1-3.5. Gemini 3 Pro never has, 3.7 Flash and later reject
-        it with a 400, and anything unverified (newer versions, codenames,
-        rolling aliases such as gemini-flash-lite-latest) is downgraded to LOW
-        rather than risk a 400. https://ai.google.dev/gemini-api/docs/thinking
-        """
-        version = self.gemini_version()
-        name = self.model_family().rsplit("/", 1)[-1]
-        if version is None or "flash" not in name:
-            return False
-        low, high = ((3, 1), (3, 6)) if "flash-lite" in name else ((3,), (3, 7))
-        return low <= version < high
+        return gemini_supports_minimal_thinking(self.model_family())
 
     def is_gemini_3_plus(self) -> bool:
-        return (
-            self.is_gemini()
-            and not self.is_gemini_1_5()
-            and not self.is_gemini_2_0()
-            and not self.is_gemini_2_5()
-        )
+        return gemini_3_plus(self.model_family(), self.is_latest())
 
     def is_gemini_thinking(self) -> bool:
         return not self.is_gemini_1_5() and not self.is_gemini_2_0()
 
     def is_gemini_thinking_only(self) -> bool:
-        return (
-            self.is_gemini_2_5() or self.is_gemini_3() or self.is_latest()
-        ) and "-pro" in self.model_family()
+        return gemini_thinking_only(self.model_family(), self.is_latest())
 
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
@@ -1174,16 +1151,15 @@ class GoogleGenAIAPI(ModelAPI):
             # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
             # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
             elif config.reasoning_effort is not None and self.is_gemini_3_plus():
-                tier = clamp_reasoning_effort_to_minimal_low_medium_high(
-                    config.reasoning_effort
+                tier = gemini_thinking_level(
+                    config.reasoning_effort, self.model_family()
                 )
-                if tier == "minimal" and not self.supports_minimal_thinking():
+                if config.reasoning_effort == "minimal" and tier == "low":
                     warn_once(
                         logger,
                         f"Model {self.service_model_name()} does not "
                         "support minimal thinking; using low instead.",
                     )
-                    tier = "low"
                 return ThinkingConfig(
                     include_thoughts=True,
                     thinking_level=ThinkingLevel(tier.upper()) if tier else None,
@@ -1200,7 +1176,9 @@ class GoogleGenAIAPI(ModelAPI):
             # by 2.5 itself, but users sweeping across model versions expect
             # --reasoning-effort to do *something* on 2.5).
             elif config.reasoning_effort is not None and self.is_gemini_2_5():
-                budget = effort_to_reasoning_tokens(config.reasoning_effort)
+                budget = gemini_thinking_budget(
+                    config.reasoning_effort, self.model_family()
+                )
                 if budget is not None:
                     return ThinkingConfig(include_thoughts=True, thinking_budget=budget)
                 return ThinkingConfig(include_thoughts=True)
@@ -1800,15 +1778,7 @@ async def extract_system_message_as_parts(
     # as sending it causes FAILED_PRECONDITION from the API.
     # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
     if len(tools) > 0 and include_function_calling_hint:
-        system_parts.append(
-            Part(
-                text=dedent("""
-                ## Function Calling
-                - Do not generate code. Always generate the function call json
-                When calling functions, output the function name exactly as defined. Do not prepend 'default_api.' or any other namespace to the function name
-                """)
-            )
-        )
+        system_parts.append(Part(text=FUNCTION_CALLING_HINT))
 
     # if every part is text then return list[str] rather than list[Part]
     # works around issue w/ open-telemetry not expecting parts
@@ -2171,10 +2141,7 @@ def completion_choice_from_candidate(
     if candidate.finish_reason == FinishReason.MALFORMED_FUNCTION_CALL:
         content.append(
             ContentText(
-                text=dedent(f"""
-                I seem to have had trouble calling a function and replied with {_malformed_function_message(candidate)}.
-                I need to fix this by generating the function call JSON instead.
-                """)
+                text=malformed_function_apology(_malformed_function_message(candidate))
             )
         )
 
@@ -2589,6 +2556,31 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
     raise ValueError(f"Unknown HarmBlockThreshold: {threshold}")
 
 
+def _files_cache_key(client: Client, content_bytes: bytes, mime_type: str) -> str:
+    """Key for the Files API upload cache.
+
+    An upload is reused only for the same bytes and MIME type, on the same
+    backend, endpoint and account (API key or quota project; project and
+    location on Vertex). The API key is only mixed into a sha256 digest, so it
+    is never stored. Keys from the older format (the sha256 of the bytes alone)
+    never match, so their entries are not reused.
+    """
+    api_client = client._api_client
+    headers = api_client._http_options.headers or {}
+    scope = [
+        "vertex" if client.vertexai else "gemini",
+        api_client._http_options.base_url,
+        api_client.project,
+        api_client.location,
+        api_client.api_key,
+        headers.get("x-goog-user-project"),
+        mime_type,
+        hashlib.sha256(content_bytes).hexdigest(),
+    ]
+    digest = hashlib.sha256(json.dumps(scope).encode()).hexdigest()
+    return f"v2:{digest}"
+
+
 async def file_for_content(
     client: Client, content: ContentAudio | ContentVideo | ContentDocument
 ) -> File:
@@ -2596,7 +2588,7 @@ async def file_for_content(
     def trace(message: str) -> None:
         trace_message(logger, "Google Files", message)
 
-    # get the file bytes and compute sha256 hash
+    # get the file bytes and mime type
     if isinstance(content, ContentAudio):
         file = content.audio
     elif isinstance(content, ContentVideo):
@@ -2622,12 +2614,12 @@ async def file_for_content(
             else content.mime_type
         ),
     )
-    content_sha256 = hashlib.sha256(content_bytes).hexdigest()
+    cache_key = _files_cache_key(client, content_bytes, mime_type)
     # we cache uploads for re-use, open the db where we track that
     # (track up to 1 million previous uploads)
     with inspect_kvstore("google_files", 1000000) as files_db:
         # can we serve from existing uploads?
-        uploaded_file = files_db.get(content_sha256)
+        uploaded_file = files_db.get(cache_key)
         if uploaded_file:
             try:
                 upload: File = client.files.get(name=uploaded_file)
@@ -2641,7 +2633,7 @@ async def file_for_content(
                     )
             except Exception as ex:
                 trace(f"Error attempting to access uploaded file: {ex}")
-                files_db.delete(content_sha256)
+                files_db.delete(cache_key)
         # do the upload (and record it)
         upload = client.files.upload(
             file=BytesIO(content_bytes), config=dict(mime_type=mime_type)
@@ -2655,7 +2647,7 @@ async def file_for_content(
             raise ValueError(f"Google file upload failed: {upload.error}")
         # trace and record it
         trace(f"Uploaded file: {upload.name}")
-        files_db.put(content_sha256, str(upload.name))
+        files_db.put(cache_key, str(upload.name))
         # return the file
         return upload
 
@@ -2668,18 +2660,13 @@ def _malformed_function_retry(
             role="model",
             parts=[
                 Part(
-                    text=f"I attempted to call a function but produced: {_malformed_function_message(response)}"
+                    text=malformed_function_attempt(
+                        _malformed_function_message(response)
+                    )
                 )
             ],
         ),
-        Content(
-            role="user",
-            parts=[
-                Part(
-                    text="Please try again and generate valid function call JSON, not Python code."
-                )
-            ],
-        ),
+        Content(role="user", parts=[Part(text=MALFORMED_FUNCTION_RETRY_PROMPT)]),
     ]
 
     # force tool calling if it was 'auto'
@@ -2689,18 +2676,14 @@ def _malformed_function_retry(
 
 
 def _malformed_function_message(candidate: Candidate | GenerateContentResponse) -> str:
-    DEFAULT_FINISH_MESSAGE = (
-        "a malformed function call (possibly Python code instead of JSON)"
-    )
-
     # resolve candidate
     if isinstance(candidate, GenerateContentResponse):
         if not candidate.candidates:
-            return DEFAULT_FINISH_MESSAGE
+            return DEFAULT_MALFORMED_FUNCTION_MESSAGE
 
         candidate = candidate.candidates[0]
 
     if candidate.finish_message:
         return candidate.finish_message
     else:
-        return DEFAULT_FINISH_MESSAGE
+        return DEFAULT_MALFORMED_FUNCTION_MESSAGE
