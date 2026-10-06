@@ -28,6 +28,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.agent._agent import Agent
 from inspect_ai.agent._as_solver import as_solver
+from inspect_ai.log import EvalLog
 from inspect_ai.model import Model
 from inspect_ai.scorer._metric import Metric, MetricSpec, metric_create
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
@@ -47,6 +48,7 @@ from inspect_ai.util._sandbox.environment import (
     resolve_sandbox_environment,
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+from inspect_ai.viewer import ViewerConfig
 
 from .list import task_files
 from .registry import task_create, task_source_create
@@ -61,10 +63,10 @@ logger = getLogger(__name__)
 
 
 def _merge_model_roles(
-    *roles_dicts: dict[str, Model] | None,
-) -> dict[str, Model] | None:
+    *roles_dicts: dict[str, Model | list[Model]] | None,
+) -> dict[str, Model | list[Model]] | None:
     """Merge model_roles dicts with later dicts taking priority."""
-    merged: dict[str, Model] = {}
+    merged: dict[str, Model | list[Model]] = {}
     for d in roles_dicts:
         if d:
             merged.update(d)
@@ -75,7 +77,7 @@ def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
     model: Model,
-    model_roles: dict[str, Model] | None,
+    model_roles: dict[str, Model | list[Model]] | None,
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
@@ -285,7 +287,7 @@ def resolve_previous_tasks(
     tasks: list[ResolvedTask] | list[PreviousTask] | list[ResolvedTask | PreviousTask],
     sample_shuffle: bool | int | None,
     model: Model,
-    model_roles: dict[str, Model] | None,
+    model_roles: dict[str, Model | list[Model]] | None,
     eval_checkpoint: CheckpointConfig | None = None,
 ) -> list[ResolvedTask]:
     result = []
@@ -327,7 +329,7 @@ def resolve_previous_task(
     loaded_task: Task,
     loaded_task_args: dict[str, Any],
     model: Model,
-    model_roles: dict[str, Model] | None,
+    model_roles: dict[str, Model | list[Model]] | None,
     previous_task: PreviousTask,
     sequence: int,
     eval_checkpoint: CheckpointConfig | None = None,
@@ -342,13 +344,16 @@ def resolve_previous_task(
         copy.deepcopy(prior_stats.role_usage) if prior_stats.role_usage else None
     )
 
+    _retain_untrusted_content(loaded_task, previous_task.log)
+
     return ResolvedTask(
         task=loaded_task,
         task_args=loaded_task_args,
         task_file=previous_task.log.eval.task_file,
         model=previous_task.model or loaded_task.model or model,
+        # same precedence as as_resolved_tasks: eval roles outrank task roles
         model_roles=_merge_model_roles(
-            model_roles, loaded_task.model_roles, previous_task.model_roles
+            loaded_task.model_roles, model_roles, previous_task.model_roles
         ),
         sandbox=resolve_task_file_sandbox(
             previous_task.log.eval.task_file, previous_task.log.eval.sandbox
@@ -372,6 +377,22 @@ def resolve_previous_task(
         initial_role_usage=initial_role_usage,
         input_media_policy="trusted_pre_run",
     )
+
+
+def _retain_untrusted_content(task: Task, previous_log: EvalLog) -> None:
+    """Keep a previous run's `trust_content=False` on the retried task.
+
+    The retry reloads the task from its definition, which loses a viewer
+    config applied with `task_with()`, but the retried log carries the previous
+    run's samples, so their content stays untrusted.
+    """
+    previous_viewer = previous_log.eval.viewer
+    if previous_viewer is None or previous_viewer.trust_content is not False:
+        return
+    if task.viewer is None:
+        task.viewer = ViewerConfig(trust_content=False)
+    elif task.viewer.trust_content is not False:
+        task.viewer = task.viewer.model_copy(update={"trust_content": False})
 
 
 def resolve_task_args(task: Task) -> dict[str, Any]:
@@ -789,7 +810,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 f"The function '{scorer_name}' in the file '{scorer_path}' requires a return type annotation. Please add a return type annotation to use this function with scoring."
             )
 
-    def create_scorer(scorer_name: str, **kwargs: Any) -> Scorer:
+    def create_scorer(scorer_name: str, /, **kwargs: Any) -> Scorer:
         # handle scorers and scanners
         if registry_lookup("scorer", scorer_name) is not None:
             return scorer_create(scorer_name, **kwargs)
@@ -810,7 +831,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 raise ValueError(f"Unable to resolve scorer name from {spec.scorer}")
 
             try:
-                return scorer_create(scorer_name, **kwargs)
+                return create_scorer(scorer_name, **kwargs)
             except ValueError:
                 # We need a valid path to a scorer file to try to load the scorer from there
                 if not task_path:

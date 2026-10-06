@@ -13,7 +13,7 @@ Model tool calls are executed within the main process running the evaluation tas
 
 - You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
 
-To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers in which tools, agents and scorers can execute commands and code. Several of Inspect's [standard tools](tools-standard.qmd) require a sandbox, including `bash()`, `python()`, `text_editor()`, and `web_browser()`. Support for Docker sandboxes is built in, and the [Extension API](extensions-sandboxes.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
+To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers in which tools, agents and scorers can execute commands and code. Several of Inspect's [standard tools](tools-standard.qmd) require a sandbox, including `bash()`, `python()`, and `text_editor()`. Support for Docker sandboxes is built in, and the [Extension API](extensions-sandboxes.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
 
 ## Example: File Listing
 
@@ -104,7 +104,10 @@ There are two sandbox environments built in to Inspect and six available as exte
 | `ec2` | [inspect_ec2_sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) | No | [AWS EC2](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) virtual machine. |
 | `proxmox` | [inspect_proxmox_sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) | No | [Proxmox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) with virtual machines. |
 | `vagrant` | [inspect_vagrant_sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) | No | [Vagrant](https://github.com/jasongwartz/inspect_vagrant_sandbox) virtual machines on any Vagrant-supported hypervisor. |
+| `openshell` | [inspect-openshell-sandbox](https://pypi.org/project/inspect-openshell-sandbox/) | Yes | [NVIDIA OpenShell](https://github.com/32bitsret/inspect-openshell-sandbox) sandboxes with Landlock filesystem and network policies. |
 | `local` | Built-in | No | Local file system (no sandbox). |
+
+The `local` environment always executes as the current effective user. On POSIX systems, `exec(user=...)` accepts that user's name or UID; other identities raise `SandboxUserUnsupportedError` before execution. On other platforms, omit `user`.
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
 
@@ -272,6 +275,22 @@ services:
 
 See the [Docker Compose](https://docs.docker.com/compose/compose-file/) documentation for information on all available container options.
 
+### Prebuilt Images
+
+If the images for your sandboxes are already present in the local Docker image store (for example, on an air-gapped machine that cannot reach a registry), pass `--sandbox-prebuilt` to skip image builds entirely:
+
+``` bash
+inspect eval ctf.py --sandbox-prebuilt
+```
+
+Or from Python:
+
+``` python
+eval("ctf.py", sandbox_prebuilt=True)
+```
+
+With this option set, task startup verifies images instead of building them. Every service with a `build` section or `x-local: true` must name an `image` that already exists locally, and Inspect's internal images (e.g. for the computer tool) must also be present. Other services use their local image when present, and a failed pull of a missing one is also an error. A missing image results in an error before any samples run. The option can also be set via the `INSPECT_EVAL_SANDBOX_PREBUILT` environment variable.
+
 ### Multiple Environments
 
 In some cases you may want to create multiple sandbox environments (e.g. if one environment has complex dependencies that conflict with the dependencies of other environments). To do this specify multiple named services:
@@ -384,14 +403,14 @@ When you do this, you'll see a list of sandbox containers printed out which incl
 docker exec -it inspect-task-ielnkhh-default-1 bash -l
 ```
 
-When you no longer need the environments, you can clean them up either all at once or individually:
+When you no longer need the environments, you can clean them up either all at once or individually by project name. The printed list ends with the cleanup command for each environment:
 
 ``` bash
 # cleanup all environments
 inspect sandbox cleanup docker
 
 # cleanup single environment
-inspect sandbox cleanup docker inspect-task-ielnkhh-default-1
+inspect sandbox cleanup docker inspect-task-ielnkhh
 ```
 
 ## Resource Management

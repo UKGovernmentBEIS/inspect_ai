@@ -148,6 +148,16 @@ grok:
       # to `high`; reasoning cannot be disabled.
       # https://docs.x.ai/developers/grok-4-6
       reasoning_effort_default: high
+    grok-4.7:
+      display_name: "Grok 4.7"
+      release_date: 2026-09-21
+      knowledge_cutoff_date: 2026-05-01
+      context_length: 500000
+      reasoning: True
+      # Grok 4.7 accepts reasoning_effort (low/medium/high/xhigh) and defaults
+      # to `high`; reasoning cannot be disabled.
+      # https://docs.x.ai/developers/grok-4-7
+      reasoning_effort_default: high
     grok-3:
       display_name: "Grok 3"
       release_date: 2025-02-17

@@ -7,7 +7,7 @@ https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics
 from typing import Any
 
 import pytest
-from test_helpers.utils import skip_if_no_anthropic
+from test_helpers.utils import setenv_if_unset, skip_if_no_anthropic
 
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.model import (
@@ -77,13 +77,11 @@ def test_cache_diag_off_when_beta_absent() -> None:
 
 
 def test_cache_diag_off_on_bedrock_and_vertex_even_with_beta() -> None:
-    import os
-
-    os.environ.setdefault("AWS_REGION", "us-east-1")
-    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
-    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_REGION", "us-east5")
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
 
     bedrock = AnthropicAPI(
         model_name="bedrock/claude-opus-4-8",

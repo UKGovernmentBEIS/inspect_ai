@@ -150,6 +150,25 @@ def test_parse_model_role_cli_args_without_model_args():
     assert result["critic"].config.temperature == 0.3
 
 
+def test_parse_model_role_cli_args_accepts_provider_args_in_model_args() -> None:
+    """Provider-specific role args must live under model_args."""
+    result = parse_model_role_cli_args(
+        ("grader={model: none/none, model_args: {base_url: http://gpu2:8000/v1}}",)
+    )
+
+    assert "grader" in result
+    assert isinstance(result["grader"], Model)
+    assert result["grader"].api.base_url == "http://gpu2:8000/v1"
+
+
+def test_parse_model_role_cli_args_rejects_provider_args_at_top_level() -> None:
+    """Top-level role keys are GenerateConfig fields, not provider args."""
+    with pytest.raises(ValueError, match="Invalid config"):
+        parse_model_role_cli_args(
+            ("grader={model: none/none, base_url: http://gpu2:8000/v1}",)
+        )
+
+
 def test_parse_no_model_role_cli_args():
     assert parse_model_role_cli_args(None) == {}
 
@@ -174,9 +193,9 @@ def test_parse_model_role_cli_args_distinct_instance_per_role(
 
     resolved = resolve_model_roles(raw)
     assert resolved is not None
-    assert {name: model.role for name, model in resolved.items()} == {
-        r: r for r in roles
-    }
+    assert {
+        name: model.role for name, model in resolved.items() if isinstance(model, Model)
+    } == {r: r for r in roles}
 
 
 def test_parse_model_spec_cli_args_one_model_per_spec():
@@ -293,3 +312,27 @@ def test_parse_model_role_cli_args_does_not_alias_memoized_model(
 
     assert raw["judge"] is not memoized
     assert memoized.role is None
+
+
+def test_parse_model_role_cli_args_comma_separated_list() -> None:
+    """Comma-separated model names for a role parse to a list of names."""
+    result = parse_model_role_cli_args(("grader=mockllm/model_a,mockllm/model_b",))
+    assert result["grader"] == ["mockllm/model_a", "mockllm/model_b"]
+
+
+def test_parse_model_role_cli_args_comma_list_strips_whitespace() -> None:
+    """Whitespace and empty tokens are dropped, mirroring --model behavior."""
+    result = parse_model_role_cli_args(("grader=mockllm/model_a, mockllm/model_b,",))
+    assert result["grader"] == ["mockllm/model_a", "mockllm/model_b"]
+
+
+def test_parse_model_role_cli_args_yaml_list_of_specs() -> None:
+    """A YAML list of model specs for a role parses to a list of models."""
+    result = parse_model_role_cli_args(
+        ("grader=[{model: mockllm/model, temperature: 0.2}, mockllm/model_b]",)
+    )
+    grader = result["grader"]
+    assert isinstance(grader, list)
+    assert isinstance(grader[0], Model)
+    assert grader[0].config.temperature == 0.2
+    assert grader[1] == "mockllm/model_b"

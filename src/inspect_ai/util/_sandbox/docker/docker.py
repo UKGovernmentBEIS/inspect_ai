@@ -13,9 +13,11 @@ from typing import Literal, NamedTuple, Union, overload
 
 from typing_extensions import override
 
+from inspect_ai._util.cpu import effective_cpu_count
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
+from .._privileged import pinned_command, pinned_shell_command
 from ..compose import COMPOSE_FILES, DOCKERFILE, ComposeConfig
 from ..environment import (
     HostMapping,
@@ -23,6 +25,8 @@ from ..environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUnavailableError,
+    sandbox_prebuilt,
 )
 from ..limits import (
     SandboxEnvironmentLimits,
@@ -34,10 +38,12 @@ from .cleanup import (
     project_cleanup,
     project_cleanup_shutdown,
     project_cleanup_startup,
+    project_discard_auto_compose,
     project_record_auto_compose,
     project_startup,
 )
 from .compose import (
+    PREBUILT_IMAGES_ERROR_PREFIX,
     compose_build,
     compose_check_running,
     compose_cleanup_images,
@@ -47,10 +53,12 @@ from .compose import (
     compose_pull,
     compose_services,
     compose_up,
+    compose_verify_prebuilt_images,
     docker_image_exists_locally,
 )
+from .diagnostics import sandbox_unavailable_diagnostics, service_dead
 from .failure import InjectedWrapper, classify_exec_failure
-from .internal import build_internal_image, is_internal_image
+from .internal import build_internal_image, is_internal_image, is_internal_image_built
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
 
@@ -71,8 +79,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     def default_concurrency(cls) -> int | None:
-        count = os.cpu_count() or 1
-        return 2 * count
+        # `effective_cpu_count()` rather than `os.cpu_count()`: an eval running
+        # inside a CPU-limited container would otherwise size its sandbox
+        # concurrency off the host's processors and oversubscribe its own quota
+        return 2 * effective_cpu_count()
 
     @classmethod
     async def task_init(
@@ -84,6 +94,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # intialize project cleanup
         project_cleanup_startup()
 
+        project: ComposeProject | None = None
+        owns_auto_compose = False
         try:
             # create project
             project = await ComposeProject.create(
@@ -91,15 +103,20 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             )
 
             # record auto compose
-            project_record_auto_compose(project)
-
-            # build containers which are out of date
-            await compose_build(project)
-
-            # cleanup images created during build
-            await compose_cleanup_images(project, timeout=300)
+            owns_auto_compose = project_record_auto_compose(project)
 
             services = await compose_services(project)
+
+            prebuilt = sandbox_prebuilt()
+            if prebuilt:
+                await compose_verify_prebuilt_images(project, services)
+            else:
+                # build containers which are out of date
+                await compose_build(project)
+
+                # cleanup images created during build
+                await compose_cleanup_images(project, timeout=300)
+
             for name, service in services.items():
                 # if the service has an explicit container_name then
                 # error (as this won't work w/ epochs > 1)
@@ -112,12 +129,15 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 # build internal images
                 image = service.get("image", None)
                 if image and is_internal_image(image):
-                    await build_internal_image(image)
+                    if not prebuilt:
+                        await build_internal_image(image)
+                    elif not await is_internal_image_built(image):
+                        raise PrerequisiteError(
+                            PREBUILT_IMAGES_ERROR_PREFIX
+                            + f"the internal image '{image}' is not present in the Docker image store."
+                        )
                 # pull any remote images
-                elif (
-                    service.get("build", None) is None
-                    and service.get("x-local", None) is None
-                ):
+                elif service.get("build", None) is None and not service.get("x-local"):
                     # skip the pull if the image is already available locally
                     # (avoids noisy errors for images loaded via 'docker load')
                     if image and await docker_image_exists_locally(image):
@@ -126,12 +146,21 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     pull_result = await compose_pull(name, project)
                     if not pull_result.success:
                         image = service.get("image", "(unknown)")
+                        if prebuilt:
+                            raise PrerequisiteError(
+                                PREBUILT_IMAGES_ERROR_PREFIX
+                                + f"the image '{image}' for service '{name}' is not present in the Docker image store and could not be pulled."
+                            )
                         logger.error(
                             f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the the service definition to prevent this error."
                         )
 
         except BaseException as ex:
-            await project_cleanup_shutdown(True)
+            # the registry is shared with the batch's live samples and other
+            # configs, so release only a file this startup alone registered;
+            # the batch's final task_cleanup still runs for everything else
+            if project is not None and owns_auto_compose:
+                project_discard_auto_compose(project)
             raise ex
 
     @override
@@ -283,6 +312,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         self._service = service
         self._project = project
         self._working_dir = working_dir
+        self._unavailable_diagnostics_logged = False
 
     @override
     async def exec(
@@ -323,7 +353,12 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # alone leaves orphaned processes inside the container).
         in_container_cmd = cmd
         if timeout is not None:
-            in_container_cmd = ["timeout", "-k", "5s", f"{timeout}s", *cmd]
+            # Absolute path: the wrapper runs as `user` (root for privileged
+            # commands) before anything of ours, so it must not be resolved
+            # through the image's possibly user-writable PATH. The requested
+            # command keeps whatever PATH the caller gave it (see the `exec`
+            # contract in `environment.py`).
+            in_container_cmd = ["/usr/bin/timeout", "-k", "5s", f"{timeout}s", *cmd]
 
         # add a buffer to the host timeout so the in-container timeout
         # fires first under normal conditions. the in-container timeout
@@ -377,10 +412,51 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             if in_container_cmd is not cmd and cmd
             else None,
         )
+
+        # a container dying mid-command is invisible to the classifier: docker
+        # reports nothing at all, just the signal-death exit code (#264).
+        # ordinary commands exit silently with small codes constantly
+        # (`grep -q` without a match), so only signal-death exits (> 128) pay
+        # the `compose ps` confirmation, and only a positively dead container
+        # escalates.
+        if (
+            failure is None
+            and not exec_result.success
+            and exec_result.returncode > 128
+            and not exec_result.stdout.strip()
+            and not exec_result.stderr.strip()
+            and await service_dead(self._service, self._project)
+        ):
+            failure = SandboxUnavailableError(
+                "The sandbox is not running and cannot execute: command "
+                f"exited with code {exec_result.returncode} and no output, "
+                f'and the container for service "{self._service}" has exited '
+                "(container diagnostics logged as a warning)"
+            )
+
         if failure is not None:
+            if isinstance(failure, SandboxUnavailableError):
+                await self._log_unavailable_diagnostics()
             raise failure
 
         return exec_result
+
+    async def _log_unavailable_diagnostics(self) -> None:
+        """Log post-mortem evidence for this environment's dead container.
+
+        Logged (not embedded in the error): the audience is the human/CI
+        post-mortem, and error text reaches the model as tool output — up to
+        ~12KB of agent-writable container logs per call. Collected once per
+        environment: a dead sandbox fails every subsequent exec identically,
+        and repeating the probes only loads a daemon that may already be
+        struggling.
+        """
+        if self._unavailable_diagnostics_logged:
+            return
+        self._unavailable_diagnostics_logged = True
+        logger.warning(
+            await sandbox_unavailable_diagnostics(self._service, self._project)
+        )
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
@@ -390,10 +466,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # resolve relative file paths
         file = self.container_file(file)
 
-        # ensure that the directory exists
+        # These run as the container's default user (root in most images), so the
+        # utilities must not come from the image's PATH.
         parent = Path(file).parent.as_posix()
         if parent != ".":
-            result = await self.exec(["mkdir", "-p", parent])
+            result = await self.exec(pinned_command(["mkdir", "-p", parent]))
             if not result.success:
                 msg = f"Failed to create container directory {parent}: {result.stderr}"
                 raise RuntimeError(msg)
@@ -401,34 +478,22 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # write the file
         if isinstance(contents, str):
             result = await self.exec(
-                [
-                    "sh",
-                    "-e",
-                    "-c",
-                    'tee -- "$1" > /dev/null',
-                    "write_file_script",
-                    file,
-                ],
+                pinned_shell_command('set -e\ntee -- "$1" > /dev/null', file),
                 input=contents,
                 timeout=TIMEOUT,
             )
         else:
             base64_contents = base64.b64encode(contents).decode("US-ASCII")
             result = await self.exec(
-                [
-                    "sh",
-                    "-e",
-                    "-c",
-                    'base64 -d | tee -- "$1" > /dev/null',
-                    "write_file_script",
-                    file,
-                ],
+                pinned_shell_command(
+                    'set -e\nbase64 -d | tee -- "$1" > /dev/null', file
+                ),
                 input=base64_contents,
                 timeout=TIMEOUT,
             )
         if result.returncode != 0:
             if "permission denied" in result.stderr.casefold():
-                ls_result = await self.exec(["ls", "-la", "."])
+                ls_result = await self.exec(pinned_command(["ls", "-la", "."]))
                 error_string = f"Permission was denied. Error details: {result.stderr}; ls -la: {ls_result.stdout}"
                 raise PermissionError(error_string)
             elif (
@@ -627,7 +692,7 @@ async def container_working_dir(
     service: str, project: ComposeProject, default: str = "/"
 ) -> str:
     result = await compose_exec(
-        [service, "sh", "-c", "pwd"], timeout=60, project=project
+        [service, *pinned_shell_command("pwd")], timeout=60, project=project
     )
     if result.success:
         return result.stdout.strip()

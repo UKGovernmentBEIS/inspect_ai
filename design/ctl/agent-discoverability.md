@@ -64,7 +64,8 @@ class (`httpx.ReadTimeout`). The event-loop starvation the issue wanted
 diagnosable without scraping tracebacks gets an even stronger signal than the
 `exception` field it asked for: a dedicated `read_timeout` kind. The envelope
 is advertised in `inspect ctl --help`
-(`src/inspect_ai/_cli/ctl.py:286`). The issue's `suggestion` field was not
+(the `ctl_command` docstring in `src/inspect_ai/_cli/ctl/_group.py`). The
+issue's `suggestion` field was not
 included; `message` is required to be self-contained (e.g. the ambiguity error
 folds candidate ids in) and the group-level unknown-command hints (`_NounGroup.hint`)
 cover the teach-through-the-error cases. We don't add `suggestion` now — no
@@ -73,7 +74,8 @@ one appears.
 
 **3b (mostly) — footer hints.** Human output already signposts next steps in
 several places: the `task list` keep-alive footer suggests
-`inspect ctl process keep` when keep-alive is off (`ctl.py:_print_keep_alive_footer`),
+`inspect ctl process keep` when keep-alive is off (`_print_keep_alive_footer`
+in `_cli/ctl/_render.py`),
 the empty-state message suggests `--ctl-server=keep` (`_echo_no_running_evals`),
 capped listings print a truncation footer (`_echo_truncation_footer`), and each
 noun group corrects unknown-command mistakes with the right invocation. The one
@@ -212,7 +214,8 @@ looks conventional — the header line is the discovery surface.
 
 ### 2b. Worked examples in the hot `ctl` subcommands
 
-The `ctl` subcommand docstrings (`src/inspect_ai/_cli/ctl.py`) explain
+The `ctl` subcommand docstrings (the noun modules under
+`src/inspect_ai/_cli/ctl/`) explain
 selectors and JSON shapes but carry no `Example:` lines; agents
 pattern-match from examples. Add one line each, at the end of the docstring:
 
@@ -267,7 +270,8 @@ all of them.
   (the process-wide arm set by the `eval`/`eval-set`/`eval-retry` entry
   points, likely alongside `set_launch_handoff_listener` in
   `_eval/handoff.py`); 1c/2a touch only help text in `_cli/eval.py`; 2b/3b
-  touch only `_cli/ctl.py`. All are independent and can land as one small PR.
+  touch only the `_cli/ctl/` package. All are independent and can land as one
+  small PR.
 - Tests: extend `tests/_control/test_ctl.py` for the 3b footer (assert
   presence with errored rows, absence without, absence under `--json`);
   extend `tests/_cli/test_ctl_server_flag.py` (or a sibling) for 1a's gating

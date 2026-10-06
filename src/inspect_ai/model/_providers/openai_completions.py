@@ -2,6 +2,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal
 
 from openai import (
+    APIError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
     BadRequestError,
@@ -21,14 +22,18 @@ from .._generate_config import GenerateConfig
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ModelOutput
 from .._openai import (
+    apply_initial_system_checkpoint,
     chat_choices_from_openai,
     messages_to_openai,
     model_output_from_openai,
+    openai_chat_completion_stream_final,
     openai_chat_tool_choice,
     openai_chat_tools,
     openai_completion_params,
     openai_handle_bad_request,
+    openai_handle_stream_error,
     openai_media_filter,
+    resolve_explicit_prompt_cache,
 )
 from .util.hooks import HttpxHooks
 
@@ -51,71 +56,114 @@ async def generate_completions(
     safety_identifier: str | NotGiven,
     openai_api: "OpenAIAPI",
     batcher: OpenAIBatcher[ChatCompletion] | None,
+    streaming: bool = False,
+    supports_explicit_prompt_cache: bool = False,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+    # batching and streaming are mutually exclusive
+    streaming = streaming and batcher is None
+
     # allocate request_id (so we can see it from ModelCall)
-    request_id = http_hooks.start_request()
+    with http_hooks.request() as request_id:
+        # unlike text models, vision models require a max_tokens (and set it to a very low
+        # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
+        OPENAI_IMAGE_DEFAULT_TOKENS = 4096
+        if "vision" in openai_api.model_family():
+            if isinstance(config.max_tokens, int):
+                config.max_tokens = max(config.max_tokens, OPENAI_IMAGE_DEFAULT_TOKENS)
+            else:
+                config.max_tokens = OPENAI_IMAGE_DEFAULT_TOKENS
 
-    # unlike text models, vision models require a max_tokens (and set it to a very low
-    # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
-    OPENAI_IMAGE_DEFAULT_TOKENS = 4096
-    if "vision" in openai_api.model_family():
-        if isinstance(config.max_tokens, int):
-            config.max_tokens = max(config.max_tokens, OPENAI_IMAGE_DEFAULT_TOKENS)
+        # o-series and gpt5 models use 'developer' rather than 'system' messages
+        # https://platform.openai.com/docs/guides/reasoning#advice-on-prompting
+        if openai_api.is_o_series() or openai_api.is_gpt_5():
+            system_role: Literal["developer", "system"] = "developer"
         else:
-            config.max_tokens = OPENAI_IMAGE_DEFAULT_TOKENS
+            system_role = "system"
 
-    # o-series and gpt5 models use 'developer' rather than 'system' messages
-    # https://platform.openai.com/docs/guides/reasoning#advice-on-prompting
-    if openai_api.is_o_series() or openai_api.is_gpt_5():
-        system_role: Literal["developer", "system"] = "developer"
-    else:
-        system_role = "system"
-
-    # prepare request (we do this so we can log the ModelCall)
-    request = dict(
-        messages=await messages_to_openai(input, system_role),
-        tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
-        tool_choice=openai_chat_tool_choice(tool_choice)
-        if len(tools) > 0
-        else NOT_GIVEN,
-        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
-        | (config.extra_headers or {}),
-        **completion_params_completions(openai_api, config, len(tools) > 0),
-    )
-    if isinstance(prompt_cache_key, str):
-        request["prompt_cache_key"] = prompt_cache_key
-    if isinstance(prompt_cache_retention, str):
-        request["prompt_cache_retention"] = prompt_cache_retention
-    if isinstance(safety_identifier, str):
-        request["safety_identifier"] = safety_identifier
-
-    model_call = set_active_model_event_call(
-        request=request,
-        filter=openai_media_filter,
-    )
-
-    try:
-        completion = await (
-            batcher.generate_for_request(request)
-            if batcher
-            else client.chat.completions.create(**request)
+        # explicit cache breakpoints (ContentText.cache_breakpoint); any
+        # ineligible condition falls back to normal implicit caching for the
+        # whole request — see resolve_explicit_prompt_cache
+        explicit_cache = (
+            supports_explicit_prompt_cache
+            and resolve_explicit_prompt_cache(
+                input, openai_api.api_model_name(), config.cache_prompt
+            )
         )
-        # completion is `CharCompletion | Any`. The lazy type inference engine
-        # threw up its hands because of the `**request`.
-        assert isinstance(completion, ChatCompletion)
+        if explicit_cache:
+            # retain a checkpoint at the end of the initial system/developer
+            # block (cumulatively covering preceding tools) when the caller left
+            # it unmarked — see `apply_initial_system_checkpoint`.
+            input = apply_initial_system_checkpoint(input)
 
-        model_call.set_response(
-            completion.model_dump(), http_hooks.end_request(request_id)
+        # prepare request (we do this so we can log the ModelCall)
+        request = dict(
+            messages=await messages_to_openai(
+                input, system_role, cache_breakpoints=explicit_cache
+            ),
+            tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
+            tool_choice=openai_chat_tool_choice(tool_choice)
+            if len(tools) > 0
+            else NOT_GIVEN,
+            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+            | (config.extra_headers or {}),
+            **completion_params_completions(openai_api, config, len(tools) > 0),
+        )
+        if explicit_cache:
+            request["prompt_cache_options"] = {"mode": "explicit"}
+        if isinstance(prompt_cache_key, str):
+            request["prompt_cache_key"] = prompt_cache_key
+        if isinstance(prompt_cache_retention, str):
+            request["prompt_cache_retention"] = prompt_cache_retention
+        if isinstance(safety_identifier, str):
+            request["safety_identifier"] = safety_identifier
+        if streaming:
+            # stream via a raw create(stream=True) call (recorded in the request
+            # so the logged ModelCall matches the wire request), asking the server
+            # for cumulative usage on the final chunk so the streamed completion
+            # carries the same usage as a non-streamed one
+            request["stream"] = True
+            request["stream_options"] = {"include_usage": True}
+
+        model_call = set_active_model_event_call(
+            request=request,
+            filter=openai_media_filter,
         )
 
-        # return output and call
-        choices = chat_choices_from_openai(completion, tools)
-        return model_output_from_openai(completion, choices), model_call
-    except (BadRequestError, UnprocessableEntityError) as e:
-        model_call.set_error(
-            as_error_response(e.body), http_hooks.end_request(request_id)
-        )
-        return openai_handle_bad_request(openai_api.service_model_name(), e), model_call
+        try:
+            completion: ChatCompletion
+            if batcher:
+                completion = await batcher.generate_for_request(request)
+            elif streaming:
+                async with await client.chat.completions.create(**request) as stream:
+                    completion = await openai_chat_completion_stream_final(stream)
+            else:
+                completion = await client.chat.completions.create(**request)
+            # completion is `CharCompletion | Any`. The lazy type inference engine
+            # threw up its hands because of the `**request`.
+            assert isinstance(completion, ChatCompletion)
+
+            model_call.set_response(
+                completion.model_dump(), http_hooks.end_request(request_id)
+            )
+
+            # return output and call
+            choices = chat_choices_from_openai(completion, tools)
+            return model_output_from_openai(completion, choices), model_call
+        except (BadRequestError, UnprocessableEntityError) as e:
+            model_call.set_error(
+                as_error_response(e.body), http_hooks.end_request(request_id)
+            )
+            return openai_handle_bad_request(
+                openai_api.service_model_name(), e
+            ), model_call
+        except APIError as e:
+            output = openai_handle_stream_error(openai_api.service_model_name(), e)
+            if output is None:
+                raise
+            model_call.set_error(
+                as_error_response(e.body), http_hooks.end_request(request_id)
+            )
+            return output, model_call
 
 
 def completion_params_completions(

@@ -5,11 +5,12 @@ Covers config plumbing, service/batch gating, response-side detection
 declined-attempt stripping rule, and replay/bridge round-tripping.
 """
 
-from typing import Any, cast
+from typing import Any, Iterator, cast
 
 import pytest
 from anthropic._models import construct_type
 from anthropic.types.message import Message
+from test_helpers.utils import setenv_if_unset
 
 from inspect_ai._util.content import ContentData, ContentReasoning, ContentText
 from inspect_ai.model import (
@@ -99,13 +100,11 @@ def test_fallback_config_absent_when_unset() -> None:
 def test_fallback_ignored_on_bedrock_vertex(
     model_name: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import os
-
-    os.environ.setdefault("AWS_REGION", "us-east-1")
-    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
-    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_REGION", "us-east5")
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
 
     from inspect_ai._util import logger as logger_mod
     from inspect_ai.model._providers import anthropic as anthropic_mod
@@ -402,13 +401,11 @@ def test_refusal_hint_suppressed_when_fallback_configured(
 def test_refusal_hint_suppressed_on_bedrock_vertex(
     model_name: str, hint_warnings: list[str]
 ) -> None:
-    import os
-
-    os.environ.setdefault("AWS_REGION", "us-east-1")
-    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
-    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_REGION", "us-east5")
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
 
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     _warn_refusal_without_fallback(
@@ -546,3 +543,131 @@ async def test_fallback_bridge_tolerates_from_alias() -> None:
     meta = cast(dict[str, Any], content[0].data["fallback_metadata"])
     assert meta["from"] == {"model": REQUESTED_MODEL}
     assert meta["to"] == {"model": FALLBACK_MODEL}
+
+
+# ---------------------------------------------------------------------------
+# cost: fallen-back requests are priced by the model that served them
+# ---------------------------------------------------------------------------
+
+# $ per million tokens; every token kind priced at the same rate
+REQUESTED_RATE = 25.0
+FALLBACK_RATE = 5.0
+
+
+@pytest.fixture
+def fallback_costs() -> Iterator[None]:
+    from inspect_ai.model import ModelCost, set_model_cost
+    from inspect_ai.model._model_info import clear_model_info_cache
+
+    def cost(rate: float) -> ModelCost:
+        return ModelCost(
+            input=rate, output=rate, input_cache_write=rate, input_cache_read=rate
+        )
+
+    set_model_cost(f"anthropic/{REQUESTED_MODEL}", cost(REQUESTED_RATE))
+    set_model_cost(f"anthropic/{FALLBACK_MODEL}", cost(FALLBACK_RATE))
+    yield
+    clear_model_info_cache()
+
+
+def _iteration(
+    type: str, model: str, input_tokens: int, output_tokens: int
+) -> dict[str, Any]:
+    return {
+        "type": type,
+        "model": model,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+    }
+
+
+def _recorded_cost(output: ModelOutput) -> float | None:
+    from inspect_ai.model import get_model
+    from inspect_ai.model._model import record_and_check_model_usage
+
+    model = get_model(f"anthropic/{REQUESTED_MODEL}", api_key="test-key")
+    assert output.usage is not None
+    record_and_check_model_usage(model, output.usage, output=output)
+    return output.usage.total_cost
+
+
+@pytest.mark.anyio
+async def test_fallback_priced_per_attempt(fallback_costs: None) -> None:
+    """Each billed attempt is priced at the rates of the model that ran it."""
+    init_sample_anthropic_assistant_internal()
+    message = _fallback_message(
+        [_fallback_block(), {"type": "text", "text": "served answer"}],
+        iterations=[
+            # declined mid-output: billed
+            _iteration("message", REQUESTED_MODEL, 535, 120),
+            _iteration("fallback_message", FALLBACK_MODEL, 412, 264),
+        ],
+    )
+    output, _pause = await model_output_from_message(None, REQUESTED_MODEL, message, [])
+
+    cost = _recorded_cost(output)
+    expected = (535 + 120) * REQUESTED_RATE / 1e6 + (412 + 264) * FALLBACK_RATE / 1e6
+    assert cost == pytest.approx(expected)
+
+
+@pytest.mark.anyio
+async def test_fallback_declined_before_output_not_priced(
+    fallback_costs: None,
+) -> None:
+    """An attempt that declined before any output is left out of the cost."""
+    init_sample_anthropic_assistant_internal()
+    message = _fallback_message(
+        [_fallback_block(), {"type": "text", "text": "served answer"}],
+        iterations=[
+            _iteration("message", REQUESTED_MODEL, 535, 0),
+            _iteration("fallback_message", FALLBACK_MODEL, 412, 264),
+        ],
+    )
+    output, _pause = await model_output_from_message(None, REQUESTED_MODEL, message, [])
+
+    assert _recorded_cost(output) == pytest.approx((412 + 264) * FALLBACK_RATE / 1e6)
+
+
+@pytest.mark.anyio
+async def test_fallback_without_iterations_priced_at_fallback_model(
+    fallback_costs: None,
+) -> None:
+    init_sample_anthropic_assistant_internal()
+    message = _fallback_message(
+        [_fallback_block(), {"type": "text", "text": "served answer"}]
+    )
+    output, _pause = await model_output_from_message(None, REQUESTED_MODEL, message, [])
+
+    assert _recorded_cost(output) == pytest.approx((412 + 264) * FALLBACK_RATE / 1e6)
+
+
+@pytest.mark.anyio
+async def test_sticky_routed_turn_records_fallback(fallback_costs: None) -> None:
+    """A turn sent straight to the fallback model is a fallback, priced as one."""
+    init_sample_anthropic_assistant_internal()
+    message = _fallback_message(
+        [{"type": "text", "text": "served answer"}],
+        iterations=[_iteration("fallback_message", FALLBACK_MODEL, 412, 264)],
+    )
+    output, _pause = await model_output_from_message(None, REQUESTED_MODEL, message, [])
+
+    assert output.fallback is not None
+    assert output.fallback.model == REQUESTED_MODEL
+    assert output.fallback.fallback_model == FALLBACK_MODEL
+    assert output.fallback.metadata is not None
+    assert output.fallback.metadata["handoffs"] == []
+    assert _recorded_cost(output) == pytest.approx((412 + 264) * FALLBACK_RATE / 1e6)
+
+
+@pytest.mark.anyio
+async def test_no_fallback_priced_at_requested_model(fallback_costs: None) -> None:
+    init_sample_anthropic_assistant_internal()
+    message = _fallback_message(
+        [{"type": "text", "text": "normal answer"}], model=REQUESTED_MODEL
+    )
+    output, _pause = await model_output_from_message(None, REQUESTED_MODEL, message, [])
+
+    assert output.fallback is None
+    assert _recorded_cost(output) == pytest.approx((412 + 264) * REQUESTED_RATE / 1e6)

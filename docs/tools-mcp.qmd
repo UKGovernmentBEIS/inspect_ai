@@ -65,7 +65,7 @@ We'll cover using stdio and http based servers in the section below. Sandbox ser
 
 For stdio servers, you need to provide the command to start the server along with potentially some command line arguments and environment variables. For sse servers you'll generally provide a host name and headers with credentials.
 
-Servers typically provide their documentation in the JSON format required by the `claude_desktop_config.json` file in Claude Desktop. For example, here is the documentation for configuring the [Google Maps](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#npx) server:
+Servers typically provide their documentation in the JSON format required by the `claude_desktop_config.json` file in Claude Desktop. For example, here is the documentation for configuring the [Google Maps](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/google-maps#npx) server:
 
 ``` json
 {
@@ -103,7 +103,7 @@ The `"command": "npx"` option indicates that this server was written using Node.
 
 ### Server Tools
 
-Each MCP server makes available a set of tools. For example, the Google Maps server includes [7 tools](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#tools) (e.g. `maps_search_places()` , `maps_place_details()`, etc.). You can make these tools available to Inspect by passing the server interface alongside other standard `tools`. For example:
+Each MCP server makes available a set of tools. For example, the Google Maps server includes [7 tools](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/google-maps#tools) (e.g. `maps_search_places()` , `maps_place_details()`, etc.). You can make these tools available to Inspect by passing the server interface alongside other standard `tools`. For example:
 
 ``` python
 @task
@@ -157,6 +157,8 @@ Note that some remote MCP servers will require credentials---in this case pass t
 
 Before using remote servers, you should review OpenAI's [Risks and Safety](https://platform.openai.com/docs/guides/tools-remote-mcp#risks-and-safety) guidance for Remote MCP.
 
+The model provider calls a remote server's tools during generation, so Inspect never sees those calls and can't [approve](approval.qmd) them. For this reason a remote server can't be used while an approval policy is active: Inspect raises an error rather than sending the server to the provider. Use `execution="local"` so that the server's tool calls go through the approval policy.
+
 ## Tool Selection {#tool-selection}
 
 To narrow the list of tools made available from an MCP Server you can use the `mcp_tools()` function. For example, to make only the geocode oriented functions available from the Google Maps server:
@@ -175,7 +177,7 @@ return Task(
 
 ## Connections
 
-MCP Servers can be either stateless or stateful. Stateful servers may retain context in memory whereas stateless servers either have no state or operate on external state. For example the [Brave Search](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) server is stateless (it just processes one search at a time) whereas the [Knowledge Graph Memory](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) server is stateful (it maintains a knowledge graph in memory).
+MCP Servers can be either stateless or stateful. Stateful servers may retain context in memory whereas stateless servers either have no state or operate on external state. For example the [Brave Search](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/brave-search) server is stateless (it just processes one search at a time) whereas the [Knowledge Graph Memory](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) server is stateful (it maintains a knowledge graph in memory).
 
 In the case that you using stateful servers, you will want to establish a longer running connection to the server so that it's state is maintained across calls. You can do this using the `mcp_connection()` context manager.
 
@@ -235,6 +237,8 @@ def web_surfer() -> Agent:
     return execute
 ```
 ````
+
+The `web_browser()` tool used above is [deprecated](tools-standard.qmd#sec-web-browser); it appears here only to illustrate `mcp_connection()`.
 
 Note that the `mcp_connection()` function can take an arbitrary list of `tools` and will discover and connect to any MCP-based `ToolSource` in the list. So if your agent takes a `tools` parameter you can just forward it on. For example:
 

@@ -337,6 +337,9 @@ def test_project_metadata_default_tool_event() -> None:
     )
     out = _project(event, content=False, full=False)
     assert out["function"] == "bash"
+    # the tool-call id is metadata tier: it is what `sample cancel-tool-call
+    # --tool-call-id` targets, so it must be discoverable without --content
+    assert out["id"] == "t1"
     assert out["has_error"] is True
     assert "arguments" not in out and "result" not in out and "error" not in out
 

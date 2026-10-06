@@ -17,16 +17,22 @@ Usage:
 """
 
 import argparse
+import hashlib
 import logging
 import os
 import re
 import shutil
 import subprocess
 import sys
+import urllib.error
 import urllib.request
+import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
+
+SANDBOX_TOOLS_UTILS_DIR = Path("src/inspect_ai/tool/_sandbox_tools_utils")
+SHA256SUMS_FILE = SANDBOX_TOOLS_UTILS_DIR / "SHA256SUMS"
 
 
 def setup_logging(name: str) -> None:
@@ -71,11 +77,43 @@ def run_command(
         sys.exit(1)
 
 
+def sha256_of_file(path: Path) -> str:
+    """Compute the SHA256 hex digest of a file's contents."""
+    hasher = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def read_pinned_digests() -> Dict[str, str]:
+    """Read the vendored SHA256SUMS into a filename -> digest mapping.
+
+    The file pins one digest per published sandbox-tools artifact and is
+    rewritten by upload_to_s3.py alongside every version bump. Tolerates the
+    optional `*` binary marker, like sha256sum itself.
+    """
+    if not SHA256SUMS_FILE.exists():
+        logging.error(f"Sandbox tools digest file not found: {SHA256SUMS_FILE}")
+        sys.exit(1)
+
+    entries: Dict[str, str] = {}
+    pattern = re.compile(r"^([0-9a-fA-F]{64})\s+\*?(\S+)$")
+    for line in SHA256SUMS_FILE.read_text().splitlines():
+        match = pattern.match(line.strip())
+        if match:
+            entries[match.group(2)] = match.group(1).lower()
+
+    if not entries:
+        logging.error(f"No digest entries found in {SHA256SUMS_FILE}")
+        sys.exit(1)
+
+    return entries
+
+
 def get_sandbox_tools_version() -> str:
     """Read the required sandbox tools version from the version file."""
-    version_file = Path(
-        "src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt"
-    )
+    version_file = SANDBOX_TOOLS_UTILS_DIR / "sandbox_tools_version.txt"
 
     if not version_file.exists():
         logging.error(f"Sandbox tools version file not found: {version_file}")
@@ -114,80 +152,107 @@ def clean_sandbox_tools_directory() -> None:
         logging.info("No old sandbox tools to remove")
 
 
-def check_sandbox_tools_exist(version: str) -> bool:
-    """Check if both platform binaries exist for the required version."""
+def check_sandbox_tools_exist(version: str, digests: Dict[str, str]) -> bool:
+    """Check if both platform binaries exist with their pinned digests.
+
+    Compares digests, not sizes: a stale or tampered local file must be
+    treated as missing (cleaned and re-downloaded), never silently bundled
+    into the wheel.
+    """
     binaries_dir = Path("src/inspect_ai/binaries")
 
     if not binaries_dir.exists():
         return False
 
-    amd64_binary = binaries_dir / f"inspect-sandbox-tools-amd64-v{version}"
-    arm64_binary = binaries_dir / f"inspect-sandbox-tools-arm64-v{version}"
+    for platform in ["amd64", "arm64"]:
+        filename = f"inspect-sandbox-tools-{platform}-v{version}"
+        binary = binaries_dir / filename
+        if not binary.exists():
+            logging.info(f"Sandbox tools v{version}: {filename} missing")
+            return False
+        expected = digests.get(filename)
+        if expected is None:
+            logging.error(f"No digest entry for {filename} in {SHA256SUMS_FILE}")
+            sys.exit(1)
+        if sha256_of_file(binary) != expected:
+            logging.info(
+                f"Sandbox tools v{version}: {filename} does not match its pinned "
+                f"digest; treating as missing"
+            )
+            return False
 
-    amd64_exists = amd64_binary.exists() and amd64_binary.stat().st_size > 0
-    arm64_exists = arm64_binary.exists() and arm64_binary.stat().st_size > 0
-
-    if amd64_exists and arm64_exists:
-        logging.info(f"✓ Sandbox tools v{version} already downloaded (both platforms)")
-        return True
-    elif amd64_exists:
-        logging.info(f"Sandbox tools v{version}: amd64 present, arm64 missing")
-        return False
-    elif arm64_exists:
-        logging.info(f"Sandbox tools v{version}: arm64 present, amd64 missing")
-        return False
-    else:
-        logging.info(f"Sandbox tools v{version} not found")
-        return False
+    logging.info(f"✓ Sandbox tools v{version} already downloaded and verified")
+    return True
 
 
-def download_file(url: str, dest_path: Path, dry_run: bool = False) -> bool:
-    """Download a file from URL to destination path."""
+def download_file(
+    url: str, dest_path: Path, expected_sha256: str, dry_run: bool = False
+) -> bool:
+    """Download a file from URL, verifying it against the expected digest.
+
+    Streams to a sibling tempfile, hashing while streaming, and renames into
+    place only after the digest has been verified, so a failed or corrupted
+    download never leaves a file at dest_path.
+    """
     if dry_run:
         logging.info(f"[DRY RUN] Would download {url} to {dest_path}")
         return True
 
+    logging.info(f"Downloading {url}")
+    logging.info(f"         to {dest_path}")
+
+    # Create parent directory if needed
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    tmp_path = dest_path.parent / (dest_path.name + ".partial")
     try:
-        logging.info(f"Downloading {url}")
-        logging.info(f"         to {dest_path}")
-
-        # Create parent directory if needed
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Download with progress indication
-        def download_progress(block_num, block_size, total_size):
-            downloaded = block_num * block_size
-            percent = min(downloaded * 100 / total_size, 100) if total_size > 0 else 0
-            mb_downloaded = downloaded / (1024 * 1024)
-            mb_total = total_size / (1024 * 1024)
-            print(
-                f"\r  Progress: {percent:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)",
-                end="",
-                flush=True,
-            )
-
-        urllib.request.urlretrieve(url, dest_path, reporthook=download_progress)
+        hasher = hashlib.sha256()
+        with urllib.request.urlopen(url, timeout=120) as response:
+            total_size = int(response.headers.get("Content-Length") or 0)
+            downloaded = 0
+            with open(tmp_path, "wb") as f:
+                while chunk := response.read(1 << 20):
+                    f.write(chunk)
+                    hasher.update(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        percent = min(downloaded * 100 / total_size, 100)
+                        print(
+                            f"\r  Progress: {percent:.1f}% "
+                            f"({downloaded / (1024 * 1024):.1f}/"
+                            f"{total_size / (1024 * 1024):.1f} MB)",
+                            end="",
+                            flush=True,
+                        )
         print()  # New line after progress
 
-        # Verify download
-        if not dest_path.exists() or dest_path.stat().st_size == 0:
-            logging.error(f"Download failed or file is empty: {dest_path}")
+        actual = hasher.hexdigest()
+        if actual != expected_sha256:
+            logging.error(
+                f"Digest mismatch for {url}: expected {expected_sha256}, got "
+                f"{actual}. This may indicate a compromised or corrupted "
+                f"published artifact — do not re-upload over it; investigate."
+            )
             return False
 
-        # Make binary executable
-        dest_path.chmod(0o755)
+        tmp_path.chmod(0o755)
+        os.replace(tmp_path, dest_path)
 
         size_mb = dest_path.stat().st_size / (1024 * 1024)
-        logging.info(f"  ✓ Downloaded successfully ({size_mb:.1f} MB)")
+        logging.info(f"  ✓ Downloaded and verified ({size_mb:.1f} MB)")
         return True
 
     except Exception as e:
         logging.error(f"Error downloading {url}: {e}")
         return False
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
-def download_sandbox_tools(version: str, dry_run: bool = False) -> bool:
-    """Download sandbox tools for both platforms from S3."""
+def download_sandbox_tools(
+    version: str, digests: Dict[str, str], dry_run: bool = False
+) -> bool:
+    """Download sandbox tools for both platforms from S3, digest-verified."""
     base_url = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
     binaries_dir = Path("src/inspect_ai/binaries")
 
@@ -200,25 +265,105 @@ def download_sandbox_tools(version: str, dry_run: bool = False) -> bool:
 
     for platform in platforms:
         filename = f"inspect-sandbox-tools-{platform}-v{version}"
+        expected = digests.get(filename)
+        if expected is None:
+            logging.error(f"No digest entry for {filename} in {SHA256SUMS_FILE}")
+            return False
         url = f"{base_url}/{filename}"
         dest_path = binaries_dir / filename
 
-        if not download_file(url, dest_path, dry_run):
+        if not download_file(url, dest_path, expected, dry_run):
             success = False
             break
 
     return success
 
 
+def verify_sandbox_tools_bundle(
+    version: str,
+    digests: Dict[str, str],
+    binaries_dir: Path = Path("src/inspect_ai/binaries"),
+) -> None:
+    """Pre-build gate: binaries/ holds exactly the two glibc artifacts, verified.
+
+    Runs unconditionally right before `python -m build` — regardless of how
+    the files got there (including --skip-sandbox-download) — as the last
+    line of defense for the wheel.
+
+    Raises:
+        RuntimeError: If an artifact is missing, an unexpected file is
+            present, or a digest does not match.
+    """
+    expected_files = {
+        f"inspect-sandbox-tools-amd64-v{version}",
+        f"inspect-sandbox-tools-arm64-v{version}",
+    }
+
+    present = (
+        {f.name for f in binaries_dir.iterdir() if f.is_file()}
+        if binaries_dir.exists()
+        else set()
+    )
+    if present != expected_files:
+        raise RuntimeError(
+            f"binaries/ must contain exactly {sorted(expected_files)} before "
+            f"building; found {sorted(present)}"
+        )
+
+    for filename in sorted(expected_files):
+        expected = digests.get(filename)
+        if expected is None:
+            raise RuntimeError(f"No digest entry for {filename} in {SHA256SUMS_FILE}")
+        actual = sha256_of_file(binaries_dir / filename)
+        if actual != expected:
+            raise RuntimeError(
+                f"{filename} does not match its pinned digest (expected "
+                f"{expected}, got {actual}); refusing to bundle it into the wheel"
+            )
+
+    logging.info(f"✓ Pre-build gate passed: sandbox tools v{version} verified")
+
+
+def verify_wheel_contents(wheel_path: Path, version: str) -> None:
+    """Post-build gate: the wheel ships the digest/version files and binaries.
+
+    Every other gate runs from a repo checkout, which always has the committed
+    sums file, so a dropped or broken pyproject.toml package-data entry would
+    otherwise surface only as hard runtime failures for PyPI users.
+
+    Raises:
+        RuntimeError: If a required member is missing from the wheel.
+    """
+    required = [
+        "inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS",
+        "inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt",
+        f"inspect_ai/binaries/inspect-sandbox-tools-amd64-v{version}",
+        f"inspect_ai/binaries/inspect-sandbox-tools-arm64-v{version}",
+    ]
+    with zipfile.ZipFile(wheel_path) as wheel:
+        members = set(wheel.namelist())
+    missing = [member for member in required if member not in members]
+    if missing:
+        raise RuntimeError(
+            f"Built wheel {wheel_path.name} is missing required members: "
+            f"{missing}. Check the package-data entries in pyproject.toml."
+        )
+
+    logging.info(f"✓ Wheel contents verified: {wheel_path.name}")
+
+
 def ensure_sandbox_tools(
-    version: str, skip_download: bool = False, dry_run: bool = False
+    version: str,
+    digests: Dict[str, str],
+    skip_download: bool = False,
+    dry_run: bool = False,
 ) -> None:
     """Ensure the correct version of sandbox tools is present."""
     if skip_download:
         logging.info("Skipping sandbox tools download (--skip-sandbox-download flag)")
         return
 
-    if check_sandbox_tools_exist(version):
+    if check_sandbox_tools_exist(version, digests):
         # Check if there are any other versions present
         binaries_dir = Path("src/inspect_ai/binaries")
         if binaries_dir.exists():
@@ -249,7 +394,7 @@ def ensure_sandbox_tools(
     clean_sandbox_tools_directory()
 
     # Download the required version
-    if not download_sandbox_tools(version, dry_run):
+    if not download_sandbox_tools(version, digests, dry_run):
         logging.error("Failed to download sandbox tools")
         sys.exit(1)
 
@@ -468,7 +613,10 @@ def release_command(args):
 
     # Ensure sandbox tools are present
     sandbox_version = get_sandbox_tools_version()
-    ensure_sandbox_tools(sandbox_version, skip_sandbox_download, dry_run)
+    sandbox_digests = read_pinned_digests()
+    ensure_sandbox_tools(
+        sandbox_version, sandbox_digests, skip_sandbox_download, dry_run
+    )
 
     # Check current branch
     current_branch = get_current_branch()
@@ -535,9 +683,30 @@ def release_command(args):
         remove_directories(dry_run=dry_run)
         logging.info("   ✓ Directories cleaned")
 
-        # Build package
+        # Build package (gated by unconditional pre/post-build verification)
         logging.info("\n3. Building Python package...")
+        if dry_run:
+            logging.info("[DRY RUN] Would verify sandbox tools bundle before build")
+        else:
+            try:
+                verify_sandbox_tools_bundle(sandbox_version, sandbox_digests)
+            except RuntimeError as e:
+                logging.error(f"Pre-build sandbox tools gate failed: {e}")
+                raise
         run_command(["python3", "-m", "build"], dry_run=dry_run)
+        if dry_run:
+            logging.info("[DRY RUN] Would verify built wheel contents")
+        else:
+            wheels = list(Path("dist").glob("*.whl"))
+            if not wheels:
+                logging.error("No wheel found in dist/ after build")
+                sys.exit(1)
+            try:
+                for wheel in wheels:
+                    verify_wheel_contents(wheel, sandbox_version)
+            except RuntimeError as e:
+                logging.error(f"Post-build wheel gate failed: {e}")
+                raise
         logging.info("   ✓ Package built successfully")
 
         # Upload to PyPI (unless --no-publish)
@@ -583,7 +752,7 @@ def release_command(args):
             )
         logging.info("-" * 40)
 
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+    except (subprocess.CalledProcessError, FileNotFoundError, RuntimeError) as e:
         logging.error(f"\n❌ Error occurred: {e}")
 
         # Offer to clean up the local tag if it was created
@@ -611,11 +780,12 @@ def sandbox_tools_download_command(args):
     logging.info("🔧 Downloading sandbox tools...")
     logging.info("-" * 40)
 
-    # Get required version
+    # Get required version and pinned digests
     version = get_sandbox_tools_version()
+    digests = read_pinned_digests()
 
     # Check if correct version already exists
-    if check_sandbox_tools_exist(version):
+    if check_sandbox_tools_exist(version, digests):
         # Clean any other versions
         binaries_dir = Path("src/inspect_ai/binaries")
         if binaries_dir.exists():
@@ -642,7 +812,7 @@ def sandbox_tools_download_command(args):
     clean_sandbox_tools_directory()
 
     logging.info(f"Downloading version {version}...")
-    if not download_sandbox_tools(version, dry_run):
+    if not download_sandbox_tools(version, digests, dry_run):
         logging.error("Failed to download sandbox tools")
         sys.exit(1)
 

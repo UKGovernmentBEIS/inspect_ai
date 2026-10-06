@@ -26,7 +26,19 @@ from .google_auth import (
 )
 from .hf_handler import HFHandler
 from .llama31 import Llama31Handler
-from .util import environment_prerequisite_error, model_base_url, resolve_api_key
+from .util import (
+    environment_prerequisite_error,
+    forced_tool_choice_degraded_metadata,
+    is_claude_fable_5_1_model,
+    is_claude_opus_5_5_model,
+    is_claude_sonnet_5_5_model,
+    is_forced_tool_choice,
+    model_base_url,
+    normalize_stream_arg,
+    rejects_forced_tool_choice,
+    resolve_api_key,
+    sample_cache_affinity_key,
+)
 
 __all__ = [
     "environment_prerequisite_error",
@@ -39,10 +51,18 @@ __all__ = [
     "chat_api_input",
     "should_retry_chat_api_error",
     "classify_chat_api_error",
+    "forced_tool_choice_degraded_metadata",
+    "is_claude_fable_5_1_model",
+    "is_claude_opus_5_5_model",
+    "is_claude_sonnet_5_5_model",
+    "is_forced_tool_choice",
+    "rejects_forced_tool_choice",
     "model_base_url",
+    "normalize_stream_arg",
     "parse_tool_call",
     "require_azure_base_url",
     "resolve_api_key",
+    "sample_cache_affinity_key",
     "resolve_azure_token_provider",
     "resolve_bedrock_base_url",
     "resolve_bedrock_region",

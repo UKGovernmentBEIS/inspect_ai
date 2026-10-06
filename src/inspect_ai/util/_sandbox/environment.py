@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import logging
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import (
     Annotated,
@@ -9,6 +10,7 @@ from typing import (
     Awaitable,
     Callable,
     Literal,
+    NamedTuple,
     Type,
     TypeVar,
     Union,
@@ -33,6 +35,16 @@ from .exec_remote import (
 logger = logging.getLogger(__name__)
 
 
+class SandboxUserUnsupportedError(RuntimeError):
+    """The sandbox configuration does not support the requested user.
+
+    Raise this **only** when the sandbox configuration makes execution as that
+    user impossible. Potentially transient failures, such as timeouts or
+    connection errors, and failures of the command itself must **not** raise
+    this exception.
+    """
+
+
 class SandboxUnavailableError(RuntimeError):
     """Raised when a provider cannot initiate a sandbox exec request.
 
@@ -49,6 +61,24 @@ class SandboxUnavailableError(RuntimeError):
 
 
 ST = TypeVar("ST", bound="SandboxEnvironment")
+
+_sandbox_prebuilt: ContextVar[bool] = ContextVar("sandbox_prebuilt", default=False)
+
+
+def sandbox_prebuilt() -> bool:
+    """Whether sandbox images should be treated as prebuilt.
+
+    When `True`, the built-in Docker provider verifies that images exist
+    instead of building them, raising `PrerequisiteError` for images that
+    don't. Currently internal to the Docker provider (not exported from
+    `inspect_ai.util`).
+    """
+    return _sandbox_prebuilt.get()
+
+
+def set_sandbox_prebuilt(prebuilt: bool) -> None:
+    _sandbox_prebuilt.set(prebuilt)
+
 
 TaskInit = Callable[[str, Union["SandboxEnvironmentConfigType", None]], Awaitable[None]]
 TaskInitEnvironment = Callable[
@@ -105,6 +135,46 @@ class SandboxConnection(BaseModel):
     """Optional container name (does not apply to all sandboxes)."""
 
 
+class SandboxDefaultUser(NamedTuple):
+    """The sandbox's default user: who `exec()` runs as when no `user` is given."""
+
+    uid: int
+    gid: int
+    groups: list[int]
+    home: str | None
+    """HOME as exec() sees it; None when unset (the passwd home applies)."""
+
+
+RootAccessState = Literal["usable", "unusable", "ambiguous", "failed"]
+
+
+@dataclass(frozen=True)
+class RootAccess:
+    """Whether the injected sandbox tools may run as root in a sandbox.
+
+    Decided once per sandbox at sample init, or on first use outside that
+    lifecycle, from a probe of the identity and capabilities a ``user="root"``
+    exec actually gets:
+
+    - ``usable``: uid 0 with CAP_SETUID and CAP_SETGID and ``setgroups`` allowed.
+    - ``unusable``: the provider raised ``SandboxUserUnsupportedError``, or the
+      probe reported insufficient privileges (``cap_drop: [ALL]``, a provider
+      that runs ``user="root"`` as another uid).
+    - ``ambiguous``: no verdict. The provider raised an unexpected exception, or
+      the output lacked valid probe fields. Some providers report "cannot exec as
+      root" only this way, so the tools still fall back to the sandbox's default
+      user (see ``SandboxDefaultUser``), but warn.
+    - ``failed``: the probe could not run (``SandboxUnavailableError``) or timed
+      out. That says nothing about root, so the tools surface the error instead.
+    """
+
+    state: RootAccessState
+    reason: str
+    """Why the probe reached ``state``, for traces and error messages."""
+    error: Exception | None = None
+    """The probe's exception when it raised (always set for ``failed``)."""
+
+
 class SandboxEnvironment(abc.ABC):
     """Environment for executing arbitrary code from tools.
 
@@ -112,10 +182,23 @@ class SandboxEnvironment(abc.ABC):
     filesystem context to copy samples files into and resolve relative paths to.
     """
 
+    # Whether the injected sandbox tools may run as root here; recorded once at
+    # sample init (or on first use outside an eval) by `resolve_root_access` in
+    # `inspect_ai.tool._sandbox_tools_utils.sandbox`. A class-level default rather
+    # than an `__init__` assignment because several providers do not call
+    # `SandboxEnvironment.__init__`.
+    _root_access: RootAccess | None = None
+
     def __init__(self) -> None:
         self._inject_lock = anyio.Lock()
         self._tools_injected: bool = False
         self._tools_user: str | None = None
+        # True once the sandbox-tools user has been recorded for this object (root
+        # or, for a rootless sandbox, the default user), so the detector checks as
+        # that user without re-deriving it on every tool call. `_tools_user is
+        # None` alone cannot say this because None also means "default user".
+        self._tools_user_resolved: bool = False
+        self._tools_default_user: SandboxDefaultUser | None = None
 
     @abc.abstractmethod
     async def exec(
@@ -144,6 +227,22 @@ class SandboxEnvironment(abc.ABC):
         such as JSON. For large output, write to a file and use `read_file()`,
         which always raises `OutputLimitExceededError` when the limit is exceeded.
 
+        Provider requirement: `cmd[0]` is resolved through the sandbox's own
+        `PATH` (with `env` applied first, when the provider can), which is what
+        the agent's commands expect. Any command the provider itself inserts
+        ahead of `cmd` (a `timeout`, `runuser`, `su`, or `env` wrapper) runs
+        with `user`'s authority before `cmd` does, so it must be launched by
+        absolute path or resolved through a fixed system `PATH`, never through
+        the image's: an image whose `PATH` puts a directory the default user can
+        write to ahead of the system directories would otherwise let that user
+        supply the wrapper root runs. The same applies to how `env` is applied:
+        a provider must set variables through its exec API (as `docker exec
+        --env` does), not by prefixing a bare `env K=V` resolved through the
+        image's `PATH`. Inspect's own privileged commands go through
+        `inspect_ai.util._sandbox._privileged`, which launches the shell by
+        absolute path, pins `PATH` inside it, and passes the pinned `PATH` in
+        `env` for providers that honour it when resolving their wrapper.
+
         Args:
           cmd: Command or command and arguments to execute.
           input: Standard input (optional).
@@ -161,6 +260,8 @@ class SandboxEnvironment(abc.ABC):
           Execution result (status code, stderr/stdout, etc.)
 
         Raises:
+          SandboxUserUnsupportedError: If the sandbox configuration does not
+            support execution as the requested user.
           SandboxUnavailableError: If the provider cannot initiate the exec
             request because the sandbox is not running or provider-injected
             execution machinery is unavailable. A missing caller-specified

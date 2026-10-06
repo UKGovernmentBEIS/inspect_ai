@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from ..._util.user_switch import RunAs
+
 
 class SubmitParams(BaseModel):
     """Parameters for exec_remote_start."""
@@ -15,8 +17,10 @@ class SubmitParams(BaseModel):
     """Additional environment variables (merged with the current environment)."""
     cwd: str | None = None
     """Working directory for command execution."""
-    user: str | None = None
-    """User to run the command as (requires server running as root)."""
+    user: str | RunAs | None = None
+    """User to run as: a username, or the sandbox default user's identity as
+    captured by the host. Switching requires the server to run as root, unless
+    the server already runs as that identity."""
     model_config = {"extra": "forbid"}
 
 

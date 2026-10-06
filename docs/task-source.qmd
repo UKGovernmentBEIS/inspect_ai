@@ -33,6 +33,7 @@ Subclass `TaskSource` and override the methods you need (the defaults are no-ops
 
 ```python
 from inspect_ai import Task, TaskSource
+from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
 
 
@@ -49,6 +50,12 @@ class MySource(TaskSource):
         self, sample: EvalSample, task: Task
     ) -> list[Task] | None:
         """Observe a finished sample; optionally return follow-up tasks."""
+        ...
+
+    async def sample_abandoned(
+        self, sample: Sample, epoch: int, task: Task
+    ) -> list[Task] | None:
+        """A sample was cancelled before anything was logged for it."""
         ...
 
     async def task_complete(self, log: EvalLog) -> list[Task] | None:
@@ -87,6 +94,10 @@ class Curriculum(TaskSource):
 
 A source that returns follow-ups from these callbacks needs no `next_tasks()`: the run ends when the callbacks return nothing and `next_tasks()` returns `None`. Use `next_tasks()` for the blocking case a per-result callback can't express.
 
+## Cancelled samples
+
+A sample the operator cancels while it is running (`inspect ctl sample cancel`) is still logged, and `sample_complete` fires for it with `sample.error` set to the cancellation and no scores. A sample cancelled before anything was logged — cancelled while still waiting in the queue, or cancelled in the moment between an attempt erroring and its `retry_on_error` re-run — has no `EvalSample` to deliver (and is absent from the log passed to `task_complete`), so the source is told via `sample_abandoned(sample, epoch, task)` instead, with the dataset `Sample` and the task it was queued under. Like `sample_complete`, it may return follow-up tasks. A queued sample abandoned by a graceful task cancel (`inspect ctl task cancel --action drain|score|error`) is reported the same way. Neither hook fires when the whole task is cancelled (`--action cancel`, or Ctrl+C): those samples reach the source only through the log passed to `task_complete`.
+
 ## Sources from callbacks
 
 `TaskSource.from_tasks()` builds a source from a seed and optional callbacks, without subclassing:
@@ -104,7 +115,7 @@ source = TaskSource.from_tasks([seed_task()], task_complete=on_task)
 eval(source, model="openai/gpt-4o")
 ```
 
-`from_tasks(initial_tasks, *, next_tasks=None, sample_complete=None, task_complete=None)` delegates to the callables. Omitting `next_tasks` and returning nothing from the callbacks stops after the seed.
+`from_tasks(initial_tasks, *, next_tasks=None, sample_complete=None, task_complete=None, sample_abandoned=None)` delegates to the callables. Omitting `next_tasks` and returning nothing from the callbacks stops after the seed.
 
 ## The @task_source decorator
 

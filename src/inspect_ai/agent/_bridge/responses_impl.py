@@ -74,6 +74,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
+from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -83,10 +84,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import (
-    GenerateConfig,
-    ResponseSchema,
-)
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
@@ -128,8 +126,6 @@ from inspect_ai.model._openai_responses import (
     is_response_tool_search_call,
     is_response_web_search_call,
     is_simple_assistant_message,
-    is_tool_choice_function_param,
-    is_tool_choice_mcp_param,
     is_tool_search_output,
     is_tool_search_tool_param,
     is_web_search_tool_param,
@@ -141,6 +137,7 @@ from inspect_ai.model._openai_responses import (
     responses_model_usage,
     to_inspect_citation,
     tool_call_from_openai_tool_search_call,
+    tool_search_output_tools,
     tool_use_to_code_interpreter_param,
     tool_use_to_mcp_call_param,
     tool_use_to_mcp_list_tools_param,
@@ -176,10 +173,16 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    client_json_schema,
+    client_request_object,
+    client_request_string,
+    client_response_schema,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
+    tool_choice_from_openai_string,
     validate_bridge_media,
+    validate_client_config,
     withheld_bridge_tool,
 )
 
@@ -212,7 +215,13 @@ async def inspect_responses_api_request_impl(
 ) -> Response:
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
+    model = resolve_inspect_model(
+        bridge_model_name,
+        bridge.model_aliases,
+        bridge.model,
+        model_resolver=bridge.model_resolver,
+        provider="openai",
+    )
     model_name = model.api.model_name
     is_openai = _is_openai_responses_provider(model)
 
@@ -268,9 +277,8 @@ async def inspect_responses_api_request_impl(
             )
         )
     tools = [tool for tool in tools if tool]
-    responses_tool_choice: ResponsesToolChoiceParam | None = json_data.get(
-        "tool_choice", None
-    )
+    # client-controlled; validated by tool_choice_from_responses_tool_choice below
+    responses_tool_choice: Any = json_data.get("tool_choice", None)
     tool_choice = relax_tool_choice_for_withheld(
         tool_choice_from_responses_tool_choice(responses_tool_choice), tools
     )
@@ -281,11 +289,15 @@ async def inspect_responses_api_request_impl(
     # top-level `tools` array; they are discovered via tool_search and appear as
     # namespace entries inside tool_search_output items in the conversation.
     # Harvest those too so outgoing function calls carry the right `namespace`.
+    # (As declarations for grant resolution they are read from the generation
+    # input instead, per attempt: `_declarations_in_input` below.)
     if isinstance(input, list):
         for item in input:
             if isinstance(item, dict) and is_tool_search_output(item):
                 for discovered in item.get("tools", []) or []:
-                    if is_namespace_tool_param(discovered):
+                    if isinstance(discovered, dict) and is_namespace_tool_param(
+                        discovered
+                    ):
                         _harvest_tool_namespaces(discovered, tool_namespaces)
 
     debug_log("SCAFFOLD INPUT", input)
@@ -298,6 +310,7 @@ async def inspect_responses_api_request_impl(
     config = generate_config_from_openai_responses(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
+    validate_client_config(config)
     config.extra_headers = headers
     if config.system_message:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
@@ -318,6 +331,9 @@ async def inspect_responses_api_request_impl(
         tool_choice,
         config,
         requested_model=bridge_model_name,
+        declared_in_input=lambda messages: _declarations_in_input(
+            messages, web_search, code_execution, bridge
+        ),
     )
     if c_message is not None:
         messages.append(c_message)
@@ -345,6 +361,96 @@ async def inspect_responses_api_request_impl(
     debug_log("SCAFFOLD RESPONSE", response)
 
     return response
+
+
+def _declarations_in_input(
+    messages: list[ChatMessage],
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
+    bridge: AgentBridge,
+) -> list[ToolInfo]:
+    """The tools declared to the model by native `tool_search` results in `messages`.
+
+    `messages_from_responses_input` carries each `tool_search_output` item as a
+    `ChatMessageTool` whose content is the discovered tools as JSON; this reads
+    them back (`_discovered_tool_declarations`). `bridge_generate` calls it on
+    the input of each generation attempt, so the declarations are the ones the
+    model saw after compaction and any filter rewrite, not the request's.
+
+    A result counts as native discovery only when the call it answers is cached
+    as a ``tool_search_call``, the same provenance the Responses encoder uses to
+    replay it as a `tool_search_output` item (the bridge seeds that cache from
+    the inbound item). An ordinary tool's result is never one, however the tool
+    is named, so a function called ``tool_search`` cannot declare a host tool
+    through its output. The discovered tools are exactly the list the encoder
+    replays to the model (`tool_search_output_tools`): validated as a whole, so
+    a result with any invalid entry (a filter's or the scaffold's rewrite)
+    declares nothing, just as the model is then told nothing; no entry is
+    salvaged for grants alone.
+    """
+    cached_calls = assistant_internal().tool_calls
+    declarations: list[ToolInfo] = []
+    for message in messages:
+        if not isinstance(message, ChatMessageTool) or message.error is not None:
+            continue
+        call = cached_calls.get(message.tool_call_id or "")
+        if call is None or call["type"] != "tool_search_call":
+            continue
+        for discovered in tool_search_output_tools(message):
+            declarations.extend(
+                _discovered_tool_declarations(
+                    discovered, web_search, code_execution, bridge
+                )
+            )
+    return declarations
+
+
+def _discovered_tool_declarations(
+    discovered: Any,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
+    bridge: AgentBridge,
+) -> list[ToolInfo]:
+    """The declarations a `tool_search_output` entry makes to the model.
+
+    A tool discovered through `tool_search` is declared to the model by this
+    entry rather than by the request's tools array, so the grant resolver must
+    see it too (`_declarations_in_input`, through
+    `bridge_generate(declared_in_input=)`), carrying the served description, the
+    schema and the namespace (`RESPONSES_NAMESPACE`) exactly as a top-level
+    declaration would. Conversion goes through
+    `tools_from_responses_tool`, which needs a schema: entries listed by name
+    only (Codex's deferred ``multi_agent`` tools) declare nothing a call could
+    be matched to and are skipped. Nothing here reaches the model or changes
+    what the scaffold receives.
+    """
+
+    def declarable(entry: Any) -> bool:
+        return isinstance(entry, dict) and "parameters" in entry
+
+    if is_namespace_tool_param(discovered):
+        inner = [
+            {**entry, "description": entry.get("description")}
+            for entry in discovered.get("tools", []) or []
+            if declarable(entry)
+        ]
+        if not inner:
+            return []
+        discovered = {**discovered, "tools": inner}
+    elif declarable(discovered):
+        discovered = {**discovered, "description": discovered.get("description")}
+    else:
+        return []
+    return [
+        tool
+        for tool in tools_from_responses_tool(
+            cast(ToolParam, discovered),
+            web_search,
+            code_execution,
+            bridge.allow_remote_mcp,
+        )
+        if isinstance(tool, ToolInfo)
+    ]
 
 
 def _harvest_tool_namespaces(
@@ -414,37 +520,46 @@ def debug_log(caption: str, o: Any) -> None:
 
 
 def tool_choice_from_responses_tool_choice(
-    tool_choice: ResponsesToolChoiceParam | None,
+    tool_choice: Any,
 ) -> ToolChoice | None:
-    inspect_tool_choice: ToolChoice | None = None
-    if tool_choice is not None:
-        if tool_choice == "auto":
-            inspect_tool_choice = tool_choice
-        elif tool_choice == "none":
-            inspect_tool_choice = tool_choice
-        elif tool_choice == "required":
-            inspect_tool_choice = "any"
-        elif is_tool_choice_function_param(tool_choice):
-            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
-        elif is_tool_choice_mcp_param(tool_choice):
-            if tool_choice["name"] is None:
-                raise RuntimeError(
-                    "MCP server tool choice requires 'name' field for agent bridge"
+    # `Any` rather than `ResponsesToolChoiceParam`: the value is client-controlled
+    # JSON, so its shape is guarded before the first subscript for a mistyped
+    # value to 400 rather than escape as a raw `TypeError`/`KeyError`.
+    if tool_choice is None:
+        return None
+    if isinstance(tool_choice, str):
+        return tool_choice_from_openai_string(tool_choice, "tool_choice")
+    tool_choice = client_request_object(tool_choice, "tool_choice")
+    tool_type = client_request_string(tool_choice.get("type", None), "tool_choice.type")
+    match tool_type:
+        case "function":
+            return ToolFunction(
+                name=client_request_string(
+                    tool_choice.get("name", None), "tool_choice.name"
                 )
-            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
-        elif tool_choice.get("type") == "allowed_tools":
-            raise RuntimeError("ToolChoiceAllowedParam not supported by agent bridge")
-        elif tool_choice.get("type") == "custom":
-            raise RuntimeError("ToolChoiceCustomParam not supported by agent bridge")
-        elif "type" in tool_choice:
-            tool_type = str(tool_choice.get("type"))
-            if tool_type in ["web_search_preview", "web_search_preview_2025_03_11"]:
-                tool_type = "web_search"
-            elif tool_type == "code_interpreter":
-                tool_type = "code_execution"
-            inspect_tool_choice = ToolFunction(name=tool_type)
-
-    return inspect_tool_choice
+            )
+        case "mcp":
+            # `name` is optional on the API (any tool on the server) but the
+            # bridge can only force a single named tool.
+            if tool_choice.get("name", None) is None:
+                raise BridgePolicyError(
+                    "invalid request field in bridged request (tool_choice.name: "
+                    "MCP server tool choice requires 'name' for the agent bridge)"
+                )
+            return ToolFunction(
+                name=client_request_string(tool_choice["name"], "tool_choice.name")
+            )
+        case "allowed_tools" | "custom":
+            raise BridgePolicyError(
+                "invalid request field in bridged request (tool_choice.type: "
+                f"{tool_type!r} is not supported by the agent bridge)"
+            )
+        case "web_search_preview" | "web_search_preview_2025_03_11":
+            return ToolFunction(name="web_search")
+        case "code_interpreter":
+            return ToolFunction(name="code_execution")
+        case _:
+            return ToolFunction(name=tool_type)
 
 
 tool_choice_adapter = TypeAdapter[ResponsesToolChoice](ResponsesToolChoice)
@@ -681,17 +796,28 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
     config.top_p = json_data.get("top_p", None)
 
     # response format
-    text: dict[str, Any] | None = json_data.get("text", None)
+    text = client_request_object(json_data.get("text", None), "text")
     if text is not None:
-        format: dict[str, Any] | None = text.get("format", None)
+        format = client_request_object(text.get("format", None), "text.format")
         if format is not None:
             if format.get("type", None) == "json_schema":
-                config.response_schema = ResponseSchema(
+                config.response_schema = client_response_schema(
                     name=format.get("name", "schema"),
                     description=format.get("description", None),
-                    json_schema=JSONSchema.model_validate(format.get("schema", {})),
+                    json_schema=client_json_schema(
+                        format.get("schema", {}), "text.format.schema"
+                    ),
                     strict=format.get("strict", None),
+                    dialect_field="text.format",
                 )
+
+        # `text.verbosity` has a GenerateConfig slot and the provider already
+        # sends it (`params["text"]["verbosity"]`), but nothing read it off the
+        # request, so a client asking for terse output silently got the model
+        # default.
+        verbosity = text.get("verbosity", None)
+        if verbosity is not None:
+            config.verbosity = verbosity
 
     # extra_body params (i.e. passthrough for native responses)
     extra_body: dict[str, Any] = {}
@@ -1033,10 +1159,11 @@ def messages_from_responses_input(
             else:
                 messages.append(ChatMessageSystem(content=content))
         elif is_function_call_output(item):
+            call_id = item.get("call_id")
             messages.append(
                 ChatMessageTool(
-                    tool_call_id=item["call_id"],
-                    function=function_calls_by_id.get(item["call_id"]),
+                    tool_call_id=call_id,
+                    function=function_calls_by_id.get(call_id) if call_id else None,
                     content=_tool_content_from_openai_tool_output(item["output"]),
                 )
             )
@@ -1208,7 +1335,7 @@ def responses_output_items_from_assistant_message(
                 output.append(
                     ResponseFunctionWebSearch(
                         type="web_search_call",
-                        id=content.id,
+                        id=content.id or uuid(),
                         action=cast(
                             WebSearchAction,
                             parse_web_search_action(content.arguments),
@@ -1218,6 +1345,7 @@ def responses_output_items_from_assistant_message(
                 )
             elif content.tool_type == "code_execution":
                 code_interpreter_param = tool_use_to_code_interpreter_param(content)
+                code_interpreter_param["id"] = code_interpreter_param["id"] or uuid()
                 output.append(
                     ResponseCodeInterpreterToolCall.model_validate(
                         code_interpreter_param
@@ -1260,16 +1388,28 @@ def responses_output_items_from_assistant_message(
         elif tool_call.type == "custom":
             output.append(
                 ResponseCustomToolCall(
+                    # See note on `id` for function_call below: Responses output
+                    # items need a non-null item id for streaming clients.
+                    id=uuid(),
                     type="custom_tool_call",
                     call_id=tool_call.id,
                     name=tool_call.function,
                     input=next(iter(tool_call.arguments.values())),
+                    namespace=(tool_namespaces or {}).get(tool_call.function),
                 )
             )
         else:
             namespace = (tool_namespaces or {}).get(tool_call.function)
             output.append(
                 ResponseFunctionToolCall(
+                    # A Responses output item must carry a non-null `id` (the
+                    # item id, distinct from `call_id`). Streaming clients such
+                    # as opencode's AI SDK key the emitted tool call on this
+                    # item id; when it is null the tool call is never registered
+                    # and the turn ends with `finish_reason=stop`, so the agent
+                    # stalls after one model call. Match the id convention used
+                    # by the other tool-call item types above.
+                    id=uuid(),
                     type="function_call",
                     call_id=tool_call.id,
                     name=tool_call.function,

@@ -55,6 +55,22 @@ async def test_uses_num_target_tokens_argument() -> None:
 
 
 @pytest.mark.anyio
+async def test_target_perplexity_overflowing_nll_records_infinite_perplexity() -> None:
+    """An NLL beyond exp()'s range scores with infinite perplexity instead of raising."""
+    lps = [Logprob(token="x", logprob=-10000.0)]
+    state = _state_with_prompt_logprobs(lps)
+    scorer = target_perplexity(num_target_tokens=1)
+
+    result = await scorer(state, Target(["x"]))
+
+    assert result is not None
+    assert result.as_float() == pytest.approx(10000.0)
+    assert result.metadata is not None
+    assert result.metadata["perplexity"] == float("inf")
+    assert "perplexity=inf" in (result.explanation or "")
+
+
+@pytest.mark.anyio
 async def test_uses_num_target_tokens_from_metadata() -> None:
     """num_target_tokens in metadata, no tokenization needed."""
     lps = [
@@ -241,3 +257,38 @@ async def test_not_enough_logprobs() -> None:
     assert result is not None
     assert math.isnan(result.as_float())
     assert "num_target_tokens=5" in (result.explanation or "")
+
+
+@pytest.mark.anyio
+async def test_target_perplexity_unscorable_states_carry_reason() -> None:
+    """Unscorable states return Score.unscored with a machine-readable reason."""
+    scorer = target_perplexity()
+
+    state = simple_task_state(model_output="")
+    state.output.choices = []
+    result = await scorer(state, Target(["x"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"
+
+    state = _state_with_prompt_logprobs(None)
+    result = await scorer(state, Target(["x"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"
+
+    # fewer logprobs than num_target_tokens
+    state = _state_with_prompt_logprobs(
+        [Logprob(token="a", logprob=-1.0)],
+        metadata={"num_target_tokens": 5},
+    )
+    result = await scorer(state, Target(["x"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"
+
+    # non-positive num_target_tokens
+    state = _state_with_prompt_logprobs(
+        [Logprob(token="a", logprob=-1.0)],
+        metadata={"num_target_tokens": 0},
+    )
+    result = await scorer(state, Target(["x"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"

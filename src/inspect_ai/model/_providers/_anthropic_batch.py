@@ -1,6 +1,6 @@
-from typing import TypeAlias, cast
+from typing import Any, TypeAlias, cast
 
-import httpx
+import httpx2
 from anthropic import (
     APIConnectionError,
     APITimeoutError,
@@ -37,8 +37,8 @@ from .util.batch import (
     BatchCheckResult,
     Batcher,
     BatchRequest,
+    pop_batch_headers,
 )
-from .util.hooks import HttpxHooks
 
 CompletedBatchInfo: TypeAlias = bool
 
@@ -63,16 +63,20 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     @override
     async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
         requests: list[AnthropicBatchRequest] = []
-        extra_headers: dict[str, str] = {}
+        extra_headers = pop_batch_headers(batch)
         for request in batch:
-            extra_headers = request.request.pop("extra_headers", {})
-            request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
-            if request_id is not None:
-                request.custom_id = request_id
+            # the Batches API has no extra_body: merge it into the request
+            # body root, which is where the SDK would put it on the direct
+            # path (e.g. temperature/top_p/top_k, which anthropic >= 1.0
+            # removed from the method signatures but the API still accepts)
+            params: dict[str, Any] = request.request
+            extra_body = params.pop("extra_body", None)
+            if extra_body:
+                params.update(extra_body)
             requests.append(
                 AnthropicBatchRequest(
                     custom_id=request.custom_id,
-                    params=cast(MessageCreateParamsNonStreaming, request.request),
+                    params=cast(MessageCreateParamsNonStreaming, params),
                 )
             )
 
@@ -145,10 +149,10 @@ def _get_individual_result(
                 error_class = anthropic.InternalServerError
         response = error_class(
             message=message,
-            response=httpx.Response(
+            response=httpx2.Response(
                 status_code=500,
                 text=message,
-                request=httpx.Request(
+                request=httpx2.Request(
                     method="POST",
                     url="https://api.anthropic.com/v1/messages/batches",
                 ),
@@ -159,14 +163,14 @@ def _get_individual_result(
         return response
     elif individual_response.result.type == "canceled":
         return APIConnectionError(
-            request=httpx.Request(
+            request=httpx2.Request(
                 method="POST",
                 url="https://api.anthropic.com/v1/messages/batches",
             )
         )
     elif individual_response.result.type == "expired":
         return APITimeoutError(
-            request=httpx.Request(
+            request=httpx2.Request(
                 method="POST",
                 url="https://api.anthropic.com/v1/messages/batches",
             )

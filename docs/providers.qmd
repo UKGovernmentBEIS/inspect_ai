@@ -41,6 +41,7 @@ The `openai` provider supports the following custom model args (other model args
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
 | `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
+| `streaming` | Whether to use streaming responses. The default ("auto") streams when the caller passes an `on_stream` callback to `generate()` — except Azure chat-completions requests, which never auto-stream (accumulated streamed responses would lose content-filter stop details); pass `true` or `false` to override. If the server rejects the streaming request itself (a 400 naming the `stream` param — e.g. reasoning models on organizations that haven't completed verification), auto mode retries the request non-streamed. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
 | `http_client` | Custom instance of `httpx2.AsyncClient` (or legacy `httpx.AsyncClient`) for handling requests. |
@@ -67,7 +68,7 @@ eval(
 
 ### Responses API
 
-By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and o-series models and the `computer_use_preview` model.
+By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6), o-series models, and the `computer_use_preview` model.
 
 If you want to manually enable or disable the Responses API you can use the `responses_api` model argument. For example:
 
@@ -187,7 +188,7 @@ Authentication uses an AWS Bedrock bearer token. There are two ways to provide o
 |---------------------------|---------------------------------------------|
 | `AWS_BEARER_TOKEN_BEDROCK` | Bedrock bearer API key — the AWS-standard name, as used in the AWS and OpenAI documentation. |
 | `BEDROCK_OPENAI_API_KEY` | Bedrock bearer API key — Inspect-convention alias (takes precedence if both are set). |
-| `BEDROCK_OPENAI_BASE_URL` | Custom endpoint override (optional; the AWS-standard `AWS_BEDROCK_BASE_URL` is also accepted). By default Inspect targets the region's Mantle endpoint, choosing the model-appropriate path automatically (`/openai/v1` for frontier models like GPT-5.x and Codex, `/v1` for open-weight models like gpt-oss). |
+| `BEDROCK_OPENAI_BASE_URL` | Custom endpoint override (optional; the AWS-standard `AWS_BEDROCK_BASE_URL` is also accepted). By default Inspect targets the region's Mantle endpoint, choosing the model-appropriate path automatically (`/openai/v1` for frontier models like GPT-5 and later and Codex, `/v1` for open-weight models like gpt-oss). |
 | `AWS_REGION` / `AWS_DEFAULT_REGION` | AWS region (optional; defaults to `us-east-2`). |
 
 The first option is a static bearer key. Generate an [Amazon Bedrock API key](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) and set it via `AWS_BEARER_TOKEN_BEDROCK` (the name used in the AWS and OpenAI docs; Inspect also accepts `BEDROCK_OPENAI_API_KEY`).
@@ -270,20 +271,36 @@ Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build
 
 ### Cache TTL {#anthropic-cache-ttl}
 
-Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default, using the standard 5-minute cache TTL. Use the `cache_ttl` model arg (`-M`) to specify a different TTL. Valid values are "5m" (the default) and "1h":
+Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default. Use the `cache_ttl` model arg (`-M`) to control the cache TTL. Valid values are:
+
+- "auto" (the default): requests use the standard 5-minute cache TTL, and a sample is automatically switched to the 1-hour TTL for the remainder of its execution when more than 5 minutes pass between requests that use the cache (e.g. due to slow tool calls, long generations, or queuing behind `max_connections`). By that point the 5-minute cache has expired and the full prompt prefix is being rewritten regardless, so escalating protects the rest of the sample from repeated cache misses. Escalations are reported in a log message.
+
+- "5m" or "1h": pin the TTL for all requests (disables automatic escalation).
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
 ```
 
-Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart.
+Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart. Automatic escalation applies only on the first-party Claude API (not Bedrock, Vertex, or Azure) and does not apply in [batch mode](models-batch.qmd).
 
 ### Streaming
 
-The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
+The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when the caller passes an `on_stream` callback to `generate()`, when thinking is enabled, or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
+```
+
+### Computer Use {#anthropic-computer-use}
+
+When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. On the Claude API and Vertex, Claude Opus 5.5 and Sonnet 5.5 (which reject the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, and Fable/Mythos included) uses the legacy tool.
+
+With the toolset, each computer action arrives as its own tool call. Inspect executes the actions in one assistant turn in order and stops at the first failure, reporting the remaining actions to the model as not executed. Logs record each action as a `computer` tool call with an `action` argument, exactly as with the legacy tool.
+
+Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5 and Sonnet 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
+
+``` bash
+inspect eval computer.py --model anthropic/claude-opus-5 -M computer_toolset=true
 ```
 
 ### Anthropic on AWS Bedrock {#anthropic-on-aws-bedrock}
@@ -456,7 +473,7 @@ inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
 
 ### Streaming
 
-The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. Streaming is disabled by default. Pass `true` to enable streaming:
+The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model google/gemini-2.5-pro -M streaming=true
@@ -489,6 +506,20 @@ inspect eval arc.py --model mistral/mistral-large-latest -M conversation_api=fal
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `Mistral` class.
 
+### Streaming {#streaming-mistral}
+
+The `mistral` provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used on the completions API path. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()` (declining requests that use a `response_schema`). Pass `true` to always stream (or `false` to never stream):
+
+``` bash
+inspect eval arc.py --model mistral/mistral-large-latest -M conversation_api=false -M streaming=true
+```
+
+Note that streaming applies only to the completions API — the default Conversation API path does not stream (an `on_stream` callback simply receives no events), so pass `-M conversation_api=false` to stream.
+
+### Prompt Caching {#mistral-prompt-caching}
+
+When using the completions API (`-M conversation_api=false`, and the default for Voxtral models), Inspect sends Mistral's [`prompt_cache_key`](https://docs.mistral.ai/studio-api/conversations/advanced/prompt-caching) set to the running sample's unique id. Mistral uses it as a routing hint so a sample's later turns reach the replica that cached its earlier ones. The Conversation API does not accept this parameter, so samples using it (the default) do not get the hint.
+
 ### Mistral on Azure AI {#mistral-on-azure-ai}
 
 The `mistral` provider supports Mistral models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use Mistral models on Azure AI, specify the following environment variables:
@@ -511,10 +542,12 @@ To use the [DeepSeek](https://www.deepseek.com/) provider, install the `openai` 
 ``` bash
 pip install openai
 export DEEPSEEK_API_KEY=your-deepseek-api-key
-inspect eval arc.py --model deepseek/deepseek-v4-pro
+inspect eval arc.py --model deepseek/deepseek-flash
 ```
 
-DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default. Use `--reasoning-effort` to control thinking (`none` disables it entirely) — see [Reasoning Effort](reasoning.qmd#reasoning-effort) for details. While thinking is enabled the API rejects forced tool choice, so the `deepseek` provider submits forced tool choices as `"auto"` (disable thinking to force tool use). Note that the legacy `deepseek-chat` and `deepseek-reasoner` model names were retired from the DeepSeek API on July 24th, 2026.
+The current DeepSeek models are `deepseek-flash` (DeepSeek-V4.1-Flash, which also accepts image input) and `deepseek-v4-pro`. Both think by default. Use `--reasoning-effort` to control thinking (`none` disables it entirely) — see [Reasoning Effort](reasoning.qmd#reasoning-effort) for details. While thinking is enabled the API rejects forced tool choice, so the `deepseek` provider submits forced tool choices as `"auto"` (disable thinking to force tool use).
+
+The `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` model names were retired on September 10th, 2026: requests using them are served by V4.1 Flash (`deepseek-flash`) at Flash pricing, so logs dated after that point reflect V4.1 Flash. The legacy `deepseek-chat` and `deepseek-reasoner` model names were retired on July 24th, 2026.
 
 The following environment variables are supported by the DeepSeek provider
 
@@ -542,6 +575,30 @@ The following environment variables are supported by the Moonshot AI provider
 | `MOONSHOT_API_KEY` | API key credentials (required). |
 | `MOONSHOT_BASE_URL` | Base URL for requests (optional, defaults to `https://api.moonshot.ai/v1`). |
 
+## Meta {#meta}
+
+To use the [Meta](https://dev.meta.ai/docs) provider (Muse Spark models on the Meta Model API), install the `openai` package (which the Meta Model API provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export META_API_KEY=your-meta-api-key
+inspect eval arc.py --model meta/muse-spark-1.3
+```
+
+The provider uses the [Responses API](https://dev.meta.ai/docs/protocols/responses), which is the only Meta endpoint that preserves the model's reasoning across turns (as encrypted reasoning items that are replayed automatically). Pass `-M responses_api=false` to use Chat Completions instead.
+
+Muse Spark always reasons. Use `--reasoning-effort` (`minimal` through `max`) to control how much. `none` is not supported and is ignored with a warning. `max` is available on standard-tier `muse-spark-1.3` only; for the `-contributor` tier and older versions it is submitted as `xhigh`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
+
+Prompts blocked by Meta's content policy are reported as `stop_reason="content_filter"` with `stop_details`. The API signals such a block three different ways depending on protocol and streaming (an HTTP 400 with a `content_policy_violation` code, a `content_filter` finish reason, or a `refusal` content part), and the provider normalizes all of them. Note that a refusal the model writes itself, rather than one the policy layer blocks, carries no signal at all and arrives as an ordinary completion. Score those from the completion text. Meta also restricts API keys after repeated policy violations (HTTP 403 with code `user_blocked`); while a key is restricted, streamed requests return a refusal for every prompt, so an eval where every sample stops with `content_filter` is more likely hitting that restriction than the content policy.
+
+The following environment variables are supported by the Meta provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `META_API_KEY` | API key credentials (required unless `MODEL_API_KEY` is set). |
+| `MODEL_API_KEY` | API key credentials (Meta's official variable name; used when `META_API_KEY` is not set). |
+| `META_BASE_URL` | Base URL for requests (optional, defaults to `https://api.meta.ai/v1`). |
+
 ## Grok {#grok}
 
 To use the [Grok](https://x.ai/) provider, install the `openai` package (which the Grok service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
@@ -562,7 +619,7 @@ The following environment variables are supported by the Grok provider. The prov
 
 ### Model Args
 
-The `grok` provider supports a `streaming` model argument to enable response streaming (it is disabled by default):
+The `grok` provider supports a `streaming` model argument that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model grok/grok-3-mini -M streaming=true
@@ -586,9 +643,17 @@ Note that `service_tier` applies to standard requests only — [batch](models-ba
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
 
+### Prompt Caching
+
+xAI caches prompt prefixes automatically, but its cache is per-server and requests are otherwise load balanced across servers, so a turn can land on a server that has never seen its prefix. Inspect therefore sends xAI's [`x-grok-conv-id`](https://docs.x.ai/developers/advanced-api-usage/prompt-caching/maximizing-cache-hits) header, set to the running sample's unique id, which pins all of that sample's requests to a single server. Multi-turn agents benefit the most: each turn re-sends the whole conversation so far, and that prefix is already cached on the server the previous turn landed on.
+
+Cached tokens are billed at a lower rate and are reported in the eval log as `input_tokens_cache_read`.
+
+This requires no configuration. Note that the header is not sent for [batch](models-batch.qmd) requests (which share a single long-lived client and are not multi-turn), or when the model is used outside of a running sample (where there is no conversation to pin).
+
 ## AWS Bedrock {#aws-bedrock}
 
-To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider, install the `aioboto3` package, set your credentials, and specify a model using the `--model` option:
+To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider, set your credentials and specify a model using the `--model` option:
 
 ``` bash
 export AWS_ACCESS_KEY_ID=access-key-id
@@ -597,7 +662,7 @@ export AWS_DEFAULT_REGION=us-east-1
 inspect eval bedrock/meta.llama2-70b-chat-v1
 ```
 
-For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
+For the `bedrock` provider, custom model args (`-M`) are forwarded to the `create_client` method of the `aiobotocore.session.AioSession` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
 
 Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
 
@@ -605,12 +670,19 @@ You should be also sure that you have the appropriate AWS credentials before acc
 
 If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access. If you are using OpenAI models on Bedrock, access them via the `openai` provider with the `bedrock` qualifier — see [OpenAI on AWS Bedrock](#openai-on-aws-bedrock).
 
-## AWS SageMaker {#aws-sagemaker}
+### Streaming {#streaming-bedrock}
 
-To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, install the `aioboto3` package, set your credentials, and specify a SageMaker endpoint name using the `--model` option:
+The `bedrock` provider supports a `streaming` model arg (`-M`) that controls whether the [ConverseStream](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStream.html) API is used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()` (declining requests that use a `response_schema`). Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
-pip install aioboto3
+inspect eval arc.py --model bedrock/us.anthropic.claude-sonnet-4-6 -M streaming=true
+```
+
+## AWS SageMaker {#aws-sagemaker}
+
+To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, set your credentials and specify a SageMaker endpoint name using the `--model` option:
+
+``` bash
 export AWS_ACCESS_KEY_ID=access-key-id
 export AWS_SECRET_ACCESS_KEY=secret-access-key
 inspect eval arc.py --model sagemaker/my-endpoint-name \
@@ -629,7 +701,7 @@ The following model args are supported:
 | `endpoint_url` | Custom SageMaker runtime endpoint URL (required). |
 | `read_timeout` | Read timeout in seconds (default: `600`). |
 | `connect_timeout` | Connection timeout in seconds (default: `60`). |
-| `stream` | Enable streaming responses (default: `false`). |
+| `stream` | Enable streaming responses (default: stream only when the caller passes an `on_stream` callback to `generate()`). |
 | `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
 | `inference_component_name` | Name of the inference component for multi-model endpoints. |
 | `prompt_logprobs` | Number of prompt log probabilities to return per token. Used for perplexity scoring with vLLM-backed endpoints. |
@@ -767,6 +839,14 @@ inspect eval ctf.py -M emulate_tools=true
 
 You can also use this option to disable tool emulation for Llama models with `emulate_tools=false`.
 
+### Streaming {#streaming-azureai}
+
+The `azureai` provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
+
+``` bash
+inspect eval arc.py --model azureai/Llama-3.3-70B-Instruct -M streaming=true
+```
+
 ## Together AI {#together-ai}
 
 To use the [Together AI](https://www.together.ai/) provider, install the `openai` package (which the Together AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
@@ -779,7 +859,7 @@ inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
-The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used (it is disabled by default). Pass `true` to enable streaming:
+The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7 -M stream=true
@@ -811,6 +891,14 @@ The following environment variables are supported by the Groq provider
 | `GROQ_API_KEY` | API key credentials (required). |
 | `GROQ_BASE_URL` | Base URL for requests (optional, defaults to `https://api.groq.com`) |
 
+### Streaming {#streaming-groq}
+
+The `groq` provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()` (declining requests that use a `response_schema`, as well as compound models, whose server-side executed tools are not carried by the stream). Pass `true` to always stream (or `false` to never stream):
+
+``` bash
+inspect eval arc.py --model groq/llama-3.3-70b-versatile -M streaming=true
+```
+
 ## Fireworks AI {#fireworks-ai}
 
 To use the [Fireworks AI](https://fireworks.ai/) provider, install the `openai` package (which the Fireworks AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
@@ -822,6 +910,14 @@ inspect eval arc.py --model fireworks/accounts/fireworks/models/kimi-k3
 ```
 
 For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
+
+### Prompt Caching {#fireworks-prompt-caching}
+
+Fireworks caches prompt prefixes automatically, but a cache lives on a single replica and requests are otherwise load balanced across replicas, so a turn can land on a replica that has never seen its prefix. Inspect therefore sends Fireworks' [`x-session-affinity`](https://docs.fireworks.ai/guides/prompt-caching) header, set to the running sample's unique id, which pins all of that sample's requests to a single replica. Multi-turn agents benefit the most: each turn re-sends the whole conversation so far, and that prefix is already cached on the replica the previous turn landed on.
+
+Cached tokens are billed at a lower rate and are reported in the eval log as `input_tokens_cache_read`.
+
+This requires no configuration, though you can override the header by setting your own value in `GenerateConfig(extra_headers={"x-session-affinity": ...})`. Note that the header is not sent when the model is used outside of a running sample (where there is no conversation to pin).
 
 The following environment variables are supported by the Together AI provider
 
@@ -862,6 +958,12 @@ inspect eval arc.py --model cloudflare/@cf/meta/llama-3.1-70b-instruct
 Specify the model id exactly as it appears in Cloudflare's [model catalog](https://developers.cloudflare.com/workers-ai/models/): Workers AI model ids start with `@cf/`, while gateway-hosted models have plain ids (e.g. `cloudflare/moonshotai/kimi-k3`).
 
 For the `cloudflare` provider, custom model args (`-M`) are included as fields in the post body of the chat request.
+
+### Prompt Caching {#cloudflare-prompt-caching}
+
+Cloudflare reuses computed prefixes across requests, but only on the model instance that computed them. Inspect therefore sends Cloudflare's [`x-session-affinity`](https://developers.cloudflare.com/workers-ai/features/prompt-caching/) header, set to the running sample's unique id, which routes all of that sample's requests to the same instance. This requires no configuration; override it by setting your own value in `GenerateConfig(extra_headers={"x-session-affinity": ...})`.
+
+Note that Cloudflare's OpenAI-compatible endpoint does not report cached token counts, so cache hits do not appear in the eval log.
 
 The following environment variables are supported by the Cloudflare provider:
 
@@ -962,7 +1064,7 @@ model = get_model(
 )
 ```
 
-Activations are available in the "hidden_states" field of `ModelOutput.metadata`. The hidden_states value is the same as transformers [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput).
+Activations are available in the `"hidden_states"` field of `ModelOutput.metadata`. So they can be written to the eval log, the hidden-state tensors from transformers' [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput) are materialized as JSON-serializable nested lists, preserving the `[step][layer]` structure with the per-sample activation values in place of each tensor.
 
 ### Sampling
 
@@ -1061,7 +1163,7 @@ The most ergonomic path is [model roles](models.qmd#model-roles), which lets the
 inspect eval task.py \
     --model vllm/meta-llama/Llama-3-8B \
     --model-base-url http://gpu1:8000/v1 \
-    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, base_url: http://gpu2:8000/v1}'
+    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, model_args: {base_url: http://gpu2:8000/v1}}'
 ```
 
 Equivalent from Python:
@@ -1082,7 +1184,7 @@ eval(
 )
 ```
 
-Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. `VLLM_API_KEY` is also accepted as a per-model `api_key=` argument if your servers use different keys.
+Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. In CLI role dictionaries, place provider-specific values such as `base_url` and `api_key` under `model_args`; in Python, pass them directly to `get_model()`.
 
 Note: Inspect reuses a single server entry per base model name, so two `vllm/<same-model>` instances pointed at different URLs will collapse to the first URL. This caveat does not apply to the typical solver-vs-judge setup since the two models are different.
 
@@ -1231,9 +1333,9 @@ vLLM only applies `add_special_tokens` when tokenizing a string prompt, so for `
 
 ### Tool Use and Reasoning
 
-vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
+vLLM supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
 
-For vLLM reasoning models, pass the model-specific parser and chat-template kwargs through `-M`. See [Reasoning](reasoning.qmd#vllmsglang) for CLI examples.
+For vLLM reasoning models, pass the model-specific parser and chat-template kwargs through `-M`. See [Reasoning](reasoning.qmd#vllm-sglang) for CLI examples.
 
 ### Prompt Log Probabilities
 
@@ -1285,7 +1387,7 @@ pip install "sglang[all]>=0.4.4.post2" --find-links https://flashinfer.ai/whl/cu
 inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
-For the `sglang` provider, custom model args (-M) are forwarded to the sglang [CLI](https://docs.sglang.ai/backend/server_arguments.html).
+For the `sglang` provider, custom model args (-M) are forwarded to the sglang [CLI](https://docs.sglang.ai/advanced_features/server_arguments.html).
 
 The following environment variables are supported by the SGLang provider:
 
@@ -1311,7 +1413,7 @@ $ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct --model
 
 ### Tool Use and Reasoning
 
-SGLang supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
+SGLang supports tool use and reasoning; however, the usage is often model dependent and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/advanced_features/tool_parser.html) and [Reasoning](https://docs.sglang.ai/advanced_features/separate_reasoning.html) sections of the SGLang documentation for details.
 
 ### Batching
 
@@ -1466,7 +1568,7 @@ Here is how you would access DeepSeek using the `openai-api` provider:
 ``` bash
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-v4-flash
+inspect eval arc.py --model openai-api/deepseek/deepseek-flash
 ```
 
 ### Responses API
@@ -1511,7 +1613,7 @@ eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_too
 
 ### Streaming {#streaming-openai-compatible}
 
-You can enable the use of the streaming with the `openai-api` provider by passing the `stream` model arg. For example:
+The `openai-api` provider streams by default only when the caller passes an `on_stream` callback to `generate()`. You can force streaming on (or off) by passing the `stream` model arg. For example:
 
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
@@ -1570,7 +1672,7 @@ In addition, [Tool Emulation](#tool-emulation-openai) is available for models th
 
 For `openrouter/anthropic/*` models, Anthropic [prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled by default: per-block `cache_control` markers are inserted on the last system block, the last tool definition, and a rolling pair of message-level breakpoints (mirroring the placement used by the direct `anthropic` provider). The markers are accepted by OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Cache writes returned upstream are surfaced as `ModelUsage.input_tokens_cache_write`. Pass `--cache-prompt=false` (or set `cache_prompt=False` in `GenerateConfig`) to disable. Single-turn evaluations that never re-issue the same prefix pay a small premium (Anthropic charges ~1.25× for cache writes) with no offsetting cache reads — disable caching for those workloads.
 
-Note that OpenRouter may distribute consecutive requests for the same model across multiple Anthropic-compatible backends (Anthropic-direct, Bedrock, Vertex), and each backend maintains its own prompt cache. To maximise the cache hit rate across a multi-turn run, pin routing to a single backend via the `provider` model-arg, for example `-M provider='{"order":["anthropic"],"allow_fallbacks":false}'`.
+Note that OpenRouter may distribute consecutive requests for the same model across multiple backends (for Anthropic models: Anthropic-direct, Bedrock, Vertex), and each backend maintains its own prompt cache. To keep a sample on one backend, Inspect sends OpenRouter's [`x-session-id`](https://openrouter.ai/docs/guides/best-practices/prompt-caching) header set to the running sample's unique id: OpenRouter uses it as the sticky routing key, so every turn of a sample returns to the backend holding its warm cache, from the first request rather than only after a cache hit is observed. Override it by setting your own value in `GenerateConfig(extra_headers={"x-session-id": ...})`. For stricter control you can still pin routing to a single backend via the `provider` model-arg, for example `-M provider='{"order":["anthropic"],"allow_fallbacks":false}'`.
 
 The `cache_control` markers are injected just before the request reaches OpenRouter and so will not appear in the request snapshot recorded in `.eval` log files. Verify caching is active by inspecting the usage line (cache reads/writes) on returned `ModelOutput`s.
 
@@ -1580,6 +1682,105 @@ The following environment variables are supported by the OpenRouter AI provider
 |----------------------------|--------------------------------------------|
 | `OPENROUTER_API_KEY` | API key credentials (required). |
 | `OPENROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://openrouter.ai/api/v1`) |
+
+## LiteLLM Proxy {#litellm-proxy}
+
+To use models served by a [LiteLLM proxy](https://docs.litellm.ai/docs/simple_proxy), install the `openai` package, set the proxy's URL and your key, and specify a model using the `model_name` of its deployment in the proxy config. For example, for this deployment:
+
+``` yaml
+model_list:
+  - model_name: claude-sonnet-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+```
+
+``` bash
+pip install openai
+export LITELLM_PROXY_BASE_URL=https://litellm.example.com
+export LITELLM_PROXY_API_KEY=your-litellm-key
+inspect eval arc.py --model litellm-proxy/claude-sonnet-5
+```
+
+The `model_name` is chosen by the proxy's operator and need not be a model id. Inspect reads the proxy's `/model/info` listing to find the upstream model behind it (`litellm_params.model`, or `model_info.base_model` when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use. Aliases defined on your key or its team are resolved to the model they route to.
+
+### Model Info {#litellm-proxy-model-info}
+
+If Inspect can't determine the context window of a proxy model, creating the model fails with an error that explains how to fix it. This happens for models the proxy lists without an upstream model Inspect knows (for example, a predeployment codename or an opaque deployment name). The best fix is to add `base_model` to the deployment in the proxy config, naming the known model it is closest to:
+
+``` yaml
+model_list:
+  - model_name: pillow
+    litellm_params:
+      model: anthropic/claude-pillow-v1
+      api_key: os.environ/ANTHROPIC_API_KEY
+    model_info:
+      base_model: anthropic/claude-opus-5-5
+      supports_reasoning: true
+      supports_adaptive_thinking: true
+```
+
+`base_model` also lets LiteLLM accept parameters it would otherwise reject for an unknown model, such as reasoning effort and (for Bedrock) tool choice. For Anthropic, OpenAI, Google and xAI models the error message suggests that vendor's current frontier model.
+
+For a Claude 4.6 or later model under a name LiteLLM doesn't know (such as a codename), also set `supports_reasoning` and `supports_adaptive_thinking` as above. LiteLLM uses adaptive thinking only for Claude models it recognizes by their upstream name, and `base_model` does not change this. Without the flags, LiteLLM either sends extended thinking with a reasoning effort, which Claude 4.7 and later reject (Inspect then fails with an error naming this fix), or, without `base_model`, refuses the reasoning effort (Inspect then sends none and warns with this fix).
+
+Alternatively, set `max_input_tokens` (and `max_output_tokens`) in the deployment's `model_info`, register the model's info with `set_model_info("litellm-proxy/<name>", ModelInfo(...))`, or pass `-M require_model_info=false` to use the model without model info. The last two are the only fixes for an alias from the proxy's `model_alias_map` setting, which the proxy doesn't show to clients.
+
+Costs are taken from Inspect's model database or, where it has none, from the prices in the proxy's `model_info`.
+
+### Claude Models {#litellm-proxy-claude}
+
+When the upstream model is a Claude model (recognized by its name, including models Inspect and LiteLLM don't know), requests follow the native `anthropic` provider:
+
+-   `max_tokens` defaults to 32,000 plus an increment for the reasoning effort, rather than LiteLLM's 4,096.
+-   [Prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled with cache breakpoints on the system prompt, the last tool definition and the last two messages. Pass `--cache-prompt=false` to disable. Cache writes are costed at the TTL the proxy reports for them (a proxy can apply a 1 hour TTL).
+-   Tool schemas keep their full JSON Schema (e.g. `pattern` and `minLength`).
+-   With a `reasoning_effort`, Claude 4.6 and later models return summarized thinking, which is recorded in the log and streamed during long thinking phases. Earlier LiteLLM versions otherwise return no thinking text for Claude 4.7 and later. Pass `-M thinking_display=omitted` to receive no thinking text.
+
+A model that does not accept a conversation ending with an assistant message (assistant prefill) fails with an error saying so rather than being retried.
+
+### Gemini Models {#litellm-proxy-gemini}
+
+When the upstream model is a Gemini model (recognized by its name), requests with tools follow the native `google` provider's handling of malformed function calls:
+
+-   The system prompt carries a function-calling hint that discourages Gemini from writing a function call as code (`print(default_api.bash(...))`).
+-   A turn that comes back as a malformed function call is retried up to 3 times with a corrective exchange, with tool calling required when the tool choice was `auto`. LiteLLM reports Gemini's `MALFORMED_FUNCTION_CALL` as an ordinary stop, so Inspect recognizes such a turn by its shape: no text and no tool call, or text that is a function call written as code. When the retries run out, the assistant message says that it had trouble calling a function. Usage covers every attempt, and `ModelOutput.metadata` records `malformed_function_call_attempts`.
+-   Each replayed tool call carries its thought signature in `provider_specific_fields` as well as in its id. LiteLLM strips the id-embedded signature when the proxy's `model_name` does not contain "gemini" and then sends a placeholder signature, which Google documents as degrading the model.
+
+### Reasoning Effort {#litellm-proxy-reasoning-effort}
+
+Google models get the same `reasoning_effort` mapping as the [Google](#google-gemini) provider: Gemini 3 and later (and names matching no known Gemini model, such as predeployment codenames) take `minimal` through `high`, with `xhigh` and `max` lowered to `high` and `minimal` raised to `low` where the model does not support it.
+
+When the proxy or upstream model rejects the requested `reasoning_effort`, Inspect retries with the nearest effort the model accepts (or with no effort, if the model takes none), warns once, and uses that effort for later requests. Reasoning returned by the upstream model (including Claude thinking blocks and Gemini thought signatures) is sent back on the next turn.
+
+### Responses API and Streaming {#litellm-proxy-streaming}
+
+GPT-5 and later, o-series and Codex models served directly by OpenAI use the proxy's Responses API, as they do with the `openai` provider, so their reasoning is carried from one turn to the next. This applies when every deployment of the model uses LiteLLM's `openai` provider with no `api_base` other than OpenAI's (Azure deployments and OpenAI-compatible servers are not included). A predeployment model qualifies when its deployment sets `model_info.base_model` (see [Model Info](#litellm-proxy-model-info)). Other models use the Chat Completions API. Pass `-M responses_api=true` or `-M responses_api=false` to choose the API. Through the proxy, web search is the only OpenAI built-in tool used on the Responses API; `computer()`, `code_execution()` and remote MCP servers are sent as ordinary tools, as on the Chat Completions API.
+
+Requests stream by default, so long generations don't hit client or proxy timeouts, except Responses API requests for models not served by OpenAI. Pass `-M stream=false` to disable streaming.
+
+### Web Search {#litellm-proxy-web-search}
+
+The `web_search()` tool uses OpenAI's built-in search (its `openai` provider) for OpenAI models that use the Responses API. Otherwise it needs an external search provider (`tavily`, `exa` or `google`), for example `web_search(["anthropic", "tavily"])`; other built-in search providers are not supported through the proxy.
+
+### Model Args {#litellm-proxy-model-args}
+
+| Argument | Description |
+|------------------------------------|------------------------------------|
+| `require_model_info` | Fail if the model has no context window (default: `true`). |
+| `model_info` | Read the proxy's `/model/info` listing (default: `true`). With `false`, Inspect does not look up the upstream model and requests are shaped by the proxy model name alone. |
+| `stream` | Stream requests (default: `true`, except Responses API requests for models not served by OpenAI). |
+| `responses_api` | Use the Responses API (default: `true` for GPT-5 and later, o-series and Codex models served by OpenAI, `false` otherwise). |
+| `thinking_display` | Thinking text Claude 4.6 and later models return when a `reasoning_effort` is set: `summarized` (default) or `omitted`. |
+
+: {tbl-colwidths=\[25,75\]}
+
+The following environment variables are supported by the LiteLLM Proxy provider:
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `LITELLM_PROXY_API_KEY` | API key credentials (required). `LITELLM_API_KEY` is used when it is not set. |
+| `LITELLM_PROXY_BASE_URL` | Base URL of the proxy (required). `LITELLM_PROXY_API_BASE` and `LITELLM_BASE_URL` are used when it is not set. |
 
 ## Hugging Face Inference Providers
 
@@ -1609,7 +1810,7 @@ The following environment variables are supported by the HF Inference Providers:
 
 ### Streaming {#streaming-hf-inference}
 
-HF Interference Providers uses streaming by default for requests. You can disable streaming using the `stream` model arg. For example:
+HF Interference Providers uses streaming by default for requests. You can disable streaming using the `stream` model arg (or pass `auto` to stream only when the caller passes an `on_stream` callback to `generate()`). For example:
 
 ``` bash
 inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream=false

@@ -8,6 +8,7 @@ from pydantic_core import to_jsonable_python
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._step import StepEvent
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.types import (
@@ -47,7 +48,7 @@ def _make_model_event(
 
 
 def _event_to_event_data(
-    event: ModelEvent | StepEvent | CompactionEvent,
+    event: Event,
     id: int,
     sample_id: str = "1",
     epoch: int = 1,
@@ -836,3 +837,88 @@ def test_reconstruct_resolves_call_pool_refs() -> None:
     assert call is not None
     assert call.call_refs is None
     assert call.request["messages"] == [pooled_message]
+
+
+def test_reconstruct_carries_limit_from_event() -> None:
+    """DB recovery preserves the limit and its reason.
+
+    The write path recomputes the summary from the reconstructed sample
+    (``buffer_sample`` -> ``sample.summary()``), so dropping the limit here
+    erases what the buffered summary already knew.
+    """
+    summary = _make_completed_summary()
+    summary.limit = "token"
+    summary.limit_reason = "Token limit exceeded. value: 1,001; limit: 1,000"
+
+    limit_event = SampleLimitEvent(
+        type="token", limit=1000.0, message=summary.limit_reason
+    )
+    sample_data = SampleData(
+        events=[_event_to_event_data(limit_event, id=1)], attachments=[]
+    )
+
+    sample = reconstruct_eval_sample(summary, sample_data)
+
+    assert sample.limit is not None
+    assert sample.limit.type == "token"
+    assert sample.limit.limit == 1000.0
+    assert sample.limit.reason == summary.limit_reason
+    # the round-trip the write path performs
+    assert sample.summary().limit == "token"
+    assert sample.summary().limit_reason == summary.limit_reason
+
+
+def test_reconstruct_carries_limit_without_event() -> None:
+    """A limit recorded with no transcript event still round-trips.
+
+    A user-raised ``LimitExceededError`` emits no ``SampleLimitEvent``, so only
+    the summary knows; the numeric value is unrecoverable and takes the same
+    ``-1`` sentinel the live path writes.
+    """
+    summary = _make_completed_summary()
+    summary.limit = "custom"
+    summary.limit_reason = "budget exhausted"
+
+    sample = reconstruct_eval_sample(summary, SampleData(events=[], attachments=[]))
+
+    assert sample.limit is not None
+    assert sample.limit.type == "custom"
+    assert sample.limit.limit == -1
+    assert sample.limit.reason == "budget exhausted"
+
+
+def test_reconstruct_no_limit_stays_none() -> None:
+    """A sample that hit no limit reconstructs without one."""
+    sample = reconstruct_eval_sample(
+        _make_completed_summary(), SampleData(events=[], attachments=[])
+    )
+    assert sample.limit is None
+
+
+def test_reconstruct_prefers_limit_event_matching_summary() -> None:
+    """A scoring-phase operator interrupt must not mask the real limit."""
+    summary = _make_completed_summary()
+    summary.limit = "message"
+
+    sample_data = SampleData(
+        events=[
+            _event_to_event_data(
+                SampleLimitEvent(type="message", limit=50.0, message="msg limit"),
+                id=1,
+            ),
+            _event_to_event_data(
+                SampleLimitEvent(
+                    type="operator",
+                    message="Unable to score sample due to operator interruption",
+                ),
+                id=2,
+            ),
+        ],
+        attachments=[],
+    )
+
+    sample = reconstruct_eval_sample(summary, sample_data)
+
+    assert sample.limit is not None
+    assert sample.limit.type == "message"
+    assert sample.limit.limit == 50.0

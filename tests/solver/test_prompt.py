@@ -96,6 +96,29 @@ def test_user_and_assistant_message():
     assert log.samples[0].messages[1].text == ASSISTANT_MESSAGE
 
 
+def test_chain_of_thought_template_with_extra_placeholders():
+    """Unknown {name} placeholders pass through; JSON braces still use {{ }}.
+
+    Under str.format() this template raised KeyError on `{custom_field}`;
+    format_template() substitutes only the names it knows.
+    """
+    custom_cot = """{prompt}
+
+Reason step-by-step. Put the value of {custom_field} in your answer.
+Return output in JSON format: {{"answer": "value"}}."""
+
+    task = Task(
+        dataset=[Sample(input="Solve this problem", target="done")],
+        solver=[chain_of_thought(template=custom_cot), generate()],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    message = log.samples[0].messages[0].text
+    assert "Solve this problem" in message
+    assert "{custom_field}" in message
+    assert '{"answer": "value"}' in message
+
+
 def test_chain_of_thought_resource(tmp_path):
     template_file = tmp_path / "cot.txt"
     template_file.write_text("Reason carefully:\n{prompt}\nANSWER: 42")
