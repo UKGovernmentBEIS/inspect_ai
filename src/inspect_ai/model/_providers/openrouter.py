@@ -16,7 +16,11 @@ from inspect_ai.model import _openrouter_reasoning
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.model._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ServedModelUsage,
+)
 from inspect_ai.model._openai import (
     CompletionsReasoningContent,
     OpenAIResponseError,
@@ -177,24 +181,18 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         OpenRouter also supports suffixes like :free, :extended, :nitro,
         :thinking, :online which are stripped for database lookup.
         """
-        from ._first_party import FIRST_PARTY_PROVIDERS
+        return _openrouter_canonical_name(self.service_model_name())
 
-        name = self.service_model_name()
-
-        # Strip OpenRouter suffixes (:free, :extended, :nitro, :thinking, :online)
-        if ":" in name:
-            name = name.split(":")[0]
-
-        parts = name.split("/")
-        if len(parts) >= 2:
-            first_part = parts[0].lower()
-            # If first part is a known first-party provider, keep the full name
-            if first_part in FIRST_PARTY_PROVIDERS:
-                return name
-            # Otherwise strip the inference provider prefix (e.g., together/)
-            if len(parts) >= 3:
-                return "/".join(parts[1:])
-        return name
+    @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        # routers (e.g. openrouter/auto) and the `models` fallback list can
+        # serve a request with another model, reported in the response
+        if output.usage is None or not output.model:
+            return None
+        served = _openrouter_canonical_name(output.model)
+        if served == self.canonical_name():
+            return None
+        return [ServedModelUsage(served, output.usage)]
 
     @override
     def chat_choices_from_completion(
@@ -534,3 +532,23 @@ def _apply_cache_creation_usage(output: ModelOutput, call: ModelCall | None) -> 
         return
     output.usage.input_tokens_cache_write = cw
     output.usage.input_tokens = max(0, output.usage.input_tokens - cw)
+
+
+def _openrouter_canonical_name(name: str) -> str:
+    """Model info database name for an OpenRouter model name."""
+    from ._first_party import FIRST_PARTY_PROVIDERS
+
+    # Strip OpenRouter suffixes (:free, :extended, :nitro, :thinking, :online)
+    if ":" in name:
+        name = name.split(":")[0]
+
+    parts = name.split("/")
+    if len(parts) >= 2:
+        first_part = parts[0].lower()
+        # If first part is a known first-party provider, keep the full name
+        if first_part in FIRST_PARTY_PROVIDERS:
+            return name
+        # Otherwise strip the inference provider prefix (e.g., together/)
+        if len(parts) >= 3:
+            return "/".join(parts[1:])
+    return name
