@@ -24,10 +24,15 @@ from inspect_ai import Task, eval, eval_async, task
 from inspect_ai._util.content import ContentToolUse
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import GenerateFilter, GenerateInput, Model, get_model
 from inspect_ai.model._model_output import Logprob, Logprobs, ModelOutput, TopLogprob
@@ -1625,6 +1630,49 @@ def test_bridge_filter_generated_event_records_requested_name() -> None:
     assert [(e.model, e.requested_model) for e in events] == [
         ("mockllm/model", "gpt-4o-mini")
     ]
+
+
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+async def test_bridge_filter_style_detected_per_filter() -> None:
+    """Each filter gets a `Model` or a name by its own signature.
+
+    Alternating styles lets a new filter reuse a freed filter's `id()`.
+    """
+    model = get_model("mockllm/model")
+    received: list[Model | str] = []
+
+    def legacy_filter() -> GenerateFilter:
+        async def filter(
+            model: str,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> None:
+            received.append(model)
+
+        return filter
+
+    def model_filter() -> GenerateFilter:
+        async def filter(
+            model: Model,
+            input: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> None:
+            received.append(model)
+
+        return filter
+
+    for make_filter in [legacy_filter, model_filter] * 3:
+        bridge = AgentBridge(AgentState(messages=[]), filter=make_filter())
+        await bridge_generate(
+            bridge, model, [ChatMessageUser(content="hi")], [], None, GenerateConfig()
+        )
+        del bridge
+
+    assert received == [model.name, model] * 3
 
 
 @pytest.mark.parametrize(
