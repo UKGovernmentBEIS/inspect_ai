@@ -211,32 +211,29 @@ class SandboxAgentBridge(AgentBridge):
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
         JSON round-trip cannot turn a proposed call into a denial; any other
         difference (including bool vs number) is denied -- except that, when
-        no pending grant for this (server, tool) matches exactly, each is
-        compared again with the granted keys the served tool's own input
-        schema does not declare dropped from the granted side.
+        no pending grant for this (server, tool) matches exactly and the
+        served tool's schema forbids additional properties, each is compared
+        again with the granted keys that schema does not declare dropped
+        from the granted side.
 
         A scaffold may propose bookkeeping fields alongside a tool's real
         arguments that it never forwards when it actually dispatches the
         call (Antigravity's `toolSummary` is the one observed in the wild).
         Those fields are captured verbatim in the grant by
         `register_tool_execution_grants`, so an executed call that
-        legitimately omits them would otherwise always be denied. Comparing
-        again with the grant filtered down to the schema's declared
-        `properties` tolerates exactly that gap: every key the schema DOES
-        declare must still be equal and present on both sides, and an
-        executed argument that is absent or changed still denies, as does an
-        undeclared one the proposal did not carry with the same value. On a
-        schema that admits additional properties, this also lets an executed
-        call omit an undeclared key the model proposed. When the served tool
-        is unknown here, or its schema declares no properties at all, there
-        is no declared set to filter by, so only the exact comparison applies.
+        legitimately omits them would otherwise always be denied. On a
+        closed schema such a key could never be a valid argument, so
+        dropping it does not change the approved action: every declared key
+        must still be equal and present on both sides, and an executed
+        argument that is absent or changed still denies. A schema that
+        admits additional properties (`True`, a value schema, or `None`)
+        keeps exact matching, since an undeclared key there can be a real
+        argument.
         """
         schema = self.served_tools.get(_BridgedToolId(server=server, tool=tool))
         declared_properties = (
             schema.parameters.properties
-            if schema is not None
-            and schema.parameters.type == "object"
-            and schema.parameters.properties
+            if schema is not None and schema.parameters.additionalProperties is False
             else None
         )
         pending = [

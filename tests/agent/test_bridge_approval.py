@@ -1472,8 +1472,8 @@ async def test_executed_args_dropping_a_declared_key_still_denies() -> None:
     )
 
 
-async def test_schema_without_properties_keeps_exact_matching() -> None:
-    """No declared parameters means no basis to filter: today's exact match stands."""
+async def test_closed_schema_without_properties_drops_every_undeclared_key() -> None:
+    """A schema that declares no arguments and forbids others binds an empty call."""
     bridge = sandbox_bridge_with_servers(
         {"host": {"browser": served_tool(AsyncMock(), parameters=(), name="browser")}}
     )
@@ -1489,7 +1489,95 @@ async def test_schema_without_properties_keeps_exact_matching() -> None:
         declare("browser", parameters=()),
     )
 
-    assert not bridge.consume_tool_execution_grant("host", "browser", {})
+    assert bridge.consume_tool_execution_grant("host", "browser", {})
+
+
+async def test_host_tool_executes_without_a_proposed_key_its_schema_forbids() -> None:
+    """The measured Antigravity shape, through the host tool service."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+    call = ToolCall(
+        id="proposed",
+        function="read_file",
+        arguments={"path": "notes.txt", "toolSummary": "Read the notes"},
+    )
+
+    await run_bridge(
+        [tool_calls_output(call)], bridge=bridge, tools=declare(call.function)
+    )
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+DELETE_PATH = "Delete a path on the host, or report what would be deleted."
+
+
+def open_host_tool(
+    mock: AsyncMock, additional_properties: ToolParam | bool | None
+) -> Tool:
+    """A variadic host tool declaring `path` that accepts other arguments too."""
+
+    async def execute(**kwargs: Any) -> str:
+        return await mock(**kwargs)
+
+    return ToolDef(
+        execute,
+        name="delete_path",
+        description=DELETE_PATH,
+        parameters=ToolParams(
+            properties={"path": ToolParam(type="string", description="path")},
+            required=["path"],
+            additionalProperties=additional_properties,
+        ),
+    ).as_tool()
+
+
+@pytest.mark.parametrize(
+    "additional_properties",
+    [True, ToolParam(type="boolean"), None],
+    ids=["true", "schema", "omitted"],
+)
+async def test_open_schema_host_tool_cannot_drop_an_approved_argument(
+    additional_properties: ToolParam | bool | None,
+) -> None:
+    """On a schema admitting other arguments, an undeclared one is a real argument.
+
+    The approver adds `dry_run`; executing without it would run a different
+    action than the one approved.
+    """
+    tool = AsyncMock(return_value="done")
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        approval=[
+            ApprovalPolicy(modifying_approver({"path": "target", "dry_run": True}), "*")
+        ],
+        bridged_tools={
+            "host": {"delete_path": open_host_tool(tool, additional_properties)}
+        },
+    )
+    call = ToolCall(id="proposed", function="delete_path", arguments={"path": "target"})
+
+    await run_bridge(
+        [tool_calls_output(call)],
+        bridge=bridge,
+        tools=declare(call.function, description=DELETE_PATH),
+    )
+
+    execute = call_host_tool(bridge)
+    with pytest.raises(PermissionError, match="was not proposed by the model"):
+        await execute("host", "delete_path", {"path": "target"})
+    tool.assert_not_awaited()
+    assert await execute(
+        "host", "delete_path", {"path": "target", "dry_run": True}
+    ) == ("done")
+    tool.assert_awaited_once_with(path="target", dry_run=True)
 
 
 # ---------------------------------------------------------------------------

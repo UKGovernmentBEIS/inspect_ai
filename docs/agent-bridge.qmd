@@ -206,6 +206,8 @@ Two consequences follow:
 - An agent that retries a `tools/call` after a transport failure is denied, since the proposal has already executed once. The agent should return the error to the model, which re-proposes the call.
 - Only the primary choice of a multi-choice response is granted; alternate choices that carry tool calls are dropped (with a warning). Request a single choice (`n=1`) from a bridged agent.
 
+If a tool's parameters do not allow additional properties, the call may leave out proposed arguments the tool does not declare. Some agents add such fields for their own use and drop them before calling the tool; the tool could not accept them anyway.
+
 An agent that legitimately calls a host tool programmatically, outside a model turn, can opt a server out with `require_proposal=False`. That server's tools then execute for any `tools/call` it receives, and the bridge no longer guarantees that they run only for calls the model made:
 
 ``` python
