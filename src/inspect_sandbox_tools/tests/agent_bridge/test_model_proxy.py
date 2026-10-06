@@ -3037,10 +3037,8 @@ async def proxy_server_recording_bridge() -> AsyncGenerator[
 
     calls: list[tuple[str, dict[str, Any]]] = []
 
-    async def recording_bridge(
-        method: str, json_data: dict[str, Any]
-    ) -> dict[str, Any]:
-        calls.append((method, json_data))
+    async def recording_bridge(method: str, **params: Any) -> dict[str, Any]:
+        calls.append((method, params))
         return {"error": {"message": "unexpected bridge call"}}
 
     server = await model_proxy_server(
@@ -3220,6 +3218,7 @@ _CLIENT_HEADERS = {
     "OpenAI-Organization": "org-from-sandbox",
     "OpenAI-Project": "proj-from-sandbox",
     "X-Client-Header": "client-header-value",
+    "Accept-Encoding": "br",
 }
 
 
@@ -3253,13 +3252,18 @@ _CLIENT_HEADERS = {
         ),
     ],
 )
-async def test_proxy_forwards_no_client_headers(
+async def test_proxy_leaves_client_header_policy_to_host(
     proxy_server_recording_bridge: tuple[str, list[tuple[str, dict[str, Any]]]],
     path: str,
     body: dict[str, Any],
     method: str,
 ) -> None:
-    """Only the request body reaches the bridge, so client headers never reach the provider."""
+    """Client headers go to the host's filter, never into the request body.
+
+    On the host, `filter_sandbox_client_headers` forwards only `Accept-Encoding`
+    and the headers the eval lists in `forward_client_headers`, so the tenant
+    and custom headers here are dropped there. The Google route passes none.
+    """
     base_url, calls = proxy_server_recording_bridge
     async with ClientSession() as session:
         async with session.post(
@@ -3267,8 +3271,15 @@ async def test_proxy_forwards_no_client_headers(
         ) as response:
             await response.read()
 
-    assert [call_method for call_method, _ in calls] == [method]
-    forwarded = json.dumps(calls)
+    [(call_method, params)] = calls
+    assert call_method == method
+    body_sent = json.dumps(params["json_data"])
     for name, value in _CLIENT_HEADERS.items():
-        assert name.lower() not in forwarded.lower()
-        assert value not in forwarded
+        assert name.lower() not in body_sent.lower()
+        assert value not in body_sent
+    if method == "generate_google":
+        assert "headers" not in params
+    else:
+        headers = params["headers"]
+        for name, value in _CLIENT_HEADERS.items():
+            assert headers[name.lower()] == value

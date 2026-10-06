@@ -451,20 +451,27 @@ class TestSandboxAnthropicRequest:
         assert any("unlisted-beta-2026-01-01" in m for m in inspect_logger._warned)
 
 
-# Credential headers a sandboxed client sends, which no `forward_client_headers`
-# can list: host keys (OpenAI and Azure OpenAI, Anthropic and Foundry, Google)
-# and an AWS session token for a SigV4-signed request.
+# Headers a sandboxed client sends: credentials no `forward_client_headers` can
+# list (host keys for OpenAI and Azure OpenAI, Anthropic and Foundry, Google,
+# and an AWS session token for a SigV4-signed request), tenant and custom
+# headers the eval did not list, and the two headers that do pass.
 _CLIENT_CREDENTIALS = {
     "Authorization": "Bearer sandbox-token",
     "x-api-key": "sandbox-key",
     "Api-Key": "sandbox-key",
     "x-goog-api-key": "sandbox-key",
     "X-Amz-Security-Token": "sandbox-token",
+    "OpenAI-Organization": "org-from-sandbox",
+    "OpenAI-Project": "proj-from-sandbox",
+    "X-Client-Header": "client-header-value",
+    "Accept-Encoding": "br",
     "x-feature": "on",
 }
 
 _SANDBOX_CREDENTIAL_NAMES = {
-    name.lower() for name in _CLIENT_CREDENTIALS if name != "x-feature"
+    name.lower()
+    for name in _CLIENT_CREDENTIALS
+    if name not in ("x-feature", "Accept-Encoding")
 }
 
 
@@ -492,12 +499,13 @@ def _capturing_client(
 
 
 class TestSandboxRoutesKeepHostCredentials:
-    """A sandboxed client's credential headers never reach the provider SDK."""
+    """A sandboxed client's credential and unlisted headers never reach the SDK."""
 
     def _assert_host_credentials(
         self, request: httpx2.Request, host: dict[str, str]
     ) -> None:
         assert request.headers["x-feature"] == "on"
+        assert request.headers["accept-encoding"] == "br"
         for name, value in host.items():
             assert request.headers.get_list(name) == [value]
         for name in _SANDBOX_CREDENTIAL_NAMES - set(host):

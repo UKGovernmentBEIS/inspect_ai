@@ -42,9 +42,7 @@
 - Agent Bridge: Fixed a bridge `filter` sometimes receiving the model name instead of a `Model` (or the reverse) when filters of both signatures were used in one process.
 - Perplexity: Each response now gets only its own citations and usage when one model handles concurrent requests, and a failed request no longer reuses an earlier response's.
 - Agent Bridge: For both `agent_bridge()` and `sandbox_agent_bridge()`, the eval's configuration now governs `service_tier`, `store`, `truncation` and provider tool options such as web search domains, which the agent's requests no longer override; requests with `previous_response_id` are refused.
-- Agent Bridge: `sandbox_agent_bridge()` now forwards the client's `Accept-Encoding` header, and other headers and values listed in its new `forward_client_headers` option.
-- Agent Bridge: With `forward_generation_config=True`, `reasoning` fields Inspect does not model, such as `context`, now reach models that use the OpenAI Responses API.
-- Agent Bridge: Transparent bridged requests now decode Brotli responses when clients advertise `br` through `Accept-Encoding`.
+- Agent Bridge: `sandbox_agent_bridge()` now forwards the client's `Accept-Encoding` header and the headers listed in its new `forward_client_headers` option, bridged Brotli responses are decoded, and with `forward_generation_config=True` `reasoning` fields Inspect does not model, such as `context`, reach OpenAI Responses models.
 
 ## 0.3.276 (02 October 2026)
 

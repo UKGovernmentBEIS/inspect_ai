@@ -147,7 +147,7 @@ async with sandbox_agent_bridge(
 
 Header names are case-insensitive. A comma-separated value is checked one item at a time: items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. Credentials (such as `Authorization`, `x-api-key`, `api-key`, `x-goog-api-key`, and AWS `x-amz-` headers) and transport headers (such as `Host` and `Content-Type`) cannot be forwarded.
 
-Headers configured on the Inspect model itself (e.g. the Anthropic `betas` model arg or `extra_headers`) are not affected. The in-process `agent_bridge()` has no such option: it forwards the client's headers other than credentials and transport headers.
+Headers configured on the Inspect model itself (e.g. the Anthropic `betas` model arg or `extra_headers`) are not affected.
 
 None of this restricts the in-process `agent_bridge()`, where the scaffold
 already runs with the host's network and filesystem and there is no boundary to
@@ -311,7 +311,7 @@ Some request fields and tool options change billing, storage at the model provid
 
 OpenAI Chat Completions and Google requests forward none of these fields, and Google tool declarations carry no options into the request.
 
-HTTP headers an agent sends to the sandbox bridge's proxy are not forwarded; only the request body reaches the model provider. The in-process `agent_bridge()` forwards the agent's headers other than credentials and SDK-managed ones.
+HTTP headers an agent sends to the sandbox bridge's proxy are forwarded only as described in [Sandbox Bridge](#sandbox-bridge): `Accept-Encoding` and the headers listed in `forward_client_headers`. In-process, request body settings follow the eval as above, while the agent's headers are forwarded as before, apart from credential, transport and SDK headers.
 
 ## Tool Approval
 

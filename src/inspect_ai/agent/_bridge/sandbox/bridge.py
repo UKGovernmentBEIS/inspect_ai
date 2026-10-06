@@ -83,8 +83,9 @@ async def sandbox_agent_bridge(
 
     The eval's configuration, not the agent's request, governs `service_tier`,
     `store`, `truncation` and the options of provider tools the agent declares;
-    requests with `previous_response_id` are refused, and the agent's HTTP
-    headers are not forwarded.
+    requests with `previous_response_id` are refused, and of the agent's HTTP
+    headers only `Accept-Encoding` and those listed in `forward_client_headers`
+    are forwarded.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
