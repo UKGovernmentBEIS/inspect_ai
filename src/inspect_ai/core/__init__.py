@@ -35,6 +35,7 @@ from ._generate_config import (
     ResponseSchema,
 )
 from ._json import JSONSchema, JSONType
+from ._limit import LimitExceededError
 from ._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -101,6 +102,7 @@ __all__ = [
     "internal_tool_type",
     "JSONSchema",
     "JSONType",
+    "LimitExceededError",
     "Logprob",
     "Logprobs",
     "ModelFallback",
