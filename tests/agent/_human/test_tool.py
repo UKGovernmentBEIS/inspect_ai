@@ -4,8 +4,14 @@ import pytest
 
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.agent._human.commands.tool import ToolCommand, tool_result_to_str
+from inspect_ai.agent._human.state import HumanAgentState
 from inspect_ai.tool import ToolDef, ToolError, tool
 from inspect_ai.util import JSONSchema
+
+
+def _agent_state() -> HumanAgentState:
+    """Human agent state for ToolCommand.service(), which does not read it."""
+    return HumanAgentState(instructions="")
 
 
 # Test tool_result_to_str() with various ToolResult types
@@ -160,7 +166,7 @@ async def test_service_records_tool_event() -> None:
     from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 
     command = ToolCommand([_addition()])
-    handler = command.service(state=None)  # type: ignore[arg-type]
+    handler = command.service(state=_agent_state())
 
     init_transcript(Transcript())
     result = await handler(tool="_addition", arguments={"x": 1, "y": 2})
@@ -207,7 +213,7 @@ def test_dashed_tool_name_generates_working_cli() -> None:
 async def test_dashed_tool_name_service_roundtrip() -> None:
     from inspect_ai.log._transcript import Transcript, init_transcript
 
-    handler = ToolCommand([_named_tool("find-item")]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([_named_tool("find-item")]).service(state=_agent_state())
     init_transcript(Transcript())
     assert await handler(tool="find-item", arguments={}) == "thing"
 
@@ -384,7 +390,7 @@ async def test_service_accepts_any_identifier_param_name() -> None:
     ).as_tool()
 
     command = ToolCommand([hostile])
-    handler = command.service(state=None)  # type: ignore[arg-type]
+    handler = command.service(state=_agent_state())
     init_transcript(Transcript())
     result = await handler(tool="hostile", arguments={"_tool_name_": "ok"})
     assert result == "ok"
@@ -514,7 +520,7 @@ async def test_tool_execution_runs_in_tool_span() -> None:
     """
     from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 
-    handler = ToolCommand([_addition()]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([_addition()]).service(state=_agent_state())
     init_transcript(Transcript())
     await handler(tool="_addition", arguments={"x": 1, "y": 2})
 
@@ -705,7 +711,7 @@ async def test_non_parallel_tool_serialized() -> None:
     from inspect_ai.log._transcript import Transcript, init_transcript
 
     tool, active = _tracking_tool(parallel=False)
-    handler = ToolCommand([tool]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([tool]).service(state=_agent_state())
     init_transcript(Transcript())
 
     async def call() -> None:
@@ -724,7 +730,7 @@ async def test_parallel_tool_stays_concurrent() -> None:
     from inspect_ai.log._transcript import Transcript, init_transcript
 
     tool, active = _tracking_tool(parallel=True)
-    handler = ToolCommand([tool]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([tool]).service(state=_agent_state())
     init_transcript(Transcript())
 
     async def call() -> None:
@@ -805,7 +811,7 @@ async def test_limit_events_typed_limit() -> None:
     limited = ToolDef(
         execute, name="limited", description="Exceed a limit.", parameters={}
     ).as_tool()
-    handler = ToolCommand([limited]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([limited]).service(state=_agent_state())
     init_transcript(Transcript())
     with pytest.raises(LimitExceededError):
         await handler(tool="limited", arguments={})
@@ -849,7 +855,7 @@ async def test_cancellation_finalizes_event() -> None:
     sleeper = ToolDef(
         execute, name="sleeper", description="Sleep.", parameters={}
     ).as_tool()
-    handler = ToolCommand([sleeper]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([sleeper]).service(state=_agent_state())
     init_transcript(Transcript())
 
     async def call() -> None:
@@ -882,7 +888,7 @@ async def test_structured_event_content_survives_terminal_capping() -> None:
     structured = ToolDef(
         execute, name="structured", description="Structured.", parameters={}
     ).as_tool()
-    handler = ToolCommand([structured]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([structured]).service(state=_agent_state())
     init_transcript(Transcript())
     result = await handler(tool="structured", arguments={})
 
@@ -948,7 +954,7 @@ async def test_two_distinct_serial_tools_do_not_overlap() -> None:
             _named_tracking_tool("serial_b", False, active),
         ]
     )
-    handler = command.service(state=None)  # type: ignore[arg-type]
+    handler = command.service(state=_agent_state())
     init_transcript(Transcript())
     await _run_concurrently(handler, "serial_a", "serial_b")
     assert active["max"] == 1
@@ -965,7 +971,7 @@ async def test_serial_tool_barriers_parallel_tool() -> None:
             _named_tracking_tool("par_b", True, active),
         ]
     )
-    handler = command.service(state=None)  # type: ignore[arg-type]
+    handler = command.service(state=_agent_state())
     init_transcript(Transcript())
     await _run_concurrently(handler, "serial_a", "par_b")
     assert active["max"] == 1
@@ -1012,7 +1018,7 @@ async def test_custom_viewer_applies_to_human_tool_events() -> None:
         viewer=viewer,
     ).as_tool()
 
-    handler = ToolCommand([viewed]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([viewed]).service(state=_agent_state())
     init_transcript(Transcript())
     await handler(tool="viewed", arguments={"x": 1, "y": 2})
 
@@ -1051,7 +1057,7 @@ async def test_waiting_time_excluded_from_working_time() -> None:
         execute, name="waiter", description="Report waiting time.", parameters={}
     ).as_tool()
 
-    handler = ToolCommand([waiter]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([waiter]).service(state=_agent_state())
     init_transcript(Transcript())
     await handler(tool="waiter", arguments={})
 
@@ -1080,7 +1086,9 @@ def _raising_tool(name: str, exc_factory):
 async def _invoke_raising(exc_factory) -> tuple:
     from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 
-    handler = ToolCommand([_raising_tool("raiser", exc_factory)]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([_raising_tool("raiser", exc_factory)]).service(
+        state=_agent_state()
+    )
     init_transcript(Transcript())
     result = await handler(tool="raiser", arguments={})
     event = next(e for e in transcript().events if e.event == "tool")
@@ -1115,7 +1123,7 @@ async def test_tool_error_in_task_group_surfaces_cleanly() -> None:
     grouped = ToolDef(
         execute, name="grouped", description="Group ToolError.", parameters={}
     ).as_tool()
-    handler = ToolCommand([grouped]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([grouped]).service(state=_agent_state())
     init_transcript(Transcript())
     result = await handler(tool="grouped", arguments={})
     assert "expected failure" in str(result)
@@ -1162,7 +1170,7 @@ async def test_terminate_errors_propagate() -> None:
 
     handler = ToolCommand(
         [_raising_tool("terminator", lambda: TerminateSampleError("operator kill"))]
-    ).service(state=None)  # type: ignore[arg-type]
+    ).service(state=_agent_state())
     init_transcript(Transcript())
     with pytest.raises(TerminateSampleError):
         await handler(tool="terminator", arguments={})
@@ -1186,7 +1194,7 @@ async def test_oversize_result_truncated_in_event_and_terminal() -> None:
     big = ToolDef(
         execute, name="big", description="Huge output.", parameters={}
     ).as_tool()
-    handler = ToolCommand([big]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([big]).service(state=_agent_state())
     init_transcript(Transcript())
     result = await handler(tool="big", arguments={})
 
@@ -1203,7 +1211,7 @@ async def test_oversize_result_truncated_in_event_and_terminal() -> None:
 async def test_unknown_tool_records_event() -> None:
     from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 
-    handler = ToolCommand([_addition()]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([_addition()]).service(state=_agent_state())
     init_transcript(Transcript())
     result = await handler(tool="nope", arguments={"x": 1})
     assert "Unknown tool" in str(result)
@@ -1248,7 +1256,7 @@ async def test_limit_exceeded_inside_task_group_reraises() -> None:
         execute, name="grouped", description="Exceed a limit in a group.", parameters={}
     ).as_tool()
 
-    handler = ToolCommand([grouped]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([grouped]).service(state=_agent_state())
     init_transcript(Transcript())
     with pytest.raises(LimitExceededError):
         await handler(tool="grouped", arguments={})
@@ -1283,7 +1291,7 @@ async def test_limit_exceeded_reraises_after_recording() -> None:
         execute, name="limited", description="Exceed a limit.", parameters={}
     ).as_tool()
 
-    handler = ToolCommand([limited]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([limited]).service(state=_agent_state())
     init_transcript(Transcript())
     with pytest.raises(LimitExceededError):
         await handler(tool="limited", arguments={})
@@ -1404,7 +1412,7 @@ async def test_tool_error_surfaces_without_raising() -> None:
         execute, name="failing", description="Fail expectedly.", parameters={}
     ).as_tool()
 
-    handler = ToolCommand([failing]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([failing]).service(state=_agent_state())
     init_transcript(Transcript())
     result = await handler(tool="failing", arguments={})
 
@@ -1590,7 +1598,7 @@ async def test_arbitrary_property_name_service_roundtrip() -> None:
     from inspect_ai.log._transcript import Transcript, init_transcript
 
     prop = "a b"
-    handler = ToolCommand([_kwargs_tool(prop)]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([_kwargs_tool(prop)]).service(state=_agent_state())
     init_transcript(Transcript())
     result = await handler(tool="hostile_params", arguments={prop: "ok"})
     assert result == "ok"
@@ -1724,7 +1732,7 @@ async def test_schema_constraints_enforced_for_human_calls() -> None:
         ),
     ).as_tool()
 
-    handler = ToolCommand([leveled]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([leveled]).service(state=_agent_state())
     init_transcript(Transcript())
     result = await handler(tool="set_level", arguments={"level": 0})
 
@@ -1770,7 +1778,7 @@ async def test_ordinary_exception_surfaces_and_records() -> None:
         parameters={},
     ).as_tool()
 
-    handler = ToolCommand([broken]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([broken]).service(state=_agent_state())
     init_transcript(Transcript())
     result = await handler(tool="broken", arguments={})
 
@@ -1793,7 +1801,7 @@ async def test_finalized_event_leaves_pending_registry() -> None:
     """
     from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 
-    handler = ToolCommand([_addition()]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([_addition()]).service(state=_agent_state())
     init_transcript(Transcript())
     await handler(tool="_addition", arguments={"x": 1, "y": 2})
 
@@ -1830,7 +1838,7 @@ async def test_typed_param_records_raw_arguments() -> None:
         parameters={"when": "The timestamp."},
     ).as_tool()
 
-    handler = ToolCommand([dated]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([dated]).service(state=_agent_state())
     init_transcript(Transcript())
     result = await handler(tool="dated", arguments={"when": "2026-01-02T03:04:05"})
     assert result == "2026"
@@ -1870,7 +1878,7 @@ async def test_event_is_pending_during_execution() -> None:
         parameters={},
     ).as_tool()
 
-    handler = ToolCommand([observer]).service(state=None)  # type: ignore[arg-type]
+    handler = ToolCommand([observer]).service(state=_agent_state())
     init_transcript(Transcript())
     await handler(tool="observer", arguments={})
 
