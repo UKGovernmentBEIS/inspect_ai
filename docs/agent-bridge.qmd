@@ -274,6 +274,33 @@ For `bridged_tools`, the approved call is also what the agent may execute on the
 
 An agent that reaches every bridged tool through one dispatcher function (Antigravity's `call_mcp_tool`) is approved as if the model had called the bridged tool directly: policies match the tool's own name, and approvers see and modify the tool's own arguments.
 
+## Agent Context
+
+Bridges accept a `filter` function (the `filter` parameter of `agent_bridge()` and `sandbox_agent_bridge()`) that runs on every bridged model request and can inspect or modify generation. When a bridged agent delegates work to sub-agents, every sub-agent's model requests flow through the same bridge — so a filter fires for *all* of them, not just the top-level agent's. Code that injects steering, counts turns, or ends an episode early from inside a filter should confine itself to the top-level agent.
+
+The ambient agent context tells you which agent the current request belongs to:
+
+``` python
+from inspect_ai.agent import is_root_agent
+
+async def my_filter(model, messages, tools, tool_choice, config):
+    if not is_root_agent():
+        return None   # never steer a sub-agent or utility thread
+    ...
+```
+
+Within a bridged request, `current_agent_bridge_context()` carries:
+
+- `kind` — `"root"` (the top-level agent's own thread), `"subagent"` (a delegated agent's thread), `"utility"` (internal machinery calls such as compaction or approval review), or `"unknown"` (no attribution available).
+
+Outside of a bridged model request it returns `None`.
+
+Compaction and approval review run as `"utility"`: an approval policy reviewing a bridged request's tool calls, and any model calls it makes, read `"utility"` rather than the context of the request under review.
+
+Attribution comes from whoever runs the bridge: bridged agent packages (e.g. `inspect_swe`) resolve and set the context via `set_agent_bridge_context()` from their own filter wrappers, and in-process scaffolds that manage their own delegation can do the same — within the current task, the value lasts until the request ends and then resets automatically. Call `set_agent_bridge_context()` from the filter's own task: a call made in a task the filter spawns changes only that task's copy and is silently lost to the request. Likewise, a task spawned during a request keeps the context it started with after the request ends. When nothing sets it, every request reads `"unknown"` — `is_root_agent()` deliberately treats `"unknown"` (and running outside a bridged request) as root, so control code keeps working on bridges with no attribution rather than silently disabling itself. Consumers that instead require positive confirmation of the top-level agent can check `current_agent_bridge_context()` for `kind == "root"` explicitly. The narrower `is_sub_agent()` is `True` only for `"subagent"` — note it is `False` for `"utility"` calls, so prefer `is_root_agent()` for steering gates.
+
+Model requests carry one additional ambient fact: `current_bridge_request()` exposes the model slug the scaffold requested (before `model_aliases` resolution), or `None` when the request carried no model. Context resolvers use it to classify traffic that a scaffold routes through distinct model names.
+
 ## Transcript
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.

@@ -285,6 +285,7 @@ async def run_bridge_with_remote_mcp(
             await deepwiki_server().tools(),
             None,
             GenerateConfig(),
+            requested_model=None,
         )
 
 

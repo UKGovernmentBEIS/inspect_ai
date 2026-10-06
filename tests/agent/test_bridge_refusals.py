@@ -72,7 +72,9 @@ async def _generate(
         filter=filter,
         retry_refusals=retry_refusals,
     )
-    output, _ = await bridge_generate(bridge, model, list(messages), [], None, config)
+    output, _ = await bridge_generate(
+        bridge, model, list(messages), [], None, config, requested_model=None
+    )
     return output, len(generations)
 
 
@@ -120,7 +122,13 @@ async def test_filter_refusal_raises_without_calling_model() -> None:
     bridge = AgentBridge(AgentState(messages=[]), filter=refuse)
     with pytest.raises(ModelRefusalError):
         await bridge_generate(
-            bridge, model, [ChatMessageUser(content="hi")], [], None, FAIL
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            FAIL,
+            requested_model=None,
         )
     assert generations == []
 
@@ -141,7 +149,13 @@ async def test_filter_refusal_honours_model_config() -> None:
     bridge = AgentBridge(AgentState(messages=[]), filter=refuse)
     with pytest.raises(ModelRefusalError):
         await bridge_generate(
-            bridge, model, [ChatMessageUser(content="hi")], [], None, GenerateConfig()
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model=None,
         )
 
 

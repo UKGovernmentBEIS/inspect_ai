@@ -330,6 +330,7 @@ async def inspect_responses_api_request_impl(
         tools,
         tool_choice,
         config,
+        requested_model=bridge_model_name,
         declared_in_input=lambda messages: _declarations_in_input(
             messages, web_search, code_execution, bridge
         ),

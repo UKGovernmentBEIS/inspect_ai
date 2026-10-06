@@ -228,7 +228,13 @@ async def run_bridge(
         bridge.approval = approval
 
     output, _ = await bridge_generate(
-        bridge, model, list(messages), list(tools or []), None, GenerateConfig()
+        bridge,
+        model,
+        list(messages),
+        list(tools or []),
+        None,
+        GenerateConfig(),
+        requested_model=None,
     )
     return BridgeRun(output, inputs)
 
