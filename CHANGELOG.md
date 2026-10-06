@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.277 (06 October 2026)
 
 - Fixed trace logs growing to many gigabytes when model output caching is enabled.
 - Fixed model calls and token counting in multiprocess Scout scans using the default model configuration.
