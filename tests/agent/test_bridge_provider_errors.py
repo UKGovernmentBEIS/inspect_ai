@@ -9,15 +9,17 @@ extractors, and the `service.py` wrapper that turns an exception into a
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge._errors import (
     PROVIDER_ERROR_KEY,
+    ResponseFilterError,
     provider_error_payload,
 )
 from inspect_ai.agent._bridge.sandbox import service as bridge_service
@@ -190,36 +192,52 @@ async def test_forward_provider_errors_reraises_limit_exceeded_error() -> None:
         await _forward_provider_errors(boom, _bridge())({})
 
 
-async def test_forward_provider_errors_signals_refusal_to_bridge(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A fail_on_refusal error ends the sample via the bridge, not via a raise.
-
-    The sandbox service dispatcher would swallow a re-raise into an RPC error, so
-    the wrapper hands the error to `bridge.request_fail` (raised on the agent's
-    side by the bridge's monitor task) and still answers the scaffold with a
-    provider error payload. It is not logged as a non-provider error, since the
-    sample error is the report.
-    """
-    warnings: list[tuple[Any, Any]] = []
-    monkeypatch.setattr(
-        bridge_service.logger, "warning", lambda *a, **k: warnings.append((a, k))
-    )
-    refusal = ModelRefusalError(
+def _refusal() -> ModelRefusalError:
+    return ModelRefusalError(
         ModelOutput.from_content(
             model="mockllm/model", content="No.", stop_reason="content_filter"
         ),
         "mockllm/model",
     )
 
+
+@pytest.mark.parametrize(
+    "make_error",
+    [
+        pytest.param(_refusal, id="refusal"),
+        pytest.param(lambda: TerminateSampleError("Judge said stop."), id="terminate"),
+        pytest.param(
+            lambda: ResponseFilterError("ValueError: filter is broken"),
+            id="response_filter",
+        ),
+    ],
+)
+async def test_forward_provider_errors_signals_sample_failure_to_bridge(
+    monkeypatch: pytest.MonkeyPatch, make_error: Callable[[], Exception]
+) -> None:
+    """An error that must end the sample does so via the bridge, not via a raise.
+
+    Covers a fail_on_refusal refusal, any `TerminateSampleError`, and a
+    `ResponseFilterError`. The sandbox service dispatcher would swallow a
+    re-raise into an RPC error, so the wrapper hands the error to
+    `bridge.request_fail` (raised on the agent's side by the bridge's monitor
+    task) and still answers the scaffold with a provider error payload. It is not
+    logged as a non-provider error, since the sample error is the report.
+    """
+    warnings: list[tuple[Any, Any]] = []
+    monkeypatch.setattr(
+        bridge_service.logger, "warning", lambda *a, **k: warnings.append((a, k))
+    )
+    error = make_error()
+
     async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
-        raise refusal
+        raise error
 
     bridge = _bridge()
     result = await _forward_provider_errors(boom, bridge)({})
-    assert result == {PROVIDER_ERROR_KEY: {"status": None, "message": str(refusal)}}
+    assert result == {PROVIDER_ERROR_KEY: {"status": None, "message": str(error)}}
     assert bridge._failure_requested.is_set()
-    assert bridge._failure is refusal
+    assert bridge._failure is error
     assert warnings == []
 
 

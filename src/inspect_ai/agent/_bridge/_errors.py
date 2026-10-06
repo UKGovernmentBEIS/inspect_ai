@@ -1,4 +1,4 @@
-"""Shared helpers for forwarding provider errors through the agent bridge.
+"""Agent bridge error types and helpers for forwarding provider errors.
 
 The sandbox model proxy (a separate, shipped binary that cannot import
 `inspect_ai`) forwards provider errors to the proxied agent instead of crashing.
@@ -31,6 +31,14 @@ class BridgePolicyError(Exception):
     """
 
     status_code = 400
+
+
+class ResponseFilterError(Exception):
+    """A `response_filter` raised or returned an invalid output (see `ModelResponseFilter`).
+
+    When the filter raised, what it raised is `__cause__` and the message starts
+    with the underlying exception's type.
+    """
 
 
 class ProviderErrorPayload(TypedDict):

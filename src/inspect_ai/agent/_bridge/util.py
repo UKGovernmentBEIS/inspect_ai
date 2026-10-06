@@ -1,4 +1,6 @@
 import inspect
+import json
+import sys
 import warnings
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
@@ -7,6 +9,7 @@ from typing import Any, Callable, Iterator, Literal, NamedTuple, Sequence, cast
 
 from pydantic import ValidationError
 from pydantic_core import PydanticSerializationError
+from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._util.content import (
@@ -14,9 +17,12 @@ from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
     ContentImage,
+    ContentReasoning,
     ContentText,
+    ContentToolUse,
     ContentVideo,
 )
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.images import materialize_media
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -27,9 +33,10 @@ from inspect_ai.agent._bridge._approval import (
     bridge_approval_scope,
     terminate_for_repeated_rejections,
 )
-from inspect_ai.agent._bridge._errors import BridgePolicyError
+from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
+from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import (
     GenerateConfig,
@@ -44,6 +51,7 @@ from inspect_ai.model._model import (
     ModelName,
     ModelRefusalError,
     ModelResolver,
+    ModelResponseFilter,
     active_model,
     get_model,
     model_roles,
@@ -61,6 +69,10 @@ from inspect_ai.tool._tools._web_search._web_search import (
     _normalize_config,
 )
 from inspect_ai.util._json import JSONSchema
+from inspect_ai.util._limit import LimitExceededError
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 # Generation-tuning fields a scaffold may set on a bridged request that describe
 # *how* the underlying model generates. These are the Inspect model's province
@@ -407,6 +419,194 @@ def _is_model_filter(fn: GenerateFilter) -> TypeIs[ModelGenerateFilter]:
     return result
 
 
+async def _apply_response_filter(
+    response_filter: ModelResponseFilter,
+    model: Model,
+    output: ModelOutput,
+    generate_input: GenerateInput,
+) -> ModelOutput:
+    """Apply `response_filter` under the `ModelResponseFilter` contract.
+
+    The copy is taken before the `try`, so a failure copying the output is not
+    blamed on the filter. A returned output is re-validated because its models do
+    not validate assignment, so values edited in place are otherwise unchecked.
+
+    Exceptions are classified after unwrapping by hand, not with `inner_exception`,
+    which follows `__context__` and can pick the exception already being handled.
+    A group of only limits, terminations and refusals (e.g. concurrent judges
+    through `collect()`) counts as its first. A group mixing them with any other
+    exception is a filter failure. Single-exception groups are unwrapped first only
+    so that the `ResponseFilterError` message names the underlying exception.
+
+    Only tool calls the filter changed have their arguments checked for JSON: a
+    provider's own arguments (e.g. `parse_tool_call`'s YAML fallback yields dates)
+    are not the filter's to answer for.
+    """
+    candidate = output.model_copy(deep=True)
+    try:
+        filtered = await response_filter(model, candidate, generate_input)
+    except Exception as ex:
+        control_flow = (LimitExceededError, TerminateSampleError, ModelRefusalError)
+        inner: Exception = ex
+        while isinstance(inner, ExceptionGroup) and len(inner.exceptions) == 1:
+            inner = inner.exceptions[0]
+        if isinstance(inner, ExceptionGroup):
+            control, rest = inner.split(control_flow)
+            if control is not None and rest is None:
+                inner = control
+                while isinstance(inner, ExceptionGroup):
+                    inner = inner.exceptions[0]
+        if isinstance(inner, control_flow):
+            raise inner
+        raise ResponseFilterError(f"{type(inner).__name__}: {inner}") from ex
+    if filtered is None:
+        return output
+    if not isinstance(filtered, ModelOutput):
+        raise ResponseFilterError(
+            f"response_filter returned {type(filtered).__name__}, "
+            "expected a ModelOutput or None"
+        )
+    try:
+        # completion is excluded so validation re-derives it from the message
+        filtered = ModelOutput.model_validate(
+            filtered.model_dump(exclude={"completion"}, warnings=False)
+        )
+    except ValidationError as ex:
+        raise ResponseFilterError(
+            "response_filter returned an invalid ModelOutput: "
+            f"{_validation_error_details(ex)}"
+        ) from ex
+    original_arguments = {
+        call.id: call.arguments
+        for choice in output.choices
+        for call in choice.message.tool_calls or []
+    }
+    try:
+        # the one Any-typed field the dialect converters json.dumps
+        for choice in filtered.choices:
+            for call in choice.message.tool_calls or []:
+                if original_arguments.get(call.id) != call.arguments:
+                    json.dumps(call.arguments)
+    except (TypeError, ValueError, RecursionError) as ex:
+        raise ResponseFilterError(
+            "response_filter returned tool call arguments that are not "
+            f"JSON-serializable: {ex}"
+        ) from ex
+    if not filtered.choices:
+        raise ResponseFilterError(
+            "response_filter returned a ModelOutput with no choices"
+        )
+    _check_provider_owned_content(output, filtered)
+    _settle_message_ids(output, filtered)
+    return filtered
+
+
+def _settle_message_ids(original: ModelOutput, filtered: ModelOutput) -> None:
+    """Set the ids of returned messages so id-keyed replay state matches them.
+
+    Dialects key some replay state by message id. Anthropic records server work
+    still pending at the end of a turn (and the container to resume it) under the
+    message id; work with no content item yet is invisible to the filter. Server
+    tool items are kept all or none (`_check_provider_owned_content`), so a
+    message that keeps them takes the id of the message they came from, whatever
+    id the filter gave it, and keeps that work. A changed message that keeps none
+    gets a new id if it still has an original one, and drops the work.
+    Content-keyed replay state (kept server tool items, signed thinking) does not
+    depend on the message id.
+    """
+    owners = {
+        content.id: choice.message.id
+        for choice in original.choices
+        if isinstance(choice.message.content, list)
+        for content in choice.message.content
+        if isinstance(content, ContentToolUse)
+    }
+    original_messages = [choice.message for choice in original.choices]
+    original_ids = {message.id for message in original_messages if message.id}
+    for choice in filtered.choices:
+        message = choice.message
+        kept_owners = (
+            {
+                owners[content.id]
+                for content in message.content
+                if isinstance(content, ContentToolUse)
+            }
+            if isinstance(message.content, list)
+            else set()
+        )
+        if len(kept_owners) > 1:
+            raise ResponseFilterError(
+                "response_filter combined server tool items from different "
+                "choices in one message"
+            )
+        if kept_owners:
+            owner = next(iter(kept_owners))
+            if owner is not None:
+                message.id = owner
+        elif message.id in original_ids and message not in original_messages:
+            message.id = uuid()
+
+
+def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:
+    """Reject edits a dialect would silently undo when rendering for the agent.
+
+    Dialects replay provider artifacts by identity rather than from the edited
+    values: Anthropic replays signed thinking by its `reasoning`, server tool
+    blocks as whole recorded spans (a span can cover several `ContentToolUse`
+    items), and a native tool's wire name by its call id. So reasoning and server
+    tool items may only be kept unchanged or removed, server tool items are kept
+    all or none, and a call keeping an original id keeps its function.
+    """
+    original_content = [
+        content
+        for choice in original.choices
+        if isinstance(choice.message.content, list)
+        for content in choice.message.content
+    ]
+    original_tool_uses = {
+        c.id: c for c in original_content if isinstance(c, ContentToolUse)
+    }
+    original_reasoning = [
+        c for c in original_content if isinstance(c, ContentReasoning)
+    ]
+    original_functions = {
+        call.id: call.function
+        for choice in original.choices
+        for call in choice.message.tool_calls or []
+    }
+    kept_tool_uses: set[str] = set()
+    for choice in filtered.choices:
+        for call in choice.message.tool_calls or []:
+            function = original_functions.get(call.id)
+            if function is not None and call.function != function:
+                raise ResponseFilterError(
+                    f"response_filter changed the function of tool call '{call.id}' "
+                    f"from '{function}' to '{call.function}'; give a call to a "
+                    "different function a new id"
+                )
+        if not isinstance(choice.message.content, list):
+            continue
+        for content in choice.message.content:
+            if isinstance(content, ContentToolUse):
+                if original_tool_uses.get(content.id) != content:
+                    raise ResponseFilterError(
+                        f"response_filter edited or added server tool use '{content.id}'; "
+                        "server tool items can only be kept unchanged or removed"
+                    )
+                kept_tool_uses.add(content.id)
+            elif isinstance(content, ContentReasoning):
+                if content not in original_reasoning:
+                    raise ResponseFilterError(
+                        "response_filter edited or added reasoning content; "
+                        "reasoning can only be kept unchanged or removed"
+                    )
+    if kept_tool_uses and kept_tool_uses != original_tool_uses.keys():
+        raise ResponseFilterError(
+            "response_filter removed some server tool items but kept others; "
+            "keep all of them or none"
+        )
+
+
 def _operator_message_key(message: ChatMessageUser) -> str:
     """Content key for an operator user message (identity- and source-independent).
 
@@ -514,7 +714,8 @@ async def bridge_generate(
     The filter can either return a ModelOutput directly or modify the generation inputs.
     Refusals (stop_reason="content_filter") from either the filter or model will trigger
     retries up to bridge.retry_refusals times, with inputs reset to original values for
-    each retry to ensure clean state.
+    each retry to ensure clean state. A `response_filter`, if configured, runs on each
+    attempt's output before that refusal check (see `_apply_response_filter`).
 
     Tool calls in the output are approved before it is handed back to the scaffold. A
     rejected call is not edited out of the response — instead the model is told it was
@@ -562,24 +763,32 @@ async def bridge_generate(
             # Apply filter if we have it (can either return output or alternate inputs)
             output: ModelOutput | None = None
             if bridge.filter:
-                # tool_to_tool_info (via ToolDef) preserves `options` — including
-                # the INTERNAL_TOOL_TYPE marker — so the filter sees the same
-                # ToolInfo the model provider would. parse_tool_info re-derives
-                # from the function signature and drops options.
-                tool_info = [
-                    tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
-                    for tool in tools
-                ]
+                # get_tools_info (via ToolDef) preserves `options` — including the
+                # INTERNAL_TOOL_TYPE marker — so the filter sees the same ToolInfo
+                # the model provider would. parse_tool_info re-derives from the
+                # function signature and drops options.
+                tool_info = get_tools_info(tools)
                 # under the bridge's approval policies, as a filter may generate
                 with bridge_approval_scope(bridge.approval):
-                    if _is_model_filter(bridge.filter):
-                        result = await bridge.filter(
-                            model, input_messages, tool_info, tool_choice, config
-                        )
-                    else:
-                        result = await bridge.filter(
-                            model.name, input_messages, tool_info, tool_choice, config
-                        )
+                    try:
+                        if _is_model_filter(bridge.filter):
+                            result = await bridge.filter(
+                                model, input_messages, tool_info, tool_choice, config
+                            )
+                        else:
+                            result = await bridge.filter(
+                                model.name,
+                                input_messages,
+                                tool_info,
+                                tool_choice,
+                                config,
+                            )
+                    except ModelRefusalError as ex:
+                        # a filter may generate itself; its refusal reaches the
+                        # response filter as the default generation's does
+                        if bridge.response_filter is None:
+                            raise
+                        result = ex.output
                 if isinstance(result, ModelOutput):
                     output = result
                 elif isinstance(result, GenerateInput):
@@ -598,7 +807,9 @@ async def bridge_generate(
                     bridge_approval_scope(bridge.approval),
                 ):
                     # with fail_on_refusal set a refusal raises rather than
-                    # returning; it still gets its retries, the last one propagates
+                    # returning; it still gets its retries, the last one propagates.
+                    # A response filter still gets the refused output, and the
+                    # refusal check below then retries or raises.
                     try:
                         output = await model.generate(
                             input=input_messages,
@@ -606,27 +817,45 @@ async def bridge_generate(
                             tools=tools,
                             config=config,
                         )
-                    except ModelRefusalError:
-                        if (
+                    except ModelRefusalError as ex:
+                        if bridge.response_filter is not None:
+                            output = ex.output
+                        elif (
                             bridge.retry_refusals is not None
                             and refusals < bridge.retry_refusals
                         ):
                             refusals += 1
                             continue
-                        raise
+                        else:
+                            raise
 
-        # Update the compaction baseline with the actual input token
-        # count from the generate call (most accurate source of truth)
+        # Update the compaction baseline with the actual input token count
+        # from the generate call (most accurate source of truth). Record it
+        # before the response filter: a replacement (e.g.
+        # `ModelOutput.from_content()`) may carry no usage.
         if compact is not None:
             await compact.record_output(input_messages, output)
+
+        # Inside the refusal-retry loop so a content_filter replacement is retried.
+        if bridge.response_filter is not None:
+            # under the bridge's approval policies, as a filter may generate
+            with bridge_approval_scope(bridge.approval):
+                output = await _apply_response_filter(
+                    bridge.response_filter,
+                    model,
+                    output,
+                    GenerateInput(
+                        input_messages, get_tools_info(tools), tool_choice, config
+                    ),
+                )
 
         # Check for refusal and retry if needed
         if not output.empty and output.stop_reason == "content_filter":
             if bridge.retry_refusals is not None and refusals < bridge.retry_refusals:
                 refusals += 1
                 continue
-            # a refusal produced by the filter never went through
-            # model.generate(), so fail_on_refusal is applied here instead
+            # a refusal from a filter, or one a response filter kept, did not
+            # raise from model.generate(), so fail_on_refusal is applied here
             if model._resolve_config(config).fail_on_refusal:
                 raise ModelRefusalError(output, str(model), model.role)
 

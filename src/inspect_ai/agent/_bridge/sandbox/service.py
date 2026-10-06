@@ -5,6 +5,7 @@ import anyio
 from pydantic import JsonValue, TypeAdapter
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
@@ -24,7 +25,7 @@ from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
-from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
+from .._errors import PROVIDER_ERROR_KEY, ResponseFilterError, provider_error_payload
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
@@ -52,10 +53,13 @@ def _forward_provider_errors(
     `LimitExceededError` is deliberately excluded so message/token/cost limit
     hit during generation properly end the sample.
 
-    A `ModelRefusalError` (`fail_on_refusal`) must also end the sample, but the
-    sandbox service dispatcher would swallow a re-raise into an RPC error, so it
-    is signalled through `bridge.request_fail` (raised on the agent's side by the
-    bridge's monitor task) while the scaffold still gets an error reply.
+    A `ModelRefusalError` (`fail_on_refusal`), a `ResponseFilterError` (a
+    `response_filter` is eval logic, not a passive observer) and a
+    `TerminateSampleError` (for example one raised by a request or response
+    filter) must also end the sample, but the sandbox service dispatcher would
+    swallow a re-raise into an RPC error, so they are signalled through
+    `bridge.request_fail` (raised on the agent's side by the bridge's monitor
+    task) while the scaffold still gets an error reply.
     """
 
     async def generate_forwarding_errors(
@@ -65,7 +69,7 @@ def _forward_provider_errors(
             return await generate(json_data)
         except LimitExceededError:
             raise
-        except ModelRefusalError as ex:
+        except (ModelRefusalError, ResponseFilterError, TerminateSampleError) as ex:
             bridge.request_fail(ex)
             # no non-provider-error warning: the failure is reported once, by
             # the sample error the monitor task raises

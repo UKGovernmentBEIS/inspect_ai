@@ -22,7 +22,12 @@ from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, ModelEventSink, get_model
+from inspect_ai.model._model import (
+    GenerateFilter,
+    ModelEventSink,
+    ModelResponseFilter,
+    get_model,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai_convert import (
     messages_from_openai,
@@ -109,6 +114,7 @@ async def agent_bridge(
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
     approval: list["ApprovalPolicy"] | None = None,
+    response_filter: ModelResponseFilter | None = None,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
@@ -161,6 +167,9 @@ async def agent_bridge(
           each approval. Eval-level and task-level policies already apply without
           this. A rejected tool call is never handed to the agent: the model is
           told it was rejected and generation is retried.
+       response_filter: Filter that can replace model output after generation
+          (see ``ModelResponseFilter``). Return ``None`` to pass through; return
+          a ``ModelOutput`` to replace the response.
     """
     # ensure one time init
     init_bridge_request_patch()
@@ -188,6 +197,7 @@ async def agent_bridge(
         allow_remote_mcp=allow_remote_mcp,
         allow_remote_media=True,
         allow_client_model_names=True,
+        response_filter=response_filter,
     )
 
     # set the patch config for this context and child coroutines
