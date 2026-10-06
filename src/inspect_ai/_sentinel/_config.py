@@ -72,7 +72,12 @@ def _read_config_file(path: str) -> Any:
         raise ValueError(
             f"{path}: a sentinel config file is a mapping whose only key is 'sentinel'."
         )
-    return cast(dict[str, Any], content)["sentinel"]
+    value = cast(dict[str, Any], content)["sentinel"]
+    if isinstance(value, str):
+        raise ValueError(
+            f"{path}: 'sentinel' must be an entry, a list of entries, or a mapping of entries, not a string."
+        )
+    return value
 
 
 class _Pairs(list[tuple[object, object]]):

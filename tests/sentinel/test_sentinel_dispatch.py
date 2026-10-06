@@ -190,7 +190,7 @@ def d3_asks_model() -> Monitor:
 
 
 @monitor
-def d3_asks_with(model: str | Model | None = None, role: str | None = None) -> Monitor:
+def d3_asks_with(model: str | None = None, role: str | None = None) -> Monitor:
     async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
         output = await context.host.generate(
             "How suspicious is this call?", model=model, role=role
@@ -954,7 +954,7 @@ def test_host_generate_model_is_always_a_model_name() -> None:
 
 def test_host_generate_prefers_a_configured_role_to_the_model() -> None:
     log = run(
-        observe_only([d3_asks_with(model=_scoring_model("0.6"), role="trusted")]),
+        observe_only([d3_asks_with(model="mockllm/model", role="trusted")]),
         model_roles={"trusted": _scoring_model("0.25")},
     )
     assert log.status == "success", log.error
@@ -966,12 +966,10 @@ def test_host_generate_uses_the_model_when_the_role_is_not_configured(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING):
-        log = run(
-            observe_only([d3_asks_with(model=_scoring_model("0.6"), role="trusted")])
-        )
-    assert log.status == "success", log.error
-    [event] = sentinel_events(log)
-    assert event.suspicion == 0.6
+        log = run(observe_only([d3_asks_with(model="mockllm/other", role="trusted")]))
+    assert log.samples
+    models = [e.model for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert "mockllm/other" in models
     assert not [r for r in caplog.records if "sentinel role" in r.getMessage()]
 
 

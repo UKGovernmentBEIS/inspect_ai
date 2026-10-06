@@ -213,6 +213,13 @@ def test_a_file_must_hold_only_a_sentinel_key(tmp_path: Path, content: Any) -> N
         resolve_sentinel_spec(str(file))
 
 
+def test_a_file_sentinel_value_is_not_a_name(tmp_path: Path) -> None:
+    file = tmp_path / "sentinel.yaml"
+    file.write_text("sentinel: d2_rule\n")
+    with pytest.raises(ValueError, match=r"sentinel\.yaml: 'sentinel' must be"):
+        resolve_sentinel_spec(str(file))
+
+
 @pytest.mark.parametrize(
     "text, where, key",
     [
