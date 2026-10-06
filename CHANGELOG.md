@@ -37,6 +37,7 @@
 - Hugging Face: Concurrent requests for different models or generation settings are now generated with their own model and settings, not the first request's.
 - OpenAI and Anthropic: Fixed concurrent requests failing or restarting when another sample's request triggers a credential refresh (e.g. on an expired API key).
 - OpenAI: OpenAI: The OpenAI providers, message and output converters, and agent bridge now require openai >= 3.4.0.
+- Bugfix: Tool events now record the arguments an approver's `modify` decision substituted, and a `modify` that changes the function now fails the sample instead of running the wrong call.
 
 ## 0.3.276 (02 October 2026)
 
