@@ -1,27 +1,23 @@
-from typing import Annotated, Literal, TypeAlias
+from typing import Literal, TypeAlias
 
-from pydantic import Field, FiniteFloat, model_validator
+from pydantic import Field, model_validator
 from typing_extensions import Self
 
 from inspect_ai.event._base import BaseEvent
 from inspect_ai.scorer._metric import Reference
 from inspect_ai.tool._tool_call import ToolCall
 
-SentinelAction: TypeAlias = Literal[
-    "continue", "modify", "reject", "terminate", "escalate"
-]
-"""What a sentinel protocol can decide about the step it examined."""
+# isort: split
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._sentinel import SentinelAction as SentinelAction
+from inspect_ai.core._sentinel import SentinelSuspicion as SentinelSuspicion
+
+# End of backward-compatible re-exports.
 
 SentinelStage: TypeAlias = Literal[
     "model_input", "model_output", "tool_call", "tool_result"
 ]
 """Point in the agent loop a sentinel step belongs to."""
-
-
-SentinelSuspicion: TypeAlias = (
-    FiniteFloat | Annotated[dict[str, FiniteFloat], Field(min_length=1)]
-)
-"""How suspicious a step is: one finite score, or a non-empty dict of scores for several dimensions."""
 
 
 class SentinelEvent(BaseEvent):
