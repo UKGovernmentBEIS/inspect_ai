@@ -8,8 +8,6 @@ Related to issue #2705: https://github.com/UKGovernmentBEIS/inspect_ai/issues/27
 """
 
 import logging
-from contextlib import contextmanager
-from typing import Iterator
 
 import pytest
 
@@ -17,46 +15,22 @@ from inspect_ai import eval
 from inspect_ai.model import get_model
 
 
-@contextmanager
-def capture_inspect_warnings() -> Iterator[list[str]]:
-    """Collect inspect_ai WARNING messages straight off the `inspect_ai` logger.
+def _warning_messages(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno >= logging.WARNING
+    ]
 
-    Neither `caplog` nor `capsys` is reliable here once anything else in the
-    process has run an eval: `init_logger()` sets `propagate = False` on the
-    `inspect_ai` logger (so records never reach the root logger `caplog`
-    attaches to), and `display="none"` calls `rich.reconfigure(quiet=True)`
-    (so the rich console that `LogHandler` renders to drops everything
-    `capsys` would have seen). Our own handler on the `inspect_ai` logger is
-    independent of both globals.
-    """
-    messages: list[str] = []
 
-    class Collector(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            messages.append(record.getMessage())
-
-    logger = logging.getLogger("inspect_ai")
-    handler = Collector(level=logging.WARNING)
-    logger.addHandler(handler)
-
-    # only touch the level if warnings would otherwise be filtered out, and
-    # restore it only if nothing else (e.g. init_logger) changed it meanwhile
-    saved_level = logger.level
-    lowered = not logger.isEnabledFor(logging.WARNING)
-    if lowered:
-        logger.setLevel(logging.WARNING)
-    try:
-        yield messages
-    finally:
-        logger.removeHandler(handler)
-        if lowered and logger.level == logging.WARNING:
-            logger.setLevel(saved_level)
+def _mismatch_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [msg for msg in _warning_messages(caplog) if "mismatch" in msg.lower()]
 
 
 class TestModelEnvironmentMismatch:
     """Tests for model/environment variable conflict detection."""
 
-    def test_azure_model_url_mismatch_logs_warning(self, monkeypatch, mocker):
+    def test_azure_model_url_mismatch_logs_warning(self, monkeypatch, mocker, caplog):
         # Test that using model=openai/azure/o3 with AZUREAI_OPENAI_BASE_URL pointing to o4-mini logs a mismatch warning.
         # Set up environment variable pointing to o4-mini
         monkeypatch.setenv(
@@ -70,14 +44,14 @@ class TestModelEnvironmentMismatch:
         mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
 
         # Call get_model to trigger the mismatch warning
-        with capture_inspect_warnings() as warnings:
+        with caplog.at_level(logging.WARNING, logger="inspect_ai"):
             try:
                 get_model("openai/azure/o3", memoize=False)
             except Exception:
                 # Ignore other exceptions; we just want the warning output
                 pass
 
-        warning_messages = [msg.lower() for msg in warnings]
+        warning_messages = [msg.lower() for msg in _warning_messages(caplog)]
 
         assert any("mismatch" in msg for msg in warning_messages), (
             f"Expected 'mismatch' in warnings. Got: {warning_messages}"
@@ -89,7 +63,7 @@ class TestModelEnvironmentMismatch:
             f"Expected 'o4-mini' in warnings. Got: {warning_messages}"
         )
 
-    def test_azure_model_url_mismatch_with_eval(self, monkeypatch, mocker):
+    def test_azure_model_url_mismatch_with_eval(self, monkeypatch, mocker, caplog):
         # Test that eval() logs warning about model/URL mismatch.
 
         from inspect_ai import Task
@@ -115,15 +89,20 @@ class TestModelEnvironmentMismatch:
             scorer=match(),
         )
 
-        # Should log warning during evaluation setup
-        with capture_inspect_warnings() as warnings:
-            try:
-                eval(task, model="openai/azure/gpt-35-turbo", limit=1)
-            except Exception:
-                # We're only checking for warnings during setup, not execution success
-                pass
+        # Should log warning during evaluation setup. Deliberately NOT wrapped
+        # in caplog.at_level(..., logger="inspect_ai"): eval() calls
+        # init_logger(), which sets that logger's capture level once per
+        # process, and at_level's exit would stomp it back to the pre-block
+        # value for the rest of the process. No level change is needed anyway:
+        # by the time the warning is emitted init_logger has enabled WARNING,
+        # and the conftest caplog override captures it from there.
+        try:
+            eval(task, model="openai/azure/gpt-35-turbo", limit=1)
+        except Exception:
+            # We're only checking for warnings during setup, not execution success
+            pass
 
-        output = "\n".join(warnings).lower()
+        output = "\n".join(_warning_messages(caplog)).lower()
 
         # Check for mismatch warning in the logged warnings
         assert "mismatch" in output, f"Expected 'mismatch' in output. Got: {output}"
@@ -131,7 +110,7 @@ class TestModelEnvironmentMismatch:
             f"Expected model names in output. Got: {output}"
         )
 
-    def test_azure_matching_model_url_no_warning(self, monkeypatch, mocker):
+    def test_azure_matching_model_url_no_warning(self, monkeypatch, mocker, caplog):
         """
         Test that matching model parameter and URL do not log warnings.
 
@@ -150,7 +129,7 @@ class TestModelEnvironmentMismatch:
         mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
 
         # This should not log any mismatch warnings
-        with capture_inspect_warnings() as warnings:
+        with caplog.at_level(logging.WARNING, logger="inspect_ai"):
             try:
                 model = get_model("openai/azure/gpt-35-turbo", memoize=False)
                 assert model is not None
@@ -159,12 +138,12 @@ class TestModelEnvironmentMismatch:
                 pass
 
         # Verify no mismatch warnings were logged
-        mismatch_warnings = [msg for msg in warnings if "mismatch" in msg.lower()]
+        mismatch_warnings = _mismatch_warnings(caplog)
         assert not mismatch_warnings, (
             f"Should not log mismatch warning for matching config. Got: {mismatch_warnings}"
         )
 
-    def test_case_insensitive_matching(self, monkeypatch, mocker):
+    def test_case_insensitive_matching(self, monkeypatch, mocker, caplog):
         """
         Test that model name comparison is case-insensitive where appropriate.
 
@@ -183,14 +162,14 @@ class TestModelEnvironmentMismatch:
         mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
 
         # Use uppercase in model parameter
-        with capture_inspect_warnings() as warnings:
+        with caplog.at_level(logging.WARNING, logger="inspect_ai"):
             try:
                 get_model("openai/azure/GPT-4", memoize=False)
             except Exception:
                 pass
 
         # Should not warn about case differences
-        mismatch_warnings = [msg for msg in warnings if "mismatch" in msg.lower()]
+        mismatch_warnings = _mismatch_warnings(caplog)
         assert not mismatch_warnings, (
             f"Should not warn about case-only differences. Got: {mismatch_warnings}"
         )
@@ -201,8 +180,6 @@ class TestModelEnvironmentMismatch:
 
         Azure deployment names often use different conventions than OpenAI model names.
         """
-        import logging
-
         # Azure often uses "35" instead of "3.5"
         monkeypatch.setenv(
             "AZUREAI_OPENAI_BASE_URL",
@@ -227,7 +204,7 @@ class TestModelEnvironmentMismatch:
         # This test documents expected behavior - adjust based on implementation
         # If we want to warn here, change to assert mismatch_warning
 
-    def test_other_providers_not_affected(self, monkeypatch):
+    def test_other_providers_not_affected(self, monkeypatch, caplog):
         """
         Test that non-Azure providers don't trigger mismatch warnings.
 
@@ -237,7 +214,7 @@ class TestModelEnvironmentMismatch:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
         # Should not log mismatch warnings for non-Azure providers
-        with capture_inspect_warnings() as warnings:
+        with caplog.at_level(logging.WARNING, logger="inspect_ai"):
             try:
                 model = get_model("openai/gpt-4", memoize=False)
                 assert model is not None
@@ -245,12 +222,12 @@ class TestModelEnvironmentMismatch:
                 pass  # Ignore other errors, we're checking for warnings
 
         # Verify no mismatch warnings
-        mismatch_warnings = [msg for msg in warnings if "mismatch" in msg.lower()]
+        mismatch_warnings = _mismatch_warnings(caplog)
         assert not mismatch_warnings, (
             f"Should not check mismatches for non-Azure providers. Got: {mismatch_warnings}"
         )
 
-    def test_warning_message_contains_both_models(self, monkeypatch, mocker):
+    def test_warning_message_contains_both_models(self, monkeypatch, mocker, caplog):
         # Test that the warning message includes both the requested and actual models.
 
         monkeypatch.setenv(
@@ -263,7 +240,7 @@ class TestModelEnvironmentMismatch:
         mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
         mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
 
-        with capture_inspect_warnings() as warnings:
+        with caplog.at_level(logging.WARNING, logger="inspect_ai"):
             try:
                 # Disable memoization to ensure fresh model creation
                 get_model("openai/azure/o3", memoize=False)
@@ -271,7 +248,7 @@ class TestModelEnvironmentMismatch:
                 # Might fail for other reasons, but should still have logged warning
                 pass
 
-        output = "\n".join(warnings).lower()
+        output = "\n".join(_warning_messages(caplog)).lower()
 
         # Check for mismatch warning in the logged warnings
         assert "mismatch" in output, f"Expected 'mismatch' in output. Got: {output}"

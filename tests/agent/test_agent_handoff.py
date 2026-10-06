@@ -12,6 +12,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
     ChatMessageUser,
+    ModelOutput,
     get_model,
 )
 from inspect_ai.solver import generate, use_tools
@@ -144,8 +145,19 @@ def searcher3() -> Agent:
     return execute
 
 
-@skip_if_no_openai
 def test_agent_handoff_assistant_prefix():
+    # the "[searcher3]" prefix is applied by the framework, so script the
+    # handoff against mockllm: the outer model hands off, searcher3's own
+    # get_model().generate() consumes the second output, then the outer
+    # model answers (a live model can loop on the handoff indefinitely)
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call("mockllm/model", "transfer_to_searcher3", {}),
+            ModelOutput.from_content("mockllm/model", "The max_searches is 5."),
+            ModelOutput.from_content("mockllm/model", "The searcher3 reported 5."),
+        ],
+    )
     log = eval(
         Task(
             dataset=[
@@ -153,7 +165,7 @@ def test_agent_handoff_assistant_prefix():
             ]
         ),
         solver=[use_tools(handoff(searcher3())), generate()],
-        model="openai/gpt-4o-mini",
+        model=model,
     )[0]
     assert log.samples
     messages = log.samples[0].messages

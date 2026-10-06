@@ -26,10 +26,15 @@ checkpoint commits *during* the final resume (a ``CheckpointEvent`` outside
 the wraps, continuing the numbering); and resume restored the prior
 conversation (only the remaining turns run, not a replay from scratch).
 
-Requires Docker: the sandbox backup path injects/execs a Linux restic
-binary inside the sandbox, which only works with a Linux container
-(``detect_sandbox_os`` rejects non-Linux hosts). See
-``examples/checkpoint_ctf.py`` for the manual harness this replaces.
+``test_checkpoint_resume_rehydrated_event_layout`` is parametrized over
+both sandbox snapshot strategies — the default ``restic-incremental``
+and ``archive`` — so the full kill/resume cycle (capture, adopt,
+restore, strategy pin round-trip) runs end-to-end against each.
+
+Requires Docker: the sandbox backup path runs Linux tooling inside the
+sandbox (an injected restic binary, or tar + compressor for the archive
+strategy), which only works with a Linux container
+(``detect_sandbox_os`` rejects non-Linux hosts).
 """
 
 from __future__ import annotations
@@ -41,15 +46,30 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, NamedTuple
 
 import pytest
+from pytest_mock import MockerFixture
 from test_helpers.utils import flaky_retry, skip_if_no_anthropic, skip_if_no_docker
 
+import inspect_ai.util._sandbox.docker.docker as docker_provider
+from checkpoint.docker_projects import (
+    PROJECTS_DIR_ENV,
+    DockerProjects,
+    checkpoint_docker_projects,
+)
+from checkpoint.hydrate_interrupt_harness import HOOK_NEVER_FIRED_EXIT_CODE
 from checkpoint.resume_kill_harness import (
+    B_CONTENT,
+    B_SAMPLE_ID,
     CANCEL_FILE_ENV,
     LAYER1_CONTENT,
+    SIBLING_CKPT_GLOB_ENV,
     SIGNAL_ENV,
+    STRATEGY_ENV,
     TARGET_ENV,
+    TURN_LIMIT_ENV,
+    TWO_SAMPLE_ENV,
     generates,
     reset_generates,
 )
@@ -58,6 +78,7 @@ from checkpoint.resume_kill_thinking_harness import (
     committed_thinking_signatures,
 )
 from inspect_ai import eval_retry
+from inspect_ai._util.file import local_path
 from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent, ToolEvent
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.log import list_eval_logs, read_eval_log
@@ -65,7 +86,14 @@ from inspect_ai.scorer import CORRECT
 from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
     eval_checkpoints_dir,
 )
+from inspect_ai.util._checkpoint._layout.host_context import SAMPLE_RUNTIME
 from inspect_ai.util._checkpoint._sandbox_restic.repo import _SANDBOX_RESTIC_DIR
+from inspect_ai.util._checkpoint._snapshot import (
+    STRATEGY_ARCHIVE,
+    STRATEGY_RESTIC,
+    snapshot_strategy_name,
+)
+from inspect_ai.util._sandbox.docker.util import ComposeProject
 
 
 def assert_spans_balanced(events: list[Event]) -> None:
@@ -146,64 +174,112 @@ def _run_interrupted_attempt(
         )
 
 
-def _project_prefix(task_name: str) -> str:
-    """Compose-project name prefix for evals of `task_name`.
-
-    Mirrors `task_project_name` in inspect's docker provider
-    (`inspect-{task[:12].rstrip('_')}-i{suffix}`), minus the random suffix.
-    """
-    return f"inspect-{task_name[:12].rstrip('_')}-"
-
-
-def _inspect_projects(prefix: str) -> set[str]:
-    """Names of this harness's docker compose projects currently known to docker.
-
-    Must be scoped to this test's own task (`prefix`): docker state is
-    machine-global, and under xdist a global before/after diff sweeps up —
-    and force-removes — live containers belonging to concurrently running
-    tests on other workers (#264).
-    """
-    result = subprocess.run(
-        ["docker", "compose", "ls", "--all", "--format", "json"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return set()
+@skip_if_no_docker
+@pytest.mark.slow
+def test_checkpoint_cleanup_preserves_peer_sandbox(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cleanup after a killed child must leave a same-task peer alive."""
+    tests_dir = Path(__file__).parent.parent
+    peer_directory = tmp_path / "peer-projects"
+    peer_directory.mkdir(exist_ok=True)
+    peer = DockerProjects(peer_directory)
     try:
-        projects = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError:
-        return set()
-    return {p.get("Name", "") for p in projects if p.get("Name", "").startswith(prefix)}
+        with checkpoint_docker_projects(tmp_path) as owned:
+            for name in ("owned", "peer"):
+                cancel_file = tmp_path / f"{name}-cancels.txt"
+                cancel_file.unlink(missing_ok=True)
+                with monkeypatch.context() as env:
+                    env.setenv(CANCEL_FILE_ENV, str(cancel_file))
+                    env.setenv(TARGET_ENV, "1")
+                    if name == "peer":
+                        env.setenv(PROJECTS_DIR_ENV, str(peer_directory))
+                    _run_interrupted_attempt(str(tmp_path / name), None, tests_dir)
+
+            owned_ids = owned.container_ids()
+            peer_ids = peer.container_ids()
+            assert len(owned_ids) == len(peer_ids) == 1
+            assert set(owned_ids).isdisjoint(peer_ids)
+            owned.cleanup()
+            assert owned.container_ids() == []
+            assert peer.container_ids() == peer_ids
+            subprocess.run(
+                ["docker", "exec", peer_ids[0], "true"],
+                capture_output=True,
+                check=True,
+                timeout=60,
+            )
+    finally:
+        peer.cleanup()
 
 
-def _project_container_ids(name: str) -> list[str]:
-    """Container ids belonging to a compose project."""
-    return subprocess.run(
-        ["docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={name}"],
-        capture_output=True,
-        text=True,
-    ).stdout.split()
+def test_checkpoint_project_tracking_cleans_failed_startup(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """A failure during startup must not leave an unrecorded sandbox."""
+    startup = mocker.patch.object(
+        docker_provider, "project_startup", side_effect=RuntimeError("startup failed")
+    )
+    docker_run = mocker.patch(
+        "checkpoint.docker_projects.subprocess.run",
+        return_value=subprocess.CompletedProcess([], 0, stdout="owned-container\n"),
+    )
+    project = ComposeProject(
+        name="inspect-resume_decod-i123456",
+        config=None,
+        sample_id="resume",
+        epoch=1,
+        env=None,
+    )
+    with pytest.raises(RuntimeError, match="startup failed"):
+        with checkpoint_docker_projects(tmp_path):
+            getattr(docker_provider, "project_startup")(project)
+
+    startup.assert_called_once_with(project)
+    assert docker_run.call_args_list[0].args[0] == [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        f"label=com.docker.compose.project={project.name}",
+    ]
+    assert docker_run.call_args_list[1].args[0] == [
+        "docker",
+        "rm",
+        "-f",
+        "owned-container",
+    ]
 
 
-def _force_remove_project(name: str) -> None:
-    """Best-effort force-remove the containers of a leaked compose project."""
-    ids = _project_container_ids(name)
-    if ids:
-        subprocess.run(["docker", "rm", "-f", *ids], capture_output=True)
+def test_checkpoint_project_query_failure_is_not_an_empty_sandbox(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Docker query failures must not satisfy the SIGINT no-leak assertion."""
+    (tmp_path / "inspect-resume_decod-i123456").touch()
+    mocker.patch(
+        "checkpoint.docker_projects.subprocess.run",
+        side_effect=subprocess.CalledProcessError(1, ["docker", "ps"]),
+    )
+    with pytest.raises(subprocess.CalledProcessError):
+        DockerProjects(tmp_path).container_ids()
 
 
-def _assert_restic_dir_hidden(container_id: str) -> None:
-    """The injected restic dir is inside ``.cache`` and root-only.
+def _assert_snapshot_dir_hidden(container_id: str, strategy: str) -> None:
+    """The in-sandbox snapshot work area is inside ``.cache`` and root-only.
 
     Probes the live sandbox container of a killed attempt (checkpoints
-    committed → binary + repo injected):
+    committed → the strategy's in-sandbox area exists). Both strategies
+    share the same root-only dir (restic's home doubles as the archive
+    strategy's staging parent):
 
     - the path sits under ``/root/.cache/`` — inside the always-on backup
-      exclude (``**/.cache``, so the repo never backs itself up) and under
-      a parent whose dirent is invisible to non-root; and
-    - the dir is mode 0700 owned by root with the repo present, and a
-      non-root uid cannot list it.
+      exclude (``**/.cache``, so the area never backs itself up) and under
+      a parent whose dirent is invisible to non-root;
+    - the dir is mode 0700 owned by root, and a non-root uid cannot list
+      it;
+    - restic: the injected repo is present. archive: no restic repo was
+      ever injected, and the tar staging area was cleaned up after the
+      last capture.
     """
     assert _SANDBOX_RESTIC_DIR.startswith("/root/.cache/")
 
@@ -212,14 +288,29 @@ def _assert_restic_dir_hidden(container_id: str) -> None:
         capture_output=True,
         text=True,
     )
-    assert stat.returncode == 0, f"restic dir missing in sandbox: {stat.stderr}"
+    assert stat.returncode == 0, f"snapshot dir missing in sandbox: {stat.stderr}"
     assert stat.stdout.split() == ["700", "0"]
 
-    repo = subprocess.run(
-        ["docker", "exec", container_id, "test", "-d", f"{_SANDBOX_RESTIC_DIR}/repo"],
-        capture_output=True,
-    )
-    assert repo.returncode == 0, "restic repo missing in sandbox"
+    def _dir_exists(path: str) -> bool:
+        return (
+            subprocess.run(
+                ["docker", "exec", container_id, "test", "-d", path],
+                capture_output=True,
+            ).returncode
+            == 0
+        )
+
+    if strategy == "restic":
+        assert _dir_exists(f"{_SANDBOX_RESTIC_DIR}/repo"), (
+            "restic repo missing in sandbox"
+        )
+    else:
+        assert not _dir_exists(f"{_SANDBOX_RESTIC_DIR}/repo"), (
+            "restic repo injected despite the archive strategy"
+        )
+        assert not _dir_exists(f"{_SANDBOX_RESTIC_DIR}/snapshot-staging"), (
+            "archive staging area not cleaned up after capture"
+        )
 
     denied = subprocess.run(
         [
@@ -235,8 +326,29 @@ def _assert_restic_dir_hidden(container_id: str) -> None:
         text=True,
     )
     assert denied.returncode != 0, (
-        f"restic dir is listable by a non-root user: {denied.stdout}"
+        f"snapshot dir is listable by a non-root user: {denied.stdout}"
     )
+
+
+class _SpentBudget(NamedTuple):
+    turns: int
+    tokens: int
+
+
+def _spent_budget(log_location: str) -> _SpentBudget:
+    """Peak turn/token usage across the limit snapshots a run committed."""
+    turns = 0
+    tokens = 0
+    root = Path(local_path(eval_checkpoints_dir(log_location, None)))
+    for path in root.rglob(SAMPLE_RUNTIME):
+        try:
+            snapshot: dict[str, Any] = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        turns = max(turns, int(snapshot.get("turns") or 0))
+        usage: dict[str, Any] = snapshot.get("token_usage") or {}
+        tokens = max(tokens, int(usage.get("total_tokens") or 0))
+    return _SpentBudget(turns=turns, tokens=tokens)
 
 
 def _thinking_signatures(log_location: str) -> set[str]:
@@ -288,9 +400,7 @@ def test_checkpoint_resume_restores_assistant_internal(
     crash_file.unlink(missing_ok=True)
     shutil.rmtree(log_dir, ignore_errors=True)
 
-    prefix = _project_prefix("resume_thinking_task")
-    projects_before = _inspect_projects(prefix)
-    try:
+    with checkpoint_docker_projects(tmp_path):
         _run_interrupted_attempt(
             log_dir, None, tests_dir, harness_name="resume_kill_thinking_harness.py"
         )
@@ -305,9 +415,6 @@ def test_checkpoint_resume_restores_assistant_internal(
         resume = eval_retry(
             read_eval_log(killed_log), log_dir=log_dir, display="plain"
         )[0]
-    finally:
-        for name in _inspect_projects(prefix) - projects_before:
-            _force_remove_project(name)
 
     assert resume.status == "success"
     assert resume.samples is not None and len(resume.samples) == 1
@@ -322,9 +429,59 @@ def test_checkpoint_resume_restores_assistant_internal(
 
 @skip_if_no_docker
 @pytest.mark.slow
+def test_checkpoint_resume_carries_budget_usage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A resumed sample keeps the budget it already spent.
+
+    Turn count is the readable one: the killed attempt spends at least two
+    turns, the resume spends two more, and the logged count has to include
+    both. Limit counters live in per-sample objects the runner rebuilds on
+    every attempt, so without the restore the resume reports only its own
+    turns and the sample gets a second full budget.
+    """
+    cancel_file = tmp_path / "cancels.txt"
+    monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
+    monkeypatch.setenv(TARGET_ENV, "1")
+    # generous: this asserts the counter carries, not that it halts anything
+    monkeypatch.setenv(TURN_LIMIT_ENV, "50")
+    cancel_file.unlink(missing_ok=True)
+
+    log_dir = str(tmp_path / "logs")
+    tests_dir = Path(__file__).parent.parent
+
+    with checkpoint_docker_projects(tmp_path):
+        _run_interrupted_attempt(log_dir, None, tests_dir)
+
+        killed_log = _latest_log(log_dir)
+        spent = _spent_budget(killed_log)
+        assert spent.turns >= 2 and spent.tokens > 0, (
+            f"the killed attempt committed no usable limit snapshot: {spent}"
+        )
+
+        reset_generates()
+        resume = eval_retry(read_eval_log(killed_log), log_dir=log_dir)[0]
+
+    assert resume.status == "success"
+    assert resume.samples is not None and len(resume.samples) == 1
+    sample = resume.samples[0]
+    assert sample.error is None
+
+    # The resume runs two turns (bash + submit) — no more than the killed
+    # attempt had already spent — so a reset counter cannot reach past it.
+    assert sample.turn_count is not None
+    assert sample.turn_count > spent.turns
+
+    resumed_tokens = sum(usage.total_tokens for usage in sample.model_usage.values())
+    assert resumed_tokens > spent.tokens
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+@pytest.mark.parametrize("strategy", ["restic", "archive"])
 @pytest.mark.parametrize("interrupt", ["SIGKILL", "SIGINT"])
 def test_checkpoint_resume_rehydrated_event_layout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interrupt: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, strategy: str, interrupt: str
 ) -> None:
     """Resume works whether the eval was hard-killed or Ctrl-C'd.
 
@@ -333,10 +490,13 @@ def test_checkpoint_resume_rehydrated_event_layout(
     error — so it reaches checkpoint resume down a different path than
     the SIGKILL case, and gets the same result.
     """
-    # Crash count (host file) + target are inherited by the child processes.
+    # Crash count (host file) + target + snapshot strategy are inherited by
+    # the child processes. Only the fresh attempt reads the strategy; resumes
+    # reconstruct it from the log's recorded task args (pin-checked).
     cancel_file = tmp_path / "cancels.txt"
     monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
     monkeypatch.setenv(TARGET_ENV, "2")
+    monkeypatch.setenv(STRATEGY_ENV, strategy)
     # The crash count is stateful on disk. Under flaky-retry (this test is
     # `_needs_flaky_retry` via `skip_if_no_docker`) the body re-runs with the
     # same `tmp_path`, so reset it — otherwise a retry would inherit a
@@ -347,26 +507,17 @@ def test_checkpoint_resume_rehydrated_event_layout(
     log_dir = str(tmp_path / "logs")
     tests_dir = Path(__file__).parent.parent
 
-    # A hard kill skips sandbox teardown, so each killed attempt leaks its
-    # sandbox container. Track this harness's projects before/after and
-    # force-remove the ones this test leaks (the final resume cleans up its
-    # own).
-    prefix = _project_prefix("resume_decode_task")
-    projects_before = _inspect_projects(prefix)
-    try:
+    with checkpoint_docker_projects(tmp_path) as projects:
         # --- attempt #0: fresh eval, interrupted at turn 2 (after ck1/ck2) --
         _run_interrupted_attempt(log_dir, None, tests_dir, interrupt)
 
-        leaked = [
-            cid
-            for name in _inspect_projects(prefix) - projects_before
-            for cid in _project_container_ids(name)
-        ]
+        assert list(projects.directory.iterdir()), "child recorded no sandbox projects"
+        leaked = projects.container_ids()
         if interrupt == "SIGKILL":
             # The hard kill leaves the attempt's sandbox container running —
-            # probe it for the restic dir's location and permissions.
+            # probe it for the snapshot dir's location and permissions.
             assert leaked, "expected the killed attempt to leak its sandbox container"
-            _assert_restic_dir_hidden(leaked[0])
+            _assert_snapshot_dir_hidden(leaked[0], strategy)
         else:
             assert not leaked, f"Ctrl-C should tear down the sandbox; leaked {leaked}"
 
@@ -376,9 +527,6 @@ def test_checkpoint_resume_rehydrated_event_layout(
         # --- final resume: runs in this process, to completion --------------
         reset_generates()
         resume = eval_retry(read_eval_log(_latest_log(log_dir)), log_dir=log_dir)[0]
-    finally:
-        for name in _inspect_projects(prefix) - projects_before:
-            _force_remove_project(name)
 
     assert resume.status == "success"
     assert resume.samples is not None and len(resume.samples) == 1
@@ -461,29 +609,267 @@ def test_checkpoint_resume_rehydrated_event_layout(
     }
     assert new_checkpoints == {(4, "turn"), (5, "agent_complete")}
 
-    # File listing (opt-in) records each sandbox snapshot's added/changed
-    # files (diff vs parent), not the whole tree.
-    def _ckpt(checkpoint_id: int) -> CheckpointEvent:
-        return next(
-            e
-            for e in events
-            if isinstance(e, CheckpointEvent) and e.checkpoint_id == checkpoint_id
+    # The live post-resume bash turns (outside any wrap) cat the turn-0 file —
+    # their output proves the sandbox *filesystem* was actually restored
+    # across both kills (resume merely succeeding can't: the submit answer
+    # comes from the model script, not from the sandbox).
+    live_bash = [
+        e
+        for i, e in enumerate(events)
+        if isinstance(e, ToolEvent) and e.function == "bash" and not _in_wrap(i)
+    ]
+    assert live_bash and live_bash[-1].error is None
+    assert LAYER1_CONTENT in str(live_bash[-1].result)
+
+    # Every committed snapshot's details name the strategy that wrote them.
+    details_by_id = {
+        e.checkpoint_id: e.sandboxes["default"]
+        for e in events
+        if isinstance(e, CheckpointEvent) and "default" in e.sandboxes
+    }
+    assert {1, 2, 3, 4} <= set(details_by_id)
+    expected_strategy = STRATEGY_ARCHIVE if strategy == "archive" else STRATEGY_RESTIC
+    assert all(
+        snapshot_strategy_name(d) == expected_strategy for d in details_by_id.values()
+    )
+
+    if strategy == "archive":
+        # A complete tar per checkpoint: no parent to diff against, so no
+        # per-snapshot file listing is recorded.
+        assert all(
+            d.files is None and d.additional_files is None
+            for d in details_by_id.values()
+        )
+    else:
+        # File listing (restic) records each sandbox snapshot's added/changed
+        # files (diff vs parent), not the whole tree.
+        #
+        # ckpt-1 is the first sandbox snapshot (no parent) → full listing,
+        # which includes the turn-0 write but NOT the XDG cache dir
+        # (auto-home excludes $HOME/.cache).
+        ckpt1_files = details_by_id[1].files
+        assert ckpt1_files is not None
+        assert any(p.endswith("workspace/decoded/layer1.txt") for p in ckpt1_files)
+        assert not any("/.cache/" in p for p in ckpt1_files)
+
+        # ckpt-3 diffs against its parent (ckpt-2): it lists the post-resume
+        # write but NOT the unchanged turn-0 file — proving it's a delta, not
+        # the tree.
+        ckpt3_details = details_by_id[3]
+        assert ckpt3_details.files is not None
+        assert any(p.endswith("workspace/resumed.txt") for p in ckpt3_details.files)
+        assert not any(
+            p.endswith("workspace/decoded/layer1.txt") for p in ckpt3_details.files
+        )
+        assert ckpt3_details.additional_files is None
+
+
+def _run_hydrate_interrupted_resume(
+    log_dir: str, retry_from: str, tests_dir: Path, interrupt: str
+) -> None:
+    """Resume in a child process that signals itself mid-copy.
+
+    The signal lands on the first sample-dir data copy of the startup pass
+    (``copy_resume_payloads``), which runs before the destination
+    log's first write — so the interrupted attempt leaves no log at
+    all. ``SIGKILL`` dies on the spot; ``SIGINT`` unwinds gracefully
+    (Ctrl-C semantics). The no-log outcome is asserted by the caller.
+    """
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(
+            p for p in (str(tests_dir), os.environ.get("PYTHONPATH", "")) if p
+        ),
+        SIGNAL_ENV: interrupt,
+    }
+    harness = str(tests_dir / "checkpoint" / "hydrate_interrupt_harness.py")
+    proc = subprocess.run(
+        [sys.executable, harness, log_dir, retry_from],
+        env=env,
+        timeout=600,
+    )
+    if interrupt == "SIGKILL":
+        # also catches HOOK_NEVER_FIRED_EXIT_CODE: an un-fired hook means
+        # the resume ran to completion and exited normally, not by signal
+        assert proc.returncode == -signal.SIGKILL, (
+            f"expected the child to die by SIGKILL (-{signal.SIGKILL}); "
+            f"got returncode {proc.returncode}"
+        )
+    else:
+        assert proc.returncode != HOOK_NEVER_FIRED_EXIT_CODE, (
+            "the harness's hydration hook never fired — the data-copy seam it "
+            "patches has moved; this run was an ordinary uninterrupted resume"
         )
 
-    # ckpt-1 is the first sandbox snapshot (no parent) → full listing, which
-    # includes the turn-0 write but NOT the XDG cache dir (auto-home excludes
-    # $HOME/.cache).
-    ckpt1_files = _ckpt(1).sandboxes["default"].files
-    assert ckpt1_files is not None
-    assert any(p.endswith("workspace/decoded/layer1.txt") for p in ckpt1_files)
-    assert not any("/.cache/" in p for p in ckpt1_files)
 
-    # ckpt-3 diffs against its parent (ckpt-2): it lists the post-resume write
-    # but NOT the unchanged turn-0 file — proving it's a delta, not the tree.
-    ckpt3_details = _ckpt(3).sandboxes["default"]
-    assert ckpt3_details.files is not None
-    assert any(p.endswith("workspace/resumed.txt") for p in ckpt3_details.files)
-    assert not any(
-        p.endswith("workspace/decoded/layer1.txt") for p in ckpt3_details.files
+@skip_if_no_docker
+@pytest.mark.slow
+@pytest.mark.parametrize("interrupt", ["SIGINT", "SIGKILL"])
+def test_checkpoint_resume_survives_interrupted_hydration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interrupt: str
+) -> None:
+    """An interrupt *during a resume's own startup* doesn't lose the run.
+
+    A resume copies the prior attempt's checkpoint payload into the new
+    attempt's dir at retry startup, before the destination log's first
+    write (see ``_resume_copy``). Interrupting that copy used to leave
+    a dir that looked committed (checkpoint files present) with no
+    restic data behind it — every later resume failed on the missing
+    repo, and each retry copied the bad state forward (#4861). Now an
+    interrupted copy means the attempt never writes a log: the next
+    retry sources the newest log that exists, whose checkpoint dirs are
+    complete by construction.
+
+    Flow: SIGKILL a fresh attempt at turn 2 (ck1/ck2 committed) →
+    resume and interrupt it inside the startup copy window (a real
+    SIGINT or SIGKILL, parametrized: graceful unwind vs. instant
+    death must land in the same no-log state) → resume again,
+    in-process, to completion. Asserts the interrupted attempt left
+    no log and that the final resume genuinely restored (restore
+    span + only the remaining turns ran) rather than re-running from
+    scratch.
+    """
+    cancel_file = tmp_path / "cancels.txt"
+    monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
+    monkeypatch.setenv(TARGET_ENV, "1")
+    # stateful on disk; reset for flaky-retry re-runs (see the layout test)
+    cancel_file.unlink(missing_ok=True)
+
+    log_dir = str(tmp_path / "logs")
+    tests_dir = Path(__file__).parent.parent
+
+    with checkpoint_docker_projects(tmp_path):
+        # --- attempt #0: fresh eval, hard-killed at turn 2 (ck1/ck2) -----
+        _run_interrupted_attempt(log_dir, None, tests_dir)
+        source_log = _latest_log(log_dir)
+
+        # --- attempt #1: resume, interrupted inside the startup copy window
+        _run_hydrate_interrupted_resume(log_dir, source_log, tests_dir, interrupt)
+        # the copy runs before the destination log's first write, so the
+        # interrupted attempt must leave no log — its partial checkpoint
+        # copies are unreachable orphans, and the source log stays newest
+        assert _latest_log(log_dir) == source_log, (
+            "the interrupted resume wrote a destination log — its existence "
+            "would wrongly certify the (incomplete) checkpoint copy"
+        )
+
+        # --- final resume: from the source log, in-process, to completion
+        reset_generates()
+        resume = eval_retry(read_eval_log(source_log), log_dir=log_dir)[0]
+
+    assert resume.status == "success"
+    assert resume.samples is not None and len(resume.samples) == 1
+    sample = resume.samples[0]
+    assert sample.error is None
+
+    # restored, not re-run: only the remaining turns ran (bash + submit)
+    assert generates() == 2
+    assert sample.scores is not None
+    assert sample.scores["includes"].value == CORRECT
+
+    completed = read_eval_log(resume.location)
+    assert completed.samples is not None
+    events = completed.samples[0].events
+    assert_spans_balanced(events)
+    restore_spans = [
+        e for e in events if isinstance(e, SpanBeginEvent) and e.type == "prior_run"
+    ]
+    assert [s.name for s in restore_spans] == ["checkpoint restore 1"]
+    checkpoints = {
+        (e.checkpoint_id, e.trigger) for e in events if isinstance(e, CheckpointEvent)
+    }
+    # ck1/ck2 restored from the source; ck3 (turn) + ck4 (agent_complete)
+    # committed live during the final resume
+    assert checkpoints == {(1, "turn"), (2, "turn"), (3, "turn"), (4, "agent_complete")}
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_checkpoint_retry_preserves_queued_sample_checkpoints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A sample still queued when a retry dies keeps its checkpoints (#4870).
+
+    Two samples, two kills. Attempt #0 runs both concurrently: sample B
+    checkpoints steadily and never crashes; sample A crashes the process
+    once B has a committed checkpoint. Attempt #1 retries with
+    ``max_samples=1``: A resumes first and crashes again — B is still
+    queued, having run *nothing* in attempt #1. Before the startup
+    copy existed, attempt #1 left no trace of B (per-sample copying only
+    happened when a sample started), so the final retry — which resolves
+    attempt #1's dirs — silently re-ran B from scratch. Now the copy runs
+    at retry startup for every incomplete sample, so B's payload is in
+    attempt #1's dir despite B never starting.
+
+    Asserts the on-disk property directly (B's payload present in the
+    dead attempt's dir) and the behavior: the final in-process retry
+    *restores* B (its transcript carries a "checkpoint restore" span)
+    rather than re-running it.
+    """
+    cancel_file = tmp_path / "cancels.txt"
+    log_dir = str(tmp_path / "logs")
+    monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
+    monkeypatch.setenv(TARGET_ENV, "2")
+    monkeypatch.setenv(TWO_SAMPLE_ENV, "1")
+    monkeypatch.setenv(
+        SIBLING_CKPT_GLOB_ENV,
+        f"{log_dir}/*.checkpoints/{B_SAMPLE_ID}__1/ckpt-*.json",
     )
-    assert ckpt3_details.additional_files is None
+    # stateful on disk; reset for flaky-retry re-runs (see the layout test)
+    cancel_file.unlink(missing_ok=True)
+    shutil.rmtree(log_dir, ignore_errors=True)
+
+    tests_dir = Path(__file__).parent.parent
+
+    with checkpoint_docker_projects(tmp_path):
+        # --- attempt #0: both samples in flight, killed once B checkpointed
+        _run_interrupted_attempt(log_dir, None, tests_dir)
+        first_log = _latest_log(log_dir)
+
+        # --- attempt #1: A resumes and crashes; B queued, never started ---
+        _run_interrupted_attempt(log_dir, first_log, tests_dir)
+        second_log = _latest_log(log_dir)
+        assert second_log != first_log, "the retry attempt wrote no log"
+        # the premise: B was still queued when attempt #1 died, so its dir
+        # there can only have come from the startup copy
+        second = read_eval_log(second_log)
+        assert not any(
+            s.id == B_SAMPLE_ID and s.error is None for s in second.samples or []
+        ), "sample B ran in the retry attempt; the test premise did not hold"
+
+        # The #4870 property: the dead retry's checkpoints dir holds B's
+        # payload — copied at startup — even though B never ran.
+        b_dir = Path(local_path(eval_checkpoints_dir(second_log, None))) / (
+            f"{B_SAMPLE_ID}__1"
+        )
+        assert list(b_dir.glob("ckpt-*.json")), (
+            "the retry left no checkpoint payload for the queued sample — "
+            "the startup copy regressed; a further retry would re-run "
+            "the sample from scratch"
+        )
+
+        # --- final retry: in-process, to completion ----------------------
+        resume = eval_retry(read_eval_log(second_log), log_dir=log_dir, max_samples=1)[
+            0
+        ]
+
+    assert resume.status == "success"
+    assert resume.samples is not None and len(resume.samples) == 2
+    b_sample = next(s for s in resume.samples if s.id == B_SAMPLE_ID)
+    assert b_sample.error is None
+    assert b_sample.scores is not None
+    assert b_sample.scores["includes"].value == CORRECT
+    assert B_CONTENT in b_sample.output.completion
+
+    # B was *restored*, not re-run: its transcript opens with a checkpoint
+    # restore wrap containing its prior-attempt checkpoints
+    assert_spans_balanced(b_sample.events)
+    b_restores = [
+        e
+        for e in b_sample.events
+        if isinstance(e, SpanBeginEvent) and e.type == "prior_run"
+    ]
+    assert [s.name for s in b_restores] == ["checkpoint restore 1"], (
+        "the queued sample did not resume from its checkpoints — its "
+        "prior-attempt progress was silently discarded"
+    )

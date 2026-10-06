@@ -5,7 +5,7 @@ Backs ``GET /evals/<id>/sample/events`` (and ``inspect ctl sample events``): a
 ``Transcript`` while running, and once terminal from the recorder's
 sample, the realtime buffer (via the eval's events provider — the
 streaming-completion path retains an event-less recorder sample), or the
-on-disk log (see ``_logged_source``).
+on-disk log (see ``_resolve_logged_source``).
 
 The cursor is an opaque token = ``(source nonce, absolute event offset)``.
 The offset indexes the *unfiltered* event sequence; type / time filters are
@@ -38,11 +38,12 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from inspect_ai._control.terminal_cache import (
     TerminalSourceCache,
-    invalidate_terminal_sources,
+    resolve_sample_source,
 )
 
 if TYPE_CHECKING:
     from inspect_ai.event._event import Event
+    from inspect_ai.log._log import EvalSample
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
 logger = getLogger(__name__)
@@ -59,8 +60,9 @@ EventsFetch = Callable[[int, int], "Sequence[Event]"]
 class EventsSource(NamedTuple):
     """One resolvable source of a sample's transcript events.
 
-    Produced by ``_running_source`` (live transcript) and ``_logged_source``
-    (recorder / buffer / on-disk log); consumed by ``sample_events``.
+    Produced by ``_running_source`` (live transcript) and
+    ``_resolve_logged_source`` (recorder / buffer / on-disk log); consumed by
+    ``sample_events``.
     """
 
     nonce: str
@@ -87,6 +89,7 @@ HIGH_SIGNAL_EVENT_TYPES = frozenset(
         "error",
         "score",
         "approval",
+        "review",
         "input",
         "sandbox",
         "logger",
@@ -176,18 +179,45 @@ async def sample_events(
         until: Optional upper bound (unix ts).
         limit: Max events scanned per page.
     """
-    source = _running_source(eval_id, sample_id, epoch)
-    if source is not None:
-        # a running attempt (a retry) supersedes any cached terminal source
-        # for this sample — drop it (from every projection's cache, not just
-        # this endpoint's) so the attempt's own terminal source is resolved
-        # fresh once it finishes (see terminal_cache)
-        invalidate_terminal_sources((eval_id, sample_id, epoch))
-    else:
-        source = await _logged_source(eval_id, sample_id, epoch)
+    source = await resolve_sample_source(
+        (eval_id, sample_id, epoch),
+        running=lambda: _running_source(eval_id, sample_id, epoch),
+        cache=_terminal_sources,
+        resolve_terminal=lambda: _resolve_logged_source(eval_id, sample_id, epoch),
+    )
     if source is None:
         return None
+    return page_events(
+        source,
+        since=since,
+        tail=tail,
+        types=types,
+        content=content,
+        full=full,
+        since_time=since_time,
+        until=until,
+        limit=limit,
+    )
 
+
+def page_events(
+    source: EventsSource,
+    *,
+    since: str | None = None,
+    tail: int | None = None,
+    types: frozenset[str] | None = None,
+    content: bool = False,
+    full: bool = False,
+    since_time: float | None = None,
+    until: float | None = None,
+    limit: int = DEFAULT_PAGE_LIMIT,
+) -> dict[str, Any]:
+    """One ``{events, next, done}`` page of a resolved source.
+
+    The cursor, tail, filter and projection half of :func:`sample_events`
+    (see it for the arguments), shared with the ``--log-dir`` reader, which
+    resolves its sources from log files instead of this process.
+    """
     nonce, fetch, total, done = source
 
     # Resolve the start offset: resume from the cursor (reset to 0 if the nonce
@@ -304,22 +334,6 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> EventsSource | 
     )
 
 
-async def _logged_source(
-    eval_id: str, sample_id: str, epoch: int
-) -> EventsSource | None:
-    """The terminal source for a sample, resolved through the short-TTL cache.
-
-    A terminal attempt's transcript is immutable, so the resolved source is
-    reused across the paginating / polling requests that dominate this
-    endpoint's traffic instead of re-paying the full-sample parse per request
-    (see ``_terminal_sources`` and ``TerminalSourceCache.get_or_resolve``).
-    """
-    return await _terminal_sources.get_or_resolve(
-        (eval_id, sample_id, epoch),
-        lambda: _resolve_logged_source(eval_id, sample_id, epoch),
-    )
-
-
 async def _resolve_logged_source(
     eval_id: str, sample_id: str, epoch: int
 ) -> EventsSource | None:
@@ -343,12 +357,9 @@ async def _resolve_logged_source(
     if sample is None:
         return None
 
-    nonce = _attempt_nonce(
-        sample.uuid, sample.id, epoch, len(sample.error_retries or [])
-    )
-
-    events = list(sample.events)
-    if not events:
+    listed = events_source_from_sample(sample, epoch)
+    nonce = listed.nonce
+    if listed.total == 0:
         # Streaming completion path: page through the eval's own buffer
         # instance via the registered events provider — the same
         # materialization as live bounded-transcript reads, with the page
@@ -406,6 +417,16 @@ async def _resolve_logged_source(
                 return EventsSource(
                     nonce=nonce, fetch=fetch_buffered, total=total, done=True
                 )
+
+    return listed
+
+
+def events_source_from_sample(sample: "EvalSample", epoch: int) -> EventsSource:
+    """The terminal source over a logged sample's own event list (always done)."""
+    nonce = _attempt_nonce(
+        sample.uuid, sample.id, epoch, len(sample.error_retries or [])
+    )
+    events = list(sample.events)
 
     def fetch(start: int, limit: int) -> list["Event"]:
         return events[start : start + limit]

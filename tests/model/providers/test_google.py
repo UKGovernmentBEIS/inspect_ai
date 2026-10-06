@@ -1,20 +1,26 @@
 import asyncio
 import base64
+import hashlib
 import time
-from typing import Any
+from pathlib import Path
+from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import anyio
 import pytest
-from google.genai.errors import APIError
+from google.genai import Client
+from google.genai.errors import APIError, ClientError, ServerError
 from google.genai.types import (
     Blob,
     Candidate,
     Content,
+    File,
+    FileState,
     FinishReason,
     FunctionCall,
     FunctionCallingConfigMode,
+    GenerateContentConfig,
     GenerateContentResponse,
     HttpOptions,
     JobState,
@@ -29,16 +35,24 @@ from inspect_ai._util.content import (
     Content as InspectContent,
 )
 from inspect_ai._util.content import (
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.kvstore import KVStore
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ModelOutput,
+)
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
-from inspect_ai.model._model import RetryDecision
+from inspect_ai.model._model import ModelAPI, RetryDecision
+from inspect_ai.model._providers import google as google_provider
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
 )
@@ -46,11 +60,21 @@ from inspect_ai.model._providers.google import (
     GoogleGenAIAPI,
     _malformed_function_message,
     _malformed_function_retry,
+    _report_stream_part_delta,
+    chat_content_to_part,
     completion_choice_from_candidate,
     content,
 )
 from inspect_ai.model._providers.util import OAUTH_PLACEHOLDER_API_KEY
 from inspect_ai.model._providers.util.hooks import HttpHooks
+from inspect_ai.model._stream import (
+    ModelStreamObserver,
+    StreamEvent,
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_observer,
+)
 from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
 from inspect_ai.tool import (
@@ -742,6 +766,114 @@ async def test_google_count_tokens_none_config_uses_default_http_timeout() -> No
     assert http_options.timeout == 3_600_000
 
 
+def _capture_google_warnings(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    import inspect_ai._util.logger as logger_module
+    import inspect_ai.model._providers.google as google_module
+
+    warnings: list[str] = []
+    monkeypatch.setattr(logger_module, "_warned", [])
+    monkeypatch.setattr(google_module.logger, "warning", warnings.append)
+    return warnings
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "input",
+    ["Hello world", [ChatMessageUser(content="Hello world")]],
+    ids=["str", "messages"],
+)
+async def test_google_count_tokens_falls_back_when_endpoint_unavailable(
+    input: str | list[ChatMessage], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    warnings = _capture_google_warnings(monkeypatch)
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = ClientError(
+        404, {"error": {"code": 404, "message": "Not Found"}}
+    )
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        expected = await ModelAPI.count_tokens(api, input)
+        assert await api.count_tokens(input) == expected
+        # endpoint is not called again once it has returned 404
+        assert await api.count_tokens(input) == expected
+
+    assert mock_client.aio.models.count_tokens.await_count == 1
+    assert len(warnings) == 1
+    assert "not available" in warnings[0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "error",
+    [
+        ClientError(400, {"error": {"code": 400, "message": "Bad request"}}),
+        ClientError(403, {"error": {"code": 403, "message": "Forbidden"}}),
+    ],
+    ids=["400", "403"],
+)
+async def test_google_count_tokens_falls_back_on_non_retryable_errors(
+    error: APIError, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    warnings = _capture_google_warnings(monkeypatch)
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = error
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        expected = await ModelAPI.count_tokens(api, "Hello world")
+        assert await api.count_tokens("Hello world") == expected
+        # not memoized: the endpoint is tried again on the next call
+        assert await api.count_tokens("Hello world") == expected
+
+    assert mock_client.aio.models.count_tokens.await_count == 2
+    assert len(warnings) == 1
+    assert str(error.code) in warnings[0]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "error",
+    [
+        ClientError(401, {"error": {"code": 401, "message": "Unauthorized"}}),
+        ClientError(429, {"error": {"code": 429, "message": "Too many requests"}}),
+        ServerError(503, {"error": {"code": 503, "message": "Unavailable"}}),
+    ],
+    ids=["401", "429", "503"],
+)
+async def test_google_count_tokens_propagates_retryable_and_auth_errors(
+    error: APIError,
+) -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = error
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        with pytest.raises(APIError) as exc_info:
+            await api.count_tokens("Hello world")
+
+    assert exc_info.value is error
+
+
+@pytest.mark.anyio
+async def test_google_count_tokens_propagates_non_api_errors() -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+    mock_client.aio.models.count_tokens.side_effect = ValueError("boom")
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
+        with pytest.raises(ValueError, match="boom"):
+            await api.count_tokens("Hello world")
+
+
 @pytest.mark.anyio
 async def test_google_generate_preserves_request_extra_headers() -> None:
     mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
@@ -965,6 +1097,73 @@ async def test_google_count_tokens_single_tool_result() -> None:
     assert token_count > 0
 
 
+async def _collect_part_deltas(part: Part) -> list[StreamEvent]:
+    """Run _report_stream_part_delta under an observer, returning its deltas."""
+    events: list[StreamEvent] = []
+
+    async def collect(event: StreamEvent) -> None:
+        events.append(event)
+
+    observer = ModelStreamObserver(model="google/test", on_stream=collect)
+    with model_stream_observer(observer):
+        await _report_stream_part_delta(part)
+    return events
+
+
+async def test_report_stream_part_delta_text() -> None:
+    events = await _collect_part_deltas(Part(text="hello"))
+    assert events == [StreamTextEvent(text="hello")]
+
+
+async def test_report_stream_part_delta_thought() -> None:
+    events = await _collect_part_deltas(Part(text="thinking", thought=True))
+    assert events == [StreamReasoningEvent(reasoning="thinking")]
+
+
+async def test_report_stream_part_delta_function_call() -> None:
+    events = await _collect_part_deltas(
+        Part(function_call=FunctionCall(id="c1", name="add", args={"x": 1}))
+    )
+    assert events == [
+        StreamToolCallEvent(id="c1", function="add", arguments='{"x": 1}')
+    ]
+
+
+async def test_report_stream_part_delta_function_call_without_args() -> None:
+    events = await _collect_part_deltas(Part(function_call=FunctionCall(name="ping")))
+    assert events == [StreamToolCallEvent(id=None, function="ping", arguments="")]
+
+
+async def test_report_stream_part_delta_other_parts_report_nothing() -> None:
+    # empty text and non-content parts produce no delta (the progress
+    # heartbeat comes from the per-chunk report, not from here)
+    assert await _collect_part_deltas(Part()) == []
+    assert await _collect_part_deltas(Part(text="")) == []
+    assert await _collect_part_deltas(Part(text="", thought=True)) == []
+
+
+async def test_report_stream_part_delta_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer no delta is constructed or reported.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    import inspect_ai.model._providers.google as google_module
+
+    async def fail(delta: object) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(google_module, "report_model_stream_delta", fail)
+    observer = ModelStreamObserver(model="google/test", on_stream=None)
+    with model_stream_observer(observer):
+        await _report_stream_part_delta(Part(text="hello"))
+        await _report_stream_part_delta(
+            Part(function_call=FunctionCall(id="c1", name="add", args={"x": 1}))
+        )
+
+
 @skip_if_no_google
 def test_google_streaming_basic():
     """Test basic streaming with simple prompt."""
@@ -1146,6 +1345,88 @@ def _make_batcher_and_batch(job_state: JobState) -> tuple:
     )
     batch = Batch(id="batch-123", requests={"req-1": req})
     return batcher, batch
+
+
+def test_google_batch_result_line_tolerates_unknown_rest_fields() -> None:
+    """Batch result parsing must not fail on REST fields the SDK model lacks.
+
+    Google's batch results carry ``usageMetadata.serviceTier``, which no
+    released google-genai models; validating the raw dict with
+    ``extra="forbid"`` rejected every result (issue #5100 follow-on).
+    """
+    from google.genai.types import GenerateContentResponse
+    from pydantic import JsonValue
+
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._google_batch import GoogleBatcher
+    from inspect_ai.model._retry import model_retry_config
+
+    batcher = GoogleBatcher(
+        client=MagicMock(),
+        config=BatchConfig(),
+        retry_config=model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+        model_name="gemini-2.5-flash-lite",
+    )
+    line: dict[str, JsonValue] = {
+        "key": "req-1",
+        "response": {
+            "candidates": [
+                {
+                    "content": {"role": "model", "parts": [{"text": "Blue"}]},
+                    "finishReason": "STOP",
+                    "index": 0,
+                }
+            ],
+            "usageMetadata": {
+                "promptTokenCount": 20,
+                "candidatesTokenCount": 2,
+                "totalTokenCount": 22,
+                "serviceTier": "SERVICE_TIER_STANDARD",
+            },
+            "modelVersion": "gemini-2.5-flash-lite",
+            "responseId": "abc123",
+        },
+    }
+
+    key, result = batcher._parse_jsonl_line(line)
+
+    assert key == "req-1"
+    assert isinstance(result, GenerateContentResponse)
+    assert result.text == "Blue"
+    assert result.usage_metadata is not None
+    assert result.usage_metadata.total_token_count == 22
+
+
+def test_batch_request_dict_wraps_system_instruction() -> None:
+    from google.genai.types import Content, GenerateContentConfig, Part
+
+    from inspect_ai.model._providers._google_batch import batch_request_dict
+
+    config = GenerateContentConfig(
+        system_instruction=["You are helpful.", "Be concise."]
+    )
+    request = batch_request_dict(
+        config, [Content(role="user", parts=[Part.from_text(text="hi")])]
+    )
+
+    assert request["system_instruction"] == {
+        "parts": [{"text": "You are helpful."}, {"text": "Be concise."}],
+    }
+    assert request["contents"] == [
+        {"role": "user", "parts": [{"text": "hi"}]},
+    ]
+
+    config_parts = GenerateContentConfig(
+        system_instruction=[Part.from_text(text="You are helpful.")]
+    )
+    request_parts = batch_request_dict(
+        config_parts, [Content(role="user", parts=[Part.from_text(text="hi")])]
+    )
+    assert request_parts["system_instruction"] == {
+        "parts": [{"text": "You are helpful."}],
+    }
 
 
 @pytest.mark.parametrize(
@@ -1731,22 +2012,15 @@ async def test_google_oauth_count_tokens_headers() -> None:
     assert headers["x-goog-user-project"] == "proj"
 
 
-def test_google_oauth_headers_survive_real_client() -> None:
-    """Contract test against the real google-genai client (no mocking).
-
-    The OAuth approach relies on undocumented SDK behavior: the dev-endpoint
-    client accepts a placeholder api_key, and `patch_http_options` merges
-    caller-supplied headers with caller precedence, so `Authorization` survives
-    alongside the SDK-set `x-goog-api-key`. Guards against a google-genai
-    release changing that merge.
-    """
+def test_google_oauth_real_client_excludes_placeholder_api_key() -> None:
+    """OAuth requests must not send the SDK's required placeholder as an API key."""
     api = _adc_api(_FakeCreds(token="tok-real"), quota_project_id="proj-real")
     client = api.model_client(api._http_options())
     headers = client._api_client._http_options.headers
     assert headers is not None
     assert headers["Authorization"] == "Bearer tok-real"
     assert headers["x-goog-user-project"] == "proj-real"
-    assert headers["x-goog-api-key"] == OAUTH_PLACEHOLDER_API_KEY
+    assert "x-goog-api-key" not in headers
 
 
 def test_google_use_adc_rejected_on_vertex() -> None:
@@ -1767,3 +2041,432 @@ def test_google_credentials_arg_rejected() -> None:
             api_key=None,
             credentials=object(),
         )
+
+
+def test_model_client_reuses_one_ssl_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Repeated client construction must not rebuild the SSL context.
+
+    `Client()` is built per generate() call, and genai otherwise creates a default
+    context from the CA bundle for each one — a synchronous disk read on the event
+    loop, three times per client. Under high sandbox concurrency that blocking work
+    starves the sandbox-service RPC consumer.
+    """
+    import ssl as ssl_module
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    calls = 0
+    real = ssl_module.create_default_context
+
+    def counting(*args: Any, **kwargs: Any) -> ssl_module.SSLContext:
+        nonlocal calls
+        calls += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ssl_module, "create_default_context", counting)
+    monkeypatch.setattr("google.genai._api_client.ssl.create_default_context", counting)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    for _ in range(5):
+        api.model_client()
+
+    # one build for the whole process, not three per client
+    assert calls <= 1, f"rebuilt the SSL context {calls} times across 5 clients"
+
+
+def test_model_client_reuses_ssl_context_with_client_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bridge path passes `client_args`, which changed which dict genai reads.
+
+    genai resolves the context with a conditional that, when `client_args` is
+    non-empty, never consults `async_client_args` (google/genai/_api_client.py:
+    `args.get(verify) if args else None or async_args.get(verify) ...` parses as
+    `args.get(v) if args else ((None or async_args.get(v)) if async_args else
+    None)`). Seeding only the async dict therefore missed and genai rebuilt the
+    context ON the event loop — caught by py-spy on a live run as
+    create_default_context under bridge_generate.
+    """
+    import ssl as ssl_module
+
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    calls = 0
+    real = ssl_module.create_default_context
+
+    def counting(*args: Any, **kwargs: Any) -> ssl_module.SSLContext:
+        nonlocal calls
+        calls += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ssl_module, "create_default_context", counting)
+    monkeypatch.setattr("google.genai._api_client.ssl.create_default_context", counting)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    for _ in range(5):
+        api.model_client(HttpOptions(client_args={"timeout": 30.0}))
+
+    assert calls <= 1, (
+        f"rebuilt the SSL context {calls} times across 5 clients with client_args"
+    )
+
+
+def test_model_client_preserves_custom_verify_for_async(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller-supplied CA/SSLContext on `client_args` must reach async requests too.
+
+    genai's SSL-context resolution (`_ensure_httpx_ssl_ctx`) only consults
+    `async_client_args` when `client_args` is non-empty, so pre-seeding
+    `async_client_args` with the shared default before genai runs would silently
+    override a caller-supplied custom verify for async requests while sync
+    requests stayed correctly validated against it.
+    """
+    import ssl as ssl_module
+    from typing import Any
+
+    from google.genai._api_client import AsyncHttpxClient
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    custom_context = ssl_module.create_default_context()
+
+    captured: dict[str, Any] = {}
+    real_init = AsyncHttpxClient.__init__
+
+    def capturing_init(self: Any, **kwargs: Any) -> None:
+        captured.update(kwargs)
+        real_init(self, **kwargs)
+
+    monkeypatch.setattr(AsyncHttpxClient, "__init__", capturing_init)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    api.model_client(HttpOptions(client_args={"verify": custom_context}))
+
+    assert captured["verify"] is custom_context, (
+        "async httpx client did not receive the caller-supplied custom verify"
+    )
+
+
+def test_model_client_converts_str_verify_for_aiohttp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller-supplied CA-bundle *path* must not reach aiohttp's `ssl` param.
+
+    httpx's `verify` legally accepts a CA-bundle path (the PR's stated contract, e.g.
+    `certifi.where()`), but aiohttp's `ssl` param only accepts
+    `SSLContext | bool | Fingerprint | None` — `aiohttp.client_reqrep` raises
+    `TypeError` on a bare path, so every aiohttp/websocket request would fail before
+    sending unless the path is converted into a context first.
+    """
+    import ssl as ssl_module
+
+    import certifi
+    from google.genai._api_client import AsyncHttpxClient
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    ca_path = str(certifi.where())
+
+    captured: dict[str, Any] = {}
+    real_init = AsyncHttpxClient.__init__
+
+    def capturing_init(self: Any, **kwargs: Any) -> None:
+        captured.update(kwargs)
+        real_init(self, **kwargs)
+
+    monkeypatch.setattr(AsyncHttpxClient, "__init__", capturing_init)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    GoogleGenAIAPI._ssl_context_for_path.cache_clear()
+    client = api.model_client(HttpOptions(client_args={"verify": ca_path}))
+
+    # httpx's async client keeps the original path -- that's a legal httpx `verify`.
+    assert captured["verify"] == ca_path
+
+    # aiohttp's `ssl` param only accepts SSLContext | bool | Fingerprint | None; the
+    # resolved verify value must be converted, not copied verbatim.
+    aiohttp_args = client._api_client._async_client_session_request_args
+    assert isinstance(aiohttp_args["ssl"], ssl_module.SSLContext), (
+        f"aiohttp 'ssl' arg was {aiohttp_args['ssl']!r}, not an SSLContext"
+    )
+
+
+def test_model_client_preserves_verify_false_for_aiohttp() -> None:
+    """`verify=False` must reach aiohttp as `ssl=False` unchanged, not converted."""
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    client = api.model_client(HttpOptions(client_args={"verify": False}))
+
+    assert client._api_client._async_client_session_request_args["ssl"] is False
+
+
+class _FakeFiles:
+    """Records Files API uploads and serves them back by name."""
+
+    def __init__(self) -> None:
+        self.files: dict[str, File] = {}
+        self.uploads: list[str] = []
+        self.gets: list[str] = []
+
+    def upload(self, *, file: Any, config: dict[str, Any]) -> File:
+        name = f"files/{len(self.files)}"
+        self.files[name] = File(
+            name=name,
+            uri=f"https://example.com/{name}",
+            mime_type=config["mime_type"],
+            state=FileState.ACTIVE,
+        )
+        self.uploads.append(config["mime_type"])
+        return self.files[name]
+
+    def get(self, *, name: str) -> File:
+        self.gets.append(name)
+        return self.files[name]
+
+
+class _GoogleFiles(NamedTuple):
+    client: Client
+    files: _FakeFiles
+    db_path: Path
+
+
+@pytest.fixture
+def google_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _GoogleFiles:
+    db_path = tmp_path / "google_files.db"
+    monkeypatch.setattr(
+        google_provider,
+        "inspect_kvstore",
+        lambda name, max_entries=None: KVStore(db_path.as_posix(), max_entries),
+    )
+    client = Client(api_key="test-key")
+    fake = _FakeFiles()
+    monkeypatch.setattr(client, "_files", fake)
+    return _GoogleFiles(client, fake, db_path)
+
+
+def _document(mime_type: str, data: bytes = b"a,b\n1,2\n") -> ContentDocument:
+    return ContentDocument(
+        document=f"data:{mime_type};base64,{base64.b64encode(data).decode()}"
+    )
+
+
+async def test_google_files_cache_keys_on_mime_type(
+    google_files: _GoogleFiles,
+) -> None:
+    client, fake, _ = google_files
+    csv_part = await chat_content_to_part(client, _document("text/csv"))
+    text_part = await chat_content_to_part(client, _document("text/plain"))
+
+    assert fake.uploads == ["text/csv", "text/plain"]
+    assert csv_part.file_data and text_part.file_data
+    assert csv_part.file_data.mime_type == "text/csv"
+    assert text_part.file_data.mime_type == "text/plain"
+    assert csv_part.file_data.file_uri != text_part.file_data.file_uri
+
+
+async def test_google_files_cache_reuses_same_bytes_and_mime_type(
+    google_files: _GoogleFiles,
+) -> None:
+    client, fake, _ = google_files
+    first = await chat_content_to_part(client, _document("text/csv"))
+    second = await chat_content_to_part(client, _document("text/csv"))
+
+    assert fake.uploads == ["text/csv"]
+    assert fake.gets == ["files/0"]
+    assert first.file_data and second.file_data
+    assert first.file_data.file_uri == second.file_data.file_uri
+    assert second.file_data.mime_type == "text/csv"
+
+
+async def test_google_files_cache_ignores_old_format_entries(
+    google_files: _GoogleFiles,
+) -> None:
+    client, fake, db_path = google_files
+    data = b"a,b\n1,2\n"
+    # an entry written by the previous cache, keyed by the bytes' sha256 only
+    old = fake.upload(file=None, config={"mime_type": "text/csv"})
+    fake.uploads.clear()
+    with KVStore(db_path.as_posix()) as files_db:
+        files_db.put(hashlib.sha256(data).hexdigest(), str(old.name))
+
+    part = await chat_content_to_part(client, _document("text/csv", data))
+
+    assert fake.gets == []
+    assert fake.uploads == ["text/csv"]
+    assert part.file_data and part.file_data.mime_type == "text/csv"
+    assert part.file_data.file_uri != old.uri
+
+
+async def test_google_files_cache_scoped_to_api_key(
+    google_files: _GoogleFiles, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, fake, db_path = google_files
+    await chat_content_to_part(client, _document("text/csv"))
+    other_client = Client(api_key="other-key")
+    monkeypatch.setattr(other_client, "_files", fake)
+    await chat_content_to_part(other_client, _document("text/csv"))
+
+    assert fake.uploads == ["text/csv", "text/csv"]
+    assert fake.gets == []
+    with KVStore(db_path.as_posix()) as files_db:
+        rows = files_db.conn.execute("SELECT key, value FROM kv_store").fetchall()
+    assert len(rows) == 2
+    stored = " ".join(" ".join(row) for row in rows)
+    assert "test-key" not in stored and "other-key" not in stored
+
+
+@pytest.mark.anyio
+async def test_google_output_records_response_id() -> None:
+    mock_generate = AsyncMock(
+        return_value=GenerateContentResponse(candidates=[], response_id="g-response")
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+        result = await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "g-response"
+
+
+@pytest.mark.anyio
+async def test_google_streamed_response_keeps_response_id() -> None:
+    async def chunks() -> Any:
+        for text in ["hel", "lo"]:
+            yield GenerateContentResponse(
+                candidates=[
+                    Candidate(
+                        content=Content(parts=[Part(text=text)], role="model"),
+                        index=0,
+                    )
+                ],
+                response_id="g-stream-response",
+            )
+
+    client = MagicMock()
+    client.aio.models.generate_content_stream = AsyncMock(return_value=chunks())
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    response = await api._stream_generate_content(
+        client, "gemini-2.0-flash", [], GenerateContentConfig()
+    )
+
+    assert response.response_id == "g-stream-response"
+
+
+def test_google_explicit_api_key_overrides_ambient_adc(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit API key must win over GOOGLE_USE_ADC's ambient default."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    monkeypatch.setenv("GOOGLE_API_KEY", "ambient-key")
+
+    def unexpected_adc_resolution(*_args: Any, **_kwargs: Any) -> Any:
+        pytest.fail(
+            "ambient ADC should not be resolved when an explicit API key is supplied"
+        )
+
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        unexpected_adc_resolution,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="explicit-key",
+    )
+
+    assert api.api_key == "explicit-key"
+    assert api._oauth is False
+
+
+def test_google_ambient_adc_overrides_environment_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ambient ADC must take precedence over an API key found only in the environment."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    monkeypatch.setenv("GOOGLE_API_KEY", "ambient-key")
+    credentials = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        lambda *_args, **_kwargs: credentials,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key=None,
+    )
+
+    assert api._oauth is True
+    assert api._credentials is credentials
+
+
+def test_google_explicit_use_adc_overrides_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit use_adc=true remains authoritative over a supplied API key."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "false")
+    credentials = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        lambda *_args, **_kwargs: credentials,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="explicit-key",
+        use_adc=True,
+    )
+
+    assert api._oauth is True
+    assert api._credentials is credentials

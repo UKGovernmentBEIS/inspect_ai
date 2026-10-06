@@ -3,8 +3,11 @@ import importlib
 import socket
 import subprocess
 import sys
+import weakref
 from pathlib import Path
+from types import SimpleNamespace, TracebackType
 from typing import Any, AsyncIterator, Callable
+from uuid import uuid4
 
 import anyio
 import pytest
@@ -22,11 +25,13 @@ from inspect_ai.model import get_model
 from inspect_ai.solver import solver
 from inspect_ai.tool import (
     MCPServer,
+    Tool,
     ToolError,
     mcp_connection,
     mcp_server_stdio,
     mcp_tools,
 )
+from inspect_ai.tool._mcp.tools import MCPToolSourceLocal
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import sandbox
 
@@ -260,8 +265,8 @@ def _patch_sandbox_module(monkeypatch, exec_model_request_impl):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-    async def _fake_sandbox_with_injected_tools(*, sandbox_name: Any = None) -> None:
-        return None
+    async def _fake_sandbox_with_injected_tools(*, sandbox_name: Any = None) -> Any:
+        return SimpleNamespace(_tools_user=None, _tools_default_user=None)
 
     async def _fake_exec_scalar_request(*args: Any, **kwargs: Any) -> Any:
         if kwargs.get("method") == "mcp_launch_server":
@@ -376,8 +381,8 @@ async def test_sandbox_writer_logs_warning_when_notification_fails(monkeypatch):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-    async def _fake_sandbox_with_injected_tools(*, sandbox_name: Any = None) -> None:
-        return None
+    async def _fake_sandbox_with_injected_tools(*, sandbox_name: Any = None) -> Any:
+        return SimpleNamespace(_tools_user=None, _tools_default_user=None)
 
     async def _fake_exec_scalar_request(*args: Any, **kwargs: Any) -> Any:
         if kwargs.get("method") == "mcp_launch_server":
@@ -434,6 +439,45 @@ async def test_sandbox_writer_logs_warning_when_notification_fails(monkeypatch):
 
 
 @skip_if_no_mcp_package
+async def test_sandbox_client_runs_cli_as_tools_user_and_sends_default_user(
+    monkeypatch,
+):
+    from mcp import StdioServerParameters
+
+    from inspect_ai.tool._mcp import _sandbox as sandbox_module
+    from inspect_ai.util._sandbox.environment import SandboxDefaultUser
+
+    default_user = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/h")
+    calls: list[dict[str, Any]] = []
+
+    async def _fake_sandbox_with_injected_tools(*, sandbox_name: Any = None) -> Any:
+        return SimpleNamespace(_tools_user="root", _tools_default_user=default_user)
+
+    async def _recording_exec_scalar_request(*args: Any, **kwargs: Any) -> Any:
+        calls.append(kwargs)
+        return 1
+
+    monkeypatch.setattr(
+        sandbox_module, "sandbox_with_injected_tools", _fake_sandbox_with_injected_tools
+    )
+    monkeypatch.setattr(sandbox_module, "SandboxJSONRPCTransport", lambda *a, **k: None)
+    monkeypatch.setattr(
+        sandbox_module, "exec_scalar_request", _recording_exec_scalar_request
+    )
+
+    async with sandbox_module.sandbox_client(StdioServerParameters(command="fake")) as (
+        _read_stream,
+        write_stream,
+    ):
+        await write_stream.aclose()
+
+    launch, kill = calls
+    assert launch["method"] == "mcp_launch_server"
+    assert launch["params"]["user"] == default_user._asdict()
+    assert [c["user"] for c in (launch, kill)] == ["root", "root"]
+
+
+@skip_if_no_mcp_package
 async def test_sandbox_kill_failure_does_not_propagate(monkeypatch):
     """A failing `mcp_kill_server` during teardown must be swallowed, not raised.
 
@@ -487,6 +531,108 @@ async def test_mcp_connection_refcount():
     async with mcp_connection(server):
         tools_reopen = await server.tools()
         assert len(tools_reopen) > 0
+
+
+class _FakeToolServer(MCPServer):
+    """Minimal MCPServer stand-in for exercising MCPToolSourceLocal.tools()."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def tools(self) -> list[Tool]:
+        self.calls += 1
+        marker = self.calls
+
+        async def tool_a() -> int:
+            return marker
+
+        return [tool_a]
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        return None
+
+
+def _no_transport_client() -> Any:
+    raise AssertionError("these tests must not open a transport")
+
+
+async def test_mcp_tools_never_caches() -> None:
+    """MCPToolSourceLocal must always delegate to the server, never cache.
+
+    A cached list here is exactly the bug this class exists to prevent: it
+    would hand one caller's tools (bound to another caller's session) to a
+    later caller instead of re-resolving through the server.
+    """
+    server = _FakeToolServer()
+    source = MCPToolSourceLocal(server, "all")
+    seen: list[str] = []
+
+    async def resolve_and_call() -> None:
+        tools = await source.tools()
+        seen.append(str(await tools[0]()))
+
+    await resolve_and_call()
+    await resolve_and_call()
+    await resolve_and_call()
+
+    assert server.calls == 3, (
+        f"expected one resolution per call, got {server.calls}; a cached "
+        "list can serve a stale caller's tools to a new one"
+    )
+    assert seen == ["1", "2", "3"], (
+        "each call must get a fresh tool bound to that call's own resolution"
+    )
+
+
+@skip_if_no_mcp_package
+async def test_mcp_task_session_reused_after_close() -> None:
+    """A closed session stays registered and is reused, not replaced.
+
+    With no outer cache to invalidate, there is no need to force a new
+    session object into existence for the same task: the existing object
+    safely reopens its connection on the next __aenter__ (see
+    MCPServerLocalSession.__aenter__).
+    """
+    from inspect_ai.tool._mcp._local import MCPServerLocal
+
+    server = MCPServerLocal(_no_transport_client, name=f"reuse-{uuid4()}", events=False)
+
+    s1 = server._task_session()
+    await s1._close()
+    s2 = server._task_session()
+    assert s2 is s1, "closing a session should not force a new object for the same task"
+
+
+@skip_if_no_mcp_package
+async def test_mcp_task_session_dies_with_its_task() -> None:
+    """A session its task never entered must not outlive that task.
+
+    Only `mcp_connection()` enters a server, so a plain solver eval that just
+    calls `tools()` never triggers the refcount-triggered close in
+    `__aexit__`. Keying the registry by the task object is what releases
+    those sessions.
+    """
+    from inspect_ai.tool._mcp._local import MCPServerLocal
+
+    server = MCPServerLocal(_no_transport_client, name=f"weak-{uuid4()}", events=False)
+    session_refs: list[weakref.ref[Any]] = []
+
+    async def never_entered() -> None:
+        session_refs.append(weakref.ref(server._task_session()))
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(never_entered)
+
+    # no gc.collect(): nothing else references the session, so dropping the
+    # dead task's registry entry releases it by refcount
+    assert session_refs[0]() is None, (
+        "a session that was created but never entered outlived its task"
+    )
 
 
 def _free_port() -> int:

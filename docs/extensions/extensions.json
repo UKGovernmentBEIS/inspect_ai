@@ -77,6 +77,17 @@
     ]
   },
   {
+    "id": "openshell-sandbox",
+    "name": "OpenShell Sandbox",
+    "url": "https://github.com/32bitsret/inspect-openshell-sandbox",
+    "desc": "NVIDIA OpenShell sandbox environment for Inspect, with kernel-enforced filesystem and network policies per task.",
+    "author": "Retnan Daser",
+    "author_url": "https://github.com/32bitsret",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
     "id": "policy-sandbox",
     "name": "Policy Sandbox",
     "url": "https://github.com/Dedulus/inspect-policy-sandbox",
@@ -116,6 +127,17 @@
     "desc": "Tools to summarize, cluster, and search over agent transcripts.",
     "author": "Transluce",
     "author_url": "https://transluce.org/introducing-docent",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "probity-native-result-reader",
+    "name": "Probity native result reader",
+    "url": "https://github.com/probityai/agent-evidence-observer/blob/71ac0b2126473316655184235000647a6dd0f5cf/docs/NATIVE-CONSUMER-CI.md",
+    "desc": "Offline reader and publication gate for bounded native Inspect execution records, preserving errors and unstarted attempts.",
+    "author": "Probity",
+    "author_url": "https://github.com/probityai",
     "categories": [
       "Analysis"
     ]
@@ -187,6 +209,61 @@
     ]
   },
   {
+    "id": "grader-variance",
+    "name": "Grader Variance",
+    "url": "https://github.com/joanna-ciesielski/grader-variance",
+    "desc": "Grader-variance decomposition \u2014 repeatedly re-scores hash-verified frozen completions with one judge, separating grader noise from question and model-sampling variance and reporting the repeats a target dependability needs.",
+    "author": "Joanna Ciesielski",
+    "author_url": "https://github.com/joanna-ciesielski",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "inspect-refusal-fidelity",
+    "name": "Inspect Refusal Fidelity",
+    "url": "https://github.com/IvanSFlowGit/inspect-refusal-fidelity",
+    "desc": "Scores whether a system refuses when it cannot honestly answer, reporting over-refusal and false confidence as separate metrics.",
+    "author": "Ivan Skachek",
+    "author_url": "https://github.com/IvanSFlowGit",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "hermes-rubric",
+    "name": "Hermes Rubric",
+    "url": "https://github.com/hermes-labs-ai/hermes-rubric/blob/v1.2.1/docs/ADAPTERS.md#inspect-ai-scorer",
+    "desc": "Rubric-based scorer that preserves assessment details in Inspect score metadata and can report assessment failures as unscored.",
+    "author": "Hermes Labs",
+    "author_url": "https://hermes-labs.ai",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "proofbundle",
+    "name": "proofbundle",
+    "url": "https://github.com/b7n0de/proofbundle",
+    "desc": "Signed, offline-verifiable receipts for eval runs \u2014 Ed25519 over an RFC 6962 Merkle root. Binds what a run claimed and when; it does not attest that the evaluation itself was honest.",
+    "author": "b7n0de",
+    "author_url": "https://b7n0de.com",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "corrlog-for-inspect",
+    "name": "Corrlog for Inspect",
+    "url": "https://github.com/SaInT8888888888/corrlog",
+    "desc": "Emits signed Agent Correction Records on INCORRECT eval scores via Inspect hooks \u2014 Ed25519, hash-chained, key-pinned receipts evidencing caught agent failures, verifiable offline.",
+    "author": "SaInT8888888888",
+    "author_url": "https://github.com/SaInT8888888888",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
     "id": "inspect-swe",
     "name": "Inspect SWE",
     "url": "https://meridianlabs-ai.github.io/inspect_swe/",
@@ -248,6 +325,17 @@
     "desc": "Framework for running experiments on AI Control and Monitoring.",
     "author": "Redwood Research",
     "author_url": "https://github.com/linuxarena/control-tower",
+    "categories": [
+      "Frameworks"
+    ]
+  },
+  {
+    "id": "inspect-boltons",
+    "name": "Inspect boltons",
+    "url": "https://github.com/tadamcz/inspect_boltons",
+    "desc": "Reusable tools and utilities for Inspect, in the spirit of the Python boltons library.",
+    "author": "Tom Adamczewski",
+    "author_url": "https://github.com/tadamcz",
     "categories": [
       "Frameworks"
     ]
@@ -319,12 +407,34 @@
     ]
   },
   {
+    "id": "inspect-evals-lint",
+    "name": "Inspect Evals Lint",
+    "url": "https://inspect-evals-lint.generality.org/",
+    "desc": "Static checks for Inspect evaluations: file structure, test coverage, best practices and sandbox image pinning.",
+    "author": "Generality Labs",
+    "author_url": "https://github.com/Generality-Labs/inspect-evals-lint",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
     "id": "inspect-costs-plugin",
     "name": "Inspect Costs Plugin",
     "url": "https://github.com/jasongwartz/inspect_costs_plugin/",
     "desc": "Automatically load pricing data for models under test.",
     "author": "Jason Gwartz",
     "author_url": "https://github.com/jasongwartz",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
+    "id": "inspect-logittilt",
+    "name": "Inspect LogitTilt",
+    "url": "https://adrskapars.github.io/inspect_logittilt/",
+    "desc": "Steers a model's sampling towards any target behaviour, surfacing on-policy examples in fewer samples, accessing only the model's logits.",
+    "author": "Adrians Skapars",
+    "author_url": "https://scholar.google.com/citations?user=9Vf0mWkAAAAJ&hl=en",
     "categories": [
       "Tooling"
     ]

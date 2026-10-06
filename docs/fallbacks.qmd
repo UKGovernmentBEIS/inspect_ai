@@ -51,6 +51,31 @@ Without fallbacks configured (or when every fallback also declines), the refusal
 
 When a fallback serves a request, the API does not report the declining attempt's refusal category (the declined attempt is unbilled and only its token counts appear in the response diagnostics). Refusal categories are available only on responses that actually ended in a refusal.
 
+## Failing on Refusals {#failing-on-refusals}
+
+By default a refusal is just another model output: agents like `react()` retry it if `retry_refusals` is set and otherwise stop, and the sample proceeds to scoring (typically scoring zero, which is indistinguishable from a genuine failure of the task). If you would rather be told loudly that a refusal occurred, set the `fail_on_refusal` generation option. When enabled, `generate()` raises a `ModelRefusalError` after a generation ends with `stop_reason="content_filter"`, which fails the sample with an error whose message starts with `Model refusal` and includes the model, role and refusal category:
+
+``` bash
+inspect eval ctf.py --model anthropic/claude-fable-5 --fail-on-refusal
+```
+
+Like other generation config, `fail_on_refusal` can be set eval-wide (as above, or `eval(..., fail_on_refusal=True)`), on a `Task` (`config=GenerateConfig(fail_on_refusal=True)`), on a model (`--model-spec` or `get_model(..., config=...)`), or on an individual `generate()` call. Eval-wide and task settings also apply to any other model used by the eval, including [model roles](models.qmd#model-roles) such as graders and ad hoc `get_model()` calls in solvers or scorers, but a model's own setting wins, so you can fail on refusals from the agent while letting a grader refuse normally:
+
+``` bash
+inspect eval ctf.py --fail-on-refusal \
+  --model-role grader="{model: openai/gpt-5, fail_on_refusal: false}"
+```
+
+Some things to be aware of:
+
+- With the default `fail_on_error`, the first sample error fails the whole eval, so `--fail-on-refusal` on its own stops the eval at the first refusal. To record failed samples and keep running, combine it with `--no-fail-on-error` (or a `--fail-on-error` threshold, or `--continue-on-fail`). See [Handling Errors](handling-errors.qmd) for details.
+- Refusal retries still apply: `retry_refusals=N` on `react()`, `deepagent()` or the agent bridge means the sample fails only after N+1 consecutive refusals in one step (`deepagent()` defaults to 3 retries, `react()` to none).
+- `retry_on_error` and `score_on_error` treat a refusal like any other sample error, and `eval_set()` retries a task whose log status is `error` as usual.
+- The refusal counter and `--log-refusals` still run, and `ModelRefusalError` (exported from `inspect_ai.model`) carries the refused `output`, so the category is available to code that catches it.
+- Because the CLI flag is unset by default, `--fail-on-refusal` never disables an option enabled by a task or model config; pass `--no-fail-on-refusal` to do that.
+- For scaffolds bridged in-process with `agent_bridge()`, the error surfaces as an exception from the scaffold's own SDK call, so a scaffold that catches broad exceptions around its API calls will swallow it. Scaffolds running in a sandbox via `sandbox_agent_bridge()` fail the sample regardless of how they handle the error response they receive.
+- A refusal during an MCP sampling request (a generation an [MCP server](tools-mcp.qmd) asks Inspect to perform on its behalf) is returned to the server as an MCP error rather than failing the sample, the same as an exceeded limit there today.
+
 ## Fallback Logging
 
 When a fallback serves a generation, Inspect records it on the model output, in the message content, and in a per-sample rollup.
@@ -63,6 +88,8 @@ On the model output, `ModelOutput.model` reports the model that actually produce
 | `fallback_model` | Model that served the request. |
 | `count` | Number of generate calls (always 1 on a single output; aggregated in the sample rollup). |
 | `metadata` | Provider diagnostics. For Anthropic, the `handoffs` chain and the per-attempt `usage.iterations` billing record. |
+
+A turn that [sticky routing](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#sticky-routing) sends straight to the fallback model (no model declined it) is recorded the same way, with an empty `handoffs` chain.
 
 The assistant message also carries a content marker at the point of the handoff, which is what allows Inspect to replay fallen-back conversations on subsequent turns.
 
@@ -82,7 +109,9 @@ df[df.fallbacks > 0]
 
 ### Costs
 
-Cost estimation (including the `cost_limit` option) prices fallen-back requests at the requested model's rates, as if no refusal had occurred. This keeps estimated costs comparable across samples, and is conservative for `cost_limit` since fallback targets are cheaper than the requested model (Anthropic bills each attempt at the rates of the model that ran it, and declined attempts that produced no output are unbilled). If you need actual-spend accounting, the per-attempt billing record is preserved in `ModelFallback.metadata["iterations"]` on each `ModelEvent`'s output.
+Cost estimation (including the `cost_limit` option) prices each attempt at the rates of the model that ran it, as Anthropic bills it. An attempt that declined partway through its response is billed, and so is included. An attempt that declined before any output is billed only for some refusal categories (`bio`, `frontier_llm` and `reasoning_extraction`), which a fallback response does not report, so it is left out. For those categories the estimated cost, and the spend a `cost_limit` sees, is lower than the billed amount. The per-attempt billing record is in `ModelFallback.metadata["iterations"]` on each `ModelEvent`'s output.
+
+Fallback models need cost data too (see [Model Cost](setting-limits.qmd#model-cost)). If a fallback model has none, the request is priced at the requested model's rates and a warning is shown.
 
 ## Viewer
 

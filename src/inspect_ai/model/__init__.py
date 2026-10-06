@@ -65,11 +65,15 @@ from ._model import (
     Model,
     ModelAPI,
     ModelName,
+    ModelRefusalError,
+    ModelResolver,
+    ModelRoles,
     RetryDecision,
+    compute_model_cost,
     get_model,
     model_roles,
 )
-from ._model_call import ModelCall
+from ._model_call import ModelCall, ModelRequestId
 from ._model_config import ModelConfig
 from ._model_data.model_data import ModelCost, ModelInfo
 from ._model_info import get_model_info, set_model_cost, set_model_info
@@ -80,6 +84,7 @@ from ._model_output import (
     ModelFallback,
     ModelOutput,
     ModelUsage,
+    ServedModelUsage,
     StopCategory,
     StopDetails,
     StopReason,
@@ -97,6 +102,14 @@ from ._openai_convert import (
 from ._prompt import user_prompt
 from ._providers.providers import *
 from ._registry import modelapi
+from ._stream import (
+    StreamEvent,
+    StreamHandler,
+    StreamReasoningEvent,
+    StreamRetryEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+)
 from ._trim import trim_messages
 
 __all__ = [
@@ -104,6 +117,7 @@ __all__ = [
     "GenerateConfig",
     "GenerateConfigArgs",
     "GenerateFilter",
+    "ModelResolver",
     "GenerateInput",
     "ImageOutput",
     "OutputModality",
@@ -138,6 +152,7 @@ __all__ = [
     "messages_to_openai",
     "stable_message_ids",
     "ModelCall",
+    "ModelRequestId",
     "ModelCost",
     "ModelOutput",
     "ModelConversation",
@@ -155,14 +170,24 @@ __all__ = [
     "Model",
     "ModelAPI",
     "ModelName",
+    "ModelRefusalError",
+    "compute_model_cost",
     "ModelRole",
+    "ModelRoles",
     "RetryDecision",
+    "ServedModelUsage",
     "ModelConfig",
     "ModelFallback",
     "ModelUsage",
     "StopCategory",
     "StopDetails",
     "StopReason",
+    "StreamEvent",
+    "StreamHandler",
+    "StreamReasoningEvent",
+    "StreamRetryEvent",
+    "StreamTextEvent",
+    "StreamToolCallEvent",
     "call_tools",
     "execute_tools",
     "ExecuteToolsResult",

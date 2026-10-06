@@ -65,6 +65,14 @@ class PerplexityAPI(OpenAICompatibleAPI):
         """Capture the raw response for post-processing."""
         self._response = response
 
+    @override
+    def auto_streamable(self, config: GenerateConfig) -> bool:
+        # Perplexity attaches citations and usage extras via top-level
+        # response fields (search_results etc.) that can arrive on late
+        # chunks, and the SDK stream accumulator drops top-level extra
+        # fields — so citations would silently vanish under streaming.
+        return False
+
     async def generate(
         self,
         input: list["ChatMessage"],

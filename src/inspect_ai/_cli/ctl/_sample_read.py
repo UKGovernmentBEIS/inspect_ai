@@ -1,4 +1,4 @@
-"""Sample read runners: list/errors/show/events/messages.
+"""Sample read runners: list/errors/show/events/messages/store.
 
 Also the option validators these runners apply and the idle/truncation
 footers of the listing outputs.
@@ -25,11 +25,12 @@ from inspect_ai._control.state import (
 # calls must resolve through the module object at call time — do not
 # "simplify" to `from ._http import _request_json` (see
 # design/ctl/cli-refactor.md).
-from . import _fetch
+from . import _fetch, _log_dir
 from ._failure import _envelope_failures, _fail
 from ._fetch import (
     _exit_samples_unreachable,
     _fetch_sample_summaries,
+    _narrow_by_model,
     _resolve_target_eval,
     _SamplesPage,
 )
@@ -52,6 +53,7 @@ from ._render import (
     _print_messages,
     _print_sample_detail,
     _print_samples_table,
+    _print_store,
     _task_header,
 )
 
@@ -92,7 +94,9 @@ class _SampleRows(NamedTuple):
     complete over each eval's samples even when its rows were filtered or
     capped, except against an older (histogram-less) server on an
     ``active_since`` delta poll, where only the delta's rows exist to count;
-    ``truncated`` whether any eval's rows hit the cap.
+    ``truncated`` whether any eval's rows hit the cap. ``extra`` holds the
+    envelope keys only ``--log-dir`` reads add (``conflicted``,
+    ``incomplete``, ``unreadable``).
     """
 
     as_of: float
@@ -101,6 +105,7 @@ class _SampleRows(NamedTuple):
     rows: list[dict[str, Any]]
     counts: dict[str, int]
     truncated: bool
+    extra: dict[str, Any] | None = None
 
 
 def _list_sample_rows(
@@ -112,12 +117,15 @@ def _list_sample_rows(
     limit: int | None = None,
     all_samples: bool = False,
     content: bool = False,
+    model: str | None = None,
 ) -> _SampleRows:
     """Fetch sample rows for one task (``task`` given) or all running tasks.
 
     ``statuses`` is the already-parsed ``--status`` member set (``None`` =
     no filter) — parsing lives with the caller so one parse serves the
-    request, the fallback filter, and the truncation footer.
+    request, the fallback filter, and the truncation footer. ``model``
+    narrows the candidate tasks to those running a matching model — with
+    ``task`` it disambiguates the selector; without, it scopes the fan-out.
     """
     fallback_as_of = time.time()
     # Loop-invariant across targets: the filter's wire form and the
@@ -128,6 +136,18 @@ def _list_sample_rows(
     truncated = False
     fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
+    log_dir = _log_dir._log_dir_root() is not None
+    if not summaries and log_dir:
+        # nothing to resolve against, but the envelope still reports the
+        # directory's unreadable logs
+        return _list_log_dir_sample_rows(
+            [],
+            scoped=task is not None,
+            sample_filter=sample_filter,
+            statuses=statuses,
+            limit=cap,
+            content=content,
+        )
     if not summaries:
         return _SampleRows(
             as_of=fallback_as_of,
@@ -139,9 +159,25 @@ def _list_sample_rows(
         )
 
     if task is not None:
-        targets = [_resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)]
+        targets = [
+            _resolve_target_eval(
+                summaries, task, busy_pids=fetched.busy_pids, model=model
+            )
+        ]
+    elif model is not None:
+        targets = _narrow_by_model(summaries, model, busy_pids=fetched.busy_pids)
     else:
         targets = summaries
+
+    if log_dir:
+        return _list_log_dir_sample_rows(
+            targets,
+            scoped=task is not None,
+            sample_filter=sample_filter,
+            statuses=statuses,
+            limit=cap,
+            content=content,
+        )
 
     reads = _run_async(
         functools.partial(
@@ -226,6 +262,53 @@ def _list_sample_rows(
     )
 
 
+def _list_log_dir_sample_rows(
+    targets: list[dict[str, Any]],
+    *,
+    scoped: bool,
+    sample_filter: Literal["errors"] | None,
+    statuses: frozenset[str] | None,
+    limit: int | None,
+    content: bool,
+) -> _SampleRows:
+    """:func:`_list_sample_rows` under ``--log-dir``: each target read from its logs."""
+    listing = _log_dir._read_samples(
+        targets,
+        scoped=scoped,
+        sample_filter=sample_filter,
+        statuses=statuses,
+        limit=limit,
+        content=content,
+    )
+    counts = dict.fromkeys(SAMPLE_STATUSES, 0)
+    rows: list[dict[str, Any]] = []
+    for read in listing.reads:
+        for key, value in read.counts.items():
+            counts[key] = counts.get(key, 0) + value
+        for sample in read.samples:
+            rows.append(
+                {
+                    "task_id": read.target.get("task_id"),
+                    "task": read.target.get("task"),
+                    **sample,
+                }
+            )
+    full_rows = [read.target for read in listing.reads]
+    return _SampleRows(
+        as_of=listing.as_of,
+        targets=full_rows,
+        read=full_rows,
+        rows=rows,
+        counts=counts,
+        truncated=any(read.truncated for read in listing.reads),
+        extra={
+            "conflicted": sum(read.conflicted for read in listing.reads),
+            "incomplete": bool(listing.unreadable),
+            "unreadable": listing.unreadable,
+        },
+    )
+
+
 class _EvalSamplesRead(NamedTuple):
     """One target eval's samples read (see :func:`_read_all_eval_samples`).
 
@@ -305,6 +388,7 @@ def _run_sample_list(
     limit: int | None = None,
     all_samples: bool = False,
     content: bool = False,
+    model: str | None = None,
 ) -> None:
     if all_samples and limit is not None:
         raise click.UsageError("--all and --limit are mutually exclusive.")
@@ -319,6 +403,7 @@ def _run_sample_list(
         all_samples=all_samples,
         content=content,
         idle_pointer=True,
+        model=model,
     )
 
 
@@ -336,12 +421,13 @@ def _parse_statuses(status: str | None) -> frozenset[str] | None:
 
 
 def _run_sample_errors(
-    task: str | None, as_json: bool, *, content: bool = False
+    task: str | None, as_json: bool, *, content: bool = False, model: str | None = None
 ) -> None:
     _run_sample_listing(
         task,
         None,
         as_json,
+        model=model,
         sample_filter="errors",
         empty_read="(no errors or retries)",
         printer=_print_errors_table,
@@ -373,6 +459,7 @@ def _run_sample_listing(
     content: bool = False,
     content_footer: str | None = None,
     idle_pointer: bool = False,
+    model: str | None = None,
 ) -> None:
     """The shared body of `sample list` / `sample errors`.
 
@@ -396,6 +483,8 @@ def _run_sample_listing(
     footer (`sample list` — the listing whose idle column shows a stall; see
     :func:`_echo_idle_pointer`).
     """
+    if active_since is not None and _log_dir._log_dir_root() is not None:
+        _log_dir._refuse_active_since()
     listing = _list_sample_rows(
         task,
         active_since,
@@ -404,6 +493,7 @@ def _run_sample_listing(
         limit=limit,
         all_samples=all_samples,
         content=content,
+        model=model,
     )
     rows = listing.rows
 
@@ -415,6 +505,7 @@ def _run_sample_listing(
                     "counts": listing.counts,
                     "samples": rows,
                     "truncated": listing.truncated,
+                    **(listing.extra or {}),
                 },
                 indent=2,
             )
@@ -550,31 +641,40 @@ def _run_sample_show(
     content: bool,
     show_traceback: bool,
     as_json: bool,
+    *,
+    model: str | None = None,
 ) -> None:
     fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
+        _log_dir._fail_if_only_unreadable()
         if as_json:
             _echo_raw("null")
             return
         _echo_no_running_evals()
         return
 
-    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    target = _resolve_target_eval(
+        summaries, task, busy_pids=fetched.busy_pids, model=model
+    )
     # One atomic read: the detail carries the summary fields (timing / tokens
     # / messages) alongside the error history, so there is no supplemental
     # listing fetch (and no torn view if the sample retries between reads).
-    detail = _fetch._fetch_sample_detail(
-        target["socket_path"],
-        target["eval_id"],
-        sample_id,
-        epoch,
-        content=content,
-        pid=target.get("pid"),
-    )
+    log_dir = _log_dir._log_dir_root() is not None
+    if log_dir:
+        detail = _log_dir._sample_detail(target, sample_id, epoch, content=content)
+    else:
+        detail = _fetch._fetch_sample_detail(
+            target["socket_path"],
+            target["eval_id"],
+            sample_id,
+            epoch,
+            content=content,
+            pid=target.get("pid"),
+        )
     row = (
         _fetch_sample_row_from_listing(target, detail)
-        if "message_count" not in detail
+        if "message_count" not in detail and not log_dir
         else None
     )
     merged: dict[str, Any] = {
@@ -646,6 +746,7 @@ def _run_sample_events(
     sample_id: str,
     epoch: int,
     *,
+    model: str | None = None,
     cursor: str | None,
     tail: int | None,
     from_start: bool,
@@ -681,6 +782,7 @@ def _run_sample_events(
     fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
+        _log_dir._fail_if_only_unreadable()
         if as_json:
             # Carry the identifier echo even on the empty page so every
             # --json page has a uniform shape (task_id is unresolvable
@@ -698,22 +800,39 @@ def _run_sample_events(
         _echo_no_running_evals()
         return
 
-    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
-    page = _fetch._fetch_sample_events(
-        target["socket_path"],
-        target["eval_id"],
-        sample_id,
-        epoch,
-        cursor=cursor,
-        tail=tail,
-        limit=limit,
-        types=types,
-        content=content,
-        full=full,
-        since_time=since_time,
-        until=until,
-        pid=target.get("pid"),
+    target = _resolve_target_eval(
+        summaries, task, busy_pids=fetched.busy_pids, model=model
     )
+    if _log_dir._log_dir_root() is not None:
+        page = _log_dir._sample_events(
+            target,
+            sample_id,
+            epoch,
+            cursor=cursor,
+            tail=tail,
+            limit=limit,
+            types=types,
+            content=content,
+            full=full,
+            since_time=since_time,
+            until=until,
+        )
+    else:
+        page = _fetch._fetch_sample_events(
+            target["socket_path"],
+            target["eval_id"],
+            sample_id,
+            epoch,
+            cursor=cursor,
+            tail=tail,
+            limit=limit,
+            types=types,
+            content=content,
+            full=full,
+            since_time=since_time,
+            until=until,
+            pid=target.get("pid"),
+        )
     # Echo the resolved identifiers so a defaulted epoch is visible and the
     # row round-trips into other commands' selectors.
     page = {
@@ -736,6 +855,7 @@ def _run_sample_messages(
     sample_id: str,
     epoch: int,
     *,
+    model: str | None = None,
     tail: int | None,
     show_all: bool,
     content: bool,
@@ -759,6 +879,7 @@ def _run_sample_messages(
     fetched = _fetch_sample_summaries()
     summaries = fetched.summaries
     if not summaries:
+        _log_dir._fail_if_only_unreadable()
         if as_json:
             # Uniform --json shape even on the empty page (task_id is
             # unresolvable with no running evals; as_of is None because no
@@ -777,17 +898,24 @@ def _run_sample_messages(
         _echo_no_running_evals()
         return
 
-    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
-    page = _fetch._fetch_sample_messages(
-        target["socket_path"],
-        target["eval_id"],
-        sample_id,
-        epoch,
-        tail=tail,
-        content=content,
-        full=full,
-        pid=target.get("pid"),
+    target = _resolve_target_eval(
+        summaries, task, busy_pids=fetched.busy_pids, model=model
     )
+    if _log_dir._log_dir_root() is not None:
+        page = _log_dir._sample_messages(
+            target, sample_id, epoch, tail=tail, content=content, full=full
+        )
+    else:
+        page = _fetch._fetch_sample_messages(
+            target["socket_path"],
+            target["eval_id"],
+            sample_id,
+            epoch,
+            tail=tail,
+            content=content,
+            full=full,
+            pid=target.get("pid"),
+        )
     # Echo the resolved identifiers so a defaulted epoch is visible and the
     # row round-trips into other commands' selectors.
     page = {
@@ -804,6 +932,77 @@ def _run_sample_messages(
     _echo(_task_header(target))
     _echo()
     _print_messages(page, content=content, full=full)
+
+
+@_envelope_failures
+def _run_sample_store(
+    task: str,
+    sample_id: str,
+    epoch: int,
+    *,
+    keys: tuple[str, ...],
+    content: bool,
+    full: bool,
+    as_json: bool,
+) -> None:
+    fetched = _fetch_sample_summaries()
+    summaries = fetched.summaries
+    if not summaries:
+        _log_dir._fail_if_only_unreadable()
+        if as_json:
+            # Uniform --json shape even on the empty page (task_id is
+            # unresolvable with no running evals; as_of is None because no
+            # server stamped a read time). `missing` appears only when keys
+            # were requested, as on a served page — empty, since no store
+            # was read to be missing from.
+            empty_page: dict[str, Any] = {
+                "task_id": None,
+                "sample_id": sample_id,
+                "epoch": epoch,
+                "as_of": None,
+                "status": None,
+                "count": 0,
+                "store": {},
+            }
+            if keys:
+                empty_page["missing"] = []
+            _echo_raw(json_lib.dumps(empty_page, indent=2))
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    if _log_dir._log_dir_root() is not None:
+        page = _log_dir._sample_store(
+            target, sample_id, epoch, keys=keys, content=content, full=full
+        )
+    else:
+        page = _fetch._fetch_sample_store(
+            target["socket_path"],
+            target["eval_id"],
+            sample_id,
+            epoch,
+            keys=keys,
+            content=content,
+            full=full,
+            pid=target.get("pid"),
+        )
+    # Echo the resolved identifiers so a defaulted epoch is visible and the
+    # row round-trips into other commands' selectors.
+    page = {
+        "task_id": target.get("task_id"),
+        "sample_id": sample_id,
+        "epoch": epoch,
+        **page,
+    }
+
+    if as_json:
+        _echo_raw(json_lib.dumps(page, indent=2))
+        return
+
+    _echo(_task_header(target))
+    _echo()
+    _print_store(page, content=content, full=full)
 
 
 def _looks_like_timestamp(value: str) -> bool:

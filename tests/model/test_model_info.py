@@ -1,5 +1,8 @@
 """Tests for model_info lookup functionality."""
 
+import re
+from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -63,6 +66,48 @@ class TestGetModelInfo:
         assert info.context_length is not None
         assert info.organization == "OpenAI"
 
+    def test_gpt_6_astra_model_info(self):
+        info = get_model_info("openai/gpt-6-astra")
+        assert info is not None
+        assert info.context_length == 1050000
+        assert info.output_tokens == 128000
+        assert info.input_tokens == 922000
+        assert info.reasoning is True
+        assert info.knowledge_cutoff_date == date(2026, 4, 30)
+
+    @pytest.mark.parametrize(
+        "model_name,display_name,knowledge_cutoff",
+        [
+            ("gpt-6-sol", "GPT-6 Sol", date(2026, 4, 20)),
+            ("gpt-6-luna", "GPT-6 Luna", date(2026, 5, 18)),
+        ],
+    )
+    def test_gpt_6_sol_luna_model_info(
+        self, model_name, display_name, knowledge_cutoff
+    ):
+        info = get_model_info(f"openai/{model_name}")
+        assert info is not None
+        assert info.model == display_name
+        assert info.context_length == 1050000
+        assert info.output_tokens == 128000
+        assert info.input_tokens == 922000
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "medium"
+        assert info.knowledge_cutoff_date == knowledge_cutoff
+        assert info.release_date == date(2026, 9, 22)
+
+    def test_gpt_6_1_sol_model_info(self):
+        info = get_model_info("openai/gpt-6.1-sol")
+        assert info is not None
+        assert info.model == "GPT-6.1 Sol"
+        assert info.context_length == 1050000
+        assert info.output_tokens == 128000
+        assert info.input_tokens == 922000
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "medium"
+        assert info.knowledge_cutoff_date == date(2026, 4, 30)
+        assert info.release_date == date(2026, 9, 29)
+
     def test_known_kimi_model(self):
         """Test lookup of a known Moonshot AI Kimi model."""
         info = get_model_info("moonshotai/kimi-k3")
@@ -92,6 +137,18 @@ class TestGetModelInfo:
         info = get_model_info("deepseek/deepseek-v4-pro")
         assert info is not None
         assert info.organization == "DeepSeek"
+        assert info.context_length == 1048576
+        assert info.output_tokens == 393216
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "high"
+
+    def test_known_deepseek_flash_model(self):
+        """Test lookup of DeepSeek-V4.1-Flash (`deepseek-flash`)."""
+        info = get_model_info("deepseek/deepseek-flash")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.model == "V4.1 Flash"
+        assert info.release_date == date(2026, 9, 10)
         assert info.context_length == 1048576
         assert info.output_tokens == 393216
         assert info.reasoning is True
@@ -372,6 +429,136 @@ class TestModelDataConsistency:
                             f"{other_file}:{other_key} has {other_value!r}"
                         )
 
+    def test_same_display_name_entries_agree_within_a_file(self) -> None:
+        """One model keyed several ways in a file must not drift between keys.
+
+        A model served by several providers gets an entry per provider naming
+        scheme (zai.yml keys GLM 5.3 as zai-org/glm-5.3, fireworks/glm-5p3 and
+        z-ai/glm-5.3). Those keys never collide, so
+        `test_colliding_lookup_keys_agree_across_files` cannot see them; the
+        shared display name is what identifies them as the same model. YAML
+        anchors keep them in sync today, and this fails if a future edit
+        expands one copy and updates only it.
+        """
+        from pathlib import Path
+
+        from inspect_ai.model._model_data import model_data, sync_models
+        from inspect_ai.model._model_data.model_data import (
+            create_model_info,
+            load_organizations_from_yaml,
+        )
+
+        functional_fields = (
+            "context_length",
+            "output_tokens",
+            "reasoning",
+            "reasoning_effort_default",
+            "knowledge_cutoff_date",
+            "release_date",
+            "family",
+        )
+
+        data_dir = Path(model_data.__file__).parent
+        for info_file in sorted(data_dir.glob("*.yml")):
+            if info_file.name in sync_models.GENERATED_FILES:
+                continue
+            by_display_name: dict[str, list[tuple[str, ModelInfo]]] = {}
+            for org, org_data in load_organizations_from_yaml(info_file).items():
+                for model_name, model_def in org_data.models.items():
+                    if not model_def.display_name:
+                        continue
+                    by_display_name.setdefault(model_def.display_name, []).append(
+                        (
+                            f"{org}/{model_name}",
+                            create_model_info(org_data.display_name, model_def),
+                        )
+                    )
+            for display_name, group in by_display_name.items():
+                first_key, first_info = group[0]
+                for other_key, other_info in group[1:]:
+                    for field in functional_fields:
+                        first_value = getattr(first_info, field)
+                        other_value = getattr(other_info, field)
+                        if first_value is None or other_value is None:
+                            continue
+                        assert first_value == other_value, (
+                            f"{info_file.name}: entries sharing display name "
+                            f"{display_name!r} disagree on {field}: "
+                            f"{first_key} has {first_value!r} but "
+                            f"{other_key} has {other_value!r}"
+                        )
+
+
+class TestMultiProviderCuratedModels:
+    """One model reached through several providers must bind the same data.
+
+    Each provider derives the organization differently in `canonical_name()`,
+    so a single model has several unrelated lookup keys and nothing links
+    them. A provider missing from a curated file does not error — it silently
+    resolves to a bare synced entry (no release date, no reasoning) or, if the
+    provider's org appears in no data file at all, to None. Both were live
+    defects before zai.yml covered all three routes.
+
+    Add a row when curating a model that more than one provider serves.
+    """
+
+    # (label, [lookup key per provider naming scheme])
+    MULTI_PROVIDER_KEYS = [
+        ("GLM 5.3", ["zai-org/GLM-5.3", "fireworks/glm-5p3", "z-ai/glm-5.3"]),
+        (
+            "GLM 5.3 Flash",
+            [
+                "zai-org/GLM-5.3-Flash",
+                "fireworks/glm-5p3-flash",
+                "z-ai/glm-5.3-flash",
+            ],
+        ),
+        ("GLM 5.2", ["zai-org/GLM-5.2", "fireworks/glm-5p2", "z-ai/glm-5.2"]),
+    ]
+
+    @pytest.mark.parametrize(
+        "label,keys", MULTI_PROVIDER_KEYS, ids=[row[0] for row in MULTI_PROVIDER_KEYS]
+    )
+    def test_every_provider_key_shape_binds_the_same_metadata(
+        self, label: str, keys: list[str]
+    ) -> None:
+        infos = {key: get_model_info(key) for key in keys}
+
+        unresolved = sorted(key for key, info in infos.items() if info is None)
+        assert unresolved == [], (
+            f"{label}: no model info for {unresolved}. Curate these keys in the "
+            f"creator's data file so every provider route resolves."
+        )
+
+        resolved = {key: info for key, info in infos.items() if info is not None}
+
+        # Deliberately not asserting literal values: the point is that the
+        # routes agree, so refreshing the data does not churn this test.
+        for field in ("context_length", "output_tokens", "reasoning"):
+            values = {key: getattr(info, field) for key, info in resolved.items()}
+            assert len(set(values.values())) == 1, (
+                f"{label}: provider routes disagree on {field}: {values}"
+            )
+
+        # The reason these entries are curated at all: provider catalogs report
+        # a context length and nothing else.
+        undated = sorted(
+            key for key, info in resolved.items() if info.release_date is None
+        )
+        assert undated == [], f"{label}: release date missing for {undated}"
+
+    def test_bare_glm_name_resolves_to_the_creator_not_the_host(self) -> None:
+        """`fireworks` is in PROVIDER_SCOPED_ORGS, so it must lose a bare match.
+
+        Mirrors the kimi-k3 case above: "fireworks" is a shorter org string
+        than "zai-org", so without the fuzzy-match exclusion the host entry
+        would outscore the curated creator entry.
+        """
+        info = get_model_info("glm-5.3")
+        assert info is not None
+        assert info.organization == "Z.ai"
+        assert info.release_date is not None
+
 
 class TestProviderScopedOrgs:
     """Provider-scoped catalogs are exact-match only.
@@ -429,6 +616,41 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
+    def test_claude_opus_5_5(self):
+        """Test that Claude Opus 5.5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-opus-5-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # distinguishes the explicit entry from a fuzzy match of opus-5
+        info = get_model_info("anthropic/claude-opus-5-5")
+        assert info is not None
+        assert info.snapshot == "20260922"
+        assert str(info.release_date) == "2026-09-22"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.reasoning_effort_default == "medium"
+        # the Bedrock id resolves to the same entry via its alias
+        bedrock_info = get_model_info("bedrock/anthropic.claude-opus-5-5")
+        assert bedrock_info is not None
+        assert bedrock_info.snapshot == "20260922"
+
+    def test_claude_sonnet_5_5(self):
+        """Test that Claude Sonnet 5.5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-sonnet-5-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # distinguishes the explicit entry from a fuzzy match of sonnet-5
+        info = get_model_info("anthropic/claude-sonnet-5-5")
+        assert info is not None
+        assert info.snapshot == "20260928"
+        assert str(info.release_date) == "2026-09-28"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.output_tokens == 128_000
+        assert info.reasoning_effort_default == "high"
+        # the Bedrock id resolves to the same entry via its alias
+        bedrock_info = get_model_info("bedrock/anthropic.claude-sonnet-5-5")
+        assert bedrock_info is not None
+        assert bedrock_info.snapshot == "20260928"
+
     def test_claude_fable_5(self):
         """Test that Claude Fable 5 reports 1MM input tokens."""
         model = get_model("anthropic/claude-fable-5")
@@ -440,6 +662,58 @@ class TestGetModelInputTokens:
         model = get_model("anthropic/claude-mythos-5")
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
+
+    def test_claude_fable_5_1(self):
+        """Test that Claude Fable 5.1 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-fable-5-1")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # the snapshot and cutoff prove the explicit 5.1 registration resolved
+        # (a fuzzy match of the fable-5 base entry would report the same input
+        # tokens but carry the base snapshot and its older cutoff)
+        info = get_model_info("anthropic/claude-fable-5-1")
+        assert info is not None
+        assert info.snapshot == "20260901"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+
+    def test_claude_mythos_5_1(self):
+        """Test that Claude Mythos 5.1 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-mythos-5-1")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-mythos-5-1")
+        assert info is not None
+        assert info.snapshot == "20260901"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+
+    def test_claude_mythos_preview(self):
+        """Test that Claude Mythos Preview reports 1MM input tokens."""
+        model = get_model("anthropic/claude-mythos-preview")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-mythos-preview")
+        assert info is not None
+        assert info.model == "Claude Mythos Preview"
+        # the preview is a distinct entry, not a fuzzy match onto mythos-5
+        # (which would report a 2026-06-09 release and a `high` effort default)
+        assert str(info.release_date) == "2026-04-07"
+        # deliberately unset rather than guessed (see anthropic.yml)
+        assert info.knowledge_cutoff_date is None
+        assert info.reasoning_effort_default is None
+
+    @pytest.mark.parametrize(
+        "model_name,release_date",
+        [("gemini-3.8-flash", "2026-09-02"), ("gemini-3.7-flash", "2026-08-13")],
+    )
+    def test_gemini_3_7_plus_flash(self, model_name: str, release_date: str) -> None:
+        """Gemini 3.7/3.8 Flash resolve to their own entries (1M context)."""
+        model = get_model(f"google/{model_name}", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info(f"google/{model_name}")
+        assert info is not None
+        assert str(info.release_date) == release_date
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.reasoning_effort_default == "medium"
 
     def test_claude_latest_defaults_to_1m(self):
         """An unknown/future Claude model (is_claude_latest) assumes the 1M frontier."""
@@ -700,3 +974,198 @@ class TestDoesNotReinstantiateProvider:
         record_and_check_model_usage(model, usage)
         # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
         assert usage.total_cost == pytest.approx(0.007)
+
+
+def test_bundled_model_data_yaml_io_has_explicit_encoding() -> None:
+    """Bundled model-data YAML must be read and written with an explicit encoding.
+
+    The YAML ships inside the package and is UTF-8, but a plain `open()`
+    decodes with the platform locale: on Windows with a CJK ANSI code page
+    (cp932/936/949/950) every model call died on the em dash in `zai.yml`
+    (#5433). CI cannot observe this — ubuntu coerces non-UTF-8 locales to
+    UTF-8 (PEP 538/540) — so the guard is a source scan, mirroring
+    `tests/_control/test_ctl.py::test_no_bare_click_exit_in_ctl_error_sites`.
+    """
+    import inspect_ai.model._model_data as model_data_package
+
+    package_dir = Path(model_data_package.__file__).parent
+    offenders = [
+        f"{path.name}:{lineno}"
+        for path in sorted(package_dir.glob("*.py"))
+        for lineno, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        )
+        if re.search(r"(?<![\w.])open\(", line)
+        and "encoding=" not in line
+        and not re.search(r"[\"'](rb|br|wb|bw)[\"']", line)
+    ]
+    assert not offenders, (
+        "open() without an explicit encoding in _model_data/ — bundled YAML "
+        f"is UTF-8 and must be read as such (#5433): {offenders}"
+    )
+
+
+@modelapi("servedtest")
+def servedtest() -> type[ModelAPI]:
+    """A provider that reports the models in `output.metadata["served"]`."""
+    # an extension implements the hook from the public API
+    from inspect_ai.model import ModelOutput, ModelUsage, ServedModelUsage
+
+    class ServedModelAPI(ModelAPI):
+        async def generate(self, *args: Any, **kwargs: Any) -> Any:
+            raise NotImplementedError
+
+        def served_model_usage(
+            self, output: ModelOutput
+        ) -> list[ServedModelUsage] | None:
+            served = (output.metadata or {}).get("served")
+            if served is None:
+                return None
+            return [ServedModelUsage(m, ModelUsage(**usage)) for m, usage in served]
+
+    return ServedModelAPI
+
+
+class TestServedModelPricing:
+    """Usage is priced by the model that served the call."""
+
+    @staticmethod
+    def _cost(rate: float) -> ModelCost:
+        return ModelCost(
+            input=rate, output=rate, input_cache_write=rate, input_cache_read=rate
+        )
+
+    @staticmethod
+    def _usage(input_tokens: int, output_tokens: int) -> dict[str, int]:
+        return dict(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+        )
+
+    def _record(self, served: list[tuple[str, dict[str, int]]] | None) -> Any:
+        from inspect_ai.model._model import record_and_check_model_usage
+        from inspect_ai.model._model_output import ModelOutput, ModelUsage
+
+        model = get_model("servedtest/called")
+        output = ModelOutput(
+            model="served",
+            usage=ModelUsage(**self._usage(3, 4)),
+            metadata={"served": served} if served is not None else None,
+        )
+        assert output.usage is not None
+        record_and_check_model_usage(model, output.usage, output=output)
+        return output.usage
+
+    @staticmethod
+    def _warnings(monkeypatch: Any) -> list[str]:
+        from inspect_ai._util import logger as logger_mod
+        from inspect_ai.model import _model as model_mod
+
+        warnings: list[str] = []
+        monkeypatch.setattr(logger_mod, "_warned", [])
+        monkeypatch.setattr(
+            model_mod.logger, "warning", lambda msg: warnings.append(msg)
+        )
+        return warnings
+
+    def test_priced_by_served_model(self):
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/other", ModelInfo(cost=self._cost(100.0)))
+        usage = self._record([("served/other", self._usage(3, 4))])
+        # 7 tokens at $100/M, not at the called model's $1000/M
+        assert usage.total_cost == pytest.approx(0.0007)
+
+    def test_each_part_priced_by_its_model(self):
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/first", ModelInfo(cost=self._cost(10.0)))
+        set_model_info("served/second", ModelInfo(cost=self._cost(100.0)))
+        usage = self._record(
+            [("served/first", self._usage(5, 5)), ("served/second", self._usage(3, 4))]
+        )
+        # 10 tokens at $10/M + 7 tokens at $100/M
+        assert usage.total_cost == pytest.approx(0.0001 + 0.0007)
+
+    def test_not_served_by_another_model(self):
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        usage = self._record(None)
+        assert usage.total_cost == pytest.approx(0.007)
+
+    def test_unknown_served_cost_uses_called_rates_and_warns(self, monkeypatch):
+        warnings = self._warnings(monkeypatch)
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/first", ModelInfo(cost=self._cost(10.0)))
+        usage = self._record(
+            [
+                ("served/first", self._usage(5, 5)),
+                ("served/unpriced", self._usage(3, 4)),
+            ]
+        )
+        # the whole call is priced at the called model's rates (7 tokens)
+        assert usage.total_cost == pytest.approx(0.007)
+        assert warnings == [
+            "No cost data for model 'served/unpriced', which served a request to "
+            "'servedtest/called'. Pricing the request at the rates of "
+            "'servedtest/called'. It is not in the model database, so use "
+            "set_model_info() with a ModelInfo that includes cost to add pricing "
+            "for 'served/unpriced'."
+        ]
+
+        # warned once
+        self._record([("served/unpriced", self._usage(3, 4))])
+        assert len(warnings) == 1
+
+        # the advertised fix prices the served model
+        with pytest.raises(ValueError, match="not found"):
+            set_model_cost("served/unpriced", self._cost(100.0))
+        set_model_info("served/unpriced", ModelInfo(cost=self._cost(100.0)))
+        usage = self._record([("served/unpriced", self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.0007)
+
+    def test_unpriced_database_model_warns_to_set_cost(self, monkeypatch):
+        warnings = self._warnings(monkeypatch)
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        served = "openai/gpt-4o-mini-2024-07-18"
+        usage = self._record([(served, self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.007)
+        assert warnings == [
+            f"No cost data for model '{served}', which served a request to "
+            "'servedtest/called'. Pricing the request at the rates of "
+            "'servedtest/called'. Use set_model_cost() or --model-cost-config to "
+            f"add pricing for '{served}'."
+        ]
+
+        # the advertised fix prices the served model
+        set_model_cost(served, self._cost(100.0))
+        usage = self._record([(served, self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.0007)
+
+    def test_unknown_served_cost_without_called_cost_does_not_warn(self, monkeypatch):
+        warnings = self._warnings(monkeypatch)
+        usage = self._record([("served/unpriced", self._usage(3, 4))])
+        assert usage.total_cost is None
+        assert warnings == []
+
+    def test_snapshot_of_called_model_uses_called_rates(self, monkeypatch):
+        """A served name the database knows as the called model is not unpriced."""
+        warnings = self._warnings(monkeypatch)
+        gpt_4o = get_model_info("openai/gpt-4o")
+        assert gpt_4o is not None
+        set_model_info(
+            "servedtest/called", gpt_4o.model_copy(update={"cost": self._cost(1000.0)})
+        )
+        usage = self._record([("openai/gpt-4o-2024-08-06", self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.007)
+        assert warnings == []
+
+    def test_cost_limit_sees_served_model_cost(self):
+        from inspect_ai.util._limit import LimitExceededError, cost_limit
+
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/pricier", ModelInfo(cost=self._cost(2000.0)))
+        # the called model's price ($0.007) is under the limit; the served
+        # model's ($0.014) is over it
+        with cost_limit(0.01):
+            with pytest.raises(LimitExceededError) as exc_info:
+                self._record([("served/pricier", self._usage(3, 4))])
+        assert exc_info.value.value == pytest.approx(0.014)
