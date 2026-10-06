@@ -548,15 +548,36 @@ The root `working_limit` node is entered before restore (`run.py:2691`), so
 restore sets a separate prior-usage term on the node instead of seeding the
 clock.
 
+**Timing of restore.** The sample clock starts when the sample's clocks
+start (`run.py:2667`). The plan then runs, and the checkpointer awaits
+hydration (snapshot download and restore into the sandbox) before it
+restores runtime (`checkpointer_impl.py:136`, `:145`). An attempt can
+therefore spend time before restore, and every quantity below measures the
+current attempt from the sample clock's start, which includes that time.
+The time-limit node cannot provide this. Restore resets its origin to the
+restore instant minus the prior elapsed time, for both kinds of resume
+(`sample_runtime.py:170`). Its later `time_elapsed` therefore leaves out
+the attempt's time before restore. For example, with 5 s prior, 10 s before
+restore and 2 s after, the sample has used 17 s but `time_elapsed` reads
+7 s.
+
+**New payload key.** `dump_sample_runtime()` writes `sample_elapsed`, the
+sample's cumulative wall time: `P_wall + elapsed()`, where `elapsed()` is
+measured by the sample clock from its start. It is independent of the
+time-limit node. `time_elapsed` and its use for `time_limit` enforcement
+stay exactly as they are. Older Inspect versions ignore the new key,
+because restore reads keys with `payload.get`.
+
 **Definitions.** At restore:
 
 - `P_wall` is the prior attempts' wall time. It is the payload's
-  `time_elapsed` (`sample_runtime.py:56`, `:72`), which is written whether or
-  not a `time_limit` is set, is cumulative across resumes, and is never
-  discounted. If an older payload lacks `time_elapsed`, the fallback is
-  `working_elapsed + working_waiting`: the root node's `usage` plus its
-  `_waiting_time`, which equals its elapsed wall time. If neither is
-  present, it is 0.
+  `sample_elapsed` when present. For payloads written before this change it
+  falls back to `time_elapsed` (`sample_runtime.py:56`, `:72`), which is
+  written whether or not a `time_limit` is set and is never discounted, but
+  can miss pre-restore time as described above. If that is also missing it
+  falls back to `working_elapsed + working_waiting` (the root node's `usage`
+  plus its `_waiting_time`, which equals its elapsed wall time), and
+  otherwise to 0.
 - `P_work` is the prior attempts' working time. Under option A it is the
   payload's `working_elapsed`, clamped to `[0, P_wall]`. The clamp matters
   because a snapshot written by today's code can hold a negative or
@@ -575,17 +596,23 @@ clock.
 | Root node `usage` on a normal resume (`check=True`) | `P_work + (A(t) - E)` |
 | Root node `usage` on a scoring resume (`check=False`) | `A(t) - E`; prior usage excluded |
 | Scoped node `usage` (entered after restore) | `A(t) - A(enter)`, unaffected by prior attempts |
+| Dump: `sample_elapsed` (new) | `P_wall + elapsed()`, cumulative wall time from the sample clock |
 | Dump: `working_elapsed` | `P_work + A(t)`, cumulative |
 | Dump: `working_waiting` | option A: `(P_wall - P_work) + waiting_time()`; option B: 0 |
-| Dump: `time_elapsed` | unchanged (the time limit's cumulative usage) |
+| Dump: `time_elapsed` | unchanged (the time limit's usage, used only for `time_limit` enforcement) |
 
 So a scoring resume with 45 s of prior working time under a 30 s limit
 starts its root node at 0 and is not stopped by the monitor. Consecutive
-resumes stay correct: each dump writes cumulative values, and each restore
-reads them once.
+resumes stay correct: each dump writes cumulative values measured from the
+sample clock, each restore reads them once, and time spent before restore
+(hydration) is counted in both `sample_elapsed` and `working_elapsed`. In
+the example above, the next resume restores `P_wall = 17` (and, under
+option B, `P_work = 17`). Event offsets therefore never move backwards
+across resumes, including after a scoring resume.
 
 **Migration.** Under option B, snapshots written by today's code restore
-`P_wall` from `time_elapsed`. Waiting credited before the snapshot (which
+`P_wall` from `time_elapsed` (they have no `sample_elapsed`), with the
+pre-restore loss described above for that one resume. Waiting credited before the snapshot (which
 can be larger than the elapsed time, R1) is not carried forward, so a
 resumed sample is charged its real elapsed time from then on. Under option
 A, the clamp bounds whatever a legacy snapshot carries to `[0, P_wall]`.
@@ -716,7 +743,15 @@ block on `anyio.Event`s, so ordering is fixed and no test waits on a sleep.
     `working_elapsed` (`time_elapsed=5`, `working_elapsed=-15`,
     `working_waiting=20`, restored as `P_wall=5`);
   - a payload without `time_elapsed`, which falls back to `working_elapsed +
-    working_waiting`.
+    working_waiting`;
+  - delayed hydration across consecutive resumes, using the review's
+    numbers: 5 s prior, 10 s before restore and 2 s after. The dump holds
+    `sample_elapsed = 17`, and the next resume restores 17 while
+    `time_elapsed` stays 7. This runs for a normal resume and for a scoring
+    resume, asserting that `working_start` never decreases across the two
+    resumes;
+  - a payload with `sample_elapsed` that a version without the key reads
+    (ignored).
 
 **Option A:**
 
@@ -747,8 +782,9 @@ For option B (recommended):
    the reconciliation and the hold credits (keep the escape tick).
 4. `src/inspect_ai/_eval/task/run.py`: logged `working_time` is
    `total_time`. Update `util/_checkpoint/sample_runtime.py` to the
-   "Resume accounting" formulas (`P_wall` from `time_elapsed`, with the
-   fallback), and the event producers in `_call_tools.py` and `_subtask.py`.
+   "Resume accounting" formulas (the new `sample_elapsed` key; `P_wall` from
+   it, then the `time_elapsed` and `working_elapsed + working_waiting`
+   fallbacks), and the event producers in `_call_tools.py` and `_subtask.py`.
 5. Docs (`_working_limits.md`, `setting-limits.qmd`, `providers.qmd`, the
    control-channel pause docs), the notes in `design/ctl/pause-resume.md`
    and `design/ctl/interim-scoring.md`, the CHANGELOG, and the tests
