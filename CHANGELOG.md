@@ -11,6 +11,7 @@
 - Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
 - Model API: Model events log provider request ids (including for retried requests) and response ids, even when raw model API calls are not logged.
 - Datasets: `shuffle` on `csv_dataset()`, `json_dataset()`, `file_dataset()` and `hf_dataset()` now treats an integer as a seed, so `shuffle=0` shuffles with seed 0.
+- Fixed `exact()` and `f1()` scorers awarding a perfect score when a target normalizes to an empty string.
 - Security: Text-editor undo history uses non-executable data stored privately per OS account; old pickle history is ignored.
 - Sandbox tools: killing an `exec_remote` job that has already exited now guards against signalling unrelated processes that reused its PID.
 - Sandbox: `exec_remote()` and `sandbox_agent_bridge()` take a new opt-in `poll_timeout_recovery` that keeps polling a running command through a temporary sandbox stall instead of failing.
