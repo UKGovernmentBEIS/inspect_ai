@@ -922,10 +922,14 @@ async def call_tool(
             decision = await sentinel_before_tool_call(
                 message, call, tool_def.viewer, conversation
             )
-            call = apply_sentinel_decision(decision, call)
+            modified = apply_sentinel_decision(decision, call)
         except (SentinelFailure, ToolApprovalError, TerminateSampleError):
             await record_pending_tool_event()
             raise
+        if modified is not call:
+            call = modified
+            event.arguments = call.arguments
+            event.view = tool_call_view(call, tools)
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)

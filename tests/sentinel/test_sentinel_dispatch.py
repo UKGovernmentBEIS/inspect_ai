@@ -302,10 +302,14 @@ def test_modify_executes_the_modified_call() -> None:
         assert event.modified.arguments == {"x": 10, "y": 20}
         assert event.modified.id == message.tool_call_id
 
-    # as with approval's modify, the ToolEvent shows the call the model made
+    # as with approval's modify, the ToolEvent shows the arguments that ran and the
+    # ModelEvent keeps the model's proposal
     assert log.samples
     [tool_event] = [e for e in log.samples[0].events if isinstance(e, ToolEvent)]
-    assert tool_event.arguments == {"x": 1, "y": 1}
+    assert tool_event.arguments == {"x": 10, "y": 20}
+    [model_event, *_] = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    [proposed] = model_event.output.message.tool_calls or []
+    assert proposed.arguments == {"x": 1, "y": 1}
 
 
 def test_terminate_ends_the_sample() -> None:
