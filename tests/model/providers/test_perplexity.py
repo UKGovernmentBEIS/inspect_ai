@@ -4,6 +4,7 @@ from typing import Any
 import anyio
 import pytest
 from openai._models import construct_type
+from openai._types import NOT_GIVEN
 from openai.types.responses import Response
 from test_helpers.utils import skip_if_no_perplexity
 
@@ -66,6 +67,22 @@ async def test_perplexity_api() -> None:
     for citation in citations:
         assert isinstance(citation, UrlCitation)
         assert citation.url.startswith(("http://", "https://"))
+
+
+@pytest.mark.anyio
+@skip_if_no_perplexity
+async def test_perplexity_api_without_web_search() -> None:
+    model = get_model("perplexity/sonar", config=GenerateConfig(max_tokens=50))
+
+    response = await model.generate(
+        input=[ChatMessageUser(content="Reply with the single word OK.")]
+    )
+
+    assert len(response.completion) >= 1
+    assert response.usage is not None
+    assert response.usage.output_tokens > 0
+    # no web_search() tool, so no search
+    assert "search_results" not in (response.metadata or {})
 
 
 @pytest.mark.anyio
@@ -200,6 +217,46 @@ def _provider(
     return provider
 
 
+def _web_search_tool(perplexity: dict[str, Any] | bool) -> ToolInfo:
+    return ToolInfo(
+        name="web_search", description="", options={"perplexity": perplexity}
+    )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_name,agent_model",
+    [("sonar", "perplexity/sonar"), ("openai/gpt-5.6-luna", "openai/gpt-5.6-luna")],
+)
+async def test_perplexity_web_search_only_when_requested(
+    monkeypatch: pytest.MonkeyPatch, model_name: str, agent_model: str
+) -> None:
+    requests: list[dict[str, Any]] = []
+    provider = _provider(
+        monkeypatch, {"a": _agent_response("a", 1)}, requests, model_name=model_name
+    )
+
+    try:
+        await provider.generate(
+            [ChatMessageUser(content="a")], [], "none", GenerateConfig()
+        )
+        await provider.generate(
+            [ChatMessageUser(content="a")],
+            [_web_search_tool(True)],
+            "auto",
+            GenerateConfig(),
+        )
+    finally:
+        await provider.aclose()
+
+    without_search, with_search = requests
+    assert without_search["model"] == agent_model
+    assert without_search["tools"] is NOT_GIVEN
+    assert "extra_body" not in without_search
+    assert with_search["model"] == agent_model
+    assert with_search["extra_body"] == {"tools": [{"type": "web_search"}]}
+
+
 @pytest.mark.anyio
 async def test_perplexity_agent_api_response(monkeypatch: pytest.MonkeyPatch) -> None:
     requests: list[dict[str, Any]] = []
@@ -209,7 +266,10 @@ async def test_perplexity_agent_api_response(monkeypatch: pytest.MonkeyPatch) ->
 
     try:
         output, call = await provider.generate(
-            [ChatMessageUser(content="a")], [], "none", GenerateConfig()
+            [ChatMessageUser(content="a")],
+            [_web_search_tool({})],
+            "none",
+            GenerateConfig(),
         )
     finally:
         await provider.aclose()

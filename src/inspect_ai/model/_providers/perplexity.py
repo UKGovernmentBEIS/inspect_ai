@@ -93,9 +93,9 @@ class PerplexityAPI(OpenAICompatibleAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> tuple[ModelOutput | Exception, ModelCall]:
-        # Sonar searched the web on every request; the Agent API searches only
-        # when the request includes its web_search tool.
-        web_search: dict[str, Any] = {"type": "web_search"}
+        # the Agent API searches only when the request includes its web_search
+        # tool, which is sent only for Inspect's web_search() tool
+        web_search: dict[str, Any] | None = None
         for tool in tools:
             if (
                 tool.name == "web_search"
@@ -111,8 +111,10 @@ class PerplexityAPI(OpenAICompatibleAPI):
                             "parameters, which the Agent API does not accept. See "
                             "https://docs.perplexity.ai/docs/agent-api/migrate-from-sonar/how-to#parameter-reference"
                         )
-                    web_search.update(maybe_opts)
-                elif maybe_opts is not None and maybe_opts is not True:
+                    web_search = {"type": "web_search", **maybe_opts}
+                elif maybe_opts is True:
+                    web_search = {"type": "web_search"}
+                elif maybe_opts is not None:
                     raise TypeError(
                         f"Expected a dictionary or True for perplexity_options, got {type(maybe_opts)}"
                     )
@@ -128,7 +130,8 @@ class PerplexityAPI(OpenAICompatibleAPI):
             for k, v in (config.extra_body or {}).items()
             if k not in responses_extra_body_fields() and k != "background"
         }
-        extra_body["tools"] = [web_search]
+        if web_search is not None:
+            extra_body["tools"] = [web_search]
 
         search_results: list[dict[str, Any]] = []
 
