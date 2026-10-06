@@ -483,7 +483,7 @@ Event durations therefore use **probes** on the sample clock:
 ```python
 class WorkingProbe:
     def working_time(self) -> float: ...   # working time within [opened, now)
-    def close(self) -> float: ...          # final value; detaches from the clock
+    def close(self) -> float: ...          # idempotent: detaches on first call, returns the frozen value
 
 def open_working_probe() -> WorkingProbe | None:  # concurrent mode only
 ```
@@ -498,21 +498,40 @@ def open_working_probe() -> WorkingProbe | None:  # concurrent mode only
   is not reduced when a provisional segment later resolves as waiting. The
   duration is an upper bound restricted to the event's interval, which is
   the conservative choice.
-- `close()` adds the open segment up to now (unless it is waiting) and
-  removes the probe from the clock.
+- The first `close()` adds the open segment up to now (unless it is
+  waiting), removes the probe from the clock and freezes the value. Later
+  calls return the frozen value and do nothing else, so the normal
+  completion path and a cleanup path can both call it safely.
 
-The producers change as follows. In concurrent mode they open a probe where
-they take the waiting baseline today and pass `waiting_time = elapsed -
-probe.close()` to the existing setters, so `ToolEvent._set_result()`
-(`src/inspect_ai/event/_tool.py:107`) and the event schema do not change:
+**Ownership and cleanup.** An open probe adds work to every segment
+transition and accumulates time until it is closed, so every probe has one
+owner that closes it on every exit, including exceptions and cancellation.
+Unfinished events are logged as they are today; only the probe's
+lifetime is specified here.
 
-- the tool-stage baselines and results in `src/inspect_ai/model/_call_tools.py`
-  (`:503`, `:591`, `:631`, `:699`, `:787`);
-- the subtask baseline and result in `src/inspect_ai/util/_subtask.py`
-  (`:128`, `:139`).
+- **Subtasks** (`src/inspect_ai/util/_subtask.py`). The probe is opened at
+  the baseline (`:128`) and closed in a `finally` around the `await
+  func(...)` (`:135`). The completion path (`:139`) reads the frozen value.
+  A subtask that raises, whose exception the solver catches before carrying
+  on, or that is cancelled leaves no probe behind.
+- **Tool stages** (`src/inspect_ai/model/_call_tools.py`). The stage owns a
+  dict of its probes. Probes are opened at the baselines (`:503`) only for
+  calls that will execute: skipped calls (`:546`) open none and keep
+  `waiting_time=0`. The completion sites (`:591`, `:631`, `:699`, `:787`)
+  close their call's probe. A `try/finally` around the whole stage,
+  including the outer task group (`:728`), closes every probe still open.
+  The existing `except Exception` at `:739` does not catch cancellation,
+  which is why the cleanup is a `finally`.
+- **Backstop.** The sample clock's `close()` detaches any probe still open
+  and logs a warning once per sample, so a missed cleanup costs accuracy
+  but cannot grow without bound. The tests assert that the warning never
+  fires.
 
-In legacy mode these sites keep today's `sample_waiting_time()` deltas. A
-probe costs one list entry on the sample clock while its event runs.
+The producers pass `waiting_time = elapsed - probe.close()` to the existing
+setters, so `ToolEvent._set_result()` (`src/inspect_ai/event/_tool.py:107`)
+and the event schema do not change. In legacy mode these sites keep today's
+`sample_waiting_time()` deltas. A probe costs one list entry on the sample
+clock while it is open.
 
 ### Scopes: the sample and scoped `working_limit()`
 
@@ -866,6 +885,7 @@ example, driven by a scripted sequence of `(time, event)`, asserting
 - probes: an attempt running 0–6 that resolves as successful during a tool
   probe opened at 5 and closed at 6 gives the probe 1 second, not 6; the
   same check for a subtask probe; a probe never exceeds its elapsed time;
+  a second `close()` returns the frozen value and changes nothing;
 - a stress case: one attempt open for 600 s while 10,000 short attempts in
   other lanes start, end and resolve, asserting the pending list is empty
   once everything resolves and recording the time per resolution against a
@@ -901,6 +921,11 @@ logged `working_time`:
 - a tool event and a subtask event that start while an older attempt in
   another lane is in flight and end after it resolves: their
   `working_time` covers only their own interval;
+- probe cleanup, asserting the sample clock holds no open probes afterwards
+  and the backstop warning never fires: a subtask that raises and whose
+  exception the solver catches, three times in a row; a cancelled subtask;
+  a stage with fail-fast skipped calls; and a stage cancelled while its
+  calls run;
 - an SDK-internal retry split using a fake `call.time` (example 4), and a
   cache hit (example 5);
 - `pause --now` held by the gate test helpers in `tests/_control/test_pause.py`
@@ -996,14 +1021,13 @@ no effect until step 5 makes the option reachable.
 
 ## Open questions
 
-1. **Opt-in or default-on?** I recommend opt-in (`legacy` default), as
-   designed, following the standing rule that changes to eval behaviour
-   need explicit configuration. Default-on would fix every eval at once and
-   remove the legacy path and the new option, so step 5's option plumbing
-   and the dual helpers would go. The cost is that results change for
-   existing evals that set `working_limit` and use concurrency, human
-   approval or caching. If opt-in, a later release could flip the default
-   once the new mode has been used.
+1. **Opt-in or default-on?** Settled by the standing rule that changes to
+   eval behaviour need explicit configuration (decision: Ransom,
+   2026-09-15): opt-in, as designed. Default-on would need that decision
+   changed. It would remove step 5's option plumbing and the dual helpers,
+   at the cost of changed results for existing evals that set
+   `working_limit` and use concurrency, human approval or caching. A later
+   release could flip the default once the new mode has been used.
 2. **Should human approval and human input count as waiting?** I recommend
    yes, as designed. The sample is blocked on a person, which is the same
    kind of wait as an operator's `pause --now`, and that is already
