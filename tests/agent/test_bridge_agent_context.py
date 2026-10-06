@@ -506,23 +506,13 @@ def attribution_approver(
     ) -> Approval:
         seen.append(current_agent_bridge_context())
         await judge.generate("review this call")
-        if is_root_agent():
-            return Approval(decision="approve")
-        return Approval(
-            decision="modify",
-            modified=ToolCall(
-                id=call.id, function=call.function, arguments={"cmd": "subagent"}
-            ),
-        )
+        return Approval(decision="approve")
 
     return approve
 
 
-async def _run_with_attribution_approver(
-    filter: Any,
-) -> tuple[
-    ModelOutput, list[AgentBridgeContext | None], list[AgentBridgeContext | None]
-]:
+async def test_approval_review_reads_utility() -> None:
+    """Approval policies, and model calls they make, read as utility."""
     call = ToolCall(id="1", function="bash", arguments={"cmd": "ls"})
     model = get_model(
         "mockllm/model",
@@ -540,7 +530,7 @@ async def _run_with_attribution_approver(
     )
     policy_seen: list[AgentBridgeContext | None] = []
     judge_seen: list[AgentBridgeContext | None] = []
-    bridge = AgentBridge(state=AgentState(messages=[]), filter=filter)
+    bridge = AgentBridge(state=AgentState(messages=[]), filter=_subagent_marking_filter)
     bridge.approval = [
         ApprovalPolicy(
             attribution_approver(_recording_model(judge_seen), policy_seen), "*"
@@ -555,28 +545,11 @@ async def _run_with_attribution_approver(
         GenerateConfig(),
         requested_model="scaffold-slug",
     )
-    return output, policy_seen, judge_seen
-
-
-async def test_approval_policy_sees_reviewed_request_attribution() -> None:
-    output, policy_seen, judge_seen = await _run_with_attribution_approver(
-        _subagent_marking_filter
-    )
-    # the policy sees the subagent attribution of the request under review...
-    assert policy_seen == [AgentBridgeContext("subagent")]
-    tool_calls = output.message.tool_calls
-    assert tool_calls is not None and tool_calls[0].arguments == {"cmd": "subagent"}
-    # ...while the approver's own model call reads as utility
-    assert judge_seen == [AgentBridgeContext("utility")]
-    assert current_agent_bridge_context() is None
-
-
-async def test_approval_policy_treats_unattributed_request_as_root() -> None:
-    output, policy_seen, judge_seen = await _run_with_attribution_approver(None)
-    assert policy_seen == [AgentBridgeContext("unknown")]
     tool_calls = output.message.tool_calls
     assert tool_calls is not None and tool_calls[0].arguments == {"cmd": "ls"}
+    assert policy_seen == [AgentBridgeContext("utility")]
     assert judge_seen == [AgentBridgeContext("utility")]
+    assert current_agent_bridge_context() is None
 
 
 def test_setter_raises_outside_scope() -> None:

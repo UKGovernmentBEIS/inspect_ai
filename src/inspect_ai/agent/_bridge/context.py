@@ -1,7 +1,7 @@
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import AsyncIterator, Iterator, Literal
+from typing import Iterator, Literal
 
 
 @dataclass(frozen=True)
@@ -20,9 +20,9 @@ class AgentBridgeContext:
     - "root": the top-level agent's own thread.
     - "subagent": a delegated agent with its own goal and conversation thread
       (e.g. a Claude Code Task agent or a Codex spawned agent).
-    - "utility": model calls made by bridge machinery serving the agent
-      (compaction, a tool approver) — no delegated goal or thread. Matches the
-      timeline's utility-agent concept.
+    - "utility": machinery calls serving the main agent's plumbing (compaction,
+      approval review, internal helper models) — no delegated goal or thread.
+      Matches the timeline's utility-agent concept.
     - "unknown": the bridge could not determine the calling agent.
     """
 
@@ -40,10 +40,6 @@ _UTILITY_CONTEXT = AgentBridgeContext("utility")
 
 _agent_bridge_context: ContextVar[AgentBridgeContext | None] = ContextVar(
     "_agent_bridge_context", default=None
-)
-
-_utility_model_calls: ContextVar[bool] = ContextVar(
-    "_utility_model_calls", default=False
 )
 
 _bridge_request: ContextVar[BridgeRequest | None] = ContextVar(
@@ -147,28 +143,9 @@ def bridged_request_scope(requested_model: str | None) -> Iterator[None]:
 
 
 @contextmanager
-def utility_model_calls() -> Iterator[None]:
-    """Attribute model calls made within the block to "utility" (bridge internals).
-
-    For bridge machinery that serves the agent rather than acting as it
-    (compaction, tool approval). Only `Model.generate()` calls switch to
-    "utility"; other code in the block, such as an approval policy deciding
-    on a call, keeps reading the attribution of the request under review.
-    """
-    token = _utility_model_calls.set(True)
-    try:
-        yield
-    finally:
-        _utility_model_calls.reset(token)
-
-
-@asynccontextmanager
-async def utility_model_generate() -> AsyncIterator[None]:
-    """Read as "utility" for one `Model.generate()` within `utility_model_calls`."""
-    if not _utility_model_calls.get() or _agent_bridge_context.get() is None:
-        yield
-        return
-    token = _agent_bridge_context.set(_UTILITY_CONTEXT)
+def agent_bridge_context_scope(context: AgentBridgeContext) -> Iterator[None]:
+    """Temporarily install a specific agent context (bridge internals)."""
+    token = _agent_bridge_context.set(context)
     try:
         yield
     finally:
