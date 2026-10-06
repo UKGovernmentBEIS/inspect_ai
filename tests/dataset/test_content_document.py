@@ -106,7 +106,7 @@ def test_data_uri_with_explicit_mime_type():
 
 def test_data_uri_no_mime_type_in_uri():
     """Test data URI without mime type falls back to default."""
-    with patch("inspect_ai._util.content.data_uri_mime_type", return_value=None):
+    with patch("inspect_ai.core._content.data_uri_mime_type", return_value=None):
         doc = ContentDocument(document="data:,Hello%20World")
         assert doc.filename == "document.octet-stream"
         assert doc.mime_type == "application/octet-stream"

@@ -27,8 +27,15 @@ from inspect_ai.util import json_schema
 
 @pytest.fixture
 def mock_meta_env(monkeypatch):
+    from inspect_ai.model._model import _models
+
     monkeypatch.delenv("MODEL_API_KEY", raising=False)
     monkeypatch.setenv("META_API_KEY", "test-key")
+    cached = set(_models)
+    yield
+    # a memoized model keeps the dummy key, and a later get_model() with the
+    # same arguments (e.g. a live test) would reuse it and get a 401
+    assert set(_models) <= cached, "use get_model(memoize=False) with mock_meta_env"
 
 
 @pytest.fixture
@@ -146,13 +153,69 @@ def test_meta_tool_choice_auto_untouched(mock_meta_env, _warn_once_messages):
     assert not _warn_once_messages
 
 
-# Meta documents `max` reasoning for standard-tier muse-spark-1.3 only
-MAX_REASONING_MODELS = ["muse-spark-1.3"]
+@pytest.mark.parametrize(
+    "model,expected",
+    [
+        ("muse-spark-1.3", "meta/muse-spark-1.3"),
+        ("muse-spark-1.2-contributor", "meta/muse-spark-1.2-contributor"),
+        # not in the model info database: alias to the current frontier
+        ("muse-spark-1.4", "meta/muse-spark-1.3"),
+        ("muse-spark-2", "meta/muse-spark-1.3"),
+        ("muse-nebula", "meta/muse-spark-1.3"),
+    ],
+)
+def test_meta_input_tokens_name(mock_meta_env, model, expected):
+    assert MetaAPI(model_name=model).input_tokens_name() == expected
+
+
+def test_meta_unknown_model_input_tokens(mock_meta_env):
+    from inspect_ai.model._model_info import get_model_input_tokens
+
+    frontier = get_model_input_tokens(get_model("meta/muse-spark-1.3", memoize=False))
+    assert frontier is not None
+    assert (
+        get_model_input_tokens(get_model("meta/muse-nebula", memoize=False)) == frontier
+    )
+
+
+def test_meta_unknown_model_explicit_info_wins(mock_meta_env):
+    from inspect_ai.model import ModelInfo, set_model_info
+    from inspect_ai.model._model_info import (
+        _custom_models,
+        _result_cache,
+        get_model_input_tokens,
+    )
+
+    set_model_info("meta/muse-nebula", ModelInfo(context_length=65536))
+    try:
+        assert (
+            get_model_input_tokens(get_model("meta/muse-nebula", memoize=False))
+            == 65536
+        )
+    finally:
+        _custom_models.pop("meta/muse-nebula", None)
+        _result_cache.clear()
+
+
+# Meta documents `max` reasoning for standard-tier muse-spark-1.3 only; later
+# versions and unrecognized (codename) standard-tier models are assumed frontier
+MAX_REASONING_MODELS = [
+    "muse-spark-1.3",
+    "muse-spark-1.4",
+    "muse-spark-2",
+    "muse-spark-2.0",
+    "muse-nebula",
+]
 NO_MAX_REASONING_MODELS = [
     "muse-spark-1.3-contributor",
     "muse-spark-1.2",
     "muse-spark-1.2-contributor",
     "muse-spark-1.1",
+    "muse-spark-1",
+    "muse-spark-1.2-preview",
+    "muse-spark-1.1-2026-07-09",
+    "muse-spark-1.2-contributor-v2",
+    "muse-nebula-contributor",
 ]
 
 
@@ -480,7 +543,7 @@ async def test_meta_streamed_policy_block_is_content_filter(mock_meta_env, monke
 
 
 def test_meta_registered_provider(mock_meta_env):
-    model = get_model("meta/muse-spark-1.3")
+    model = get_model("meta/muse-spark-1.3", memoize=False)
     assert isinstance(model.api, MetaAPI)
     assert model.api.model_name == "muse-spark-1.3"
 
