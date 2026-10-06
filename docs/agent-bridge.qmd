@@ -206,6 +206,8 @@ The bridge handles:
 - Writing an MCP server script to the sandbox that forwards tool calls to the host
 - Returning `MCPServerConfigStdio` configs that CLI agents can use to connect
 
+Bridged tool results are truncated in the same way as other tool results: at the tool's own `max_output` if it declares one, otherwise at `max_tool_output` from the generate config (16KB by default). Results returned as content (e.g. `list[ContentText]`) are not truncated, as for other tools.
+
 ### Execution Contract {#bridged-tools-execution}
 
 Bridged tools execute only for calls the model proposed in a bridged generation, once per proposal. Each tool call in a model response handed to the agent grants one execution of exactly that tool with exactly those arguments (as approved, or as modified by an [approval policy](#tool-approval)); a `tools/call` request with no matching grant is denied and the error is returned to the agent, which surfaces it to the model. This holds whether or not an approval policy is active. Tool discovery (`tools/list`) is unaffected.
@@ -233,13 +235,41 @@ One other shape is recognized: an agent that exposes every MCP tool through a si
 
 ## Models
 
-As demonstrated above, communication with Inspect models is done by using the OpenAI API with `model="inspect"`. You can use the same technique to interface with other Inspect models. To do this, preface the model name with "inspect" followed by the rest of the fully qualified model name.
+As demonstrated above, an agent reaches the eval's model by naming the model `"inspect"`.
 
-For example, in a LangChain agent, you would do this to utilise the Inspect interface to Gemini:
+With the in-process `agent_bridge()`, you can reach other Inspect models by prefacing the fully qualified model name with `inspect/`. For example, in a LangChain agent, you would do this to use the Inspect interface to Gemini:
 
 ``` python
 model = ChatOpenAI(model="inspect/google/gemini-1.5-pro")
 ```
+
+The `sandbox_agent_bridge()` serves only models the eval chose. A request is routed as follows:
+
+1.  A name in `model_aliases` goes to the model it maps to.
+2.  A name the `model_resolver` returns a model for goes to that model.
+3.  `"inspect"`, and the eval's own model name (e.g. `claude-sonnet-4-5` for an eval on `anthropic/claude-sonnet-4-5`), go to the eval's model.
+4.  Any other name, including `inspect/<model>` names and model role names, also goes to the eval's model. The bridge logs a warning once for each such name, and the `requested_model` field of the model event in the transcript records the name the agent sent.
+
+Pass `model` to send unmatched names (and the eval's own model name) to another model instead, e.g. `model="inspect/openai/gpt-4o"`.
+
+Agents often call more than one model: Claude Code, for example, makes background calls to a smaller model. These calls are served by the eval's model unless you map the names. To send a name to another model, add it to `model_aliases`. Keys are the exact names the agent sends, as shown in the warning. To send a sub-agent tier to a model role you define for it, map the name to `get_model(role=...)`:
+
+``` python
+from inspect_ai.model import get_model
+
+async with sandbox_agent_bridge(
+    state,
+    model_aliases={
+        "claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5"),
+        "subagent": get_model(role="subagent"),
+    },
+) as bridge:
+    ...
+```
+
+Every alias key is a model the agent can call, so do not alias a role the agent should not reach, such as a grader or monitor.
+
+Names for the eval's own model need no alias. They already get the eval's model with its generation config, which an alias to a model name string would not.
 
 ## Generation Config
 
