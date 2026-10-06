@@ -227,6 +227,15 @@ class AgentBridge:
         """
         raise TerminateSampleError(reason)
 
+    def request_fail(self, error: Exception) -> None:
+        """Fail the sample with `error` from a bridged generation.
+
+        The caller then raises `error`, which propagates out through the agent to
+        the sample runner, so an in-process bridge has nothing to do here.
+        `SandboxAgentBridge` overrides this to signal its monitor task, since a
+        raise in the sandbox service task never reaches the sample runner.
+        """
+
     grants_tool_execution: bool = False
     """Whether this bridge binds host-tool execution to the calls in each response.
 
