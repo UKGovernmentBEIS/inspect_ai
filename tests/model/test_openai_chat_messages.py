@@ -1,15 +1,18 @@
 import pytest
 
 from inspect_ai._util.content import ContentAudio, ContentReasoning, ContentText
+from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._openai import (
     messages_from_openai,
     messages_to_openai,
     openai_chat_completion_part,
 )
 from inspect_ai.model._openai_responses import (
+    REASONING_ENCRYPTED_CONTENT,
     _openai_input_items_from_chat_message_assistant,
 )
 from inspect_ai.model._providers.openai_compatible import ModelInfo
+from inspect_ai.model._reasoning import reasoning_to_think_tag
 
 
 # Minimal stubs for OpenAI message params
@@ -99,6 +102,38 @@ async def test_assistant_tool_call_with_smuggled_reasoning_only():
     assert msg.content[0].reasoning == "encrypted"
     assert msg.content[0].signature == "sig"
     assert msg.content[0].redacted is True
+
+
+async def test_assistant_smuggled_reasoning_preserves_encrypted_content():
+    blob = "gAAAAAB-encrypted-reasoning-blob"
+    original = ContentReasoning(
+        reasoning="visible chain of thought",
+        signature="rs_abc",
+        redacted=False,
+        internal={REASONING_ENCRYPTED_CONTENT: blob},
+    )
+    messages = [
+        DummyMessage(
+            "assistant",
+            content=f"{reasoning_to_think_tag(original)}assistant output",
+        ),
+    ]
+
+    chat_msgs = await messages_from_openai(messages)
+
+    assert len(chat_msgs) == 1
+    msg = chat_msgs[0]
+    assert isinstance(msg, ChatMessageAssistant)
+    assert isinstance(msg.content, list)
+    reasoning = msg.content[0]
+    assert isinstance(reasoning, ContentReasoning)
+    assert reasoning.reasoning == "visible chain of thought"
+    assert reasoning.redacted is False
+    assert reasoning.internal == {REASONING_ENCRYPTED_CONTENT: blob}
+    items = _openai_input_items_from_chat_message_assistant(msg)
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert len(reasoning_items) == 1
+    assert reasoning_items[0]["encrypted_content"] == blob
 
 
 async def test_assistant_tool_call_with_list_smuggled_reasoning_only():
