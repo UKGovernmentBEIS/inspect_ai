@@ -54,6 +54,8 @@ from ._sentinel import (
     SentinelEntry,
     SentinelSuspicion,
 )
+from ._store import Store
+from ._store_model import StoreModel
 from ._target import Target
 from ._tool_call import (
     ToolCall,
@@ -114,6 +116,8 @@ __all__ = [
     "StopCategory",
     "StopDetails",
     "StopReason",
+    "Store",
+    "StoreModel",
     "Target",
     "ToolCall",
     "ToolCallContent",
