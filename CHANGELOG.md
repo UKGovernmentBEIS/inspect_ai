@@ -1,13 +1,18 @@
 ## Unreleased
 
+- Fixed model calls and token counting in multiprocess Scout scans using the default model configuration.
+- Bugfix: Interrupting after scoring no longer drops the scored sample from a cancelled evaluation log while its sandbox is being cleaned up.
+- Bugfix: Overflow recovery no longer drops the sample's input from the recorded conversation, so scorers and the viewer still see the task after a forced compaction.
 - Sample sources: `enqueue_sample(samples, epoch=N)` runs each sample once as epoch `N`, so a source can run one sample repeatedly under its own id.
 - Run config: `eval_config.token_limit_type` from an exported or handwritten run config is applied as the token-limit metering type instead of being rejected as an unknown generate option.
+- Fixed model calls failing before the first sample on Windows systems with a CJK ANSI code page (cp932/936/949/950).
 - Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
 - Meta: Muse models not yet in the model database (new versions or codenames) now use the current frontier model's context window and `max` reasoning effort support.
 - Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.
 - Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
 - Model API: Model events log provider request ids (including for retried requests) and response ids, even when raw model API calls are not logged.
 - Datasets: `shuffle` on `csv_dataset()`, `json_dataset()`, `file_dataset()` and `hf_dataset()` now treats an integer as a seed, so `shuffle=0` shuffles with seed 0.
+- Fixed `exact()` and `f1()` scorers awarding a perfect score when a target normalizes to an empty string.
 - Security: Text-editor undo history uses non-executable data stored privately per OS account; old pickle history is ignored.
 - Sandbox tools: killing an `exec_remote` job that has already exited now guards against signalling unrelated processes that reused its PID.
 - Sandbox: `exec_remote()` and `sandbox_agent_bridge()` take a new opt-in `poll_timeout_recovery` that keeps polling a running command through a temporary sandbox stall instead of failing.
