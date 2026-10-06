@@ -43,6 +43,8 @@ $ inspect view --log-dir ./experiment-logs --port 6565
 
 You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
 
+If the logs contain output you don't trust (for example, from a model without safeguards), `inspect view --no-trust-content` shows all log content as plain text. See [Untrusted Content](task-views.qmd#untrusted-content).
+
 ### Remote Access
 
 For single-user access to a viewer on a remote machine, keep the viewer bound to loopback and use SSH port forwarding:
@@ -268,7 +270,7 @@ The **Info** panel of the log viewer provides additional meta-information about 
 
 ## Publishing {#sec-publishing}
 
-You can use the command `inspect view bundle` (or the `bundle_log_dir()` function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
+You can use the command `inspect view bundle` (or the `bundle_log_dir()` function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server that supports [HTTP range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Range_requests) ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
 
 ``` bash
 $ inspect view bundle --log-dir logs --output-dir logs-www

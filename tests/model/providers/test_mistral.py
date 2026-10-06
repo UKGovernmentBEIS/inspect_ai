@@ -1,15 +1,20 @@
 import json
 import logging
-from typing import Any
+from typing import Any, Literal
 
 import httpx2
 import pytest
-from test_helpers.utils import skip_if_no_mistral, skip_if_no_mistral_package
+from test_helpers.utils import (
+    no_network,
+    skip_if_no_mistral,
+    skip_if_no_mistral_package,
+)
 
-from inspect_ai._util.content import ContentImage
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
+    ModelOutput,
     get_model,
 )
 from inspect_ai.tool import (
@@ -135,25 +140,44 @@ async def test_completion_content_chunks_image_url_string():
     assert result[0].image == image
 
 
-@skip_if_no_mistral_package
-async def test_completion_content_chunks_image_url_object():
-    """Test that ImageURLChunk with ImageURL object converts to ContentImage with detail."""
-    from unittest.mock import AsyncMock, patch
+def _assert_image_url_placeholder(content: Any, url: str) -> None:
+    assert isinstance(content, ContentText)
+    assert content.text == f"[Image URL returned by the model, not downloaded: {url}]"
 
+
+@skip_if_no_mistral_package
+@pytest.mark.parametrize("detail", [None, "high"])
+async def test_completion_content_chunks_image_url_is_not_downloaded(
+    detail: Literal["low", "high"] | None,
+) -> None:
     from mistralai.client.models import ImageURL, ImageURLChunk
 
     from inspect_ai.model._providers.mistral import completion_content_chunks
 
     url = "https://example.com/img.png"
-    image = "data:image/png;base64,iVBORw0KGgo="
-    chunk = ImageURLChunk(image_url=ImageURL(url=url, detail="high"))
-    with patch(
-        "inspect_ai.model._providers.mistral.provider_image_data_uri",
-        new=AsyncMock(return_value=image),
-    ) as materialize:
+    chunk = ImageURLChunk(
+        image_url=url if detail is None else ImageURL(url=url, detail=detail)
+    )
+    with no_network() as (getaddrinfo, connect):
         result = await completion_content_chunks(chunk)
 
-    materialize.assert_awaited_once_with(url)
+    getaddrinfo.assert_not_called()
+    connect.assert_not_called()
+    assert len(result) == 1
+    _assert_image_url_placeholder(result[0], url)
+
+
+@skip_if_no_mistral_package
+async def test_completion_content_chunks_data_uri_object_keeps_detail() -> None:
+    from mistralai.client.models import ImageURL, ImageURLChunk
+
+    from inspect_ai.model._providers.mistral import completion_content_chunks
+
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(image_url=ImageURL(url=image, detail="high"))
+    with no_network():
+        result = await completion_content_chunks(chunk)
+
     assert len(result) == 1
     assert isinstance(result[0], ContentImage)
     assert result[0].image == image
@@ -161,10 +185,8 @@ async def test_completion_content_chunks_image_url_object():
 
 
 @skip_if_no_mistral_package
-async def test_mistral_output_url_is_materialized_before_replay():
-    from unittest.mock import AsyncMock, patch
-
-    from mistralai.client.models import ImageURL, ImageURLChunk
+async def test_mistral_output_url_placeholder_replays_as_text() -> None:
+    from mistralai.client.models import ImageURL, ImageURLChunk, TextChunk
 
     from inspect_ai.model._providers.mistral import (
         completion_content_chunks,
@@ -172,26 +194,22 @@ async def test_mistral_output_url_is_materialized_before_replay():
     )
 
     url = "https://example.com/img.png"
-    image = "data:image/png;base64,iVBORw0KGgo="
     chunk = ImageURLChunk(image_url=ImageURL(url=url, detail="high"))
-    with patch(
-        "inspect_ai.model._providers.mistral.provider_image_data_uri",
-        new=AsyncMock(return_value=image),
-    ) as materialize:
+    with no_network():
         content = (await completion_content_chunks(chunk))[0]
+        replayed = await mistral_content_chunk(content)
 
-    replayed = await mistral_content_chunk(content)
-
-    materialize.assert_awaited_once_with(url)
-    assert isinstance(content, ContentImage)
-    assert content.image == image
-    assert replayed.image_url.url == image
+    _assert_image_url_placeholder(content, url)
+    assert isinstance(content, ContentText)
+    assert isinstance(replayed, TextChunk)
+    assert replayed.text == content.text
 
 
 @skip_if_no_mistral_package
-async def test_mistral_conversation_output_url_is_materialized():
-    from unittest.mock import AsyncMock, patch
-
+@pytest.mark.parametrize("detail", [None, "low"])
+async def test_mistral_conversation_output_url_is_not_downloaded(
+    detail: Literal["low", "high"] | None,
+) -> None:
     from mistralai.client.models import ImageURL, ImageURLChunk
 
     from inspect_ai.model._providers.mistral_conversation import (
@@ -199,18 +217,65 @@ async def test_mistral_conversation_output_url_is_materialized():
     )
 
     url = "https://example.com/img.png"
-    image = "data:image/png;base64,iVBORw0KGgo="
-    chunk = ImageURLChunk(image_url=ImageURL(url=url, detail="low"))
-    with patch(
-        "inspect_ai.model._providers.mistral_conversation.provider_image_data_uri",
-        new=AsyncMock(return_value=image),
-    ) as materialize:
+    chunk = ImageURLChunk(
+        image_url=url if detail is None else ImageURL(url=url, detail=detail)
+    )
+    with no_network() as (getaddrinfo, connect):
         content = await content_from_mistral_content_chunk(chunk)
 
-    materialize.assert_awaited_once_with(url)
+    getaddrinfo.assert_not_called()
+    connect.assert_not_called()
+    _assert_image_url_placeholder(content, url)
+
+
+@skip_if_no_mistral_package
+@pytest.mark.parametrize("detail", [None, "low"])
+async def test_mistral_conversation_output_data_uri_unchanged(
+    detail: Literal["low", "high"] | None,
+) -> None:
+    from mistralai.client.models import ImageURL, ImageURLChunk
+
+    from inspect_ai.model._providers.mistral_conversation import (
+        content_from_mistral_content_chunk,
+    )
+
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(
+        image_url=image if detail is None else ImageURL(url=image, detail=detail)
+    )
+    with no_network():
+        content = await content_from_mistral_content_chunk(chunk)
+
     assert isinstance(content, ContentImage)
     assert content.image == image
-    assert content.detail == "low"
+    assert content.detail == (detail or "auto")
+
+
+@skip_if_no_mistral_package
+async def test_mistral_output_image_url_warns_once(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from mistralai.client.models import ImageURLChunk
+
+    from inspect_ai.model._providers.mistral import completion_content_chunks
+    from inspect_ai.model._providers.mistral_conversation import (
+        content_from_mistral_content_chunk,
+    )
+
+    monkeypatch.setattr("inspect_ai._util.logger._warned", [])
+    with no_network(), caplog.at_level(logging.WARNING):
+        await completion_content_chunks(
+            ImageURLChunk(image_url="https://example.com/a.png")
+        )
+        await content_from_mistral_content_chunk(
+            ImageURLChunk(image_url="https://example.org/b.png")
+        )
+
+    warnings = [
+        r for r in caplog.records if "does not download image URLs" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert "example" not in warnings[0].getMessage()
 
 
 @skip_if_no_mistral_package
@@ -916,3 +981,99 @@ async def test_mistral_stream_end_to_end() -> None:
     assert len(response.completion) >= 1
     streamed = "".join(e.text for e in events if isinstance(e, StreamTextEvent))
     assert streamed == response.completion
+
+
+def _mock_mistral_client() -> Any:
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    client.__enter__.return_value = client
+    client.__exit__.return_value = False
+    client.sdk_configuration.async_client = httpx2.AsyncClient()
+    return client
+
+
+@skip_if_no_mistral_package
+async def test_mistral_chat_output_records_response_id() -> None:
+    from unittest import mock
+    from unittest.mock import AsyncMock
+
+    from mistralai.client.models import (
+        AssistantMessage,
+        ChatCompletionChoice,
+        ChatCompletionResponse,
+        UsageInfo,
+    )
+
+    from inspect_ai.model._providers.mistral import MistralAPI
+
+    api = MistralAPI(
+        model_name="mistral/mistral-small-latest",
+        api_key="test-key",
+        conversation_api=False,
+    )
+    client = _mock_mistral_client()
+    client.chat.complete_async = AsyncMock(
+        return_value=ChatCompletionResponse(
+            id="mistral-response",
+            object="chat.completion",
+            model="mistral-small-latest",
+            created=0,
+            usage=UsageInfo(prompt_tokens=1, completion_tokens=1, total_tokens=2),
+            choices=[
+                ChatCompletionChoice(
+                    index=0,
+                    message=AssistantMessage(content="hi"),
+                    finish_reason="stop",
+                )
+            ],
+        )
+    )
+
+    with mock.patch("inspect_ai.model._providers.mistral.Mistral", return_value=client):
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "mistral-response"
+
+
+@skip_if_no_mistral_package
+async def test_mistral_conversation_output_records_conversation_id() -> None:
+    from unittest import mock
+    from unittest.mock import AsyncMock
+
+    from mistralai.client.models import (
+        ConversationResponse,
+        ConversationUsageInfo,
+        MessageOutputEntry,
+    )
+
+    from inspect_ai.model._providers.mistral import MistralAPI
+
+    api = MistralAPI(model_name="mistral/mistral-small-latest", api_key="test-key")
+    client = _mock_mistral_client()
+    client.beta.conversations.start_async = AsyncMock(
+        return_value=ConversationResponse(
+            conversation_id="conv_response",
+            outputs=[MessageOutputEntry(content="hi")],
+            usage=ConversationUsageInfo(
+                prompt_tokens=1, completion_tokens=1, total_tokens=2
+            ),
+        )
+    )
+
+    with mock.patch("inspect_ai.model._providers.mistral.Mistral", return_value=client):
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "conv_response"
