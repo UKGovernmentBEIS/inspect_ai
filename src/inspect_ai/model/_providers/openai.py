@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import anyio
 from openai import (
@@ -35,7 +35,7 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
-from .._model_output import ModelOutput, ModelUsage
+from .._model_output import ModelOutput, ModelUsage, ServedModelUsage
 from .._openai import (
     always_reasons_model,
     is_gpt_5_model,
@@ -357,6 +357,15 @@ class OpenAIAPI(ModelAPI):
         self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
+    async def refresh_credentials(self) -> None:
+        # In-flight requests and SDK retries share this client; closing it
+        # during credential refresh would also fail other samples. Token
+        # providers run per request and need no update.
+        super().initialize()
+        if self.api_key:
+            self.client.api_key = self.api_key
+
+    @override
     async def count_text_tokens(self, text: str) -> int:
         import tiktoken
 
@@ -522,15 +531,6 @@ class OpenAIAPI(ModelAPI):
         return "gpt" in name
 
     @override
-    async def refresh_credentials(self) -> None:
-        # In-flight requests and SDK retries share this client; closing it
-        # during credential refresh would also fail other samples. A token
-        # provider already supplies a fresh token for each request.
-        super().initialize()
-        if self.token_provider is None:
-            self.client.api_key = cast(str, self.api_key)
-
-    @override
     async def aclose(self) -> None:
         await self.client.close()
 
@@ -694,6 +694,19 @@ class OpenAIAPI(ModelAPI):
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return f"openai/{self.service_model_name()}"
+
+    @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        # an Azure model name is a deployment name, which need not name the
+        # model the deployment serves
+        if (
+            self.is_azure()
+            and output.usage is not None
+            and output.model
+            and output.model != self.service_model_name()
+        ):
+            return [ServedModelUsage(f"openai/{output.model}", output.usage)]
+        return None
 
     @override
     def input_tokens_name(self) -> str:
