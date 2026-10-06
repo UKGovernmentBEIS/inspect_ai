@@ -658,7 +658,9 @@ async def bridge_generate(
         if output is None:
             with bridge_model_generate(), use_model_event_sink(bridge.model_event_sink):
                 # with fail_on_refusal set a refusal raises rather than
-                # returning; it still gets its retries, the last one propagates
+                # returning; it still gets its retries, the last one propagates.
+                # A response filter still gets the refused output, and the
+                # refusal check below then retries or raises.
                 try:
                     output = await model.generate(
                         input=input_messages,
@@ -666,14 +668,17 @@ async def bridge_generate(
                         tools=tools,
                         config=config,
                     )
-                except ModelRefusalError:
-                    if (
+                except ModelRefusalError as ex:
+                    if bridge.response_filter is not None:
+                        output = ex.output
+                    elif (
                         bridge.retry_refusals is not None
                         and refusals < bridge.retry_refusals
                     ):
                         refusals += 1
                         continue
-                    raise
+                    else:
+                        raise
 
         # Update the compaction baseline with the actual input token count
         # from the generate call (most accurate source of truth). Record it
@@ -698,8 +703,8 @@ async def bridge_generate(
             if bridge.retry_refusals is not None and refusals < bridge.retry_refusals:
                 refusals += 1
                 continue
-            # a refusal produced by the filter never went through
-            # model.generate(), so fail_on_refusal is applied here instead
+            # a refusal from a filter, or one a response filter kept, did not
+            # raise from model.generate(), so fail_on_refusal is applied here
             if model._resolve_config(config).fail_on_refusal:
                 raise ModelRefusalError(output, str(model), model.role)
 

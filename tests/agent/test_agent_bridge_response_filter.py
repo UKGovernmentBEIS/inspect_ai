@@ -1,12 +1,18 @@
+import json
 import re
 from pathlib import Path
-from typing import Literal, NamedTuple, cast, get_args
+from typing import Any, Literal, NamedTuple, cast, get_args
 from unittest.mock import AsyncMock
 
 import anyio
 import pytest
 from pydantic import JsonValue
-from test_helpers.utils import skip_if_no_docker
+from test_helpers.utils import (
+    skip_if_no_anthropic,
+    skip_if_no_docker,
+    skip_if_no_google,
+    skip_if_no_openai,
+)
 from typing_extensions import assert_never
 
 from inspect_ai._util.exception import TerminateSampleError
@@ -54,7 +60,7 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
-from inspect_ai.util import ExecResult, collect
+from inspect_ai.util import ExecResult, collect, token_limit
 from inspect_ai.util._limit import LimitExceededError
 
 
@@ -365,6 +371,85 @@ def test_response_filter_no_retry_budget(tmp_path: Path) -> None:
 
     _run_eval_with_filters(tmp_path, response_filter=my_filter)
     assert call_count["n"] == 1, f"expected 1 call, got {call_count['n']}"
+
+
+RefusalFilterMode = Literal["replace", "pass_through"]
+REFUSAL_RETRY_BUDGETS = [None, 2]
+
+
+def _fail_on_refusal_model() -> Model:
+    """A model that always refuses, with `fail_on_refusal` set in its config."""
+    return get_model(
+        "mockllm/model",
+        config=GenerateConfig(fail_on_refusal=True),
+        custom_outputs=[
+            ModelOutput.from_content(
+                "mockllm/model", "No.", stop_reason="content_filter"
+            )
+        ]
+        * 4,
+    )
+
+
+def _refusal_filter(mode: RefusalFilterMode, seen: list[str]) -> ModelResponseFilter:
+    """A filter that records each stop reason and replaces or keeps the output."""
+
+    async def response_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        seen.append(output.stop_reason)
+        match mode:
+            case "replace":
+                return ModelOutput.from_content(model.name, REPLACED_SENTINEL)
+            case "pass_through":
+                return None
+            case _:
+                assert_never(mode)
+
+    return response_filter
+
+
+def _expected_refusal_filter_calls(
+    mode: RefusalFilterMode, retry_refusals: int | None
+) -> list[str]:
+    match mode:
+        case "replace":
+            return ["content_filter"]
+        case "pass_through":
+            return ["content_filter"] * (1 + (retry_refusals or 0))
+        case _:
+            assert_never(mode)
+
+
+@pytest.mark.parametrize("retry_refusals", REFUSAL_RETRY_BUDGETS)
+@pytest.mark.parametrize("mode", get_args(RefusalFilterMode))
+def test_response_filter_sees_refusal_under_fail_on_refusal(
+    tmp_path: Path, mode: RefusalFilterMode, retry_refusals: int | None
+) -> None:
+    """With `fail_on_refusal`, a model refusal still goes through the response filter.
+
+    A replacement is returned to the agent. A kept refusal is retried within the
+    budget, and the last one fails the sample with `ModelRefusalError`.
+    """
+    seen: list[str] = []
+    log = _run_eval_with_filters(
+        tmp_path,
+        response_filter=_refusal_filter(mode, seen),
+        retry_refusals=retry_refusals,
+        model=_fail_on_refusal_model(),
+    )
+    assert seen == _expected_refusal_filter_calls(mode, retry_refusals)
+    assert log.samples is not None
+    sample = log.samples[0]
+    match mode:
+        case "replace":
+            assert sample.error is None, sample.error
+            assert sample.output.completion == REPLACED_SENTINEL
+        case "pass_through":
+            assert sample.error is not None
+            assert sample.error.message.startswith("ModelRefusalError(")
+        case _:
+            assert_never(mode)
 
 
 def test_request_and_response_filter_compose(tmp_path: Path) -> None:
@@ -890,12 +975,14 @@ def test_sandbox_response_filter_failure_outcome(
 
 
 def _sandbox_bridge(
-    response_filter: ModelResponseFilter, model: Model | None = None
+    response_filter: ModelResponseFilter,
+    model: Model | None = None,
+    retry_refusals: int | None = None,
 ) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
         filter=None,
-        retry_refusals=None,
+        retry_refusals=retry_refusals,
         compaction=None,
         port=13131,
         model=None,
@@ -996,3 +1083,342 @@ async def test_sandbox_response_filter_ends_sample_through_the_monitor(
     assert bridge._failure_requested.is_set()
     with pytest.raises(expected.error_type, match=re.escape(expected.fragment)):
         await _monitor_failure(bridge)
+
+
+@pytest.mark.parametrize("retry_refusals", REFUSAL_RETRY_BUDGETS)
+@pytest.mark.parametrize("mode", get_args(RefusalFilterMode))
+async def test_sandbox_response_filter_sees_refusal_under_fail_on_refusal(
+    mode: RefusalFilterMode, retry_refusals: int | None
+) -> None:
+    """The sandbox bridge passes a `fail_on_refusal` refusal through the response filter.
+
+    Compaction is calibrated from each refused output, as for any other output.
+    A kept refusal reaches the sample runner through the bridge's monitor.
+    """
+    seen: list[str] = []
+    bridge = _sandbox_bridge(
+        _refusal_filter(mode, seen), _fail_on_refusal_model(), retry_refusals
+    )
+    compact = _RecordingCompact()
+    bridge._compact = compact
+    reply = await _forward_provider_errors(generate_completions(bridge), bridge)(
+        CHAT_REQUEST
+    )
+
+    assert seen == _expected_refusal_filter_calls(mode, retry_refusals)
+    assert [output.stop_reason for _, output in compact.recorded] == seen
+    match mode:
+        case "replace":
+            assert PROVIDER_ERROR_KEY not in reply
+            assert not bridge._failure_requested.is_set()
+            choices = cast(list[dict[str, JsonValue]], reply["choices"])
+            message = cast(dict[str, JsonValue], choices[0]["message"])
+            assert message["content"] == REPLACED_SENTINEL
+        case "pass_through":
+            assert PROVIDER_ERROR_KEY in reply
+            assert bridge._failure_requested.is_set()
+            with pytest.raises(ModelRefusalError):
+                await _monitor_failure(bridge)
+        case _:
+            assert_never(mode)
+
+
+BridgePath = Literal["in_process", "sandbox"]
+
+
+@pytest.mark.parametrize("path", get_args(BridgePath))
+@pytest.mark.parametrize(
+    "failure", [f for f in get_args(FilterFailure) if _expected_error(f) is None]
+)
+async def test_response_filter_limit_propagates(
+    failure: FilterFailure, path: BridgePath
+) -> None:
+    """A limit a response filter hits, also from a task group, leaves the bridge unwrapped.
+
+    Async, so it also runs under Trio, whose task groups and cancellation differ.
+    """
+    response_filter = _failing_response_filter(failure)
+    with token_limit(JUDGE_TOKEN_LIMIT):
+        with pytest.raises(LimitExceededError) as exc_info:
+            match path:
+                case "in_process":
+                    bridge = AgentBridge(AgentState(messages=[]))
+                    bridge.response_filter = response_filter
+                    await bridge_generate(
+                        bridge,
+                        _under_limit_model(),
+                        [ChatMessageUser(content="hello")],
+                        [],
+                        None,
+                        GenerateConfig(),
+                    )
+                case "sandbox":
+                    sandbox_bridge = _sandbox_bridge(response_filter)
+                    await _forward_provider_errors(
+                        generate_completions(sandbox_bridge), sandbox_bridge
+                    )(CHAT_REQUEST)
+                case _:
+                    assert_never(path)
+    assert exc_info.value.type == "token"
+    assert exc_info.value.limit == JUDGE_TOKEN_LIMIT
+
+
+# ---------------------------------------------------------------------------
+# live providers: each bridge dialect with a replacing and a tool-call filter
+# ---------------------------------------------------------------------------
+
+LiveFilterMode = Literal["replace", "tool_call"]
+LiveDialect = Literal["completions", "responses", "anthropic", "google"]
+
+FILTERED_LOCATION = "8A2F6C1D-filtered-location"
+WEATHER_PARAMETERS: dict[str, Any] = {
+    "type": "object",
+    "properties": {"location": {"type": "string", "description": "A city."}},
+    "required": ["location"],
+}
+WEATHER_DESCRIPTION = "Get the current weather in a given location"
+
+
+class ClientReply(NamedTuple):
+    """What the bridged client received: its text and each tool call's arguments."""
+
+    text: str
+    tool_arguments: list[dict[str, Any]]
+
+
+async def _call_bridged_client(
+    dialect: LiveDialect, prompt: str, tools: bool
+) -> ClientReply:
+    """Make one request through the bridge with the dialect's own SDK."""
+    params: dict[str, Any] = {}
+    match dialect:
+        case "completions":
+            from openai import AsyncOpenAI
+            from openai.types.chat import ChatCompletion
+
+            if tools:
+                params["tools"] = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_weather",
+                            "description": WEATHER_DESCRIPTION,
+                            "parameters": WEATHER_PARAMETERS,
+                        },
+                    }
+                ]
+                params["tool_choice"] = "required"
+            async with AsyncOpenAI(api_key="inspect") as client:
+                completion = cast(
+                    ChatCompletion,
+                    await client.chat.completions.create(
+                        model="inspect",
+                        messages=[{"role": "user", "content": prompt}],
+                        **params,
+                    ),
+                )
+            message = completion.choices[0].message
+            return ClientReply(
+                message.content or "",
+                [
+                    json.loads(call.function.arguments)
+                    for call in message.tool_calls or []
+                    if call.type == "function"
+                ],
+            )
+        case "responses":
+            from openai import AsyncOpenAI
+            from openai.types.responses import Response
+
+            if tools:
+                params["tools"] = [
+                    {
+                        "type": "function",
+                        "name": "get_weather",
+                        "description": WEATHER_DESCRIPTION,
+                        "parameters": WEATHER_PARAMETERS,
+                        "strict": False,
+                    }
+                ]
+                params["tool_choice"] = "required"
+            async with AsyncOpenAI(api_key="inspect") as client:
+                response = cast(
+                    Response,
+                    await client.responses.create(
+                        model="inspect", input=prompt, **params
+                    ),
+                )
+            return ClientReply(
+                response.output_text,
+                [
+                    json.loads(item.arguments)
+                    for item in response.output
+                    if item.type == "function_call"
+                ],
+            )
+        case "anthropic":
+            from anthropic import AsyncAnthropic
+            from anthropic.types import Message
+
+            if tools:
+                params["tools"] = [
+                    {
+                        "name": "get_weather",
+                        "description": WEATHER_DESCRIPTION,
+                        "input_schema": WEATHER_PARAMETERS,
+                    }
+                ]
+                params["tool_choice"] = {"type": "any"}
+            async with AsyncAnthropic(api_key="inspect") as anthropic_client:
+                anthropic_message = cast(
+                    Message,
+                    await anthropic_client.messages.create(
+                        model="inspect",
+                        max_tokens=1024,
+                        messages=[{"role": "user", "content": prompt}],
+                        **params,
+                    ),
+                )
+            return ClientReply(
+                "".join(
+                    block.text
+                    for block in anthropic_message.content
+                    if block.type == "text"
+                ),
+                [
+                    cast(dict[str, Any], block.input)
+                    for block in anthropic_message.content
+                    if block.type == "tool_use"
+                ],
+            )
+        case "google":
+            from google import genai
+
+            config = genai.types.GenerateContentConfig()
+            if tools:
+                config.tools = [
+                    genai.types.Tool(
+                        function_declarations=[
+                            genai.types.FunctionDeclaration(
+                                name="get_weather",
+                                description=WEATHER_DESCRIPTION,
+                                parameters_json_schema=WEATHER_PARAMETERS,
+                            )
+                        ]
+                    )
+                ]
+                config.tool_config = genai.types.ToolConfig(
+                    function_calling_config=genai.types.FunctionCallingConfig(
+                        mode=genai.types.FunctionCallingConfigMode.ANY
+                    )
+                )
+            google_client = genai.Client(api_key="inspect")
+            content = await google_client.aio.models.generate_content(
+                model="inspect", contents=prompt, config=config
+            )
+            text = "".join(
+                part.text or ""
+                for candidate in content.candidates or []
+                if candidate.content is not None
+                for part in candidate.content.parts or []
+            )
+            return ClientReply(
+                text, [dict(call.args or {}) for call in content.function_calls or []]
+            )
+        case _:
+            assert_never(dialect)
+
+
+async def _live_filter(
+    model: Model, output: ModelOutput, generate_input: GenerateInput
+) -> ModelOutput | None:
+    """Replace text output; point every tool call at `FILTERED_LOCATION`."""
+    if not output.message.tool_calls:
+        return ModelOutput.from_content(model.name, REPLACED_SENTINEL)
+    for call in output.message.tool_calls:
+        call.arguments = {"location": FILTERED_LOCATION}
+    return output
+
+
+def _run_live_response_filter(
+    model: str, dialect: LiveDialect, mode: LiveFilterMode, tmp_path: Path
+) -> None:
+    """Run one bridged request against a live model with `_live_filter`."""
+    from inspect_ai import Task, eval
+    from inspect_ai.agent import Agent, agent
+    from inspect_ai.dataset import Sample
+
+    replies: list[ClientReply] = []
+    tools = mode == "tool_call"
+    prompt = (
+        "What is the weather in Paris? Use the get_weather tool."
+        if tools
+        else "Say hello in one word."
+    )
+
+    @agent
+    def live_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state, response_filter=_live_filter) as bridge:
+                replies.append(await _call_bridged_client(dialect, prompt, tools))
+                return bridge.state
+
+        return execute
+
+    log = eval(
+        Task(dataset=[Sample(input=prompt)], solver=live_agent()),
+        model=model,
+        log_dir=str(tmp_path),
+        display="plain",
+    )[0]
+    assert log.status == "success", log.error
+    assert len(replies) == 1
+    reply = replies[0]
+
+    # the provider's own output is what the ModelEvent records
+    assert log.samples is not None
+    model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 1
+    provider_output = model_events[0].output
+    match mode:
+        case "replace":
+            assert reply.text == REPLACED_SENTINEL
+            assert reply.tool_arguments == []
+            assert REPLACED_SENTINEL not in provider_output.completion
+        case "tool_call":
+            assert reply.tool_arguments
+            assert all(
+                arguments == {"location": FILTERED_LOCATION}
+                for arguments in reply.tool_arguments
+            )
+            assert provider_output.message.tool_calls
+            assert all(
+                call.arguments.get("location") != FILTERED_LOCATION
+                for call in provider_output.message.tool_calls
+            )
+        case _:
+            assert_never(mode)
+
+
+@skip_if_no_openai
+@pytest.mark.parametrize("mode", get_args(LiveFilterMode))
+def test_live_response_filter_completions(tmp_path: Path, mode: LiveFilterMode) -> None:
+    _run_live_response_filter("openai/gpt-4o-mini", "completions", mode, tmp_path)
+
+
+@skip_if_no_openai
+@pytest.mark.parametrize("mode", get_args(LiveFilterMode))
+def test_live_response_filter_responses(tmp_path: Path, mode: LiveFilterMode) -> None:
+    _run_live_response_filter("openai/gpt-5-mini", "responses", mode, tmp_path)
+
+
+@skip_if_no_anthropic
+@pytest.mark.parametrize("mode", get_args(LiveFilterMode))
+def test_live_response_filter_anthropic(tmp_path: Path, mode: LiveFilterMode) -> None:
+    _run_live_response_filter("anthropic/claude-haiku-4-5", "anthropic", mode, tmp_path)
+
+
+@skip_if_no_google
+@pytest.mark.parametrize("mode", get_args(LiveFilterMode))
+def test_live_response_filter_google(tmp_path: Path, mode: LiveFilterMode) -> None:
+    _run_live_response_filter("google/gemini-3.1-flash-lite", "google", mode, tmp_path)

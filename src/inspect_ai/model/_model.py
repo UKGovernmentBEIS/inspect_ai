@@ -2096,9 +2096,11 @@ Return ``None`` to keep the output, or a ``ModelOutput`` with at least one choic
 to replace it. A replacement is rebuilt from its ``model_dump()`` and validated,
 including values edited in place: valid plain dicts become models, models or
 dataclasses stored in ``metadata`` or tool-call ``arguments`` come back as plain
-dicts, and ``completion`` is re-derived from the message. A
-``stop_reason="content_filter"`` replacement is handled like a model refusal
-(``retry_refusals``, ``fail_on_refusal``). The ``ModelEvent`` keeps the model's
+dicts, and ``completion`` is re-derived from the message. The filter also
+receives a model refusal under ``fail_on_refusal``, before it is retried or
+raised, and can replace it. An output still ``stop_reason="content_filter"``
+after the filter is handled like a model refusal (``retry_refusals``,
+``fail_on_refusal``). The ``ModelEvent`` keeps the model's
 own output; the replacement is what the agent, bridge state and later turns see.
 
 An exception fails the sample as a ``ResponseFilterError``, except that a
