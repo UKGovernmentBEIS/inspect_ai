@@ -5845,8 +5845,11 @@ function hasLinkSyntax(text) {
 	return substr;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/dompurify@3.4.15/node_modules/dompurify/dist/purify.es.mjs
-/*! @license DOMPurify 3.4.15 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.15/LICENSE */
+//#region ../../node_modules/.pnpm/dompurify@3.4.16/node_modules/dompurify/dist/purify.es.mjs
+/*! @license DOMPurify 3.4.16 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.16/LICENSE */
+function _OverloadYield(e, d) {
+	this.v = e, this.k = d;
+}
 function _arrayLikeToArray(r, a) {
 	(null == a || a > r.length) && (a = r.length);
 	for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e];
@@ -5858,12 +5861,14 @@ function _arrayWithHoles(r) {
 function _iterableToArrayLimit(r, l) {
 	var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"];
 	if (null != t) {
-		var e, n, i, u, a = [], f = true, o = false;
+		var e, n, i, u, a = [], f = !0, o = !1;
 		try {
-			if (i = (t = t.call(r)).next, 0 === l);
-			else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0);
+			if (i = (t = t.call(r)).next, 0 === l) {
+				if (Object(t) !== t) return;
+				f = !1;
+			} else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0);
 		} catch (r) {
-			o = true, n = r;
+			o = !0, n = r;
 		} finally {
 			try {
 				if (!f && null != t.return && (u = t.return(), Object(u) !== u)) return;
@@ -5877,6 +5882,7 @@ function _iterableToArrayLimit(r, l) {
 function _nonIterableRest() {
 	throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
 }
+/*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */
 function _slicedToArray(r, e) {
 	return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest();
 }
@@ -5887,6 +5893,53 @@ function _unsupportedIterableToArray(r, a) {
 		return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0;
 	}
 }
+function AsyncGenerator(e) {
+	var t, n;
+	function resume(t, n) {
+		try {
+			var r = e[t](n), o = r.value, u = o instanceof _OverloadYield;
+			Promise.resolve(u ? o.v : o).then(function(n) {
+				if (u) {
+					var i = "return" === t && o.k ? t : "next";
+					if (!o.k || n.done) return resume(i, n);
+					n = e[i](n).value;
+				}
+				settle(!!r.done, n);
+			}, function(e) {
+				resume("throw", e);
+			});
+		} catch (e) {
+			settle(2, e);
+		}
+	}
+	function settle(e, r) {
+		2 === e ? t.reject(r) : t.resolve({
+			value: r,
+			done: e
+		}), (t = t.next) ? resume(t.key, t.arg) : n = null;
+	}
+	this._invoke = function(e, r) {
+		return new Promise(function(o, u) {
+			var i = {
+				key: e,
+				arg: r,
+				resolve: o,
+				reject: u,
+				next: null
+			};
+			n ? n = n.next = i : (t = n = i, resume(e, r));
+		});
+	}, "function" != typeof e.return && (this.return = void 0);
+}
+AsyncGenerator.prototype["function" == typeof Symbol && Symbol.asyncIterator || "@@asyncIterator"] = function() {
+	return this;
+}, AsyncGenerator.prototype.next = function(e) {
+	return this._invoke("next", e);
+}, AsyncGenerator.prototype.throw = function(e) {
+	return this._invoke("throw", e);
+}, AsyncGenerator.prototype.return = function(e) {
+	return this._invoke("return", e);
+};
 var entries = Object.entries;
 var setPrototypeOf = Object.setPrototypeOf;
 var isFrozen = Object.isFrozen;
@@ -5913,9 +5966,11 @@ if (!construct) construct = function construct(Func) {
 	return new Func(...args);
 };
 var arrayForEach = unapply(Array.prototype.forEach);
+Array.prototype.indexOf;
 var arrayLastIndexOf = unapply(Array.prototype.lastIndexOf);
 var arrayPop = unapply(Array.prototype.pop);
 var arrayPush = unapply(Array.prototype.push);
+Array.prototype.slice;
 var arraySplice = unapply(Array.prototype.splice);
 var arrayIsArray = Array.isArray;
 var stringToLowerCase = unapply(String.prototype.toLowerCase);
@@ -6841,7 +6896,7 @@ var _resolveObjectOption = function _resolveObjectOption(cfg, key, makeFallback)
 function createDOMPurify() {
 	let window = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
 	const DOMPurify = (root) => createDOMPurify(root);
-	DOMPurify.version = "3.4.15";
+	DOMPurify.version = "3.4.16";
 	DOMPurify.removed = [];
 	if (!window || !window.document || window.document.nodeType !== NODE_TYPE.document || !window.Element) {
 		DOMPurify.isSupported = false;
@@ -7831,7 +7886,10 @@ function createDOMPurify() {
 		}
 		if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS[tagName]) {
 			const removed = _sanitizeDisallowedNode(currentNode, tagName, root);
-			if (removed === false) _executeHooks(hooks.afterSanitizeElements, currentNode, null);
+			if (removed === false) {
+				_executeHooks(hooks.afterSanitizeElements, currentNode, null);
+				if (_handleHookDetachedNode(currentNode, root)) return true;
+			}
 			return removed;
 		}
 		if (_readNodeType(currentNode) === NODE_TYPE.element && !_checkValidNamespace(currentNode)) {
@@ -7850,7 +7908,7 @@ function createDOMPurify() {
 			}
 		}
 		_executeHooks(hooks.afterSanitizeElements, currentNode, null);
-		return false;
+		return _handleHookDetachedNode(currentNode, root);
 	};
 	/**
 	* _isValidAttribute
@@ -7960,9 +8018,11 @@ function createDOMPurify() {
 	* @protect setAttribute
 	*
 	* @param currentNode to sanitize
+	* @param root the current walk root
 	*/
-	const _sanitizeAttributes = function _sanitizeAttributes(currentNode) {
+	const _sanitizeAttributes = function _sanitizeAttributes(currentNode, root) {
 		_executeHooks(hooks.beforeSanitizeAttributes, currentNode, null);
+		if (_handleHookDetachedNode(currentNode, root)) return;
 		const attributes = currentNode.attributes;
 		if (!attributes || _isClobbered(currentNode)) return;
 		ALLOWED_ATTR = _forkSharedAllowlist(hooks.uponSanitizeAttribute, ALLOWED_ATTR, DEFAULT_ALLOWED_ATTR, SET_CONFIG_ALLOWED_ATTR);
@@ -8021,6 +8081,7 @@ function createDOMPurify() {
 			}
 		}
 		_executeHooks(hooks.afterSanitizeAttributes, currentNode, null);
+		_handleHookDetachedNode(currentNode, root);
 	};
 	/**
 	* _sanitizeShadowDOM
@@ -8034,7 +8095,7 @@ function createDOMPurify() {
 		while (shadowNode = shadowIterator.nextNode()) {
 			_executeHooks(hooks.uponSanitizeShadowNode, shadowNode, null);
 			_sanitizeElements(shadowNode, fragment);
-			_sanitizeAttributes(shadowNode);
+			_sanitizeAttributes(shadowNode, fragment);
 			if (_isDocumentFragment(shadowNode.content)) _sanitizeShadowDOM2(shadowNode.content);
 			if (_readNodeType(shadowNode) === NODE_TYPE.element) {
 				const innerSr = getShadowRoot(shadowNode);
@@ -8164,7 +8225,7 @@ function createDOMPurify() {
 			const nodeIterator = _createNodeIterator(walkRoot);
 			while (currentNode = nodeIterator.nextNode()) {
 				_sanitizeElements(currentNode, walkRoot);
-				_sanitizeAttributes(currentNode);
+				_sanitizeAttributes(currentNode, walkRoot);
 				if (_isDocumentFragment(currentNode.content)) _sanitizeShadowDOM2(currentNode.content);
 			}
 		} catch (error) {
@@ -8177,9 +8238,14 @@ function createDOMPurify() {
 			throw error;
 		}
 		if (inPlace) {
+			let rootWasRemoved = false;
 			arrayForEach(DOMPurify.removed, (entry) => {
-				if (entry.element) _neutralizeSubtree(entry.element);
+				if (entry.element) {
+					if (entry.element === dirty) rootWasRemoved = true;
+					_neutralizeSubtree(entry.element);
+				}
 			});
+			if (rootWasRemoved) throw typeErrorCreate("a node selected for removal could not be safely returned; refusing to sanitize in place");
 			if (SAFE_FOR_TEMPLATES) _scrubTemplateExpressions2(dirty);
 			return dirty;
 		}
@@ -8240,7 +8306,7 @@ function createDOMPurify() {
 	};
 	return DOMPurify;
 }
-var purify$1 = createDOMPurify();
+var purify_default = createDOMPurify();
 //#endregion
 //#region ../../packages/react/src/components/mathjaxStyles.ts
 var MATHJAX_STYLES = `
@@ -8466,7 +8532,7 @@ var sanitizeRenderedHtml = (html) => {
 };
 var getPurify = () => {
 	if (typeof window === "undefined") return;
-	if (!purify) purify = purify$1(window);
+	if (!purify) purify = purify_default(window);
 	installHooks(purify);
 	return purify;
 };
