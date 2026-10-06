@@ -211,6 +211,10 @@ def _format_cache_rates(model: dict[str, Any]) -> str:
     return f"{_format_token_rate(read)}/{_format_token_rate(write)}"
 
 
+_THROUGHPUT_TABLE_WIDTH = 120
+"""Widest the throughput table renders; a longer model name gets its own line."""
+
+
 def _print_throughput_table(models: list[dict[str, Any]]) -> None:
     """Render the per-model throughput rows as an aligned table."""
     rows = [
@@ -238,6 +242,7 @@ def _print_throughput_table(models: list[dict[str, Any]]) -> None:
             "backoff (cum)",
         ),
         rows,
+        max_width=_THROUGHPUT_TABLE_WIDTH,
     )
 
 

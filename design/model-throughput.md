@@ -375,11 +375,14 @@ model                      out tok/s  in tok/min  cache rd/wr/min  req/min  retr
 -------------------------  ---------  ----------  ---------------  -------  -----------  ----------  -------------
 anthropic/claude-sonnet-5  41.7       182.3k      1.5M/45.2k       12.0     33.0         14          3h 57m
 openai/gpt-5               310.2      950         0/0              45.0     0.0          0           -
+bedrock/us.anthropic.claude-sonnet-5-5-20260928-v1:0
+                           12.0       40.1k       0/0              4.0      0.0          0           -
 ```
 
 Token-per-minute cells use the compact `1.2k`/`3.4M` form, and cache reads
-and writes share one `read/write` cell, so the table stays under 120
-columns for a typical model name. A row from an older server without the
+and writes share one `read/write` cell. The table is capped at 120
+columns: a model name too long to fit is printed whole on its own line,
+with its rates on the next line. A row from an older server without the
 input and cache fields shows those cells blank (unreported, not 0).
 
 The `ctl task` row also gains a per-task `tokens_per_second` derived from

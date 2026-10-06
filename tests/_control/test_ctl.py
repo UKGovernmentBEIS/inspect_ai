@@ -419,6 +419,59 @@ def test_throughput_table_renders_input_and_cache_rates(
     assert cell(older, "out tok/s") == "41.7"
 
 
+def test_throughput_table_fits_120_columns_with_long_model_names(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    long_names = [
+        "anthropic/claude-sonnet-5-5-20260928",
+        "bedrock/us.anthropic.claude-sonnet-5-5-20260928-v1:0",
+        "hf/meta-llama/Llama-3.3-70B-Instruct",
+    ]
+    rates = {
+        "output_tokens_per_second": 12345.6,
+        "input_tokens_per_minute": 182340.0,
+        "cache_read_tokens_per_minute": 1523000.0,
+        "cache_write_tokens_per_minute": 45210.0,
+        "requests_per_minute": 1234.5,
+        "retries_per_minute": 333.0,
+        "retry_waits_active": 14,
+        "cumulative": {"retry_wait_seconds": 14220.0},
+    }
+    _print_throughput_table(
+        [{**rates, "model": name} for name in ["openai/gpt-5", *long_names]]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    assert all(len(line) <= 120 for line in lines)
+    header = lines[0]
+    start = header.index("in tok/min")
+    # a short name keeps its cell
+    short = next(ln for ln in lines if ln.startswith("openai/gpt-5 "))
+    assert short[start:].startswith("182.3k")
+    # a long name is printed whole on its own line, its rates on the next
+    for name in long_names:
+        index = lines.index(name)
+        row = lines[index + 1]
+        assert row[:start].split() == ["12,345.6"]
+        assert row[start:].split() == [
+            "182.3k",
+            "1.5M/45.2k",
+            "1,234.5",
+            "333.0",
+            "14",
+            "3h",
+            "57m",
+        ]
+
+
+def test_render_table_without_max_width_keeps_long_first_cell(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    name = "x" * 150
+    _render_table(("name", "value"), [(name, "1")])
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[2].rstrip() == f"{name}  1"
+
+
 def test_format_backoff() -> None:
     assert _format_backoff(None) == "-"
     assert _format_backoff(0) == "-"
