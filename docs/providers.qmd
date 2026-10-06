@@ -235,14 +235,6 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025
 
 ### Refusal Fallback {#anthropic-refusal-fallback}
 
-::: {.callout-note appearance="simple"}
-The model fallback feature described below requires the development version of Inspect. You can install the development version from GitHub with:
-
-```bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Claude 5 classifiers can decline a request, returning a refusal (surfaced by Inspect as `stop_reason="content_filter"`). Such a request can usually be served by another Claude model. Set the `fallback_models` generate config to retry refused requests on one or more fallback models (tried in order) within the same request, using Anthropic's [server-side fallback](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback):
 
 ``` bash
