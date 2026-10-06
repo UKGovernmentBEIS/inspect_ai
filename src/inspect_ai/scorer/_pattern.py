@@ -3,6 +3,7 @@ from typing import Any
 
 from inspect_ai.solver._task_state import TaskState
 
+from ._common import no_response
 from ._metric import CORRECT, INCORRECT, Score
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
@@ -56,12 +57,11 @@ def match_all_groups(
 def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> Scorer:
     """Scorer which extracts the model answer using a regex.
 
-    Note that at least one regex group is required to match
-    against the target.
-
     The regex can have a single capture group or multiple groups.
     In the case of multiple groups, the scorer can be configured
-    to match either one or all of the extracted groups
+    to match either one or all of the extracted groups. If the
+    pattern contains no capture groups, the full match is compared
+    against the target.
 
     Args:
        pattern: Regular expression for extracting the
@@ -78,8 +78,15 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
             pattern, state.output.completion, re.IGNORECASE if ignore_case else 0
         )
 
+        # Decided once, above the branch. A nullable pattern such as (.*) or
+        # (\d*) MATCHES at position 0 of an empty string, so it takes the
+        # `if match` path below and would otherwise never reach the no-match
+        # branch. That split one scorer three ways on three whitespace-only
+        # completions, because `.` does not cross a newline.
+        empty = no_response(state.output.completion or "")
+
         if match:
-            groups = match.groups()
+            groups = match.groups() or (match.group(0),)
             if match_all:
                 found_match = match_all_groups(
                     matches=groups, target=target, ignore_case=ignore_case
@@ -102,6 +109,7 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
             return Score(
                 value=CORRECT if found_match else INCORRECT,
                 answer=answer,
+                reason="no_response" if empty else None,
                 explanation=state.output.completion,
             )
         else:
@@ -110,7 +118,7 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
             # failure charged to the model under test (see #4567)
             return Score(
                 value=INCORRECT,
-                reason="invalid_response_format",
+                reason="no_response" if empty else "invalid_response_format",
                 explanation="Scoring pattern not matched in output: "
                 + f"{state.output.completion}",
             )

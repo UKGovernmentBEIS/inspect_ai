@@ -1,9 +1,353 @@
 ## Unreleased
 
-- Tools: Exclude *args and **kwargs from JSON schema and required parameters in parse_tool_info(). (#5080)
+- Fixed model calls and token counting in multiprocess Scout scans using the default model configuration.
+- Bugfix: Interrupting after scoring no longer drops the scored sample from a cancelled evaluation log while its sandbox is being cleaned up.
+- Bugfix: Overflow recovery no longer drops the sample's input from the recorded conversation, so scorers and the viewer still see the task after a forced compaction.
+- Sample sources: `enqueue_sample(samples, epoch=N)` runs each sample once as epoch `N`, so a source can run one sample repeatedly under its own id.
+- Run config: `eval_config.token_limit_type` from an exported or handwritten run config is applied as the token-limit metering type instead of being rejected as an unknown generate option.
+- Fixed model calls failing before the first sample on Windows systems with a CJK ANSI code page (cp932/936/949/950).
+- Realtime logging: Fixed live sample reads occasionally showing model calls with empty inputs when the sample finished while being read.
+- Meta: Muse models not yet in the model database (new versions or codenames) now use the current frontier model's context window and `max` reasoning effort support.
+- Bedrock: Unsupported Amazon Nova models now ignore reasoning effort with a warning instead of failing every request.
+- Timestamps and times ending in a lowercase `z` are now parsed as UTC on Python 3.11 and later, as they already were on Python 3.10.
+- Model API: Model events log provider request ids (including for retried requests) and response ids, even when raw model API calls are not logged.
+- Datasets: `shuffle` on `csv_dataset()`, `json_dataset()`, `file_dataset()` and `hf_dataset()` now treats an integer as a seed, so `shuffle=0` shuffles with seed 0.
+- Fixed `exact()` and `f1()` scorers awarding a perfect score when a target normalizes to an empty string.
+- Security: Text-editor undo history uses non-executable data stored privately per OS account; old pickle history is ignored.
+- Sandbox tools: killing an `exec_remote` job that has already exited now guards against signalling unrelated processes that reused its PID.
+- Sandbox: `exec_remote()` and `sandbox_agent_bridge()` take a new opt-in `poll_timeout_recovery` that keeps polling a running command through a temporary sandbox stall instead of failing.
+- Docker: Sandboxes with healthchecks now allow 60 s of startup beyond the healthcheck estimate; a start that hangs, or a service still starting after that, can take up to about 150 s longer to fail (more on a loaded host).
+- Docker: `--no-sandbox-cleanup` now lists each environment's cleanup command, and `inspect sandbox cleanup docker <project>` now removes custom networks declared in a `ComposeConfig`.
+- Eval Set: `retry_cleanup` now also removes the older interrupted (`started`) logs its own attempts left behind, and their sample buffers, once those buffers have shut down.
+- Images in tool results recorded in the transcript now follow `log_images` like images in messages: stored as attachments when enabled, removed when disabled.
+- Eval Logs: Fewer redundant log writes when samples complete during a slow log flush.
+- Model providers: Failed and cancelled requests no longer leave tracking entries that grow memory use over a long evaluation.
+- Google: Fixed audio, video and document content being sent with the MIME type of an earlier upload of the same bytes; uploads are now reused only for the same MIME type and account.
+- Limits: A model call is now refused before it is sent when a token or cost limit is already reached, including when usage exactly equals the limit.
+- Core data types (`ChatMessage`, `ModelOutput`, `ToolInfo`, `GenerateConfig` and the types they use) moved to the new `inspect_ai.core` package; existing import paths still work.
+- `ModelOutput.from_message()` takes an optional `model` argument.
+- Bugfix: Cost tracking and `cost_limit` now price a request at the rates of the model that served it (refusal fallbacks, Azure deployments, and routers on OpenRouter, Bedrock, Fireworks and LiteLLM proxies); providers report it with the new `ModelAPI.served_model_usage()`.
+- Batch mode: Requests with different HTTP headers, such as `extra_headers` or Anthropic beta headers, are now sent in separate batches, so one request's headers no longer apply to others.
+- Mistral: Image URLs in model output are no longer downloaded from any host; they are recorded as text with the URL. Inline images are unchanged.
+- Bugfix: The model output cache no longer reads, writes or deletes files outside the cache directory; unsafe model names are not cached, and `cache_path(model)` rejects them with `ValueError`.
+- Bugfix: Remote MCP servers are now refused while an approval policy is active, rather than having their tools run by the model provider without approval.
+- Bugfix: Results of `sandbox_agent_bridge()` bridged tools are now truncated at `max_tool_output` (or the tool's `max_output`), as other tool results are.
+- Eval Set: Fixed logging with S3 credentials restricted to the log directory's prefix, and reading and writing `eval-set.json` for Azure log directories with a trailing slash or an account in the URL.
+
+## 0.3.276 (02 October 2026)
+
+- LiteLLM Proxy: Gemini tool results that are JSON objects are sent under `content`, as the `google` provider sends them; LiteLLM otherwise passed the object as the function response itself and Vertex rejected documents with `$ref` keys (an OpenAPI spec read with `curl`) with a 400.
+
+## 0.3.275 (01 October 2026)
+
+- LiteLLM Proxy: Gemini models accept any `reasoning_effort`, mapped to the levels or thinking budgets the native Google provider uses.
+- LiteLLM Proxy: Gemini tool calls replayed through the proxy keep their thought signatures when the proxy's `model_name` does not contain "gemini" (LiteLLM otherwise replaced them with a placeholder); requests with tools carry the function-calling hint; and a turn returned as a malformed function call (no text or tool call, or a call written as code) is retried with a corrective exchange, as with the `google` provider.
+
+## 0.3.274 (01 October 2026)
+
+- Sandbox tools: the root check now runs once at sample start, before solver/agent execution begins; an inconclusive check warns before falling back to the sandbox's default user, and a check that could not run, or a later root failure, is an error.
+- Local sandbox: `exec(user=...)` now rejects unsupported users instead of ignoring them; the current effective user's name or UID is accepted on POSIX.
+- Control Channel: `inspect ctl ... --log-dir` now shows running and completed-but-unflushed samples, with current counts and their events, for evals run with `--log-shared`.
+- OpenAI Compatible: Fixed concurrent sample failures during credential refresh, including OpenRouter evaluations on Hawk, and added an overridable `ModelAPI.refresh_credentials()` for model API extensions.
+- OpenAI: Biological-risk policy responses now produce content-filter stops instead of failing samples.
+- Log viewer: Tasks can set `ViewerConfig(trust_content=False)` to have the viewer show all of a log's content as plain text, with no markdown, media, or clickable links.
+- Log viewer: `inspect view --no-trust-content` (or `INSPECT_VIEW_TRUST_CONTENT=false`) shows every log's content as plain text.
+
+## 0.3.273 (29 September 2026)
+
+- Anthropic: Prompts can mark a stable prefix for caching while allowing the remaining text to change.
+- OpenAI: GPT-5.6 and later support explicit prompt-cache boundaries; other models retain automatic caching.
+- OpenAI: Support for GPT-6.1 Sol (`gpt-6.1-sol`), including its context window and output limits.
+- Mistral: Support for mistralai 3.0, which is now the minimum required version.
+- Logs: Reading samples with `resolve_attachments` is much faster for long conversations; in full mode, deeply nested model API call content may keep two more nesting levels.
+- Bugfix: `self_critique()`, and `model_graded_qa()`/`model_graded_fact()` with `model_role=None`, now critique or grade with the correct model when one task is evaluated against several models.
+- Reading a remote `.eval` log from a non-S3 filesystem (e.g. `gs://`, `az://`) no longer stalls other running work for the whole download.
+- S3: Streaming uploads now read each multipart part from the source file in a single worker-thread call rather than 32 chunked calls, reducing event-loop wakeups during log flushes.
+- Recording an eval or model error no longer spends seconds syntax highlighting its traceback: the stored ANSI traceback keeps its frames and source snippets, without syntax colouring.
+- Bugfix: `subprocess()` and Docker sandbox `exec()` no longer intermittently fail with `BrokenPipeError` when the command exits before reading its input.
+
+## 0.3.272 (28 September 2026)
+
+- Anthropic: Support for Claude Sonnet 5.5 (`claude-sonnet-5-5`): `reasoning_effort="none"` turns off up-front thinking, forced tool choice degrades to auto, and computer use uses the computer toolset on the Claude API and Vertex.
+- Tools: `web_browser()` is deprecated, logs a warning when called, and will be removed in a future release.
+- Inspect View: Shard logs under `<name>.shards/` are hidden once a successful merged log covers them (`inspect view --show-shards` to list them); bundles leave them out.
+- Computer tool: click actions called without a `coordinate` now click at the current cursor position instead of failing, and the tool description states which actions require one.
+- Computer tool: `back_click` and `forward_click` now work (with a rebuilt `aisiuk/inspect-computer-tool` image); previously they failed inside the container regardless of arguments.
+
+## 0.3.271 (26 September 2026)
+
+- CLI: New `--extra-headers` and `--extra-body` options for `inspect eval` and `inspect eval-set`, taking an inline JSON or YAML mapping.
+- Google: Token counting falls back to a local estimate, with a warning, when the countTokens endpoint is unavailable or rejects the request.
+
+## 0.3.270 (25 September 2026)
+
+- `eval_set`: a task whose dataset GREW since its last run (a strict superset, with stable sample ids) is now topped up in place — the prior samples are reused and only the newly added samples run — instead of re-running the whole dataset. A shrunk dataset, or growth without stable ids, still triggers a full re-run.
+- LiteLLM Proxy: GPT-5 and later, o-series and Codex models served by OpenAI use the Responses API by default, streamed, carrying reasoning between turns (`-M responses_api=false` to opt out).
+- LiteLLM Proxy: Key and team aliases resolve to the model they route to, instead of failing for lack of model info.
+- LiteLLM Proxy: Claude 4.7 and later models with a reasoning effort record summarized thinking in the log, including through older LiteLLM versions, which returned none (`-M thinking_display=omitted` to opt out).
+- LiteLLM Proxy: Claude codename deployments that LiteLLM sends extended thinking fail with an error naming the proxy `model_info` flags that enable adaptive thinking.
+- LiteLLM Proxy: `web_search()` without a search provider usable through the proxy fails when the model is first called, with an error naming the fix.
+- Checkpointing: after a resume, restored events reach hooks, the live viewer, ACP clients and transcript readers with long text and images inline instead of as `attachment://` references; raw model API calls stay condensed until the sample completes.
+- Bugfix: `f1()` now counts repeated tokens (multiset overlap, matching SQuAD F1); scores can rise or fall for answers or targets containing repeated words.
+- Bugfix: A sample retried or requeued in a shared log directory no longer shows the previous attempt's events alongside its own while it runs.
+
+## 0.3.269 (25 September 2026)
+
+- LiteLLM Proxy: New `litellm-proxy` provider for models served by a LiteLLM proxy, which reads each model's upstream model for context window, cost, reasoning and Claude prompt caching.
+- CLI: Quoted YAML and JSON strings in `--env` arguments preserve commas as literal text (such as `--env 'NO_PROXY="localhost,127.0.0.1"'`) instead of being coerced into lists. (#5368)
+- DeepSeek: Support for DeepSeek-V4.1-Flash (`deepseek-flash`), including image input; model info notes that the retired `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` names are now served by V4.1 Flash.
+- Sandbox agent bridge: host tools exposed with `bridged_tools` are again denied unless the model proposed the call in a bridged generation, once per proposal, with or without an approval policy (0.3.265 ran them regardless as a stopgap); `BridgedToolsSpec(require_proposal=False)` opts a server out.
+- Bugfix: Docker sandboxes for samples a `SampleSource` adds (including an empty-seed task with `sandbox="docker"`) no longer fail with a `LookupError`, and their containers and generated compose files are cleaned up at the end of the run.
+- Bedrock: Models that return encrypted reasoning (OpenAI's GPT-5.6 family) no longer fail every request, and their reasoning is now carried across turns so multi-turn and tool-calling evals work, streamed or not.
+- Scoring: `match()`, `includes()`, `exact()`, `f1()`, `pattern()` and `answer()` now record `reason="no_response"` when the raw model completion is empty or whitespace only, so a model that returned nothing is distinguishable from one that answered wrong. Score values are unchanged. (#5376)
+- Grok: Non-streaming requests cut off by `attempt_timeout` are now retried, and ones cut off by a sample `time_limit` are recorded as that limit, instead of failing with a bare cancellation.
+- Grok: Safety refusals that report "I can't help with that request" now produce a content-filter response instead of failing the sample.
+- Bugfix: Samples whose solver is cut off by a cancellation that inspect did not issue are now recorded as sample errors instead of being scored as completed.
+- Control Channel: `inspect ctl task list` and the `inspect ctl sample` reads take `--log-dir <dir>` to read task and sample status, events, messages and store from the `.eval` logs in a local or S3 directory, without a live eval process.
+
+## 0.3.268 (22 September 2026)
+
+- Agent Bridge: Bridged Anthropic requests no longer fail under anthropic SDK 1.8.0 or later, including requests with iterator, file-path or pydantic inputs.
+
+## 0.3.267 (22 September 2026)
+
+- Anthropic: Computer use now works on Claude Opus 5.5, Fable 5/5.1 and Mythos 5/5.1 via Anthropic's `computer_toolset_20260801` toolset; pass `-M computer_toolset=true` to use the toolset on Claude Opus 4.8, Sonnet 5 and Opus 5.
+- Computer Use: the `key` action now honors `repeat`.
+- Checkpointing: A pre-existing entry planted at the in-sandbox work area (`/root/.cache/inspect`), or a parent `/root/.cache` that other users could modify, now fails checkpoint setup and restore with a clear error instead of being reused.
+- Agent Bridge: Approval policies now match bridged host tools that a sandboxed agent calls through a single MCP dispatcher function (Antigravity's `call_mcp_tool`) by the tool's own name, and approvers see and modify the tool's own arguments.
+- Sample and Task Sources: a new `sample_abandoned()` hook reports a sample cancelled before anything was logged (cancelled while queued, or before its `retry_on_error` re-run), so a source waiting on it no longer stalls.
+- Faster `inspect` CLI startup and `import inspect_ai`; `InputRequest` and `request_input` now annotate `schema` by name only, so `typing.get_type_hints` and pydantic schema generation for `InputRequest` are unsupported.
+- Bugfix: Approval policies in run-config files now load correctly instead of failing evaluation startup with an `AttributeError`.
+- Added `read_eval_log_sample_summaries_async` and three other async log readers to the public `inspect_ai.log` exports.
+- Meta: New `meta` provider for Muse Spark models on the Meta Model API, which streams by default, preserves model reasoning across turns, and reports policy-blocked prompts as content filter stops.
+- OpenAI: Support for GPT-6 Sol (`gpt-6-sol`) and GPT-6 Luna (`gpt-6-luna`), including `reasoning_effort="none"`, which these models accept (GPT-6 Astra does not).
+- OpenAI: Responses API requests no longer fail validation when a compatible service omits `model` from its response.
+- Agent Bridge: An unexpected exception from a host tool called through `sandbox_agent_bridge(bridged_tools=...)` now fails the sample as a native tool exception does, and malformed arguments are reported to the model as a parsing error.
+- Grok: Support for Grok 4.7.
+- Bugfix: `bash_session` no longer sends the literal string "None" to the shell when `type_submit` is called without `input`.
+- Sandbox tools: A sandbox user can no longer make the tools read another file in place of a large (chunked) tool response.
+- Sandbox tools: The text editor's directory view no longer interprets shell syntax in paths and runs `find` only from `/usr/sbin:/usr/bin:/sbin:/bin`, not the image `PATH`.
+- Anthropic: Fixed model construction failing with a `default_headers` TypeError when `ANTHROPIC_AUTH_TOKEN` is set and the caller supplies its own default headers.
+- Bugfix: Cancelling a sample while its sandbox files are being copied or its setup script is running no longer skips the sandbox provider's `sample_cleanup()`, which could leak sandboxes on certain providers.
+- Grok: Calls to a client-side `code_execution()` tool (native execution disabled) are now executed instead of being silently dropped when xAI reports them as its built-in tool.
+- Anthropic: Support for Claude Opus 5.5 (`claude-opus-5-5`): thinking can't be disabled, forced tool choice degrades to auto, and computer use is not yet supported on the Claude API and Vertex.
+
+## 0.3.266 (19 September 2026)
+
+- Bugfix: `inspect score --scorer pkg/name` now resolves `@scanner` functions from installed packages (e.g. `inspect_petri/audit_judge`) instead of failing with `LookupError`; unknown names now report the "scorer couldn't be loaded" guidance rather than a raw traceback.
+- Control channel: the `inspect ctl task score` interim-metrics payload now reports each entry's originating scorer under `scorer` and the score's name under `name` (previously `scorer` held the score name). This lets consumers disambiguate scores from dict-valued scorers — where several scorers can share a score name — and reconstruct the `EvalScore` needed to resolve a task's headline metric. Breaking for clients that read the old `scorer` field as the score name.
+
+## 0.3.265 (17 September 2026)
+
+- Agent Bridge: Bridged host tools are no longer denied under an approval policy when the sandboxed agent presents them to its model under a different name.
+
+## 0.3.264 (16 September 2026)
+
+- Agent Bridge: Sandboxed agents using the Responses API no longer stall after a single model turn when the model calls a tool; `function_call` and `custom_tool_call` output items now carry a non-null item id, and streamed custom tool calls now report `completed` status so client SDKs dispatch them.
+- Bugfix: Closing cached S3 sessions after an eval no longer leaves s3fs to close them again at garbage collection, which raised a stray `AssertionError: Session was never entered` in unrelated code.
+- Bugfix: Task failures no longer report an internal "no running event loop" error in place of the original exception.
+- Anthropic: `cache_ttl` now defaults to "auto", which switches a sample's prompt-cache TTL from 5 minutes to 1 hour after a >5 minute gap between its requests; pass "5m" or "1h" to pin.
+- Hugging Face `literal:` task targets now keep the rest of the value when it contains additional colons.
+- Review: `human_reviewer()` lets an operator review a tool call together with its result and continue or terminate the sample, on the same surfaces as the human approver.
+- Agents: `react()` accepts `review` policies, which apply to the agent's tool calls in place of any eval-level or task-level reviewers, as `approval` does for approvers.
+- OpenAI-compatible token-counting and compaction endpoints that return 405 are now handled the same as those that return 404.
+- Bedrock and SageMaker now require `aiobotocore` instead of `aioboto3`, which is no longer installed, and Inspect no longer holds `botocore` back to an old release.
+- Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.
+- Review: New `Reviewer` protocol and `review` policies (`Task(review=)`, `eval(review=)`, `--review`) run after a tool call executes and before the model sees its result, and can `continue`, `terminate`, or `escalate`; each decision is recorded as a `ReviewEvent`.
+- Cancelling an unfinished tool result review stops the sample and preserves the completed tool output in the transcript.
+- Tool result reviewers now inspect parsing and approval errors raised by tools that executed.
+- OpenRouter: Gemini reasoning now replays as structured reasoning details (keeping the encrypted thought signature for multi-turn tool use) instead of a `<think>` tag, so reasoning no longer leaks into assistant output text. As in OpenRouter's own SDK, only signed text and encrypted entries are replayed: Gemini no longer sees its own readable prior thinking on later turns, only the thought signature. Reasoning replayed from another provider (no OpenRouter details) now goes into the `<think>` tag as readable text only, and is omitted entirely when it has none (e.g. a redacted block with no summary), so no signature or opaque payload enters the assistant text channel for any model family.
+- OpenRouter: Gemini thoughts returned only as a signature (no readable text) no longer log a warning or surface raw JSON as the reasoning content.
+- Fixed Linux evaluations slowing down as model clients open more HTTPS connections.
+- Fixed `RuntimeError: Event loop is closed` when a memoized model is used across multiple `eval()` calls or event loops.
+- Bugfix: The OpenAI Responses provider no longer raises `ValueError("Unexpected output type: ResponseToolSearchOutputItem")` when an agent uses native OpenAI deferred tool search; the response-item handler now recognises the `tool_search_output` item without overwriting the cached `tool_search_call`. (#4968)
+- Sample selection: `--sample-id` now accepts ids containing colons (e.g. `user:cybergym/arvo_6008`); a `task:` prefix is stripped only when it names a task in the run.
+- Multiple choice: A dataset target of `0` now raises an error instead of being interpreted as option Z on tasks with 26 or more choices.
+- Agent Bridge: Bare model names now resolve using the provider of the bridge endpoint, so clients can send names without a provider prefix.
+- Agent Bridge: Web search and code execution items from Google and Mistral models now reach Responses API clients with a unique item id instead of an empty one.
+- Agent Bridge: Custom tool calls returned to Responses API clients now preserve their registered namespace.
+- Scoring: `multiple_choice()` now recognizes answer letters wrapped in LaTeX or markdown (`$B$`, `**B**`, `(B)`), which previously scored INCORRECT.
+- Scoring: `perplexity()` and `target_perplexity()` now record infinite perplexity for a sample whose NLL is too large to exponentiate instead of losing the sample to an `OverflowError`.
+- Datasets: `csv_dataset()` now honors the dialect's delimiter when no explicit delimiter is supplied, including tab-separated and registered custom dialects.
+- Datasets: `csv_dataset()` now loads UTF-8 files with a byte-order mark, including Excel CSV exports, without requiring an explicit encoding.
+- Datasets: `file_dataset()` now reads `.tsv` and `.tab` files as tab-delimited instead of rejecting them.
+- Documents: Data URIs without parameters now retain their declared media type and receive the corresponding default filename.
+- Elicitation: long lines in `ask_user` prompts are no longer hard-wrapped by the console, so long commands copy out of the terminal intact.
+- Compaction: summary compaction now produces a more detailed, structured summary that preserves code snippets, user messages, and any security-relevant constraints stated earlier in the conversation.
+- Control Channel: `inspect ctl sample cancel` now works on a sample that is still initializing (e.g. waiting on sandbox provisioning) — the cancel applies the moment the sample starts, and `inspect ctl sample list` marks the pending cancel.
+- Control Channel: Starting and stopping the control server no longer adds ~200ms to every `eval()`, which dominated the wall time of very small evals during tests.
+- Control Channel: `INSPECT_EVAL_CTL_SERVER` is now honored by `eval()` and `eval_set()` called from Python, not only by the CLI.
+- Sample and Task Sources: `sample_complete()` now fires for a running sample cancelled individually, so a source waiting on that sample no longer stalls; a blocking callback can no longer hang a task cancel.
+- Agent Bridge: Google clients now receive token log probabilities and top candidates returned by the host model.
+- Google: OAuth/ADC requests to the Gemini Developer API no longer send the placeholder API-key header alongside bearer authentication.
+- Scoring: `math()` now records `reason="invalid_response_format"` when no answer can be extracted, so format failures are distinguishable from wrong answers.
+- Scoring: `math()` now gives a symbolic answer the same verdict whether it and the target are written in LaTeX or plain notation (e.g. `\frac{x}{2}` vs `x/2`), plain-notation symbols match case-insensitively like LaTeX ones, and an answer is parsed under its target's symbol assumptions so cancelling imaginary terms (e.g. `x+i-i` vs `x`) still match.
+- Scoring: `choice()` now tags empty completions as `NOANSWER` with `reason="no_response"` and records `reason="invalid_response_format"` when no choice can be parsed, so format failures are distinguishable from wrong answers.
+- Scorer: metrics that own a degenerate shape (e.g. `grouped()`) now report it on an all-unscored run instead of collapsing to a synthesized flat NaN, on both the list and dict metric paths; metrics that raise on empty input still report NaN, with a one-time warning. (#5150)
+- Approval: Policy files given as percent-encoded `file://` URIs (e.g. paths with spaces, as `Path.as_uri()` produces) are now accepted by `eval()`, `Task()`, and `--approval`.
+- Checkpoints: Invalidating a sample now re-runs it from scratch on retry (its checkpoints are discarded) instead of resuming from its last checkpoint.
+- Bugfix: Interrupting a checkpointed eval's retry (Ctrl-C, crash, OOM) no longer loses checkpointed progress, including for samples the retry never reached.
+- Checkpointing: Resuming from a checkpoint now rejects a host-context snapshot containing symlinks or other non-regular files instead of following them into host files.
+- Checkpointing: Resuming into a context directory left by an interrupted attempt no longer keeps files newer than the committed checkpoint alongside the restored ones.
+- Checkpointing: Resuming a sandbox now restores only its captured paths and refuses a snapshot that reaches outside them, contains device, fifo or socket nodes, or holds setuid/setgid/sticky files, instead of restoring it unchecked as root at `/`.
+- Checkpointing: A relative or `/` `sandbox_paths` entry now fails when the sample starts instead of after its checkpoints have been taken and cannot be restored.
+- Checkpointing: Resuming a sandbox no longer writes through symbolic links the image ships under a captured path; they are replaced by what the snapshot holds there.
+- Security: Checkpoint resume refuses checkpoint-source entries that would write outside the checkpoints directory; sample ids containing `/`, `\`, `~` or NUL, or longer than 200 bytes, get a hashed checkpoint directory name and no longer resume checkpoints from earlier versions.
+- Groq: An over-capacity, server, or rate-limit error delivered inside a streamed response is now retried instead of failing the sample, and a streamed context-length rejection yields `model_length` output.
+- Bedrock, Groq, Mistral, Azure AI: Transient errors delivered mid-stream (throttling, capacity, dropped connections) are now retried instead of failing the sample or returning a truncated output.
+- Agent bridge: Bridged OpenAI and Google requests with a malformed `tool_choice`/`toolConfig` now return a 400 naming the bad field instead of a status-less error, and a non-string tool name no longer poisons the sample transcript.
+- Agent bridge: The sandbox agent bridge model proxy no longer advertises cross-origin access, so browser-origin clients of the proxy are not accepted.
+- Eval Set: A retry attempt that itself errors or is interrupted no longer causes the next attempt to re-run (or, with `retry_cleanup`, lose) samples an earlier attempt completed.
+- Eval Log: Reading a sample from a `.json` log by id now matches the id's string form exactly, as `.eval` logs always have (`1` finds `"1"`), instead of also matching zero-padded numeric forms such as `"001"`.
+- Eval Log: A sample still running when an eval crashed now records when it started in the recovered log and the realtime sample view.
+- Eval Set: A retry attempt's live samples now start after the prior attempt's completed samples have been carried into its log, rather than alongside that copy.
+- Eval Set: Retrying with `log_images=False` keeps the images already recorded in the prior attempt's reused samples.
+- Eval Set: A retry attempt whose log write failed no longer keeps its unfinished log and realtime buffer open for the rest of the run.
+- Checkpointing: Sandbox transfers are size-limited, cannot overwrite existing repository files, and resume uses the recorded snapshot when available.
+- Checkpointing: Oversized sandbox archive headers are rejected before they can cause large host memory allocations.
+- Sandboxes: Compose files using long syntax volume mounts, `pids_limit`, `read_only`, `cgroup`, `stop_grace_period`, `build.no_cache`, or `build.pull` no longer fail validation when starting an eval.
+- Sandbox Tools: The in-sandbox tool server's socket and control files now live inside the injected tools tree, out of reach of other users in the container.
+- Sandbox tools: `bash_session()`, `text_editor()`, `exec_remote()` and sandboxed MCP servers now run as the sandbox's default user instead of always as root; the three tools accept `user="root"` to restore the old behavior.
+- Sandbox Tools: Binaries downloaded from S3 that fail SHA256 verification or lack a pinned digest are now rejected instead of run with a warning; `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` has been removed.
+- Sandbox tools: Fixed a race during injection that let a non-root sandbox user replace the tools archive before root unpacked it.
+- Docker: Timed commands no longer run an agent-planted timeout executable from the sandbox's PATH with elevated privileges.
+- Sandboxes: A sandbox user can no longer make Inspect's own commands run a program it planted on the image `PATH`; images must provide `/bin/sh` and the coreutils Inspect uses (including `zstd` for existing `.tar.zst` checkpoints) in the system `bin`/`sbin` directories, not `/usr/local`.
+- Inspect View: Requests for unreadable log headers now return 403 instead of 500.
+- Eval Set: Tasks that set a non-mean epochs reducer now reuse their completed log on subsequent `eval_set()` calls instead of being re-run every time.
+- Subprocess: Commands given `input` that exit without reading stdin now return their exit status and stderr instead of raising, and commands that fill stdout before reading stdin no longer hang.
+- Human Agent: Sandbox installation of the `task` CLI now refuses a pre-planted or non-root-owned `/opt/human_agent`, errors instead of silently skipping when it cannot be created, and no longer runs a staged install script.
+- Human Agent: The `task` shell hook is now appended to the login user's `.bashrc` as that user, so a `.bashrc` that user cannot write (e.g. root-owned) or that is a symlink fails installation instead of being written by the sandbox default user (root in most images).
+- Bugfix: MockLLM callable `custom_outputs` now populate default token usage when the returned `ModelOutput` omits `usage`, matching iterable/generator behavior.
+- Bugfix: `eval_retry` now reuses the model roles recorded in the original log, including roles the task set itself in `Task(...)`.
+- Eval Log: Reading zstd-compressed `.eval` files no longer fails with `AttributeError: ... '_needs_input'` on Python builds that include CPython's gh-156002 zipfile change.
+- Inspect View: Cancelling or failing an S3 log download no longer eventually stops the view server from serving any S3 logs.
+- Inspect View: Downloading a log whose name contains non-Latin-1 characters no longer fails.
+- Timelines: Filtering now removes matching excluded spans from branches as well as main timeline content.
+- Logging: `--log-level info` no longer prints a line for every OpenAI and Anthropic HTTP request.
+- Scoring: `math()` now raises an error when no reference answer can be parsed instead of silently excluding the sample from metrics.
+- Scoring: `choice()` now raises an error for samples without answer options instead of silently scoring them incorrect.
+- Bugfix: Anthropic prompt caching no longer fails every request after a turn served by a fallback model (`fallback_models`) with a 400 error.
+- S3: Streaming uploads of eval logs and checkpoint files no longer block the event loop while reading the source file, so other samples keep running during slow disk reads.
+- Model refusals: New `fail_on_refusal` generate config option (`--fail-on-refusal`) fails a sample with a `ModelRefusalError` when a model refuses a request, settable eval-wide, per task, per model, per model role, or per call.
+- Sandbox Services: Service directories are now private to the service user, and a service refuses to start if its directory or the shared `/var/tmp/sandbox-services` parent already exists with the wrong owner, mode, or type.
+- Sandboxes: The standard tool-support image now offers an opt-in non-root `nonroot` account (UID/GID 65532; default user unchanged) and installs the web browser's Playwright browsers to a shared path so the browser tool works under a non-root user.
+
+## 0.3.263 (03 September 2026)
+
+- OpenAI: Added support for GPT-6 Astra (`gpt-6-astra`).
+- OpenAI: Fixed `temperature`, `top_p`, and `logprobs` causing a 400 error on GPT-5.5+ models when no `reasoning_effort` is set (they are now dropped with a warning).
+- Grok: Oversized prompts now return `stop_reason="model_length"` instead of failing with a generation error under xAI's current context-overflow wording.
+- Eval Log: Sample summaries now keep `Score.reason`, so an explicit reason is no longer dropped (and a stale `metadata["unscored_reason"]` cannot replace it).
+- Agent bridge: A Chat Completions response truncated by the output-token limit now reports `finish_reason="length"` instead of `"stop"`.
+- Google: Batched evaluations with a system message now serialize `system_instruction` as REST `Content` instead of a bare JSON array, fixing batch submission failures; batch results are now parsed through the SDK converter so unknown REST fields (e.g. `usageMetadata.serviceTier`) no longer fail the whole batch. (#5100)
+- Google/Gemini: Faster client setup under high sandbox concurrency, with custom CA bundles now preserved on both sync and async requests.
+- Solver: `chain_of_thought()` now uses `format_template()` for prompt interpolation, matching the other prompt solvers: custom templates with extra `{name}` placeholders no longer raise `KeyError` (unknown placeholders pass through unchanged; JSON-style braces still need `{{ }}` escaping). (#5166)
+- Model Info: Explicit model info database entries for GLM 5.2 and 5.3.
+- Model Info: `claude-mythos-preview` now reports its release date, context window and output limit instead of resolving to no model info.
+- Util: Support datetime instances in UtcDatetimeStr. (#5157)
+- Control Channel: New `inspect ctl task drain` command stops dispatching a task's queued samples while in-flight samples finish naturally, completing the task with an ordinary log whose abandoned remainder a later `inspect eval-set` re-invocation or `inspect eval-retry` still runs.
+- Control Channel: A later `inspect eval-set` re-invocation now re-runs samples left queued (never dispatched) when a task was ended with `inspect ctl task cancel --action score|error`; previously the cancelled task's log read as complete and was reused, so those samples never ran.
+- Eval Log: `EvalResults` gains an optional `logged_samples` field, set on logs finished by a graceful `inspect ctl task cancel` or `inspect ctl task drain`, recording how many samples the log actually resolved.
+- Control Channel: `inspect ctl task cancel` of a task between retry attempts (including one still writing its errored attempt's final log) now abandons the queued retry (the task ends with its last attempt's error log) instead of asking to re-issue once the retry starts.
+- Control Channel: `inspect ctl task list` rows now report a pending graceful resolution (`resolving`: drain/score/error), and cancelled samples of a task whose retry was suppressed or abandoned no longer render as `pending`.
+- Bugfix: Changing `attempt_timeout` or `cache_prompt` no longer misses the model cache, since neither changes what the provider returns.
+- Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
+- Bugfix: Hugging Face and nnterp providers now record `hidden_states` (from `-M hidden_states`) as JSON-serializable nested lists instead of silently dropping them to `None` in the log; the batched Hugging Face path now records each sample's own activations rather than the whole batch's. Note: code reading `ModelOutput.metadata["hidden_states"]` live (in a solver or scorer) now receives nested lists rather than tensors — wrap with `torch.tensor(...)` if tensor operations are needed. (#2860)
+- Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).
+
+## 0.3.262 (02 September 2026)
+
+- Scorer (breaking): Model-graded scorers with a panel of graders now require a strict majority: samples with no majority grade (even-split ties, three-way splits, or ties after a grader returns no parseable grade) come back unscored and leave the metric denominator, rather than the most common grade winning with ties broken by grader order. Pass `reducer="mode"` to `model_graded_qa()`/`model_graded_fact()` to restore the previous behavior. (#4721)
+- Scorer: `pattern()` now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)
+- Bugfix: Bump the `fsspec` upper bound from `<=2025.9.0` to `<=2026.6.0` to align with the current `huggingface/datasets` cap. (#4761)
+- Concurrency: `max_sandboxes` and `max_subprocesses` now default off the processors the eval may actually use, so an eval in a CPU-limited container no longer oversubscribes its quota.
+- Tools: The `grep` tool now supports extended regex via a new `extended_regexp` option (patterns remain basic regex by default).
+- Tools: Tool call arguments nested deeper than 100 levels are now rejected with a parse error echoed back to the model (previously depths up to ~254 executed and deeper crashed eval logging, aborting the whole run).
+- Agent Bridge: Bridged Anthropic requests now preserve `system` block boundaries, so instruction blocks are no longer silently discarded by the API.
+- Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with "thinking ... blocks in the latest assistant message cannot be modified".
+- Anthropic: Support for Claude Fable 5.1 and Mythos 5.1 — forced tool choice degrades to auto on both, and history edits no longer fail Fable 5.1's replayed thinking blocks (first-party API).
+- Google: Added model info for Gemini 3.8 Flash and Gemini 3.7 Flash; `reasoning_effort="minimal"` now maps to `low` (with a warning) on models that reject minimal thinking rather than failing the request.
+- OpenAI: Chat Completions usage now preserves prompt-cache read and write tokens for accurate cache-aware costing.
+- Scoring: `model_graded_qa`/`model_graded_fact` no longer score a malformed multi-character verdict such as `GRADE: CI` as correct; such verdicts now leave the sample unscored with `grade_parse_failure` recorded.
+- OpenAI: Fixed background responses failing on transient connection and timeout errors.
+- Eval Log: `local_path()` now percent-decodes `file://` URLs, restoring the `to_uri()` round trip for paths with spaces or other encoded characters (affects every consumer of file URLs: log recorders, control-channel state, checkpoint restore, approval policy files). (#5025)
+- Bugfix: Sample `files` values that are empty strings now create empty files in the sandbox rather than recursively copying the runner's working directory (or the dataset's directory) into it.
+- Scoring: Support tuples and non-list sequences in Target. (#5039)
+- Analysis: Fixed `task_info()` and `log_viewer()` raising `ValueError` when applied to an empty DataFrame. (#4826)
+- Eval Set: `eval_set()` now defaults `log_dir` to `INSPECT_LOG_DIR` or `./logs`, as `eval()` does, rather than requiring it.
+- Eval Set: An external runner driving `eval_set()` can now override any argument that does not change task identity, rather than only five.
+- Eval Set: An eval set driven by an external runner now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
+- Eval Set: Eval set selections now support specifying scanners.
+- Control Channel: `inspect ctl config --max-samples` now works for tasks using adaptive connections — an integer pins sample concurrency, and `clear` resumes adaptive tracking.
+- Eval logs: Header-only `.eval` log uploads to S3 now appear in `inspect trace` output.
+- MCP: A shared `ToolSource` no longer serves one sample's tools to another; tools are now resolved fresh through the server on every call rather than cached. Sessions are scoped per async task rather than per sample, so a handoff or other subagent's turn (which runs in its own task) now gets its own connection to a local MCP server rather than reusing its parent's live session.
+- Bugfix: Sustained rate limiting no longer pins the adaptive connection limit after a single reduction; it keeps adapting up and down as conditions change.
+- Eval Log: Resolving a log's attachments no longer discards model call payloads, which previously became unreadable when attachments were resolved.
+- Eval Log: Fixed trio evals crashing with `ValueError: seek of closed file` when writing a `.eval` log smaller than 8MB to S3.
+- Eval Log: Writing a sample whose content cannot be serialized (e.g. score metadata nested beyond pydantic's depth limit) no longer aborts the eval at flush or finish; the sample is logged with the offending content removed and the removal recorded in its error.
+- Eval Log: JSON values in logged events nested deeper than 240 levels are now truncated with a placeholder marker (previously depths up to ~254 were preserved and deeper crashed the eval).
+- Inspect CTL: New `inspect ctl sample score` interim-scores a single running sample's work-so-far on demand (briefly held while scored; the sample keeps running).
+- Score: `inspect score` now reports samples that errored or were stopped early, so a re-scored partial run is no longer displayed as if it were complete.
+- Scorers: New `cascade()` scorer runs scorers in order and reports the first that settles a sample, so an expensive grader only runs on samples cheaper scorers left unsettled.
+- Agent bridge: Anthropic responses now report thinking tokens in `usage.output_tokens_details`, so bridged clients can distinguish a reasoning response from a plain one.
+- Agent bridge: A bridged request asking for Anthropic `output_config.format`, OpenAI `text.verbosity`, or any of Gemini's `thinkingConfig.thinkingBudget`, `presencePenalty`, `frequencyPenalty`, `responseLogprobs` and `logprobs` now gets it, instead of silently receiving the model default.
+- Agent bridge: A bridged Gemini response now reports `thoughtsTokenCount`, so a client can see how many thinking tokens a request used.
+- Agent bridge: An invalid generation parameter in a bridged request (e.g. `stop_sequences: 5`) is now rejected with a 400 instead of being recorded into an event that cannot be read back, which made the whole sample transcript unreadable.
+- Agent bridge: A bridged Gemini response's `candidatesTokenCount` no longer double-counts thinking tokens alongside `thoughtsTokenCount`.
+- Agent bridge: A bridged structured-output request whose JSON Schema uses keywords Inspect does not model (e.g. `$ref`) now warns, instead of silently constraining the model more weakly than asked.
+- Agent bridge: An invalid response schema or mistyped request field in a bridged OpenAI, Anthropic, or Google request is now rejected with a 400 instead of escaping as a status-less internal error.
+- Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
+- Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
+- Agent bridge: Fixed a tool-approval bypass where a sandboxed agent could run approval-gated `bridged_tools` by calling the bridge service directly; unapproved host tool calls are now denied.
+- Bugfix: Approval policies set on a `Task` are now recorded in the eval log.
+- OpenAI: Responses API requests now omit the `id` key on synthesized message and reasoning items rather than sending an explicit null, which backends like vLLM reject.
+- Hooks: Fixed hooks published by extension packages silently not loading when another hook was already registered at startup.
+- Bugfix: Model calls no longer time out during long samples with realtime logging or bounded transcripts enabled.
+- Control Channel: `inspect ctl sample cancel --action cancel` now works on samples that haven't started — cancelling a never-started sample before it runs and withdrawing (un-requeuing) a queued re-run so its prior outcome stands.
+- Crash Recovery: `inspect log recover`, `eval-retry`, and `eval_set` gain `--incomplete-action error` (with an `--incomplete-max` guard) to resolve samples that were in progress at a crash as errors and finalize the eval as `success` instead of endlessly re-running hung samples.
+- Crash Recovery: `inspect log recover --list` now reports `total_samples` for evals run with `--limit` or `--sample-id` as the selected samples times epochs, rather than the full dataset size.
+- Metrics: Add `ci_wilson()` metric reporting the Wilson score confidence interval for the mean of binary scores (as `{"lower", "upper"}`), with bounds always within [0, 1]; `cluster=` computes an effective-sample-size interval accounting for within-cluster correlation.
+- Agent Bridge: Image tool results now reach sandboxed agents as MCP image content instead of being flattened to text.
+- Scoring: `inspect_ai.scorer` now exports `Reference`, the model for the message/event references that scanner scores store in metadata (previously importable only from Inspect Scout).
+- Moonshot: Sampling parameters (`temperature`, `top_p`, penalties) set on Kimi models with thinking disabled are now warned about and ignored instead of causing a 400 error.
+- Model API: New `stream_idle_timeout` option (also retunable live via `inspect ctl config`) abandons and retries a model call whose streaming response stalls, instead of waiting out the whole-attempt timeout.
+- Together: Logprobs requests no longer fail with a 400 on newer models, and `top_logprobs` is now honored instead of being silently capped at 1.
+- Models: `on_stream` now delivers stream events from the Bedrock, Groq, Mistral (completions API), and Azure AI providers.
+- Moonshot: Forcing a tool (or `tool_choice="any"`) on Kimi models other than K3 no longer fails with a 400 — the request falls back to `"auto"` with a warning.
+- OpenRouter: Requests now carry a per-sample session id, so sticky routing keeps a sample on the provider holding its warm prompt cache.
+- Cloudflare: Requests now carry Cloudflare's session affinity header, which improves prompt cache hit rates for multi-turn samples.
+- Mistral: Requests now carry a per-sample prompt cache key, which improves prompt cache hit rates for multi-turn samples (chat completions only; the conversations API does not accept one).
+- Scoring: `value_to_float()` now maps numeric custom `correct`/`incorrect`/`partial`/`noanswer` values to 1/0/0.5/0 as documented, instead of silently passing them through (e.g. a custom `incorrect=-1` no longer produces negative accuracy). Default string sentinels and non-finite values are unaffected. (#4928)
+- Scoring: `value_to_float()` matches sentinels with `==`, so custom numeric sentinels also map equal bools (`True == 1.0`) and equal elements of list/dict values in score reducers — the same reach the default string sentinels already had; this is now documented. Mapped values are also always returned as floats (the `incorrect`/`noanswer` branch previously returned an `int`). (#4928)
+- Fixed a sandbox service (including the sandbox agent bridge) permanently ceasing to answer requests after one slow request, which previously required destroying the sandbox to recover.
+
+## 0.3.261 (30 August 2026)
+
+- Bedrock: Converse requests now reuse cached prompt prefixes across turns and samples, cutting input token cost, and report cache read and write tokens in usage.
+- Scorers: `match(numeric=True)` now parses numbers with attached sentence or enclosing punctuation (e.g. "42!", "(42)"); operator prefixes (`<42`, `~42`) still do not match, and `location="exact"` remains strict. (#4742)
+- Multiple choice: The choice scorer now handles multi-digit labels when tasks have 36 or more options, and raises a clear error when a target references a position beyond the task's choices (samples without choices always score incorrect rather than raising). (#4590)
+- Approval: Support comma-separated tool patterns in approval policy configs, matching the documented `tools: web_browser*, bash` syntax; policy file paths given as `file://` URLs are normalized to local paths. (#5025)
+- Solver: Preserve Choice original_position across multiple shuffles in Choices.shuffle(). (#5010)
+- Eval logs: An Azure storage authentication failure while listing a remote log directory now raises `AzureAuthError` with remediation guidance instead of being downgraded to a warning and an empty listing, matching how S3 surfaces auth failures. (#4914)
+- Human Agent: End-of-input (e.g. Ctrl+D) at the `task submit`/`task quit` confirmation prompt now declines cleanly instead of raising an `EOFError` traceback.
+- Agents: Long subagent reports and submitted answers are no longer clipped at the maximum tool output size (they were previously truncated, subagent reports twice over).
+- Agents: An agent used as a tool via `as_tool()` returns its full response rather than one clipped at the maximum tool output size.
+- Deep Agent: `agent_list()` now reports one line per background agent instead of embedding every completed agent's full report.
+- Tools: Tools can declare their own output limit with `@tool(max_output=...)`, overriding `max_tool_output` (`0` disables truncation for that tool).
+- Model streaming: stream-event handling — including live partial-output snapshots in inspect view — now runs only when `on_stream` is passed, so it can no longer fail model calls that stream without a callback.
+- Eval logs: Users can chain conditional S3 writes using the ETag returned by `write_eval_log()` and `write_eval_log_async()`.
 - Breaking (tests only) Sandboxes: `inspect_ai.util._sandbox.self_check` is now a collection of plain pytest tests. See docstring for migration instructions.
+- Eval Set: A worker running a selection now binds an ACP server, so a human approval or `ask_user()` in a detached worker parks for someone to attach (`inspect acp --server <socket>`) rather than erroring on a console that isn't there.
+- Control Channel: A sample waiting on a person now reports an `activity` of `approval` (naming the tool being decided) or `question`, where it previously showed nothing at all — an approval is awaited before its tool call is recorded, so the wait left no trace and the sample read as idle.
+- ACP: The default socket path is keyed on the server's pid rather than the eval id — 31 bytes shorter, clear of the `sun_path` limit a long home directory could otherwise push the old default past.
+- Eval Set: A worker running a selection now skips the tasks it was not selected to run, so a large eval set need not cost every worker its full startup memory.
 - Eval Set: A selection document's operational overrides gain a dataset `limit` and `max_sandboxes`.
+- Grok: Requests now carry xAI's conversation id header, which improves prompt cache hit rates for multi-turn samples.
+- Fireworks: Requests now carry Fireworks' session affinity header, which substantially improves prompt cache hit rates for multi-turn samples.
 - OpenAI: Function call outputs without a `call_id` (optional as of openai 3.5.0) no longer error in the agent bridge or token-count padding.
+- Model streaming: Transient errors delivered mid-stream after HTTP 200 (provider stream error events, and streams that end with no data) are now retried instead of failing the sample.
+- OpenAI: Transient server errors and rate limits delivered mid-stream on chat-completions streaming are now retried instead of failing the sample.
+- OpenAI: Safeguard/content-policy blocks emitted mid-stream or as terminal response errors are now reported as `content_filter` stop reasons instead of failing the sample.
 - Scoring: Skip Score.unscored() / NaN-at-root sentinels in aggregate() metric. (#5008)
 - Scoring: Return inf on OverflowError in perplexity_per_token() and perplexity_per_seq() metrics. (#5028)
 - Analysis: Ensure ColumnError.path is a string rather than a JSONPath object on record import errors. (#5006)
@@ -20,12 +364,17 @@
 - Eval Log: Each logged sample now records the effective per-sample limits it ran under (new `message_limit` / `time_limit` fields alongside the existing `token_limit`), including mid-run `inspect ctl config` retunes.
 - Sandbox: Sandbox-tools binaries downloaded from S3 are now verified against SHA256 digests pinned in the package; failures warn by default, or fail when `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` is set.
 - Sandbox: `bash_session` no longer stops returning output for the rest of the session when multibyte output happens to be split mid-character across reads.
+- Sandbox: MCP sessions in sandboxes now work regardless of installed mcp version; the injected sandbox-tools binary is smaller and tool calls start faster.
 - Docker Sandbox: New `--sandbox-prebuilt` option (`sandbox_prebuilt` on `eval()`) skips image builds and fails fast at task startup when a prebuilt image is missing.
 - Docker Sandbox: `x-local: false` on a compose service is now treated the same as omitting `x-local` (the image is pulled) rather than marking the image as local.
 - Control Channel: New `inspect ctl sample store` command reads a running or just-finished sample's current store directly (with server-side `--key` exact/prefix filtering).
 - Control Channel: New `inspect ctl sample cancel-tool-call` cancels one hung tool call (the model sees an ordinary tool timeout and the sample continues), with pending tool calls now visible in `inspect ctl sample list --json`.
 - Metrics: Tasks can now declare a `headline_metric` naming which scorer and metric summarise the eval, honored by the log listing, the progress display, and `evals_df()`.
 - Models: `Model.generate()` and `Model.generate_loop()` accept an optional `on_stream` callback that by itself enables provider streaming and receives incremental events (text/reasoning/tool-call deltas and retry boundaries), with streamed progress now also visible on `inspect ctl sample list`.
+- Models: `on_stream` now delivers stream events from the OpenAI, OpenAI-compatible (Together, Fireworks, etc.), Grok, and SageMaker providers, in addition to Anthropic and Google.
+- Models: Streamed OpenAI-compatible responses stopped by a content filter now return `stop_reason="content_filter"` (as non-streamed ones do) instead of failing the call.
+- Models: Streamed OpenAI-compatible completions now report token usage, and explicit `stream=true` with non-strict tools no longer fails before the request is sent.
+- Models: The `stream`/`streaming` model args now accept `auto` uniformly across providers, and unrecognized values raise an error instead of silently enabling or disabling streaming.
 - Anthropic: Fixed a crash (`ValidationError` failing the sample) when native compaction ran with streaming enabled.
 - Control Channel: `inspect ctl config --json` refusals against an older eval process now emit the structured `{"error": ...}` envelope instead of only stderr prose.
 - Refactor: Consolidated the per-sample lifecycle in the task runner; samples now reach terminal state before metrics/early-stopping hooks run, so a raising or suspended hook cannot leave a sample uncounted or a finished task accepting requeue/cancel.
@@ -35,6 +384,11 @@
 - Control Channel: Task-selecting `inspect ctl` commands now take a `--model` disambiguator, so one task run against several models can be selected by name (e.g. `inspect ctl task cancel my_task --model gpt-5`).
 - Model roles can now be bound to a list of models (e.g. `model_roles={"grader": [...]}`), with model-graded scorers grading by majority vote across the list.
 - Checkpointing: Sandbox snapshots now support selectable strategies (per sandbox, settable at the sample, task, or eval layer) — incremental restic (default) or self-contained per-checkpoint archives captured with in-image tools only.
+- Bugfix: Resuming a sample from a checkpoint no longer restarts its token, cost, turn, time, and working budgets from zero.
+- Models: Provider HTTP connection settings are now tunable with `INSPECT_HTTP_*` environment variables, and connection setup gets 60s rather than the SDKs' 5s.
+- Mistral: Requests are no longer capped at the SDK's flat 5s timeout, which cut off generations that took longer.
+- Hugging Face: Chat templates that use dict methods (e.g. Gemma's `message.get(...)`) no longer fail with a Jinja `UndefinedError`.
+- Sandbox: When remote exec polling exhausts its retries, the error now names the sandbox's actual failure instead of an opaque tenacity RetryError.
 
 ## 0.3.260 (21 August 2026)
 
@@ -59,6 +413,7 @@
 - Eval Log: Flushing buffered samples to an `.eval` log now yields between samples, so a large flush no longer stalls in-flight samples and control-channel requests for the whole batch.
 - ACP: Emit an `inspect/turn_state` extension notification (`started` / `ended` / `cancelled`) from the agent turn boundary so ACP clients have an exact "agent working" signal.
 - Inspect CTL: Terminal escape sequences and control characters in agent-generated text are now sanitized in `inspect ctl` human-readable output, preventing spoofing of the operator's terminal.
+- DeepSeek: structured output (`response_schema`) no longer fails with a 400 — it now uses DeepSeek's JSON mode, warning that the schema must be described in the prompt.
 - Control Channel: New `--now` flag on `inspect ctl task|model|process pause` additionally holds in-flight samples at their next model call until resume, with held-sample counts reported in `inspect ctl task list`.
 - Control Channel: `inspect ctl config` no longer version-gates individual knobs — current eval processes reject unsupported knobs atomically server-side, and only processes predating strict config validation are refused as a whole.
 - Fixed sandbox tools (`text_editor`, `bash_session`) failing to install in non-root sandboxes (e.g. Kubernetes pods with `runAsNonRoot`).
@@ -629,7 +984,7 @@
 - [`ask_user()`](https://inspect.aisi.org.uk/tools-standard.html#ask-user) tool: model can solicit a structured answer from the operator.
 - [`notify_user()`](https://inspect.aisi.org.uk/tools-standard.html#notify-user) tool: model can send status notifications to the operator.
 - [Notifications](https://inspect.aisi.org.uk/intervention.html#notifications) via [Apprise](https://appriseit.com) (Slack, desktop, SMS, email, webhook, ~90 services).
-- [`request_input()`](https://inspect.aisi.org.uk/interactivity.html) public API: programmatic structured prompts from solvers, agents, or tools, using the same dispatch surfaces as `ask_user()`.
+- [`request_input()`](https://inspect.aisi.org.uk/intervention.html) public API: programmatic structured prompts from solvers, agents, or tools, using the same dispatch surfaces as `ask_user()`.
 - Text Editor Tool: Cap undo history to 10 and no longer consider failures in undo history file operations fatal.
 - Reasoning: Correctly parse nested `<think>` blocks without exposing inner reasoning text as visible model output.
 
@@ -941,7 +1296,6 @@
 - Anthropic: Use request level "auto" caching mode for improved prompt caching.
 - vLLM: Allow vLLM provider to restart after close().
 - Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
-- Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
 - Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).
 - Inspect View: Use FastAPI server when `fastapi` and `uvicorn` packages are available.
 - Inspect View: Transcript viewing improvements for complex transcripts (timeline + other fixes)
@@ -2275,7 +2629,7 @@
 
 ## v0.3.97 (16 May 2025)
 
-- React agent: Use of `submit()` tool is now [optional](https://inspect.aisi.org.uk/agent.html#submit-tool).
+- React agent: Use of `submit()` tool is now [optional](https://inspect.aisi.org.uk/react-agent.html).
 - Agents: `is_agent()` typeguard function for checking whether an object is an `Agent`.
 - Anthropic: Show warning when generation config incompatible with extended thinking is used (affects `temperature`, `top_p`, and `top_k`).
 - AzureAI: Don't include `tools` or `tool_choice` in  requests when emulating tool calling (avoiding a 400 error).
@@ -2635,7 +2989,7 @@
 
 ## v0.3.70 (25 February 2025)
 
-- [working_limit](https://inspect.aisi.org.uk/errors_and_limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
+- [working_limit](https://inspect.aisi.org.uk/setting-limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
 - Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
 - Sandboxes: `as_type()` function for checked downcasting of `SandboxEnvironment`
 - Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).
@@ -2826,7 +3180,7 @@
 ## v0.3.56 (01 January 2025)
 
 - [Human Agent](https://inspect.aisi.org.uk/human-agent.html) solver for human baselining of computing tasks.
-- [Typed interfaces](https://inspect.aisi.org.uk/typing.html) to `Sample` store and metadata using Pydantic models.
+- [Typed interfaces](https://inspect.aisi.org.uk/datasets.html) to `Sample` store and metadata using Pydantic models.
 - [Approval policies](https://inspect.aisi.org.uk/approval.html#task-approvers) can now be defined at the `Task` level (`eval` level approval policies take precedence).
 - Tools can now return `ContentText` and `ContentImage`.
 - Move tool result images into subsequent user messages for models that don't support tools returning images.
@@ -2971,7 +3325,7 @@
 
 ## v0.3.45 (11 November 2024)
 
-- [time_limit](https://inspect.aisi.org.uk/errors_and_limits.html#sample-limits) option for specifying a maximum execution time for samples.
+- [time_limit](https://inspect.aisi.org.uk/setting-limits.html#sample-limits) option for specifying a maximum execution time for samples.
 - [read_eval_log_samples()](https://inspect.aisi.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.
 - Mistral: Support for multi-modal models (requires v1.2 of mistralai package).
 - Groq: Support for multi-modal models (requires v0.11.0 of groq package).
@@ -3045,9 +3399,9 @@
 ## v0.3.41 (11 October 2024)
 
 - [Approval mode](https://inspect.aisi.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).
-- [Trace mode](https://inspect.aisi.org.uk/interactivity.html#sec-trace-mode) for printing model interactions to the terminal.
+- [Trace mode](https://inspect.aisi.org.uk/log-viewer.html) for printing model interactions to the terminal.
 - Add `as_dict()` utility method to `Score`
-- [Sample limits](https://inspect.aisi.org.uk/errors_and_limits.html#sample-limits) (`token_limit` and `message_limit`) for capping the number of tokens or messages used per sample ( `message_limit` replaces deprecated `max_messages`).
+- [Sample limits](https://inspect.aisi.org.uk/setting-limits.html#sample-limits) (`token_limit` and `message_limit`) for capping the number of tokens or messages used per sample ( `message_limit` replaces deprecated `max_messages`).
 - Add `metadata` field to `Task` and record in log `EvalSpec`.
 - Include datetime and level in file logger.
 - Correct llama3 and o1 tool calling when empty arguments passed.
@@ -3172,7 +3526,7 @@
 - Catch and propagate Anthropic content filter exceptions as normal "content_filter" responses.
 - Fix issue with failure to report metrics if all samples had a score value of 0.
 - Improve concurrency of Bedrock models by using aioboto3.
-- Added [SWE Bench](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/swe_bench), [GAIA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gaia), and [GDM CTF](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/in_house_ctf) evals.
+- Added [SWE Bench](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/swe_bench), [GAIA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gaia), and [GDM CTF](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_in_house_ctf) evals.
 
 ## v0.3.29 (16 September 2024)
 
@@ -3203,7 +3557,7 @@
 - Cleanup Docker containers that fail during sample init.
 - Add support for computing metrics for both individual keys within a dictionary but also for the dictionary as a whole
 - Fix for Vertex tool calling (don't pass 'additionalProperties').
-- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_evals/ifeval/), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mbpp) benchmarks.
+- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/ifeval), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mbpp) benchmarks.
 
 ## v0.3.27 (6 September 2024)
 
@@ -3217,7 +3571,7 @@
 
 - [Eval Sets](https://inspect.aisi.org.uk/eval-sets.html) for running groups of tasks with automatic retries.
 - [Per-sample](https://inspect.aisi.org.uk/sandboxing.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
-- [input_screen()](https://inspect.aisi.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
+- [input_screen()](https://inspect.aisi.org.uk/intervention.html) context manager to temporarily clear task display for user input.
 - Introduce two new scorers, `f1()` (precision and recall in text matching) and `exact()` (whether normalized text matches exactly).
 - Task `metrics` now override built in scorer metrics (previously they were merged). This enables improved re-use of existing scorers where they only change required is a different set of metrics.
 - `write_log_dir_manifest()` to write a log header manifest for a log directory.
@@ -3243,7 +3597,7 @@
 - [fail_on_error](https://inspect.aisi.org.uk/errors-and-limits.html#failure-threshold) option to tolerate some threshold of sample failures without failing the evaluation.
 - Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
 - Add `function` field to `ChatMessageTool` to indicate the name of the function called.
-- Added [RACE](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/race-h/) benchmark.
+- Added [RACE](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/race_h) benchmark.
 
 ## v0.3.24 (18 August 2024)
 

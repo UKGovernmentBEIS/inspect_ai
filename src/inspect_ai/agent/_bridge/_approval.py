@@ -13,17 +13,39 @@ the *model's* input and generation is retried: the model learns it was denied an
 proposes something else, while the scaffold sees one ordinary response and its own
 conversation never contains the rejected call. This mirrors the native path
 (reject -> tool message -> next generate), relocated from `react()` into the bridge.
+
+A call made through a scaffold's dispatcher function (`AgentBridge.dispatched_call`)
+is reviewed as the bridged tool call it stands for, so policies match the tool's own
+name and approvers see its own arguments; the decision is mapped back onto the
+dispatcher call the scaffold receives.
 """
 
 import sys
-from contextlib import nullcontext
-from typing import Any, NamedTuple, NoReturn
+from contextlib import AbstractContextManager, nullcontext
+from logging import getLogger
+from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
 
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
+
+if TYPE_CHECKING:
+    from inspect_ai.approval._policy import ApprovalPolicy
+
+logger = getLogger(__name__)
+
+
+def bridge_approval_scope(
+    approval: list["ApprovalPolicy"] | None,
+) -> AbstractContextManager[None]:
+    """Activate a bridge's own approval policies, or fall back to ambient ones."""
+    from inspect_ai.approval._apply import approval as approval_context
+
+    return approval_context(approval) if approval else nullcontext()
+
 
 MAX_CONSECUTIVE_REJECTIONS = 3
 """Consecutive rejected generations before the sample is terminated.
@@ -73,6 +95,14 @@ async def apply_bridge_tool_approval(
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return.
 
+    A multi-choice response whose alternate choices carry tool calls is reduced to
+    the primary choice (with a warning) when approval is active, since only the
+    primary choice is reviewed, and always for a bridge that grants host-tool
+    execution (`AgentBridge.grants_tool_execution`), since only the primary
+    choice's calls are granted: returning the others would hand the scaffold tool
+    calls no approver saw or no grant covers. Text-only alternates pass through,
+    as does everything for an in-process bridge without a policy.
+
     Args:
         bridge: Bridge whose `approval` policies (if any) apply for this call.
         output: Model output about to be handed to the scaffold.
@@ -83,15 +113,25 @@ async def apply_bridge_tool_approval(
         the response was rejected.
     """
     from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
-    from inspect_ai.approval._apply import approval as approval_context
 
-    tool_calls = output.message.tool_calls
-    if not tool_calls:
-        return BridgeApproval(output, None)
+    with bridge_approval_scope(bridge.approval):
+        approval_active = have_tool_approval()
+        if (approval_active or bridge.grants_tool_execution) and any(
+            choice.message.tool_calls for choice in output.choices[1:]
+        ):
+            warn_once(
+                logger,
+                "Only the primary choice of a bridged response is reviewed and "
+                "granted execution; dropping alternate choices that carry tool "
+                "calls. Request a single choice (n=1) from a bridged agent.",
+            )
+            output = output.model_copy(update={"choices": output.choices[:1]})
 
-    cm = approval_context(bridge.approval) if bridge.approval else nullcontext()
-    with cm:
-        if not have_tool_approval():
+        if not approval_active:
+            return BridgeApproval(output, None)
+
+        tool_calls = output.message.tool_calls
+        if not tool_calls:
             return BridgeApproval(output, None)
 
         # approvers see the assistant turn under review, matching the native path
@@ -102,15 +142,18 @@ async def apply_bridge_tool_approval(
         message = output.message.text
         modified: dict[str, dict[str, Any]] = {}
         for call in tool_calls:
+            dispatched = bridge.dispatched_call(call)
+            reviewed = dispatched.target if dispatched else call
             # no viewer: bridged tools reach us as ToolInfo from the scaffold's
             # request, not as ToolDef, so there is no registered viewer to resolve.
             # apply_tool_approval falls back to its default rendering.
             approved, approval = await apply_tool_approval(
-                message, call, None, approval_history
+                message, reviewed, None, approval_history
             )
             if not approved:
                 explanation = (approval.explanation if approval else None) or (
-                    f"Tool call '{call.function}' was rejected by the approval policy."
+                    f"Tool call '{reviewed.function}' was rejected by the approval "
+                    "policy."
                 )
                 if approval is not None and approval.decision == "terminate":
                     bridge.request_terminate(
@@ -121,7 +164,10 @@ async def apply_bridge_tool_approval(
                 )
 
             if approval is not None and approval.modified is not None:
-                modified[call.id] = approval.modified.arguments
+                arguments = approval.modified.arguments
+                modified[call.id] = (
+                    dispatched.dispatch(arguments) if dispatched else arguments
+                )
 
     # modifications are adopted only now that the whole response is approved: a later
     # rejection discards every call, and rewriting an earlier one as we went would

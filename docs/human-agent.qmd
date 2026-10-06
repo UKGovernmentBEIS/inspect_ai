@@ -17,7 +17,7 @@ Human baselining terminal sessions are [recorded](#recording) by default so that
 
 ## Example
 
-Here, we run a human baseline on an [Intercode CTF](https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/) sample. We use the `--solver` option to use the `human_cli` agent rather than the task's default solver:
+Here, we run a human baseline on an [Intercode CTF](https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_intercode_ctf/) sample. We use the `--solver` option to use the `human_cli` agent rather than the task's default solver:
 
 ``` bash
 inspect eval inspect_evals/gdm_intercode_ctf \
@@ -152,6 +152,8 @@ Or from the CLI, use the `-S` option:
 ``` bash
 --solver human_cli -S user=myuser
 ```
+
+The `task` command's shell hook is appended to that user's `~/.bashrc` running as that user, so if the image ships a `.bashrc` it must be a regular file the user can write (for example, a Dockerfile `COPY` of a `.bashrc` needs `--chown` for the login user, otherwise installation fails with a permission error).
 
 ## Recording {#recording}
 

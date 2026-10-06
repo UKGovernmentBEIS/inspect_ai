@@ -531,3 +531,33 @@ def test_model_role_list_eval_retry() -> None:
     assert isinstance(graders, list)
     assert [mc.model for mc in graders] == [MOCK_A, MOCK_B]
     check_model_role(log_retry, GRADER, MOCK_A)
+
+
+def test_eval_retry_keeps_overridden_role_over_task_role() -> None:
+    """A retry must reuse the roles the original run logged.
+
+    The task constructs its own grader; the original run overrode it. Retry
+    reloads the task, so its constructor role is present again and must lose
+    to the logged override, as it did in the original run.
+    """
+
+    @task
+    def role_override_task() -> Task:
+        return Task(
+            solver=grader_role_solver(),
+            model_roles={GRADER: get_model("mockllm/task_grader")},
+        )
+
+    log = eval(role_override_task, model_roles={GRADER: MOCK_A})[0]
+    assert log.eval.model_roles is not None
+    original = log.eval.model_roles[GRADER]
+    assert not isinstance(original, list) and original.model == MOCK_A
+
+    log.status = "cancelled"
+    log.samples = []
+    log_retry = eval_retry(log)[0]
+    assert log_retry.status == "success"
+    assert log_retry.eval.model_roles is not None
+    retried = log_retry.eval.model_roles[GRADER]
+    assert not isinstance(retried, list) and retried.model == MOCK_A
+    check_model_role(log_retry, GRADER, MOCK_A)

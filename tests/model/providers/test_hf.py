@@ -320,3 +320,21 @@ def test_hf_auto_model_class_rejects_unknown(monkeypatch) -> None:
             model_name="EleutherAI/pythia-70m",
             auto_model_class="NoSuchAutoModelClass",
         )
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_chat_template_dict_methods() -> None:
+    """Templates that call dict methods (e.g. Gemma's `message.get()`) must render."""
+    model = get_model(
+        "hf/EleutherAI/pythia-70m",
+        config=GenerateConfig(
+            max_tokens=1,
+            seed=42,
+            temperature=0.01,
+        ),
+        chat_template="{% for message in messages %}{{ message.get('reasoning', '') }}[{{ message['role'] }}] {{ message['content'] }}{% endfor %}",
+    )
+    message = ChatMessageUser(content="Lorem ipsum dolor")
+    chat = model.api.hf_chat([message], [])  # type: ignore[attr-defined]
+    assert chat == "[user] Lorem ipsum dolor"

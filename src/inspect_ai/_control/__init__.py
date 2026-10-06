@@ -77,4 +77,8 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #       on `ctl config`) and its `max_tasks` entry in the process config
 #       view. No CLI gate — the view key is presence-read, and a set against
 #       an older strict server is rejected atomically (version 3).
-CONTROL_API_VERSION: int = 7
+#   8 — stream_idle_timeout retry override knob (`--stream-idle-timeout` on
+#       `ctl config`), joining the version-4 retry knobs. No CLI gate — the
+#       view entry is presence-read, and a set against an older strict
+#       server is rejected atomically (version 3).
+CONTROL_API_VERSION: int = 8

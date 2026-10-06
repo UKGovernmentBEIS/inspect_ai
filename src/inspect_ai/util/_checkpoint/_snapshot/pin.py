@@ -4,8 +4,8 @@ Resume must never run one strategy over another strategy's data, and a
 strategy change between attempts must surface as an error, never be
 applied silently. The pin file (``restic/snapshot-strategies.json``,
 sandbox name → strategy name) is written by the core at fresh-sample
-hydration and rides across attempts with the cross-cutting retry copy,
-so every attempt's dir carries it no matter how many retries preceded.
+hydration and rides across attempts with the retry startup copy, so
+every attempt's dir carries it no matter how many retries preceded.
 Absent file ⇒ ``restic-incremental`` for every sandbox (pre-pin dirs).
 
 It lives under ``restic/`` deliberately: that directory is already the
@@ -16,6 +16,8 @@ a resumable dir without its pin.
 """
 
 from __future__ import annotations
+
+from collections.abc import Mapping
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -62,6 +64,7 @@ def check_strategy_pin(
     default_strategy: str,
     live_sandboxes: set[str],
     opted_out: set[str],
+    unscopable: Mapping[str, str],
 ) -> None:
     """Validate this attempt's configured strategies against the pin.
 
@@ -74,9 +77,12 @@ def check_strategy_pin(
     - a configured sandbox with no pin entry (sandbox set changed);
     - a pin entry whose sandbox is absent from this attempt's effective
       set — either a config change (removed / opted out) or, when the
-      sandbox is live and not opted out, an auto-home resolution
-      failure (today a skip-with-warning; for a *pinned* sandbox that
-      would be silent data loss, so it errors with its own remedy).
+      sandbox is live and not opted out, an auto-home that dropped out
+      (today a skip-with-warning; for a *pinned* sandbox that would be
+      silent data loss, so it errors). The drop-out has two causes with
+      different remedies: the home dir cannot be scoped for restore
+      (``unscopable``: a property of the image, so resuming again will
+      not help) or it could not be resolved (typically transient).
 
     ``pinned=None`` (pre-pin dir) means ``default_strategy`` for every
     sandbox.
@@ -91,6 +97,9 @@ def check_strategy_pin(
         live_sandboxes: Names of the sample's live sandboxes.
         opted_out: Sandboxes explicitly opted out via an empty
             ``paths`` entry in this attempt's config.
+        unscopable: Sandbox → reason, for auto-home sandboxes this
+            attempt skipped because the home dir cannot be scoped for
+            restore (``ResolvedBackupPaths.unscopable``).
     """
     remedy = (
         "restore the original checkpoint configuration and resume, or "
@@ -118,6 +127,18 @@ def check_strategy_pin(
             )
         if name in configured:
             continue
+        if name in unscopable:
+            raise RuntimeError(
+                f"checkpoint resume: sandbox {name!r} was captured in the "
+                f"prior attempt (strategy {pinned_strategy!r}) but dropped "
+                f"out of this attempt's backup set because its home "
+                f"directory cannot be scoped for restore ({unscopable[name]}). "
+                f"Resuming would silently lose its captured state, and "
+                f"resuming again will not help — configure the sandbox's "
+                f"paths explicitly (sandbox_paths) to restore what was "
+                f"captured under them, opt it out with an empty entry to "
+                f"resume without its captured state, or start a fresh eval."
+            )
         if name in live_sandboxes and name not in opted_out:
             raise RuntimeError(
                 f"checkpoint resume: sandbox {name!r} was captured in the "

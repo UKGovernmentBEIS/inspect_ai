@@ -199,10 +199,6 @@ async def test_chatapi_429_signals_active_controller_with_rate_limit_kind() -> N
         # Controller scaled down on rate_limit signal: 40 * 0.8 = 32, floor → 30
         assert controller.concurrency == 30
         assert controller.history[-1][4] == "rate_limit"
-        # Retry-After: 10 is below configured cooldown floor (15); cooldown
-        # uses the floor. (Confirms retry_after was passed through — if it
-        # had been larger, cooldown would extend; we check via the longer
-        # retry-after below.)
         assert _request_had_retry.get() is True
     finally:
         _active_controller.reset(token_c)
@@ -211,10 +207,10 @@ async def test_chatapi_429_signals_active_controller_with_rate_limit_kind() -> N
 
 
 @pytest.mark.anyio
-async def test_chatapi_retry_after_extends_cooldown() -> None:
-    """A long Retry-After from the response header propagates to controller cooldown."""
-    import time
-
+async def test_chatapi_retry_after_reaches_controller(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Retry-After response header parses and reaches the controller as a cut."""
     from inspect_ai.util._concurrency import (
         AdaptiveConcurrency,
         AdaptiveConcurrencyController,
@@ -234,10 +230,18 @@ async def test_chatapi_retry_after_extends_cooldown() -> None:
     ]
     client = _client_with_responses(responses)
 
+    forwarded: list[float | None] = []
+    inner = controller.notify_retry
+
+    def record(retry_after: float | None = None) -> None:
+        forwarded.append(retry_after)
+        inner(retry_after)
+
+    monkeypatch.setattr(controller, "notify_retry", record)
+
     token_c = _active_controller.set(controller)
     token_r = _request_had_retry.set(False)
     try:
-        before = time.monotonic()
         with _reset_retry_counter():
             await chat_api_request(
                 client,
@@ -246,8 +250,9 @@ async def test_chatapi_retry_after_extends_cooldown() -> None:
                 headers={},
                 json={"input": "hello"},
             )
-        # cooldown extended to honor the 60s server hint (allow scheduling slack)
-        assert controller._cooldown_until >= before + 50
+        assert forwarded == [60.0]
+        assert controller.concurrency < 40
+        assert controller.history[0][4] == "rate_limit"
     finally:
         _active_controller.reset(token_c)
         _request_had_retry.reset(token_r)

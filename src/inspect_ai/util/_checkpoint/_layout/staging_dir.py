@@ -16,12 +16,25 @@ staging dir when remote, the sample checkpoints dir when local.
 
 from __future__ import annotations
 
+import shutil
+from functools import partial
+
 import anyio
+import anyio.to_thread
 
 from inspect_ai._util.appdirs import inspect_cache_dir
 from inspect_ai._util.asyncfiles import is_s3_filename
+from inspect_ai._util.log_layout import log_basename
 
-from .eval_checkpoints_dir import log_basename
+from ._paths import sample_dir_segment
+
+RESTIC_CONFIG_SUBPATH = "restic/restic-config.json"
+"""Sample-root-relative path of the per-sample restic config (password store).
+
+Shared by the writer (`restic_config_path`), the host egress tier ordering,
+and the resume-time config validation error in `hydrate` so they cannot
+drift apart.
+"""
 
 
 def is_remote_destination(checkpoints_path: str) -> bool:
@@ -30,8 +43,15 @@ def is_remote_destination(checkpoints_path: str) -> bool:
 
 
 def sample_staging_dir(log_location: str, sample_id: int | str, epoch: int) -> str:
-    """Return the per-sample staging dir path (no FS side effects)."""
-    return f"{_eval_staging_dir(log_location)}/{sample_id}__{epoch}"
+    """Return the per-sample staging dir path (no FS side effects).
+
+    Same dir-name derivation as ``sample_checkpoints_dir`` (via
+    ``sample_dir_segment``), so a hostile sample id cannot relocate the
+    staging tree out of the eval's staging dir either. The ``__{epoch}``
+    suffix is spelled here rather than through ``sample_dir_name`` because
+    ``sample_checkpoints_dir`` imports this module (an import cycle).
+    """
+    return f"{_eval_staging_dir(log_location)}/{sample_dir_segment(sample_id)}__{epoch}"
 
 
 async def ensure_sample_staging_dir(
@@ -46,6 +66,27 @@ async def ensure_sample_staging_dir(
     sample_dir = sample_staging_dir(log_location, sample_id, epoch)
     await anyio.Path(sample_dir).mkdir(parents=True, exist_ok=True)
     return sample_dir
+
+
+async def clear_sample_staging_dir(
+    log_location: str, sample_id: int | str, epoch: int
+) -> None:
+    """Delete the sample staging dir if it exists.
+
+    Staging is a cache of the destination, never the committed state:
+    it is cleared before a resume repopulates it from the destination
+    (so restore and resume detection see the same checkpoint), and when
+    a sample that ran here is re-run from scratch. A sample-level
+    ``retry_on_error`` re-entry keeps it — that continues the same
+    lineage, and ``init_repo`` is idempotent for exactly that case.
+    """
+    await anyio.to_thread.run_sync(
+        partial(
+            shutil.rmtree,
+            sample_staging_dir(log_location, sample_id, epoch),
+            ignore_errors=True,
+        )
+    )
 
 
 def restic_dir(sample_root: str) -> str:
@@ -64,7 +105,7 @@ def host_repo_dir(sample_root: str) -> str:
 
 def restic_config_path(sample_root: str) -> str:
     """Path to the per-sample restic config file (password store)."""
-    return f"{sample_root}/restic/restic-config.json"
+    return f"{sample_root}/{RESTIC_CONFIG_SUBPATH}"
 
 
 def context_dir(sample_root: str) -> str:

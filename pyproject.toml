@@ -192,6 +192,7 @@ ser = "ser"
 lsat = "lsat"
 aimd = "aimd"
 retuned = "retuned"
+BRE = "BRE"
 
 [dependency-groups]
 dev = ["inspect_ai[dev]"]

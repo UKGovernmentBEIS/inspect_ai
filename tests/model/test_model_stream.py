@@ -14,7 +14,12 @@ import anyio
 import pytest
 import tenacity
 from tenacity.wait import WaitBaseT
-from test_helpers.utils import skip_if_no_anthropic, skip_if_no_google
+from test_helpers.utils import (
+    skip_if_no_anthropic,
+    skip_if_no_google,
+    skip_if_no_grok,
+    skip_if_no_openai,
+)
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.registry import _registry
@@ -164,6 +169,28 @@ async def test_streaming_provider_works_without_on_stream() -> None:
 
     output = await _scripted_generate([attempt])
     assert output.completion == "hi"
+
+
+async def test_deltas_without_on_stream_are_heartbeat_only() -> None:
+    """Deltas reported without `on_stream` feed only the progress heartbeat.
+
+    A reported delta is on_stream support code with no consumer: no
+    accumulation, no partial-output snapshot on the pending event.
+    """
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        event = _active_model_event.get()
+        assert isinstance(event, ModelEvent)
+        await report_model_stream_delta(StreamTextEvent(text="unconsumed"))
+        # heartbeat recorded, but no partial output was published
+        progress = model_event_progress(event)
+        assert progress is not None
+        assert progress.last_progress_at is not None
+        assert event.output.completion == ""
+        return api._output("done")
+
+    output = await _scripted_generate([attempt])
+    assert output.completion == "done"
 
 
 async def test_uninstrumented_provider_never_invokes_callback() -> None:
@@ -332,7 +359,8 @@ async def test_partial_output_snapshot_on_pending_event(
         snapshots.append((event.pending, list(content)))
         return api._output("hello")
 
-    output = await _scripted_generate([attempt])
+    # partial snapshots are delta-driven, so they require an on_stream consumer
+    output = await _scripted_generate([attempt], on_stream=Collector())
     assert output.completion == "hello"
     (pending, content) = snapshots[0]
     assert pending is True
@@ -381,7 +409,7 @@ async def test_partial_output_flushes_are_throttled(
         assert calls["n"] == before + 1
         return api._output("abc")
 
-    output = await _scripted_generate([attempt])
+    output = await _scripted_generate([attempt], on_stream=Collector())
     assert output.completion == "abc"
 
 
@@ -395,7 +423,7 @@ async def test_partial_output_discarded_when_attempt_fails() -> None:
         raise RuntimeError("boom")
 
     with pytest.raises(Exception):
-        await _scripted_generate([attempt])
+        await _scripted_generate([attempt], on_stream=Collector())
     event = ScriptedStreamAPI.events[0]
     assert event.pending is None
     assert event.error is not None
@@ -494,6 +522,149 @@ async def test_model_stream_requested_reflects_on_stream() -> None:
     assert requested == [True, False]
     # and outside any generate call there is no observer at all
     assert model_stream_requested() is False
+
+
+async def test_model_stream_requested_reflects_stream_idle_timeout() -> None:
+    """Setting stream_idle_timeout is a request for chunks.
+
+    Stall detection cannot work without them, so the knob participates in
+    provider auto-streaming decisions exactly as on_stream does.
+    """
+    requested: list[bool] = []
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        requested.append(model_stream_requested())
+        return api._output("done")
+
+    await _scripted_generate([attempt], config=GenerateConfig(stream_idle_timeout=30))
+    assert requested == [True]
+
+
+# --- stream idle timeout (design/stream-idle-timeout.md) --------------------
+
+
+async def test_stream_idle_timeout_never_arms_without_streaming() -> None:
+    """An attempt that reports no chunks can never fire the idle timeout.
+
+    The stall scope's deadline stays infinite until the first report, so the
+    knob is inert for non-streaming providers however long the call takes.
+    """
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        await anyio.sleep(1.5)
+        return api._output("quiet")
+
+    output = await _scripted_generate(
+        [attempt], config=GenerateConfig(stream_idle_timeout=1)
+    )
+    assert output.completion == "quiet"
+    assert ScriptedStreamAPI.attempts == 1
+
+
+async def test_stream_idle_timeout_fires_and_retries() -> None:
+    """A stalled stream abandons the attempt, which retries like any other.
+
+    The failed attempt's partial output is discarded, its event completes
+    with the error, and the retry boundary reaches on_stream — the existing
+    attempt-failure machinery, reused unchanged.
+    """
+
+    async def attempt_1(api: ScriptedStreamAPI) -> ModelOutput:
+        report_model_stream_start()
+        await report_model_stream_delta(StreamTextEvent(text="stall"))
+        await anyio.sleep(60)
+        return api._output("too late")
+
+    async def attempt_2(api: ScriptedStreamAPI) -> ModelOutput:
+        report_model_stream_start()
+        await report_model_stream_delta(StreamTextEvent(text="done"))
+        return api._output("done")
+
+    collector = Collector()
+    output = await _scripted_generate(
+        [attempt_1, attempt_2],
+        on_stream=collector,
+        config=GenerateConfig(stream_idle_timeout=1, max_retries=2),
+    )
+    assert output.completion == "done"
+    assert ScriptedStreamAPI.attempts == 2
+    assert [type(e) for e in collector.events] == [
+        StreamTextEvent,
+        StreamRetryEvent,
+        StreamTextEvent,
+    ]
+    # the stalled attempt's event carries the error, not its partial output
+    event = ScriptedStreamAPI.events[0]
+    assert event.error is not None
+    assert "stream_idle_timeout" in str(event.error)
+    assert event.output.completion == ""
+
+
+async def test_stream_idle_timeout_surfaces_when_retries_exhausted() -> None:
+    from inspect_ai.model._model import StreamIdleTimeoutError
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        report_model_stream_start()
+        await anyio.sleep(60)
+        return api._output("too late")
+
+    with pytest.raises(tenacity.RetryError) as excinfo:
+        await _scripted_generate(
+            [attempt],
+            config=GenerateConfig(stream_idle_timeout=1, max_retries=0),
+        )
+    assert isinstance(excinfo.value.last_attempt.exception(), StreamIdleTimeoutError)
+    assert ScriptedStreamAPI.attempts == 1
+
+
+async def test_stream_idle_timeout_bumps_keep_slow_stream_alive() -> None:
+    """Chunks flowing faster than the timeout keep the attempt alive.
+
+    Total attempt duration exceeds the timeout; only inter-chunk silence
+    counts. Also a regression test for the throttle cap: bump throttling
+    scales down with the timeout (a fixed 1s throttle against this 1s
+    timeout would swallow every sub-second bump and false-fire despite the
+    flowing chunks).
+    """
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        report_model_stream_start()
+        for _ in range(4):
+            await anyio.sleep(0.4)
+            report_model_stream_progress()
+        return api._output("slow but alive")
+
+    output = await _scripted_generate(
+        [attempt], config=GenerateConfig(stream_idle_timeout=1)
+    )
+    assert output.completion == "slow but alive"
+    assert ScriptedStreamAPI.attempts == 1
+
+
+async def test_stall_deadline_bumps_are_throttled() -> None:
+    """Within-interval reports must not reschedule the scope's timer.
+
+    The first report arms the scope unconditionally; a report inside the
+    bump interval (STALL_DEADLINE_BUMP_INTERVAL for this ample timeout) of
+    the last bump leaves the deadline untouched.
+    """
+    import math
+
+    import anyio as _anyio
+
+    from inspect_ai.model._stream import ModelStreamObserver
+
+    observer = ModelStreamObserver(model="mock", on_stream=None)
+    scope = _anyio.CancelScope()
+    observer.arm_stall_scope(scope, 100)
+    assert scope.deadline == math.inf
+
+    observer.stream_started()  # first report arms
+    armed = scope.deadline
+    assert armed != math.inf
+
+    observer.report_progress()  # within the throttle interval: no bump
+    assert scope.deadline == armed
 
 
 class EchoStreamAPI(ScriptedStreamAPI):
@@ -679,7 +850,7 @@ async def test_partial_output_discard_on_cancellation_notifies_transcript(
         raise FakeCancellation()
 
     with pytest.raises(FakeCancellation):
-        await _scripted_generate([attempt])
+        await _scripted_generate([attempt], on_stream=Collector())
     event = ScriptedStreamAPI.events[0]
     # finalization stays with the interrupt machinery — still pending
     assert event.pending is True
@@ -765,6 +936,79 @@ async def test_anthropic_on_stream_tool_call_live() -> None:
 async def test_google_on_stream_live() -> None:
     collector = Collector()
     model = get_model("google/gemini-3.1-flash-lite")
+    output = await model.generate(
+        "Reply with one short sentence about the sea.", on_stream=collector
+    )
+    streamed = "".join(
+        e.text for e in collector.events if isinstance(e, StreamTextEvent)
+    )
+    assert streamed
+    assert streamed == output.completion
+
+
+@skip_if_no_openai
+async def test_openai_on_stream_live() -> None:
+    collector = Collector()
+    # gpt-4o family defaults to the chat-completions API
+    model = get_model("openai/gpt-4o-mini")
+    output = await model.generate(
+        "Reply with one short sentence about the sea.", on_stream=collector
+    )
+    streamed = "".join(
+        e.text for e in collector.events if isinstance(e, StreamTextEvent)
+    )
+    assert streamed
+    assert streamed == output.completion
+
+
+@skip_if_no_openai
+async def test_openai_on_stream_tool_call_live() -> None:
+    # inspect never sets `strict` on tools, so this exercises streaming a
+    # non-strict tool request live (the SDK's .stream() helper would reject
+    # it client-side; the raw create(stream=True) path must accept it)
+    async def add(x: int, y: int) -> int:
+        return x + y
+
+    collector = Collector()
+    model = get_model("openai/gpt-4o-mini")
+    output = await model.generate(
+        "Use the add tool to compute 5 + 3.",
+        tools=[
+            ToolDef(
+                add,
+                name="add",
+                description="Add two numbers.",
+                parameters={"x": "first number", "y": "second number"},
+            )
+        ],
+        on_stream=collector,
+    )
+    assert output.message.tool_calls
+    tool_events = [e for e in collector.events if isinstance(e, StreamToolCallEvent)]
+    assert any(e.function == "add" for e in tool_events)
+    arguments = json.loads("".join(e.arguments for e in tool_events))
+    assert arguments == {"x": 5, "y": 3}
+
+
+@skip_if_no_openai
+async def test_openai_responses_on_stream_live() -> None:
+    collector = Collector()
+    # gpt-5 family defaults to the Responses API
+    model = get_model("openai/gpt-5-mini")
+    output = await model.generate(
+        "Reply with one short sentence about the sea.", on_stream=collector
+    )
+    streamed = "".join(
+        e.text for e in collector.events if isinstance(e, StreamTextEvent)
+    )
+    assert streamed
+    assert streamed == output.completion
+
+
+@skip_if_no_grok
+async def test_grok_on_stream_live() -> None:
+    collector = Collector()
+    model = get_model("grok/grok-3-mini")
     output = await model.generate(
         "Reply with one short sentence about the sea.", on_stream=collector
     )

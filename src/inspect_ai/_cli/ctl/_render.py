@@ -80,25 +80,36 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         _echo(_knob_label("max samples", "max_samples") + _PER_TASK_PLACEHOLDER)
     else:
         max_samples = knobs.get("max_samples") or {}
-        if max_samples.get("adjustable"):
+        label = _knob_label("max samples", "max_samples")
+        # branch on tracks_adaptive before adjustable: the adaptive arms also
+        # carry adjustable=true, so an adjustable-first chain would render
+        # adaptive tasks with the static arm
+        if max_samples.get("tracks_adaptive"):
+            if max_samples.get("adjustable"):
+                limit = _target(max_samples.get("limit"), "max_samples")
+                in_use = max_samples.get("in_use")
+                if max_samples.get("override") is not None:
+                    _echo(
+                        f"{label}{limit} ({in_use} in use, pinned — 'clear' "
+                        "resumes adaptive tracking)"
+                    )
+                else:
+                    _echo(
+                        f"{label}{limit} ({in_use} in use, tracking adaptive "
+                        "connections — set to pin)"
+                    )
+            else:
+                # an older server's adaptive view: not adjustable, no numbers
+                # — point at where the numbers are
+                _echo(label + "tracks adaptive connections (see below)")
+        elif max_samples.get("adjustable"):
             limit = _target(max_samples.get("limit"), "max_samples")
             in_use = max_samples.get("in_use")
-            label = _knob_label("max samples", "max_samples")
             _echo(f"{label}{limit} ({in_use} in use)")
-        elif max_samples.get("tracks_adaptive"):
-            # sample concurrency tracks this task's adaptive controller, so
-            # there's no user setpoint to show — point at where the numbers are
-            _echo(
-                _knob_label("max samples", "max_samples")
-                + "tracks adaptive connections (see below)"
-            )
         else:
             # no live sample limiter for this task (e.g. a reused log) — the
             # adaptive block below, if any, belongs to other tasks' models
-            _echo(
-                _knob_label("max samples", "max_samples")
-                + "not adjustable (no live sample limiter)"
-            )
+            _echo(label + "not adjustable (no live sample limiter)")
 
     # max_tasks — the task dispatchers' live override (absent from an older
     # server's view). With no live dispatcher (during batch startup / between
@@ -212,6 +223,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
 
     _render_override_knob("timeout", "timeout", "s")
     _render_override_knob("attempt_timeout", "attempt timeout", "s")
+    _render_override_knob("stream_idle_timeout", "stream idle timeout", "s")
     _render_override_knob("max_retries", "max retries", "")
 
     # The per-sample limit overrides — task-scoped, so a process-level view
@@ -546,7 +558,7 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
     parts = [
         f"sample {detail.get('sample_id')}",
         f"epoch {detail.get('epoch')}",
-        detail.get("status") or "",
+        _format_status(detail),
     ]
     activity = _format_activity(
         detail.get("activity"), datetime.now(timezone.utc).timestamp()
@@ -784,6 +796,10 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     # holding latch; `quiesced` = nothing left in flight — the safe-to-kill
     # signal)
     any_paused = any(s.get("paused") or s.get("held") for s in summaries)
+    # shown only when some task has a pending graceful resolution
+    # (drain/score/error) — the marker that says a static-looking row is a
+    # draining tail (or a stalled scorer), not a stall
+    any_resolving = any(s.get("resolving") for s in summaries)
 
     rows = []
     for s in summaries:
@@ -813,6 +829,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
             cells.append(_format_rate(s.get("tokens_per_second")))
         if any_paused:
             cells.append(_format_paused(s))
+        if any_resolving:
+            cells.append(str(s.get("resolving") or ""))
         cells.append(_format_started(s.get("started_at", 0)))
         if any_retries:
             cells.append(str(int(s.get("attempts", 1) or 1)))
@@ -836,6 +854,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         headers_list.append("tok/s")
     if any_paused:
         headers_list.append("paused")
+    if any_resolving:
+        headers_list.append("resolving")
     headers_list.append("started")
     if any_retries:
         headers_list.append("attempts")
@@ -963,7 +983,9 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
         )
 
 
-def _print_errored_samples_footer(summaries: list[dict[str, Any]]) -> None:
+def _print_errored_samples_footer(
+    summaries: list[dict[str, Any]], command: str = "inspect ctl sample errors"
+) -> None:
     """Print a one-line errored-samples footer below the tasks table.
 
     Points at the triage command when any row reports errored samples.
@@ -972,12 +994,13 @@ def _print_errored_samples_footer(summaries: list[dict[str, Any]]) -> None:
     errors only, while `sample errors` also lists retried samples — so the
     view may show more rows than the count here, never fewer, and the
     count must not be "fixed" to match the view's row count (see
-    design/ctl/agent-discoverability.md §3b).
+    design/ctl/agent-discoverability.md §3b). ``command`` is the triage
+    command to point at (``--log-dir`` mode names its directory).
     """
     errored = sum((s.get("samples") or {}).get("errored", 0) for s in summaries)
     if errored > 0:
         noun = "sample" if errored == 1 else "samples"
-        _echo(f"{errored} {noun} errored — see `inspect ctl sample errors`")
+        _echo(f"{errored} {noun} errored — see `{command}`")
 
 
 def _task_header(target: dict[str, Any]) -> str:
@@ -993,7 +1016,9 @@ def _task_header(target: dict[str, Any]) -> str:
         parts.append(str(target["model"]))
     if target.get("status"):
         parts.append(str(target["status"]))
-    parts.append(_format_samples(target.get("samples") or {}))
+    # a --log-dir resolution row carries identity only (no samples block)
+    if "samples" in target:
+        parts.append(_format_samples(target.get("samples") or {}))
     attempts = int(target.get("attempts", 1) or 1)
     if attempts > 1:
         parts.append(f"{attempts} attempts")
@@ -1003,6 +1028,21 @@ def _task_header(target: dict[str, Any]) -> str:
     # leave a dangling separator
     sanitized_parts = (_sanitize_line(p) for p in parts)
     return "  ·  ".join(p for p in sanitized_parts if p)
+
+
+def _format_status(row: dict[str, Any]) -> str:
+    """A sample row's status cell, marking a pending cancel resolution.
+
+    ``interrupt`` (a live row's not-yet-handled cancel action) is the only
+    poller-visible evidence that a `sample cancel` of an initializing sample
+    — which the listing renders as ``queued`` — was accepted and is waiting
+    for the sample to start. Absent on older servers and on non-live rows.
+    """
+    status = str(row.get("status") or "")
+    interrupt = row.get("interrupt")
+    if interrupt:
+        return f"{status} ({interrupt} requested)"
+    return status
 
 
 def _print_samples_table(
@@ -1045,7 +1085,7 @@ def _print_samples_table(
         row = [
             str(s["sample_id"]) if s.get("sample_id") is not None else "?",
             str(s.get("epoch", "")),
-            s.get("status", "") or "",
+            _format_status(s),
         ]
         if show_task:
             row.insert(0, str(s.get("task") or _short_id(str(s.get("task_id") or ""))))
@@ -1198,9 +1238,10 @@ def _format_activity(activity: dict[str, Any] | None, now: float) -> str:
 
     ``generating 7:12`` (with ``(N retries)`` for in-call provider retries
     and ``· 1.2k tok`` when streamed progress is reported), ``bash 0:41`` /
-    ``2 tools 1:10`` for pending tool calls, and ``retrying in 0:45`` for a
+    ``2 tools 1:10`` for pending tool calls, ``retrying in 0:45`` for a
     generate retry backoff (time until the next attempt; bare ``retrying``
-    once the deadline passes). Elapsed is client-computed from
+    once the deadline passes), and ``approval: bash 6:12`` / ``question
+    2:03`` for a sample parked on a person. Elapsed is client-computed from
     ``started_at``, matching the idle column's convention. Empty for a
     null/absent activity; an unknown type from a newer server renders as
     its name rather than blank.
@@ -1212,6 +1253,15 @@ def _format_activity(activity: dict[str, Any] | None, now: float) -> str:
         _format_duration(now - started) if isinstance(started, (int, float)) else ""
     )
     activity_type = activity.get("type")
+    if activity_type in ("approval", "question"):
+        count = int(activity.get("count") or 1)
+        if count > 1:
+            cell = f"{count} {activity_type}s"
+        elif activity_type == "approval" and activity.get("detail"):
+            cell = f"approval: {activity.get('detail')}"
+        else:
+            cell = str(activity_type)
+        return cell + (f" {elapsed}" if elapsed else "")
     if activity_type == "model":
         cell = "generating" + (f" {elapsed}" if elapsed else "")
         retries = activity.get("retries")

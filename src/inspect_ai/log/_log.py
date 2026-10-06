@@ -22,6 +22,7 @@ from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
+from inspect_ai._util.model_validator import model_wrap_validator
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
@@ -35,6 +36,7 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.model._model_config import ModelConfig
+from inspect_ai.review._policy import ReviewPolicyConfig
 from inspect_ai.scorer import Score
 from inspect_ai.util._concurrency import LimitChangeReason
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
@@ -112,6 +114,9 @@ class EvalConfig(BaseModel):
 
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
+
+    review: ReviewPolicyConfig | None = Field(default=None)
+    """Review policy for tool results."""
 
     notification: bool | str | None = Field(default=None)
     """Notification routing for human-in-the-loop interactions.
@@ -223,7 +228,7 @@ class EvalConfig(BaseModel):
     """Expose this eval over an Agent Client Protocol server.
 
     `True` enables a default AF_UNIX socket at
-    `<inspect_data_dir>/acp/<eval_id>.sock`; an integer binds a TCP
+    `<inspect_data_dir>/acp/<pid>.sock`; an integer binds a TCP
     loopback port (127.0.0.1:<int>); a string of the form `host:port`
     (e.g. `0.0.0.0:4444`) binds TCP on a specific interface; any other
     string is taken as a custom AF_UNIX socket path; `None` (default)
@@ -385,6 +390,9 @@ class EvalSampleSummary(BaseModel):
                     explanation=thin_text(score.explanation)
                     if score.explanation is not None
                     else None,
+                    reason=thin_text(score.reason)
+                    if isinstance(score.reason, str)
+                    else score.reason,
                     metadata=thin_metadata(score.metadata)
                     if score.metadata is not None
                     else None,
@@ -660,7 +668,7 @@ class EvalSample(BaseModel):
 
         return migrate_values(values)
 
-    @model_validator(mode="wrap")
+    @model_wrap_validator
     @classmethod
     def _resolve_timelines(
         cls, data: Any, handler: Any, info: ValidationInfo
@@ -849,6 +857,18 @@ class EvalResults(BaseModel):
 
     Will be equal to total_samples except when --fail-on-error is enabled
     or when there is early stopping.
+    """
+
+    logged_samples: int | None = Field(default=None)
+    """Samples this log actually resolved (present in the log and not
+    cancelled), when a graceful task cancel or drain abandoned queued samples.
+
+    `total_samples` records the *planned* count, so a log finished by
+    `inspect ctl task drain` or `inspect ctl task cancel --action score|error`
+    would otherwise read complete to an eval set; the eval set's run-vs-reuse
+    check prefers this count when present so the abandoned remainder is
+    re-run by a later invocation. None on ordinary logs (and logs written by
+    older versions), which classify by `total_samples` as before.
     """
 
     early_stopping: EarlyStoppingSummary | None = Field(default=None)

@@ -18,6 +18,12 @@ from inspect_ai._util.registry import (
     set_return_annotation,
 )
 
+from .eval_set_pruning import (
+    TASK_PLACEHOLDER_ATTR,
+    TaskPlaceholder,
+    prune_task_call,
+    task_construction,
+)
 from .task import Task
 from .task.constants import TASK_ALL_PARAMS_ATTR, TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.task_source import TaskSource
@@ -136,12 +142,7 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
         task_name = registry_name(task_type, name or getattr(task_type, "__name__"))
         params = list(inspect.signature(task_type).parameters.keys())
 
-        # Create and return the wrapper function
-        @wraps(task_type)
-        def wrapper(*w_args: Any, **w_kwargs: Any) -> Task:
-            # Create the task
-            task_instance = task_type(*w_args, **w_kwargs)
-
+        def tag_task(task_instance: Task, *w_args: Any, **w_kwargs: Any) -> Task:
             # Tag the task with registry information
             registry_tag(
                 task_type,
@@ -155,10 +156,6 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
                 **w_kwargs,
             )
 
-            # extract all task parameters including defaults
-            named_params = extract_named_params(task_type, True, *w_args, **w_kwargs)
-            setattr(task_instance, TASK_ALL_PARAMS_ATTR, named_params)
-
             # if its not from an installed package then it is a "local"
             # module import, so set its task file and run dir
             if get_installed_package_name(task_type) is None:
@@ -168,8 +165,49 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
                     setattr(task_instance, TASK_FILE_ATTR, file.as_posix())
                     setattr(task_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
 
-            # Return the task instance
             return task_instance
+
+        def construct(*w_args: Any, **w_kwargs: Any) -> Task:
+            """Build and tag the task for real. Also what materializes a placeholder."""
+            # the guard makes any @task call the body makes a composition rather
+            # than an eval-set entry, so it is never pruned (eval_set_pruning.py)
+            with task_construction():
+                task_instance = tag_task(
+                    task_type(*w_args, **w_kwargs), *w_args, **w_kwargs
+                )
+
+            # extract all task parameters including defaults
+            named_params = extract_named_params(task_type, True, *w_args, **w_kwargs)
+            setattr(task_instance, TASK_ALL_PARAMS_ATTR, named_params)
+
+            return task_instance
+
+        # Create and return the wrapper function
+        @wraps(task_type)
+        def wrapper(*w_args: Any, **w_kwargs: Any) -> Task:
+            # in a worker running a selection that does not name this task,
+            # skip constructing it -- a dataset loads at construction, and a
+            # worker that resolves the whole eval set to find its own one task
+            # would otherwise pay for every dataset in the set. Purely an
+            # optimization: it fires only on a definite mismatch, the
+            # placeholder holds `construct` so the decision can be undone, and
+            # the boundary filter remains the only thing that decides what
+            # runs (eval_set_pruning.py)
+            if prune_task_call(task_type, task_name, w_args, w_kwargs):
+                # tagged exactly as a real task is, because everything between
+                # here and the boundary treats it as one -- it is resolved,
+                # enumerated, and counted, so `sequence` and the resolved
+                # ordering are unaffected. What it lacks is a dataset, which is
+                # the entire saving
+                placeholder = tag_task(Task(), *w_args, **w_kwargs)
+                setattr(
+                    placeholder,
+                    TASK_PLACEHOLDER_ATTR,
+                    TaskPlaceholder(construct=construct, args=w_args, kwargs=w_kwargs),
+                )
+                return placeholder
+
+            return construct(*w_args, **w_kwargs)
 
         set_return_annotation(wrapper, Task)
 

@@ -36,6 +36,7 @@ from __future__ import annotations
 import time
 from collections import defaultdict
 from functools import partial
+from itertools import chain
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from inspect_ai._util._async import tg_collect
@@ -45,6 +46,7 @@ from inspect_ai._util.file import local_path
 if TYPE_CHECKING:
     from inspect_ai._control.cancel import PendingToolCall
     from inspect_ai._control.eval_state import EvalState
+    from inspect_ai._eval.task.scheduler import SampleKey
     from inspect_ai.log._log import EvalSampleSummary
     from inspect_ai.log._samples import ActiveSample
 
@@ -272,6 +274,9 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 "paused_now": ["process"] if process_paused_now() else None,
                 "quiesced": False,
                 "held": 0,
+                # pre-registration, so no cancel handle exists to carry a
+                # pending graceful resolution
+                "resolving": None,
                 "attempts": 1,
                 "samples": {
                     "total": 0,
@@ -315,13 +320,19 @@ async def current_sample_summaries(
       (eval finished / torn down) — read once and memoized on the state
       (see :func:`completed_eval_sample_summaries`).
     - **pending** ← synthesized from the eval's registered planned
-      ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``)
-      that aren't yet running or done — no live source holds these.
+      ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``
+      and ``EvalState.sample_epochs``) that aren't yet running or done — no
+      live source holds these.
 
     Merged and deduped by ``(sample_id, epoch)``; a terminal record
     (completed / error) supersedes a running one, which supersedes a
-    pending one. Sorted running → terminal → pending. Returns an empty
-    list when the eval isn't in this process.
+    pending one. A retry attempt's log is seeded with the prior attempt's
+    records (``TaskLogger.seed_from_prior``), but the live source withholds
+    a seeded record until the reuse sweep accepts it or its re-run
+    completes (``TaskLogger.sample_summaries``), so a sample awaiting or
+    running its re-run has no terminal row here and reads pending or
+    running like any other. Sorted running → terminal → pending. Returns
+    an empty list when the eval isn't in this process.
 
     Each entry has: ``sample_id``, ``epoch``, ``status`` (a
     :data:`SAMPLE_STATUSES` member), ``started_at``, ``completed_at``,
@@ -354,6 +365,8 @@ async def current_sample_summaries(
         existing = by_key.get(key)
         # Keep the first record for a key, except let a terminal record
         # supersede a still-running one (a sample that has since finished).
+        # A seeded prior record for a re-running sample never reaches here:
+        # the live source withholds it until the re-run completes.
         if existing is None or (
             existing["status"] == "running" and summary["status"] != "running"
         ):
@@ -382,6 +395,16 @@ async def current_sample_summaries(
                 by_key[key] = _requeued_summary(summary)
             continue
         _merge(summary)
+
+    # Cancelled before start (design/ctl/queued-sample-cancel.md): terminal
+    # in the counters but absent from the log, so synthesize the rows here.
+    # Runs before (and independently of) the pending synthesis — the
+    # cancelled keys must keep rendering after `sample_ids` clears (the
+    # last-outstanding-work carve-out), so this is not keyed off the
+    # planned ids. Skipped under the errors filter like the pending rows
+    # (a cancelled-before-start sample carries no error and no retries).
+    if sample_filter != "errors":
+        _add_cancelled_samples(eval_id, by_key)
 
     # Pending: planned samples not yet running or done. No live source
     # holds these, so synthesize them from the registered planned ids.
@@ -504,16 +527,20 @@ def _add_pending_samples(
     from inspect_ai._control.eval_state import get_eval_state
 
     state = get_eval_state(eval_id)
-    if state is None or not state.sample_ids:
+    if state is None:
         return
-    for sample_id in state.sample_ids:
-        for epoch in range(1, max(1, state.epochs) + 1):
-            key = (sample_id, epoch)
-            if key not in by_key:
-                by_key[key] = _pending_summary(sample_id, epoch)
+    planned = (
+        (sample_id, epoch)
+        for sample_id in state.sample_ids
+        for epoch in range(1, max(1, state.epochs) + 1)
+    )
+    for sample_id, epoch in chain(planned, state.sample_epochs):
+        key = (sample_id, epoch)
+        if key not in by_key:
+            by_key[key] = _pending_summary(sample_id, epoch)
 
 
-def _pending_requeue_keys(eval_id: str) -> frozenset[tuple[str, int]]:
+def _pending_requeue_keys(eval_id: str) -> frozenset[SampleKey]:
     """The eval's requeue-pending ``(sample_id, epoch)`` keys (str-keyed).
 
     Non-empty only while a requeue directive has been accepted and its
@@ -525,6 +552,61 @@ def _pending_requeue_keys(eval_id: str) -> frozenset[tuple[str, int]]:
     if state is None or state.sample_requeue is None:
         return frozenset()
     return state.sample_requeue.pending_keys()
+
+
+def _cancelled_before_start_keys(eval_id: str) -> frozenset[SampleKey]:
+    """The eval's cancelled-before-start ``(sample_id, epoch)`` keys (str-keyed).
+
+    Non-empty once a queued-sample cancel has been accepted for a
+    never-started sample (``design/ctl/queued-sample-cancel.md``). A key
+    persists after its parked coroutine discards — the sample is terminally
+    cancelled with no record, so the row keeps rendering ``cancelled``.
+    """
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    if state is None or state.sample_requeue is None:
+        return frozenset()
+    return state.sample_requeue.cancelled_keys()
+
+
+def _add_cancelled_samples(
+    eval_id: str, by_key: dict[tuple[Any, int], dict[str, Any]]
+) -> None:
+    """Synthesized ``cancelled`` rows for the cancelled-before-start keys."""
+    keys = _cancelled_before_start_keys(eval_id)
+    if not keys:
+        return
+    # the dataset-typed id (captured at queue arrival) keys the row — and
+    # dedupes it against the pending synthesis — like the planned rows; the
+    # capture survives `sample_ids` clearing at completed_at, so a row's id
+    # can't flip int → str when the cancel finished the eval
+    for sample_id, epoch in keys:
+        typed = _queued_typed_id(eval_id, sample_id, epoch)
+        key = (typed, epoch)
+        if key not in by_key:
+            by_key[key] = _cancelled_before_start_summary(typed, epoch)
+
+
+def _queued_typed_id(eval_id: str, sample_id: str, epoch: int) -> Any:
+    """The dataset-typed id for a queued/cancelled route-string key.
+
+    Every read surface echoes dataset-typed ids (int vs str); the queued
+    rows have no record to read one from, so the requeue handle's capture
+    (at queue arrival / requeue accept) serves. Falls back to the string
+    form when no handle is attached.
+    """
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    if state is None or state.sample_requeue is None:
+        return sample_id
+    return state.sample_requeue.sample_view(sample_id, epoch).typed_id
+
+
+def _cancelled_before_start_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
+    """A cancelled-before-start sample: terminal status, no record to show."""
+    return {**_pending_summary(sample_id, epoch), "status": "cancelled"}
 
 
 def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
@@ -556,6 +638,7 @@ def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
         "error": None,
         "limit": None,
         "limit_reason": None,
+        "interrupt": None,
     }
 
 
@@ -581,6 +664,7 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "retries": None,
         "limit": None,
         "limit_reason": None,
+        "interrupt": None,
     }
 
 
@@ -781,12 +865,19 @@ async def sample_error_detail(
         return running
 
     sample = await _full_sample(
-        eval_id,
-        sample_id,
-        epoch,
-        exclude_fields={"messages", "events", "store", "attachments", "output"},
+        eval_id, sample_id, epoch, exclude_fields=set(SAMPLE_DETAIL_EXCLUDE_FIELDS)
     )
     if sample is None:
+        # a cancelled-before-start sample has no record: mirror the listing's
+        # synthesized terminal row (design/ctl/queued-sample-cancel.md),
+        # dataset-typed id included
+        if (sample_id, epoch) in _cancelled_before_start_keys(eval_id):
+            return {
+                **_cancelled_before_start_summary(
+                    _queued_typed_id(eval_id, sample_id, epoch), epoch
+                ),
+                "error_retries": [],
+            }
         return None
 
     # The sample's summary row supplies the summary fields (timing / tokens /
@@ -827,6 +918,31 @@ async def sample_error_detail(
             "scores": {},
         }
 
+    return terminal_sample_detail(
+        sample, row, will_retry=_eval_will_retry(eval_id), content=content
+    )
+
+
+# The heavy fields the sample detail read never consumes (only error data and
+# the summary fields are needed).
+SAMPLE_DETAIL_EXCLUDE_FIELDS = frozenset(
+    {"messages", "events", "store", "attachments", "output"}
+)
+
+
+def terminal_sample_detail(
+    sample: Any,
+    row: dict[str, Any] | None,
+    *,
+    will_retry: bool,
+    content: bool,
+) -> dict[str, Any]:
+    """The detail envelope for a logged sample and its (ungated) summary row.
+
+    ``sample`` is the ``EvalSample`` read without
+    :data:`SAMPLE_DETAIL_EXCLUDE_FIELDS`. Shared by :func:`sample_error_detail`
+    and the ``--log-dir`` reader, so the two surfaces cannot drift.
+    """
     # status/error apply the listing's classification
     # (_summary_from_eval_sample_summary reads the same error message), so the
     # detail's override of the row can't contradict it: a cancellation is
@@ -836,7 +952,7 @@ async def sample_error_detail(
     if sample.error is None:
         status, error = "completed", None
     elif is_cancellation_message(sample.error.message):
-        status, error = _cancellation_status(_eval_will_retry(eval_id)), None
+        status, error = _cancellation_status(will_retry), None
     else:
         status, error = "error", _error_dict(sample.error, content)
 
@@ -979,6 +1095,7 @@ def _summary_from_eval_sample_summary(
         "retries": summary.retries,
         "limit": summary.limit,
         "limit_reason": summary.limit_reason,
+        "interrupt": None,
     }
 
 
@@ -1065,6 +1182,12 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
         "retries": s.retries or None,
         "limit": None,
         "limit_reason": None,
+        # the pending cancel resolution, whatever its origin — the
+        # poller-visible evidence that a `sample cancel` of an initializing
+        # sample (rendered `queued` here) was accepted and is waiting for the
+        # sample to start; a running sample inside its logging window reports
+        # it too (design/ctl/initializing-sample-cancel.md). Purely additive.
+        "interrupt": s.interrupt_action,
     }
 
 
@@ -1074,25 +1197,35 @@ def _sample_activity(s: "ActiveSample") -> dict[str, Any] | None:
     Reads the transcript's ``pending_events`` sidecar — O(in-flight ops),
     never an event scan (the samples handler shares the eval's event loop;
     see the cost-audit note in design/ctl/generate-progress.md) — and
-    classifies as the TUI does (``SampleToolbar.sync_sample``): any pending
-    ``ToolEvent`` → tool activity (the earliest one leads, even when a
-    nested model call is also pending); else a pending ``ModelEvent`` →
-    model activity; else a generate retry backoff recorded on the sample
-    (no pending event exists during the wait) → ``retry_wait``.
+    classifies as the TUI does (``SampleToolbar.sync_sample``), with one
+    branch ahead of it: a pending human interaction
+    (:attr:`ActiveSample.pending_interactions`) → ``approval`` /
+    ``question``; else any pending ``ToolEvent`` → tool activity (the
+    earliest one leads, even when a nested model call is also pending); else
+    a pending ``ModelEvent`` → model activity; else a generate retry backoff
+    recorded on the sample (no pending event exists during the wait) →
+    ``retry_wait``.
+
+    The human interaction leads because nothing else reports it at all: an
+    approval is awaited *before* ``call_tool`` records the tool's event, so
+    without this branch a sample parked overnight has no pending event of any
+    kind and reads as silently idle.
 
     The shape is stable across types so ``jq`` consumers see every key:
     ``type`` / ``count`` / ``started_at`` / ``detail`` always carry values
     (``count`` is the concurrent pending ops of the type — for
     ``retry_wait``, the failed attempt number; ``detail`` the model name or
-    tool function); ``retries`` is the pending model call's in-call
+    tool function, and empty for a ``question``, which has no structural
+    subject); ``retries`` is the pending model call's in-call
     (provider-SDK) retries; ``deadline`` is when a ``retry_wait`` elapses;
     ``tokens`` / ``last_progress_at`` come from the pending model event's
     stream progress record (layer 2) — ``None`` for non-streamed calls and
-    providers not yet instrumented. ``tool`` activity additionally
-    carries ``calls`` — every pending tool call as ``{id, function,
-    started_at, cancel_requested}`` — so ``sample list --json`` alone yields
-    the id ``sample cancel-tool-call`` targets, and a delivered-but-unheeded
-    cancel (a wedged call no scope can stop) stays visible.
+    providers not yet instrumented. ``tool`` activity — and a human wait
+    sitting inside a running tool — additionally carries ``calls``, every
+    pending tool call as ``{id, function, started_at, cancel_requested}``, so
+    ``sample list --json`` alone yields the id ``sample cancel-tool-call``
+    targets, and a delivered-but-unheeded cancel (a wedged call no scope can
+    stop) stays visible.
     """
     from inspect_ai.event._model import ModelEvent, model_event_progress
     from inspect_ai.event._tool import ToolEvent
@@ -1107,6 +1240,30 @@ def _sample_activity(s: "ActiveSample") -> dict[str, Any] | None:
             model_count += 1
         elif isinstance(ev, ToolEvent):
             tool_events.append(ev)
+
+    # An approval is awaited *before* its tool's event is recorded, and an
+    # `InputEvent` is written only once the question is answered -- so nothing
+    # in the transcript marks either wait while it lasts, and the sample's
+    # own record of it is the only signal an external runner has for telling
+    # "working" from "stopped on you".
+    kind = s.pending_interaction
+    if kind is not None:
+        from inspect_ai._control.cancel import _pending_tool_call
+
+        waits = [p for p in s.pending_interactions if p.kind == kind]
+        # `detail` is the tool call being decided -- structural, and the one
+        # piece of an approval request that is safe to relay verbatim, since
+        # the arguments and an `ask_user` prompt are model-generated text. A
+        # question carries none for that reason. `calls` stays populated where
+        # a wait happens to sit inside a running tool (an `ask_user` from a
+        # tool does), so cancelling it is still targetable from this row.
+        return _activity(
+            kind,
+            len(waits),
+            min(wait.started_at for wait in waits),
+            next((wait.subject for wait in waits if wait.subject), ""),
+            calls=[_pending_tool_call(ev) for ev in tool_events] or None,
+        )
 
     if tool_events:
         from inspect_ai._control.cancel import _pending_tool_call
@@ -1241,7 +1398,7 @@ def _build_summary(
     completed = latest.completed
     errored = latest.errored
     cancelled = latest.cancelled
-    queued = max(0, total - completed - errored - cancelled - in_flight)
+    queued = latest.queued(in_flight)
     completed_at = latest.completed_at
     status = "completed" if completed_at is not None else "running"
 
@@ -1275,6 +1432,21 @@ def _build_summary(
         else None
     )
     held = task_held_count(latest.task_id)
+
+    # the pending graceful resolution, if any — "drain" / "score" / "error"
+    # (never "abort"/"retry", which tear the task down rather than leaving it
+    # running toward a resolution). What lets a poller tell a draining tail
+    # from a stall: drain's window is long by design and the counters offer
+    # no early signal (queued samples abandon only as slots free), and the
+    # same field makes a stalled score/error resolution (hung scorer)
+    # visible. Purely additive — an older CLI ignores it.
+    resolving = (
+        latest.task_cancel.cancel_type
+        if completed_at is None
+        and latest.task_cancel is not None
+        and latest.task_cancel.cancel_type in ("drain", "score", "error")
+        else None
+    )
 
     # Usage = the accumulated total for terminal samples (survives them
     # leaving active_samples — "usage so far") plus the live usage of the
@@ -1323,6 +1495,7 @@ def _build_summary(
         "paused_now": paused_now,
         "quiesced": quiesced,
         "held": held,
+        "resolving": resolving,
         "attempts": attempts,
         # Planned epoch count. `ctl sample cancel` uses it to require an
         # explicit EPOCH when the task runs more than one (a defaulted epoch

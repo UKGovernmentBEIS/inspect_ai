@@ -58,6 +58,11 @@ from inspect_ai.solver import generate
 # `isolate_active_model` (autouse) comes from tests/conftest.py, and
 # `short_data_dir` from tests/_control/conftest.py.
 
+# The handoff's subject is the default-on control surface (its socket path,
+# and `inspect eval` subprocesses that must bind one), so opt out of the
+# suite-wide control-server disable.
+pytestmark = pytest.mark.real_ctl_server
+
 
 @pytest.fixture
 def handoff_listener() -> Iterator[list[LaunchHandoff]]:

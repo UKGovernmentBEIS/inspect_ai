@@ -2,6 +2,8 @@ from typing import Literal, TypeAlias
 
 from pydantic import BaseModel, RootModel
 
+from ..._util.user_switch import RunAs
+
 
 class BashBaseParams(BaseModel):
     session_name: str
@@ -38,8 +40,10 @@ class NewSessionResult(BaseModel):
 class NewSessionParams(BaseModel):
     """Parameters for bash_session_new_session."""
 
-    user: str | None = None
-    """User to run the bash session as (requires server running as root)."""
+    user: str | RunAs | None = None
+    """User to run as: a username, or the sandbox default user's identity as
+    captured by the host. Switching requires the server to run as root, unless
+    the server already runs as that identity."""
     model_config = {"extra": "forbid"}
 
 

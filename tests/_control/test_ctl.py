@@ -406,6 +406,33 @@ def test_score_column_shown_for_single_scorer(
     assert "C" in completed_row
 
 
+def test_status_marks_pending_interrupt(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A live row's pending cancel resolution is visible in the status cell.
+
+    An initializing sample renders `queued`, so without the marker a deferred
+    `sample cancel` would leave no poller-visible evidence it was accepted
+    (design/ctl/initializing-sample-cancel.md). Rows without the field (older
+    servers, terminal rows) render the bare status.
+    """
+    samples = [
+        {**_sample(1, "queued", {}), "interrupt": "cancel"},
+        {**_sample(2, "running", {}), "interrupt": None},
+        _sample(3, "completed", {}),
+    ]
+    _print_samples_table(samples)
+    lines = capsys.readouterr().out.splitlines()
+    assert "queued (cancel requested)" in next(
+        ln for ln in lines if ln.startswith("1 ")
+    )
+    assert "requested" not in next(ln for ln in lines if ln.startswith("2 "))
+    assert "requested" not in next(ln for ln in lines if ln.startswith("3 "))
+
+    _print_sample_detail({**_sample(1, "queued", {}), "interrupt": "score"}, False)
+    assert "queued (score requested)" in capsys.readouterr().out
+
+
 def test_score_column_hidden_for_multiple_scorers(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -537,6 +564,22 @@ def test_activity_cell_renders_retry_wait() -> None:
     # deadline passed (next attempt imminent) → no misleading countdown
     overdue = _activity("retry_wait", 60, deadline=now - 5)
     assert _format_activity(overdue, now) == "retrying"
+
+
+def test_activity_cell_renders_pending_human_interaction() -> None:
+    import time
+
+    from inspect_ai._cli.ctl._render import _format_activity
+
+    # sample `now` after building so elapsed rounds to the intended value
+    approval = _activity("approval", 372, detail="bash")
+    two = _activity("approval", 372, detail="bash", count=2)
+    question = _activity("question", 123, detail="")
+    now = time.time()
+    # the gated tool call names the approval; a question has no subject
+    assert _format_activity(approval, now) == "approval: bash 6:12"
+    assert _format_activity(two, now) == "2 approvals 6:12"
+    assert _format_activity(question, now) == "question 2:03"
 
 
 def test_activity_cell_degrades_for_unknown_type_and_null() -> None:
@@ -3453,6 +3496,68 @@ def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
     assert "! log_buffer" not in result.stderr
 
 
+def test_config_buffer_error_static_clear_not_claimed_applied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 'clear' the server only warned about is not claimed as applied.
+
+    A static-limiter task reports max_samples adjustable, but a 'clear'
+    against it warns without applying (nothing is pinned) — the no-live-buffer
+    error's "still applied" tail must not name it. A clear against an
+    adaptive (tracks_adaptive) view did land, and is named.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+
+    def stub_view(max_samples_view: Any, warnings: list[str]) -> None:
+        monkeypatch.setattr(
+            "inspect_ai._cli.ctl._config._exec_limits",
+            lambda *a, **k: _ConfigResult(
+                view={
+                    "max_samples": max_samples_view,
+                    "max_sandboxes": [],
+                    "adaptive": [],
+                    "buffer": None,
+                    "requested": {"max_samples": "clear", "log_buffer": 2},
+                    "warnings": warnings,
+                    "dry_run": False,
+                },
+                mutated=True,
+            ),
+        )
+
+    stub_view(
+        {"limit": 20, "in_use": 0, "adjustable": True},
+        [
+            "max_samples is a fixed setpoint for this task (pass an integer "
+            "to change it; 'clear' only unpins a task using adaptive "
+            "connections)."
+        ],
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "clear"]
+    )
+    assert result.exit_code == 1
+    assert "has no sample buffer" in result.stderr
+    assert "still applied" not in result.stderr
+    assert "! max_samples is a fixed setpoint" in result.stderr
+
+    stub_view(
+        {
+            "limit": 15,
+            "in_use": 0,
+            "adjustable": True,
+            "tracks_adaptive": True,
+            "override": None,
+        },
+        [],
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "clear"]
+    )
+    assert result.exit_code == 1
+    assert "(--max-samples) were still applied" in result.stderr
+
+
 def test_config_key_retune_sent_and_rendered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -4121,6 +4226,8 @@ def test_config_retry_overrides_accept_clear_keyword(
     result = cli_runner().invoke(ctl_command, ["config", "--timeout=-5"])
     assert result.exit_code == 2
     assert "negative" in result.stderr
+    # override knobs: 'clear' really does restore launch config
+    assert "restore launch config" in result.stderr
 
     # over the shared value bound -> click usage error, no request made
     from inspect_ai.model._generate_overrides import MAX_GENERATE_CONFIG_OVERRIDE
@@ -4131,6 +4238,54 @@ def test_config_retry_overrides_accept_clear_keyword(
     )
     assert result.exit_code == 2
     assert "maximum override value" in result.stderr
+
+
+def test_config_max_samples_accepts_clear_and_rejects_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--max-samples is int-or-'clear' with a min of 1 and no upper bound."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    # 'clear' parses and is a mutation (the adaptive unpin)
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "clear", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+    # 0 keeps failing client-side, as the IntRange(min=1) it replaced did
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "0"])
+    assert result.exit_code == 2
+    assert "less than 1" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples=-5"])
+    assert result.exit_code == 2
+    assert "negative" in result.stderr
+    # not the override knobs' "restore launch config": for this knob 'clear'
+    # only unpins an adaptive task (a static task rejects it outright)
+    assert "resume adaptive tracking" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "lots"])
+    assert result.exit_code == 2
+    assert "is not an integer or 'clear'" in result.stderr
+
+    # no upper bound: the override knobs' shared ceiling does not apply
+    from inspect_ai.model._generate_overrides import MAX_GENERATE_CONFIG_OVERRIDE
+
+    result = cli_runner().invoke(
+        ctl_command,
+        ["config", "--max-samples", str(MAX_GENERATE_CONFIG_OVERRIDE + 1), "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
 
 
 def test_config_max_tasks_wiring_and_floor(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -5500,7 +5655,12 @@ def test_task_score_polls_to_completion(monkeypatch: pytest.MonkeyPatch) -> None
             },
             "samples": [],
             "metrics": [
-                {"scorer": "match", "reducer": None, "metrics": {"accuracy": 0.5}}
+                {
+                    "name": "match",
+                    "scorer": "match",
+                    "reducer": None,
+                    "metrics": {"accuracy": 0.5},
+                }
             ],
             "interim": True,
             "epochs": 1,
@@ -5763,6 +5923,124 @@ def test_task_cancel_rejects_unknown_action() -> None:
     )
     assert result.exit_code == 2
     assert "explode" in result.stderr
+
+
+def test_task_cancel_retry_abandoned_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A between-attempts cancel reports the retry-abandon, not the sweep."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": True, "retry_abandoned": True, "in_flight": 0}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        "cancel t1: requested — pending retry is abandoned — the task ends "
+        "with its last attempt's error log\n"
+    )
+
+
+def test_task_drain_requires_task_argument() -> None:
+    """Drain joins cancel in the destructive-verb selector class."""
+    result = cli_runner().invoke(ctl_command, ["task", "drain"])
+    assert result.exit_code == 2
+    assert "TASK" in result.stderr
+
+
+def test_task_drain_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {"ok": True, "task_id": "aaa111", "changed": True, "in_flight": 2, "queued": 3}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111", "--json"])
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/tasks/aaa111/drain"]
+    assert spy.params == [{}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert payload["applied"] is True and payload["dry_run"] is False
+    assert payload["detail"]["in_flight"] == 2 and payload["detail"]["queued"] == 3
+
+
+def test_task_drain_dry_run_not_applied(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": True, "dry_run": True, "in_flight": 1, "queued": 0}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "drain", "aaa111", "--dry-run", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [{"dry_run": True}]
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False and payload["dry_run"] is True
+
+
+def test_task_drain_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--no-terse pins the full rendering (the runner's stdout is not a TTY)."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 3, "queued": 5})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111", "--no-terse"])
+    assert result.exit_code == 0, result.output
+    assert "·" in result.stdout  # the task header
+    assert "Drain requested" in result.stdout
+    assert "3 in-flight samples will finish naturally" in result.stdout
+    assert "5 queued samples will be abandoned" in result.stdout
+
+
+def test_task_drain_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Non-TTY stdout (the runner's) defaults to one header-free outcome line."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 1, "queued": 2})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        "drain t1: requested — 1 in-flight sample will finish naturally; "
+        "2 queued samples will be abandoned and the task will complete\n"
+    )
+
+
+def test_task_drain_noop_reports_unapplied(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": False, "reason": "drain already requested"}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False
+    assert payload["detail"]["reason"] == "drain already requested"
+
+
+def test_task_drain_retry_abandoned_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {"ok": True, "changed": True, "retry_abandoned": True, "in_flight": 0}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        "drain t1: requested — pending retry is abandoned — the task ends "
+        "with its last attempt's error log\n"
+    )
+
+
+def test_task_drain_missing_route_names_version_skew(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A router 404 (no `error` body) means the server predates the endpoint."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [(404, {"detail": "Not Found"})])
+    result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111"])
+    assert result.exit_code == 1
+    assert "older inspect without the drain endpoint" in result.stderr
+    assert "may have finished" not in result.stderr
 
 
 def test_task_pause_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -6198,6 +6476,531 @@ def test_sample_cancel_error_flag_and_dry_run(
     assert payload["applied"] is False and payload["dry_run"] is True
 
 
+def _single_epoch_summary() -> dict[str, Any]:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    return summary
+
+
+def test_sample_score_dry_run_json_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    targeted = {
+        "in_flight": 1,
+        "completed_unscored": 0,
+        "completed_scored": 0,
+        "skipped": 0,
+    }
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": True,
+            "dry_run": True,
+            "scope": "sample",
+            "sample_id": "s1",
+            "epoch": 1,
+            "targeted": targeted,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--dry-run", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"]
+    assert spy.params == [{"sample_id": "s1", "epoch": 1, "dry_run": True}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["sample_id"] == "s1"
+    assert payload["target"]["epoch"] == 1
+    assert payload["applied"] is False and payload["dry_run"] is True
+    assert payload["detail"]["targeted"] == targeted
+
+
+def test_sample_score_requires_epoch_when_multi_epoch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A defaulted epoch on a multi-epoch task resolves to a different sample."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["sample", "score", "aaa111", "s1"])
+    assert result.exit_code == 1
+    assert "pass EPOCH explicitly" in result.stderr
+    assert spy.paths == []  # nothing was sent
+
+
+def test_sample_score_polls_to_completion(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The default flow starts a sample pass and polls its GET until finished."""
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    monkeypatch.setattr("inspect_ai._cli.ctl._sample._SAMPLE_SCORE_POLL_INTERVAL", 0)
+    running = {
+        "ok": True,
+        "pass_id": "p1",
+        "scope": "sample",
+        "sample_id": "s1",
+        "epoch": 1,
+        "running": True,
+        "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+    }
+    final = {
+        "ok": True,
+        "pass_id": "p1",
+        "scope": "sample",
+        "sample_id": "s1",
+        "epoch": 1,
+        "running": False,
+        "progress": {"scored": 1, "failed": 0, "unscored": 0, "total": 1},
+        "result": {
+            "counts": {
+                "in_flight": 1,
+                "completed_unscored": 0,
+                "completed_scored": 0,
+                "skipped": 0,
+            },
+            "samples": [
+                {
+                    "sample_id": "s1",
+                    "epoch": 1,
+                    "disposition": "in_flight",
+                    "outcome": "scored",
+                    "scores": {"match": 1.0},
+                    "held_seconds": 3.2,
+                }
+            ],
+            "metrics": None,
+            "interim": True,
+            "epochs": 1,
+        },
+    }
+    spy = _SequenceSpy(
+        [
+            {
+                "ok": True,
+                "changed": True,
+                "dry_run": False,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+            },
+            running,
+            final,
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"] * 3
+    assert spy.mutates == ["post", None, None]
+    assert spy.params[0] == {"sample_id": "s1", "epoch": 1}
+    assert spy.params[1] == {"sample_id": "s1", "epoch": 1}
+    payload = json.loads(result.stdout)
+    assert payload["target"]["sample_id"] == "s1"
+    assert payload["applied"] is True
+    (row,) = payload["detail"]["result"]["samples"]
+    assert row["outcome"] == "scored" and row["scores"] == {"match": 1.0}
+
+
+def test_sample_score_renders_scored_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    monkeypatch.setattr("inspect_ai._cli.ctl._sample._SAMPLE_SCORE_POLL_INTERVAL", 0)
+    spy = _SequenceSpy(
+        [
+            {
+                "ok": True,
+                "changed": True,
+                "dry_run": False,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+            },
+            {
+                "ok": True,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+                "running": False,
+                "progress": {"scored": 1, "failed": 0, "unscored": 0, "total": 1},
+                "result": {
+                    "counts": {},
+                    "samples": [
+                        {
+                            "sample_id": "s1",
+                            "epoch": 1,
+                            "disposition": "in_flight",
+                            "outcome": "scored",
+                            "scores": {"match": 1.0},
+                            "held_seconds": 3.2,
+                        }
+                    ],
+                    "metrics": None,
+                    "interim": True,
+                },
+            },
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "Interim score recorded — match=1.0 (held 3.2s)" in result.output
+    assert "keeps running" in result.output
+
+
+def test_sample_score_no_wait_returns_start_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": True,
+            "dry_run": False,
+            "pass_id": "p1",
+            "scope": "sample",
+            "sample_id": "s1",
+            "epoch": 1,
+            "targeted": {
+                "in_flight": 1,
+                "completed_unscored": 0,
+                "completed_scored": 0,
+                "skipped": 0,
+            },
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--no-wait", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    # one POST, no polling
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"]
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is True
+    assert payload["detail"]["pass_id"] == "p1"
+
+
+def test_sample_score_status_polls_without_starting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--status is the poll-only follow-up: GETs only, never a POST."""
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    monkeypatch.setattr("inspect_ai._cli.ctl._sample._SAMPLE_SCORE_POLL_INTERVAL", 0)
+    spy = _SequenceSpy(
+        [
+            {
+                "ok": True,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+                "running": True,
+                "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+            },
+            {
+                "ok": True,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+                "running": False,
+                "progress": {"scored": 0, "failed": 0, "unscored": 1, "total": 1},
+                "result": {
+                    "counts": {},
+                    "samples": [
+                        {
+                            "sample_id": "s1",
+                            "epoch": 1,
+                            "disposition": "in_flight",
+                            "outcome": "did_not_park",
+                            "scores": {},
+                            "reason": "sample did not park within the hold timeout",
+                        }
+                    ],
+                    "metrics": None,
+                    "interim": True,
+                },
+            },
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--status", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"] * 2
+    assert spy.mutates == [None, None]
+    assert "Not scored (did_not_park)" in result.output
+    assert "hold timeout" in result.output
+
+
+def test_sample_score_status_no_wait_single_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    snapshot = {
+        "ok": True,
+        "pass_id": "p1",
+        "scope": "sample",
+        "sample_id": "s1",
+        "epoch": 1,
+        "running": True,
+        "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+    }
+    spy = _SequenceSpy([snapshot])
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "score", "aaa111", "s1", "--status", "--no-wait", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"]
+    assert spy.mutates == [None]
+    assert json.loads(result.stdout) == snapshot
+
+
+def test_sample_score_status_renders_rowless_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pass interrupted before producing its row renders a single label.
+
+    With no row, the outcome falls back to "not scored" — the renderer must
+    not double it as "Not scored (not scored)".
+    """
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    spy = _SequenceSpy(
+        [
+            {
+                "ok": True,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+                "running": False,
+                "interrupted": "the pass was cancelled (attempt superseded)",
+                "result": {
+                    "counts": {},
+                    "samples": [],
+                    "metrics": None,
+                    "interim": True,
+                },
+            }
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "score", "aaa111", "s1", "--status", "--no-wait", "--no-terse"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Not scored — no result row was produced." in result.output
+    assert "(not scored)" not in result.output
+    assert "pass interrupted" in result.output
+
+
+def test_sample_score_status_rejects_dry_run() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--status", "--dry-run"]
+    )
+    assert result.exit_code == 2
+    assert "--status" in result.stderr and "--dry-run" in result.stderr
+
+
+def test_sample_score_blocked_by_other_pass_reports_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A running pass with a different scope is reported, never joined."""
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": False,
+            "dry_run": False,
+            "pass_id": "task-pass",
+            "scope": "task",
+            "reason": "a scoring pass is already running for this task",
+            "progress": {"scored": 1, "failed": 0, "unscored": 0, "total": 3},
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    # exactly one request: the blocked start is not followed by polling
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"]
+    assert "already running" in result.output
+    assert "was not scored" in result.output
+    assert "inspect ctl task score --status" in result.output
+
+    # the terse line carries the not-scored hint too (scripted loops read it)
+    terse = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--terse"]
+    )
+    assert terse.exit_code == 0, terse.output
+    assert "was not scored" in terse.output
+
+
+def test_sample_score_blocked_json_target_names_requested_sample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A blocked start's envelope target is the requested sample, not the blocker's."""
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": False,
+            "dry_run": False,
+            "pass_id": "other-pass",
+            "scope": "sample",
+            "sample_id": "other-sample",
+            "epoch": 2,
+            "reason": (
+                "a sample-scoped scoring pass (sample other-sample, epoch 2) "
+                "is already running for this task"
+            ),
+            "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False
+    assert payload["target"]["sample_id"] == "s1"
+    assert payload["target"]["epoch"] == 1
+
+
+def test_task_score_blocked_by_sample_pass_reports_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`task score` never joins a sample-scoped pass (one sample, no metrics)."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": False,
+            "dry_run": False,
+            "pass_id": "sample-pass",
+            "scope": "sample",
+            "sample_id": "s7",
+            "epoch": 2,
+            "reason": (
+                "a sample-scoped scoring pass (sample s7, epoch 2) is "
+                "already running for this task"
+            ),
+            "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "score", "--no-terse"])
+    assert result.exit_code == 0, result.output
+    # exactly one request — no join, no polling of someone else's pass
+    assert spy.paths == ["/tasks/aaa111/score"]
+    assert "sample-scoped" in result.output and "s7" in result.output
+    assert "joined" not in result.output
+
+
+def test_task_score_status_labels_sample_scoped_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sample-scoped pass is labeled, not rendered as a task-wide result."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _SequenceSpy(
+        [
+            {
+                "ok": True,
+                "pass_id": "sample-pass",
+                "scope": "sample",
+                "sample_id": "s7",
+                "epoch": 2,
+                "running": False,
+                "progress": {"scored": 1, "failed": 0, "unscored": 0, "total": 1},
+                "result": {
+                    "counts": {},
+                    "samples": [
+                        {
+                            "sample_id": "s7",
+                            "epoch": 2,
+                            "disposition": "in_flight",
+                            "outcome": "scored",
+                            "scores": {"match": 1.0},
+                        }
+                    ],
+                    "metrics": None,
+                    "interim": True,
+                },
+            }
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "score", "--status", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "sample-scoped pass" in result.output
+    assert "s7" in result.output
+
+
+def test_sample_score_joins_own_running_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A repeat for the same sample joins its running pass and polls it."""
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    monkeypatch.setattr("inspect_ai._cli.ctl._sample._SAMPLE_SCORE_POLL_INTERVAL", 0)
+    joined = {
+        "ok": True,
+        "changed": False,
+        "dry_run": False,
+        "pass_id": "p1",
+        "scope": "sample",
+        "sample_id": "s1",
+        "epoch": 1,
+        "reason": "a scoring pass is already running for this task",
+        "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+    }
+    final = {
+        "ok": True,
+        "pass_id": "p1",
+        "scope": "sample",
+        "sample_id": "s1",
+        "epoch": 1,
+        "running": False,
+        "progress": {"scored": 1, "failed": 0, "unscored": 0, "total": 1},
+        "result": {
+            "counts": {},
+            "samples": [
+                {
+                    "sample_id": "s1",
+                    "epoch": 1,
+                    "disposition": "in_flight",
+                    "outcome": "scored",
+                    "scores": {"match": 1.0},
+                    "held_seconds": 1.5,
+                }
+            ],
+            "metrics": None,
+            "interim": True,
+        },
+    }
+    spy = _SequenceSpy([joined, final])
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "joined already-running pass p1" in result.output
+    assert "Interim score recorded — match=1.0" in result.output
+
+
 def test_sample_cancel_cancel_action_sent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -6468,6 +7271,43 @@ def test_sample_requeue_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> No
     assert terse.stdout == (
         "requeue t1/s1 (epoch 1): no-op — a re-run is already pending\n"
     )
+
+
+def test_sample_requeue_uncancel_reason_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The un-cancel accept renders its reason, not the resume clause.
+
+    An un-cancelled sample never ran and its parked coroutine keeps its
+    place at the queue, so "re-run from the back of the sample queue" would
+    misdescribe it on both counts (design/ctl/queued-sample-cancel.md).
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    reason = "cancel-before-start withdrawn — the sample will run when it gets a slot"
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "status": "pending",
+            "reason": reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert f"Requeue accepted for sample s1 (epoch 1) — {reason}." in result.stdout
+    assert "back of the sample queue" not in result.stdout
+
+    terse = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
+    assert terse.exit_code == 0, terse.output
+    assert terse.stdout == f"requeue t1/s1 (epoch 1): {reason}\n"
 
 
 def test_sample_requeue_multiple_pairs_bulk_envelope(
@@ -6851,6 +7691,82 @@ def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> Non
     assert result.exit_code == 0, result.output
     assert "already finished" in result.stdout
     assert "status: completed" in result.stdout
+
+
+def test_sample_cancel_queued_reason_wins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The queued cancel rows render their reason, not the generic outcome.
+
+    "It will be recorded as cancelled" would misdescribe a sample that never
+    runs (design/ctl/queued-sample-cancel.md), so the accept renders the
+    server's reason; the "already cancelled" repeat renders its reason too
+    (only the already-finished row gets the status-suffixed message).
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    reason = "cancelled before start — removed from the queue"
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "status": "cancelled",
+            "reason": reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+
+    args = ["sample", "cancel", "aaa111", "s1", "--action", "cancel"]
+    result = cli_runner().invoke(ctl_command, args + ["--no-terse"])
+    assert result.exit_code == 0, result.output
+    assert f"Cancelled sample s1 (epoch 1) — {reason}." in result.stdout
+    assert "will be recorded as cancelled" not in result.stdout
+
+    terse = cli_runner().invoke(ctl_command, args)
+    assert terse.exit_code == 0, terse.output
+    assert terse.stdout == f"cancel t1/s1 (epoch 1): {reason}\n"
+
+    # under --dry-run the server sends a conditional-tense reason, so the
+    # "Would cancel …" line doesn't embed a past-tense mutation
+    dry_reason = (
+        "the sample would be cancelled before it starts and removed from the queue"
+    )
+    dry_spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "dry_run": True,
+            "changed": True,
+            "status": "cancelled",
+            "reason": dry_reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", dry_spy)
+    dry = cli_runner().invoke(ctl_command, args + ["--dry-run", "--no-terse"])
+    assert dry.exit_code == 0, dry.output
+    assert f"Would cancel sample s1 (epoch 1) — {dry_reason}." in dry.stdout
+
+    noop_spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "status": "cancelled",
+            "reason": "already cancelled",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", noop_spy)
+    noop = cli_runner().invoke(ctl_command, args + ["--no-terse"])
+    assert noop.exit_code == 0, noop.output
+    assert "Nothing to do — sample s1 (epoch 1): already cancelled." in noop.stdout
+    assert "has already finished" not in noop.stdout
+
+    terse_noop = cli_runner().invoke(ctl_command, args)
+    assert terse_noop.exit_code == 0, terse_noop.output
+    assert terse_noop.stdout == "cancel t1/s1 (epoch 1): no-op — already cancelled\n"
 
 
 def test_sample_mutation_terse_default_and_flags(
@@ -8550,3 +9466,295 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
         )
         Visitor(module_file.name).visit(tree)
     assert not offenders, f"direct output calls outside _echo/_echo_raw: {offenders}"
+
+
+# --- --log-dir mode: the contract (design/ctl/log-dir-mode.md) ----------------
+#
+# The reads themselves are tested in test_log_dir.py; these pin which commands
+# take `--log-dir` and the mode's error kinds.
+
+# The commands that serve read-only log mode. Adding the option to another
+# command is a decision; this list changes with it.
+_LOG_DIR_COMMANDS = {
+    ("task", "list"),
+    ("sample", "list"),
+    ("sample", "errors"),
+    ("sample", "show"),
+    ("sample", "events"),
+    ("sample", "messages"),
+    ("sample", "store"),
+}
+
+
+def _ctl_leaf_commands(
+    group: click.Group, path: tuple[str, ...] = ()
+) -> list[tuple[tuple[str, ...], click.Command]]:
+    leaves: list[tuple[tuple[str, ...], click.Command]] = []
+    for name, command in sorted(group.commands.items()):
+        if isinstance(command, click.Group):
+            leaves.extend(_ctl_leaf_commands(command, (*path, name)))
+        else:
+            leaves.append(((*path, name), command))
+    return leaves
+
+
+def _leaf_args(command: click.Command) -> list[str]:
+    """A value for each required argument (and one variadic target)."""
+    return [
+        "1"
+        for param in command.params
+        if isinstance(param, click.Argument) and (param.required or param.nargs == -1)
+    ]
+
+
+def test_log_dir_option_is_on_exactly_the_log_dir_commands() -> None:
+    carrying = {
+        path
+        for path, command in _ctl_leaf_commands(ctl_command)
+        if any(param.name == "log_dir" for param in command.params)
+    }
+    assert carrying == _LOG_DIR_COMMANDS
+    # the root group no longer takes it
+    assert all(param.name != "log_dir" for param in ctl_command.params)
+
+
+@pytest.fixture
+def no_log_dir_reads(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail the test on any discovery or storage access."""
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("unexpected discovery or storage access")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", forbidden)
+    monkeypatch.setattr(AsyncFilesystem, "list_dir", forbidden)
+    monkeypatch.setattr(AsyncFilesystem, "read_file_suffix", forbidden)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        path
+        for path, _ in _ctl_leaf_commands(ctl_command)
+        if path not in _LOG_DIR_COMMANDS
+    ],
+    ids=lambda path: " ".join(path),
+)
+def test_other_commands_reject_log_dir_as_a_usage_error(
+    path: tuple[str, ...], tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    command: click.Command = ctl_command
+    for name in path:
+        assert isinstance(command, click.Group)
+        command = command.commands[name]
+    result = cli_runner().invoke(
+        ctl_command,
+        [*path, *_leaf_args(command), "--json", "--log-dir", str(tmp_path)],
+    )
+    # click's ordinary usage error: exit 2, no --json envelope
+    assert result.exit_code == 2, result.output
+    assert re.search(r"No such option\W+--log-dir", result.output)
+    assert result.stdout.strip() == ""
+
+
+def test_log_dir_before_the_command_is_a_usage_error(
+    tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["--log-dir", str(tmp_path), "task", "list", "--json"]
+    )
+    assert result.exit_code == 2
+    assert re.search(r"No such option\W+--log-dir", result.output)
+
+
+def test_log_dir_on_a_noun_group_is_refused_for_a_verb_without_it(
+    tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    # the mirrored `list` option on the bare noun does not reach other verbs
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "--log-dir", str(tmp_path), "cancel", "t", "1", "--json"],
+    )
+    assert result.exit_code == 2
+    assert "does not accept" in result.output
+
+
+@pytest.mark.parametrize(
+    "args",
+    [["task", "--json"], ["task", "--log-dir", "{dir}", "list", "--json"]],
+)
+def test_log_dir_bare_task_noun_lists_the_directory(
+    tmp_path: Path, args: list[str]
+) -> None:
+    argv = [arg.replace("{dir}", str(tmp_path)) for arg in args]
+    if "--log-dir" not in argv:
+        argv += ["--log-dir", str(tmp_path)]
+    result = cli_runner().invoke(ctl_command, argv)
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["tasks"] == [] and payload["incomplete"] is False
+
+
+def test_log_dir_bare_sample_noun_lists_the_directory(tmp_path: Path) -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "--json", "--log-dir", str(tmp_path)]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["samples"] == []
+
+
+def test_log_dir_active_since_is_unsupported(
+    tmp_path: Path, no_log_dir_reads: None
+) -> None:
+    result = cli_runner().invoke(
+        ctl_command,
+        [
+            "sample",
+            "list",
+            "--active-since",
+            "5",
+            "--json",
+            "--log-dir",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "unsupported"
+    assert "--active-since" in error["message"]
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["task", "list"],
+        ["sample", "list"],
+        ["sample", "show", "t", "1"],
+        ["sample", "events", "t", "1"],
+    ],
+)
+def test_log_dir_missing_directory_is_not_found(
+    tmp_path: Path, args: list[str]
+) -> None:
+    missing = tmp_path / "absent"
+    result = cli_runner().invoke(
+        ctl_command, [*args, "--json", "--log-dir", str(missing)]
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "not_found"
+    assert str(missing) in error["message"]
+
+
+def test_log_dir_empty_value_is_a_usage_error() -> None:
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--log-dir", ""])
+    assert result.exit_code == 2
+    assert "must not be empty" in result.output
+
+
+def test_log_dir_storage_failure_is_storage_error_with_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from botocore.exceptions import ClientError
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+
+    response: Any = {
+        "Error": {"Code": "AccessDenied", "Message": "Access Denied"},
+        "ResponseMetadata": {"HTTPStatusCode": 403},
+    }
+
+    async def denied(self: Any, base: str) -> Any:
+        raise ClientError(response, "ListObjectsV2")
+
+    monkeypatch.setattr(AsyncFilesystem, "list_dir", denied)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "list", "--json", "--log-dir", "s3://bucket/run"]
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error == {
+        "kind": "storage_error",
+        "exception": "botocore.ClientError",
+        "message": error["message"],
+        "status": 403,
+    }
+    assert "s3://bucket/run" in error["message"]
+
+
+def test_log_dir_empty_directory_human_output(tmp_path: Path) -> None:
+    result = cli_runner().invoke(ctl_command, ["task", "--log-dir", str(tmp_path)])
+    assert result.exit_code == 0
+    assert result.stdout.strip() == f"No eval logs found in {tmp_path}."
+    assert f"Reading logs in {tmp_path} (read-only, not live" in result.stderr
+
+
+def test_log_dir_live_mode_is_unchanged_without_the_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # no --log-dir: the discovery layer is what `task list` reads
+    calls: list[bool] = []
+
+    def discovered() -> list[Any]:
+        calls.append(True)
+        return []
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", discovered)
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--json"])
+    assert result.exit_code == 0
+    assert calls == [True]
+    assert set(json.loads(result.stdout)) == {"as_of", "tasks"}
+
+
+def _inspect_main(args: list[str], env: dict[str, str]) -> Any:
+    """Invoke ``inspect <args>`` as the entry point does (``INSPECT_`` auto-env)."""
+    from inspect_ai._cli.main import inspect
+
+    return cli_runner().invoke(inspect, args, env=env, auto_envvar_prefix="INSPECT")
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        *sorted(_LOG_DIR_COMMANDS),
+        ("task",),
+        ("sample",),
+        ("task", "cancel"),
+        ("sample", "cancel"),
+    ],
+    ids=lambda path: " ".join(path),
+)
+def test_log_dir_has_no_environment_variable_mirror(
+    path: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the variable click's auto-env would read for this command's option,
+    # plus the mirrored noun's
+    env = {
+        f"INSPECT_CTL_{'_'.join(p.upper() for p in path)}_LOG_DIR": str(tmp_path),
+        f"INSPECT_CTL_{path[0].upper()}_LOG_DIR": str(tmp_path),
+    }
+    discovered: list[bool] = []
+
+    def no_servers() -> list[Any]:
+        discovered.append(True)
+        return []
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", no_servers)
+    command: click.Command = ctl_command
+    for name in path:
+        assert isinstance(command, click.Group)
+        command = command.commands[name]
+    result = _inspect_main(["ctl", *path, *_leaf_args(command), "--json"], env)
+    # live behaviour: the discovery layer is read, and no log-dir banner or
+    # envelope keys appear
+    assert discovered, result.output
+    assert "Reading logs in" not in result.output
+    assert '"incomplete"' not in result.stdout
+
+
+def test_explicit_log_dir_works_through_the_entry_point(tmp_path: Path) -> None:
+    result = _inspect_main(
+        ["ctl", "task", "list", "--json", "--log-dir", str(tmp_path)], {}
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["incomplete"] is False

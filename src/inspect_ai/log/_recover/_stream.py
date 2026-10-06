@@ -43,8 +43,10 @@ from inspect_ai.model._chat_message import ChatMessage
 from ._attachments import StreamingAttachmentStore, write_attachments_field
 from ._reconstruct import (
     EventVersionCollapser,
+    IncompleteAction,
     MessageAccumulator,
     _summary_with_uuid_fallback,
+    in_progress_sample_error,
     recovered_sample_limit,
 )
 
@@ -77,6 +79,7 @@ def _write_sample_streaming(
     *,
     eval_spec: EvalSpec,
     is_in_progress: bool = False,
+    incomplete_action: IncompleteAction = "retry",
     include_events: bool = True,
 ) -> tuple[EvalSampleSummary, dict[str, Any] | None]:
     """Stream-process a single sample's segments and write to a ZIP entry.
@@ -133,11 +136,7 @@ def _write_sample_streaming(
     # Build the error field
     error: EvalError | None = None
     if is_in_progress:
-        error = EvalError(
-            message="CancelledError()",
-            traceback="CancelledError: recovered from crashed eval\n",
-            traceback_ansi="CancelledError: recovered from crashed eval\n",
-        )
+        error = in_progress_sample_error(incomplete_action)
     elif summary.error is not None:
         error = EvalError(
             message=summary.error,
