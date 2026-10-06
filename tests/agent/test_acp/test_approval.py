@@ -1030,6 +1030,10 @@ async def test_human_approver_offers_no_modify_over_acp(
     answers ``modify`` anyway gets a rejection rather than a ``modify``
     decision with no modified call.
     """
+    with caplog.at_level(logging.WARNING):
+        approve = human_approver(["approve", "modify", "reject"])
+    assert "'modify' choice" in caplog.text
+
     sample = _PendingSample()
     session = LiveAcpTransport()
     session._attachable_override = True
@@ -1038,10 +1042,6 @@ async def test_human_approver_offers_no_modify_over_acp(
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
-
-    with caplog.at_level(logging.WARNING):
-        approve = human_approver(["approve", "modify", "reject"])
-    assert "'modify' choice" in caplog.text
 
     result = await approve("please confirm", _make_call(), _make_view(), [])
 
