@@ -1,16 +1,20 @@
+import importlib
 import json
-from collections.abc import Generator
+from collections.abc import AsyncIterator, Generator
+from contextlib import asynccontextmanager
 from subprocess import Popen
-from typing import cast
+from typing import Any, NamedTuple, cast
 from unittest.mock import Mock
 
 import anthropic
 import anyio
+import grpc
 import httpx
 import httpx2
 import openai
 import pytest
 from openai import AuthenticationError, DefaultAsyncHttpxClient
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
 from inspect_ai._util._async import tg_collect
@@ -19,6 +23,7 @@ from inspect_ai._util.registry import _registry, registry_lookup
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks import ApiKeyOverride, Hooks, hooks
 from inspect_ai.model import (
+    BatchConfig,
     ChatMessage,
     ChatMessageUser,
     GenerateConfig,
@@ -29,6 +34,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_info import _get_model_info_direct
 from inspect_ai.model._providers.anthropic import AnthropicAPI
+from inspect_ai.model._providers.grok import GrokAPI
 from inspect_ai.model._providers.openai import OpenAIAPI
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.openrouter import OpenRouterAPI
@@ -719,3 +725,277 @@ async def test_vllm_refresh_during_discovery(
         assert registered is not None and registered.context_length == 4096
     finally:
         await server.aclose(api)
+
+
+# xai_sdk ships no type stubs; going through import_module keeps mypy out of it
+_BATCH_PB2: Any = importlib.import_module("xai_sdk.proto").batch_pb2
+_CHAT_PB2: Any = importlib.import_module("xai_sdk.proto").chat_pb2
+_EMPTY_PB2: Any = importlib.import_module("google.protobuf.empty_pb2")
+
+
+class _GrokBatchServer(grpc.GenericRpcHandler):
+    """xAI batch API stand-in that scripts each batch by its prompt.
+
+    `token` is the key the provider's key hook supplies. The "parallel"
+    batch's status check stays in flight once the "auth" batch exists, until
+    the test sets `refreshed`. The "auth" batch's first status check fails
+    authentication, after which the old key is rejected.
+    """
+
+    def __init__(self, parallel_status: grpc.StatusCode) -> None:
+        self.parallel_status = parallel_status
+        self.parallel_started = anyio.Event()
+        self.refreshed = anyio.Event()
+        self.parallel_added = anyio.Event()
+        self.token = "old-token"
+        self.expired = False
+        self.markers: dict[str, str] = {}
+        self.request_ids: dict[str, str] = {}
+        self.batch_keys: dict[str, list[str]] = {}
+
+    def keys_by_marker(self) -> dict[str, list[list[str]]]:
+        """The keys each prompt's batches were sent with, repeats removed."""
+        seen: dict[str, list[list[str]]] = {}
+        for batch_id, keys in self.batch_keys.items():
+            unique = [key for i, key in enumerate(keys) if i == 0 or keys[i - 1] != key]
+            seen.setdefault(self.markers[batch_id], []).append(unique)
+        return seen
+
+    async def _authenticate(
+        self, batch_id: str, context: grpc.aio.ServicerContext
+    ) -> None:
+        metadata = dict(context.invocation_metadata() or ())
+        key = str(metadata["authorization"]).removeprefix("Bearer ")
+        self.batch_keys.setdefault(batch_id, []).append(key)
+        if self.expired and key == "old-token":
+            await context.abort(grpc.StatusCode.UNAUTHENTICATED, "expired")
+
+    async def _create_batch(
+        self, request: Any, context: grpc.aio.ServicerContext
+    ) -> Any:
+        batch_id = f"batch-{len(self.batch_keys)}"
+        await self._authenticate(batch_id, context)
+        return _BATCH_PB2.Batch(batch_id=batch_id)
+
+    async def _add_batch_requests(
+        self, request: Any, context: grpc.aio.ServicerContext
+    ) -> Any:
+        await self._authenticate(request.batch_id, context)
+        (batch_request,) = request.batch_requests
+        marker = batch_request.completion_request.messages[0].content[0].text
+        self.markers[request.batch_id] = marker
+        self.request_ids[request.batch_id] = batch_request.batch_request_id
+        if marker == "parallel":
+            self.parallel_added.set()
+        return _EMPTY_PB2.Empty()
+
+    async def _get_batch(self, request: Any, context: grpc.aio.ServicerContext) -> Any:
+        batch_id = request.batch_id
+        await self._authenticate(batch_id, context)
+        marker = self.markers[batch_id]
+        pending = _BATCH_PB2.BatchState(num_requests=1, num_pending=1)
+        if marker == "parallel" and not self.parallel_started.is_set():
+            if "auth" not in self.markers.values():
+                return _BATCH_PB2.Batch(batch_id=batch_id, state=pending)
+            self.parallel_started.set()
+            await self.refreshed.wait()
+            if self.parallel_status != grpc.StatusCode.OK:
+                await context.abort(self.parallel_status, "expired")
+        elif marker == "auth" and not self.expired:
+            await self.parallel_started.wait()
+            self.expired = True
+            await context.abort(grpc.StatusCode.UNAUTHENTICATED, "expired")
+        done = _BATCH_PB2.BatchState(num_requests=1, num_success=1)
+        return _BATCH_PB2.Batch(batch_id=batch_id, state=done)
+
+    async def _list_batch_results(
+        self, request: Any, context: grpc.aio.ServicerContext
+    ) -> Any:
+        await self._authenticate(request.batch_id, context)
+        completion = _CHAT_PB2.GetChatCompletionResponse(
+            id="grok-response",
+            outputs=[
+                _CHAT_PB2.CompletionOutput(
+                    index=0,
+                    finish_reason="REASON_STOP",
+                    message=_CHAT_PB2.CompletionMessage(
+                        role=_CHAT_PB2.MessageRole.ROLE_ASSISTANT, content="ok"
+                    ),
+                )
+            ],
+        )
+        return _BATCH_PB2.ListBatchResultsResponse(
+            results=[
+                _BATCH_PB2.BatchResult(
+                    batch_request_id=self.request_ids[request.batch_id],
+                    response=_BATCH_PB2.BatchResultData(completion_response=completion),
+                )
+            ]
+        )
+
+    def service(
+        self, handler_call_details: grpc.HandlerCallDetails
+    ) -> grpc.RpcMethodHandler | None:
+        handlers = {
+            "CreateBatch": (self._create_batch, _BATCH_PB2.CreateBatchRequest),
+            "AddBatchRequests": (
+                self._add_batch_requests,
+                _BATCH_PB2.AddBatchRequestsRequest,
+            ),
+            "GetBatch": (self._get_batch, _BATCH_PB2.GetBatchRequest),
+            "ListBatchResults": (
+                self._list_batch_results,
+                _BATCH_PB2.ListBatchResultsRequest,
+            ),
+        }
+        method = str(handler_call_details.method).rsplit("/", 1)[-1]
+        if method not in handlers:
+            return None
+        handler, request_type = handlers[method]
+        return grpc.unary_unary_rpc_method_handler(
+            handler,
+            request_deserializer=request_type.FromString,
+            response_serializer=lambda response: response.SerializeToString(),
+        )
+
+
+class _GrokBatchProvider(NamedTuple):
+    api: GrokAPI
+    # every xAI client the provider created, with a `closed` flag
+    clients: list[Any]
+
+
+@asynccontextmanager
+async def _grok_batch_provider(
+    monkeypatch: pytest.MonkeyPatch, server: _GrokBatchServer
+) -> AsyncIterator[_GrokBatchProvider]:
+    """A Grok provider on `server` whose key hook supplies `server.token`."""
+    import inspect_ai.model._providers.grok as grok_module
+
+    real_client: Any = importlib.import_module("xai_sdk").AsyncClient
+    clients: list[Any] = []
+
+    def override_api_key(env_var_name: str, value: str) -> str:
+        return server.token
+
+    def recording_client(**kwargs: Any) -> Any:
+        client = real_client(**kwargs)
+        real_close = client.close
+
+        async def close() -> None:
+            client.closed = True
+            await real_close()
+
+        client.closed = False
+        client.close = close
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("inspect_ai.hooks._hooks.override_api_key", override_api_key)
+    monkeypatch.setattr(grok_module, "AsyncClient", recording_client)
+
+    grpc_server = grpc.aio.server()
+    grpc_server.add_generic_rpc_handlers((server,))
+    port = grpc_server.add_insecure_port("127.0.0.1:0")
+    await grpc_server.start()
+    api = GrokAPI(
+        "grok-4.5",
+        api_key=server.token,
+        base_url=f"127.0.0.1:{port}",
+        use_insecure_channel=True,
+    )
+    try:
+        yield _GrokBatchProvider(api, clients)
+    finally:
+        await api.aclose()
+        await grpc_server.stop(None)
+    assert all(client.closed for client in clients)
+
+
+async def _grok_batch_generate(api: GrokAPI, marker: str) -> None:
+    config = GenerateConfig(
+        batch=BatchConfig(
+            size=1,
+            max_size=1,
+            send_delay=0.01,
+            tick=0.01,
+            max_consecutive_check_failures=1,
+        )
+    )
+    result = await api.generate([ChatMessageUser(content=marker)], [], "none", config)
+    output = result[0] if isinstance(result, tuple) else result
+    assert isinstance(output, ModelOutput)
+    assert output.completion == "ok"
+
+
+@skip_if_trio
+@pytest.mark.parametrize(
+    "parallel_status", [grpc.StatusCode.OK, grpc.StatusCode.UNAUTHENTICATED]
+)
+async def test_grok_batch_refresh_preserves_concurrent_batches(
+    monkeypatch: pytest.MonkeyPatch, parallel_status: grpc.StatusCode
+) -> None:
+    """A refresh leaves in-flight batch calls running and sends the new key after.
+
+    The old client is closed once its in-flight call ends, whether that call
+    succeeds or fails.
+    """
+    server = _GrokBatchServer(parallel_status)
+    # whether the old client was closed by the refresh, while the parallel
+    # batch's status check was still running on it
+    closed_at_refresh: list[bool] = []
+    async with _grok_batch_provider(monkeypatch, server) as (api, clients):
+        model = Model(api=api, config=GenerateConfig())
+
+        async def generate(marker: str) -> None:
+            if marker == "auth":
+                await server.parallel_added.wait()
+            try:
+                await _grok_batch_generate(api, marker)
+            except grpc.RpcError as ex:
+                assert ex.code() == grpc.StatusCode.UNAUTHENTICATED
+                server.token = "new-token"
+                await model.before_retry(ex)
+                if marker == "auth":
+                    closed_at_refresh.append(clients[0].closed)
+                    server.refreshed.set()
+                await _grok_batch_generate(api, marker)
+
+        with anyio.fail_after(10):
+            await tg_collect([lambda: generate("parallel"), lambda: generate("auth")])
+        assert server.keys_by_marker() == {
+            "auth": [["old-token"], ["new-token"]],
+            "parallel": [["old-token", "new-token"]]
+            if parallel_status == grpc.StatusCode.OK
+            else [["old-token"], ["new-token"]],
+        }
+        assert closed_at_refresh == [False]
+        assert len(clients) == 2
+        assert clients[0].closed
+        assert not clients[1].closed
+
+
+@skip_if_trio
+async def test_grok_batch_refresh_replaces_idle_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no batch call running, a refresh closes the old client at once.
+
+    A refresh that gets the same key back keeps the current client.
+    """
+    server = _GrokBatchServer(grpc.StatusCode.OK)
+    async with _grok_batch_provider(monkeypatch, server) as (api, clients):
+        with anyio.fail_after(10):
+            await _grok_batch_generate(api, "first")
+            server.token = "new-token"
+            await api.refresh_credentials()
+            old_client_closed = clients[0].closed
+            await api.refresh_credentials()
+            await _grok_batch_generate(api, "second")
+        assert server.keys_by_marker() == {
+            "first": [["old-token"]],
+            "second": [["new-token"]],
+        }
+        assert old_client_closed
+        assert len(clients) == 2
+        assert not clients[1].closed
