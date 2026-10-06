@@ -1123,6 +1123,39 @@ async def test_sandbox_response_filter_sees_refusal_under_fail_on_refusal(
             assert_never(mode)
 
 
+async def test_response_filter_runs_under_bridge_approval_policies() -> None:
+    """Model calls a response filter makes see the bridge's approval policies.
+
+    The bridge applies them to its request filter for the same reason: an active
+    policy is what refuses remote MCP servers the provider would run unapproved.
+    """
+    from inspect_ai.approval import ApprovalPolicy, auto_approver
+    from inspect_ai.approval._apply import have_tool_approval
+
+    seen: list[bool] = []
+
+    async def checking_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        seen.append(have_tool_approval())
+        return None
+
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        approval=[ApprovalPolicy(auto_approver(), "*")],
+        response_filter=checking_filter,
+    )
+    await bridge_generate(
+        bridge,
+        get_model("mockllm/model"),
+        [ChatMessageUser(content="hello")],
+        [],
+        None,
+        GenerateConfig(),
+    )
+    assert seen == [True]
+
+
 BridgePath = Literal["in_process", "sandbox"]
 
 

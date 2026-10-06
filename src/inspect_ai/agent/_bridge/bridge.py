@@ -196,6 +196,7 @@ async def agent_bridge(
         approval=approval,
         allow_remote_mcp=allow_remote_mcp,
         allow_remote_media=True,
+        allow_client_model_names=True,
         response_filter=response_filter,
     )
 
@@ -571,6 +572,7 @@ def init_google_request_patch() -> None:
                     config.web_search,
                     config.code_execution,
                     config.bridge,
+                    requested_model=_google_api_requested_model(path),
                 )
                 import json
 
@@ -618,6 +620,16 @@ def init_google_request_patch() -> None:
 def _google_api_model_name(path: str) -> str | None:
     """Extract model name from Google API path like 'models/inspect:generateContent'."""
     match = re.search(r"models/([^/:]+)", path)
+    return match.group(1) if match else None
+
+
+def _google_api_requested_model(path: str) -> str | None:
+    """Extract the whole model name from a Google API generateContent path.
+
+    Anchored on the operation rather than the first colon, since a model name
+    may contain colons (e.g. 'models/inspect/ollama/llama3:8b:generateContent').
+    """
+    match = re.search(r"models/(.+):generateContent(?:\?.*)?$", path)
     return match.group(1) if match else None
 
 

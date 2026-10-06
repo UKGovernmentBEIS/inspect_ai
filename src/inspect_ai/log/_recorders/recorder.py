@@ -54,6 +54,8 @@ class SeedSamples:
 
     def __init__(self) -> None:
         self.keys: list[SampleIdEpoch] = []
+        # positions in `keys` by string-form key, so a selection costs its own size
+        self._positions: dict[SampleRecordKey, list[int]] = {}
         self._samples: dict[SampleIdEpoch, EvalSample] = {}
         self._fs = AsyncFilesystem()
         self._reader: AsyncZipReader | None = None
@@ -83,6 +85,10 @@ class SeedSamples:
                     self._samples.setdefault((sample.id, sample.epoch), sample)
                 keys = list(self._samples)
         self.keys = keys
+        for position, (id, epoch) in enumerate(keys):
+            self._positions.setdefault(SampleRecordKey(str(id), epoch), []).append(
+                position
+            )
 
     def select(self, keep: set[SampleIdEpoch] | None) -> list[SampleIdEpoch]:
         """The prior keys in ``keep``, in source order (every key when None).
@@ -94,9 +100,10 @@ class SeedSamples:
         if keep is None:
             return list(self.keys)
         wanted = {SampleRecordKey(str(id), epoch) for id, epoch in keep}
-        return [
-            key for key in self.keys if SampleRecordKey(str(key[0]), key[1]) in wanted
-        ]
+        positions = sorted(
+            position for key in wanted for position in self._positions.get(key, [])
+        )
+        return [self.keys[position] for position in positions]
 
     async def read(self, keys: list[SampleIdEpoch]) -> list[EvalSample]:
         """Read a selected batch without retaining Eval bodies between calls."""
@@ -253,13 +260,16 @@ class Recorder(abc.ABC):
         from inspect_ai.log._condense import condense_sample
 
         source = await self.seed_source(eval, prior)
+        selected = source.select(keep)
+        if not selected:
+            return
         existing = {
             SampleRecordKey(str(sample.id), sample.epoch)
             for sample in await self.sample_summaries(eval) or []
         }
         keys = [
             key
-            for key in source.select(keep)
+            for key in selected
             if SampleRecordKey(str(key[0]), key[1]) not in existing
         ]
         # Bound retained bodies as well as concurrent reads: the bulk
