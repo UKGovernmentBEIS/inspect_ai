@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: Overflow recovery no longer drops the sample's input from the recorded conversation, so scorers and the viewer still see the task after a forced compaction.
 - Sample sources: `enqueue_sample(samples, epoch=N)` runs each sample once as epoch `N`, so a source can run one sample repeatedly under its own id.
 - Run config: `eval_config.token_limit_type` from an exported or handwritten run config is applied as the token-limit metering type instead of being rejected as an unknown generate option.
 - Fixed model calls failing before the first sample on Windows systems with a CJK ANSI code page (cp932/936/949/950).
