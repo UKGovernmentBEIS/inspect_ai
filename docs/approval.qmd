@@ -25,7 +25,7 @@ inspect eval browser.py --approval human
 
 This example provides the model with the built-in [web browser](tools-standard.qmd#sec-web-browser) tool and asks it to navigate to a web and perform a search.
 
-The human approver offers approve, reject and terminate by default (`human_approver(choices=...)` changes this). It cannot offer modify, since an operator has no way to enter a modified tool call: if `choices` includes `"modify"`, it is dropped with a warning.
+The human approver offers approve, reject and terminate by default (`human_approver(choices=...)` changes this). It cannot offer modify, since an operator has no way to enter a modified tool call: if `choices` includes `"modify"`, it is dropped with a warning, and if `"modify"` is the only choice, `human_approver()` raises an error.
 
 ## Auto Approver
 

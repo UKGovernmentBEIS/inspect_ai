@@ -25,13 +25,22 @@ def human_approver(
 
     Returns:
        Approver: Interactive human approver.
+
+    Raises:
+       ValueError: If "modify" is the only choice.
     """
     if "modify" in choices:
+        choices = [choice for choice in choices if choice != "modify"]
+        if not choices:
+            raise ValueError(
+                "The human approver does not support the 'modify' choice (a human "
+                "cannot supply a modified tool call). Choose at least one of "
+                "'approve', 'reject', 'terminate' or 'escalate'."
+            )
         logger.warning(
             "The human approver does not support the 'modify' choice (a human "
             "cannot supply a modified tool call), so it will not be offered."
         )
-        choices = [choice for choice in choices if choice != "modify"]
 
     async def approve(
         message: str,

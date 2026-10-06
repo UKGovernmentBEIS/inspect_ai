@@ -761,5 +761,12 @@ async def test_human_approver_drops_modify_from_choices(
     assert presented == [["approve", "reject"]]
 
 
+def test_human_approver_rejects_modify_as_the_only_choice() -> None:
+    from inspect_ai.approval._human.approver import human_approver
+
+    with pytest.raises(ValueError, match="does not support the 'modify' choice"):
+        human_approver(["modify"])
+
+
 if __name__ == "__main__":
     test_approve_escalate()
