@@ -2674,6 +2674,11 @@ def _web_search_tool_params(
         )
 
     if maybe_anthropic_options:
+        if "allowed_callers" in maybe_anthropic_options:
+            web_search_tool["allowed_callers"] = maybe_anthropic_options[
+                "allowed_callers"
+            ]
+            web_fetch_tool["allowed_callers"] = web_search_tool["allowed_callers"]
         if "allowed_domains" in maybe_anthropic_options:
             web_search_tool["allowed_domains"] = maybe_anthropic_options[
                 "allowed_domains"
