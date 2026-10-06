@@ -34,7 +34,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import Model, active_model, get_model, model_roles
+from inspect_ai.model._model import active_model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.review._human import (
     _escape_placeholders,
@@ -289,7 +289,7 @@ class _Host:
         self,
         input: str | list[ChatMessage],
         *,
-        model: str | Model | None = None,
+        model: str | None = None,
         role: str | None = None,
         tools: list[ToolInfo] | None = None,
         config: GenerateConfig | None = None,
