@@ -1286,19 +1286,8 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
 
         named_params.add(param_name)
 
-        # Parse docstring
-        docstring_info = parse_docstring(docstring, param_name)
-
         # get type hint (fallback to docstring as required)
-        type_hint: Type[Any] | None = None
-        if param_name in type_hints:
-            type_hint = type_hints[param_name]
-        # as a fallback try to parse it from the docstring
-        elif "docstring_type" in docstring_info:
-            docstring_type = docstring_info["docstring_type"]
-            import builtins
-
-            type_hint = getattr(builtins, docstring_type, None)
+        type_hint = param_type_hint(param_name, type_hints, docstring)
 
         # error if there is no type_hint
         if type_hint is None:
@@ -1317,14 +1306,34 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
             )
 
     # pass the remaining arguments (e.g. ones declared by an explicit tool
-    # schema) through to **kwargs, converted using its annotation if present
+    # schema) through to **kwargs, converted using its annotation or
+    # docstring type if present
     if var_keyword is not None:
-        kwargs_type: Any = type_hints.get(var_keyword.name, Any)
+        kwargs_type: Any = (
+            param_type_hint(var_keyword.name, type_hints, docstring) or Any
+        )
         for name, value in input.items():
             if name not in named_params:
                 params[name] = tool_param(kwargs_type, value)
 
     return params
+
+
+def param_type_hint(
+    param_name: str, type_hints: dict[str, Type[Any]], docstring: str | None
+) -> Type[Any] | None:
+    # prefer the annotation
+    if param_name in type_hints:
+        return type_hints[param_name]
+
+    # as a fallback try to parse it from the docstring
+    docstring_info = parse_docstring(docstring, param_name)
+    if "docstring_type" in docstring_info:
+        import builtins
+
+        return getattr(builtins, docstring_info["docstring_type"], None)
+
+    return None
 
 
 def tool_param(type_hint: Type[Any], input: Any) -> Any:

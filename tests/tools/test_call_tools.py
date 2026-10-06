@@ -600,16 +600,23 @@ async def test_tool_with_varargs_only():
 
 
 async def _execute_with_schema(
-    execute: Any, properties: list[str], arguments: dict[str, Any]
+    execute: Any,
+    properties: list[str],
+    arguments: dict[str, Any],
+    types: dict[str, Any] | None = None,
 ) -> ChatMessageTool:
     # explicit schema: string properties except `x`, which is an integer
+    # (unless overridden by `types`)
+    types = types or {}
     tool_def = ToolDef(
         execute,
         name="schema_tool",
         description="Tool with an explicit schema.",
         parameters=ToolParams(
             properties={
-                name: ToolParam(type="integer" if name == "x" else "string")
+                name: ToolParam(
+                    type=types.get(name, "integer" if name == "x" else "string")
+                )
                 for name in properties
             },
             required=properties,
@@ -650,3 +657,33 @@ async def test_tool_explicit_schema_kwargs_with_named_params():
         {"x": 1, "label": "first", "mode": "fast"},
     )
     assert message.content == f"1_()_{ {'label': 'first', 'mode': 'fast'}!r}"
+
+
+async def test_tool_explicit_schema_kwargs_docstring_float():
+    # **options documented (not annotated) as float converts its values
+    async def execute(**options) -> str:
+        """Return the hexadecimal representation of a number.
+
+        Args:
+            options (float): Number to format.
+        """
+        return str(options["options"].hex())
+
+    message = await _execute_with_schema(
+        execute, ["options"], {"options": 2}, types={"options": "number"}
+    )
+    assert message.content == (2.0).hex()
+
+
+async def test_tool_explicit_schema_kwargs_docstring_int():
+    # **options documented (not annotated) as int converts its values
+    async def execute(**options) -> str:
+        """Increment a number.
+
+        Args:
+            options (int): Number to increment.
+        """
+        return str(options["options"] + 1)
+
+    message = await _execute_with_schema(execute, ["options"], {"options": "2"})
+    assert message.content == "3"
