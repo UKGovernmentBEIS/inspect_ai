@@ -502,23 +502,29 @@ async def _apply_response_filter(
 
 
 def _detach_changed_messages(original: ModelOutput, filtered: ModelOutput) -> None:
-    """Give a message the filter changed a new id.
+    """Give a changed message that keeps no server tool items a new id.
 
-    Dialects key replay state by message id as well as by content. Anthropic
-    server work still pending when the turn ended has no content item, so the
-    filter cannot see it, and it is replayed for the message's id: kept, it
-    would reach the agent alongside a replacement that does not contain it.
-    Content-keyed replay state (server tool items kept unchanged, signed thinking)
-    does not depend on the message id.
+    Dialects key some replay state by message id. Anthropic records server work
+    still pending at the end of a turn (and the container to resume it) under the
+    message id; work with no content item yet is invisible to the filter. Server
+    tool items are kept all or none (`_check_provider_owned_content`), so a
+    message that keeps them keeps its id and all of that work with it, while one
+    that keeps none gets a new id and drops it. Content-keyed replay state (kept
+    server tool items, signed thinking) does not depend on the message id.
     """
     original_messages = [choice.message for choice in original.choices]
     original_ids = {message.id for message in original_messages if message.id}
     for choice in filtered.choices:
+        message = choice.message
         if (
-            choice.message.id in original_ids
-            and choice.message not in original_messages
+            message.id in original_ids
+            and message not in original_messages
+            and not (
+                isinstance(message.content, list)
+                and any(isinstance(c, ContentToolUse) for c in message.content)
+            )
         ):
-            choice.message.id = uuid()
+            message.id = uuid()
 
 
 def _check_provider_owned_content(original: ModelOutput, filtered: ModelOutput) -> None:

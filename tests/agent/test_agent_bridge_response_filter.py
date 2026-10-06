@@ -1302,6 +1302,7 @@ async def _anthropic_output(
     blocks: list[dict[str, Any]],
     tools: list[ToolInfo] | None = None,
     stop_reason: str = "end_turn",
+    container: str | None = None,
 ) -> ModelOutput:
     """Parse an Anthropic response, recording its replay state for this sample."""
     from anthropic.types import Message
@@ -1317,6 +1318,9 @@ async def _anthropic_output(
             "content": blocks,
             "stop_reason": stop_reason,
             "usage": {"input_tokens": 1, "output_tokens": 1},
+            "container": {"id": container, "expires_at": "2026-10-06T12:00:00Z"}
+            if container is not None
+            else None,
         }
     )
     output, _ = await model_output_from_message(
@@ -1602,6 +1606,179 @@ async def test_response_filter_replacement_drops_pending_server_work(
         assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
     # the provider's output and its replay record are untouched
     assert await _render_anthropic(provider_output.message) == original_blocks
+
+
+CONTAINER_ID = "container_probe"
+NESTED_PENDING_CE_ID = "srvtoolu_ce_pending"
+NESTED_WS_ID = "srvtoolu_ws_nested"
+
+
+async def _nested_pending_output() -> ModelOutput:
+    """A completed web search nested in a code execution that is still pending."""
+    caller = {"type": "code_execution_20260120", "tool_id": NESTED_PENDING_CE_ID}
+    return await _anthropic_output(
+        [
+            {"type": "text", "text": "Checking."},
+            {
+                "type": "server_tool_use",
+                "id": NESTED_PENDING_CE_ID,
+                "name": "code_execution",
+                "input": {"code": PENDING_CODE},
+                "caller": {"type": "direct"},
+            },
+            {
+                "type": "server_tool_use",
+                "id": NESTED_WS_ID,
+                "name": "web_search",
+                "input": {"query": "nhl scores"},
+                "caller": caller,
+            },
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": NESTED_WS_ID,
+                "content": [
+                    {
+                        "type": "web_search_result",
+                        "title": "NHL Scores",
+                        "url": "https://nhl.com/scores",
+                        "encrypted_content": "ENCRYPTED_CONTENT",
+                    }
+                ],
+                "caller": caller,
+            },
+            {
+                "type": "tool_use",
+                "id": "toolu_client",
+                "name": "lookup",
+                "input": {"q": "x"},
+            },
+        ],
+        [ToolInfo(name="lookup", description="Look something up.")],
+        stop_reason="tool_use",
+        container=CONTAINER_ID,
+    )
+
+
+@approver
+def _rejecting_approver() -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        return Approval(decision="reject", explanation="Not allowed.")
+
+    return approve
+
+
+async def _text_edit_filter(
+    model: Model, output: ModelOutput, generate_input: GenerateInput
+) -> ModelOutput | None:
+    """Edit the first text item, keeping every other item."""
+    if not isinstance(output.message.content, list):
+        return None
+    for item in output.message.content:
+        if isinstance(item, ContentText):
+            item.text = REPLACED_SENTINEL
+            break
+    return output
+
+
+@pytest.mark.parametrize("path", get_args(BridgePath))
+@pytest.mark.parametrize("edit", [False, True], ids=["unchanged", "text_edit"])
+async def test_response_filter_keeps_pending_work_with_its_server_items(
+    edit: bool, path: BridgePath
+) -> None:
+    """A message that keeps its server tool items keeps their pending work.
+
+    The completed nested search anchors the span, but its parent code execution
+    is still pending, so a follow-up request must name the container recorded
+    under the message id. An approval rejection replays the filtered message to
+    the model, which must still resolve that container.
+    """
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _nested_pending_output()
+    original_blocks = await _render_anthropic(provider_output.message)
+    assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
+
+    retry_inputs: list[list[ChatMessage]] = []
+
+    def serve(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        if not retry_inputs and not any(
+            isinstance(m, ChatMessageAssistant) for m in input
+        ):
+            retry_inputs.append([])
+            return provider_output
+        retry_inputs.append(list(input))
+        return ModelOutput.from_content("mockllm/model", "done")
+
+    model = get_model("mockllm/model", custom_outputs=serve)
+    response_filter = _text_edit_filter if edit else _identity_filter
+    approval = [ApprovalPolicy(_rejecting_approver(), "lookup")]
+
+    match path:
+        case "in_process":
+            bridge = AgentBridge(
+                AgentState(messages=[]),
+                approval=approval,
+                response_filter=response_filter,
+            )
+            await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content="hi")],
+                [],
+                None,
+                GenerateConfig(),
+            )
+        case "sandbox":
+            sandbox_bridge = SandboxAgentBridge(
+                state=AgentState(messages=[]),
+                filter=None,
+                retry_refusals=None,
+                compaction=None,
+                port=13131,
+                model=None,
+                model_aliases={"inspect": model},
+                approval=approval,
+                response_filter=response_filter,
+            )
+            reply = await _forward_provider_errors(
+                generate_anthropic(None, None, sandbox_bridge), sandbox_bridge
+            )(
+                {
+                    "model": "inspect",
+                    "max_tokens": 1024,
+                    "messages": CHAT_REQUEST["messages"],
+                }
+            )
+            assert PROVIDER_ERROR_KEY not in reply
+        case _:
+            assert_never(path)
+
+    # the rejection retried with the filtered message, pending work and all
+    assert len(retry_inputs) == 2
+    retry_input = retry_inputs[1]
+    assert _pending_container_for_input(retry_input) == CONTAINER_ID
+    replayed = next(
+        m for m in reversed(retry_input) if isinstance(m, ChatMessageAssistant)
+    )
+    replayed_blocks = await _render_anthropic(replayed)
+    assert PENDING_CODE in json.dumps(replayed_blocks)
+    assert {b.get("id") for b in replayed_blocks} >= {
+        NESTED_PENDING_CE_ID,
+        NESTED_WS_ID,
+    }
+    if edit:
+        assert REPLACED_SENTINEL in [b.get("text") for b in replayed_blocks]
+    # the provider's output and its replay record are untouched
+    assert await _render_anthropic(provider_output.message) == original_blocks
+    assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
 
 
 class NativeTool(NamedTuple):

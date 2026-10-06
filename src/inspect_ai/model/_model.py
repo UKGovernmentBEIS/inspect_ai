@@ -2157,10 +2157,10 @@ dicts, and ``completion`` is re-derived from the message. Reasoning
 (``ContentReasoning``) and server tool items (``ContentToolUse``) can only be
 kept unchanged or removed, and server tool items are kept all or none. A tool
 call that keeps an original call's ``id`` keeps its ``function``; give a call to
-a different function a new ``id``. A message the filter changes gets a new
-``id``, so replay state keyed by the old one (such as Anthropic server work still
-pending at the end of the turn, which has no content item) is not sent with the
-replacement. The filter also receives a model refusal
+a different function a new ``id``. Server work still pending at the end of the
+turn (Anthropic) goes with the server tool items: a message that keeps them keeps
+it, and a changed message that keeps none gets a new ``id`` and drops it. The
+filter also receives a model refusal
 under ``fail_on_refusal`` (from the default generation or a request ``filter``
 that generates), before it is retried or raised, and can replace it. An output
 still ``stop_reason="content_filter"``
