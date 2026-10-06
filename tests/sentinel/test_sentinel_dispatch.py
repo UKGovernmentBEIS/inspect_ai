@@ -11,7 +11,7 @@ from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.agent import as_solver, as_tool, handoff, react
+from inspect_ai.agent import as_solver, as_tool, deepagent, handoff, react, subagent
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
@@ -37,8 +37,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
-from inspect_ai.scorer import Reference
-from inspect_ai.solver import generate, use_tools
+from inspect_ai.scorer import Reference, Score, Scorer, Target, scorer
+from inspect_ai.solver import TaskState, generate, use_tools
 from inspect_ai.tool import Tool, ToolCall, ToolCallView, ToolResult, tool
 from inspect_ai.util import StoreModel
 from inspect_ai.util._limit import LimitExceededError
@@ -1036,6 +1036,88 @@ def test_sentinel_errors_in_a_sub_agent_fail_the_sample(
         for message in log.samples[0].messages
         if isinstance(message, ChatMessageTool)
     )
+
+
+def test_sentinel_errors_in_a_background_sub_agent_fail_the_sample() -> None:
+    helper_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="addition", tool_arguments={"x": 2, "y": 3}
+            ),
+            ModelOutput.from_content("mockllm/model", content="helper done"),
+        ],
+        memoize=False,
+    )
+    helper = subagent(
+        name="helper",
+        description="A helper agent.",
+        prompt="You are a helper.",
+        model=helper_model,
+        extra_tools=[addition()],
+    )
+    parent_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="agent",
+                tool_arguments={"prompt": "add 2 and 3", "background": True},
+            ),
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="agent_wait",
+                tool_arguments={"agent_ids": ["AGENT-1"]},
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    error = PermissionError("sentinel denied")
+    task = Task(
+        dataset=[Sample(input="What is 2 + 3?", target="5")],
+        solver=deepagent(subagents=[helper], background=True),
+        sentinel=[d3_raising_in_helper(error)],
+        message_limit=30,
+    )
+    log = eval(task, model=parent_model)[0]
+    assert log.status == "error"
+    assert log.samples
+    sample_error = log.samples[0].error
+    assert sample_error is not None
+    assert sample_error.message == "PermissionError('sentinel denied')"
+
+
+@scorer(metrics=[])
+def adds_with_tools() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        message = ChatMessageAssistant(
+            content="",
+            tool_calls=[
+                ToolCall(
+                    id="score_call", function="addition", arguments={"x": 1, "y": 2}
+                )
+            ],
+        )
+        await execute_tools([message], [addition()])
+        return Score(value=1)
+
+    return score
+
+
+def test_sentinel_errors_in_a_scorer_report_the_original_exception() -> None:
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=generate(),
+        scorer=adds_with_tools(),
+        sentinel=[d3_raising(PermissionError("sentinel denied"))],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "error"
+    assert log.samples
+    sample_error = log.samples[0].error
+    assert sample_error is not None
+    assert sample_error.message == "PermissionError('sentinel denied')"
 
 
 @pytest.mark.parametrize("after", [False, True])
