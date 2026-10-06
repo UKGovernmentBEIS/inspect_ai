@@ -18,7 +18,7 @@ from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
-from inspect_ai.event import SentinelEvent
+from inspect_ai.event import SentinelEvent, SpanBeginEvent, ToolEvent
 from inspect_ai.log import (
     EvalConfig,
     EvalLog,
@@ -26,10 +26,15 @@ from inspect_ai.log import (
     SentinelEntry,
     read_eval_log,
 )
-from inspect_ai.model import ChatMessageAssistant, GenerateConfig
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    GenerateConfig,
+    ModelOutput,
+    get_model,
+)
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._model import ModelName
-from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, ToolCall, tool
 
 try:
@@ -120,9 +125,30 @@ def test_task_sentinel_is_recorded_and_active() -> None:
 
 
 def test_no_sentinel_leaves_the_config_empty() -> None:
-    log = eval(sentinel_task(), model="mockllm/model")[0]
+    task = Task(
+        dataset=[Sample(input="x", target="y")],
+        solver=[record_sentinel(), use_tools(addition()), generate()],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model", tool_name="addition", tool_arguments={"x": 1, "y": 2}
+            ),
+            ModelOutput.from_content("mockllm/model", content="done"),
+        ],
+        memoize=False,
+    )
+    log = eval(task, model=model)[0]
     assert log.eval.config.sentinel is None
     assert active_root(log) is None
+    assert log.samples
+    events = log.samples[0].events
+    assert [e.result for e in events if isinstance(e, ToolEvent)] == ["3"]
+    assert not any(isinstance(e, SentinelEvent) for e in events)
+    assert not any(
+        isinstance(e, SpanBeginEvent) and e.type == "sentinel" for e in events
+    )
 
 
 def test_observe_only_records_monitors_with_nothing_acting() -> None:

@@ -12,6 +12,7 @@ from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel
 from inspect_ai._sentinel._context import init_sentinel
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import as_solver, as_tool, handoff, react
+from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     Event,
@@ -31,12 +32,14 @@ from inspect_ai.model import (
     GenerateConfig,
     Model,
     ModelOutput,
+    ModelUsage,
     get_model,
 )
 from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import Reference
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import Tool, ToolCall, ToolCallView, tool
+from inspect_ai.tool import Tool, ToolCall, ToolCallView, ToolResult, tool
 from inspect_ai.util import StoreModel
 from inspect_ai.util._limit import LimitExceededError
 
@@ -468,6 +471,101 @@ def test_terminate_after_a_handoff_ends_the_sample() -> None:
     [event] = [e for e in sentinel_events(log) if e.action == "terminate"]
     assert event.stage == "tool_result"
     assert event.step_id == handoff_call_id(log)
+
+
+@approver
+def d3_approver(
+    seen: list[ToolCall], decision: str = "approve", x: int | None = None
+) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        seen.append(call)
+        if decision == "modify":
+            return Approval(
+                decision="modify",
+                modified=replace(call, arguments={**call.arguments, "x": x}),
+            )
+        return Approval(decision="reject" if decision == "reject" else "approve")
+
+    return approve
+
+
+@reviewer
+def d3_terminating_reviewer() -> Reviewer:
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        return Review(decision="terminate", explanation="reviewer stopped it")
+
+    return review_
+
+
+def run_with(sentinel: Any, **task_kwargs: Any) -> EvalLog:
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition()), generate()],
+        sentinel=sentinel,
+        **task_kwargs,
+    )
+    return eval(task, model=agent_model())[0]
+
+
+def test_an_approvers_modify_reaches_the_sentinel() -> None:
+    approved: list[ToolCall] = []
+    seen: Seen = []
+    log = run_with(
+        observe_only([d3_recording(seen)]),
+        approval=[ApprovalPolicy(d3_approver(approved, "modify", x=7), "*")],
+    )
+    assert log.status == "success", log.error
+    assert [call.arguments for call in approved] == [{"x": 1, "y": 1}]
+    assert [step.call.arguments for _, step in seen] == [{"x": 7, "y": 1}]
+    [message] = tool_messages(log)
+    assert message.text == "8"
+
+
+def test_an_approval_reject_skips_the_sentinel() -> None:
+    approved: list[ToolCall] = []
+    seen: Seen = []
+    log = run_with(
+        observe_only([d3_recording(seen), d3_suspicion()]),
+        approval=[ApprovalPolicy(d3_approver(approved, "reject"), "*")],
+    )
+    assert log.status == "success", log.error
+    assert len(approved) == 1
+    assert seen == []
+    assert sentinel_events(log) == []
+    [message] = tool_messages(log)
+    assert message.error is not None and message.error.type == "approval"
+
+
+def test_a_sentinel_modify_is_not_re_approved() -> None:
+    approved: list[ToolCall] = []
+    log = run_with(d3_modify(), approval=[ApprovalPolicy(d3_approver(approved), "*")])
+    assert log.status == "success", log.error
+    assert [call.arguments for call in approved] == [{"x": 1, "y": 1}]
+    [message] = tool_messages(log)
+    assert message.text == "30"
+
+
+def test_a_review_terminate_skips_the_after_call_sentinel() -> None:
+    log = run_with(
+        observe_only([d3_trajectory()]),
+        review=[ReviewPolicy(d3_terminating_reviewer(), "*")],
+    )
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is not None and sample.limit.type == "operator"
+    assert [e for e in sentinel_events(log) if e.stage == "tool_result"] == []
+    # without the review, the after-call sentinel reports
+    after = sentinel_events(run_with(observe_only([d3_trajectory()])))
+    assert [e.stage for e in after] == ["tool_result"]
 
 
 def test_observe_only_records_observations_without_effect() -> None:
@@ -1014,6 +1112,27 @@ def test_host_generate_uses_a_named_role() -> None:
     assert log.samples
     roles = [e.role for e in log.samples[0].events if isinstance(e, ModelEvent)]
     assert roles.count("trusted") == 1
+
+
+def test_sentinel_inference_is_not_charged_to_the_sample_limits() -> None:
+    expensive = ModelOutput.from_content("mockllm/model", content="0.25")
+    expensive.usage = ModelUsage(
+        input_tokens=50_000, output_tokens=50_000, total_tokens=100_000
+    )
+    trusted = get_model("mockllm/model", custom_outputs=[expensive], memoize=False)
+    log = run(
+        observe_only([d3_asks_with(role="trusted")]),
+        model_roles={"trusted": trusted},
+        token_limit=10_000,
+        turn_limit=2,
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is None
+    [event] = sentinel_events(log)
+    assert event.suspicion == 0.25
+    assert [m.text for m in sample.messages][-1] == "done"
 
 
 def test_host_generate_model_is_always_a_model_name() -> None:
