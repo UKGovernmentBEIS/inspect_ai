@@ -17,6 +17,7 @@ description: Model interface and providers.
 ### ModelOutput
 ### ModelConfig
 ### ModelCall
+### ModelRequestId
 ### ModelConversation
 ### ModelUsage
 ### StopReason
@@ -24,6 +25,7 @@ description: Model interface and providers.
 ### OutputModality
 ### ImageOutput
 ### RetryDecision
+### ServedModelUsage
 
 ## Streaming
 

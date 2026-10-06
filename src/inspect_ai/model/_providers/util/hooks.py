@@ -1,10 +1,12 @@
 import re
 import time
+from contextlib import contextmanager
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Iterator,
     Literal,
     Mapping,
     NamedTuple,
@@ -29,6 +31,15 @@ logger = getLogger(__name__)
 # Classification of the most recent response for retry-reporting purposes.
 # `None` means "infer from HTTP status" (default: status==429 is rate_limit).
 RetryKind = Literal["rate_limit", "transient"]
+
+# Request id headers (OpenAI and compatible APIs, Anthropic, AWS, Mistral). All
+# present are recorded, as gateways can add their own.
+_REQUEST_ID_HEADERS = (
+    "x-request-id",
+    "request-id",
+    "x-amzn-requestid",
+    "mistral-correlation-id",
+)
 
 
 class RequestInfo(NamedTuple):
@@ -80,10 +91,20 @@ class HttpHooks:
         # unattributed in the throughput registry.
         self._api = api
 
-    def start_request(self) -> str:
+    def _start_request(self) -> str:
+        """Register a request and return its id.
+
+        Use `request()` instead, which also removes the entry when the
+        request ends.
+        """
         request_id = uuid()
         self._requests[request_id] = RequestInfo(0, time.monotonic())
         return request_id
+
+    def restart_request(self, request_id: str) -> None:
+        """Count the next attempt as a new request, not a retry (e.g. a fallback)."""
+        if request_id in self._requests:
+            self._requests[request_id] = RequestInfo(0, time.monotonic())
 
     def end_request(self, request_id: str) -> float:
         # read the request info (if available) and purge from dict
@@ -94,6 +115,21 @@ class HttpHooks:
 
         # return elapsed time
         return time.monotonic() - request_info.last_request
+
+    @contextmanager
+    def request(self) -> Iterator[str]:
+        """Track a request for the duration of the block.
+
+        This is how providers register a request. Yields a new request id,
+        and removes its entry when the block exits, including when the
+        request raises or is cancelled. Call `end_request()` inside the block
+        to read the elapsed time; the exit then has nothing left to remove.
+        """
+        request_id = self._start_request()
+        try:
+            yield request_id
+        finally:
+            self._requests.pop(request_id, None)
 
     def record_response(
         self,
@@ -107,7 +143,8 @@ class HttpHooks:
 
         Called from response_hook so that the next request_hook (when this
         attempt is retried) can classify the retry based on what the previous
-        attempt actually returned.
+        attempt actually returned. Request ids in the headers are added to the
+        active model event's `request_ids`.
 
         Args:
             request_id: The Inspect request id (from User-Agent / header).
@@ -124,6 +161,13 @@ class HttpHooks:
         info = self._requests.get(request_id)
         if info is None:
             return
+        if headers is not None:
+            from inspect_ai.log._samples import report_active_model_request_id
+
+            lowered = {name.lower(): value for name, value in headers.items()}
+            for header in _REQUEST_ID_HEADERS:
+                if value := lowered.get(header):
+                    report_active_model_request_id(value, header, status)
         # Convert the relative Retry-After to an absolute monotonic deadline
         # so any SDK-side backoff between now and the next retry is accounted
         # for when we report remaining seconds to the controller. The
@@ -207,14 +251,16 @@ class ConverseHooks(HttpHooks):
         #     the *next* retry's classification. (after-call fires only once
         #     at the end of all SDK-internal retries, so it would miss the
         #     per-attempt 429s that botocore swallows via adaptive retry.)
-        session.register(
-            "request-created.bedrock-runtime.Converse",
-            self.converse_request_created,
-        )
-        session.register(
-            "response-received.bedrock-runtime.Converse",
-            self.converse_response_received,
-        )
+        # Streaming generates use the separate ConverseStream operation.
+        for operation in ("Converse", "ConverseStream"):
+            session.register(
+                f"request-created.bedrock-runtime.{operation}",
+                self.converse_request_created,
+            )
+            session.register(
+                f"response-received.bedrock-runtime.{operation}",
+                self.converse_response_received,
+            )
 
     def converse_request_created(self, **kwargs: Any) -> None:
         request = kwargs.get("request")

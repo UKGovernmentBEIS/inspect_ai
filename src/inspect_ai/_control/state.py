@@ -36,6 +36,7 @@ from __future__ import annotations
 import time
 from collections import defaultdict
 from functools import partial
+from itertools import chain
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from inspect_ai._util._async import tg_collect
@@ -319,8 +320,9 @@ async def current_sample_summaries(
       (eval finished / torn down) — read once and memoized on the state
       (see :func:`completed_eval_sample_summaries`).
     - **pending** ← synthesized from the eval's registered planned
-      ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``)
-      that aren't yet running or done — no live source holds these.
+      ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``
+      and ``EvalState.sample_epochs``) that aren't yet running or done — no
+      live source holds these.
 
     Merged and deduped by ``(sample_id, epoch)``; a terminal record
     (completed / error) supersedes a running one, which supersedes a
@@ -525,13 +527,17 @@ def _add_pending_samples(
     from inspect_ai._control.eval_state import get_eval_state
 
     state = get_eval_state(eval_id)
-    if state is None or not state.sample_ids:
+    if state is None:
         return
-    for sample_id in state.sample_ids:
-        for epoch in range(1, max(1, state.epochs) + 1):
-            key = (sample_id, epoch)
-            if key not in by_key:
-                by_key[key] = _pending_summary(sample_id, epoch)
+    planned = (
+        (sample_id, epoch)
+        for sample_id in state.sample_ids
+        for epoch in range(1, max(1, state.epochs) + 1)
+    )
+    for sample_id, epoch in chain(planned, state.sample_epochs):
+        key = (sample_id, epoch)
+        if key not in by_key:
+            by_key[key] = _pending_summary(sample_id, epoch)
 
 
 def _pending_requeue_keys(eval_id: str) -> frozenset[SampleKey]:
