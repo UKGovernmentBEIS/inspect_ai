@@ -1,0 +1,367 @@
+import uuid
+from typing import Any, Literal, Type, TypeVar
+
+from pydantic import BaseModel, Field, JsonValue, model_validator
+
+from ._chat_message import ChatMessage, ChatMessageAssistant
+from ._content import Content
+from ._tool_call import ToolCall
+
+_T = TypeVar("_T", int, float)
+
+
+class ModelUsage(BaseModel):
+    """Token usage for completion."""
+
+    input_tokens: int = Field(default=0)
+    """Input tokens charged at full rate (excludes cached tokens).
+
+    This count excludes tokens reported in input_tokens_cache_read and
+    input_tokens_cache_write. The true total input token count is:
+    input_tokens + (input_tokens_cache_read or 0) + (input_tokens_cache_write or 0).
+    """
+
+    output_tokens: int = Field(default=0)
+    """Total output tokens used."""
+
+    total_tokens: int = Field(default=0)
+    """Total tokens used."""
+
+    input_tokens_cache_write: int | None = Field(default=None)
+    """Number of tokens written to the cache."""
+
+    input_tokens_cache_read: int | None = Field(default=None)
+    """Number of tokens retrieved from the cache."""
+
+    reasoning_tokens: int | None = Field(default=None)
+    """Number of tokens used for reasoning."""
+
+    total_cost: float | None = Field(default=None)
+    """Total cost in dollars for this usage."""
+
+    def __add__(self, other: "ModelUsage") -> "ModelUsage":
+        def optional_sum(a: _T | None, b: _T | None) -> _T | None:
+            if a is not None and b is not None:
+                return a + b
+            if a is not None:
+                return a
+            if b is not None:
+                return b
+            return None
+
+        return ModelUsage(
+            input_tokens=self.input_tokens + other.input_tokens,
+            output_tokens=self.output_tokens + other.output_tokens,
+            total_tokens=self.total_tokens + other.total_tokens,
+            input_tokens_cache_write=optional_sum(
+                self.input_tokens_cache_write, other.input_tokens_cache_write
+            ),
+            input_tokens_cache_read=optional_sum(
+                self.input_tokens_cache_read, other.input_tokens_cache_read
+            ),
+            reasoning_tokens=optional_sum(
+                self.reasoning_tokens, other.reasoning_tokens
+            ),
+            total_cost=optional_sum(self.total_cost, other.total_cost),
+        )
+
+
+class ModelFallback(BaseModel):
+    """A model fallback (request served by a different model than requested)."""
+
+    model: str
+    """Model that was originally requested."""
+
+    fallback_model: str
+    """Model that served the request after fallback."""
+
+    count: int = Field(default=1)
+    """Number of generate calls served via this fallback.
+
+    Always 1 on a single `ModelOutput`; aggregated in the sample-level
+    `model_fallbacks` rollup.
+    """
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Provider-specific fallback diagnostics (e.g. Anthropic handoffs/iterations).
+
+    Per-call only — not included in the aggregated sample-level rollup.
+    """
+
+
+StopReason = Literal[
+    "stop",
+    "max_tokens",
+    "model_length",
+    "tool_calls",
+    "content_filter",
+    "unknown",
+]
+"""Reason that the model stopped or failed to generate."""
+
+
+class StopCategory(BaseModel):
+    """A single refusal/safety category reported by (or derived for) a model stop."""
+
+    category: str
+    """Category name (e.g. "cyber", "HARM_CATEGORY_DANGEROUS_CONTENT", "VIOLENCE", "hate")."""
+
+    level: str | None = Field(default=None)
+    """Severity/probability/confidence the provider reported (e.g. "high", "HIGH"), if any."""
+
+
+class StopDetails(BaseModel):
+    """Additional detail about why a model stopped generating (e.g. a content refusal).
+
+    `categories` is the canonical list (always iterable; a single-category provider
+    appears as one entry). `category` and `explanation` are a convenience high-level
+    summary derived from the same data — `category` is the primary category and
+    `explanation` is human-readable (synthesized from `categories` when the provider
+    supplies no text). Read either way; both describe the same stop.
+    """
+
+    type: str | None = Field(default=None)
+    """Kind of stop detail when reported (e.g. "refusal", or a provider finish/stop reason)."""
+
+    category: str | None = Field(default=None)
+    """Primary refusal/safety category (mirrors `categories[0]`), when available."""
+
+    explanation: str | None = Field(default=None)
+    """Human-readable description. Not guaranteed stable — do not parse programmatically."""
+
+    categories: list[StopCategory] = Field(default_factory=list)
+    """All categories that triggered the stop. Always a list (may be empty for free-text refusals)."""
+
+
+class TopLogprob(BaseModel):
+    """List of the most likely tokens and their log probability, at this token position."""
+
+    token: str
+    """The top-kth token represented as a string."""
+
+    logprob: float
+    """The log probability value of the model for the top-kth token."""
+
+    bytes: list[int] | None = Field(default=None)
+    """The top-kth token represented as a byte array (a list of integers)."""
+
+
+class Logprob(BaseModel):
+    """Log probability for a token."""
+
+    token: str
+    """The predicted token represented as a string."""
+
+    logprob: float
+    """The log probability value of the model for the predicted token."""
+
+    bytes: list[int] | None = Field(default=None)
+    """The predicted token represented as a byte array (a list of integers)."""
+
+    top_logprobs: list[TopLogprob] | None = Field(default=None)
+    """If the `top_logprobs` argument is greater than 0, this will contain an ordered list of the top K most likely tokens and their log probabilities."""
+
+
+class Logprobs(BaseModel):
+    """Log probability information for a completion choice."""
+
+    content: list[Logprob]
+    """a (num_generated_tokens,) length list containing the individual log probabilities for each generated token."""
+
+
+class ChatCompletionChoice(BaseModel):
+    """Choice generated for completion."""
+
+    message: ChatMessageAssistant
+    """Assistant message."""
+
+    stop_reason: StopReason = Field(default="unknown")
+    """Reason that the model stopped generating."""
+
+    stop_details: StopDetails | None = Field(default=None)
+    """Additional detail about the stop reason (e.g. refusal category/explanation), when provided."""
+
+    logprobs: Logprobs | None = Field(default=None)
+    """Logprobs."""
+
+    prompt_logprobs: Logprobs | None = Field(default=None)
+    """Per-prompt-token log probabilities (vLLM only).
+
+    Placed on the choice (not ``ModelOutput``) so scorers access prompt
+    and output logprobs uniformly via ``choices[0]``.  Perplexity evals
+    use ``num_choices=1``, so there is no duplication in practice."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_stop_reason(cls: Type["ChatCompletionChoice"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+        if "stop_reason" in values:
+            stop_reason = values["stop_reason"]
+            if stop_reason == "length":
+                values["stop_reason"] = "max_tokens"
+
+        return values
+
+
+class ModelOutput(BaseModel):
+    """Output from model generation."""
+
+    model: str = Field(default_factory=str)
+    """Model used for generation."""
+
+    choices: list[ChatCompletionChoice] = Field(default=[])
+    """Completion choices."""
+
+    completion: str = Field(default="")
+    """Model completion."""
+
+    usage: ModelUsage | None = Field(default=None)
+    """Model token usage"""
+
+    fallback: ModelFallback | None = Field(default=None)
+    """Model fallback that served this output (None if served by the requested model)."""
+
+    time: float | None = Field(default=None)
+    """Time elapsed (in seconds) for call to generate."""
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Additional metadata associated with model output."""
+
+    error: str | None = Field(default=None)
+    """Error message in the case of content moderation refusals."""
+
+    response_id: str | None = Field(default=None)
+    """Provider id for the response (e.g. `resp_...`, `chatcmpl-...`, `msg_...`)."""
+
+    @property
+    def empty(self) -> bool:
+        return len(self.choices) == 0
+
+    @property
+    def stop_reason(self) -> StopReason:
+        """First message stop reason."""
+        return self.choices[0].stop_reason
+
+    @property
+    def message(self) -> ChatMessageAssistant:
+        """First message choice."""
+        return self.choices[0].message
+
+    @model_validator(mode="after")
+    def set_completion(self) -> "ModelOutput":
+        if getattr(self, "completion", None) is None or not self.completion:
+            self.completion = (
+                self.choices[0].message.text if len(self.choices) > 0 else ""
+            )
+        return self
+
+    @staticmethod
+    def from_message(
+        message: ChatMessage,
+        stop_reason: StopReason = "stop",
+        model: str | None = None,
+    ) -> "ModelOutput":
+        """Create ModelOutput from a ChatMessageAssistant.
+
+        Args:
+            message: Assistant message.
+            stop_reason: Stop reason for generation
+            model: Model name. An empty string counts as not given. Defaults to
+                the message's `model` (kept even if empty); when neither is set,
+                `inspect_ai` uses the active model's name, otherwise `""`.
+        """
+        # narrow to assistant message
+        if not isinstance(message, ChatMessageAssistant):
+            message = ChatMessageAssistant(content=message.content, source="generate")
+
+        return ModelOutput(
+            model=model or message.model or "",
+            choices=[
+                ChatCompletionChoice(
+                    message=message,
+                    stop_reason=stop_reason,
+                )
+            ],
+        )
+
+    @staticmethod
+    def from_content(
+        model: str,
+        content: str | list[Content],
+        stop_reason: StopReason = "stop",
+        error: str | None = None,
+        stop_details: StopDetails | None = None,
+    ) -> "ModelOutput":
+        """Create ModelOutput from a `str` or `list[Content]`.
+
+        Args:
+           model: Model name.
+           content: Text content from generation.
+           stop_reason: Stop reason for generation.
+           error: Error message.
+           stop_details: Additional detail about the stop reason (e.g. refusal).
+        """
+        return ModelOutput(
+            model=model,
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=content, model=model, source="generate"
+                    ),
+                    stop_reason=stop_reason,
+                    stop_details=stop_details,
+                )
+            ],
+            error=error,
+        )
+
+    @staticmethod
+    def for_tool_call(
+        model: str,
+        tool_name: str,
+        tool_arguments: dict[str, Any],
+        internal: JsonValue | None = None,
+        tool_call_id: str | None = None,
+        content: str | None = None,
+    ) -> "ModelOutput":
+        """
+        Returns a ModelOutput for requesting a tool call.
+
+        Args:
+            model: model name
+            tool_name: The name of the tool.
+            internal: The model's internal info for the tool (if any).
+            tool_arguments: The arguments passed to the tool.
+            tool_call_id: Optional ID for the tool call. Defaults to a random UUID.
+            content: Optional content to include in the message. Defaults to "tool call for tool {tool_name}".
+
+        Returns:
+            A ModelOutput corresponding to the tool call
+        """
+        if content is None:
+            content = f"tool call for tool {tool_name}"
+
+        if tool_call_id is None:
+            tool_call_id = f"for_tool_call_{uuid.uuid4()}"
+
+        return ModelOutput(
+            model=model,
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=content,
+                        model=model,
+                        source="generate",
+                        tool_calls=[
+                            ToolCall(
+                                id=tool_call_id,
+                                function=tool_name,
+                                arguments=tool_arguments,
+                            )
+                        ],
+                    ),
+                    stop_reason="tool_calls",
+                )
+            ],
+        )

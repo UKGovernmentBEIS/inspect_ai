@@ -58,6 +58,7 @@ async def sandbox_agent_bridge(
     compaction: CompactionStrategy | None = None,
     sandbox: str | None = None,
     port: int = 13131,
+    poll_timeout_recovery: float | None = None,
     web_search: WebSearchProviders | bool | None = None,
     code_execution: CodeExecutionProviders | bool | None = None,
     client_mcp_servers: bool | None = None,
@@ -97,6 +98,12 @@ async def sandbox_agent_bridge(
             the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
+        poll_timeout_recovery: Seconds to keep re-polling the proxy server's
+            process after a poll of it times out. Defaults to `None`, where a
+            proxy poll that times out fails the sample. Each re-issued poll can
+            wait the proxy's full 600-second poll timeout, so recovery can run
+            past this value by about that much (see
+            `ExecRemoteCommonOptions.poll_timeout_recovery`).
         web_search: Configuration for mapping model internal web_search tools to
             Inspect. Withheld by default: a sandboxed agent that names the native
             tool in a request would otherwise reach the web through the model
@@ -117,9 +124,11 @@ async def sandbox_agent_bridge(
             exposing tools you choose.
         bridged_tools: Host-side Inspect tools to expose to the sandboxed agent
             via MCP protocol. Each BridgedToolsSpec creates an MCP server that
-            makes the specified tools available to the agent. The resolved
-            MCPServerConfigStdio objects to pass to CLI agents are available via
-            bridge.mcp_server_configs.
+            makes the specified tools available to the agent. A bridged tool
+            executes only for a call the model proposed in a bridged generation,
+            once per proposal, unless its spec sets `require_proposal=False`
+            (see `BridgedToolsSpec`). The resolved MCPServerConfigStdio objects
+            to pass to CLI agents are available via bridge.mcp_server_configs.
         model_event_sink: Optional sink that takes ownership of `ModelEvent`
             emission for calls routed through the bridge. When set, the bridge
             installs it around `model.generate()` so the sink decides when and
@@ -200,6 +209,7 @@ async def sandbox_agent_bridge(
                 seen_names.add(spec.name)
                 config = _register_bridged_tools(bridge, spec, port)
                 bridge.mcp_server_configs.append(config)
+            bridge.warn_indistinct_tools()
 
             # sandbox service that receives model requests (and tool calls)
             tg.start_soon(
@@ -226,6 +236,7 @@ async def sandbox_agent_bridge(
                         f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
                     },
                     poll_timeout=600,
+                    poll_timeout_recovery=poll_timeout_recovery,
                 ),
             )
 
@@ -267,9 +278,11 @@ def _register_bridged_tools(
     Tools are registered in bridge.bridged_tools for execution by the service.
     Returns an MCPServerConfigHTTP with URL pointing to the MCP HTTP endpoint.
     """
-    # Build tool registry for this server
-    tools_dict = {ToolDef(tool).name: tool for tool in spec.tools}
-    bridge.bridged_tools[spec.name] = tools_dict
+    bridge.register_bridged_tools(
+        spec.name,
+        {ToolDef(tool).name: tool for tool in spec.tools},
+        require_proposal=spec.require_proposal,
+    )
 
     # Return MCP config with HTTP URL
     return MCPServerConfigHTTP(

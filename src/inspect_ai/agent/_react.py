@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from copy import copy
 from logging import getLogger
 from typing import Literal, Sequence
@@ -6,6 +7,7 @@ from typing_extensions import TypeIs
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.content import Content, ContentText
+from inspect_ai.approval._apply import approval as approval_context
 from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
@@ -116,7 +118,7 @@ def react(
           `MessageFilter` function to do custom truncation.
        approval: Approval policies to use for tool calls within this agent.
           Temporarily replaces any active approval policies for the duration
-          of tool execution.
+          of model generation and tool execution.
        review: Review policies to use for the results of tool calls within
           this agent. Temporarily replaces any active review policies for the
           duration of tool execution.
@@ -262,7 +264,7 @@ def react(
                         with ch.turn_scope():
                             # generate output and append assistant message
                             state = await _agent_generate(
-                                model, state, tools, retry_refusals, compact
+                                model, state, tools, retry_refusals, compact, approval
                             )
 
                             # check for context window overflow
@@ -493,7 +495,7 @@ def react_no_submit(
                         with ch.turn_scope():
                             # generate output and append assistant message
                             state = await _agent_generate(
-                                model, state, tools, retry_refusals, compact
+                                model, state, tools, retry_refusals, compact, approval
                             )
 
                             # check for context window overflow
@@ -698,6 +700,7 @@ async def _agent_generate(
     tools: Sequence[Tool | ToolDef | ToolSource],
     retry_refusals: int | None,
     compact: Compact | None,
+    approval: list[ApprovalPolicy] | None,
 ) -> AgentState:
     # warn if we try to combine compaction with a custom agent
     if compact is not None and not _uses_compaction_handler(model):
@@ -726,8 +729,9 @@ async def _agent_generate(
             "Agent passed as model for react agent must have a tools parameter."
         )
 
-    # call the agent
-    return await model(state, resolved_tools)
+    # call the agent (under its approval policies, so remote MCP servers are refused)
+    with approval_context(approval) if approval else nullcontext():
+        return await model(state, resolved_tools)
 
 
 def _model_generate(

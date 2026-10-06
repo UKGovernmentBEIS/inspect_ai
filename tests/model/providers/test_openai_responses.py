@@ -1,4 +1,5 @@
 import json
+from contextlib import nullcontext
 from types import SimpleNamespace
 from typing import Any
 
@@ -395,7 +396,7 @@ async def _generate_responses_with_mock(
     client.responses.create = AsyncMock(return_value=mock_response)
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     model_info = MagicMock()
@@ -473,6 +474,31 @@ async def test_responses_api_terminal_error_block_code_converts() -> None:
     with pytest.raises(OpenAIResponseError) as excinfo:
         await _generate_responses_with_mock(server_error_response)
     assert excinfo.value.code == "server_error"
+
+
+async def test_responses_api_terminal_bio_policy_converts() -> None:
+    """A terminal biological-risk policy error becomes a content filter stop."""
+    from openai.types.responses import Response, ResponseError
+
+    blocked_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError.model_construct(
+            code="bio_policy",
+            message="This content was flagged for possible biological risk.",
+        ),
+        status="failed",
+    )
+    output, model_call = await _generate_responses_with_mock(blocked_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert "biological risk" in output.completion
+    assert output.response_id == "resp_test"
+    assert model_call.error is True
 
 
 async def test_responses_api_metadata_surfaced():
@@ -1365,6 +1391,8 @@ def _make_mock_model_info():
     model_info = MagicMock()
     model_info.has_reasoning_options.return_value = False
     model_info.reasoning_only_fallback.return_value = False
+    model_info.replays_reasoning_text.return_value = False
+    model_info.omits_empty_tool_call_text.return_value = False
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = False
     model_info.is_gpt_5_plus.return_value = False
@@ -1735,6 +1763,66 @@ def test_reasoning_only_fallback_not_triggered_with_tool_calls():
 
     message_items = [item for item in items if item.get("type") == "message"]
     assert len(message_items) == 0
+
+
+def _reasoning_items(model_info: ModelInfo | None, reasoning: ContentReasoning) -> Any:
+    message = ChatMessageAssistant(
+        content=[reasoning, ContentText(text="Answer.")],
+        model="test",
+        source="generate",
+    )
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+    return [item for item in items if item.get("type") == "reasoning"]
+
+
+def test_reasoning_text_replayed_as_content_when_enabled():
+    """Readable reasoning with no encrypted content is sent back as content."""
+    [item] = _reasoning_items(
+        ModelInfo(replays_reasoning_text=True),
+        ContentReasoning(reasoning="Because.", signature="r1"),
+    )
+    assert item["content"] == [{"type": "reasoning_text", "text": "Because."}]
+    assert item["encrypted_content"] is None
+
+
+def test_reasoning_text_not_replayed_by_default():
+    """OpenAI rejects reasoning content, so readable text is not sent by default."""
+    [item] = _reasoning_items(
+        ModelInfo(), ContentReasoning(reasoning="Because.", signature="r1")
+    )
+    assert item["content"] == []
+
+
+def test_reasoning_text_not_replayed_with_encrypted_content():
+    """Encrypted reasoning replays via encrypted_content only."""
+    [item] = _reasoning_items(
+        ModelInfo(replays_reasoning_text=True),
+        ContentReasoning(reasoning="opaque", summary="Summary.", redacted=True),
+    )
+    assert item["content"] == []
+    assert item["encrypted_content"] == "opaque"
+
+
+def _tool_call_message_items(model_info: ModelInfo) -> Any:
+    from inspect_ai.tool._tool_call import ToolCall
+
+    message = ChatMessageAssistant(
+        content=[ContentText(text="", internal={MESSAGE_ID: "msg_1"})],
+        tool_calls=[ToolCall(id="call_1", function="get_weather", arguments={})],
+        model="test",
+        source="generate",
+    )
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+    return [item for item in items if item.get("type") == "message"]
+
+
+def test_empty_model_text_with_tool_calls_replayed_by_default():
+    [item] = _tool_call_message_items(ModelInfo())
+    assert item["content"][0]["text"] == ""
+
+
+def test_empty_model_text_with_tool_calls_omitted_when_enabled():
+    assert _tool_call_message_items(ModelInfo(omits_empty_tool_call_text=True)) == []
 
 
 def _todo_write_tool_info():
@@ -2525,7 +2613,7 @@ async def test_responses_streaming_logged_in_model_call() -> None:
     client: Any = SimpleNamespace(responses=_FakeResponses())
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     model_info = MagicMock()
@@ -2567,10 +2655,24 @@ async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None
     import httpx2
     from openai import APIError
     from openai._types import NOT_GIVEN
+    from openai.types.responses import Response, ResponseCreatedEvent
 
     from inspect_ai.model._providers.openai_responses import generate_responses
     from inspect_ai.model._providers.util.hooks import HttpxHooks
 
+    created = ResponseCreatedEvent(
+        type="response.created",
+        response=Response.model_construct(
+            id="resp_stream_api_error",
+            created_at=0.0,
+            model="gpt-5",
+            object="response",
+            output=[],
+            tools=[],
+            status="in_progress",
+        ),
+        sequence_number=0,
+    )
     error = APIError(
         message="Your prompt was blocked by our content policy.",
         request=httpx2.Request(method="POST", url="https://example.com"),
@@ -2590,8 +2692,8 @@ async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None
 
         def __aiter__(self) -> Any:
             async def gen() -> Any:
+                yield created
                 raise error
-                yield  # pragma: no cover
 
             return gen()
 
@@ -2602,7 +2704,7 @@ async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None
     client: Any = SimpleNamespace(responses=_FakeResponses())
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     model_info = MagicMock()
@@ -2634,6 +2736,7 @@ async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None
     assert isinstance(output, ModelOutput)
     assert output.choices[0].stop_reason == "content_filter"
     assert "blocked" in output.completion
+    assert output.response_id == "resp_stream_api_error"
     assert model_call.error is True
 
 
@@ -2648,19 +2751,36 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
     from unittest.mock import MagicMock
 
     from openai._types import NOT_GIVEN
-    from openai.types.responses import ResponseErrorEvent
+    from openai.types.responses import (
+        Response,
+        ResponseCreatedEvent,
+        ResponseErrorEvent,
+    )
 
     from inspect_ai.model._providers.openai_responses import generate_responses
     from inspect_ai.model._providers.util.hooks import HttpxHooks
 
     events = [
+        ResponseCreatedEvent(
+            type="response.created",
+            response=Response.model_construct(
+                id="resp_stream_blocked",
+                created_at=0.0,
+                model="gpt-5",
+                object="response",
+                output=[],
+                tools=[],
+                status="in_progress",
+            ),
+            sequence_number=0,
+        ),
         ResponseErrorEvent(
             type="error",
             code="content_policy_violation",
             message="Your prompt was blocked by our content policy.",
             param=None,
-            sequence_number=0,
-        )
+            sequence_number=1,
+        ),
     ]
 
     class _FakeStream:
@@ -2684,7 +2804,7 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
     client: Any = SimpleNamespace(responses=_FakeResponses())
 
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
 
     model_info = MagicMock()
@@ -2716,6 +2836,7 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
     assert isinstance(output, ModelOutput)
     assert output.choices[0].stop_reason == "content_filter"
     assert "blocked" in output.completion
+    assert output.response_id == "resp_stream_blocked"
     assert model_call.error is True
 
 
@@ -2728,6 +2849,7 @@ async def test_responses_streaming_converts_error_event_safeguard_block() -> Non
         ("gpt-6-astra", True),
         ("gpt-6-sol", True),
         ("gpt-6-luna", True),
+        ("gpt-6.1-sol", True),
         ("my-gpt-6-deployment", True),
         ("gpt-35-turbo", False),
         ("gpt-4", False),
@@ -2742,3 +2864,80 @@ def test_maybe_code_interpreter_tool_model_gating(model_name, expected):
         options={"providers": {"openai": True}},
     )
     assert (maybe_code_interpreter_tool(model_name, tool) is not None) is expected
+
+
+def test_responses_api_provider_ids_logged_without_raw_calls(tmp_path) -> None:
+    """Request ids for every HTTP attempt and the response id survive `log_model_api=False`."""
+    import httpx2
+    from openai import DefaultAsyncHttpxClient
+
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.log import read_eval_log
+    from inspect_ai.model import ModelRequestId
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    generate_attempts = 0
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        nonlocal generate_attempts
+        if HttpxHooks.REQUEST_ID_HEADER in request.headers:
+            generate_attempts += 1
+        if generate_attempts == 1:
+            return httpx2.Response(
+                429,
+                headers={"x-request-id": "req_rate_limited", "retry-after-ms": "10"},
+                json={"error": {"message": "rate limited", "type": "rate_limit"}},
+                request=request,
+            )
+        return httpx2.Response(
+            200,
+            headers={"x-request-id": "req_ok"},
+            json={
+                "id": "resp_ok",
+                "object": "response",
+                "created_at": 0,
+                "model": "test",
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "id": "msg_ok",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {"type": "output_text", "text": "hi", "annotations": []}
+                        ],
+                    }
+                ],
+                "parallel_tool_calls": True,
+                "tool_choice": "auto",
+                "tools": [],
+            },
+            request=request,
+        )
+
+    model = get_model(
+        "openai/gpt-4o",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler)),
+        responses_api=True,
+        memoize=False,
+    )
+    log = eval(
+        Task(dataset=[Sample(input="hello")], solver=[generate()]),
+        model=model,
+        log_model_api=False,
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success"
+
+    log = read_eval_log(log.location)
+    assert log.samples
+    [event] = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
+    assert event.call is None
+    assert event.output.response_id == "resp_ok"
+    assert event.request_ids == [
+        ModelRequestId(id="req_rate_limited", header="x-request-id", status=429),
+        ModelRequestId(id="req_ok", header="x-request-id", status=200),
+    ]

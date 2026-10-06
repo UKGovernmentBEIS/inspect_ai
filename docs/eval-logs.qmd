@@ -21,7 +21,7 @@ $ inspect view
 
 ![](images/inspect-view-main.png){.border .lightbox fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."}
 
-This section won't cover using `inspect view` though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the [Log Viewer](#sec-log-viewer) section for details on interactively exploring logs.
+This section won't cover using `inspect view` though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the [Log Viewer](log-viewer.qmd) section for details on interactively exploring logs.
 
 ## Log Analysis
 
@@ -176,6 +176,11 @@ inspect eval ctf.py --log-model-api
 ```
 
 To disable model API logging entirely (errors only), use `--no-log-model-api`.
+
+Provider request and response ids are logged regardless of these options, so you can point a provider to a specific request:
+
+- `ModelEvent.request_ids`: the request id and HTTP status of each request sent to generate the response, including retries. Recorded for OpenAI and OpenAI-compatible providers, Anthropic, Groq, Mistral and Bedrock, except in batch mode.
+- `ModelOutput.response_id`: the provider's id for the response (e.g. `resp_...` or `msg_...`).
 
 ## Log File API {#sec-log-file-api}
 

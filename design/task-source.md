@@ -291,7 +291,7 @@ tasks are appended in arrival order.
 - **`SandboxManager`** ([run.py](../src/inspect_ai/_eval/run.py)) — starts
   sandboxenvs incrementally (only ones not already started) and accumulates
   cleanups, so injected tasks get sandboxes and everything tears down once at
-  the end. `startup_sandbox_environments` is now a thin wrapper over it.
+  the end.
 - **`Display.update_task_count(n)`** ([display.py](../src/inspect_ai/_display/core/display.py))
   — bumps the "completed / total" denominator as tasks are injected (per-task
   progress views already grow on demand, the same path retries use). Implemented

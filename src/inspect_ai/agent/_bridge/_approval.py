@@ -41,13 +41,7 @@ logger = getLogger(__name__)
 def bridge_approval_scope(
     approval: list["ApprovalPolicy"] | None,
 ) -> AbstractContextManager[None]:
-    """Activate a bridge's own approval policies, or fall back to ambient ones.
-
-    Approval enforcement (`apply_bridge_tool_approval`) and the host-tool granting /
-    execution gate (`SandboxAgentBridge.tool_approval_required`) must resolve which
-    policies are active identically, or granting and enforcement desync. They share
-    this helper so that decision lives in one place.
-    """
+    """Activate a bridge's own approval policies, or fall back to ambient ones."""
     from inspect_ai.approval._apply import approval as approval_context
 
     return approval_context(approval) if approval else nullcontext()
@@ -101,10 +95,13 @@ async def apply_bridge_tool_approval(
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return.
 
-    When approval is active, a multi-choice response whose alternate choices
-    carry tool calls is reduced to the primary choice (with a warning): only the
-    primary choice is reviewed, so returning the others would hand the scaffold
-    tool calls no approver ever saw. Text-only alternates pass through.
+    A multi-choice response whose alternate choices carry tool calls is reduced to
+    the primary choice (with a warning) when approval is active, since only the
+    primary choice is reviewed, and always for a bridge that grants host-tool
+    execution (`AgentBridge.grants_tool_execution`), since only the primary
+    choice's calls are granted: returning the others would hand the scaffold tool
+    calls no approver saw or no grant covers. Text-only alternates pass through,
+    as does everything for an in-process bridge without a policy.
 
     Args:
         bridge: Bridge whose `approval` policies (if any) apply for this call.
@@ -118,17 +115,20 @@ async def apply_bridge_tool_approval(
     from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
 
     with bridge_approval_scope(bridge.approval):
-        if not have_tool_approval():
-            return BridgeApproval(output, None)
-
-        if any(choice.message.tool_calls for choice in output.choices[1:]):
+        approval_active = have_tool_approval()
+        if (approval_active or bridge.grants_tool_execution) and any(
+            choice.message.tool_calls for choice in output.choices[1:]
+        ):
             warn_once(
                 logger,
-                "Tool approval reviews only the primary choice of a bridged "
-                "response; dropping alternate choices that carry tool calls. "
-                "Request a single choice (n=1) when approval is active.",
+                "Only the primary choice of a bridged response is reviewed and "
+                "granted execution; dropping alternate choices that carry tool "
+                "calls. Request a single choice (n=1) from a bridged agent.",
             )
             output = output.model_copy(update={"choices": output.choices[:1]})
+
+        if not approval_active:
+            return BridgeApproval(output, None)
 
         tool_calls = output.message.tool_calls
         if not tool_calls:

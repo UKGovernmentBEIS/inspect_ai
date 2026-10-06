@@ -193,6 +193,7 @@ from .._model_output import (
     ModelFallback,
     ModelOutput,
     ModelUsage,
+    ServedModelUsage,
     StopCategory,
     StopDetails,
     StopReason,
@@ -213,12 +214,19 @@ from .._stream import (
     report_model_stream_start,
 )
 from ._anthropic_batch import AnthropicBatcher
+from ._anthropic_max_tokens import (
+    ANTHROPIC_HIGH_EFFORT_MAX_TOKENS,
+    ANTHROPIC_MAX_TOKENS,
+    anthropic_effort_max_tokens,
+)
+from ._first_party import FRONTIER_MODELS
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
     forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
     is_claude_opus_5_5_model,
+    is_claude_sonnet_5_5_model,
     is_forced_tool_choice,
     model_base_url,
     normalize_stream_arg,
@@ -247,7 +255,7 @@ _REASONING_TOKENS_UNSUPPORTED_ERROR = (
     "'reasoning_effort' to control reasoning depth instead."
 )
 _DISABLED_THINKING_EFFORT_WARNING = (
-    "anthropic model '{model}' rejects disabled thinking (reasoning_effort="
+    "anthropic model '{model}' rejects turning thinking off (reasoning_effort="
     "'none') combined with effort above 'high'; clamping effort to 'high'."
 )
 _FORCED_TOOL_CHOICE_WARNING = (
@@ -697,6 +705,29 @@ class AnthropicAPI(ModelAPI):
             state.last_cached_request_start = request_start
 
     @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        fallback = output.fallback
+        if output.usage is None:
+            return None
+        if fallback is None:
+            # a Foundry model name is a deployment name, which need not name
+            # the model the deployment serves
+            if (
+                self.is_azure()
+                and output.model
+                and output.model != self.service_model_name()
+            ):
+                return [ServedModelUsage(f"anthropic/{output.model}", output.usage)]
+            return None
+        iterations = (fallback.metadata or {}).get("iterations")
+        if isinstance(iterations, list) and any(
+            isinstance(it, dict) and it.get("type") == "fallback_message"
+            for it in iterations
+        ):
+            return _fallback_attempts_usage(iterations, self.service_model_name())
+        return [ServedModelUsage(f"anthropic/{fallback.fallback_model}", output.usage)]
+
+    @override
     def cache_write_ttl(self) -> str | None:
         # the TTL this call was sent with, not the sample's current escalation
         # state — a sibling may have escalated while this one was in flight.
@@ -715,216 +746,221 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig,
     ) -> tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
-        request_id = self._http_hooks.start_request()
+        with self._http_hooks.request() as request_id:
+            model_call: ModelCall | None = None
 
-        model_call: ModelCall | None = None
-
-        # generate
-        try:
-            resolved_cache_ttl = self._resolve_cache_ttl(config)
-            cache_ttl = resolved_cache_ttl.ttl
-
-            (
-                system_param,
-                tools_param,
-                mcp_servers_param,
-                messages,
-                cache_prompt,
-            ) = await self.resolve_chat_input(input, tools, config, cache_ttl)
-
-            # prepare request params (assembled this way so we can log the raw model call)
-            request: dict[str, Any] = dict(messages=messages)
-
-            # automatic caching for messages (system/tools use explicit breakpoints).
-            # Per Anthropic's docs, the top-level `cache_control` field is only
-            # supported on the direct Claude API and Azure AI Foundry (preview);
-            # "support for Amazon Bedrock and Google Vertex AI is coming later." On
-            # those services it is rejected as
-            # `cache_control: Extra inputs are not permitted`. Fall back to the
-            # per-block markers added in resolve_chat_input on those services.
-            # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
-            if cache_prompt and not (self.is_bedrock() or self.is_vertex()):
-                request["cache_control"] = cache_control_param(cache_ttl)
-
-            # system messages and tools
-            if system_param is not None:
-                request["system"] = system_param
-            request["tools"] = tools_param
-            # with thinking active, tool_choice is omitted entirely (the API
-            # rejects forced tool choice with thinking; long-standing behavior
-            # for all Claude models)
-            tool_choice_degraded = False
-            if len(tools_param) > 0:
-                resolved_choice = self.resolved_tool_choice(tool_choice)
-                # the computer toolset has no tool named `computer` to force
-                # (the API rejects a tool choice naming the toolset or a
-                # member), so degrade a forced computer tool choice to auto
-                if (
-                    isinstance(resolved_choice, ToolFunction)
-                    and resolved_choice.name == INTERNAL_COMPUTER_TOOL_NAME
-                    and any(is_computer_toolset(tool) for tool in tools_param)
-                ):
-                    warn_once(
-                        logger,
-                        _COMPUTER_TOOLSET_TOOL_CHOICE_WARNING.format(
-                            model=self.service_model_name()
-                        ),
-                    )
-                    resolved_choice = "auto"
-                tool_choice_degraded = resolved_choice != tool_choice
-                if not self.is_using_thinking(config):
-                    request["tool_choice"] = message_tool_choice(
-                        resolved_choice, config
-                    )
-
-            # additional options
-            req, extra_body, headers, betas = self.completion_config(config)
-            request = request | req
-
-            # beta param for mcp tools
-            if len(mcp_servers_param) > 0:
-                betas.append("mcp-client-2025-04-04")
-
-            # beta param for interleaved thinking
-            if self.is_using_thinking(config) and (
-                self.is_claude_4() or self.is_claude_5() or self.is_claude_latest()
-            ):
-                betas.append("interleaved-thinking-2025-05-14")
-
-            self.apply_thinking_block_binding(request, betas)
-
-            # extra headers (for time tracker and computer use)
-            extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
-            if any(
-                tool.get("type", None) == "computer_20251124" for tool in tools_param
-            ):
-                betas.append("computer-use-2025-11-24")
-            elif any(
-                tool.get("type", None) == "computer_20250124" for tool in tools_param
-            ):
-                # From: https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#claude-3-7-sonnet-beta-flag
-                # Note: The Bash (bash_20250124) and Text Editor (text_editor_20250124)
-                # tools are generally available for Claude 3.5 Sonnet (new) as well and
-                # can be used without the computer use beta header.
-                betas.append("computer-use-2025-01-24")
-            if any("20241022" in str(tool.get("type", "")) for tool in tools_param):
-                betas.append("computer-use-2024-10-22")
-            if any(tool.get("type", None) == "memory_20250818" for tool in tools_param):
-                betas.append("context-management-2025-06-27")
-            if any(
-                tool.get("type", None) == "code_execution_20250825"
-                for tool in tools_param
-            ):
-                betas.append("code-execution-2025-08-25")
-            if any(
-                tool.get("type", None) == "web_fetch_20250910" for tool in tools_param
-            ):
-                betas.append("web-fetch-2025-09-10")
-
-            # extra_body
-            if len(extra_body) > 0 or self.extra_body is not None:
-                request[EXTRA_BODY] = extra_body | (self.extra_body or {})
-
-            # cache diagnostics: thread the previous response id forward. The
-            # SDK only exposes `diagnostics` on client.beta.messages.create,
-            # but inspect calls client.messages.create — route via extra_body
-            # so the field reaches /v1/messages without SDK kwarg validation.
-            if self.cache_diagnostics_enabled(config):
-                prev_id = _previous_assistant_message_id(input)
-                request[EXTRA_BODY] = (request.get(EXTRA_BODY) or {}) | {
-                    "diagnostics": {"previous_message_id": prev_id},
-                }
-
-            # add compaction if the input has it and there is no config
-            if _input_has_compaction(input) and not _request_has_edit_compaction(
-                request
-            ):
-                _add_edit_compaction(
-                    request=request,
-                    betas=betas,
-                    has_1mm_context=self.is_claude_frontier(),
-                )
-
-            # add compaction beta header if required
-            if _request_has_edit_compaction(request):
-                betas.append("compact-2026-01-12")
-
-            # add fallback beta header if the input contains fallback blocks
-            # (so replayed blocks are accepted even if fallback_models is no
-            # longer configured, e.g. on a resumed eval with changed config)
-            if FALLBACK_BETA not in betas and _input_has_fallback(input):
-                betas.append(FALLBACK_BETA)
-
-            # resolve betas and extra headers
-            if len(betas) > 0:
-                extra_headers["anthropic-beta"] = self._beta_header_value(betas)
-            request["extra_headers"] = extra_headers
-
-            # mcp servers
-            if len(mcp_servers_param) > 0:
-                if EXTRA_BODY not in request:
-                    request[EXTRA_BODY] = dict()
-                request[EXTRA_BODY]["mcp_servers"] = mcp_servers_param
-
-            # resume the prior turn's code execution container if it left
-            # work pending (e.g. a client tool call cut the turn short)
-            container = _pending_container_for_input(input)
-            if container is not None:
-                request["container"] = container
-
-            model_call = set_active_model_event_call(request, model_call_filter)
-
-            # stream if the caller passed on_stream or (in auto mode) when
-            # using reasoning or >= 8192 max_tokens; an explicit streaming
-            # model arg overrides both
-            streaming = (
-                (self.auto_streaming(config) or model_stream_requested())
-                if self.streaming is None
-                else self.streaming
-            )
-
+            # generate
             try:
-                response, output = await self._perform_request_and_continuations(
-                    request, streaming, tools, config
+                resolved_cache_ttl = self._resolve_cache_ttl(config)
+                cache_ttl = resolved_cache_ttl.ttl
+
+                (
+                    system_param,
+                    tools_param,
+                    mcp_servers_param,
+                    messages,
+                    auto_cache,
+                ) = await self.resolve_chat_input(input, tools, config, cache_ttl)
+
+                # prepare request params (assembled this way so we can log the raw model call)
+                request: dict[str, Any] = dict(messages=messages)
+
+                # automatic caching for messages (system/tools use explicit
+                # breakpoints; `auto_cache` is False when caching is off or the
+                # request has its own explicit breakpoints). Top-level
+                # `cache_control` is rejected on Bedrock/Vertex, which fall back
+                # to per-block markers instead.
+                # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
+                if auto_cache and not (self.is_bedrock() or self.is_vertex()):
+                    request["cache_control"] = cache_control_param(cache_ttl)
+
+                # system messages and tools
+                if system_param is not None:
+                    request["system"] = system_param
+                request["tools"] = tools_param
+                # with thinking active, tool_choice is omitted entirely (the API
+                # rejects forced tool choice with thinking; long-standing behavior
+                # for all Claude models)
+                tool_choice_degraded = False
+                if len(tools_param) > 0:
+                    resolved_choice = self.resolved_tool_choice(tool_choice)
+                    # the computer toolset has no tool named `computer` to force
+                    # (the API rejects a tool choice naming the toolset or a
+                    # member), so degrade a forced computer tool choice to auto
+                    if (
+                        isinstance(resolved_choice, ToolFunction)
+                        and resolved_choice.name == INTERNAL_COMPUTER_TOOL_NAME
+                        and any(is_computer_toolset(tool) for tool in tools_param)
+                    ):
+                        warn_once(
+                            logger,
+                            _COMPUTER_TOOLSET_TOOL_CHOICE_WARNING.format(
+                                model=self.service_model_name()
+                            ),
+                        )
+                        resolved_choice = "auto"
+                    tool_choice_degraded = resolved_choice != tool_choice
+                    if not self.is_using_thinking(config):
+                        request["tool_choice"] = message_tool_choice(
+                            resolved_choice, config
+                        )
+
+                # additional options
+                req, extra_body, headers, betas = self.completion_config(config)
+                request = request | req
+
+                # beta param for mcp tools
+                if len(mcp_servers_param) > 0:
+                    betas.append("mcp-client-2025-04-04")
+
+                # beta param for interleaved thinking
+                if self.is_using_thinking(config) and (
+                    self.is_claude_4() or self.is_claude_5() or self.is_claude_latest()
+                ):
+                    betas.append("interleaved-thinking-2025-05-14")
+
+                self.apply_thinking_block_binding(request, betas)
+
+                # extra headers (for time tracker and computer use)
+                extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
+                if any(
+                    tool.get("type", None) == "computer_20251124"
+                    for tool in tools_param
+                ):
+                    betas.append("computer-use-2025-11-24")
+                elif any(
+                    tool.get("type", None) == "computer_20250124"
+                    for tool in tools_param
+                ):
+                    # From: https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#claude-3-7-sonnet-beta-flag
+                    # Note: The Bash (bash_20250124) and Text Editor (text_editor_20250124)
+                    # tools are generally available for Claude 3.5 Sonnet (new) as well and
+                    # can be used without the computer use beta header.
+                    betas.append("computer-use-2025-01-24")
+                if any("20241022" in str(tool.get("type", "")) for tool in tools_param):
+                    betas.append("computer-use-2024-10-22")
+                if any(
+                    tool.get("type", None) == "memory_20250818" for tool in tools_param
+                ):
+                    betas.append("context-management-2025-06-27")
+                if any(
+                    tool.get("type", None) == "code_execution_20250825"
+                    for tool in tools_param
+                ):
+                    betas.append("code-execution-2025-08-25")
+                if any(
+                    tool.get("type", None) == "web_fetch_20250910"
+                    for tool in tools_param
+                ):
+                    betas.append("web-fetch-2025-09-10")
+
+                # extra_body
+                if len(extra_body) > 0 or self.extra_body is not None:
+                    request[EXTRA_BODY] = extra_body | (self.extra_body or {})
+
+                # cache diagnostics: thread the previous response id forward. The
+                # SDK only exposes `diagnostics` on client.beta.messages.create,
+                # but inspect calls client.messages.create — route via extra_body
+                # so the field reaches /v1/messages without SDK kwarg validation.
+                if self.cache_diagnostics_enabled(config):
+                    prev_id = _previous_assistant_message_id(input)
+                    request[EXTRA_BODY] = (request.get(EXTRA_BODY) or {}) | {
+                        "diagnostics": {"previous_message_id": prev_id},
+                    }
+
+                # add compaction if the input has it and there is no config
+                if _input_has_compaction(input) and not _request_has_edit_compaction(
+                    request
+                ):
+                    _add_edit_compaction(
+                        request=request,
+                        betas=betas,
+                        has_1mm_context=self.is_claude_frontier(),
+                    )
+
+                # add compaction beta header if required
+                if _request_has_edit_compaction(request):
+                    betas.append("compact-2026-01-12")
+
+                # add fallback beta header if the input contains fallback blocks
+                # (so replayed blocks are accepted even if fallback_models is no
+                # longer configured, e.g. on a resumed eval with changed config)
+                if FALLBACK_BETA not in betas and _input_has_fallback(input):
+                    betas.append(FALLBACK_BETA)
+
+                # resolve betas and extra headers
+                if len(betas) > 0:
+                    extra_headers["anthropic-beta"] = self._beta_header_value(betas)
+                request["extra_headers"] = extra_headers
+
+                # mcp servers
+                if len(mcp_servers_param) > 0:
+                    if EXTRA_BODY not in request:
+                        request[EXTRA_BODY] = dict()
+                    request[EXTRA_BODY]["mcp_servers"] = mcp_servers_param
+
+                # resume the prior turn's code execution container if it left
+                # work pending (e.g. a client tool call cut the turn short)
+                container = _pending_container_for_input(input)
+                if container is not None:
+                    request["container"] = container
+
+                model_call = set_active_model_event_call(request, model_call_filter)
+
+                # stream if the caller passed on_stream or (in auto mode) when
+                # using reasoning or >= 8192 max_tokens; an explicit streaming
+                # model arg overrides both
+                streaming = (
+                    (self.auto_streaming(config) or model_stream_requested())
+                    if self.streaming is None
+                    else self.streaming
                 )
-            except (BadRequestError, APIStatusError) as ex:
-                model_call.set_error(
-                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
+
+                try:
+                    response, output = await self._perform_request_and_continuations(
+                        request, streaming, tools, config
+                    )
+                except (BadRequestError, APIStatusError) as ex:
+                    model_call.set_error(
+                        as_error_response(ex.body),
+                        self._http_hooks.end_request(request_id),
+                    )
+                    raise ex
+
+                model_call.set_response(
+                    response, self._http_hooks.end_request(request_id)
                 )
+
+                _warn_refusal_without_fallback(self, config, output)
+
+                if tool_choice_degraded:
+                    output.metadata = (
+                        output.metadata or {}
+                    ) | forced_tool_choice_degraded_metadata(tool_choice)
+
+                self._record_cache_ttl_refresh(resolved_cache_ttl, output.usage)
+
+                return output, model_call
+
+            except BadRequestError as ex:
+                return self.handle_bad_request(ex), model_call or ModelCall(request={})
+
+            except APIStatusError as ex:
+                if ex.status_code == 413:
+                    return ModelOutput.from_content(
+                        model=self.service_model_name(),
+                        content=ex.message,
+                        stop_reason="model_length",
+                        error=ex.message,
+                    ), model_call or ModelCall(request={})
+                # Content-filter errors that arrive mid-stream surface as a plain
+                # APIStatusError (the SDK can't infer the 400 subclass once the
+                # HTTP response was 200), so route through handle_bad_request to
+                # convert them into a content_filter refusal.
+                handled = self.handle_bad_request(ex)
+                if isinstance(handled, ModelOutput):
+                    return handled, model_call or ModelCall(request={})
                 raise ex
-
-            model_call.set_response(response, self._http_hooks.end_request(request_id))
-
-            _warn_refusal_without_fallback(self, config, output)
-
-            if tool_choice_degraded:
-                output.metadata = (
-                    output.metadata or {}
-                ) | forced_tool_choice_degraded_metadata(tool_choice)
-
-            self._record_cache_ttl_refresh(resolved_cache_ttl, output.usage)
-
-            return output, model_call
-
-        except BadRequestError as ex:
-            return self.handle_bad_request(ex), model_call or ModelCall(request={})
-
-        except APIStatusError as ex:
-            if ex.status_code == 413:
-                return ModelOutput.from_content(
-                    model=self.service_model_name(),
-                    content=ex.message,
-                    stop_reason="model_length",
-                    error=ex.message,
-                ), model_call or ModelCall(request={})
-            # Content-filter errors that arrive mid-stream surface as a plain
-            # APIStatusError (the SDK can't infer the 400 subclass once the
-            # HTTP response was 200), so route through handle_bad_request to
-            # convert them into a content_filter refusal.
-            handled = self.handle_bad_request(ex)
-            if isinstance(handled, ModelOutput):
-                return handled, model_call or ModelCall(request={})
-            raise ex
 
     @override
     async def count_tokens(
@@ -940,6 +976,13 @@ class AnthropicAPI(ModelAPI):
             ChatMessageUser(content=m.content) if m.role == "system" else m
             for m in input
         ]
+
+        # count_tokens skips the eligibility gate generation uses, so an
+        # invalid mark (over budget, or on a tool result) would otherwise
+        # reach Anthropic unchanged and get the same 400 generation would
+        # (verified live). Caching hints don't affect the counted result.
+        if _has_cache_breakpoint_hints(input):
+            input = _strip_cache_breakpoints(input)
 
         # Check for content requiring beta opt-ins before conversion
         has_compaction = _messages_contain_compaction(input)
@@ -1210,11 +1253,8 @@ class AnthropicAPI(ModelAPI):
     def _oauth_default_headers(self, model_args: dict[str, Any]) -> dict[str, str]:
         """Default headers for the OAuth client, merging in the caller's own.
 
-        Popping the caller's `default_headers` out of `model_args` (rather
-        than letting it also flow through `**model_args`) avoids a duplicate
-        `default_headers` keyword argument. The OAuth beta is then combined
-        with any caller-supplied `anthropic-beta` (or `anthropic_beta`)
-        value, as `_beta_header_value` combines it for per-request betas.
+        Pops `default_headers` out of `model_args` to avoid passing it twice,
+        and merges the OAuth beta with any caller-supplied `anthropic-beta`.
         """
         headers: dict[str, str] = dict(model_args.pop("default_headers", None) or {})
         caller_betas = self._pull_betas_from_headers(headers)
@@ -1325,13 +1365,19 @@ class AnthropicAPI(ModelAPI):
             # Claude 4.7+ (incl. Sonnet 5 and Opus 5) run adaptive thinking by
             # default, so `reasoning_effort="none"` must explicitly disable it.
             # Pre-4.7 models default to no thinking, so omitting the field
-            # already suffices.
-            params["thinking"] = {"type": "disabled"}
-            # Opus 5 returns a 400 for disabled thinking combined with effort
-            # above `high` (Opus 4.8 and Sonnet 5 accept the combination).
+            # already suffices. Sonnet 5.5 rejects `disabled` and names
+            # `between_tools` (no up-front thinking) as its lowest setting.
+            params["thinking"] = {
+                "type": "between_tools"
+                if self.is_claude_sonnet_5_5_or_later()
+                else "disabled"
+            }
+            # Opus 5 and Sonnet 5.5 return a 400 for turned-off thinking
+            # combined with effort above `high` (Opus 4.8 and Sonnet 5 accept
+            # the combination).
             output_config = params.get("output_config")
             if (
-                self.is_claude_opus_5()
+                (self.is_claude_opus_5() or self.is_claude_sonnet_5_5_or_later())
                 and isinstance(output_config, dict)
                 and output_config.get("effort") in ("xhigh", "max")
             ):
@@ -1404,7 +1450,7 @@ class AnthropicAPI(ModelAPI):
         if self.is_claude_3() or self.is_claude_3_5():
             return 4096
         else:
-            return 32000
+            return ANTHROPIC_MAX_TOKENS
 
     @override
     def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
@@ -1414,14 +1460,7 @@ class AnthropicAPI(ModelAPI):
             if reasoning_effort is not None:
                 # xhigh/max sized to reach the migration-guide floor of 64k
                 # on top of the 32k base for thinking models.
-                effort_tokens = {
-                    "low": 4096,
-                    "medium": 10000,
-                    "high": 16000,
-                    "xhigh": 32000,
-                    "max": 32000,
-                }
-                max_tokens = max_tokens + effort_tokens.get(reasoning_effort, 16000)
+                max_tokens = max_tokens + anthropic_effort_max_tokens(reasoning_effort)
             else:
                 # pre-4.6 path: size for explicit reasoning_tokens, or for
                 # the bridged effort->tokens translation when only effort is set.
@@ -1431,8 +1470,8 @@ class AnthropicAPI(ModelAPI):
 
         # migration-guide floor: xhigh/max effort wants ≥64k max_tokens
         # (model caps below will still clamp on older models)
-        if config.effort in ("xhigh", "max") and max_tokens < 64000:
-            max_tokens = 64000
+        if config.effort in ("xhigh", "max"):
+            max_tokens = max(max_tokens, ANTHROPIC_HIGH_EFFORT_MAX_TOKENS)
 
         # apply caps after bumping for reasoning
         if self.is_claude_frontier() and self.is_claude_4_opus():
@@ -1460,13 +1499,14 @@ class AnthropicAPI(ModelAPI):
         )
 
     def _supports_disabling_thinking(self) -> bool:
-        """Whether `reasoning_effort="none"` should send `thinking:{type:"disabled"}`.
+        """Whether `reasoning_effort="none"` should send a thinking-off config.
 
         Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5) run adaptive thinking by
         default and accept `disabled` to turn it off (on Opus 5 only at effort
-        `high` or below — see completion_config). Fable/Mythos 5 and Opus 5.5
-        always think and reject `disabled` (400), so `"none"` leaves thinking
-        on for them (the field is omitted).
+        `high` or below — see completion_config). Sonnet 5.5 rejects `disabled`
+        but accepts `between_tools`, which turns off up-front thinking.
+        Fable/Mythos 5 and Opus 5.5 always think and reject `disabled` (400),
+        so `"none"` leaves thinking on for them (the field is omitted).
         """
         if not self.is_claude_4_7_or_later():
             # pre-4.7 models default to no thinking, so `"none"` is honored by
@@ -1487,39 +1527,51 @@ class AnthropicAPI(ModelAPI):
     def apply_thinking_block_binding(
         self, request: dict[str, Any], betas: list[str]
     ) -> None:
-        """Opt into dropping prefix-mismatched thinking blocks on Fable 5.1 / Opus 5.5.
+        """Opt into dropping prefix-mismatched thinking blocks on bound-thinking models.
 
-        Fable 5.1 and Opus 5.5 bind thinking blocks to the request prefix that
-        produced them; solvers legitimately edit history, and without
+        Fable 5.1, Opus 5.5, and Sonnet 5.5 bind thinking blocks to the request
+        prefix that produced them; solvers legitimately edit history, and without
         drop_block such an edit fails the replay with a 400. Applied to every
         request for these models — not only those replaying thinking blocks —
         so the beta header stays uniform across a task's requests (the batcher
         submits a single header set per batch). Mythos 5.1 does not run the
-        binding check, so it is excluded. First-party API only for now: the
-        binding-controls beta arrives per model on bedrock/vertex (the header
-        is rejected until then) and is not offered on foundry — until those
-        platforms enable it, a history edit there will still 400. A
-        caller-supplied `extra_body.thinking` shallow-merges over the request
-        body and replaces this binding config.
+        binding check, so it is excluded. Applied on the first-party API and,
+        for Sonnet 5.5 (verified live), on Bedrock: the binding-controls beta
+        arrives per model on bedrock/vertex and is not offered on foundry, so
+        other model/platform pairs stay opted out until verified, and a
+        history edit there can still 400. The API accepts `block_binding`
+        only with adaptive thinking, so Sonnet 5.5's
+        `between_tools` (`reasoning_effort="none"`) requests carry the beta
+        header but no binding config, and a history edit before a replayed
+        thinking block can still 400 there. A caller-supplied
+        `extra_body.thinking` shallow-merges over the request body and
+        replaces this binding config.
         """
         binds_thinking = (
-            self.is_claude_fable_5_1_or_later() and "mythos" not in self.model_family()
-        ) or self.is_claude_opus_5_5_or_later()
-        if binds_thinking and not (
+            (
+                self.is_claude_fable_5_1_or_later()
+                and "mythos" not in self.model_family()
+            )
+            or self.is_claude_opus_5_5_or_later()
+            or self.is_claude_sonnet_5_5_or_later()
+        )
+        binding_offered = not (
             self.is_bedrock() or self.is_vertex() or self.is_azure()
-        ):
+        ) or (self.is_bedrock() and self.is_claude_sonnet_5_5_or_later())
+        if binds_thinking and binding_offered:
             betas.append(_THINKING_BINDING_BETA)
-            # thinking is always on for these models, so explicit adaptive
-            # (the server default) is accepted when the field was omitted
-            request.setdefault("thinking", {"type": "adaptive"})["block_binding"] = {
-                "prefix_mismatch_behavior": "drop_block"
-            }
+            # adaptive thinking is the server default for these models, so
+            # sending it explicitly is accepted when the field was omitted
+            thinking = request.setdefault("thinking", {"type": "adaptive"})
+            if thinking.get("type") == "adaptive":
+                thinking["block_binding"] = {"prefix_mismatch_behavior": "drop_block"}
 
     def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
         """Degrade forced tool choice to auto on models that reject it (400).
 
         "auto" and "none" pass through unchanged; strict tool use with auto
-        remains the schema-enforcement path on Fable/Mythos 5.1 and Opus 5.5.
+        remains the schema-enforcement path on Fable/Mythos 5.1, Opus 5.5, and
+        Sonnet 5.5.
         """
         if is_forced_tool_choice(tool_choice) and rejects_forced_tool_choice(
             self.model_family()
@@ -1612,12 +1664,16 @@ class AnthropicAPI(ModelAPI):
         """Opus 5.5 or a later point release (a subset of is_claude_opus_5)."""
         return is_claude_opus_5_5_model(self.model_family())
 
+    def is_claude_sonnet_5_5_or_later(self) -> bool:
+        """Sonnet 5.5 or a later point release (a subset of is_claude_sonnet_5)."""
+        return is_claude_sonnet_5_5_model(self.model_family())
+
     def computer_use_toolset(self) -> bool:
         """Whether the computer tool is declared as Anthropic's computer toolset.
 
         Auto mode (no `computer_toolset` model arg) uses the toolset where the
-        legacy `computer_20251124` tool is rejected (Opus 5.5 on the Claude API
-        and Vertex) and, where the platform offers it, for Fable/Mythos 5.x and
+        legacy `computer_20251124` tool is rejected (Opus 5.5 and Sonnet 5.5 on
+        the Claude API and Vertex) and, where the platform offers it, for Fable/Mythos 5.x and
         any other non-Sonnet/Opus Claude 5 model. Every other model keeps the
         legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock and
         Foundry, which offer only the legacy tool.
@@ -1653,11 +1709,14 @@ class AnthropicAPI(ModelAPI):
     def computer_toolset_required(self) -> bool:
         """Whether the legacy computer tool is rejected for this model/platform.
 
-        Only Opus 5.5 on the Claude API and Vertex rejects `computer_20251124`;
-        Bedrock and Foundry keep accepting it there, and every other model
-        listed for the legacy tool (Fable/Mythos 5.x included) still accepts it.
+        Only Opus 5.5 and Sonnet 5.5 on the Claude API and Vertex reject
+        `computer_20251124`; Bedrock and Foundry keep accepting it there, and
+        every other model listed for the legacy tool (Fable/Mythos 5.x
+        included) still accepts it.
         """
-        return self.is_claude_opus_5_5_or_later() and self.computer_toolset_available()
+        return (
+            self.is_claude_opus_5_5_or_later() or self.is_claude_sonnet_5_5_or_later()
+        ) and self.computer_toolset_available()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -1772,7 +1831,7 @@ class AnthropicAPI(ModelAPI):
             return "anthropic/claude-opus-4-6"  # 1MM
         elif self.is_claude_latest():
             # Unknown future version: assume the current 1M frontier.
-            return "anthropic/claude-opus-5-5"  # 1MM
+            return FRONTIER_MODELS["anthropic"]  # 1MM
         elif (
             self.is_claude_5() and _get_model_info_direct(self.canonical_name()) is None
         ):
@@ -1782,7 +1841,7 @@ class AnthropicAPI(ModelAPI):
             # Claude 5 models (Opus/Sonnet/Fable/Mythos and their point
             # releases, which fuzzy-match their base entry) fall through to the
             # database below.
-            return "anthropic/claude-opus-5-5"  # 1MM
+            return FRONTIER_MODELS["anthropic"]  # 1MM
         else:
             return super().input_tokens_name()
 
@@ -1926,6 +1985,38 @@ class AnthropicAPI(ModelAPI):
         list[MessageParam],
         bool,
     ]:
+        # explicit hints route to _resolve_chat_input_explicit only when
+        # caching is enabled and every hint can be honored; otherwise they
+        # are stripped and the automatic path below runs instead. An
+        # over-budget mark count raises rather than falling back, since
+        # falling back would resume caching the tail the marks meant to
+        # exclude.
+        if _has_cache_breakpoint_hints(input):
+            cache_prompt = (
+                config.cache_prompt if isinstance(config.cache_prompt, bool) else True
+            )
+            if cache_prompt:
+                model_name = self.model_family()
+                if (
+                    "claude-3-sonnet" in model_name
+                    or "claude-2" in model_name
+                    or "claude-instant" in model_name
+                ):
+                    cache_prompt = False
+            if cache_prompt:
+                marked = _count_cache_breakpoints(input)
+                if marked > MAX_CACHE_BREAKPOINTS:
+                    raise ValueError(
+                        f"Request has {marked} ContentText.cache_breakpoint marks; "
+                        f"Anthropic allows at most {MAX_CACHE_BREAKPOINTS} cache "
+                        "breakpoints per request."
+                    )
+                if _can_honor_cache_breakpoints(input):
+                    return await self._resolve_chat_input_explicit(
+                        input, tools, config, cache_ttl
+                    )
+            input = _strip_cache_breakpoints(input)
+
         # Convert orphaned tool results to text messages before processing
         # (handles case where native compaction summarized away tool_use blocks)
         input = _convert_orphaned_tool_results(input)
@@ -2041,6 +2132,133 @@ class AnthropicAPI(ModelAPI):
             cache_prompt,
         )
 
+    async def _resolve_chat_input_explicit(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        cache_ttl: Literal["5m", "1h"] | None,
+    ) -> Tuple[
+        list[TextBlockParam] | None,
+        list["ToolParamDef"],
+        list[BetaRequestMCPServerURLDefinitionParam],
+        list[MessageParam],
+        bool,
+    ]:
+        """Resolve `input` when it carries honorable caller `ContentText.cache_breakpoint` marks.
+
+        Only reached once `resolve_chat_input` has confirmed caching is
+        enabled and `_can_honor_cache_breakpoints(input)`. Automatic caching
+        (system, tools, message lookback/final markers) is suppressed in
+        favor of the caller's own boundaries.
+        """
+        input = _convert_orphaned_tool_results(input)
+
+        messages: list[ChatMessage]
+        if self.supports_mid_conversation_system():
+            system_messages, messages = _split_for_mid_conversation_system(input)
+        else:
+            system_messages, messages = _split_system_as_reminders(input)
+
+        # cleave out MCP servers from tools
+        standard_tools, mcp_servers = self.partition_tools(tools)
+
+        # tools
+        tools_params = [
+            param
+            for tool in standard_tools
+            for param in self.tool_params_for_tool_info(tool, config)
+        ]
+
+        # with the computer toolset declared, every call to the computer tool
+        # in the history replays as a toolset member (name = action, with
+        # toolset_name) and its result must echo toolset_name -- whichever
+        # tool declaration originally produced it
+        computer_toolset_call_ids: set[str] = set()
+        if any(is_computer_toolset(param) for param in tools_params):
+            computer_toolset_call_ids = {
+                tool_call.id
+                for message in messages
+                if isinstance(message, ChatMessageAssistant)
+                for tool_call in message.tool_calls or []
+                if tool_call.function == INTERNAL_COMPUTER_TOOL_NAME
+            }
+
+        message_params = [
+            (
+                await message_param(
+                    message, computer_toolset_call_ids=computer_toolset_call_ids
+                )
+            )
+            for message in messages
+        ]
+
+        # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
+        message_params = functools.reduce(
+            consecutive_user_message_reducer, message_params, []
+        )
+
+        # mcp servers
+        mcp_server_params = [
+            self.mcp_server_param(mcp_server) for mcp_server in mcp_servers
+        ]
+
+        # preserve per-block boundaries so a stable block isn't flattened
+        # together with a varying one into a single cached string
+        system_param: list[TextBlockParam] | None = None
+        if len(system_messages) > 0:
+            system_param = [
+                block
+                for m in system_messages
+                for block in system_content_blocks(m, cache_ttl)
+            ]
+            if len(system_param) == 0:
+                system_param = None
+        else:
+            system_param = None
+
+        # explicit breakpoints replace the heuristic message/lookback
+        # breakpoints, so the caller's chosen boundaries stand alone
+        explicit_message_breakpoints = count_message_cache_control(message_params)
+        explicit_system_breakpoints = (
+            count_block_list_cache_control(system_param) if system_param else 0
+        )
+        # a native tool (e.g. web_search) can already carry its own
+        # cache_control from tool options, before any automatic marking below
+        existing_tool_breakpoints = count_block_list_cache_control(tools_params)
+
+        fixed_breakpoints = (
+            explicit_message_breakpoints
+            + explicit_system_breakpoints
+            + existing_tool_breakpoints
+        )
+        if fixed_breakpoints > MAX_CACHE_BREAKPOINTS:
+            raise ValueError(
+                f"Request has {fixed_breakpoints} cache breakpoints (explicit "
+                "ContentText marks plus native tool cache_control); Anthropic "
+                f"allows at most {MAX_CACHE_BREAKPOINTS} per request."
+            )
+
+        # auto-mark system/tools only where nothing already marked that
+        # scope and there's still budget for it
+        room = MAX_CACHE_BREAKPOINTS - fixed_breakpoints
+        if system_param and not explicit_system_breakpoints and room > 0:
+            add_cache_control(system_param[-1], cache_ttl)
+            room -= 1
+        if tools_params and not existing_tool_breakpoints and room > 0:
+            add_cache_control(tools_params[-1], cache_ttl)
+
+        normalize_document_citations(message_params)
+
+        return (
+            system_param,
+            tools_params,
+            mcp_server_params,
+            message_params,
+            # explicit breakpoints replace automatic caching entirely
+            False,
+        )
+
     def partition_tools(
         self,
         tools: list[ToolInfo],
@@ -2129,7 +2347,7 @@ class AnthropicAPI(ModelAPI):
                         f"'{self.service_model_name()}' on this platform. Remove "
                         "computer_toolset=true to use the legacy computer tool."
                     )
-                # the toolset is documented for Opus 4.8, Sonnet 5, Opus 5/5.5
+                # the toolset is documented for Opus 4.8, Sonnet 5/5.5, Opus 5/5.5
                 # and Fable/Mythos 5.x (so a forced opt-in on older models errors)
                 if not self.is_claude_4_8_or_later():
                     raise PrerequisiteError(
@@ -2144,7 +2362,7 @@ class AnthropicAPI(ModelAPI):
                 # inspect computer tool always supports it, so no configs.
                 return BetaComputerToolset20260801Param(type=COMPUTER_TOOLSET_TYPE)
             # legacy path forced (computer_toolset=false) where the legacy tool
-            # is rejected (Opus 5.5 on the Claude API / Vertex)
+            # is rejected (Opus 5.5 / Sonnet 5.5 on the Claude API / Vertex)
             if self.computer_toolset_required():
                 raise PrerequisiteError(
                     f"The legacy computer tool (computer_20251124) is not supported "
@@ -2163,8 +2381,8 @@ class AnthropicAPI(ModelAPI):
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
             # computer_20251124 is supported by Claude Opus 5, Sonnet 5,
-            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5 (and by Opus 5.5 on
-            # Bedrock and Foundry, where the toolset is not offered)
+            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5 (and by Opus 5.5 and
+            # Sonnet 5.5 on Bedrock and Foundry, where the toolset is not offered)
             if self.is_claude_frontier() or (
                 self.is_claude_4_5() and self.is_claude_4_opus()
             ):
@@ -2589,6 +2807,26 @@ def add_lookback_cache_control(
                     return
 
 
+# Anthropic rejects requests with more cache_control markers than this.
+MAX_CACHE_BREAKPOINTS = 4
+
+
+def count_block_list_cache_control(blocks: Sequence[object]) -> int:
+    """Number of blocks in `blocks` carrying `cache_control`."""
+    return sum(
+        1 for block in blocks if isinstance(block, dict) and "cache_control" in block
+    )
+
+
+def count_message_cache_control(message_params: list[MessageParam]) -> int:
+    """Number of top-level content blocks in `message_params` carrying `cache_control`."""
+    return sum(
+        count_block_list_cache_control(msg["content"])
+        for msg in message_params
+        if isinstance(msg["content"], list)
+    )
+
+
 def add_cache_control(
     param: TextBlockParam
     | ToolParam
@@ -2745,6 +2983,109 @@ def _convert_orphaned_tool_results(
     return result
 
 
+def _cache_breakpoint(block: ContentText) -> bool:
+    """Whether `block` requests an explicit cache breakpoint.
+
+    Uses `getattr` since Inspect's local response cache persists pickled
+    `ModelOutput` objects across version upgrades; unpickling bypasses
+    pydantic defaults, so a `ContentText` pickled before this field existed
+    genuinely lacks the attribute. A missing attribute means unmarked.
+    """
+    return bool(getattr(block, "cache_breakpoint", None))
+
+
+def _message_has_cache_breakpoint(message: ChatMessage) -> bool:
+    return isinstance(message.content, list) and any(
+        isinstance(block, ContentText) and _cache_breakpoint(block)
+        for block in message.content
+    )
+
+
+def _has_cache_breakpoint_hints(messages: list[ChatMessage]) -> bool:
+    """Cheap presence check for any `ContentText.cache_breakpoint` mark."""
+    return any(_message_has_cache_breakpoint(message) for message in messages)
+
+
+def _count_cache_breakpoints(messages: list[ChatMessage]) -> int:
+    """Number of `ContentText.cache_breakpoint` marks across `messages`."""
+    return sum(
+        1
+        for message in messages
+        if isinstance(message.content, list)
+        for block in message.content
+        if isinstance(block, ContentText) and _cache_breakpoint(block)
+    )
+
+
+def _strip_cache_breakpoints(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Copy of `messages` with every `ContentText.cache_breakpoint` mark removed.
+
+    Non-mutating: only messages that actually carry a mark are copied.
+    """
+    result: list[ChatMessage] = []
+    for message in messages:
+        if not _message_has_cache_breakpoint(message):
+            result.append(message)
+            continue
+        content = cast(list[Content], message.content)
+        stripped_content: list[Content] = [
+            block.model_copy(update={"cache_breakpoint": None})
+            if isinstance(block, ContentText) and _cache_breakpoint(block)
+            else block
+            for block in content
+        ]
+        result.append(message.model_copy(update={"content": stripped_content}))
+    return result
+
+
+def _can_honor_cache_breakpoints(input: list[ChatMessage]) -> bool:
+    """Whether every `ContentText.cache_breakpoint` mark in `input` can be honored.
+
+    Checked once, up front — the whole request falls back to normal
+    automatic caching (every mark stripped) rather than honoring some marks
+    and not others. Supported: a leading system message, or an ordinary
+    non-empty user/assistant block. Not supported: a mid-conversation system
+    message, a tool result (no way to mark a boundary inside either), or an
+    empty text block (Anthropic rejects those outright and Inspect
+    substitutes a placeholder, so a mark there would attach to the
+    placeholder instead of real content).
+    """
+    if _count_cache_breakpoints(input) > MAX_CACHE_BREAKPOINTS:
+        return False
+
+    if any(
+        isinstance(block, ContentText) and _cache_breakpoint(block) and not block.text
+        for message in input
+        if isinstance(message.content, list)
+        for block in message.content
+    ):
+        return False
+
+    i = 0
+    while i < len(input) and isinstance(input[i], ChatMessageSystem):
+        leading = cast(ChatMessageSystem, input[i])
+        if isinstance(leading.content, list):
+            text_blocks = [
+                block for block in leading.content if isinstance(block, ContentText)
+            ]
+            marked = [
+                idx for idx, block in enumerate(text_blocks) if _cache_breakpoint(block)
+            ]
+            if marked:
+                trailing = text_blocks[marked[-1] + 1 :]
+                if len(trailing) == 1 and not trailing[0].text:
+                    # a lone trailing empty block would be dropped as an
+                    # invalid empty text block, losing its separator
+                    return False
+        i += 1
+
+    return not any(
+        isinstance(message, ChatMessageSystem | ChatMessageTool)
+        and _message_has_cache_breakpoint(message)
+        for message in input[i:]
+    )
+
+
 def _split_system_as_reminders(
     input: list[ChatMessage],
 ) -> tuple[list[ChatMessageSystem], list[ChatMessage]]:
@@ -2764,6 +3105,9 @@ def _split_system_as_reminders(
     result would fold into the tool-result turn. Non-tool-result content in a
     tool-result turn restarts the assistant loop and strips prior thinking /
     cache context on tool-use continuations, so those reminders are hoisted.
+
+    A mid-conversation `cache_breakpoint` mark is disqualified and stripped
+    by `_can_honor_cache_breakpoints` before this runs, so none reach here.
     """
     top: list[ChatMessageSystem] = []
     i = 0
@@ -2819,6 +3163,9 @@ def _split_for_mid_conversation_system(
     as `role="system"` turns). Enforces the API's placement invariants by
     merging consecutive mid-conversation systems and hoisting any in invalid
     positions back to the top-level field.
+
+    A mid-conversation `cache_breakpoint` mark is disqualified and stripped
+    by `_can_honor_cache_breakpoints` before this runs, so none reach here.
     """
     # 1. Pull leading contiguous block.
     top: list[ChatMessageSystem] = []
@@ -2899,6 +3246,50 @@ def _previous_assistant_message_id(input: list[ChatMessage]) -> str | None:
     return None
 
 
+def system_content_blocks(
+    message: ChatMessageSystem,
+    cache_ttl: Literal["5m", "1h"] | None,
+) -> list[TextBlockParam]:
+    r"""`message`'s content as text blocks.
+
+    Unmarked requests keep the prior single flattened block. When a
+    `cache_breakpoint` mark is present, blocks are split only at the marked
+    boundaries — unmarked runs on either side stay joined with `"\n"`, same
+    as the flattened representation.
+    """
+    if isinstance(message.content, str):
+        return (
+            [TextBlockParam(type="text", text=message.content)]
+            if message.content
+            else []
+        )
+    if not any(
+        isinstance(block, ContentText) and _cache_breakpoint(block)
+        for block in message.content
+    ):
+        text = message.text
+        return [TextBlockParam(type="text", text=text)] if text else []
+
+    blocks: list[TextBlockParam] = []
+    run: list[str] = []
+    for block in message.content:
+        if not isinstance(block, ContentText):
+            continue
+        run.append(block.text)
+        if _cache_breakpoint(block):
+            text_block = TextBlockParam(type="text", text="\n".join(run))
+            add_cache_control(text_block, cache_ttl)
+            blocks.append(text_block)
+            run = []
+    if run:
+        trailing_text = "\n".join(run)
+        # the API rejects empty text content parts, so drop a fully-empty
+        # trailing run rather than emit one
+        if trailing_text:
+            blocks.append(TextBlockParam(type="text", text=trailing_text))
+    return blocks
+
+
 async def message_param(
     message: ChatMessage, *, computer_toolset_call_ids: Collection[str] = frozenset()
 ) -> MessageParam:
@@ -2926,6 +3317,7 @@ async def message_param(
     # before this function is called, so role=="system" is unreachable
     # there.
     if message.role == "system":
+        assert isinstance(message, ChatMessageSystem)
         if isinstance(message.content, str):
             return MessageParam(role="system", content=message.content or NO_CONTENT)
         text_blocks: list[TextBlockParam] = [
@@ -3984,9 +4376,9 @@ async def model_output_from_message(
         {"extra_body": dict(extra_body)} if extra_body else None
     )
 
-    # thinking block binding (Fable 5.1): with the thinking-binding
-    # beta, replayed thinking blocks the server dropped (e.g. after a history
-    # edit) are reported via input_transformations. Warn so callers know
+    # thinking block binding (Fable 5.1, Opus 5.5, Sonnet 5.5): with the
+    # thinking-binding beta, replayed thinking blocks the server dropped (e.g.
+    # after a history edit) are reported via input_transformations. Warn so callers know
     # reasoning context was lost; the raw entries (including the message path
     # of each dropped block) are captured under metadata["extra_body"] above.
     for transformation in extra_body.get("input_transformations") or []:
@@ -4005,9 +4397,16 @@ async def model_output_from_message(
     # server-side refusal fallback: record a typed ModelFallback so log
     # analysis can detect a fallback without parsing assistant content. the
     # handoff chain and per-attempt `usage.iterations` are surfaced as
-    # diagnostics on ModelFallback.metadata.
+    # diagnostics on ModelFallback.metadata. a turn that sticky routing sent
+    # straight to the fallback model has no handoff, only the
+    # `fallback_message` iteration.
     fallback: ModelFallback | None = None
-    requested_model = fallback_handoffs[0]["from"] if fallback_handoffs else None
+    if fallback_handoffs:
+        requested_model = fallback_handoffs[0]["from"]
+    elif is_fallback_iterations and model != serving_model:
+        requested_model = model
+    else:
+        requested_model = None
     if requested_model and serving_model:
         fallback = ModelFallback(
             model=requested_model,
@@ -4048,6 +4447,7 @@ async def model_output_from_message(
             ),
             fallback=fallback,
             metadata=metadata,
+            response_id=message.id,
         ),
         pause_turn,
     )
@@ -4587,6 +4987,43 @@ def _fallback_block_models(block: Any) -> tuple[str | None, str | None]:
     return info_model(from_info), info_model(to_info)
 
 
+def _fallback_attempts_usage(
+    iterations: list[Any], requested_model: str
+) -> list[ServedModelUsage]:
+    """Billable usage of each attempt of a server-side fallback request.
+
+    Each attempt is billed at the rates of the model that ran it. An attempt
+    that declined before any output is billed only for some refusal
+    categories, which a fallback response does not report, so it is left out.
+    """
+    attempts: list[ServedModelUsage] = []
+    for it in iterations:
+        if not isinstance(it, dict):
+            continue
+        if it.get("type") == "message" and not it.get("output_tokens"):
+            continue
+        input_tokens = it.get("input_tokens") or 0
+        output_tokens = it.get("output_tokens") or 0
+        cache_write = it.get("cache_creation_input_tokens")
+        cache_read = it.get("cache_read_input_tokens")
+        attempts.append(
+            ServedModelUsage(
+                model=f"anthropic/{it.get('model') or requested_model}",
+                usage=ModelUsage(
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=input_tokens
+                    + output_tokens
+                    + (cache_write or 0)
+                    + (cache_read or 0),
+                    input_tokens_cache_write=cache_write,
+                    input_tokens_cache_read=cache_read,
+                ),
+            )
+        )
+    return attempts
+
+
 def _content_data_for_fallback(block: Any) -> ContentData:
     from_model, to_model = _fallback_block_models(block)
     return ContentData(
@@ -4958,7 +5395,10 @@ async def message_block_params(
             else None
         )
 
-        return [TextBlockParam(type="text", text=text, citations=citations)]
+        text_block = TextBlockParam(type="text", text=text, citations=citations)
+        if _cache_breakpoint(content):
+            add_cache_control(text_block, _cache_write_ttl.get())
+        return [text_block]
     elif isinstance(content, ContentImage):
         return [await image_block_param(content.image)]
 
