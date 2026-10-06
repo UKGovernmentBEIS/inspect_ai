@@ -274,6 +274,11 @@ def _resolve_deployment(deployment: ProxyDeployment) -> ProxyResolution:
     upstream = upstream_model(deployment)
     if upstream is None:
         return ProxyResolution(db_key=None, upstream=None)
+    return resolve_upstream(upstream)
+
+
+def resolve_upstream(upstream: str) -> ProxyResolution:
+    """Resolve an upstream model string (LiteLLM form or a bare id)."""
     candidates = database_candidates(upstream)
     db_key = next((key for c in candidates if (key := _strict_db_key(c))), None)
     return ProxyResolution(

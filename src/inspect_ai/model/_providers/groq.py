@@ -264,123 +264,123 @@ class GroqAPI(ModelAPI):
         config: GenerateConfig,
     ) -> tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
-        request_id = self._http_hooks.start_request()
+        with self._http_hooks.request() as request_id:
+            messages = await as_groq_chat_messages(input)
 
-        messages = await as_groq_chat_messages(input)
+            params = self.completion_params(config)
+            if tools:
+                params["tools"] = chat_tools(tools)
+                params["tool_choice"] = (
+                    chat_tool_choice(tool_choice) if tool_choice else "auto"
+                )
+                if config.parallel_tool_calls is not None:
+                    params["parallel_tool_calls"] = config.parallel_tool_calls
 
-        params = self.completion_params(config)
-        if tools:
-            params["tools"] = chat_tools(tools)
-            params["tool_choice"] = (
-                chat_tool_choice(tool_choice) if tool_choice else "auto"
+            # resolve streaming and mutate the request accordingly before the
+            # ModelCall snapshot, so the logged request matches the wire request
+            streaming = self.resolve_streaming(config)
+            request = dict(
+                messages=messages,
+                model=self.model_name,
+                extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+                | (config.extra_headers or {}),
+                **params,
             )
-            if config.parallel_tool_calls is not None:
-                params["parallel_tool_calls"] = config.parallel_tool_calls
-
-        # resolve streaming and mutate the request accordingly before the
-        # ModelCall snapshot, so the logged request matches the wire request
-        streaming = self.resolve_streaming(config)
-        request = dict(
-            messages=messages,
-            model=self.model_name,
-            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
-            | (config.extra_headers or {}),
-            **params,
-        )
-        if streaming:
-            request["stream"] = True
-
-        model_call = set_active_model_event_call(
-            request=request,
-            filter=model_call_filter,
-        )
-
-        try:
             if streaming:
-                async with cast(
-                    AsyncStream[ChatCompletionChunk],
-                    await self.client.chat.completions.create(**request),
-                ) as chunk_stream:
-                    completion = await groq_completion_from_stream(chunk_stream)
-            else:
-                completion = cast(
-                    ChatCompletion,
-                    await self.client.chat.completions.create(**request),
-                )
+                request["stream"] = True
 
-            model_call.set_response(
-                completion.model_dump(), self._http_hooks.end_request(request_id)
+            model_call = set_active_model_event_call(
+                request=request,
+                filter=model_call_filter,
             )
 
-            # a streamed response should carry usage on its final chunk —
-            # warn rather than under-count silently if it does not
-            if streaming and completion.usage is None:
-                warn_once(
-                    logger,
-                    f"groq model '{self.model_name}' reported no token usage "
-                    "for a streamed response; pass -M streaming=false if you "
-                    "require usage reporting.",
-                )
-
-            # extract metadata
-            metadata: dict[str, Any] = {
-                "id": completion.id,
-                "system_fingerprint": completion.system_fingerprint,
-                "created": completion.created,
-            }
-            if completion.usage:
-                metadata = metadata | {
-                    "queue_time": completion.usage.queue_time,
-                    "prompt_time": completion.usage.prompt_time,
-                    "completion_time": completion.usage.completion_time,
-                    "total_time": completion.usage.total_time,
-                }
-            if completion.choices[0].message.executed_tools:
-                metadata["executed_tools"] = [
-                    tool.model_dump()
-                    for tool in completion.choices[0].message.executed_tools
-                ]
-
-            # extract output
-            choices = self._chat_choices_from_response(completion, tools)
-            output = ModelOutput(
-                model=completion.model,
-                choices=choices,
-                usage=(
-                    ModelUsage(
-                        input_tokens=completion.usage.prompt_tokens,
-                        output_tokens=completion.usage.completion_tokens,
-                        total_tokens=completion.usage.total_tokens,
+            try:
+                if streaming:
+                    async with cast(
+                        AsyncStream[ChatCompletionChunk],
+                        await self.client.chat.completions.create(**request),
+                    ) as chunk_stream:
+                        completion = await groq_completion_from_stream(chunk_stream)
+                else:
+                    completion = cast(
+                        ChatCompletion,
+                        await self.client.chat.completions.create(**request),
                     )
-                    if completion.usage
-                    else None
-                ),
-                metadata=metadata,
-            )
 
-            # return
-            return output, model_call
-        except APIError as ex:
-            model_call.set_error(
-                as_error_response(
-                    ex.body
-                    if ex.body is not None
-                    else {"error": {"message": ex.message}}
-                ),
-                self._http_hooks.end_request(request_id),
-            )
-            if isinstance(ex, APIStatusError):
-                return self.handle_bad_request(ex), model_call
-            # an error payload delivered in the stream body (HTTP 200 already
-            # sent) arrives as a plain APIError: convert a recognized
-            # bad-request condition, otherwise re-raise so should_retry can
-            # classify it; connection/validation errors keep their own semantics
-            if isinstance(ex, APIConnectionError | APIResponseValidationError):
-                raise
-            converted = self.handle_bad_request(ex)
-            if not isinstance(converted, ModelOutput):
-                raise
-            return converted, model_call
+                model_call.set_response(
+                    completion.model_dump(), self._http_hooks.end_request(request_id)
+                )
+
+                # a streamed response should carry usage on its final chunk —
+                # warn rather than under-count silently if it does not
+                if streaming and completion.usage is None:
+                    warn_once(
+                        logger,
+                        f"groq model '{self.model_name}' reported no token usage "
+                        "for a streamed response; pass -M streaming=false if you "
+                        "require usage reporting.",
+                    )
+
+                # extract metadata
+                metadata: dict[str, Any] = {
+                    "id": completion.id,
+                    "system_fingerprint": completion.system_fingerprint,
+                    "created": completion.created,
+                }
+                if completion.usage:
+                    metadata = metadata | {
+                        "queue_time": completion.usage.queue_time,
+                        "prompt_time": completion.usage.prompt_time,
+                        "completion_time": completion.usage.completion_time,
+                        "total_time": completion.usage.total_time,
+                    }
+                if completion.choices[0].message.executed_tools:
+                    metadata["executed_tools"] = [
+                        tool.model_dump()
+                        for tool in completion.choices[0].message.executed_tools
+                    ]
+
+                # extract output
+                choices = self._chat_choices_from_response(completion, tools)
+                output = ModelOutput(
+                    model=completion.model,
+                    choices=choices,
+                    usage=(
+                        ModelUsage(
+                            input_tokens=completion.usage.prompt_tokens,
+                            output_tokens=completion.usage.completion_tokens,
+                            total_tokens=completion.usage.total_tokens,
+                        )
+                        if completion.usage
+                        else None
+                    ),
+                    metadata=metadata,
+                    response_id=completion.id,
+                )
+
+                # return
+                return output, model_call
+            except APIError as ex:
+                model_call.set_error(
+                    as_error_response(
+                        ex.body
+                        if ex.body is not None
+                        else {"error": {"message": ex.message}}
+                    ),
+                    self._http_hooks.end_request(request_id),
+                )
+                if isinstance(ex, APIStatusError):
+                    return self.handle_bad_request(ex), model_call
+                # an error payload delivered in the stream body (HTTP 200 already
+                # sent) arrives as a plain APIError: convert a recognized
+                # bad-request condition, otherwise re-raise so should_retry can
+                # classify it; connection/validation errors keep their own semantics
+                if isinstance(ex, APIConnectionError | APIResponseValidationError):
+                    raise
+                converted = self.handle_bad_request(ex)
+                if not isinstance(converted, ModelOutput):
+                    raise
+                return converted, model_call
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:
         params: dict[str, Any] = {}
