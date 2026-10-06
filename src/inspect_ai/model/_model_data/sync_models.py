@@ -124,7 +124,7 @@ def load_curated_model_keys(data_dir: Path) -> set[str]:
     for info_file in sorted(data_dir.glob("*.yml")):
         if info_file.name in GENERATED_FILES:
             continue
-        with open(info_file) as f:
+        with open(info_file, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         for org, org_data in data.items():
             for model_name, model_def in (org_data.get("models") or {}).items():
@@ -387,7 +387,7 @@ def load_existing_data(output_file: Path) -> dict[str, Any]:
     if not output_file.exists():
         return {}
 
-    with open(output_file) as f:
+    with open(output_file, encoding="utf-8") as f:
         content = yaml.safe_load(f)
 
     return cast(dict[str, Any], content) if content else {}
@@ -506,7 +506,7 @@ def write_yaml(data: dict[str, Any], source: Source) -> None:
 #   {source.api_key_env}=your_key python -m inspect_ai.model._model_data.sync_models --source {source.name}
 
 """
-    with open(source.output_file, "w") as f:
+    with open(source.output_file, "w", encoding="utf-8") as f:
         f.write(header)
         yaml.dump(
             data, f, default_flow_style=False, allow_unicode=True, sort_keys=False
