@@ -9,14 +9,23 @@ This document describes what runs where when Inspect evaluates a model against
 a sandbox, which principals exist inside a sandbox, what the boundaries between
 them are meant to guarantee, and the two contracts Inspect uses for directories
 it trusts inside a sandbox: the verified-directory contract and the
-verify-before-use rule. [AGENTS.md](../AGENTS.md) points reviewers here for any
-change that creates, adopts or trusts such a directory.
+verify-before-use rule. [AGENTS.md](../AGENTS.md) points reviewers of any
+change that creates, adopts or trusts such a directory to the helper modules
+that define these contracts; this document describes them and the model they
+serve.
+
+Containment depends on the sandbox provider and its configuration. The
+built-in `local` provider runs commands as host subprocesses with the host
+user's access to host files ("no sandbox" in the provider table of
+[docs/sandboxing.qmd](../docs/sandboxing.qmd)); none of the containment
+guarantees below apply to it. The directory contracts still apply to the
+directories Inspect trusts there.
 
 It is the container-internal counterpart to
 [BINARY_INTEGRITY.md](../src/inspect_sandbox_tools/design/BINARY_INTEGRITY.md),
 which covers whether the bytes injected into a sandbox are the bytes a
 maintainer released. That document's trust anchor is merge rights to this
-repository; this one's is the container runtime.
+repository; this one's is the isolation the sandbox provider supplies.
 
 Mechanics documented elsewhere are not repeated:
 [src/inspect_sandbox_tools/AGENTS.md](../src/inspect_sandbox_tools/AGENTS.md)
@@ -57,9 +66,13 @@ itself (the host process) is trusted. Inside the sandbox, Inspect's injected
 tools run as the **tools user**, recorded on the sandbox object as
 `_tools_user` (`ai/util/_sandbox/environment.py:195`).
 
-The number of distinct principals inside a sandbox is a runtime property:
+The number of distinct principals inside a sandbox is a runtime property. It
+depends on whether root is usable and on the user the agent's code actually
+runs as, which is the user each model-facing tool runs as (see
+[Tool user confinement](#tool-user-confinement)). For tools configured with
+no `user`, that is the sandbox's default user:
 
-| Configuration | Agent's commands run as | Tools user | Agent/tools privilege boundary |
+| Configuration (tools with no `user` override) | Agent's commands run as | Tools user | Agent/tools privilege boundary |
 |---|---|---|---|
 | Root usable; default user is non-root | default (non-root) user | `root` | Present |
 | Root usable; default user is root | root | `root` | Absent: same uid |
@@ -67,11 +80,16 @@ The number of distinct principals inside a sandbox is a runtime property:
 
 "Root usable" means a `user="root"` exec runs as uid 0 with `CAP_SETUID`,
 `CAP_SETGID` and `setgroups` allowed (`ai/tool/_sandbox_tools_utils/sandbox.py:398-424`).
-Only the first configuration has an in-sandbox privilege boundary between the
-agent and the tools. Where it exists, the tools tree is root-owned and mode
-`0700`, so the agent can neither read nor execute the tooling that serves it.
-A root-owned `0700` tree is not a boundary against a process that itself runs
-as root in the sandbox (`ai/util/_sandbox/_cli.py:16-20`).
+The privilege boundary between the agent and the tools exists when the tools
+user is root and every model-facing tool runs as a non-root user. With no
+overrides that is only the first row; an eval author can also establish it in
+a root-default sandbox by configuring every model-facing tool with a non-root
+user (for example `bash(user="nobody")` and `bash_session(user="nobody")`),
+and removes it in any sandbox by configuring one with `user="root"`. Where the
+boundary exists, the tools tree is root-owned and mode `0700`, so the agent
+can neither read nor execute the tooling that serves it. A root-owned `0700`
+tree is not a boundary against a process that itself runs as root in the
+sandbox (`ai/util/_sandbox/_cli.py:16-20`).
 
 ```mermaid
 flowchart TB
@@ -170,9 +188,16 @@ The tools are not baked into images. On first use the host:
 ### Pattern 1: host-driven agent
 
 The agent loop runs in the Inspect process. The model proposes tool calls;
-Inspect applies approval and limits, then executes the call and records it.
-Every call is a host-initiated `exec`: for injected tools the JSON-RPC request
-travels on stdin and the response on stdout
+Inspect applies approval and limits, then calls the tool's Python function in
+the host process and records the call (`ai/model/_call_tools.py:936`). Whether
+any of the tool's work happens in a sandbox is the tool function's choice
+([docs/sandboxing.qmd](../docs/sandboxing.qmd), Overview): a custom tool that
+does not use a sandbox runs entirely in the host process with the host's
+authority, and nothing in this document contains it.
+
+Work a tool delegates to a sandbox is a host-initiated `exec`: `bash()` and
+`python()` call `sandbox.exec()` directly, and for injected tools the JSON-RPC
+request travels on the exec's stdin and the response on its stdout
 (`ai/util/_sandbox/_json_rpc_transport.py:43-125`). On this path the sandbox
 has no channel of its own to the host; untrusted output crosses the boundary
 only as the response to a request the host made.
@@ -190,7 +215,8 @@ to the host, which Pattern 1's tool path does not have.
 
 | Tool kind | Executes | Inspect's position |
 |---|---|---|
-| Pattern 1 tools | In the sandbox, through `exec` or the injected tools | Dispatches the call after approval |
+| Pattern 1 tool function | In the Inspect host process | Calls it after approval |
+| Work a Pattern 1 tool delegates to a sandbox | In the sandbox, through `exec` or the injected tools | Issues each `exec` from the tool function |
 | A bridged agent's own tools | In the sandbox, run by the agent | Sees the model response before the agent does ([approval](../docs/agent-bridge.qmd)); does not dispatch the call |
 | Provider-side tools (web search, code execution) | At the model provider | Part of the model request |
 | `bridged_tools` | In the Inspect host process | See [docs/agent-bridge.qmd](../docs/agent-bridge.qmd) |
@@ -223,11 +249,12 @@ root the host captures the default exec identity (uid, gid, groups and
 `HOME`, `sandbox.py:427-470`) at injection and supplies it with every call
 that names no user (`ai/util/_sandbox/_cli.py:36-49`); the tools switch to it
 before running the tool's work, a no-op when they already run as that
-identity. Running an injected tool as root therefore requires an explicit
-grant from the eval author: `bash_session(user="root")`,
-`text_editor(user="root")` or an `exec_remote` user of `"root"`. A tools
-process that is not root never switches user
-(`guest/_util/user_switch.py:36-50`).
+identity. In a sandbox whose default user is non-root, running a tool as
+root therefore requires an explicit grant from the eval author:
+`bash(user="root")`, `bash_session(user="root")`, `text_editor(user="root")`
+or an `exec_remote` user of `"root"`. In a sandbox whose default user is root,
+omitting `user` runs the tool as root. A tools process that is not root never
+switches user (`guest/_util/user_switch.py:36-50`).
 
 ## Threat model
 
@@ -235,7 +262,7 @@ process that is not root never switches user
 
 | Anchor | Establishes |
 |---|---|
-| Container runtime isolation | The sandbox cannot reach the host kernel or filesystem except through channels Inspect provides |
+| Isolation supplied by the sandbox provider and its configuration | Sandbox processes cannot reach host resources except through channels Inspect provides (not supplied by the `local` provider) |
 | Merge rights to this repository | The tools artifact is the one maintainers released (BINARY_INTEGRITY.md) |
 | Host process integrity | Approval policy, limits and credentials are as the operator configured them |
 
@@ -259,7 +286,7 @@ Two secondary positions matter:
 
 | Boundary | Separates | Present |
 |---|---|---|
-| **A**: in-sandbox privilege | agent user and tools user | Both patterns, only when root is usable and the default user is non-root |
+| **A**: in-sandbox privilege | agent user and tools user | Both patterns, only when the tools user is root and the agent's code runs as a non-root user |
 | **B**: sandbox to host capability | sandbox processes and the Inspect process | Wherever a sandbox service runs, for example the sandbox agent bridge |
 | **C**: mediation | what the agent does and what Inspect can refuse and record | Both patterns, with different strength |
 
@@ -270,7 +297,8 @@ Some components are still being hardened toward them, and this document will
 describe that work as it lands.
 
 1. Unless the eval author grants a model-facing tool the tools user's
-   authority (`user="root"`), the agent cannot execute code as the tools user.
+   authority (by configuring `user="root"`, or by leaving `user` unset where
+   the default user is root), the agent cannot execute code as the tools user.
    *(A)*
 2. The agent cannot read, replace or redirect the tools tree, the tools
    server's state directory, or their contents. *(A)*
@@ -289,16 +317,19 @@ relies on containment where Pattern 1 relies on mediation.
 
 Boundary A has the same presence condition in both patterns, because both
 inject the same tools and obtain a separate privileged tools principal only
-when root is usable and the default user is not root.
+when root is usable; whether the agent is outside it then depends on the user
+its code runs as.
 
 ### Out of scope
 
-- **Escape through the container runtime or kernel.** That is the sandbox
-  provider's concern. A stronger isolation layer (a microVM) does not supply
+- **Escape through the container runtime or kernel, and the isolation level
+  of a provider.** That is the sandbox provider's concern; the `local`
+  provider supplies none. A stronger isolation layer (a microVM) does not supply
   any guarantee above: Boundary A is internal to the guest, and Boundaries B
   and C are channels Inspect deliberately provides across the isolation layer.
-- **Boundary A in single-principal sandboxes.** When the default user is root
-  or root is not usable, there is no agent/tools privilege boundary and
+- **Boundary A in single-principal sandboxes.** When root is not usable, or
+  the agent's code runs as root (a root default user with no `user` override,
+  or an explicit `user="root"`), there is no agent/tools privilege boundary and
   guarantees 1 and 2 are not supplied. Boundaries B and C remain in scope.
 - **Denial of service by the agent against its own tooling.** An agent can
   refuse to cooperate regardless; for example, a directory it plants at a
@@ -360,9 +391,20 @@ the verified object rather than to whatever the path names by then.
 touching anything when `id -u` reports another uid; `expected_uid_for("root")`
 pins uid 0 (`:334-342`), so a provider that ignores or downgrades
 `user="root"` cannot pass off a default-user directory as root's.
-`try_ensure_framework_directory_as_root` (`:564-650`) reads only "this sandbox
-cannot run as root" as a reason to fall back; a contract violation, a check
-that could not run, or a timeout is re-raised.
+`try_ensure_framework_directory_as_root` (`:564-650`) returns `False`, and its
+caller then prepares the directory as the default user, when the script ran as
+a uid other than 0 (`FrameworkDirectoryUserError`) or the provider raised any
+other exception. That second case is deliberately broad, because providers
+signal "cannot exec as root" with provider-specific exceptions, so an
+unrelated provider failure also selects the default-user path
+(`:575-590`, `:628-650`). A contract violation (`FrameworkDirectoryError`), a
+check that could not be performed (`FrameworkDirectoryUnavailableError`), a
+timeout and a `ValueError` are re-raised rather than read as "no root". This
+per-call classification is separate from the sandbox's recorded root-access
+decision ([above](#root-access-is-decided-before-the-agent-runs)), which
+selects the tools user; the sandbox service directory and the human agent's
+install directory use this helper
+(`ai/util/_sandbox/service.py:661-675`, `ai/agent/_human/install.py:124-131`).
 
 **Verdicts.** The script reports its verdict as a marker line on stderr and
 announces successful verification with a marker just before it runs the
