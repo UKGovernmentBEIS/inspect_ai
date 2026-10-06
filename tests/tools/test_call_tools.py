@@ -687,3 +687,48 @@ async def test_tool_explicit_schema_kwargs_docstring_int():
 
     message = await _execute_with_schema(execute, ["options"], {"options": "2"})
     assert message.content == "3"
+
+
+async def test_tool_explicit_schema_kwargs_untyped():
+    # **options with no annotation or docstring type passes values through
+    async def execute(**options) -> str:
+        return repr(options)
+
+    message = await _execute_with_schema(execute, ["options"], {"options": "hello"})
+    assert message.content == repr({"options": "hello"})
+
+
+async def test_tool_explicit_schema_kwargs_unresolved_docstring_type():
+    # **options documented with a type that can't be resolved is an error
+    # (rather than silently passing values through as Any)
+    called = False
+
+    async def execute(**options) -> str:
+        """Accept values.
+
+        Args:
+            options (list[str]): Values.
+        """
+        nonlocal called
+        called = True
+        return repr(options)
+
+    tool_def = ToolDef(
+        execute,
+        name="schema_tool",
+        description="Tool with an explicit schema.",
+        parameters=ToolParams(
+            properties={
+                "options": ToolParam(type="array", items=ToolParam(type="string"))
+            },
+            required=["options"],
+        ),
+    )
+    call = make_call("schema_tool", {"options": ["a"]})
+    with pytest.raises(
+        ValueError, match="No type annotation available for parameter options"
+    ):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+        )
+    assert not called

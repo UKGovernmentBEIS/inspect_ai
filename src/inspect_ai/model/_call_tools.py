@@ -1326,12 +1326,18 @@ def param_type_hint(
     if param_name in type_hints:
         return type_hints[param_name]
 
-    # as a fallback try to parse it from the docstring
+    # as a fallback try to parse it from the docstring (a documented type
+    # that can't be resolved is an error rather than missing type info)
     docstring_info = parse_docstring(docstring, param_name)
     if "docstring_type" in docstring_info:
         import builtins
 
-        return getattr(builtins, docstring_info["docstring_type"], None)
+        type_hint: Type[Any] | None = getattr(
+            builtins, docstring_info["docstring_type"], None
+        )
+        if type_hint is None:
+            raise ValueError(f"No type annotation available for parameter {param_name}")
+        return type_hint
 
     return None
 
