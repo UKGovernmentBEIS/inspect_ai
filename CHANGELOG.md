@@ -39,7 +39,7 @@
 - OpenAI: OpenAI: The OpenAI providers, message and output converters, and agent bridge now require openai >= 3.4.0.
 - Bugfix: Tool events now record the arguments an approver's `modify` decision substituted, and a `modify` that changes the function now fails the sample instead of running the wrong call.
 - Agent Bridge: `sandbox_agent_bridge()` now serves a request for an unknown model name with the eval's model and logs a warning; add the name to `model_aliases` to send it to another model.
-- Agent Bridge: `sandbox_agent_bridge()` now forwards the client's `Accept-Encoding` header, and other headers and values listed in its new `forward_client_headers` option; `agent_bridge()` now forwards only `Accept-Encoding` and `anthropic-beta`.
+- Agent Bridge: `sandbox_agent_bridge()` now forwards the client's `Accept-Encoding` header, and other headers and values listed in its new `forward_client_headers` option.
 - Agent Bridge: With `forward_generation_config=True`, `reasoning` fields Inspect does not model, such as `context`, now reach models that use the OpenAI Responses API.
 - Agent Bridge: Transparent bridged requests now decode Brotli responses when clients advertise `br` through `Accept-Encoding`.
 

@@ -59,29 +59,30 @@ if TYPE_CHECKING:
 
 logger = getLogger(__name__)
 
-# Headers forwarded from in-process bridge clients (exact match,
-# case-insensitive).
-#
-# This is an explicit allowlist, not a blocklist: a header that reaches the
-# host's provider request could otherwise re-route billing/tenant scope on the
-# host's API key (e.g. OpenAI's `OpenAI-Organization`/`OpenAI-Project`,
-# Google's `x-goog-user-project`) or leak other sensitive/internal state. Only
-# headers with a demonstrated need for client-request fidelity are listed
-# here; everything else is dropped. The sandbox bridge forwards
-# `accept-encoding` and the headers its `forward_client_headers` lists.
-_ALLOWED_BRIDGE_HEADERS = frozenset(
+# Headers blocked from bridge clients (exact match, case-insensitive)
+_BLOCKED_BRIDGE_HEADERS = frozenset(
     [
-        # The bridged client's supported response encodings. Forwarding
-        # this is load-bearing end to end: once forwarded, Anthropic
-        # actually responds brotli-encoded, which is why httpx[brotli] is
-        # a dependency (see the response-side decoder this depends on).
-        "accept-encoding",
-        # Claude Code and Codex set this to opt into API features. Without
-        # it the bridged agent runs against a different feature surface
-        # than the identical agent outside Inspect.
-        "anthropic-beta",
+        # Inspect internal tracking
+        "x-irid",
+        # Authentication
+        "authorization",
+        "x-api-key",
+        # Protocol headers
+        "content-type",
+        "content-length",
+        "transfer-encoding",
+        "host",
+        "connection",
+        # SDK internal headers
+        "anthropic-version",
+        # User-Agent would be misleading since Inspect transforms the request
+        "user-agent",
     ]
 )
+
+# Header prefixes blocked from bridge clients
+_BLOCKED_BRIDGE_HEADER_PREFIXES = ("x-stainless-",)
+
 
 # Headers a sandboxed client may never set on the host's request, whatever
 # `forward_client_headers` lists: credentials, transport framing, and values
@@ -154,35 +155,49 @@ def resolve_forward_client_headers(
     return resolved
 
 
-def filter_bridge_headers(
-    headers: dict[str, str] | None,
-    *,
-    forward_client_headers: Mapping[str, frozenset[str]] | None = None,
-) -> dict[str, str] | None:
-    """Filter headers from bridge clients to an explicit allowlist.
+def filter_bridge_headers(headers: dict[str, str] | None) -> dict[str, str] | None:
+    """Filter headers from bridge clients, removing sensitive/internal headers.
 
-    Every header supplied by the client that is not allowed is dropped,
-    including provider tenant/billing headers such as `OpenAI-Organization`,
-    `OpenAI-Project`, or Google's `x-goog-user-project`.
+    Note: `anthropic-beta` is intentionally NOT blocked - it's used for
+    legitimate feature flags (e.g., `code-execution-2025-08-25`).
+    """
+    if headers is None:
+        return None
+    filtered = {
+        k: v
+        for k, v in headers.items()
+        if k.lower() not in _BLOCKED_BRIDGE_HEADERS
+        and not k.lower().startswith(_BLOCKED_BRIDGE_HEADER_PREFIXES)
+    }
+    return filtered if filtered else None
+
+
+def filter_sandbox_client_headers(
+    headers: dict[str, str] | None,
+    forward_client_headers: Mapping[str, frozenset[str]],
+) -> dict[str, str] | None:
+    """Filter a sandboxed client's headers to `forward_client_headers`.
+
+    The sandboxed agent is untrusted code using the host's credentials, so only
+    `Accept-Encoding` and the headers and values the eval lists are forwarded;
+    every other header is dropped, including provider tenant/billing headers
+    such as `OpenAI-Organization` or Google's `x-goog-user-project`. The
+    in-process `agent_bridge()` uses `filter_bridge_headers` instead.
 
     Args:
-        headers: Headers sent by the bridge client.
-        forward_client_headers: The sandbox bridge's allowed client headers,
-            from `resolve_forward_client_headers`. `Accept-Encoding` is
-            forwarded as sent unless listed here. A listed header keeps only
-            its listed comma-separated values (the others are dropped with a
-            warning) and is removed if none remain. `None` (the in-process
-            bridge) forwards the headers in `_ALLOWED_BRIDGE_HEADERS` as sent.
+        headers: Headers sent by the sandboxed client.
+        forward_client_headers: Allowed client headers, from
+            `resolve_forward_client_headers`. `Accept-Encoding` is forwarded as
+            sent unless listed here. A listed header keeps only its listed
+            comma-separated values (the others are dropped with a warning) and
+            is removed if none remain.
     """
     if headers is None:
         return None
     filtered: dict[str, str] = {}
     for name, value in headers.items():
         lower_name = name.lower()
-        if forward_client_headers is None:
-            if lower_name in _ALLOWED_BRIDGE_HEADERS:
-                filtered[name] = value
-        elif lower_name in forward_client_headers:
+        if lower_name in forward_client_headers:
             value = _allowed_header_value(
                 name, value, forward_client_headers[lower_name]
             )

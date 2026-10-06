@@ -26,7 +26,7 @@ from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
 from ..anthropic_api import inspect_anthropic_api_request
-from ..bridge import filter_bridge_headers
+from ..bridge import filter_sandbox_client_headers
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
 from ..responses import inspect_responses_api_request
@@ -141,9 +141,7 @@ def generate_completions(
     ) -> dict[str, JsonValue]:
         completion = await inspect_completions_api_request(
             json_data,
-            filter_bridge_headers(
-                headers, forward_client_headers=bridge.forward_client_headers
-            ),
+            filter_sandbox_client_headers(headers, bridge.forward_client_headers),
             bridge,
         )
         return completion.model_dump(mode="json", warnings=False)
@@ -162,9 +160,7 @@ def generate_responses(
     ) -> dict[str, JsonValue]:
         completion = await inspect_responses_api_request(
             json_data,
-            filter_bridge_headers(
-                headers, forward_client_headers=bridge.forward_client_headers
-            ),
+            filter_sandbox_client_headers(headers, bridge.forward_client_headers),
             web_search,
             code_execution,
             bridge,
@@ -185,9 +181,7 @@ def generate_anthropic(
     ) -> dict[str, JsonValue]:
         completion = await inspect_anthropic_api_request(
             json_data,
-            filter_bridge_headers(
-                headers, forward_client_headers=bridge.forward_client_headers
-            ),
+            filter_sandbox_client_headers(headers, bridge.forward_client_headers),
             web_search,
             code_execution,
             bridge,

@@ -12,8 +12,10 @@ from inspect_ai._util import logger as inspect_logger
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge.bridge import (
-    _ALLOWED_BRIDGE_HEADERS,
+    _BLOCKED_BRIDGE_HEADER_PREFIXES,
+    _BLOCKED_BRIDGE_HEADERS,
     filter_bridge_headers,
+    filter_sandbox_client_headers,
     resolve_forward_client_headers,
 )
 from inspect_ai.agent._bridge.sandbox.service import (
@@ -46,23 +48,151 @@ class TestFilterBridgeHeaders:
         """Test that empty dict returns None."""
         assert filter_bridge_headers({}) is None
 
-    def test_custom_headers_stripped(self):
-        """A header with no demonstrated fidelity need is dropped.
-
-        The filter is an explicit allowlist: arbitrary client headers are
-        not forwarded just because they are unrecognized.
-        """
+    def test_custom_headers_pass_through(self):
+        """Test that custom headers are preserved."""
         headers = {
             "x-custom-header": "value1",
             "x-my-app-id": "12345",
             "x-request-context": "test",
         }
-        assert filter_bridge_headers(headers) is None
+        result = filter_bridge_headers(headers)
+        assert result == headers
 
-    def test_accept_encoding_passes_through(self):
-        """The bridged client's supported response encodings are preserved."""
-        headers = {"Accept-Encoding": "gzip, deflate, br, zstd"}
-        assert filter_bridge_headers(headers) == headers
+    def test_blocked_headers_removed(self):
+        """Test that blocked headers are removed."""
+        headers = {
+            "authorization": "Bearer secret",
+            "x-api-key": "sk-1234",
+            "x-irid": "request-id-123",
+            "content-type": "application/json",
+            "content-length": "1024",
+            "host": "api.example.com",
+            "x-custom-header": "keep-me",
+        }
+        result = filter_bridge_headers(headers)
+        assert result == {"x-custom-header": "keep-me"}
+
+    def test_blocked_headers_case_insensitive(self):
+        """Test that header blocking is case-insensitive."""
+        headers = {
+            "Authorization": "Bearer secret",
+            "X-API-KEY": "sk-1234",
+            "X-IRID": "request-id-123",
+            "Content-Type": "application/json",
+            "x-custom-header": "keep-me",
+        }
+        result = filter_bridge_headers(headers)
+        assert result == {"x-custom-header": "keep-me"}
+
+    def test_stainless_prefix_blocked(self):
+        """Test that x-stainless-* headers are blocked."""
+        headers = {
+            "x-stainless-lang": "python",
+            "x-stainless-package-version": "1.0.0",
+            "x-stainless-os": "Darwin",
+            "x-stainless-arch": "arm64",
+            "x-stainless-retry-count": "0",
+            "x-custom-header": "keep-me",
+        }
+        result = filter_bridge_headers(headers)
+        assert result == {"x-custom-header": "keep-me"}
+
+    def test_anthropic_beta_allowed(self):
+        """Test that anthropic-beta header is NOT blocked.
+
+        This header is used for legitimate feature flags like
+        code-execution-2025-08-25.
+        """
+        headers = {
+            "anthropic-beta": "code-execution-2025-08-25",
+            "x-custom-header": "value",
+        }
+        result = filter_bridge_headers(headers)
+        assert result == headers
+
+    def test_anthropic_version_blocked(self):
+        """Test that anthropic-version header IS blocked.
+
+        This is SDK-managed and should not be overridden by clients.
+        """
+        headers = {
+            "anthropic-version": "2023-06-01",
+            "x-custom-header": "keep-me",
+        }
+        result = filter_bridge_headers(headers)
+        assert result == {"x-custom-header": "keep-me"}
+
+    def test_all_headers_blocked_returns_none(self):
+        """Test that all-blocked headers returns None."""
+        headers = {
+            "authorization": "Bearer secret",
+            "x-api-key": "sk-1234",
+            "content-type": "application/json",
+        }
+        result = filter_bridge_headers(headers)
+        assert result is None
+
+    def test_transfer_encoding_blocked(self):
+        """Test that transfer-encoding is blocked."""
+        headers = {
+            "transfer-encoding": "chunked",
+            "connection": "keep-alive",
+            "x-custom": "value",
+        }
+        result = filter_bridge_headers(headers)
+        assert result == {"x-custom": "value"}
+
+    def test_user_agent_blocked(self):
+        """Test that User-Agent is blocked.
+
+        Since Inspect transforms the request, the original client's
+        User-Agent would be misleading. The SDK sets its own User-Agent
+        which accurately reflects what's making the HTTP call.
+        """
+        headers = {
+            "User-Agent": "pydantic-ai/1.44.0",
+            "x-custom": "value",
+        }
+        result = filter_bridge_headers(headers)
+        assert result == {"x-custom": "value"}
+
+    def test_mixed_blocked_and_allowed(self):
+        """Test mixed headers with some blocked and some allowed."""
+        headers = {
+            # Blocked
+            "Authorization": "Bearer token",
+            "x-stainless-os": "Linux",
+            "Content-Type": "application/json",
+            # Allowed
+            "anthropic-beta": "computer-use-2024-10-22",
+            "x-my-trace-id": "abc123",
+            "x-request-source": "agent",
+        }
+        result = filter_bridge_headers(headers)
+        assert result == {
+            "anthropic-beta": "computer-use-2024-10-22",
+            "x-my-trace-id": "abc123",
+            "x-request-source": "agent",
+        }
+
+    def test_tenant_and_custom_headers_pass_through(self):
+        """In-process, the scaffold is the eval's own code: its headers are kept."""
+        headers = {
+            "OpenAI-Organization": "org-123",
+            "OpenAI-Project": "proj-456",
+            "x-custom-header": "value",
+            "Accept-Encoding": "gzip, br",
+            "anthropic-beta": "beta-a-2026-01-01,beta-b-2026-01-01",
+            "Authorization": "Bearer secret",
+        }
+        result = filter_bridge_headers(headers)
+        assert result == {
+            "OpenAI-Organization": "org-123",
+            "OpenAI-Project": "proj-456",
+            "x-custom-header": "value",
+            "Accept-Encoding": "gzip, br",
+            "anthropic-beta": "beta-a-2026-01-01,beta-b-2026-01-01",
+        }
 
     def test_httpx_decodes_forwarded_brotli_response(self):
         """The bridge transport decodes any encoding it advertises.
@@ -87,150 +217,46 @@ class TestFilterBridgeHeaders:
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             assert client.get("https://api.anthropic.com/v1/messages").json() == payload
 
-    def test_sensitive_headers_removed(self):
-        """Sensitive/internal headers not on the allowlist are dropped."""
-        headers = {
-            "authorization": "Bearer secret",
-            "x-api-key": "sk-1234",
-            "x-irid": "request-id-123",
-            "content-type": "application/json",
-            "content-length": "1024",
-            "host": "api.example.com",
-            "x-custom-header": "keep-me",
-        }
-        result = filter_bridge_headers(headers)
-        assert result is None
 
-    def test_filtering_case_insensitive(self):
-        """Test that allowlist matching is case-insensitive."""
-        headers = {
-            "Authorization": "Bearer secret",
-            "X-API-KEY": "sk-1234",
-            "Accept-Encoding": "gzip",
-        }
-        result = filter_bridge_headers(headers)
-        assert result == {"Accept-Encoding": "gzip"}
+class TestBlockedHeadersConfiguration:
+    """Test the blocked headers configuration."""
 
-    def test_stainless_headers_stripped(self):
-        """Test that x-stainless-* SDK-internal headers are dropped."""
-        headers = {
-            "x-stainless-lang": "python",
-            "x-stainless-package-version": "1.0.0",
-            "x-stainless-os": "Darwin",
-            "x-stainless-arch": "arm64",
-            "x-stainless-retry-count": "0",
-        }
-        result = filter_bridge_headers(headers)
-        assert result is None
+    def test_blocked_headers_are_lowercase(self):
+        """Verify all blocked headers are lowercase for case-insensitive comparison."""
+        for header in _BLOCKED_BRIDGE_HEADERS:
+            assert header == header.lower(), f"Header '{header}' should be lowercase"
 
-    def test_anthropic_beta_forwarded_without_beta_allowlist(self):
-        """Without a beta allowlist, the client's anthropic-beta is forwarded as sent.
+    def test_blocked_prefixes_are_lowercase(self):
+        """Verify all blocked prefixes are lowercase."""
+        for prefix in _BLOCKED_BRIDGE_HEADER_PREFIXES:
+            assert prefix == prefix.lower(), f"Prefix '{prefix}' should be lowercase"
 
-        This is the in-process `agent_bridge()` path, where the agent runs
-        in the eval's own process.
-        """
-        headers = {
-            "anthropic-beta": "code-execution-2025-08-25",
-            "x-custom-header": "value",
-        }
-        result = filter_bridge_headers(headers)
-        assert result == {"anthropic-beta": "code-execution-2025-08-25"}
+    def test_required_headers_in_blocklist(self):
+        """Verify critical headers are in the blocklist."""
+        required_blocked = [
+            "authorization",
+            "x-api-key",
+            "x-irid",
+            "content-type",
+            "content-length",
+            "host",
+            "user-agent",
+        ]
+        for header in required_blocked:
+            assert header in _BLOCKED_BRIDGE_HEADERS, (
+                f"Critical header '{header}' should be blocked"
+            )
 
-    def test_anthropic_version_stripped(self):
-        """Test that anthropic-version header is dropped.
-
-        This is SDK-managed and should not be overridden by clients.
-        """
-        headers = {
-            "anthropic-version": "2023-06-01",
-            "x-custom-header": "keep-me",
-        }
-        result = filter_bridge_headers(headers)
-        assert result is None
-
-    def test_all_headers_unlisted_returns_none(self):
-        """Test that headers with no allowlist match return None."""
-        headers = {
-            "authorization": "Bearer secret",
-            "x-api-key": "sk-1234",
-            "content-type": "application/json",
-        }
-        result = filter_bridge_headers(headers)
-        assert result is None
-
-    def test_transfer_encoding_stripped(self):
-        """Test that transfer-encoding is dropped."""
-        headers = {
-            "transfer-encoding": "chunked",
-            "connection": "keep-alive",
-            "x-custom": "value",
-        }
-        result = filter_bridge_headers(headers)
-        assert result is None
-
-    def test_user_agent_stripped(self):
-        """Test that User-Agent is dropped.
-
-        Since Inspect transforms the request, the original client's
-        User-Agent would be misleading. The SDK sets its own User-Agent
-        which accurately reflects what's making the HTTP call.
-        """
-        headers = {
-            "User-Agent": "pydantic-ai/1.44.0",
-            "x-custom": "value",
-        }
-        result = filter_bridge_headers(headers)
-        assert result is None
-
-    def test_openai_tenant_headers_stripped(self):
-        """OpenAI-Organization/OpenAI-Project must never reach the provider.
-
-        These headers select which org/project the host's API key bills
-        and scopes data to. A bridge client is untrusted sandbox code, so
-        letting it set these would let it re-route billing or data
-        visibility to any org/project the host key can access.
-        """
-        headers = {
-            "OpenAI-Organization": "org-attacker-controlled",
-            "OpenAI-Project": "proj-attacker-controlled",
-            "Accept-Encoding": "gzip",
-        }
-        result = filter_bridge_headers(headers)
-        assert result == {"Accept-Encoding": "gzip"}
-
-    def test_google_quota_project_header_stripped(self):
-        """Google's tenant/billing equivalent is also never forwarded."""
-        headers = {
-            "x-goog-user-project": "attacker-controlled-project",
-            "anthropic-beta": "computer-use-2024-10-22",
-        }
-        result = filter_bridge_headers(headers)
-        assert result == {"anthropic-beta": "computer-use-2024-10-22"}
-
-    def test_mixed_allowed_and_unlisted(self):
-        """Test mixed headers with some allowed and some dropped."""
-        headers = {
-            # Not on the allowlist
-            "Authorization": "Bearer token",
-            "x-stainless-os": "Linux",
-            "Content-Type": "application/json",
-            "x-my-trace-id": "abc123",
-            "x-request-source": "agent",
-            # Allowed
-            "anthropic-beta": "computer-use-2024-10-22",
-        }
-        result = filter_bridge_headers(headers)
-        assert result == {
-            "anthropic-beta": "computer-use-2024-10-22",
-        }
+    def test_anthropic_beta_not_blocked(self):
+        """Verify anthropic-beta is NOT in the blocklist."""
+        assert "anthropic-beta" not in _BLOCKED_BRIDGE_HEADERS
 
 
 def _sandbox_filter(
     headers: dict[str, str], forward_client_headers: dict[str, list[str]] | None
 ) -> dict[str, str] | None:
-    return filter_bridge_headers(
-        headers,
-        forward_client_headers=resolve_forward_client_headers(forward_client_headers),
+    return filter_sandbox_client_headers(
+        headers, resolve_forward_client_headers(forward_client_headers)
     )
 
 
@@ -264,6 +290,16 @@ class TestForwardClientHeaders:
         # unlisted names are logged once each at info level; blocked ones never
         assert bridge_module._logged_unlisted_client_headers == {"x-custom-header"}
         assert inspect_logger._warned == []
+
+    def test_tenant_headers_dropped_unless_listed(self) -> None:
+        """Sandbox code must not choose another org or project on the host key."""
+        headers = {
+            "OpenAI-Organization": "org-attacker-controlled",
+            "OpenAI-Project": "proj-attacker-controlled",
+            "x-goog-user-project": "attacker-controlled-project",
+            "Accept-Encoding": "gzip",
+        }
+        assert _sandbox_filter(headers, None) == {"Accept-Encoding": "gzip"}
 
     def test_listed_values_forwarded_and_others_dropped_with_warning(self) -> None:
         """Only listed tokens survive; whitespace around them is tolerated."""
@@ -338,35 +374,6 @@ class TestForwardClientHeaders:
     def test_blocked_header_names_rejected(self, name: str) -> None:
         with pytest.raises(ValueError, match=name):
             resolve_forward_client_headers({name: ["anything"]})
-
-
-class TestAllowedHeadersConfiguration:
-    """Test the allowed headers configuration."""
-
-    def test_allowed_headers_are_lowercase(self):
-        """Verify all allowed headers are lowercase for case-insensitive comparison."""
-        for header in _ALLOWED_BRIDGE_HEADERS:
-            assert header == header.lower(), f"Header '{header}' should be lowercase"
-
-    def test_tenant_billing_headers_not_in_allowlist(self):
-        """Verify tenant/billing-routing headers are never in the allowlist."""
-        excluded = [
-            "openai-organization",
-            "openai-project",
-            "x-goog-user-project",
-        ]
-        for header in excluded:
-            assert header not in _ALLOWED_BRIDGE_HEADERS, (
-                f"Tenant/billing header '{header}' must not be allowlisted"
-            )
-
-    def test_anthropic_beta_allowlisted(self):
-        """Verify anthropic-beta is in the allowlist."""
-        assert "anthropic-beta" in _ALLOWED_BRIDGE_HEADERS
-
-    def test_accept_encoding_allowlisted(self):
-        """Verify accept-encoding is in the allowlist."""
-        assert "accept-encoding" in _ALLOWED_BRIDGE_HEADERS
 
 
 class TestSandboxAnthropicRequest:
