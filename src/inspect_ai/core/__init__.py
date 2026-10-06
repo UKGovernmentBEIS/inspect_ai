@@ -48,7 +48,12 @@ from ._model_output import (
     TopLogprob,
 )
 from ._reference import Reference
-from ._sentinel import SentinelAction, SentinelSuspicion
+from ._sentinel import (
+    SentinelAction,
+    SentinelConfig,
+    SentinelEntry,
+    SentinelSuspicion,
+)
 from ._target import Target
 from ._tool_call import (
     ToolCall,
@@ -103,6 +108,8 @@ __all__ = [
     "Reference",
     "ResponseSchema",
     "SentinelAction",
+    "SentinelConfig",
+    "SentinelEntry",
     "SentinelSuspicion",
     "StopCategory",
     "StopDetails",
