@@ -1,6 +1,6 @@
 ## Unreleased
 
-- OpenAI: Readable reasoning from the Responses API returned without a summary is now stored as visible reasoning (`redacted=False`), with the encrypted content kept for replay, instead of being marked redacted. The Chat Completions agent bridge now keeps that encrypted content when it restores reasoning from a `<think>` tag.
+- OpenAI: Readable Responses API reasoning without a summary is no longer marked `redacted`, and the Chat Completions agent bridge now keeps its encrypted content.
 - Fixed model calls and token counting in multiprocess Scout scans using the default model configuration.
 - Bugfix: Interrupting after scoring no longer drops the scored sample from a cancelled evaluation log while its sandbox is being cleaned up.
 - Bugfix: Overflow recovery no longer drops the sample's input from the recorded conversation, so scorers and the viewer still see the task after a forced compaction.
