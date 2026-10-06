@@ -13,16 +13,21 @@ from unittest.mock import AsyncMock, patch
 
 import anyio
 import pytest
+import tenacity
 from tenacity.wait import wait_none
 from test_helpers.utils import skip_if_no_docker
 
+import inspect_ai.util._sandbox.exec_remote as exec_remote_module
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SandboxInjectionError,
     _inject_container_tools_code,
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.environment import SandboxDefaultUser
-from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+from inspect_ai.util._sandbox.events import (
+    SandboxEnvironmentProxy,
+    SandboxTimeoutError,
+)
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
     ExecRemoteAwaitableOptions,
@@ -149,6 +154,39 @@ def _make_never_completing_sandbox() -> AsyncMock:
     return sandbox
 
 
+def _rpc_error(message: str, code: int = -32099, id: int = 1) -> str:
+    """Create a JSON-RPC error response string (default: the server's ToolException code)."""
+    return json.dumps(
+        {"jsonrpc": "2.0", "error": {"code": code, "message": message}, "id": id}
+    )
+
+
+def _make_scripted_sandbox(script: list[str | Exception]) -> AsyncMock:
+    """Create a mock sandbox whose exec() answers from `script` in order.
+
+    A str entry is returned as stdout; an Exception entry is raised. When the
+    script runs out, the last entry repeats. Every JSON-RPC request's method and
+    params are recorded in `sandbox.requests`.
+    """
+    sandbox = _mock_sandbox()
+    sandbox.default_polling_interval.return_value = 5
+    sandbox.no_events = _no_events_context
+    requests: list[tuple[str, dict[str, Any]]] = []
+    sandbox.requests = requests
+    steps = list(script)
+
+    async def fake_exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
+        request = json.loads(kwargs["input"])
+        requests.append((request["method"], request.get("params", {})))
+        step = steps.pop(0) if len(steps) > 1 else steps[0]
+        if isinstance(step, Exception):
+            raise step
+        return ExecResult(success=True, returncode=0, stdout=step, stderr="")
+
+    sandbox.exec = AsyncMock(side_effect=fake_exec)
+    return sandbox
+
+
 # ============================================================================
 # Single-use iterator
 # ============================================================================
@@ -196,6 +234,296 @@ class TestPollRetryExhaustion:
         # stop_after_attempt(5) pins the attempt count; keep the assertion
         # exact so a stop-config regression is caught
         assert sandbox.exec.call_count == 5
+
+
+# ============================================================================
+# Poll timeout recovery (opt-in re-polling after a poll times out)
+# ============================================================================
+
+
+def _polls(sandbox: AsyncMock) -> list[dict[str, Any]]:
+    """The params of every exec_remote_poll request a scripted sandbox received."""
+    return [
+        params for method, params in sandbox.requests if method == "exec_remote_poll"
+    ]
+
+
+class TestPollTimeoutRecovery:
+    @pytest.mark.parametrize(
+        "options",
+        [ExecRemoteCommonOptions(), ExecRemoteCommonOptions(poll_timeout_retry=False)],
+        ids=["default", "poll_timeout_retry_false"],
+    )
+    async def test_poll_timeout_is_raised_without_recovery(
+        self, options: ExecRemoteCommonOptions
+    ) -> None:
+        """Unless recovery is requested, a timed-out poll raises and is not re-issued."""
+        sandbox = _make_scripted_sandbox(
+            [
+                _start_response(42),
+                SandboxTimeoutError("the pod is not answering."),
+                _poll_response(state="completed", exit_code=0, seq=0),
+            ]
+        )
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5, options)
+
+        with pytest.raises(SandboxTimeoutError, match="the pod is not answering"):
+            _ = [event async for event in proc]
+
+        assert len(_polls(sandbox)) == 1
+
+    def test_recovery_cannot_override_poll_timeout_retry_false(self) -> None:
+        with pytest.raises(ValueError, match="poll_timeout_retry=False"):
+            ExecRemoteCommonOptions(poll_timeout_retry=False, poll_timeout_recovery=60)
+
+    async def test_recovery_rides_through_sandbox_timeouts_without_losing_output(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.0
+        )
+        stall = SandboxTimeoutError(
+            "Command exceeded its 90s timeout and the pod did not report completion "
+            "within a further 30s; the pod is not answering."
+        )
+        sandbox = _make_scripted_sandbox(
+            [
+                _start_response(42),
+                _poll_response(state="running", exit_code=None, stdout="A", seq=1),
+                stall,
+                stall,
+                _poll_response(state="running", exit_code=None, stdout="B", seq=2),
+                _poll_response(state="completed", exit_code=0, seq=2),
+            ]
+        )
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
+        )
+
+        events = [event async for event in proc]
+
+        assert events == [
+            ExecStdout(data="A"),
+            ExecStdout(data="B"),
+            ExecCompleted(exit_code=0),
+        ]
+        # The two timed-out polls and the poll that finally answered all asked the
+        # server to replay from seq 1: nothing after "A" was acknowledged until "B"
+        # arrived.
+        assert [params["ack_seq"] for params in _polls(sandbox)] == [0, 1, 1, 1, 2]
+
+    async def test_recovery_time_exhausted_reraises_the_timeout(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.05
+        )
+        sandbox = _make_scripted_sandbox(
+            [_start_response(42), SandboxTimeoutError("the pod is not answering.")]
+        )
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=0.3)
+        )
+
+        with pytest.raises(TimeoutError, match="the pod is not answering") as raised:
+            await proc._poll()
+
+        assert isinstance(raised.value, SandboxTimeoutError)
+        assert 2 <= len(_polls(sandbox)) <= 10
+
+    async def test_cancellation_during_recovery_ends_it_and_kills_the_process(
+        self,
+    ) -> None:
+        """A caller's own deadline cancels recovery at once and still kills the process."""
+        sandbox = _make_scripted_sandbox(
+            [_start_response(42), SandboxTimeoutError("the pod is not answering.")]
+        )
+
+        with pytest.raises(TimeoutError) as raised:
+            await exec_remote_awaitable(
+                sandbox,
+                ["cmd"],
+                5,
+                ExecRemoteAwaitableOptions(timeout=0.5, poll_timeout_recovery=60),
+            )
+
+        # The caller's own deadline, not the sandbox's timeout re-raised once the
+        # recovery time ran out.
+        assert not isinstance(raised.value, SandboxTimeoutError)
+        assert [method for method, _ in sandbox.requests][-1] == "exec_remote_kill"
+
+    async def test_recovery_does_not_reissue_a_timed_out_start(self) -> None:
+        """Only polls are re-issued; a sandbox's own timeout retry is outside this mock."""
+        sandbox = _make_scripted_sandbox(
+            [SandboxTimeoutError("the pod is not answering.")]
+        )
+
+        with pytest.raises(TimeoutError):
+            await exec_remote_streaming(
+                sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
+            )
+
+        assert sandbox.exec.call_count == 1
+
+    async def test_poll_after_recovery_names_a_lost_terminal_state(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.0
+        )
+        sandbox = _make_scripted_sandbox(
+            [
+                _start_response(42),
+                SandboxTimeoutError("the pod is not answering."),
+                _rpc_error("No job found with pid 42"),
+            ]
+        )
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
+        )
+
+        # The inner RuntimeError retry would otherwise back off for ~30s.
+        with patch(
+            "inspect_ai.util._sandbox.exec_remote.wait_exponential_jitter",
+            new=lambda *a, **k: wait_none(),
+        ):
+            with pytest.raises(RuntimeError, match="ended during the stall") as raised:
+                await proc._poll()
+
+        assert raised.value.__cause__ is not None
+        assert "No job found with pid 42" in str(raised.value.__cause__)
+
+    async def test_no_job_found_without_a_timed_out_poll_stays_the_servers_error(
+        self,
+    ) -> None:
+        """Without a timed-out poll no response was lost, so nothing is relabelled."""
+        sandbox = _make_scripted_sandbox(
+            [_start_response(42), _rpc_error("No job found with pid 42")]
+        )
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
+        )
+
+        with patch(
+            "inspect_ai.util._sandbox.exec_remote.wait_exponential_jitter",
+            new=lambda *a, **k: wait_none(),
+        ):
+            with pytest.raises(RuntimeError, match=r"^No job found with pid 42$"):
+                await proc._poll()
+
+    @pytest.mark.parametrize(
+        ("kill_during", "kill_reaches_sandbox", "raised", "match"),
+        [
+            ("pause", True, SandboxTimeoutError, "not answering"),
+            ("pause", False, SandboxTimeoutError, "not answering"),
+            # the server's own error: the caller killed the process
+            ("repoll", True, RuntimeError, r"^No job found with pid 42$"),
+            ("repoll", False, SandboxTimeoutError, "not answering"),
+            # the re-poll's own error, not the answer to a poll sent after the kill
+            ("backoff", True, RuntimeError, "exit code 137"),
+            ("backoff", False, RuntimeError, "exit code 137"),
+        ],
+        ids=[
+            "pause-kill_answered",
+            "pause-kill_timed_out",
+            "repoll-kill_answered",
+            "repoll-kill_timed_out",
+            "backoff-kill_answered",
+            "backoff-kill_timed_out",
+        ],
+    )
+    async def test_no_poll_is_issued_after_kill(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        kill_during: str,
+        kill_reaches_sandbox: bool,
+        raised: type[Exception],
+        match: str,
+    ) -> None:
+        """kill() during recovery stops it, even when the kill request itself timed out.
+
+        The kill comes during the pause before a re-poll, while a re-poll is in
+        flight, or during the backoff after a re-poll failed with a `RuntimeError`.
+        An in-flight re-poll then gets the server's `No job found` (the kill reached
+        the sandbox) or times out (it did not), and is not retried.
+        """
+        monkeypatch.setattr(
+            exec_remote_module, "POLL_TIMEOUT_RECOVERY_WAIT_SECONDS", 0.2
+        )
+        first_poll_timed_out = anyio.Event()
+        repoll_started = anyio.Event()
+        repoll_failed = anyio.Event()
+        kill_requested = anyio.Event()
+        kill_returned = anyio.Event()
+        polls = 0
+        requests: list[str] = []
+
+        def answer(stdout: str) -> ExecResult[str]:
+            return ExecResult(success=True, returncode=0, stdout=stdout, stderr="")
+
+        async def fake_exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
+            nonlocal polls
+            method = json.loads(kwargs["input"])["method"]
+            requests.append(method)
+            if method == "exec_remote_start":
+                return answer(_start_response(42))
+            if method == "exec_remote_kill":
+                kill_requested.set()
+                if not kill_reaches_sandbox:
+                    raise SandboxTimeoutError("the pod is not answering.")
+                return answer(_kill_response())
+            polls += 1
+            if polls == 1:
+                first_poll_timed_out.set()
+                raise SandboxTimeoutError("the pod is not answering.")
+            if polls == 2 and kill_during == "repoll":
+                repoll_started.set()
+                await kill_requested.wait()
+            if polls == 2 and kill_during == "backoff":
+                repoll_failed.set()
+                raise RuntimeError("command terminated with exit code 137")
+            if kill_requested.is_set() and kill_reaches_sandbox:
+                return answer(_rpc_error("No job found with pid 42"))
+            raise SandboxTimeoutError("the pod is not answering.")
+
+        sandbox = _mock_sandbox()
+        sandbox.default_polling_interval.return_value = 5
+        sandbox.no_events = _no_events_context
+        sandbox.exec = AsyncMock(side_effect=fake_exec)
+        proc = await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_recovery=60)
+        )
+
+        kill_after = {
+            "pause": first_poll_timed_out,
+            "repoll": repoll_started,
+            "backoff": repoll_failed,
+        }[kill_during]
+
+        async def kill_at_the_chosen_moment() -> None:
+            await kill_after.wait()
+            await proc.kill()
+            kill_returned.set()
+
+        async def backoff_until_killed(seconds: float) -> None:
+            await kill_returned.wait()
+
+        def retry_backing_off_until_killed(**kwargs: Any) -> Any:
+            return tenacity.retry(sleep=backoff_until_killed, **kwargs)
+
+        # The backoff between RuntimeError retries of a poll lasts until kill() has
+        # returned, so a kill always lands inside it and no retry waits ~30s.
+        with patch(
+            "inspect_ai.util._sandbox.exec_remote.retry",
+            new=retry_backing_off_until_killed,
+        ):
+            with anyio.fail_after(10):
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(kill_at_the_chosen_moment)
+                    with pytest.raises(raised, match=match):
+                        _ = [event async for event in proc]
+
+        assert requests[-1] == "exec_remote_kill"
 
 
 class TestKill:
@@ -603,6 +931,65 @@ class TestPollTimeoutOptions:
 
         kwargs = sandbox.exec.call_args_list[0].kwargs
         assert kwargs["timeout_retry"] is True
+
+
+# ============================================================================
+# Options positional order
+# ============================================================================
+
+_BASE_POSITIONAL: tuple[object, ...] = (
+    "in",
+    "/work",
+    {"K": "V"},
+    "someone",
+    7.0,
+    30.0,
+    False,
+    False,
+)
+
+
+def _base_fields(options: ExecRemoteCommonOptions) -> tuple[object, ...]:
+    return (
+        options.input,
+        options.cwd,
+        options.env,
+        options.user,
+        options.poll_interval,
+        options.poll_timeout,
+        options.poll_timeout_retry,
+        options.concurrency,
+    )
+
+
+class TestOptionsPositionalOrder:
+    """New options are keyword-only, so positional callers keep their meaning."""
+
+    def test_common_options(self) -> None:
+        options = ExecRemoteCommonOptions(
+            "in", "/work", {"K": "V"}, "someone", 7.0, 30.0, False, False
+        )
+
+        assert _base_fields(options) == _BASE_POSITIONAL
+        assert options.poll_timeout_recovery is None
+
+    def test_streaming_options(self) -> None:
+        options = ExecRemoteStreamingOptions(
+            "in", "/work", {"K": "V"}, "someone", 7.0, 30.0, False, False, True
+        )
+
+        assert _base_fields(options) == _BASE_POSITIONAL
+        assert options.stdin_open is True
+        assert options.poll_timeout_recovery is None
+
+    def test_awaitable_options(self) -> None:
+        options = ExecRemoteAwaitableOptions(
+            "in", "/work", {"K": "V"}, "someone", 7.0, 30.0, False, False, 12.0
+        )
+
+        assert _base_fields(options) == _BASE_POSITIONAL
+        assert options.timeout == 12.0
+        assert options.poll_timeout_recovery is None
 
 
 # ============================================================================

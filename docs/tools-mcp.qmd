@@ -157,6 +157,8 @@ Note that some remote MCP servers will require credentials---in this case pass t
 
 Before using remote servers, you should review OpenAI's [Risks and Safety](https://platform.openai.com/docs/guides/tools-remote-mcp#risks-and-safety) guidance for Remote MCP.
 
+The model provider calls a remote server's tools during generation, so Inspect never sees those calls and can't [approve](approval.qmd) them. For this reason a remote server can't be used while an approval policy is active: Inspect raises an error rather than sending the server to the provider. Use `execution="local"` so that the server's tool calls go through the approval policy.
+
 ## Tool Selection {#tool-selection}
 
 To narrow the list of tools made available from an MCP Server you can use the `mcp_tools()` function. For example, to make only the geocode oriented functions available from the Google Maps server:

@@ -356,36 +356,19 @@ async def _execute_tools_impl(
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
             truncated: tuple[int, int] | None = None
-            if isinstance(
-                result,
-                ContentText
-                | ContentImage
-                | ContentAudio
-                | ContentVideo
-                | ContentDocument,
-            ):
-                content: (
-                    str
-                    | list[
-                        ContentText
-                        | ContentImage
-                        | ContentAudio
-                        | ContentVideo
-                        | ContentDocument
-                    ]
-                ) = [result]
-            elif isinstance(result, list) and all(
-                isinstance(
-                    r,
+            content: (
+                str
+                | list[
                     ContentText
                     | ContentImage
                     | ContentAudio
                     | ContentVideo
-                    | ContentDocument,
-                )
-                for r in result
-            ):
-                content = result
+                    | ContentDocument
+                ]
+            )
+            result_content = tool_result_content_list(result)
+            if result_content is not None:
+                content = result_content
             else:
                 content = str(result)
 
@@ -1449,6 +1432,34 @@ def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | 
             + [f"- {error.message}" for error in errors]
         )
         return message
+    else:
+        return None
+
+
+def tool_result_content_list(
+    result: ToolResult,
+) -> (
+    list[ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument]
+    | None
+):
+    """Content a tool result is passed to the model as, if any.
+
+    Returns `None` for any other result, which is converted to a string and
+    truncated to the tool's output limit (`truncate_tool_output()`).
+    """
+    if isinstance(
+        result,
+        ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument,
+    ):
+        return [result]
+    elif isinstance(result, list) and all(
+        isinstance(
+            r,
+            ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument,
+        )
+        for r in result
+    ):
+        return result
     else:
         return None
 
