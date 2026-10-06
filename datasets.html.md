@@ -195,6 +195,9 @@ dataset = dataset.shuffle()
 
 # shuffle on load
 dataset = json_dataset("data.jsonl", shuffle=True)
+
+# shuffle on load with a seed
+dataset = json_dataset("data.jsonl", shuffle=42)
 ```
 
 Note that both of these methods optionally support specifying a random seed for shuffling.

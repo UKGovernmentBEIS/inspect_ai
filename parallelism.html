@@ -854,7 +854,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The <code>max_sandboxes</code> option determines how many sandboxes can be executed in parallel. Individual sandbox providers can establish their own default limits (for example, the Docker provider defaults to twice the number of processors available to the eval — which under a container CPU limit such as <code>docker --cpus</code> or a Kubernetes <code>limits.cpu</code> is the limit rather than the host’s processor count). You can modify this option as required, but be aware that container runtimes have resource limits, and pushing up against and beyond them can lead to instability and failed evaluations.</p>
 <p>When a <code>max_sandboxes</code> is applied, an indicator at the bottom of the task status screen will be shown:</p>
 <p><a href="images/task-max-sandboxes.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/task-max-sandboxes.png" class="img-fluid"></a></p>
-<p>Note that when <code>max_sandboxes</code> is applied this effectively creates a global <code>max_samples</code> limit that is equal to the <code>max_sandboxes</code>.</p>
+<p>The <code>max_sandboxes</code> limit is shared across all tasks using the same sandbox provider type. Each provider type has its own independent limit.</p>
 </section>
 <section id="max-subprocesses" class="level3">
 <h3 class="anchored" data-anchor-id="max-subprocesses">Max Subprocesses</h3>
@@ -862,8 +862,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="max-samples" class="level3">
 <h3 class="anchored" data-anchor-id="max-samples">Max Samples</h3>
-<p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.</p>
-<p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code> (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
+<p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recoverable samples in the case of an interrupted task.</p>
+<p>By default, <code>max_samples</code> tracks the model’s current connection limit: with adaptive connections (the default) it follows the controller, and with static concurrency it is set to <code>max_connections</code> (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). A small limit will typically result in samples being written to the log frequently. On the other hand, setting a very large limit (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">

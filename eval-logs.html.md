@@ -165,6 +165,11 @@ inspect eval ctf.py --log-model-api
 
 To disable model API logging entirely (errors only), use `--no-log-model-api`.
 
+Provider request and response ids are logged regardless of these options, so you can point a provider to a specific request:
+
+- `ModelEvent.request_ids`: the request id and HTTP status of each request sent to generate the response, including retries. Recorded for OpenAI and OpenAI-compatible providers, Anthropic, Groq, Mistral and Bedrock, except in batch mode.
+- `ModelOutput.response_id`: the provider’s id for the response (e.g. `resp_...` or `msg_...`).
+
 ## Log File API
 
 ### EvalLog
@@ -390,9 +395,9 @@ If dataset shuffling is important to your evaluation and you want to preserve sa
 
 #### Max Samples
 
-Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.
+Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recoverable samples in the case of an interrupted task.
 
-By default, Inspect sets the value of `max_samples` to `max_connections + 1` (note that it would rarely make sense to set it *lower* than `max_connections`). The default `max_connections` is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large `max_connections` (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
+By default, `max_samples` tracks the model’s current connection limit: with adaptive connections (the default) it follows the controller, and with static concurrency it is set to `max_connections` (note that it would rarely make sense to set it *lower* than `max_connections`). A small limit will typically result in samples being written to the log frequently. On the other hand, setting a very large limit (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
 
 > **NOTE:**
 >

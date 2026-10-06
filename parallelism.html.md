@@ -107,7 +107,7 @@ When a `max_sandboxes` is applied, an indicator at the bottom of the task status
 
 [![](images/task-max-sandboxes.png)](images/task-max-sandboxes.png)
 
-Note that when `max_sandboxes` is applied this effectively creates a global `max_samples` limit that is equal to the `max_sandboxes`.
+The `max_sandboxes` limit is shared across all tasks using the same sandbox provider type. Each provider type has its own independent limit.
 
 ### Max Subprocesses
 
@@ -115,9 +115,9 @@ The `max_subprocesses` option determines how many subprocess calls can run in pa
 
 ### Max Samples
 
-Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.
+Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recoverable samples in the case of an interrupted task.
 
-By default, Inspect sets the value of `max_samples` to `max_connections + 1` (note that it would rarely make sense to set it *lower* than `max_connections`). The default `max_connections` is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large `max_connections` (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
+By default, `max_samples` tracks the model’s current connection limit: with adaptive connections (the default) it follows the controller, and with static concurrency it is set to `max_connections` (note that it would rarely make sense to set it *lower* than `max_connections`). A small limit will typically result in samples being written to the log frequently. On the other hand, setting a very large limit (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
 
 > **NOTE:**
 >

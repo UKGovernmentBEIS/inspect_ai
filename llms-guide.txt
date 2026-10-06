@@ -1212,7 +1212,7 @@ The **Info** panel of the log viewer provides additional meta-information about 
 
 ## Publishing
 
-You can use the command `inspect view bundle` (or the [bundle_log_dir()](./reference/inspect_ai.log.html.md#bundle_log_dir) function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
+You can use the command `inspect view bundle` (or the [bundle_log_dir()](./reference/inspect_ai.log.html.md#bundle_log_dir) function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server that supports [HTTP range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Range_requests) ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
 
 ``` bash
 $ inspect view bundle --log-dir logs --output-dir logs-www
@@ -2001,7 +2001,7 @@ Every component except `scorer`, `dataset`, and `metrics` can be overridden with
 
 A convenient way to distribute tasks is to include them in a Python package. This makes it very easy for others to run your task and ensure they have all of the required dependencies.
 
-Tasks in packages can be *registered* such that users can easily refer to them by name from the CLI. For example, the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_ai) package includes a suite of tasks that can be run as follows:
+Tasks in packages can be *registered* such that users can easily refer to them by name from the CLI. For example, the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_evals) package includes a suite of tasks that can be run as follows:
 
 ``` bash
 inspect eval inspect_evals/gaia
@@ -2343,6 +2343,9 @@ dataset = dataset.shuffle()
 
 # shuffle on load
 dataset = json_dataset("data.jsonl", shuffle=True)
+
+# shuffle on load with a seed
+dataset = json_dataset("data.jsonl", shuffle=42)
 ```
 
 Note that both of these methods optionally support specifying a random seed for shuffling.
@@ -6037,6 +6040,8 @@ On the model output, `ModelOutput.model` reports the model that actually produce
 | `count` | Number of generate calls (always 1 on a single output; aggregated in the sample rollup). |
 | `metadata` | Provider diagnostics. For Anthropic, the `handoffs` chain and the per-attempt `usage.iterations` billing record. |
 
+A turn that [sticky routing](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#sticky-routing) sends straight to the fallback model (no model declined it) is recorded the same way, with an empty `handoffs` chain.
+
 The assistant message also carries a content marker at the point of the handoff, which is what allows Inspect to replay fallen-back conversations on subsequent turns.
 
 At the sample level, `EvalSample.model_fallbacks` (and sample summaries) aggregate the fallbacks that occurred during the sample (across solvers, subagents, and scorers) as a list of `ModelFallback` entries keyed by requested and serving model. The rollup is also available in [dataframes](./dataframe.html.md): [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) includes a `fallbacks` column with the total count, and the full detail is available via a custom column:
@@ -6055,7 +6060,9 @@ df[df.fallbacks > 0]
 
 ### Costs
 
-Cost estimation (including the `cost_limit` option) prices fallen-back requests at the requested model’s rates, as if no refusal had occurred. This keeps estimated costs comparable across samples, and is conservative for `cost_limit` since fallback targets are cheaper than the requested model (Anthropic bills each attempt at the rates of the model that ran it, and declined attempts that produced no output are unbilled). If you need actual-spend accounting, the per-attempt billing record is preserved in `ModelFallback.metadata["iterations"]` on each [ModelEvent](./reference/inspect_ai.event.html.md#modelevent)’s output.
+Cost estimation (including the `cost_limit` option) prices each attempt at the rates of the model that ran it, as Anthropic bills it. An attempt that declined partway through its response is billed, and so is included. An attempt that declined before any output is billed only for some refusal categories (`bio`, `frontier_llm` and `reasoning_extraction`), which a fallback response does not report, so it is left out. For those categories the estimated cost, and the spend a `cost_limit` sees, is lower than the billed amount. The per-attempt billing record is in `ModelFallback.metadata["iterations"]` on each [ModelEvent](./reference/inspect_ai.event.html.md#modelevent)’s output.
+
+Fallback models need cost data too (see [Model Cost](./setting-limits.html.md#model-cost)). If a fallback model has none, the request is priced at the requested model’s rates and a warning is shown.
 
 ## Viewer
 
@@ -6998,10 +7005,10 @@ Available [BatchConfig](./reference/inspect_ai.model.html.md#batchconfig) option
 
 | Option | Description |
 |----|----|
-| `size` | Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits. |
+| `size` | Target number of requests to include in each batch. If not specified, uses a default of 100. Batches may be smaller if the timeout is reached or if requests don’t fit within size limits. |
 | `send_delay` | Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low. |
 | `tick` | Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds. |
-| `max_batches` | Maximum number of batches to have in flight at once for a provider (defaults to 100). |
+| `max_batches` | Maximum number of batches to have in flight at once for a provider (defaults to 50). |
 
 ## Batch Processing Flow
 
@@ -7009,7 +7016,7 @@ When batch processing is enabled, the following steps are taken when handling ge
 
 1.  **Request Queuing**: Individual model requests are queued rather than sent immediately
 
-2.  **Batch Formation**: Requests are grouped into batches based on size limits and timeouts.
+2.  **Batch Formation**: Requests are grouped into batches based on size limits and timeouts. Requests with different HTTP headers go in separate batches, since a batch is sent with one set of headers.
 
 3.  **Batch Submission**: Complete batches are submitted to the provider’s batch API.
 
@@ -10759,7 +10766,7 @@ blue_team_activity = store_as(Activity, instance="blue_team")
 
 ## Agent Limits
 
-The Inspect [limits system](./setting-limits.html.md#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in converations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).
+The Inspect [limits system](./setting-limits.html.md#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in conversations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).
 
 Limits are often applied at the sample level or using a context manager. It is also possible to specify limits when executing an agent using any of the techniques described above.
 
@@ -11242,6 +11249,8 @@ The bridge handles:
 - Writing an MCP server script to the sandbox that forwards tool calls to the host
 - Returning [MCPServerConfigStdio](./reference/inspect_ai.tool.html.md#mcpserverconfigstdio) configs that CLI agents can use to connect
 
+Bridged tool results are truncated in the same way as other tool results: at the tool’s own `max_output` if it declares one, otherwise at `max_tool_output` from the generate config (16KB by default). Results returned as content (e.g. `list[ContentText]`) are not truncated, as for other tools.
+
 ### Execution Contract
 
 Bridged tools execute only for calls the model proposed in a bridged generation, once per proposal. Each tool call in a model response handed to the agent grants one execution of exactly that tool with exactly those arguments (as approved, or as modified by an [approval policy](#tool-approval)); a `tools/call` request with no matching grant is denied and the error is returned to the agent, which surfaces it to the model. This holds whether or not an approval policy is active. Tool discovery (`tools/list`) is unaffected.
@@ -11269,13 +11278,41 @@ One other shape is recognized: an agent that exposes every MCP tool through a si
 
 ## Models
 
-As demonstrated above, communication with Inspect models is done by using the OpenAI API with `model="inspect"`. You can use the same technique to interface with other Inspect models. To do this, preface the model name with “inspect” followed by the rest of the fully qualified model name.
+As demonstrated above, an agent reaches the eval’s model by naming the model `"inspect"`.
 
-For example, in a LangChain agent, you would do this to utilise the Inspect interface to Gemini:
+With the in-process [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge), you can reach other Inspect models by prefacing the fully qualified model name with `inspect/`. For example, in a LangChain agent, you would do this to use the Inspect interface to Gemini:
 
 ``` python
 model = ChatOpenAI(model="inspect/google/gemini-1.5-pro")
 ```
+
+The [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) serves only models the eval chose. A request is routed as follows:
+
+1.  A name in `model_aliases` goes to the model it maps to.
+2.  A name the `model_resolver` returns a model for goes to that model.
+3.  `"inspect"`, and the eval’s own model name (e.g. `claude-sonnet-4-5` for an eval on `anthropic/claude-sonnet-4-5`), go to the eval’s model.
+4.  Any other name, including `inspect/<model>` names and model role names, also goes to the eval’s model. The bridge logs a warning once for each such name, and the `requested_model` field of the model event in the transcript records the name the agent sent.
+
+Pass `model` to send unmatched names (and the eval’s own model name) to another model instead, e.g. `model="inspect/openai/gpt-4o"`.
+
+Agents often call more than one model: Claude Code, for example, makes background calls to a smaller model. These calls are served by the eval’s model unless you map the names. To send a name to another model, add it to `model_aliases`. Keys are the exact names the agent sends, as shown in the warning. To send a sub-agent tier to a model role you define for it, map the name to `get_model(role=...)`:
+
+``` python
+from inspect_ai.model import get_model
+
+async with sandbox_agent_bridge(
+    state,
+    model_aliases={
+        "claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5"),
+        "subagent": get_model(role="subagent"),
+    },
+) as bridge:
+    ...
+```
+
+Every alias key is a model the agent can call, so do not alias a role the agent should not reach, such as a grader or monitor.
+
+Names for the eval’s own model need no alias. They already get the eval’s model with its generation config, which an alias to a model name string would not.
 
 ## Generation Config
 
@@ -11293,6 +11330,28 @@ async with agent_bridge(state, forward_generation_config=True) as bridge:
 ```
 
 This option is available on both [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) and [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge).
+
+## Request Settings
+
+Some request fields and tool options change billing, storage at the model provider, how much of the conversation the provider keeps, or what provider tools may do. On both [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) and [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) the eval’s configuration decides these, not the agent:
+
+- `service_tier`, `store` and `truncation` (OpenAI Responses) and `service_tier` (Anthropic) are not forwarded. Set them with the provider’s model args (for OpenAI, `-M service_tier=flex` or `-M responses_store=true`) or with `GenerateConfig(extra_body=...)`. If the agent asks for a different value, a warning is logged once per field.
+
+- A Responses request with `previous_response_id` is refused with a 400 error (raised as a `BridgePolicyError` from the client call for [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge)). The bridge keeps no stored responses, so the agent must send the whole conversation in `input`.
+
+- `metadata`, `safety_identifier`, `prompt_cache_key`, `prompt_cache_retention` and `max_tool_calls` are forwarded.
+
+- Options the agent sets on a provider tool it declares do not replace the bridge’s `web_search` and `code_execution` options. This covers the code interpreter’s `container` (OpenAI), and web search filters and allowed or blocked domains (OpenAI and Anthropic). For anything that differs, a warning is logged once per tool.
+
+- The agent may set a web search `user_location` (OpenAI and Anthropic) or `search_context_size` (OpenAI) that the bridge’s `web_search` options leave unset. These shape the results but do not widen what can be searched. `search_context_size` can change cost, because OpenAI bills search content tokens; to control that cost, set it in the bridge’s `web_search` option. When the eval sets one, the eval’s value is used.
+
+- The agent may also ask for less: a lower Anthropic `max_uses`, or OpenAI `external_web_access: false`, is applied.
+
+- An OpenAI computer tool needs storage at the provider. If the eval turns storage off (`-M responses_store=false` or `store: False` in `GenerateConfig(extra_body=...)`), a request that declares the computer tool is refused with a 400 error. When the eval does not set storage, Inspect turns it on for these requests, as it does for any OpenAI computer tool.
+
+OpenAI Chat Completions and Google requests forward none of these fields, and Google tool declarations carry no options into the request.
+
+HTTP headers an agent sends to the sandbox bridge’s proxy are not forwarded; only the request body reaches the model provider. The in-process [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) forwards the agent’s headers other than credentials and SDK-managed ones.
 
 ## Tool Approval
 
@@ -12806,6 +12865,8 @@ Note that some remote MCP servers will require credentials—in this case pass t
 
 Before using remote servers, you should review OpenAI’s [Risks and Safety](https://platform.openai.com/docs/guides/tools-remote-mcp#risks-and-safety) guidance for Remote MCP.
 
+The model provider calls a remote server’s tools during generation, so Inspect never sees those calls and can’t [approve](./approval.html.md) them. For this reason a remote server can’t be used while an approval policy is active: Inspect raises an error rather than sending the server to the provider. Use `execution="local"` so that the server’s tool calls go through the approval policy.
+
 ## Tool Selection
 
 To narrow the list of tools made available from an MCP Server you can use the [mcp_tools()](./reference/inspect_ai.tool.html.md#mcp_tools) function. For example, to make only the geocode oriented functions available from the Google Maps server:
@@ -14007,14 +14068,14 @@ When you do this, you’ll see a list of sandbox containers printed out which in
 docker exec -it inspect-task-ielnkhh-default-1 bash -l
 ```
 
-When you no longer need the environments, you can clean them up either all at once or individually:
+When you no longer need the environments, you can clean them up either all at once or individually by project name. The printed list ends with the cleanup command for each environment:
 
 ``` bash
 # cleanup all environments
 inspect sandbox cleanup docker
 
 # cleanup single environment
-inspect sandbox cleanup docker inspect-task-ielnkhh-default-1
+inspect sandbox cleanup docker inspect-task-ielnkhh
 ```
 
 ## Resource Management
@@ -14029,7 +14090,7 @@ When a `max_sandboxes` is applied, an indicator at the bottom of the task status
 
 [![](images/task-max-sandboxes.png)](images/task-max-sandboxes.png)
 
-Note that when `max_sandboxes` is applied this effectively creates a global `max_samples` limit that is equal to the `max_sandboxes`.
+The `max_sandboxes` limit is shared across all tasks using the same sandbox provider type. Each provider type has its own independent limit.
 
 ### Max Subprocesses
 
@@ -14037,9 +14098,9 @@ The `max_subprocesses` option determines how many subprocess calls can run in pa
 
 ### Max Samples
 
-Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.
+Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recoverable samples in the case of an interrupted task.
 
-By default, Inspect sets the value of `max_samples` to `max_connections + 1` (note that it would rarely make sense to set it *lower* than `max_connections`). The default `max_connections` is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large `max_connections` (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
+By default, `max_samples` tracks the model’s current connection limit: with adaptive connections (the default) it follows the controller, and with static concurrency it is set to `max_connections` (note that it would rarely make sense to set it *lower* than `max_connections`). A small limit will typically result in samples being written to the log frequently. On the other hand, setting a very large limit (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
 
 > **NOTE:**
 >
@@ -14243,7 +14304,7 @@ Decisions behave as follows:
 | Decision | Behavior for a bridged agent |
 |----|----|
 | approve | The call is passed to the agent, which executes it as normal. |
-| modify | The modified arguments are passed to the agent (the function name is not substituted, since the agent dispatches on it). |
+| modify | The modified arguments are passed to the agent. A modified call to a different function fails the sample with an error. |
 | reject | The call is never given to the agent. The model is told it was rejected and asked to generate again; the agent sees only the replacement response. |
 | terminate | The sample is terminated. |
 | escalate | Passed to the next approver in the chain, as elsewhere. |
@@ -14263,6 +14324,10 @@ Because Inspect doesn’t execute these tool calls, no tool event is recorded fo
 A `modify` decision leaves the original call intact in the log: the recorded model output and approval event show what the model proposed, and the approval event’s `modified` field shows what was substituted.
 
 For a sandbox bridge with [bridged tools](./agent-bridge.html.md#bridged-tools), the decision also determines what the agent can execute on the host. A bridged tool runs only for a call the model proposed in a bridged generation, once per proposal, with the arguments as approved (so a `modify` decision grants the modified call, not the original); a `tools/call` with no matching proposal is denied and the agent surfaces the error to the model, which re-proposes. This holds with no approval policy configured as well. A server registered with `BridgedToolsSpec(require_proposal=False)` gives up this correspondence: its tools run for any `tools/call` the agent sends. See [Execution Contract](./agent-bridge.html.md#bridged-tools-execution).
+
+## Remote MCP Servers
+
+A [remote MCP server](./tools-mcp.html.md#remote-mcp) (`execution="remote"`) has its tools called by the model provider during generation, so Inspect can’t approve those calls. While an approval policy is active, generating with a remote MCP server raises an error instead of sending the server to the provider. This applies to any policy, including one that names other tools, since a tool call no policy matches is rejected. It also applies to policies passed to [react()](./reference/inspect_ai.agent.html.md#react), [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) and [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge). Use `execution="local"` to have the server’s tool calls approved like any other.
 
 ## Custom Approvers
 
@@ -14294,6 +14359,8 @@ There are five possible approval decisions:
 | reject | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
 | escalate | The tool call should be escalated to the next approver in the chain. |
 | terminate | The current sample should be terminated as a result of the tool call. |
+
+A `modify` decision may change only the arguments of the tool call. If the modified call names a different function, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified call, the tool event records the arguments that ran, while the model output and the approval event keep the call the model proposed.
 
 Here’s a more complicated custom approver that implements an allow list for bash commands. Imagine that we’ve implemented this approver within a Python package named `evaltools`:
 
@@ -14772,9 +14839,9 @@ If dataset shuffling is important to your evaluation and you want to preserve sa
 
 #### Max Samples
 
-Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.
+Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recoverable samples in the case of an interrupted task.
 
-By default, Inspect sets the value of `max_samples` to `max_connections + 1` (note that it would rarely make sense to set it *lower* than `max_connections`). The default `max_connections` is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large `max_connections` (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
+By default, `max_samples` tracks the model’s current connection limit: with adaptive connections (the default) it follows the controller, and with static concurrency it is set to `max_connections` (note that it would rarely make sense to set it *lower* than `max_connections`). A small limit will typically result in samples being written to the log frequently. On the other hand, setting a very large limit (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
 
 > **NOTE:**
 >
@@ -15040,7 +15107,7 @@ When a `max_sandboxes` is applied, an indicator at the bottom of the task status
 
 [![](images/task-max-sandboxes.png)](images/task-max-sandboxes.png)
 
-Note that when `max_sandboxes` is applied this effectively creates a global `max_samples` limit that is equal to the `max_sandboxes`.
+The `max_sandboxes` limit is shared across all tasks using the same sandbox provider type. Each provider type has its own independent limit.
 
 ### Max Subprocesses
 
@@ -15048,9 +15115,9 @@ The `max_subprocesses` option determines how many subprocess calls can run in pa
 
 ### Max Samples
 
-Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.
+Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recoverable samples in the case of an interrupted task.
 
-By default, Inspect sets the value of `max_samples` to `max_connections + 1` (note that it would rarely make sense to set it *lower* than `max_connections`). The default `max_connections` is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large `max_connections` (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
+By default, `max_samples` tracks the model’s current connection limit: with adaptive connections (the default) it follows the controller, and with static concurrency it is set to `max_connections` (note that it would rarely make sense to set it *lower* than `max_connections`). A small limit will typically result in samples being written to the log frequently. On the other hand, setting a very large limit (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
 
 > **NOTE:**
 >
@@ -15739,6 +15806,17 @@ anthropic/claude-sonnet-4-5-20250514:
 (As of Feb 9 2026, all major model providers count reasoning tokens as output tokens, so no separate price needs to be provided for reasoning tokens. If your use case requires separate calculation of reasoning token prices, contact us.)
 
 When model cost data is configured, costs will be tracked for the sample as a whole, as well as any events within the sample that have a ModelUsage field.
+
+A request is priced at the rates of the model that served it, when the provider reports one other than the model requested: a [refusal fallback](./fallbacks.html.md), an Azure OpenAI, Azure AI or Microsoft Foundry deployment, an OpenRouter, Bedrock or Fireworks router, or a LiteLLM proxy fallback. A dated snapshot of the requested model is priced at the requested model’s rates. If the served model has no cost data, the request is priced at the requested model’s rates and a warning names the served model (e.g. `openai/gpt-4o-mini-2024-07-18`). Set cost data under that name. [set_model_cost()](./reference/inspect_ai.model.html.md#set_model_cost) and `--model-cost-config` accept only models in Inspect’s model database; for any other model, use [set_model_info()](./reference/inspect_ai.model.html.md#set_model_info):
+
+``` python
+from inspect_ai.model import set_model_info, ModelCost, ModelInfo
+
+set_model_info("privateorg/routed-model", ModelInfo(cost=ModelCost(
+    input=1.00, output=4.00,
+    input_cache_write=0, input_cache_read=0.10,
+)))
+```
 
 Additionally, configuring model cost data allows setting sample cost limits:
 
@@ -17034,7 +17112,32 @@ def spawn_followup():
 
 Enqueued samples share a buffer with samples returned from `sample_complete`. [enqueue_sample()](./reference/inspect_ai.html.md#enqueue_sample) is only available inside a task driven by a [SampleSource](./reference/inspect_ai.html.md#samplesource) (a plain task’s sample set is fixed) and raises otherwise.
 
-If samples contain media, paths and URLs in `initial_samples()` are trusted task input and are materialized before execution. Media added later by `next_samples()`, `sample_complete()`, or [enqueue_sample()](./reference/inspect_ai.html.md#enqueue_sample) must already be an inline data URL. Trusted source code can explicitly opt into filesystem or network access with `await materialize_media(reference)` before adding the sample; see [Multimodal](./multimodal.html.md) for the authority and MIME rules.
+### Running a sample again as a new epoch
+
+Pass `epoch` to [enqueue_sample()](./reference/inspect_ai.html.md#enqueue_sample) to run a sample once, as that epoch, rather than for the task’s configured epochs. This lets a source run the same sample repeatedly under its own id:
+
+``` python
+class Rollouts(SampleSource):
+    """Runs `groups` groups of `group_size` concurrent runs of one sample."""
+
+    def __init__(self, sample: Sample, group_size: int, groups: int) -> None:
+        self.sample = sample  # has an id: every run is logged under it
+        self.group_size = group_size
+        self.groups = groups
+        self.group = 0
+
+    async def next_samples(self) -> list[Sample] | None:
+        if self.group == self.groups:
+            return None
+        for run in range(self.group_size):
+            enqueue_sample(self.sample, epoch=self.group * self.group_size + run + 1)
+        self.group += 1
+        return []
+```
+
+Each run keeps the sample’s id (`state.sample_id`) and is told apart by `state.epoch`. Each `(id, epoch)` may be added once: a sample added without `epoch` (or in the seed) takes epochs `1` to the task’s `epochs`. `--limit` counts samples, not runs, so further epochs of an admitted id don’t count against it (see [Limits and sample filtering](#limits-and-sample-filtering)).
+
+If samples contain media, paths and URLs in `initial_samples()` are trusted task input and are materialized before execution. Media added later by `next_samples()`, `sample_complete()`, or [enqueue_sample()](./reference/inspect_ai.html.md#enqueue_sample) (including a seed sample added again with `epoch`) must already be an inline data URL. Trusted source code can explicitly opt into filesystem or network access with `await materialize_media(reference)` before adding the sample; see [Multimodal](./multimodal.html.md) for the authority and MIME rules.
 
 ## Concurrency
 
@@ -17046,7 +17149,7 @@ Samples added mid-run get the same [sandbox](./sandboxing.html.md) startup as th
 
 ## Limits and sample filtering
 
-The `--limit` option caps the total number of samples in the task — the seed plus everything the source produces. For example, `--limit 10` on a source with 5 seed samples allows 5 more generated samples; once the cap is reached, further additions are ignored (with a warning) and the task ends when the in-flight samples finish (`next_samples()` is not consulted again). The cap counts samples, not runs: each sample within the limit still runs for the task’s configured number of epochs. A *range* limit (`--limit 10,20`) is not supported for [SampleSource](./reference/inspect_ai.html.md#samplesource) tasks — it selects samples by dataset position, which generated samples don’t have.
+The `--limit` option caps the total number of samples in the task — the seed plus everything the source produces. For example, `--limit 10` on a source with 5 seed samples allows 5 more generated samples; once the cap is reached, new samples are ignored (with a warning) and the task ends when the in-flight samples finish. `next_samples()` is not consulted again once the cap is reached, however it was reached. The cap counts samples, not runs: each sample within the limit still runs for the task’s configured number of epochs, and further epochs of those samples added with `enqueue_sample(..., epoch=)` still run when added in the same `next_samples()` call, from `sample_complete()`, or from a solver. A *range* limit (`--limit 10,20`) is not supported for [SampleSource](./reference/inspect_ai.html.md#samplesource) tasks — it selects samples by dataset position, which generated samples don’t have.
 
 The `--sample-id` option filters generated samples the same way it filters the seed: only samples whose ids match run. Since the source may produce a requested id while the task runs, it is not an error for a `--sample-id` value to be missing from the seed.
 
@@ -17054,7 +17157,7 @@ A *fractional* `fail_on_error` threshold (e.g. `0.5`) is evaluated at the end o
 
 ## Retries
 
-On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source’s `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally, and regenerated samples whose ids match the prior attempt are themselves reused rather than re-run. Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
+On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source’s `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally, and regenerated samples whose ids (and explicit epochs) match the prior attempt are themselves reused rather than re-run. Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
 
 ## Logs
 
@@ -17362,6 +17465,11 @@ inspect eval ctf.py --log-model-api
 
 To disable model API logging entirely (errors only), use `--no-log-model-api`.
 
+Provider request and response ids are logged regardless of these options, so you can point a provider to a specific request:
+
+- `ModelEvent.request_ids`: the request id and HTTP status of each request sent to generate the response, including retries. Recorded for OpenAI and OpenAI-compatible providers, Anthropic, Groq, Mistral and Bedrock, except in batch mode.
+- `ModelOutput.response_id`: the provider’s id for the response (e.g. `resp_...` or `msg_...`).
+
 ## Log File API
 
 ### EvalLog
@@ -17587,9 +17695,9 @@ If dataset shuffling is important to your evaluation and you want to preserve sa
 
 #### Max Samples
 
-Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.
+Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recoverable samples in the case of an interrupted task.
 
-By default, Inspect sets the value of `max_samples` to `max_connections + 1` (note that it would rarely make sense to set it *lower* than `max_connections`). The default `max_connections` is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large `max_connections` (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
+By default, `max_samples` tracks the model’s current connection limit: with adaptive connections (the default) it follows the controller, and with static concurrency it is set to `max_connections` (note that it would rarely make sense to set it *lower* than `max_connections`). A small limit will typically result in samples being written to the log frequently. On the other hand, setting a very large limit (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
 
 > **NOTE:**
 >

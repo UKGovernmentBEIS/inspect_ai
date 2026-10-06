@@ -741,6 +741,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#models" id="toc-models" class="nav-link" data-scroll-target="#models">Models</a></li>
   <li><a href="#generation-config" id="toc-generation-config" class="nav-link" data-scroll-target="#generation-config">Generation Config</a></li>
+  <li><a href="#request-settings" id="toc-request-settings" class="nav-link" data-scroll-target="#request-settings">Request Settings</a></li>
   <li><a href="#tool-approval" id="toc-tool-approval" class="nav-link" data-scroll-target="#tool-approval">Tool Approval</a></li>
   <li><a href="#transcript" id="toc-transcript" class="nav-link" data-scroll-target="#transcript">Transcript</a></li>
   </ul>
@@ -972,6 +973,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Writing an MCP server script to the sandbox that forwards tool calls to the host</li>
 <li>Returning <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcpserverconfigstdio">MCPServerConfigStdio</a></span> configs that CLI agents can use to connect</li>
 </ul>
+<p>Bridged tool results are truncated in the same way as other tool results: at the tool’s own <code>max_output</code> if it declares one, otherwise at <code>max_tool_output</code> from the generate config (16KB by default). Results returned as content (e.g.&nbsp;<code>list[ContentText]</code>) are not truncated, as for other tools.</p>
 <section id="bridged-tools-execution" class="level3">
 <h3 class="anchored" data-anchor-id="bridged-tools-execution">Execution Contract</h3>
 <p>Bridged tools execute only for calls the model proposed in a bridged generation, once per proposal. Each tool call in a model response handed to the agent grants one execution of exactly that tool with exactly those arguments (as approved, or as modified by an <a href="#tool-approval">approval policy</a>); a <code>tools/call</code> request with no matching grant is denied and the error is returned to the agent, which surfaces it to the model. This holds whether or not an approval policy is active. Tool discovery (<code>tools/list</code>) is unaffected.</p>
@@ -995,9 +997,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="models" class="level2">
 <h2 class="anchored" data-anchor-id="models">Models</h2>
-<p>As demonstrated above, communication with Inspect models is done by using the OpenAI API with <code>model="inspect"</code>. You can use the same technique to interface with other Inspect models. To do this, preface the model name with “inspect” followed by the rest of the fully qualified model name.</p>
-<p>For example, in a LangChain agent, you would do this to utilise the Inspect interface to Gemini:</p>
+<p>As demonstrated above, an agent reaches the eval’s model by naming the model <code>"inspect"</code>.</p>
+<p>With the in-process <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span>, you can reach other Inspect models by prefacing the fully qualified model name with <code>inspect/</code>. For example, in a LangChain agent, you would do this to use the Inspect interface to Gemini:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> ChatOpenAI(model<span class="op">=</span><span class="st">"inspect/google/gemini-1.5-pro"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> serves only models the eval chose. A request is routed as follows:</p>
+<ol type="1">
+<li>A name in <code>model_aliases</code> goes to the model it maps to.</li>
+<li>A name the <code>model_resolver</code> returns a model for goes to that model.</li>
+<li><code>"inspect"</code>, and the eval’s own model name (e.g.&nbsp;<code>claude-sonnet-4-5</code> for an eval on <code>anthropic/claude-sonnet-4-5</code>), go to the eval’s model.</li>
+<li>Any other name, including <code>inspect/&lt;model&gt;</code> names and model role names, also goes to the eval’s model. The bridge logs a warning once for each such name, and the <code>requested_model</code> field of the model event in the transcript records the name the agent sent.</li>
+</ol>
+<p>Pass <code>model</code> to send unmatched names (and the eval’s own model name) to another model instead, e.g.&nbsp;<code>model="inspect/openai/gpt-4o"</code>.</p>
+<p>Agents often call more than one model: Claude Code, for example, makes background calls to a smaller model. These calls are served by the eval’s model unless you map the names. To send a name to another model, add it to <code>model_aliases</code>. Keys are the exact names the agent sends, as shown in the warning. To send a sub-agent tier to a model role you define for it, map the name to <code>get_model(role=...)</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> get_model</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> sandbox_agent_bridge(</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    state,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    model_aliases<span class="op">=</span>{</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"claude-haiku-4-5"</span>: get_model(<span class="st">"anthropic/claude-haiku-4-5"</span>),</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">"subagent"</span>: get_model(role<span class="op">=</span><span class="st">"subagent"</span>),</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>) <span class="im">as</span> bridge:</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Every alias key is a model the agent can call, so do not alias a role the agent should not reach, such as a grader or monitor.</p>
+<p>Names for the eval’s own model need no alias. They already get the eval’s model with its generation config, which an alias to a model name string would not.</p>
 </section>
 <section id="generation-config" class="level2">
 <h2 class="anchored" data-anchor-id="generation-config">Generation Config</h2>
@@ -1005,24 +1028,39 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>For this reason, by default the bridge does not forward client generation parameters. Instead, the resolved Inspect model configuration and the provider’s defaults govern generation. Structural parameters that express the agent’s intent — the system prompt, tools, tool choice, response format, <code>stop</code> sequences, and <code>seed</code> — are always forwarded.</p>
 <p>The generation parameters dropped by default are: <code>max_tokens</code>, <code>temperature</code>, <code>top_p</code>, <code>top_k</code>, <code>frequency_penalty</code>, <code>presence_penalty</code>, <code>n</code>/<code>num_choices</code>, <code>logprobs</code>, <code>top_logprobs</code>, <code>logit_bias</code>, and reasoning effort/tokens/summary.</p>
 <p>If you want the bridge to act as a faithful proxy where the agent’s generation parameters are authoritative, pass <code>forward_generation_config=True</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> agent_bridge(state, forward_generation_config<span class="op">=</span><span class="va">True</span>) <span class="im">as</span> bridge:</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> agent_bridge(state, forward_generation_config<span class="op">=</span><span class="va">True</span>) <span class="im">as</span> bridge:</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This option is available on both <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span>.</p>
+</section>
+<section id="request-settings" class="level2">
+<h2 class="anchored" data-anchor-id="request-settings">Request Settings</h2>
+<p>Some request fields and tool options change billing, storage at the model provider, how much of the conversation the provider keeps, or what provider tools may do. On both <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> the eval’s configuration decides these, not the agent:</p>
+<ul>
+<li><p><code>service_tier</code>, <code>store</code> and <code>truncation</code> (OpenAI Responses) and <code>service_tier</code> (Anthropic) are not forwarded. Set them with the provider’s model args (for OpenAI, <code>-M service_tier=flex</code> or <code>-M responses_store=true</code>) or with <code>GenerateConfig(extra_body=...)</code>. If the agent asks for a different value, a warning is logged once per field.</p></li>
+<li><p>A Responses request with <code>previous_response_id</code> is refused with a 400 error (raised as a <code>BridgePolicyError</code> from the client call for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span>). The bridge keeps no stored responses, so the agent must send the whole conversation in <code>input</code>.</p></li>
+<li><p><code>metadata</code>, <code>safety_identifier</code>, <code>prompt_cache_key</code>, <code>prompt_cache_retention</code> and <code>max_tool_calls</code> are forwarded.</p></li>
+<li><p>Options the agent sets on a provider tool it declares do not replace the bridge’s <code>web_search</code> and <code>code_execution</code> options. This covers the code interpreter’s <code>container</code> (OpenAI), and web search filters and allowed or blocked domains (OpenAI and Anthropic). For anything that differs, a warning is logged once per tool.</p></li>
+<li><p>The agent may set a web search <code>user_location</code> (OpenAI and Anthropic) or <code>search_context_size</code> (OpenAI) that the bridge’s <code>web_search</code> options leave unset. These shape the results but do not widen what can be searched. <code>search_context_size</code> can change cost, because OpenAI bills search content tokens; to control that cost, set it in the bridge’s <code>web_search</code> option. When the eval sets one, the eval’s value is used.</p></li>
+<li><p>The agent may also ask for less: a lower Anthropic <code>max_uses</code>, or OpenAI <code>external_web_access: false</code>, is applied.</p></li>
+<li><p>An OpenAI computer tool needs storage at the provider. If the eval turns storage off (<code>-M responses_store=false</code> or <code>store: False</code> in <code>GenerateConfig(extra_body=...)</code>), a request that declares the computer tool is refused with a 400 error. When the eval does not set storage, Inspect turns it on for these requests, as it does for any OpenAI computer tool.</p></li>
+</ul>
+<p>OpenAI Chat Completions and Google requests forward none of these fields, and Google tool declarations carry no options into the request.</p>
+<p>HTTP headers an agent sends to the sandbox bridge’s proxy are not forwarded; only the request body reaches the model provider. The in-process <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> forwards the agent’s headers other than credentials and SDK-managed ones.</p>
 </section>
 <section id="tool-approval" class="level2">
 <h2 class="anchored" data-anchor-id="tool-approval">Tool Approval</h2>
 <p>Tool calls made by a bridged agent can be governed by <a href="./approval.html">approval policies</a>, even though the agent executes its own tools. Approval is applied to the tool calls in each model response before that response reaches the agent, so a rejected call is never run.</p>
 <p>Eval-level and task-level policies apply automatically; both <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> also accept an <code>approval</code> parameter:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.approval <span class="im">import</span> ApprovalPolicy, auto_approver, human_approver</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> sandbox_agent_bridge(</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    state,</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    approval<span class="op">=</span>[</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(human_approver(), <span class="st">"bash"</span>),</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(auto_approver(), <span class="st">"*"</span>),</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>) <span class="im">as</span> bridge:</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.approval <span class="im">import</span> ApprovalPolicy, auto_approver, human_approver</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> sandbox_agent_bridge(</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    state,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    approval<span class="op">=</span>[</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(human_approver(), <span class="st">"bash"</span>),</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(auto_approver(), <span class="st">"*"</span>),</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>) <span class="im">as</span> bridge:</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Rejection works by telling the model rather than by editing the response: the rejected call and an explanation are replayed to the model, which then generates again. The agent sees only the replacement, so its loop continues normally. See <a href="./approval.html#bridged-agents">Bridged Agents</a> for the full semantics.</p>
 <p>For <code>bridged_tools</code>, the approved call is also what the agent may execute on the host: a bridged tool runs once per proposed call, with the arguments as approved or modified (see <a href="#bridged-tools-execution">Execution Contract</a>).</p>
 <p>An agent that reaches every bridged tool through one dispatcher function (Antigravity’s <code>call_mcp_tool</code>) is approved as if the model had called the bridged tool directly: policies match the tool’s own name, and approvers see and modify the tool’s own arguments.</p>
@@ -1031,9 +1069,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="transcript">Transcript</h2>
 <p>Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.</p>
 <p>If you want to use additional features of Inspect transcripts (e.g.&nbsp;spans, markdown output, etc.) you can still import and use the <code>transcript</code> function as normal. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>transcript().info(<span class="st">"custom *markdown* content"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>transcript().info(<span class="st">"custom *markdown* content"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>

@@ -1055,7 +1055,7 @@ Note
 <span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>            state.messages, tools<span class="op">=</span>[bash_session(instance<span class="op">=</span>instance)]</span>
 <span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Then, pass a unique id as the <code>instance</code>:</p>
-<div id="53417beb" class="cell">
+<div id="426fccec" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> shortuuid <span class="im">import</span> uuid</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1072,7 +1072,7 @@ Note
 </section>
 <section id="agent-limits" class="level2">
 <h2 class="anchored" data-anchor-id="agent-limits">Agent Limits</h2>
-<p>The Inspect <a href="./setting-limits.html#scoped-limits">limits system</a> enables you to set a variety of limits on execution including tokens consumed, messages used in converations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).</p>
+<p>The Inspect <a href="./setting-limits.html#scoped-limits">limits system</a> enables you to set a variety of limits on execution including tokens consumed, messages used in conversations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).</p>
 <p>Limits are often applied at the sample level or using a context manager. It is also possible to specify limits when executing an agent using any of the techniques described above.</p>
 <p>To run an agent with one or more limits, pass the limit object in the <code>limits</code> argument to a function like <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_solver">as_solver()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> (see <a href="./agents.html#using-agents">Using Agents</a> for details on the various ways to run agents).</p>
 <p>Here we limit an agent we are including as a solver to 500K tokens:</p>

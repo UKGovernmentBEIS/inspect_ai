@@ -945,6 +945,11 @@ Important
 <p>To log all model API calls, use the <code>--log-model-api</code> flag:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--log-model-api</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>To disable model API logging entirely (errors only), use <code>--no-log-model-api</code>.</p>
+<p>Provider request and response ids are logged regardless of these options, so you can point a provider to a specific request:</p>
+<ul>
+<li><code>ModelEvent.request_ids</code>: the request id and HTTP status of each request sent to generate the response, including retries. Recorded for OpenAI and OpenAI-compatible providers, Anthropic, Groq, Mistral and Bedrock, except in batch mode.</li>
+<li><code>ModelOutput.response_id</code>: the provider’s id for the response (e.g.&nbsp;<code>resp_...</code> or <code>msg_...</code>).</li>
+</ul>
 </section>
 <section id="sec-log-file-api" class="level2">
 <h2 class="anchored" data-anchor-id="sec-log-file-api">Log File API</h2>
@@ -1183,8 +1188,8 @@ Important
 </section>
 <section id="max-samples" class="level4">
 <h4 class="anchored" data-anchor-id="max-samples">Max Samples</h4>
-<p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.</p>
-<p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code> (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
+<p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recoverable samples in the case of an interrupted task.</p>
+<p>By default, <code>max_samples</code> tracks the model’s current connection limit: with adaptive connections (the default) it follows the controller, and with static concurrency it is set to <code>max_connections</code> (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). A small limit will typically result in samples being written to the log frequently. On the other hand, setting a very large limit (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">

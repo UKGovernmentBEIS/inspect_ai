@@ -279,7 +279,7 @@ The **Info** panel of the log viewer provides additional meta-information about 
 
 ## Publishing
 
-You can use the command `inspect view bundle` (or the [bundle_log_dir()](./reference/inspect_ai.log.html.md#bundle_log_dir) function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
+You can use the command `inspect view bundle` (or the [bundle_log_dir()](./reference/inspect_ai.log.html.md#bundle_log_dir) function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server that supports [HTTP range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Range_requests) ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
 
 ``` bash
 $ inspect view bundle --log-dir logs --output-dir logs-www

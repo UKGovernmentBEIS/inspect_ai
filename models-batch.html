@@ -816,7 +816,7 @@ Important
 <tbody>
 <tr class="odd">
 <td><code>size</code></td>
-<td>Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits.</td>
+<td>Target number of requests to include in each batch. If not specified, uses a default of 100. Batches may be smaller if the timeout is reached or if requests don’t fit within size limits.</td>
 </tr>
 <tr class="even">
 <td><code>send_delay</code></td>
@@ -828,7 +828,7 @@ Important
 </tr>
 <tr class="even">
 <td><code>max_batches</code></td>
-<td>Maximum number of batches to have in flight at once for a provider (defaults to 100).</td>
+<td>Maximum number of batches to have in flight at once for a provider (defaults to 50).</td>
 </tr>
 </tbody>
 </table>
@@ -838,7 +838,7 @@ Important
 <p>When batch processing is enabled, the following steps are taken when handling generation requests:</p>
 <ol type="1">
 <li><p><strong>Request Queuing</strong>: Individual model requests are queued rather than sent immediately</p></li>
-<li><p><strong>Batch Formation</strong>: Requests are grouped into batches based on size limits and timeouts.</p></li>
+<li><p><strong>Batch Formation</strong>: Requests are grouped into batches based on size limits and timeouts. Requests with different HTTP headers go in separate batches, since a batch is sent with one set of headers.</p></li>
 <li><p><strong>Batch Submission</strong>: Complete batches are submitted to the provider’s batch API.</p></li>
 <li><p><strong>Status Monitoring</strong>: Inspect periodically checks batch completion status.</p></li>
 <li><p><strong>Result Distribution</strong>: When batches complete, results are distributed back to the original requests</p></li>

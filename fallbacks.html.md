@@ -84,6 +84,8 @@ On the model output, `ModelOutput.model` reports the model that actually produce
 | `count` | Number of generate calls (always 1 on a single output; aggregated in the sample rollup). |
 | `metadata` | Provider diagnostics. For Anthropic, the `handoffs` chain and the per-attempt `usage.iterations` billing record. |
 
+A turn that [sticky routing](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#sticky-routing) sends straight to the fallback model (no model declined it) is recorded the same way, with an empty `handoffs` chain.
+
 The assistant message also carries a content marker at the point of the handoff, which is what allows Inspect to replay fallen-back conversations on subsequent turns.
 
 At the sample level, `EvalSample.model_fallbacks` (and sample summaries) aggregate the fallbacks that occurred during the sample (across solvers, subagents, and scorers) as a list of `ModelFallback` entries keyed by requested and serving model. The rollup is also available in [dataframes](./dataframe.html.md): [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) includes a `fallbacks` column with the total count, and the full detail is available via a custom column:
@@ -102,7 +104,9 @@ df[df.fallbacks > 0]
 
 ### Costs
 
-Cost estimation (including the `cost_limit` option) prices fallen-back requests at the requested model’s rates, as if no refusal had occurred. This keeps estimated costs comparable across samples, and is conservative for `cost_limit` since fallback targets are cheaper than the requested model (Anthropic bills each attempt at the rates of the model that ran it, and declined attempts that produced no output are unbilled). If you need actual-spend accounting, the per-attempt billing record is preserved in `ModelFallback.metadata["iterations"]` on each [ModelEvent](./reference/inspect_ai.event.html.md#modelevent)’s output.
+Cost estimation (including the `cost_limit` option) prices each attempt at the rates of the model that ran it, as Anthropic bills it. An attempt that declined partway through its response is billed, and so is included. An attempt that declined before any output is billed only for some refusal categories (`bio`, `frontier_llm` and `reasoning_extraction`), which a fallback response does not report, so it is left out. For those categories the estimated cost, and the spend a `cost_limit` sees, is lower than the billed amount. The per-attempt billing record is in `ModelFallback.metadata["iterations"]` on each [ModelEvent](./reference/inspect_ai.event.html.md#modelevent)’s output.
+
+Fallback models need cost data too (see [Model Cost](./setting-limits.html.md#model-cost)). If a fallback model has none, the request is priced at the requested model’s rates and a warning is shown.
 
 ## Viewer
 

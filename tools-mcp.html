@@ -920,6 +920,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dl>
 <p>Note that some remote MCP servers will require credentials—in this case pass the <code>authorization</code> option (as shown above) to provide an OAuth Bearer Token or pass <code>headers</code> to provide credentials using another scheme.</p>
 <p>Before using remote servers, you should review OpenAI’s <a href="https://platform.openai.com/docs/guides/tools-remote-mcp#risks-and-safety">Risks and Safety</a> guidance for Remote MCP.</p>
+<p>The model provider calls a remote server’s tools during generation, so Inspect never sees those calls and can’t <a href="./approval.html">approve</a> them. For this reason a remote server can’t be used while an approval policy is active: Inspect raises an error rather than sending the server to the provider. Use <code>execution="local"</code> so that the server’s tool calls go through the approval policy.</p>
 </section>
 <section id="tool-selection" class="level2">
 <h2 class="anchored" data-anchor-id="tool-selection">Tool Selection</h2>

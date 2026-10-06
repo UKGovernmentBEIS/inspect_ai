@@ -172,7 +172,7 @@ Decisions behave as follows:
 | Decision | Behavior for a bridged agent |
 |----|----|
 | approve | The call is passed to the agent, which executes it as normal. |
-| modify | The modified arguments are passed to the agent (the function name is not substituted, since the agent dispatches on it). |
+| modify | The modified arguments are passed to the agent. A modified call to a different function fails the sample with an error. |
 | reject | The call is never given to the agent. The model is told it was rejected and asked to generate again; the agent sees only the replacement response. |
 | terminate | The sample is terminated. |
 | escalate | Passed to the next approver in the chain, as elsewhere. |
@@ -192,6 +192,10 @@ Because Inspect doesn’t execute these tool calls, no tool event is recorded fo
 A `modify` decision leaves the original call intact in the log: the recorded model output and approval event show what the model proposed, and the approval event’s `modified` field shows what was substituted.
 
 For a sandbox bridge with [bridged tools](./agent-bridge.html.md#bridged-tools), the decision also determines what the agent can execute on the host. A bridged tool runs only for a call the model proposed in a bridged generation, once per proposal, with the arguments as approved (so a `modify` decision grants the modified call, not the original); a `tools/call` with no matching proposal is denied and the agent surfaces the error to the model, which re-proposes. This holds with no approval policy configured as well. A server registered with `BridgedToolsSpec(require_proposal=False)` gives up this correspondence: its tools run for any `tools/call` the agent sends. See [Execution Contract](./agent-bridge.html.md#bridged-tools-execution).
+
+## Remote MCP Servers
+
+A [remote MCP server](./tools-mcp.html.md#remote-mcp) (`execution="remote"`) has its tools called by the model provider during generation, so Inspect can’t approve those calls. While an approval policy is active, generating with a remote MCP server raises an error instead of sending the server to the provider. This applies to any policy, including one that names other tools, since a tool call no policy matches is rejected. It also applies to policies passed to [react()](./reference/inspect_ai.agent.html.md#react), [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) and [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge). Use `execution="local"` to have the server’s tool calls approved like any other.
 
 ## Custom Approvers
 
@@ -223,6 +227,8 @@ There are five possible approval decisions:
 | reject | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
 | escalate | The tool call should be escalated to the next approver in the chain. |
 | terminate | The current sample should be terminated as a result of the tool call. |
+
+A `modify` decision may change only the arguments of the tool call. If the modified call names a different function, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified call, the tool event records the arguments that ran, while the model output and the approval event keep the call the model proposed.
 
 Here’s a more complicated custom approver that implements an allow list for bash commands. Imagine that we’ve implemented this approver within a Python package named `evaltools`:
 

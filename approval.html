@@ -738,6 +738,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#task-approvers" id="toc-task-approvers" class="nav-link" data-scroll-target="#task-approvers">Task Approvers</a></li>
   <li><a href="#approval-context" id="toc-approval-context" class="nav-link" data-scroll-target="#approval-context">Context Manager</a></li>
   <li><a href="#bridged-agents" id="toc-bridged-agents" class="nav-link" data-scroll-target="#bridged-agents">Bridged Agents</a></li>
+  <li><a href="#remote-mcp" id="toc-remote-mcp" class="nav-link" data-scroll-target="#remote-mcp">Remote MCP Servers</a></li>
   <li><a href="#custom-approvers" id="toc-custom-approvers" class="nav-link" data-scroll-target="#custom-approvers">Custom Approvers</a></li>
   <li><a href="#tool-views" id="toc-tool-views" class="nav-link" data-scroll-target="#tool-views">Tool Views</a>
   <ul class="collapse">
@@ -914,7 +915,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td>modify</td>
-<td>The modified arguments are passed to the agent (the function name is not substituted, since the agent dispatches on it).</td>
+<td>The modified arguments are passed to the agent. A modified call to a different function fails the sample with an error.</td>
 </tr>
 <tr class="odd">
 <td>reject</td>
@@ -942,6 +943,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ul>
 <p>A <code>modify</code> decision leaves the original call intact in the log: the recorded model output and approval event show what the model proposed, and the approval event’s <code>modified</code> field shows what was substituted.</p>
 <p>For a sandbox bridge with <a href="./agent-bridge.html#bridged-tools">bridged tools</a>, the decision also determines what the agent can execute on the host. A bridged tool runs only for a call the model proposed in a bridged generation, once per proposal, with the arguments as approved (so a <code>modify</code> decision grants the modified call, not the original); a <code>tools/call</code> with no matching proposal is denied and the agent surfaces the error to the model, which re-proposes. This holds with no approval policy configured as well. A server registered with <code>BridgedToolsSpec(require_proposal=False)</code> gives up this correspondence: its tools run for any <code>tools/call</code> the agent sends. See <a href="./agent-bridge.html#bridged-tools-execution">Execution Contract</a>.</p>
+</section>
+<section id="remote-mcp" class="level2">
+<h2 class="anchored" data-anchor-id="remote-mcp">Remote MCP Servers</h2>
+<p>A <a href="./tools-mcp.html#remote-mcp">remote MCP server</a> (<code>execution="remote"</code>) has its tools called by the model provider during generation, so Inspect can’t approve those calls. While an approval policy is active, generating with a remote MCP server raises an error instead of sending the server to the provider. This applies to any policy, including one that names other tools, since a tool call no policy matches is rejected. It also applies to policies passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span>. Use <code>execution="local"</code> to have the server’s tool calls approved like any other.</p>
 </section>
 <section id="custom-approvers" class="level2">
 <h2 class="anchored" data-anchor-id="custom-approvers">Custom Approvers</h2>
@@ -990,6 +995,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
+<p>A <code>modify</code> decision may change only the arguments of the tool call. If the modified call names a different function, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified call, the tool event records the arguments that ran, while the model output and the approval event keep the call the model proposed.</p>
 <p>Here’s a more complicated custom approver that implements an allow list for bash commands. Imagine that we’ve implemented this approver within a Python package named <code>evaltools</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@approver</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bash_allowlist(</span>
