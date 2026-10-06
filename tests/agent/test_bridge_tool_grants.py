@@ -10,7 +10,7 @@ Request fields that change billing, provider-side storage or context truncation,
 and the options of declared provider tools, are the eval's on both bridges.
 """
 
-from typing import Any, Awaitable, Callable, cast
+from typing import Any, Awaitable, Callable, Iterator, cast
 
 import pytest
 from openai import AsyncOpenAI
@@ -48,7 +48,12 @@ from inspect_ai.agent._bridge.util import (
 )
 from inspect_ai.model import GenerateConfig, Model, ModelOutput, get_model
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
-from inspect_ai.model._model import GenerateFilter
+from inspect_ai.model._generate_config import active_generate_config_context_var
+from inspect_ai.model._model import (
+    GenerateFilter,
+    active_model_context_var,
+    init_active_model,
+)
 from inspect_ai.tool import (
     CodeExecutionProviders,
     Tool,
@@ -75,6 +80,26 @@ ANTHROPIC_WEB_SEARCH = cast(Any, {"type": "web_search_20250305", "name": "web_se
 ANTHROPIC_MCP_SERVER = cast(
     Any, {"type": "url", "name": "elsewhere", "url": "https://elsewhere.example/mcp"}
 )
+
+
+@pytest.fixture(autouse=True)
+def _eval_model() -> Iterator[None]:
+    """Make mockllm/model the eval's model, as it is inside a running eval.
+
+    The sandbox bridge serves a model name it does not recognise with the eval's
+    model, so the requests below name it. init_active_model() sets process-wide
+    contextvars; reset them so they don't leak into other tests.
+    """
+    model_token = active_model_context_var.set(active_model_context_var.get(None))
+    config_token = active_generate_config_context_var.set(
+        active_generate_config_context_var.get()
+    )
+    init_active_model(get_model("mockllm/model"), GenerateConfig())
+    try:
+        yield
+    finally:
+        active_model_context_var.reset(model_token)
+        active_generate_config_context_var.reset(config_token)
 
 
 def sandbox_bridge(
