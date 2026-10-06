@@ -24,8 +24,10 @@ def prepare_socket_path(path: Path) -> None:
     Ensures the parent dir exists and removes a leftover socket node from a
     stale prior bind. Refuses to remove a path that exists and is **not** a
     mistaken or hostile path (eg. ``--acp-server=/etc/passwd``) raises
-    instead of deleting data. Raising here is safe for default-path callers
-    too: the control / ACP servers degrade gracefully when their bind fails.
+    instead of deleting data. What a caller does with that is its own
+    choice: the control server logs and degrades, while the ACP server
+    lets it propagate, since an eval whose human channel is ACP has no
+    second one to fall back to.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() or path.is_symlink():

@@ -273,6 +273,18 @@ def _lookup_in_db(name: str, db: dict[str, ModelInfo]) -> ModelInfo | None:
     return _fuzzy_match(name, db)
 
 
+def _strict_db_key(name: str) -> str | None:
+    """The database key for `name` by exact or case-insensitive match.
+
+    Unlike `_lookup_in_db`, there is no fuzzy stage, for callers that try
+    several candidate spellings and must not settle on a different model.
+    """
+    db = _get_model_info_db()
+    if name in db:
+        return name
+    return _get_lookup_index().get(_normalize_for_lookup(name))
+
+
 def get_model_info(model: str | Model) -> ModelInfo | None:
     """Get model information including context window, output tokens, etc.
 
@@ -307,6 +319,11 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
 def _get_model_info_direct(model: str | Model) -> ModelInfo | None:
     """Look up model info without instantiating a provider."""
     return _get_model_info(model, resolve_provider=False)
+
+
+def _get_custom_model_info(model: str) -> ModelInfo | None:
+    """Look up model info registered with set_model_info(), if any."""
+    return _custom_models.get(model)
 
 
 def _get_model_info(
@@ -456,13 +473,16 @@ def set_model_cost(model: str, cost: ModelCost) -> None:
 
 
 def clear_model_info_cache() -> None:
-    """Clear the model info cache.
+    """Clear registered model info and memoized lookups.
 
-    This is primarily useful for testing. After calling this function,
-    the next call to model_info() will reload the database from disk.
+    This is primarily useful for testing: after calling this function, models
+    registered with set_model_info() / set_model_cost() are gone and lookups
+    are recomputed.
+
+    The built-in database read from disk is deliberately kept. Nothing mutates
+    it (set_model_info and set_model_cost both write to the custom registry,
+    the latter via model_copy), so re-reading it yields the same data at a cost
+    of ~0.2s per call — which an autouse fixture pays once per test.
     """
-    global _model_info_cache, _lookup_index
-    _model_info_cache = None
-    _lookup_index = None
     _custom_models.clear()
     _result_cache.clear()

@@ -35,7 +35,15 @@ def model_retry_config(
     wait: WaitBaseT | None = None,
     live_overrides: bool = True,
     report_retry_wait: bool = True,
+    qualified_model_name: str | None = None,
 ) -> ModelRetryConfig:
+    # `model_name` is the bare provider model name and is display-oriented
+    # (trace retry lines, the ctl retry_wait activity view keep showing it);
+    # `qualified_model_name` is the full `provider/model` string that keys
+    # the throughput registry (see design/model-throughput.md "Key
+    # discipline"). When None (e.g. a bare ModelAPI used outside get_model),
+    # retries/backoff simply go unattributed in the registry.
+    #
     # retry for transient http errors:
     # - use config.max_retries and config.timeout if specified, otherwise retry forever
     # - exponential backoff starting at 3 seconds (will wait 25 minutes
@@ -68,8 +76,20 @@ def model_retry_config(
             from inspect_ai.log._samples import report_active_sample_retry_wait
 
             report_active_sample_retry_wait(
-                model_name, rs.attempt_number, rs.upcoming_sleep
+                model_name,
+                rs.attempt_number,
+                rs.upcoming_sleep,
+                qualified_model=qualified_model_name,
             )
+
+        # scheduled backoff feeds the per-model throughput registry whenever
+        # the model is known — including admin-op loops that opt out of the
+        # per-sample record above (backoff is the model's regardless of
+        # which sample, if any, it belongs to)
+        if qualified_model_name is not None:
+            from inspect_ai.model._throughput import record_retry_wait
+
+            record_retry_wait(qualified_model_name, rs.upcoming_sleep)
 
         res = log_model_retry(model_name, rs)
         if res is not None:
@@ -111,7 +131,11 @@ def model_retry_config(
         result = should_retry(ex)
         if isinstance(result, RetryDecision):
             if result.retry:
-                report_http_retry(kind=result.kind, retry_after=result.retry_after)
+                report_http_retry(
+                    kind=result.kind,
+                    retry_after=result.retry_after,
+                    model=qualified_model_name,
+                )
             return result.retry
         return bool(result)
 
@@ -153,6 +177,7 @@ def batch_admin_retry_config(
     model_name: str,
     config: "GenerateConfig",
     should_retry: "Callable[[BaseException], bool | RetryDecision]",
+    qualified_model_name: str | None = None,
 ) -> ModelRetryConfig:
     """Retry config for a batcher's admin operations (batch create/poll).
 
@@ -171,6 +196,8 @@ def batch_admin_retry_config(
     sample's context, and an admin-op backoff is not that sample's wait
     (see the gate comment in :func:`model_retry_config`).
     """
+    from functools import partial
+
     from inspect_ai.model._model import log_model_retry
 
     return model_retry_config(
@@ -179,7 +206,8 @@ def batch_admin_retry_config(
         config.timeout,
         should_retry,
         lambda ex: None,
-        log_model_retry,
+        partial(log_model_retry, qualified_model_name=qualified_model_name),
         live_overrides=False,
         report_retry_wait=False,
+        qualified_model_name=qualified_model_name,
     )

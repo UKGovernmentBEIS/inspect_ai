@@ -1,6 +1,7 @@
 from typing import cast
 
 from inspect_ai._util.path import native_path
+from inspect_ai.log._headline import headline_metric
 from inspect_ai.log._log import EvalLog
 
 from ..extract import remove_namespace
@@ -48,19 +49,34 @@ def eval_log_scores_dict(
         return None
 
 
-def eval_log_headline_stderr(log: EvalLog) -> float | None:
-    if log.results is not None and len(log.results.scores) > 0:
-        headline_score = log.results.scores[0]
-        if "stderr" in headline_score.metrics:
-            return headline_score.metrics["stderr"].value
+def eval_log_headline_name(log: EvalLog) -> str | None:
+    # the scorer, not the score: this column has always named the scorer, and
+    # the two differ for scorers returning a dict of scores. `headline_score`
+    # carries the score, which is what tells those apart
+    resolved = headline_metric(log)
+    return resolved.score.scorer if resolved is not None else None
 
-    return None
+
+def eval_log_headline_score(log: EvalLog) -> str | None:
+    resolved = headline_metric(log)
+    return resolved.score.name if resolved is not None else None
 
 
 def eval_log_headline_metric(log: EvalLog) -> str | None:
-    if log.results is not None and len(log.results.scores) > 0:
-        headline_score = log.results.scores[0]
-        if len(headline_score.metrics) > 0:
-            return next(iter(headline_score.metrics.keys()))
+    resolved = headline_metric(log)
+    return resolved.name if resolved is not None else None
+
+
+def eval_log_headline_value(log: EvalLog) -> int | float | None:
+    resolved = headline_metric(log)
+    return resolved.metric.value if resolved is not None else None
+
+
+def eval_log_headline_stderr(log: EvalLog) -> float | None:
+    resolved = headline_metric(log)
+    if resolved is not None:
+        stderr = resolved.score.metrics.get("stderr")
+        if stderr is not None:
+            return float(stderr.value)
 
     return None

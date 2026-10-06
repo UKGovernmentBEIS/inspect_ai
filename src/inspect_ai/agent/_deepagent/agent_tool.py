@@ -42,6 +42,15 @@ from .subagent import Subagent
 
 logger = getLogger(__name__)
 
+SUBAGENT_RESULT_MAX_OUTPUT = 0
+"""Output limit for tools that hand a subagent's result back to the parent.
+
+A subagent's report *is* the payload of the delegation, so clipping it at
+``max_tool_output`` (16KB by default) throws away the very thing the parent
+dispatched for. ``0`` disables truncation. Shared with the background
+lifecycle tools, which echo the same results.
+"""
+
 # ---------------------------------------------------------------------------
 # Background dispatch registry
 # ---------------------------------------------------------------------------
@@ -370,7 +379,11 @@ def agent_tool(
     if background_enabled and single_name is not None:
         only = single_name
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
         def agent() -> Tool:
             """Delegate a task to a specialized subagent."""
 
@@ -388,7 +401,11 @@ def agent_tool(
 
     elif background_enabled:
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
         def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 
@@ -408,7 +425,11 @@ def agent_tool(
     elif single_name is not None:
         only = single_name
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
         def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 
@@ -425,7 +446,11 @@ def agent_tool(
 
     else:
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
+        @tool(
+            parallel=can_parallel,
+            viewer=_agent_viewer_for(single_name),
+            max_output=SUBAGENT_RESULT_MAX_OUTPUT,
+        )
         def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 
@@ -632,6 +657,7 @@ async def _run_background(
 
     from inspect_ai._util.exception import TerminateSampleError
     from inspect_ai.event._timeline import timeline_branch
+    from inspect_ai.model._model import ModelRefusalError
     from inspect_ai.util._limit import LimitExceededError, apply_limits
     from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
@@ -687,15 +713,17 @@ async def _run_background(
         # structured concurrency requires it to propagate.
         future.status = "cancelled"
         raise
-    except (LimitExceededError, TerminateSampleError):
+    except (LimitExceededError, TerminateSampleError, ModelRefusalError):
         # Sample-level control flow must propagate so the sample runner
         # records/enforces it (run.py catches these off sample.tg). The
         # subagent's OWN limits were already caught into limit_scope by
         # apply_limits(catch_errors=True), so any LimitExceededError that
         # reaches here belongs to an outer (sample/parent) scope and must
-        # not be downgraded to a per-agent "errored" result. The sample is
-        # terminating; record a terminal status so the `finally: done.set()`
-        # below never wakes a waiter with a stale "running" status.
+        # not be downgraded to a per-agent "errored" result. A refusal under
+        # fail_on_refusal likewise fails the sample wherever it occurs. The
+        # sample is terminating; record a terminal status so the
+        # `finally: done.set()` below never wakes a waiter with a stale
+        # "running" status.
         future.status = "cancelled"
         raise
     except Exception as ex:

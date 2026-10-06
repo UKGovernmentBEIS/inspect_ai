@@ -137,8 +137,9 @@ def basic_agent(
     # resolve score_value function
     score_value_fn = score_value or value_to_float()
 
-    # submission tool
-    @tool
+    # submission tool (max_output=0 because the submitted answer becomes the
+    # completion -- truncating it would score a truncation notice instead)
+    @tool(max_output=0)
     def submit() -> Tool:
         async def execute(answer: str) -> ToolResult:
             """Submit an answer for evaluation.

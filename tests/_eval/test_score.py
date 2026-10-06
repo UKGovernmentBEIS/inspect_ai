@@ -348,11 +348,11 @@ def adds_to_state() -> Scorer:
         pytest.param(
             LOG_SCORED,
             "append",
-            [("f1", dict[str, Any]()), ("choice", dict[str, Any]())],
+            [("f1", dict[str, Any]()), ("includes", dict[str, Any]())],
             {
                 "match": {"num_metrics": 2},
                 "f1": {"num_metrics": 2},
-                "choice": {"num_metrics": 2},
+                "includes": {"num_metrics": 2},
             },
             None,
             id="multiple-scorers",
@@ -665,6 +665,74 @@ async def test_score_model_roles_override():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("action", ["overwrite", "append"])
+async def test_score_preserves_logged_samples(action: ScoreAction) -> None:
+    """Rescoring must carry EvalResults.logged_samples into the rebuilt results.
+
+    The eval-set run-vs-reuse check classifies a drained (or gracefully
+    cancelled) log by this count; a rescore that dropped it would make the
+    log read complete and the abandoned remainder would silently never re-run.
+    """
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalResults,
+        EvalSpec,
+    )
+
+    @scorer(metrics=[accuracy()])
+    def constant_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1.0)
+
+        return score
+
+    sample = EvalSample(
+        id="test-1",
+        epoch=1,
+        input="q",
+        target="a",
+        messages=[ChatMessageUser(role="user", content="q")],
+        output=ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(role="assistant", content="a")
+                )
+            ]
+        ),
+    )
+
+    # a drained log: three planned, one resolved
+    log = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="test_task",
+            task_id="test",
+            run_id="test-run",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="test",
+            steps=[EvalPlanStep(solver="generate")],
+            config=GenerateConfig(),
+        ),
+        results=EvalResults(total_samples=3, completed_samples=1, logged_samples=1),
+        samples=[sample],
+    )
+
+    scored = await score_async(log=log, scorers=[constant_scorer()], action=action)
+    assert scored.results is not None
+    assert scored.results.logged_samples == 1
+
+
+@pytest.mark.anyio
 async def test_score_resolves_attachments_for_scorer_state_and_transcript() -> None:
     from inspect_ai._eval.score import _run_score_task
     from inspect_ai.log import EvalLog
@@ -848,3 +916,66 @@ async def test_score_restores_sample_timelines() -> None:
         action="append",
     )
     assert seen == ["target"]
+
+
+def test_scorer_from_spec_resolves_registered_scanner() -> None:
+    """``--scorer pkg/name`` must resolve ``@scanner`` objects, not just ``@scorer``.
+
+    Scanners live under the ``scanner`` registry type. The ``file.py@name`` path of
+    ``scorer_from_spec`` already checks both types (wrapping scanners via
+    ``inspect_scout.as_scorer``); the registry-name path has to do the same so that
+    e.g. ``inspect score log.eval --scorer inspect_petri/audit_judge`` works.
+    """
+    pytest.importorskip("inspect_scout")
+    from inspect_scout import Result, Transcript, scanner
+
+    from inspect_ai._eval.loader import scorer_from_spec
+    from inspect_ai._util.registry import registry_info
+    from inspect_ai.scorer._scorer import ScorerSpec
+
+    @scanner(messages="all")
+    def registry_only_scanner(threshold: int = 1) -> Any:
+        async def scan(transcript: Transcript) -> Result:
+            return Result(value=threshold)
+
+        return scan
+
+    resolved = scorer_from_spec(
+        ScorerSpec(scorer="registry_only_scanner"), task_path=None, threshold=3
+    )
+    assert registry_info(resolved).type == "scorer"
+    assert registry_info(resolved).name.endswith("registry_only_scanner")
+
+
+def test_scorer_from_spec_unknown_name_is_prerequisite_error() -> None:
+    """An unknown registry name should surface the guidance error, not a raw LookupError."""
+    from inspect_ai._eval.loader import scorer_from_spec
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai.scorer._scorer import ScorerSpec
+
+    with pytest.raises(PrerequisiteError, match="couldn't be loaded"):
+        scorer_from_spec(ScorerSpec(scorer="no_such_scorer_anywhere"), task_path=None)
+
+
+def test_scorer_from_spec_preserves_scorer_name_argument() -> None:
+    from inspect_ai._eval.loader import scorer_from_spec
+    from inspect_ai.scorer._scorer import ScorerSpec
+
+    received_names: list[str] = []
+
+    @scorer(metrics=[accuracy()])
+    def scorer_with_name_argument(scorer_name: str) -> Scorer:
+        received_names.append(scorer_name)
+
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1)
+
+        return score
+
+    resolved = scorer_from_spec(
+        ScorerSpec(scorer="scorer_with_name_argument"),
+        task_path=None,
+        scorer_name="custom",
+    )
+    assert callable(resolved)
+    assert received_names == ["custom"]

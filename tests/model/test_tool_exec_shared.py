@@ -3,8 +3,12 @@
 These helpers are consumed by both the model tool path and the human agent
 tool path (human_cli tools=...), so the same exception or result produces
 identical classification, truncation, and content handling on both. The
-parametrized zoos here are the shared contract; path-specific dispositions
-(fail-the-sample vs surface-and-continue) are tested with each path.
+parametrized zoos here are the shared contract: classified exceptions are
+recoverable and unclassified (None) exceptions fail the sample. The
+fail-the-sample disposition for unclassified exceptions is agreed for both
+paths but is exercised here, and by the model path's own tests, only for
+the model path; #3053's corresponding caller change and tests for the
+human agent path remain outstanding.
 """
 
 import sys
@@ -20,16 +24,18 @@ from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai.model._call_tools import (
     classify_tool_exception,
     resolve_tool_content,
+    tool_call_error,
 )
 from inspect_ai.tool import ToolError
 from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
+from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import raise_if_control_flow
 
 # ---------------------------------------------------------------------------
-# classify_tool_exception
+# tool_call_error (single classification implementation)
 # ---------------------------------------------------------------------------
 
 
@@ -66,37 +72,110 @@ from inspect_ai.util._sandbox.service import raise_if_control_flow
     ],
 )
 def test_classification_zoo(ex, expected_type, expected_in_message):
-    classified = classify_tool_exception(ex, "some_tool")
-    assert classified is not None
-    assert classified.error.type == expected_type
-    assert expected_in_message in classified.error.message
+    mapped = tool_call_error(ex, "some_tool")
+    assert mapped is not None
+    assert mapped.error.type == expected_type
+    assert expected_in_message in mapped.error.message
+
+
+def test_timeout_with_truncated_output_carries_partial_result():
+    mapped = tool_call_error(
+        SandboxTimeoutError("timed out", truncated_output="partial"), "some_tool"
+    )
+    assert mapped is not None
+    assert mapped.result == "partial"
+
+
+def test_timeout_without_truncated_output_has_no_partial_result():
+    mapped = tool_call_error(TimeoutError(), "some_tool")
+    assert mapped is not None
+    assert mapped.result is None
 
 
 def test_output_limit_classified_with_partial_result():
-    classified = classify_tool_exception(
+    mapped = tool_call_error(
         OutputLimitExceededError("1 KiB", "partial output"), "some_tool"
     )
-    assert classified is not None
-    assert classified.error.type == "limit"
-    assert classified.result == "partial output"
+    assert mapped is not None
+    assert mapped.error.type == "limit"
+    assert mapped.result == "partial output"
+
+
+def test_output_limit_with_no_truncated_output_still_has_empty_string_result():
+    # deliberately "" rather than None here: a limit-truncated result of
+    # zero bytes is a known ("no output") partial result, not "no partial
+    # result available" — see the comment at this branch in tool_call_error.
+    mapped = tool_call_error(OutputLimitExceededError("1 KiB", ""), "some_tool")
+    assert mapped is not None
+    assert mapped.result == ""
 
 
 def test_unexpected_exception_unclassified():
-    assert classify_tool_exception(RuntimeError("boom"), "some_tool") is None
+    assert tool_call_error(RuntimeError("boom"), "some_tool") is None
 
 
 def test_terminate_errors_unclassified():
     # control flow: callers handle disposition (model fails the sample,
     # human propagates through the service boundary)
-    assert classify_tool_exception(TerminateSampleError("kill"), "t") is None
-    assert classify_tool_exception(TerminateTaskError("kill"), "t") is None
+    assert tool_call_error(TerminateSampleError("kill"), "t") is None
+    assert tool_call_error(TerminateTaskError("kill"), "t") is None
 
 
 def test_other_value_errors_unclassified():
     # only embedded-null-byte ValueErrors are tool errors; other ValueErrors
     # are unexpected — the classifier stays policy-free and returns None
     # (the model call site applies its historical immediate-rethrow itself)
-    assert classify_tool_exception(ValueError("unrelated"), "some_tool") is None
+    assert tool_call_error(ValueError("unrelated"), "some_tool") is None
+
+
+# ---------------------------------------------------------------------------
+# classify_tool_exception (compatibility adapter for #3053)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "ex",
+    [
+        TimeoutError(),
+        SandboxTimeoutError("timed out", truncated_output="partial"),
+        UnicodeDecodeError("utf-8", b"", 0, 1, "invalid start byte"),
+        ValueError("embedded null byte"),
+        SandboxUnavailableError("container gone"),
+        PermissionError(13, "Permission denied", "/etc/shadow"),
+        FileNotFoundError(2, "No such file", "missing.txt"),
+        IsADirectoryError(21, "Is a directory", "/tmp"),
+        OutputLimitExceededError("1 KiB", "partial output"),
+        OutputLimitExceededError("1 KiB", ""),
+        LimitExceededError("token", value=1001, limit=1000),
+        ToolParsingError("bad args"),
+        ToolApprovalError("rejected"),
+        ToolError("expected failure"),
+    ],
+)
+def test_adapter_matches_canonical_error_and_translates_sentinel(ex):
+    """classify_tool_exception() must not diverge from tool_call_error().
+
+    It is a thin adapter, not a second classification implementation: same
+    error for every case, and result translated only at the `None` <-> `""`
+    sentinel (a `""` result on the canonical side, e.g. from
+    OutputLimitExceededError with no captured output, passes through
+    unchanged rather than becoming a second "no result" case).
+    """
+    mapped = tool_call_error(ex, "some_tool")
+    classified = classify_tool_exception(ex, "some_tool")
+    assert mapped is not None
+    assert classified is not None
+    assert classified.error == mapped.error
+    assert classified.result == (mapped.result if mapped.result is not None else "")
+
+
+@pytest.mark.parametrize(
+    "ex",
+    [RuntimeError("boom"), TerminateSampleError("kill"), TerminateTaskError("kill")],
+)
+def test_adapter_unclassified_matches_canonical(ex):
+    assert tool_call_error(ex, "some_tool") is None
+    assert classify_tool_exception(ex, "some_tool") is None
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +273,7 @@ def _fake_service(method, monkeypatch, responses: list):
     service._name = "svc"
     service._methods = {"boom": method}
     service._requests_dir = "/req"
+    service._in_flight = set()
 
     request_json = json_module.dumps({"id": "r1", "method": "boom", "params": {}})
 
@@ -227,7 +307,7 @@ async def test_terminate_propagates_through_real_handler(monkeypatch):
 
     service = _fake_service(method, monkeypatch, responses)
     with pytest.raises(TerminateSampleError):
-        await service._handle_request_logging_errors("/req/r1.json")
+        await service._handle_request_tracked("/req/r1.json", "r1")
 
     # the RPC was answered exactly once before propagation
     assert len(responses) == 1
@@ -251,7 +331,7 @@ async def test_grouped_terminate_answers_rpc_then_propagates(monkeypatch):
 
     service = _fake_service(method, monkeypatch, responses)
     with pytest.raises(TerminateSampleError):
-        await service._handle_request_logging_errors("/req/r1.json")
+        await service._handle_request_tracked("/req/r1.json", "r1")
 
     assert len(responses) == 1
     assert responses[0][1] is not None and "Terminating" in responses[0][1]
@@ -265,7 +345,7 @@ async def test_ordinary_method_errors_still_swallowed(monkeypatch):
         raise RuntimeError("ordinary failure")
 
     service = _fake_service(method, monkeypatch, responses)
-    await service._handle_request_logging_errors("/req/r1.json")  # no raise
+    await service._handle_request_tracked("/req/r1.json", "r1")  # no raise
     assert len(responses) == 1
     assert responses[0][1] is not None and "ordinary failure" in responses[0][1]
 
@@ -299,7 +379,7 @@ def test_terminate_sticky_across_context():
         try:
             raise TerminateSampleError("kill")
         except TerminateSampleError:
-            raise RuntimeError("suppressor")  # noqa: B904
+            raise RuntimeError("suppressor")  # noqa: B904 — deliberately implicit context, not chained, to test that path
     except RuntimeError as ex:
         chained = ex
     with pytest.raises(TerminateSampleError):

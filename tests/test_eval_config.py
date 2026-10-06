@@ -14,10 +14,12 @@ from inspect_ai._cli.eval import (
     eval_set_command,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import list_eval_logs, read_eval_log
 from inspect_ai.model import get_model
 from inspect_ai.solver import solver
+from inspect_ai.util._limit import TokenLimit
 
 
 def run_eval_cli(args: list[str], env: dict[str, str | None] | None = None) -> Result:
@@ -78,6 +80,33 @@ def test_run_config_rejects_unknown_generate_config_field():
 def test_run_config_rejects_unknown_eval_config_field():
     with pytest.raises(ValidationError, match="[Uu]nknown"):
         RunConfigInput.model_validate({"eval_config": {"limit": 10, "bad_field": 1}})
+
+
+def test_run_config_preserves_approval_policy_type(tmp_path: Path):
+    params = RunConfigInput.model_validate(
+        {
+            "eval_config": {
+                "approval": {
+                    "approvers": [
+                        {
+                            "name": "auto",
+                            "tools": "*",
+                            "params": {"decision": "approve"},
+                        }
+                    ]
+                }
+            }
+        }
+    ).to_params()
+
+    assert isinstance(params["approval"], ApprovalPolicyConfig)
+    log = eval(
+        "tests/test_eval_config.py@eval_config_task",
+        model="mockllm/model",
+        log_dir=tmp_path.as_posix(),
+        **params,
+    )[0]
+    assert log.eval.config.approval == params["approval"]
 
 
 def test_eval_config_task():
@@ -754,9 +783,11 @@ def check_log(log: EvalLog, color="purple", check_model_roles=False) -> None:
     assert log.eval.task_args["color"] == color
     assert log.eval.model_args["foo"] == "bar"
     if log.eval.model_roles and check_model_roles:
-        assert log.eval.model_roles["grader"].config.temperature == 0.5
-        assert log.eval.model_roles["grader"].config.max_tokens == 1000
-        assert log.eval.model_roles["grader"].model == "mockllm/model"
+        grader = log.eval.model_roles["grader"]
+        assert not isinstance(grader, list)
+        assert grader.config.temperature == 0.5
+        assert grader.config.max_tokens == 1000
+        assert grader.model == "mockllm/model"
     if log.eval.solver_args:
         assert log.eval.solver_args["shape"] == "square"
 
@@ -766,3 +797,69 @@ TEST_EVAL_CONFIG_PATH = Path("tests/test_eval_config")
 
 def config_path(file: str) -> str:
     return (TEST_EVAL_CONFIG_PATH / file).as_posix()
+
+
+def test_run_config_reconstructs_token_limit():
+    """eval_config.token_limit_type must not be forwarded as a generate option.
+
+    Export writes the metering type next to the numeric limit. eval() accepts
+    one token_limit argument, so the two fields are combined the same way
+    epochs and epochs_reducer are.
+    """
+    output = RunConfigInput.model_validate(
+        {"eval_config": {"token_limit": 1000, "token_limit_type": "output"}}
+    ).to_params()
+    assert output["token_limit"] == TokenLimit(tokens=1000, type="output")
+    assert "token_limit_type" not in output
+
+    explicit_all = RunConfigInput.model_validate(
+        {"eval_config": {"token_limit": 1000, "token_limit_type": "all"}}
+    ).to_params()
+    assert explicit_all["token_limit"] == 1000
+    assert "token_limit_type" not in explicit_all
+
+    omitted = RunConfigInput.model_validate(
+        {"eval_config": {"token_limit": 1000}}
+    ).to_params()
+    assert omitted["token_limit"] == 1000
+    assert "token_limit_type" not in omitted
+
+    # A type without a numeric limit is not a token limit and must not leak.
+    type_only = RunConfigInput.model_validate(
+        {"eval_config": {"token_limit_type": "output"}}
+    ).to_params()
+    assert "token_limit" not in type_only
+    assert "token_limit_type" not in type_only
+
+
+def test_run_config_cli_replays_output_token_limit():
+    """`--run-config` must not treat token_limit_type as a generate option.
+
+    export-config writes the metering type next to the numeric limit. Replaying
+    that file is the failure reported in #5602.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        run_config = Path(temp_dir) / "run.yaml"
+        log_dir = Path(temp_dir) / "logs"
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+model: mockllm/model
+eval_config:
+  token_limit: 1000
+  token_limit_type: output
+  limit: 1
+""".strip()
+        )
+        result = run_eval_cli(
+            [
+                "--run-config",
+                run_config.as_posix(),
+                "--log-dir",
+                log_dir.as_posix(),
+            ]
+        )
+        assert_cli_success(result)
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.config.token_limit == 1000
+        assert log.eval.config.token_limit_type == "output"

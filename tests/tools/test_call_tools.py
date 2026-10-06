@@ -4,13 +4,14 @@ from datetime import date, time, timezone
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
+import pytest
 from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 from inspect_ai._util.content import ContentDocument, ContentText
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
-from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._call_tools import MAX_TOOL_CALL_ARGUMENTS_DEPTH, execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
@@ -182,6 +183,25 @@ async def test_incr_simple_positive():
 
     assert isinstance(messages[-1], ChatMessageTool)
     assert messages[-1].content == "1"
+
+
+async def test_deeply_nested_dict_arguments_rejected_as_parse_error():
+    # providers that construct ToolCall from an already-parsed dict never go
+    # through parse_tool_call, so the argument nesting bound must also be
+    # enforced at execution time, surfacing as the same parsing error
+    deep: dict[str, Any] = {"a": 1}
+    for _ in range(MAX_TOOL_CALL_ARGUMENTS_DEPTH + 50):
+        deep = {"a": deep}
+    call = make_call("incr", {"x": deep})
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [ToolDef(incr())]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "parsing"
+    assert "nesting depth" in messages[-1].error.message
 
 
 async def test_complex_tool_all_params():
@@ -453,6 +473,39 @@ async def test_mixed_content_and_str_list_does_not_crash():
     # as list[Content]
     assert isinstance(messages[-1].content, str)
     assert "RAW STRING" in messages[-1].content
+
+
+@tool
+def value_error_tool():
+    async def execute() -> str:
+        """Raise a ValueError unrelated to null bytes."""
+        raise ValueError("ordinary value error")
+
+    return execute
+
+
+async def test_other_value_error_escapes_the_tool_call_handler():
+    """A `ValueError` other than the null-byte case is not captured as a tool failure.
+
+    Pins the pre-existing shape so the shared `tool_call_error` mapping stays
+    behaviour-neutral: the exception escapes the per-call handler (the sample
+    fails) and the event is finalised by the stage's cancellation handling
+    rather than recorded as a captured failure with no error.
+    """
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    tool_def = ToolDef(value_error_tool())
+    call = make_call("value_error_tool", {})
+    with pytest.raises(ValueError, match="ordinary value error"):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+        )
+
+    (event,) = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    assert event.failed is True
+    assert event.error is not None
+    assert event.error.type == "cancelled"
 
 
 async def test_tool_event_message_id_for_multiple_calls():

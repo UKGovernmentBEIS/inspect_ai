@@ -14,6 +14,22 @@ from ._scorer import Scorer
 from ._target import Target
 
 
+def no_response(completion: str) -> bool:
+    """Whether the model produced nothing that could be scored.
+
+    An empty or whitespace-only completion never produced output that could
+    violate a format, so `no_response` is the correct `ScoreReason` for it
+    rather than `invalid_response_format`.
+
+    Args:
+        completion: The raw model completion, never an extracted answer.
+
+    Returns:
+        True when the raw completion is empty or whitespace only.
+    """
+    return not completion.strip()
+
+
 def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
     """Scorer that uses a matching function.
 
@@ -22,16 +38,30 @@ def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
     """
 
     async def score(state: TaskState, target: Target) -> Score:
+        # Decided once, above the loop, because a raw-empty completion can reach
+        # the CORRECT return as well as the INCORRECT one. match() with a target
+        # of "." normalizes that target to empty, and "".endswith("") is True;
+        # includes() with an empty target is contained in anything. Both score
+        # CORRECT off a completion the model never produced. The accepted scope
+        # tags a raw-empty completion regardless of the value it ended up with,
+        # so the value is preserved here and only the reason is added.
+        empty = no_response(state.output.completion or "")
         answer: str | None = None
         for value in target:
             answer, matched = match(state.output.completion, value)
             if matched:
                 return Score(
-                    value=CORRECT, answer=answer, explanation=state.output.completion
+                    value=CORRECT,
+                    answer=answer,
+                    reason="no_response" if empty else None,
+                    explanation=state.output.completion,
                 )
 
         return Score(
-            value=INCORRECT, answer=answer, explanation=state.output.completion
+            value=INCORRECT,
+            answer=answer,
+            reason="no_response" if empty else None,
+            explanation=state.output.completion,
         )
 
     return score
@@ -72,7 +102,9 @@ def match_str(
             words.reverse()
             v = first_number_normalized(words)
         elif location == "exact":
-            v = normalize_number(v)
+            # exact stays actually exact: no punctuation trimming, so
+            # "(42)" does not match a target of "42" under exact
+            v = normalize_number(v, trim_punctuation=False)
         else:
             # location == "any": match if any number in the value equals t
             for number in all_numbers_normalized(words):
@@ -96,19 +128,33 @@ def match_str(
         return answer, t in v
 
 
-def _parse_number(s: str) -> float | None:
+# Sentence/enclosing punctuation only. Operator characters (~ < > = etc.)
+# are deliberately excluded: "<42", ">=42", "~42" express bounds or
+# approximations, not the value itself, and trimming them would grade a
+# hedge as the exact answer (false CORRECTs).
+_NUMERIC_PUNCTUATION_TRIM = "!?:;()[]{}'\"`"
+
+
+def _clean_numeric_word(s: str) -> str:
+    return s.strip(_NUMERIC_PUNCTUATION_TRIM)
+
+
+def _parse_number(s: str, *, trim_punctuation: bool = True) -> float | None:
     """Parse `s` as a finite number, or None.
 
     Recognises plain float syntax (signs, decimals, exponents) and the
     full set of inputs handled by ``unicode_number_to_float`` (unicode
     minus, vulgar fractions, superscripts, Chinese numerals, fullwidth
     digits, locale grouping). Rejects strings with trailing non-numeric
-    content (so ``"5 some text"`` returns None) so that ``location="exact"``
-    stays actually exact. ``nan`` and ``inf`` also return None.
+    content (so ``"5 some text"`` returns None). Sentence/enclosing
+    punctuation attached to the number ("42!", "(42)") is trimmed unless
+    ``trim_punctuation=False`` — the ``location="exact"`` path passes False
+    so that exact stays actually exact. ``nan`` and ``inf`` also return None.
     """
+    s_cleaned = _clean_numeric_word(s) if trim_punctuation else s
     for parse in (float, unicode_number_to_float):
         try:
-            num = parse(s)
+            num = parse(s_cleaned)
         except ValueError:
             continue
         if math.isfinite(num):
@@ -129,8 +175,10 @@ def all_numbers_normalized(words: list[str]) -> list[str]:
     return [normalize_number(word) for word in words if _is_number(word)]
 
 
-def normalize_number(number: str, precision: int = 5) -> str:
-    num = _parse_number(number)
+def normalize_number(
+    number: str, precision: int = 5, *, trim_punctuation: bool = True
+) -> str:
+    num = _parse_number(number, trim_punctuation=trim_punctuation)
     if num is None:
         return number
     return format(num, f".{precision}g")

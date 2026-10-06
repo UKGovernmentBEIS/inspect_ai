@@ -1,6 +1,7 @@
-from mcp import JSONRPCRequest, StdioServerParameters
-from mcp.types import JSONRPCNotification
 from pydantic import BaseModel
+
+from ..._util.user_switch import RunAs
+from .jsonrpc_types import JSONRPCNotification, JSONRPCRequest, StdioServerParameters
 
 
 class McpBaseParams(BaseModel):
@@ -10,6 +11,11 @@ class McpBaseParams(BaseModel):
 
 class LaunchServerParams(BaseModel):
     server_params: StdioServerParameters
+    user: str | RunAs | None = None
+    """User to run as: a username, or the sandbox default user's identity as
+    captured by the host. Switching requires the server to run as root, unless
+    the server already runs as that identity."""
+    model_config = {"extra": "forbid"}
 
 
 class KillServerParams(McpBaseParams):

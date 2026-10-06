@@ -6,128 +6,19 @@ from logging import getLogger
 from typing import Any, AsyncIterator, Literal, Protocol
 
 import anyio
-from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.working import sample_waiting_for
 
+# isort: split
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._adaptive_concurrency import (
+    AdaptiveConcurrency as AdaptiveConcurrency,
+)
+
+# End of backward-compatible re-exports.
+
 logger = getLogger(__name__)
-
-
-_DEFAULT_MIN = 10
-_DEFAULT_START = 20
-_DEFAULT_MAX = 100
-
-
-class AdaptiveConcurrency(BaseModel):
-    """Bounds and tuning for an adaptive concurrency controller.
-
-    Basic fields (`min`, `start`, `max`) bound the range the controller will
-    scale within. Advanced fields (`cooldown_seconds`, `decrease_factor`,
-    `scale_up_percent`) tune the response curve and have sensible defaults
-    for typical evaluation workloads — see the parallelism docs for guidance.
-    Accepts a string shorthand ("min-max" or "min-start-max") for use in CLI
-    flags and config files; advanced fields are Python-only.
-    """
-
-    min: int = Field(default=_DEFAULT_MIN)
-    """Minimum concurrency (must be >= 1)."""
-
-    max: int = Field(default=_DEFAULT_MAX)
-    """Maximum concurrency."""
-
-    start: int = Field(default=_DEFAULT_START)
-    """Starting concurrency (must be within [min, max])."""
-
-    cooldown_seconds: float = Field(default=15.0)
-    """Minimum seconds between scale-down cuts. The server's `Retry-After` header (or the `x-ratelimit-reset-*` family as a fallback) extends this when larger."""
-
-    decrease_factor: float = Field(default=0.8)
-    """Multiplicative cut applied on each rate-limit episode (must be in (0, 1))."""
-
-    scale_up_percent: float = Field(default=0.05)
-    """Steady-state additive growth per clean round, as a fraction of current limit (must be in (0, 1])."""
-
-    @model_validator(mode="before")
-    @classmethod
-    def parse_shorthand(cls, data: Any) -> Any:
-        # Accept "min-max" or "min-start-max" string shorthand, and clamp the
-        # implicit start (= field default) into [min, max] when start is not
-        # explicitly provided. Without clamping, AdaptiveConcurrency(min=1, max=15)
-        # would fail bounds validation because the default start exceeds max.
-        if isinstance(data, str):
-            parts = data.split("-")
-            try:
-                ints = [int(p) for p in parts]
-            except ValueError:
-                raise ValueError(
-                    f"Invalid AdaptiveConcurrency shorthand {data!r}: "
-                    "expected 'min-max' or 'min-start-max'"
-                )
-            if len(ints) == 2:
-                min_val, max_val = ints
-                return {
-                    "min": min_val,
-                    "max": max_val,
-                    "start": max(min_val, min(_DEFAULT_START, max_val)),
-                }
-            elif len(ints) == 3:
-                return {"min": ints[0], "start": ints[1], "max": ints[2]}
-            else:
-                raise ValueError(
-                    f"Invalid AdaptiveConcurrency shorthand {data!r}: "
-                    "expected 'min-max' or 'min-start-max'"
-                )
-
-        # struct form: clamp implicit min/start when max is provided but they
-        # are not, so AdaptiveConcurrency(max=8) and AdaptiveConcurrency(min=1,
-        # max=15) just work without bounds-validation errors from the defaults
-        if isinstance(data, dict):
-            max_val = data.get("max", _DEFAULT_MAX)
-            if (
-                "min" not in data
-                and isinstance(max_val, int)
-                and max_val < _DEFAULT_MIN
-            ):
-                data = dict(data)
-                data["min"] = max_val
-            if "start" not in data:
-                min_val = data.get("min", _DEFAULT_MIN)
-                if isinstance(min_val, int) and isinstance(max_val, int):
-                    data = dict(data)
-                    data["start"] = max(min_val, min(_DEFAULT_START, max_val))
-
-        return data
-
-    @model_validator(mode="after")
-    def validate_bounds(self) -> "AdaptiveConcurrency":
-        if self.min < 1:
-            raise ValueError(f"AdaptiveConcurrency min must be >= 1 (got {self.min})")
-        if self.max < self.min:
-            raise ValueError(
-                f"AdaptiveConcurrency max ({self.max}) must be >= min ({self.min})"
-            )
-        if self.start < self.min or self.start > self.max:
-            raise ValueError(
-                f"AdaptiveConcurrency start ({self.start}) must be within "
-                f"[min={self.min}, max={self.max}]"
-            )
-        if self.cooldown_seconds < 0:
-            raise ValueError(
-                f"AdaptiveConcurrency cooldown_seconds must be >= 0 "
-                f"(got {self.cooldown_seconds})"
-            )
-        if not (0 < self.decrease_factor < 1):
-            raise ValueError(
-                f"AdaptiveConcurrency decrease_factor must be in (0, 1) "
-                f"(got {self.decrease_factor})"
-            )
-        if not (0 < self.scale_up_percent <= 1):
-            raise ValueError(
-                f"AdaptiveConcurrency scale_up_percent must be in (0, 1] "
-                f"(got {self.scale_up_percent})"
-            )
-        return self
 
 
 def adaptive_active(
@@ -207,8 +98,9 @@ class ResizableLimiter:
 
     @limit.setter
     def limit(self, value: int) -> None:
-        # CapacityLimiter requires total_tokens >= 1; callers validate, but
-        # guard here too so a stray 0/negative can't wedge the limiter.
+        # anyio's CapacityLimiter accepts total_tokens == 0 (silently blocking
+        # all acquires); callers validate, but guard here too so a stray
+        # 0/negative can't wedge the limiter.
         if value < 1:
             raise ValueError(f"ResizableLimiter limit must be >= 1 (got {value})")
         self._limiter.total_tokens = value
@@ -955,15 +847,30 @@ class AdaptiveConcurrencyController:
 
         Cooldown debounces the *limit cut* — a single rate-limit episode
         produces multiple retries (Inspect-level + SDK-internal) and we
-        cut at most once per episode. Success-counting is reset on every
+        cut at most once per `cooldown_seconds`, so a sustained episode
+        keeps walking the limit down. Success-counting is reset on every
         call regardless of cooldown, so a debounced retry still
         invalidates the in-progress clean window — without this, under
         high throughput the controller could climb to a scale-up
         immediately after a suppressed retry.
 
-        If `retry_after` is provided (from the server's `Retry-After`
-        header or the `x-ratelimit-reset-*` fallback), the cooldown is
-        extended to honor it when larger than the configured floor.
+        `retry_after` is accepted but does not affect the cooldown (see the
+        comment below). The parameter and the provider-side plumbing that
+        feeds it (`parse_retry_after` in each classifier, the absolute-deadline
+        decay in `_providers/util/hooks.py`) are kept deliberately: a
+        server-suggested wait is the right input for *request backoff* — i.e.
+        `ModelAPI.retry_wait()` — which is where it is expected to be consumed.
+        Until then it is carried but unused here; don't wire it into the
+        cooldown.
+
+        Whoever does wire it into backoff must watch for double waits: some
+        provider SDKs already honor `Retry-After` internally (the OpenAI
+        client retries `max_retries` times by default, sleeping the header's
+        wait before the exception ever reaches our retry loop), so sleeping it
+        again on top would compound the delay. `hooks.py` stores an absolute
+        deadline rather than the raw header value for exactly this reason —
+        the remaining time it reports has already had any SDK-side sleep
+        deducted.
         """
         # always reset success accounting on any retry signal (even debounced).
         # Also reset the saturation high-water mark — peak in-flight observed
@@ -974,24 +881,20 @@ class AdaptiveConcurrencyController:
 
         now = time.monotonic()
 
-        # already in cooldown from a previous cut?
+        # already in cooldown from a previous cut? don't cut again.
         if now < self._cooldown_until:
-            # don't cut again — but a longer server hint should still push
-            # the cooldown horizon out so a subsequent 429 within the same
-            # window can't trip a second cut, and so success-counting stays
-            # suppressed for the full server-recommended wait.
-            if retry_after is not None and retry_after > 0:
-                extended = now + retry_after
-                if extended > self._cooldown_until:
-                    self._cooldown_until = extended
             return
 
         old = self.concurrency
         target = int(old * self._config.decrease_factor)
         new = _floor_to_nice(target)
         new = max(new, self._config.min, 1)
-        cooldown = max(retry_after or 0.0, self._config.cooldown_seconds)
-        self._cooldown_until = now + cooldown
+        # Deliberately not max(retry_after, cooldown_seconds): this horizon
+        # paces our own decrease and gates success accounting and saturation
+        # sampling, never request scheduling, so a provider-chosen number would
+        # invert the loop — a larger hint meaning fewer cuts and a longer
+        # growth freeze.
+        self._cooldown_until = now + self._config.cooldown_seconds
         if new != old:
             self._set_limit(new, "rate_limit")
 
@@ -1111,6 +1014,15 @@ class DynamicSampleLimiter:
     on key, so at most one controller ever matches; a ``key`` that never
     matches (no such model in this process) leaves the limiter at its initial
     ``start + BUFFER``.
+
+    The control channel can **pin** sample concurrency at an exact setpoint
+    via :meth:`set_override` (a mid-run ``ctl config --max-samples N``): the
+    limiter stops following the controller — scale events are ignored while
+    pinned — and its capacity is exactly the pinned value (no BUFFER, like a
+    launch-time explicit ``max_samples``). Clearing the pin
+    (``set_override(None)``) resumes tracking, catching up to the
+    controller's current limit (or the initial value when none has been
+    adopted). See ``design/ctl/max-samples-adaptive.md``.
     """
 
     BUFFER = 5
@@ -1118,8 +1030,10 @@ class DynamicSampleLimiter:
     def __init__(self, adaptive: AdaptiveConcurrency, key: str) -> None:
         self._key = key
         self._ctrl: AdaptiveConcurrencyController | None = None
-        initial = min(adaptive.start, adaptive.max) + self.BUFFER
-        self._limiter = anyio.CapacityLimiter(initial)
+        self._override: int | None = None
+        # kept so a pin cleared before any controller adoption can restore it
+        self._initial = min(adaptive.start, adaptive.max) + self.BUFFER
+        self._limiter = anyio.CapacityLimiter(self._initial)
         # adopt the controller if it already exists (e.g. registry reused
         # across tasks within an eval set)...
         existing = next((c for c in adaptive_controllers() if c.key == key), None)
@@ -1147,7 +1061,11 @@ class DynamicSampleLimiter:
             self._adopt(ctrl)
 
     def _on_controller_change(self) -> None:
-        if self._ctrl is None:
+        # a pinned limiter ignores controller scale events (and the catch-up
+        # call `_adopt` makes): the pin is an exact user setpoint. Clearing
+        # the pin re-invokes this, so no scale event is ever lost — the
+        # limiter lands wherever the controller currently is.
+        if self._ctrl is None or self._override is not None:
             return
         # Track the controller's current limit plus a little slack. Reading the
         # live controller (rather than a snapshot of its config) means a
@@ -1157,6 +1075,52 @@ class DynamicSampleLimiter:
         target = self._ctrl.concurrency + self.BUFFER
         if target != self._limiter.total_tokens:
             self._limiter.total_tokens = target
+
+    @property
+    def override(self) -> int | None:
+        """The pinned sample-concurrency setpoint, or ``None`` when tracking."""
+        return self._override
+
+    def set_override(self, value: int | None) -> None:
+        """Pin sample concurrency at ``value``, or resume tracking with ``None``.
+
+        An ``int`` pins capacity at exactly that value (``< 1`` raises
+        ``ValueError`` without committing the pin); lowering below the
+        in-flight count blocks new acquires until holders drain, never
+        preempting. ``None`` removes the pin and re-syncs: to the adopted
+        controller's current ``concurrency + BUFFER``, or to the initial
+        capacity when no controller has been adopted.
+        """
+        if value is not None:
+            # validate before committing the pin: anyio's CapacityLimiter
+            # accepts 0 (silently blocking all acquires), and a rejected
+            # value must not leave the limiter reporting pinned
+            if value < 1:
+                raise ValueError(f"max_samples override must be >= 1 (got {value})")
+            self._limiter.total_tokens = value
+            self._override = value
+        else:
+            # clear before re-syncing — _on_controller_change ignores events
+            # while pinned
+            self._override = None
+            if self._ctrl is not None:
+                self._on_controller_change()
+            else:
+                self._limiter.total_tokens = self._initial
+
+    @property
+    def limit(self) -> int:
+        """Current capacity.
+
+        Named to match ``ResizableLimiter.limit`` so the limits directive's
+        view reads both limiter shapes uniformly.
+        """
+        return int(self._limiter.total_tokens)
+
+    @property
+    def in_use(self) -> int:
+        """Holders currently inside the limiter (borrowed tokens)."""
+        return int(self._limiter.borrowed_tokens)
 
     @property
     def controller(self) -> "AdaptiveConcurrencyController | None":

@@ -27,11 +27,20 @@ from ._render import _echo, _echo_raw
 # prevent. On --json, every terminal failure emits
 # `{"error": {kind, exception, message, status}}` on stdout, with the exit
 # code still non-zero; human (non---json) output is unchanged.
+#
+# Consequently, every terminal error site in this package must raise
+# _CtlFailure — usually via _fail() — never a bare click.exceptions.Exit:
+# _structured_failures deliberately passes a plain Exit through un-enveloped
+# (it is click control flow, e.g. --help), so a bare Exit at an error site
+# silently breaks the contract (issue #69 — the config version gates did
+# exactly that). test_no_bare_click_exit_in_ctl_error_sites enforces this.
 
 
 # The envelope's closed `kind` vocabulary (the field agents branch on).
 # Typed as a Literal so mypy rejects a typo'd kind at a raise site rather
-# than shipping it as a new vocabulary entry.
+# than shipping it as a new vocabulary entry. `unsupported` and
+# `storage_error` are raised only under `--log-dir` (see
+# design/ctl/log-dir-mode.md, "Structured errors in the mode").
 _ErrorKind = Literal[
     "busy",
     "connect_timeout",
@@ -43,6 +52,8 @@ _ErrorKind = Literal[
     "invalid_request",
     "invalid_response",
     "internal",
+    "unsupported",
+    "storage_error",
 ]
 
 
@@ -179,7 +190,8 @@ def _structured_failures(as_json: bool) -> Iterator[None]:
     prose) to carry the structured fields here; an unexpected exception
     still gets an envelope (kind ``internal``), with its traceback preserved
     on stderr for debugging. Other click control-flow exceptions (a plain
-    ``Exit``, usage errors, Ctrl+C) pass through untouched.
+    ``Exit``, usage errors, Ctrl+C) pass through untouched — which is why an
+    error site must never raise a bare ``Exit`` (see the module comment).
     """
     if not as_json:
         yield
@@ -214,6 +226,9 @@ def _envelope_failures(fn: Callable[_P, None]) -> Callable[_P, None]:
     enforced at decoration time so a missing/renamed parameter fails at
     import rather than silently reverting that command to unstructured
     failures.
+
+    Under ``--log-dir`` the wrapper also prints the mode's stderr banner (see
+    :func:`~inspect_ai._cli.ctl._log_dir._announce_mode`).
     """
     signature = inspect.signature(fn)
     if "as_json" not in signature.parameters:
@@ -226,7 +241,10 @@ def _envelope_failures(fn: Callable[_P, None]) -> Callable[_P, None]:
         bound = signature.bind(*args, **kwargs)
         bound.apply_defaults()
         as_json = bool(bound.arguments["as_json"])
+        from ._log_dir import _announce_mode
+
         with _structured_failures(as_json):
+            _announce_mode(as_json)
             fn(*args, **kwargs)
 
     return wrapper

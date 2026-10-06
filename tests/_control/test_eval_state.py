@@ -12,6 +12,7 @@ import pytest
 from test_helpers.live_eval_data import FakeLiveEvalData
 
 from inspect_ai._control.eval_state import (
+    EvalState,
     clear_all_eval_states,
     finalize_eval,
     get_eval_state,
@@ -43,6 +44,14 @@ def test_finalize_folds_unaccounted_samples_into_cancelled() -> None:
     assert state.cancelled == 5
     assert state.is_finished
     assert state.completed_at is not None
+
+
+def test_queued_is_the_undispatched_remainder_clamped_at_zero() -> None:
+    state = EvalState(eval_id="e1", total=6, completed=2, errored=1, cancelled=1)
+    assert state.queued(in_flight=1) == 1
+    # the terminal counters and the live in-flight read aren't one snapshot:
+    # a sample counted in both must not produce a negative queue
+    assert state.queued(in_flight=3) == 0
 
 
 def test_dynamic_eval_not_provisionally_finished() -> None:
@@ -581,3 +590,30 @@ def test_event_counts_no_op_when_empty_or_unregistered() -> None:
     state = get_eval_state("e1")
     assert state is not None
     assert (state.refusals, state.http_retries) == (0, 0)
+
+
+def test_explicit_epoch_runs_are_planned_individually() -> None:
+    # an explicit-epoch add plans its (id, epoch) only, for both the pending
+    # listing and the cancel/requeue resolvers
+    from inspect_ai._control.requeue import _is_planned
+    from inspect_ai._control.state import _add_pending_samples
+
+    state = register_eval("e1", 2, sample_ids=["seed"], epochs=2, dynamic=True)
+    record_samples_added("e1", 3, sample_epochs=[("q", 1), ("q", 5), ("seed", 3)])
+    assert state.total == 5
+
+    by_key: dict[tuple[Any, int], dict[str, Any]] = {}
+    _add_pending_samples("e1", by_key)
+    assert sorted(by_key) == [
+        ("q", 1),
+        ("q", 5),
+        ("seed", 1),
+        ("seed", 2),
+        ("seed", 3),
+    ]
+
+    assert _is_planned(state, "q", 5)
+    assert not _is_planned(state, "q", 2)
+    assert _is_planned(state, "seed", 2)
+    assert _is_planned(state, "seed", 3)
+    assert not _is_planned(state, "seed", 5)

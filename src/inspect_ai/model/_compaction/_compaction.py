@@ -108,14 +108,17 @@ def compaction(
     # resolve target model
     target_model = get_model(model)
 
-    # resolve thresholds
-    threshold = _resolve_threshold(target_model, strategy.threshold)
-    memory_warning_threshold = int(0.9 * threshold)
-
     # resolve tool info and count tool/prefix tokens once (they don't change during conversation)
     tools_info: list[ToolInfo] = []
     tool_tokens: int | None = None
     prefix_tokens: int | None = None
+
+    # thresholds are resolved on first use rather than here: a fractional
+    # threshold depends on the model's context window, and providers that read
+    # it from the server (e.g. vllm) only register it during their first
+    # generate(), which happens after the agent creates this handler.
+    threshold: int | None = None
+    memory_warning_threshold: int = 0
 
     # helper to get message ID (assert away id == None)
     def message_id(message: ChatMessage) -> str:
@@ -150,8 +153,14 @@ def compaction(
 
         # derived caches we lazily resolve (not part of checkpointed state)
         nonlocal tool_tokens, tools_info, prefix_tokens
+        nonlocal threshold, memory_warning_threshold
 
         async with _lock:
+            # one time resolution of the threshold (see declaration above)
+            if threshold is None:
+                threshold = _resolve_threshold(target_model, strategy.threshold)
+                memory_warning_threshold = int(0.9 * threshold)
+
             # one time resolution of tool_tokens and prefix_tokens
             # (must be done here b/c calls are async)
             if tool_tokens is None:
