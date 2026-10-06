@@ -38,6 +38,7 @@ from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
 from .openai_compatible import OpenAICompatibleAPI
+from .util.hooks import HttpxHooks
 
 logger = logging.getLogger(__name__)
 
@@ -143,28 +144,31 @@ async def generate_raw_completions(
         request_kwargs["extra_body"] = extra_body
 
     # Register ModelCall for eval log visibility.
-    request_id = api._http_hooks.start_request()
-    model_call = set_active_model_event_call(request_kwargs)
+    with api._http_hooks.request() as request_id:
+        request_kwargs["extra_headers"] = {HttpxHooks.REQUEST_ID_HEADER: request_id}
+        model_call = set_active_model_event_call(request_kwargs)
 
-    try:
-        response = await api.client.completions.create(**request_kwargs)
-    except NotFoundError:
-        model_call.set_error(
-            as_error_response("NotFoundError: /v1/completions not supported"),
-            api._http_hooks.end_request(request_id),
+        try:
+            response = await api.client.completions.create(**request_kwargs)
+        except NotFoundError:
+            model_call.set_error(
+                as_error_response("NotFoundError: /v1/completions not supported"),
+                api._http_hooks.end_request(request_id),
+            )
+            raise RuntimeError(
+                f"Server at {api.base_url} does not support /v1/completions. "
+                f"Ensure the server exposes the legacy completions endpoint."
+            ) from None
+
+        model_call.set_response(
+            response.model_dump(), api._http_hooks.end_request(request_id)
         )
-        raise RuntimeError(
-            f"Server at {api.base_url} does not support /v1/completions. "
-            f"Ensure the server exposes the legacy completions endpoint."
-        ) from None
-
-    model_call.set_response(
-        response.model_dump(), api._http_hooks.end_request(request_id)
-    )
 
     # Parse response
     if not response.choices:
-        return ModelOutput(model=response.model, choices=[]), model_call
+        return ModelOutput(
+            model=response.model, choices=[], response_id=response.id
+        ), model_call
 
     def parse_choice(choice: CompletionChoice) -> ChatCompletionChoice:
         # prompt_logprobs: vLLM extension (also implemented by SGLang), lives
@@ -198,6 +202,7 @@ async def generate_raw_completions(
             if response.usage
             else None
         ),
+        response_id=response.id,
     )
 
     return model_output, model_call
