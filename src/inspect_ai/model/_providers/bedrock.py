@@ -47,6 +47,7 @@ from .._model_output import (
     ChatCompletionChoice,
     ModelOutput,
     ModelUsage,
+    ServedModelUsage,
     StopCategory,
     StopDetails,
     collect_stop_details,
@@ -63,13 +64,25 @@ from .._stream import (
 from .util import (
     forced_tool_choice_degraded_metadata,
     is_claude_fable_5_1_model,
+    is_claude_opus_5_5_model,
     is_forced_tool_choice,
     model_base_url,
     normalize_stream_arg,
+    rejects_forced_tool_choice,
 )
 from .util.hooks import ConverseHooks
 
 logger = getLogger(__name__)
+
+# Key under ContentReasoning.internal that carries the base64 of a Converse
+# `redactedContent` blob (an opaque, provider-encrypted reasoning trace).
+# `internal` is the same carrier the Google provider uses to round-trip
+# Gemini's redacted thinking. See `redacted_content_bytes`.
+REDACTED_CONTENT_KEY = "bedrock_redacted_content"
+
+NOVA_NON_REASONING_MODEL_PATTERN = re.compile(
+    r"(?:^|[./])amazon\.nova-(?:micro|lite|pro|premier)-v1(?::|$)"
+)
 
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
@@ -155,7 +168,26 @@ class ConverseReasoningText(BaseModel):
 
 
 class ConverseReasoningContent(BaseModel):
-    reasoningText: ConverseReasoningText
+    """A Converse API reasoningContent block.
+
+    `ReasoningContentBlock` is a tagged union: `reasoningText` carries
+    plaintext reasoning, `redactedContent` carries an opaque
+    provider-encrypted trace with no plaintext to surface (the only shape
+    OpenAI's GPT-5.6 family returns on Bedrock), and exactly one is set.
+    botocore enforces that on the way out -- setting both raises
+    `ParamValidationError` before the request is signed.
+
+    Both members are optional here rather than enforced as a union, because
+    this class parses responses as well as building requests: an unrecognised
+    response shape must land as an empty block for
+    `model_output_from_response` to record as redacted reasoning, not raise.
+    Requests are kept valid on the way out instead --
+    `converse_reasoning_content` emits exactly one member or None, and
+    botocore refuses both members and an empty block alike.
+    """
+
+    reasoningText: ConverseReasoningText | None = None
+    redactedContent: bytes | None = None
 
 
 class ConverseCachePoint(BaseModel):
@@ -501,23 +533,23 @@ class BedrockAPI(ModelAPI):
         Returns the canonical format: provider/model-name
         e.g., anthropic/claude-3-5-sonnet-20241022
         """
-        name = self.model_name
-        provider: str | None = None
+        return _bedrock_canonical_name(self.model_name)
 
-        # Extract provider prefix (e.g., "anthropic." or "meta.")
-        if "." in name:
-            provider, name = name.split(".", 1)
+    @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        # a prompt router serves a request with one of its models, reported
+        # as the output model (see model_output_from_response)
+        from ._litellm_proxy_names import BEDROCK_CROSS_REGIONS
 
-        # Strip variant suffix (e.g., ":0")
-        if ":" in name:
-            name = name.split(":")[0]
-
-        # Strip version suffix like -v1, -v2
-        if name.endswith(("-v1", "-v2", "-v3")):
-            name = name[:-3]
-
-        # Return with provider prefix for database lookup
-        return f"{provider}/{name}" if provider else name
+        if output.usage is None or output.model == self.model_name:
+            return None
+        # routers invoke cross-region inference profiles (e.g.
+        # `.../inference-profile/us.amazon.nova-lite-v1:0`)
+        model_id = output.model.split("/")[-1]
+        region, dot, rest = model_id.partition(".")
+        if dot and region in BEDROCK_CROSS_REGIONS:
+            model_id = rest
+        return [ServedModelUsage(_bedrock_canonical_name(model_id), output.usage)]
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -539,6 +571,12 @@ class BedrockAPI(ModelAPI):
 
     def is_nova(self) -> bool:
         return "nova" in self.model_family().lower()
+
+    def supports_nova_reasoning(self) -> bool:
+        """Preserve reasoning unless the Nova model is known not to support it."""
+        return (
+            NOVA_NON_REASONING_MODEL_PATTERN.search(self.model_family().lower()) is None
+        )
 
     def supports_prompt_cache(self) -> bool:
         """Whether this model accepts Converse `cachePoint` blocks.
@@ -641,9 +679,14 @@ class BedrockAPI(ModelAPI):
     def is_claude_fable_5_1_or_later(self) -> bool:
         return is_claude_fable_5_1_model(self.model_family())
 
+    def is_claude_opus_5_5_or_later(self) -> bool:
+        return is_claude_opus_5_5_model(self.model_family())
+
     def resolved_tool_choice(self, tool_choice: ToolChoice) -> ToolChoice:
         """Mirrors `resolved_tool_choice` in the native anthropic provider."""
-        if is_forced_tool_choice(tool_choice) and self.is_claude_fable_5_1_or_later():
+        if is_forced_tool_choice(tool_choice) and rejects_forced_tool_choice(
+            self.model_family()
+        ):
             warn_once(
                 logger,
                 f"bedrock model '{self.model_name}' does not support forced "
@@ -720,183 +763,197 @@ class BedrockAPI(ModelAPI):
         from botocore.exceptions import ClientError
 
         # The bedrock client
-        request_id = self._http_hooks.start_request()
-        async with self.session.create_client(
-            service_name="bedrock-runtime",
-            endpoint_url=self.base_url,
-            config=AioConfig(
-                read_timeout=self.read_timeout,
-                connect_timeout=self.connect_timeout,
-                retries=dict(mode="adaptive"),
-                user_agent_extra=self._http_hooks.user_agent_extra(request_id),
-            ),
-            **self.model_args,
-        ) as client:
-            # Process the tools
-            resolved_tools = converse_tools(tools)
-            tool_config = None
-            tool_choice_degraded = False
-            if resolved_tools is not None:
-                resolved_choice = self.resolved_tool_choice(tool_choice)
-                tool_choice_degraded = resolved_choice != tool_choice
-                choice = converse_tool_choice(resolved_choice)
-                tool_config = ConverseToolConfig(
-                    tools=resolved_tools, toolChoice=choice
+        with self._http_hooks.request() as request_id:
+            async with self.session.create_client(
+                service_name="bedrock-runtime",
+                endpoint_url=self.base_url,
+                config=AioConfig(
+                    read_timeout=self.read_timeout,
+                    connect_timeout=self.connect_timeout,
+                    retries=dict(mode="adaptive"),
+                    user_agent_extra=self._http_hooks.user_agent_extra(request_id),
+                ),
+                **self.model_args,
+            ) as client:
+                # Process the tools
+                resolved_tools = converse_tools(tools)
+                tool_config = None
+                tool_choice_degraded = False
+                if resolved_tools is not None:
+                    resolved_choice = self.resolved_tool_choice(tool_choice)
+                    tool_choice_degraded = resolved_choice != tool_choice
+                    choice = converse_tool_choice(resolved_choice)
+                    tool_config = ConverseToolConfig(
+                        tools=resolved_tools, toolChoice=choice
+                    )
+
+                # Resolve the input messages into converse messages
+                system, messages = await converse_messages(
+                    input, emulate_reasoning=self.is_claude()
                 )
 
-            # Resolve the input messages into converse messages
-            system, messages = await converse_messages(
-                input, emulate_reasoning=self.is_claude()
-            )
+                if self.cache_prompt_enabled(config):
+                    add_cache_points(
+                        system,
+                        messages,
+                        tool_config,
+                        tools_supported=self.is_claude(),
+                    )
 
-            if self.cache_prompt_enabled(config):
-                add_cache_points(
-                    system,
-                    messages,
-                    tool_config,
-                    tools_supported=self.is_claude(),
+                # Claude 4.7+ runs adaptive-thinking-only and rejects sampling
+                # parameters; other thinking-enabled Claude models also reject
+                # sampling params while thinking is on. Mirror the gating used
+                # in the native anthropic provider (see anthropic.py L773-L775).
+                # See issues #3765, #3766.
+                forbid_sampling_params = self.is_claude_4_7_or_later() or (
+                    self.is_claude() and self.is_using_thinking(config)
                 )
 
-            # Claude 4.7+ runs adaptive-thinking-only and rejects sampling
-            # parameters; other thinking-enabled Claude models also reject
-            # sampling params while thinking is on. Mirror the gating used
-            # in the native anthropic provider (see anthropic.py L773-L775).
-            # See issues #3765, #3766.
-            forbid_sampling_params = self.is_claude_4_7_or_later() or (
-                self.is_claude() and self.is_using_thinking(config)
-            )
+                # additional model request fields
+                additionalModelRequestFields = self._additional_model_request_fields(
+                    config, forbid_sampling_params
+                )
+                reasoning_cfg = self.reasoning_config(config)
+                additionalModelRequestFields = (
+                    additionalModelRequestFields | reasoning_cfg
+                )
 
-            # additional model request fields
-            additionalModelRequestFields = self._additional_model_request_fields(
-                config, forbid_sampling_params
-            )
-            reasoning_cfg = self.reasoning_config(config)
-            additionalModelRequestFields = additionalModelRequestFields | reasoning_cfg
+                # Nova with reasoning at "high" effort requires maxTokens to be unset.
+                # Lower effort levels ("low", "medium") still accept maxTokens, so we
+                # must only omit it for the "high" case. See issue #3767.
+                nova_high_effort_reasoning = (
+                    self.is_nova()
+                    and reasoning_cfg.get("reasoningConfig", {}).get(
+                        "maxReasoningEffort"
+                    )
+                    == "high"
+                )
 
-            # Nova with reasoning at "high" effort requires maxTokens to be unset.
-            # Lower effort levels ("low", "medium") still accept maxTokens, so we
-            # must only omit it for the "high" case. See issue #3767.
-            nova_high_effort_reasoning = (
-                self.is_nova()
-                and reasoning_cfg.get("reasoningConfig", {}).get("maxReasoningEffort")
-                == "high"
-            )
+                # Gate temperature / top_p for adaptive-thinking-only models.
+                if forbid_sampling_params and config.temperature is not None:
+                    warn_once(logger, self._sampling_param_warning("temperature"))
+                    inference_temperature: float | None = None
+                else:
+                    inference_temperature = config.temperature
 
-            # Gate temperature / top_p for adaptive-thinking-only models.
-            if forbid_sampling_params and config.temperature is not None:
-                warn_once(logger, self._sampling_param_warning("temperature"))
-                inference_temperature: float | None = None
-            else:
-                inference_temperature = config.temperature
+                if forbid_sampling_params and config.top_p is not None:
+                    warn_once(logger, self._sampling_param_warning("top_p"))
+                    inference_top_p: float | None = None
+                else:
+                    inference_top_p = config.top_p
 
-            if forbid_sampling_params and config.top_p is not None:
-                warn_once(logger, self._sampling_param_warning("top_p"))
-                inference_top_p: float | None = None
-            else:
-                inference_top_p = config.top_p
+                # Make the request
+                request = ConverseClientConverseRequest(
+                    modelId=self.model_name,
+                    messages=messages,
+                    system=system,
+                    inferenceConfig=ConverseInferenceConfig(
+                        maxTokens=None
+                        if nova_high_effort_reasoning
+                        else config.max_tokens,
+                        temperature=inference_temperature,
+                        topP=inference_top_p,
+                        stopSequences=config.stop_seqs,
+                    ),
+                    additionalModelRequestFields=additionalModelRequestFields,
+                    toolConfig=tool_config,
+                )
 
-            # Make the request
-            request = ConverseClientConverseRequest(
-                modelId=self.model_name,
-                messages=messages,
-                system=system,
-                inferenceConfig=ConverseInferenceConfig(
-                    maxTokens=None if nova_high_effort_reasoning else config.max_tokens,
-                    temperature=inference_temperature,
-                    topP=inference_top_p,
-                    stopSequences=config.stop_seqs,
-                ),
-                additionalModelRequestFields=additionalModelRequestFields,
-                toolConfig=tool_config,
-            )
+                streaming = self.resolve_streaming(config)
 
-            streaming = self.resolve_streaming(config)
+                model_call = set_active_model_event_call(
+                    # "stream" marks use of the ConverseStream operation (it is
+                    # not a request field on either operation)
+                    request=replace_bytes_with_placeholder(
+                        request.model_dump(exclude_none=True)
+                        | ({"stream": True} if streaming else {}),
+                    ),
+                )
 
-            model_call = set_active_model_event_call(
-                # "stream" marks use of the ConverseStream operation (it is
-                # not a request field on either operation)
-                request=replace_bytes_with_placeholder(
-                    request.model_dump(exclude_none=True)
-                    | ({"stream": True} if streaming else {}),
-                ),
-            )
-
-            try:
-                # Process the response
-                response: dict[str, Any] | None = None
-                converse_response: ConverseResponse | None = None
-                if streaming:
-                    try:
-                        stream_response = await client.converse_stream(
+                try:
+                    # Process the response
+                    response: dict[str, Any] | None = None
+                    converse_response: ConverseResponse | None = None
+                    if streaming:
+                        try:
+                            stream_response = await client.converse_stream(
+                                **request.model_dump(exclude_none=True)
+                            )
+                            converse_response = await converse_response_from_stream(
+                                stream_response["stream"]
+                            )
+                            # exclude_none keeps the logged shape consistent
+                            # with the raw boto response of a non-streamed call
+                            response = converse_response.model_dump(exclude_none=True)
+                        except ClientError as ex:
+                            # ConverseStream needs the separate
+                            # bedrock:InvokeModelWithResponseStream permission;
+                            # when streaming was enabled by on_stream alone, a
+                            # display-only request must not fail a generate that
+                            # succeeds without streaming — retry non-streamed
+                            # (an explicit streaming=true opt-in still fails loudly)
+                            if (
+                                self.streaming is None
+                                and bedrock_error_code(ex) == "AccessDeniedException"
+                            ):
+                                warn_once(
+                                    logger,
+                                    f"bedrock model '{self.model_name}': access "
+                                    "denied for ConverseStream; retrying without "
+                                    "streaming (on_stream events will not be "
+                                    "delivered). Grant "
+                                    "bedrock:InvokeModelWithResponseStream or "
+                                    "pass -M streaming=false.",
+                                )
+                                self._http_hooks.restart_request(request_id)
+                                model_call = set_active_model_event_call(
+                                    request=replace_bytes_with_placeholder(
+                                        request.model_dump(exclude_none=True)
+                                    ),
+                                )
+                            else:
+                                raise
+                    if converse_response is None or response is None:
+                        response = await client.converse(
                             **request.model_dump(exclude_none=True)
                         )
-                        converse_response = await converse_response_from_stream(
-                            stream_response["stream"]
-                        )
-                        # exclude_none keeps the logged shape consistent
-                        # with the raw boto response of a non-streamed call
-                        response = converse_response.model_dump(exclude_none=True)
-                    except ClientError as ex:
-                        # ConverseStream needs the separate
-                        # bedrock:InvokeModelWithResponseStream permission;
-                        # when streaming was enabled by on_stream alone, a
-                        # display-only request must not fail a generate that
-                        # succeeds without streaming — retry non-streamed
-                        # (an explicit streaming=true opt-in still fails loudly)
+                        converse_response = ConverseResponse(**response)
+
+                    # `redactedContent` is a blob, so an encrypted reasoning
+                    # trace can be arbitrary bytes; recording it raw fails the
+                    # log's utf-8 serialization. The bytes replay from
+                    # ContentReasoning.internal, which is built from
+                    # `converse_response` above, so placeholdering them here
+                    # costs nothing (matches the request side).
+                    model_call.set_response(
+                        replace_bytes_with_placeholder(response),
+                        self._http_hooks.end_request(request_id),
+                    )
+
+                except ClientError as ex:
+                    model_call.set_error(
+                        as_error_response(ex.response),
+                        self._http_hooks.end_request(request_id),
+                    )
+                    # Look for an explicit validation exception
+                    if bedrock_error_code(ex) == "ValidationException":
+                        error_message = ex.response["Error"]["Message"].lower()
                         if (
-                            self.streaming is None
-                            and bedrock_error_code(ex) == "AccessDeniedException"
+                            "too many input tokens" in error_message
+                            or "is too long" in error_message
                         ):
-                            warn_once(
-                                logger,
-                                f"bedrock model '{self.model_name}': access "
-                                "denied for ConverseStream; retrying without "
-                                "streaming (on_stream events will not be "
-                                "delivered). Grant "
-                                "bedrock:InvokeModelWithResponseStream or "
-                                "pass -M streaming=false.",
-                            )
-                            model_call = set_active_model_event_call(
-                                request=replace_bytes_with_placeholder(
-                                    request.model_dump(exclude_none=True)
+                            return (
+                                ModelOutput.from_content(
+                                    model=self.model_name,
+                                    content=error_message,
+                                    stop_reason="model_length",
                                 ),
+                                model_call,
                             )
                         else:
-                            raise
-                if converse_response is None or response is None:
-                    response = await client.converse(
-                        **request.model_dump(exclude_none=True)
-                    )
-                    converse_response = ConverseResponse(**response)
-
-                model_call.set_response(
-                    response, self._http_hooks.end_request(request_id)
-                )
-
-            except ClientError as ex:
-                model_call.set_error(
-                    as_error_response(ex.response),
-                    self._http_hooks.end_request(request_id),
-                )
-                # Look for an explicit validation exception
-                if bedrock_error_code(ex) == "ValidationException":
-                    error_message = ex.response["Error"]["Message"].lower()
-                    if (
-                        "too many input tokens" in error_message
-                        or "is too long" in error_message
-                    ):
-                        return (
-                            ModelOutput.from_content(
-                                model=self.model_name,
-                                content=error_message,
-                                stop_reason="model_length",
-                            ),
-                            model_call,
-                        )
+                            return ex, model_call
                     else:
-                        return ex, model_call
-                else:
-                    raise ex
+                        raise ex
 
         # create a model output from the response
         output = model_output_from_response(self.model_name, converse_response, tools)
@@ -973,12 +1030,18 @@ class BedrockAPI(ModelAPI):
             return self._claude_reasoning_config(config)
         elif self.is_nova():
             if config.reasoning_effort is not None:
-                return {
-                    "reasoningConfig": {
-                        "type": "enabled",
-                        "maxReasoningEffort": config.reasoning_effort,
+                if self.supports_nova_reasoning():
+                    return {
+                        "reasoningConfig": {
+                            "type": "enabled",
+                            "maxReasoningEffort": config.reasoning_effort,
+                        }
                     }
-                }
+                warn_once(
+                    logger,
+                    f"bedrock model '{self.model_name}' does not support "
+                    "'reasoning_effort'; ignoring it.",
+                )
 
         return {}
 
@@ -1060,6 +1123,7 @@ class _StreamContentBlock:
     def __init__(self) -> None:
         self.text: list[str] = []
         self.reasoning: list[str] = []
+        self.redacted_content: list[bytes] = []
         self.tool_use_id: str | None = None
         self.tool_name: str | None = None
         self.tool_input: list[str] = []
@@ -1074,9 +1138,11 @@ async def converse_response_from_stream(
     (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
     callback and the pending event's progress record. Content blocks
     accumulate by `contentBlockIndex` (tool-use input arrives as partial-JSON
-    string fragments, parsed once the stream completes; reasoning signatures
-    and redacted content are dropped, matching the non-streaming response
-    model). Usage, metrics, and any guardrail trace arrive on the trailing
+    string fragments, parsed once the stream completes; redacted-reasoning
+    deltas accumulate into the block's `redactedContent` so both paths yield
+    the same response model, and reasoning signatures are dropped, matching
+    it). Each block yields one `reasoningContent` union member, never both.
+    Usage, metrics, and any guardrail trace arrive on the trailing
     `metadata` event. Exception members of the event union never arrive here
     as events: botocore raises them from the iterator as `EventStreamError`
     (a `ClientError`) whose code is the member name — see
@@ -1110,13 +1176,17 @@ async def converse_response_from_stream(
             index = event["contentBlockDelta"].get("contentBlockIndex", 0)
             block = blocks.setdefault(index, _StreamContentBlock())
             delta = event["contentBlockDelta"].get("delta") or {}
+            reasoning_delta = delta.get("reasoningContent") or {}
             text = delta.get("text")
-            reasoning = (delta.get("reasoningContent") or {}).get("text")
+            reasoning = reasoning_delta.get("text")
+            redacted = reasoning_delta.get("redactedContent")
             tool_input = (delta.get("toolUse") or {}).get("input")
             if text:
                 block.text.append(text)
             elif reasoning:
                 block.reasoning.append(reasoning)
+            elif redacted:
+                block.redacted_content.append(redacted)
             elif tool_input:
                 block.tool_input.append(tool_input)
             if not model_stream_requested() or not (text or reasoning or tool_input):
@@ -1206,6 +1276,14 @@ async def converse_response_from_stream(
                     )
                 )
             )
+        elif block.redacted_content:
+            content.append(
+                ConverseMessageContent(
+                    reasoningContent=ConverseReasoningContent(
+                        redactedContent=b"".join(block.redacted_content)
+                    )
+                )
+            )
         elif block.text:
             content.append(ConverseMessageContent(text="".join(block.text)))
 
@@ -1290,6 +1368,26 @@ def add_cache_points(
         messages[-1].content.append(cache_point())
 
 
+def _bedrock_canonical_name(name: str) -> str:
+    """Model info database name for a Bedrock model id."""
+    provider: str | None = None
+
+    # Extract provider prefix (e.g., "anthropic." or "meta.")
+    if "." in name:
+        provider, name = name.split(".", 1)
+
+    # Strip variant suffix (e.g., ":0")
+    if ":" in name:
+        name = name.split(":")[0]
+
+    # Strip version suffix like -v1, -v2
+    if name.endswith(("-v1", "-v2", "-v3")):
+        name = name[:-3]
+
+    # Return with provider prefix for database lookup
+    return f"{provider}/{name}" if provider else name
+
+
 def model_output_from_response(
     model: str, response: ConverseResponse, tools: list[ToolInfo]
 ) -> ModelOutput:
@@ -1315,11 +1413,43 @@ def model_output_from_response(
                 )
             )
         elif c.reasoningContent is not None:
-            # Handle reasoning content
-            reasoning_text = c.reasoningContent.reasoningText.text
-            content.append(ContentReasoning(reasoning=reasoning_text))
+            reasoning_text = c.reasoningContent.reasoningText
+            redacted_content = c.reasoningContent.redactedContent
+            if reasoning_text is None and redacted_content is None:
+                # An unmodeled reasoningContent shape. Recording it as
+                # redacted beats raising: crashing on an unrecognised
+                # reasoning shape is the bug this branch exists to fix.
+                warn_once(
+                    logger,
+                    "bedrock: reasoningContent block carried neither "
+                    "reasoningText nor redactedContent; recording it as "
+                    "redacted reasoning.",
+                )
+            content.append(
+                ContentReasoning(
+                    reasoning=reasoning_text.text if reasoning_text is not None else "",
+                    # no plaintext means the whole trace is redacted
+                    redacted=reasoning_text is None,
+                    # the bytes are opaque but must go back verbatim on the
+                    # next turn, so carry them (see converse_reasoning_content)
+                    internal=(
+                        {
+                            REDACTED_CONTENT_KEY: base64.b64encode(
+                                redacted_content
+                            ).decode()
+                        }
+                        if redacted_content is not None
+                        else None
+                    ),
+                )
+            )
         else:
             raise ValueError("Unexpected message response in Bedrock provider")
+
+    # a prompt router reports the model it invoked (an ARN)
+    prompt_router = (response.trace or {}).get("promptRouter")
+    if isinstance(prompt_router, dict) and prompt_router.get("invokedModelId"):
+        model = prompt_router["invokedModelId"]
 
     # resolve choice
     choice = ChatCompletionChoice(
@@ -1570,6 +1700,66 @@ async def converse_chat_message(
         raise ValueError(f"Unexpected message role {message.role}")
 
 
+def redacted_content_bytes(reasoning: ContentReasoning) -> bytes | None:
+    """Recover the Converse `redactedContent` blob a reasoning block carries.
+
+    Returns None when the block carries none: reasoning captured from another
+    provider, or from a log written before the bytes were preserved.
+    """
+    if not isinstance(reasoning.internal, dict):
+        return None
+    encoded = reasoning.internal.get(REDACTED_CONTENT_KEY)
+    if not isinstance(encoded, str):
+        return None
+    try:
+        return base64.b64decode(encoded, validate=True)
+    except ValueError:
+        # ValueError, not binascii.Error: a non-ASCII string raises the base
+        # class, and binascii.Error is the subclass, so catching the subclass
+        # alone lets that through
+        logger.warning(
+            "bedrock: reasoning block carried an unreadable "
+            f"{REDACTED_CONTENT_KEY}; dropping it from the replayed history."
+        )
+        return None
+
+
+def converse_reasoning_content(
+    reasoning: ContentReasoning,
+) -> ConverseReasoningContent | None:
+    """Rebuild the Converse reasoningContent block a ContentReasoning came from.
+
+    Exactly one union member is set: a redacted trace replays as the
+    `redactedContent` bytes stashed on `internal` at parse time (`internal`
+    being the same carrier the Google provider uses for Gemini's redacted
+    thinking), and plaintext reasoning replays as `reasoningText`.
+
+    Returns None when there is no payload to send, which is the only safe
+    outcome -- botocore rejects an empty block ("Must set one of the following
+    keys for tagged union structure") and the models that emit redacted
+    reasoning reject a substitute empty `reasoningText` ("This model doesn't
+    support the reasoningContent.reasoningText.text field for assistant
+    messages"), while both accept the block's absence. Reachable when a
+    redacted block's bytes aren't recoverable (reasoning captured from another
+    provider, or read from a log written before they were preserved).
+    """
+    if reasoning.redacted:
+        redacted_content = redacted_content_bytes(reasoning) or None
+        if redacted_content is None:
+            warn_once(
+                logger,
+                "bedrock: dropping a redacted reasoning block with no "
+                "replayable content from the message history.",
+            )
+            return None
+        return ConverseReasoningContent(redactedContent=redacted_content)
+    if not reasoning.reasoning:
+        return None
+    return ConverseReasoningContent(
+        reasoningText=ConverseReasoningText(text=reasoning.reasoning)
+    )
+
+
 async def converse_contents(
     content: list[Content] | str, emulate_reasoning: bool = False
 ) -> list[ConverseMessageContent]:
@@ -1593,17 +1783,31 @@ async def converse_contents(
             elif c.type == "reasoning":
                 # claude needs emulation because signatures aren't propagated
                 if emulate_reasoning:
-                    result.append(
-                        ConverseMessageContent(text=reasoning_to_think_tag(c))
-                    )
-                else:
-                    result.append(
-                        ConverseMessageContent(
-                            reasoningContent=ConverseReasoningContent(
-                                reasoningText=ConverseReasoningText(text=c.reasoning)
+                    # a redacted block has no plaintext to emulate, only
+                    # opaque state that would reach the model as base64
+                    # attributes on an empty <think> tag
+                    if not c.redacted:
+                        # reasoning_to_think_tag renders `signature` and
+                        # `internal` as tag attributes, so both would reach
+                        # the model as literal prompt text. Bedrock populates
+                        # neither, but reasoning replayed from another
+                        # provider carries them.
+                        emulated = (
+                            c.model_copy(update={"internal": None, "signature": None})
+                            if c.internal is not None or c.signature is not None
+                            else c
+                        )
+                        result.append(
+                            ConverseMessageContent(
+                                text=reasoning_to_think_tag(emulated)
                             )
                         )
-                    )
+                else:
+                    reasoning_content = converse_reasoning_content(c)
+                    if reasoning_content is not None:
+                        result.append(
+                            ConverseMessageContent(reasoningContent=reasoning_content)
+                        )
             else:
                 raise RuntimeError(f"Unsupported content type {c.type}")
 

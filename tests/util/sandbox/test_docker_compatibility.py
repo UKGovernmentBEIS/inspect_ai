@@ -758,7 +758,7 @@ class TestResolveTaskSandboxDockerCompatibility:
 class TestResolveSandboxForTaskAndSampleStartup:
     """The sandbox-startup pass must collect the same spec a sample uses at runtime.
 
-    run.py::startup_sandbox_environments feeds each task's *already-resolved*
+    run.py::SandboxManager.start feeds each task's *already-resolved*
     sandbox (ResolvedTask.sandbox, i.e. resolve_task_sandbox() output) into
     resolve_sandbox_for_task_and_sample(), mirroring the execution path
     (sandboxenv_context() -> resolve_sandbox()). These tests guard that an

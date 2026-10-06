@@ -94,6 +94,7 @@ from .._restore_scope import (
     tar_member_argument,
     tar_member_node,
 )
+from .._sandbox_dir import ensure_root_sandbox_dir
 from ..sandbox_paths import SandboxBackupPaths
 from .types import (
     CommittedSnapshot,
@@ -138,17 +139,19 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
     async def setup(self, env: SandboxEnvironment, ctx: SnapshotContext) -> None:
         """Probe required tools and pick the compressor.
 
-        Verifies ``tar``, ``sha256sum``, and ``dd`` up front (so a
-        missing tool fails at provisioning rather than at first fire or
-        restore), and records zstd vs. the gzip fallback for this
-        sandbox. Also probes ``dd iflag=fullblock`` (GNU/busybox), which
+        Prepares the root-only work area first (which needs ``stat`` and
+        ``id`` in the image; see :func:`ensure_root_sandbox_dir`), then
+        verifies ``tar``, ``sha256sum``, and ``dd`` (so a missing tool
+        fails at provisioning rather than at first fire or restore), and
+        records zstd vs. the gzip fallback for this sandbox. Also probes
+        ``dd iflag=fullblock`` (GNU/busybox), which
         copy-out uses when available to defeat short reads — BSD ``dd``
         lacks it, and the copy-out digest check still catches any
         short-read desync loudly. Nothing is injected.
         """
+        await ensure_root_sandbox_dir(env, self._sandbox_dir)
         script = (
             "set -e; "
-            f"install -d -m 0700 {self._sandbox_dir}; "
             "for tool in tar sha256sum dd; do "
             'command -v "$tool" >/dev/null 2>&1 || '
             '{ echo "missing required tool: $tool" >&2; exit 1; }; done; '
@@ -324,10 +327,10 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
 
         staging = f"{self._staging_root}/restore"
         staged = f"{staging}/{archive_name}"
+        await ensure_root_sandbox_dir(env, self._sandbox_dir)
         init = await privileged_shell(
             env,
-            f"set -e; install -d -m 0700 {self._sandbox_dir}; "
-            f"rm -rf {self._staging_root}; mkdir -p {staging}",
+            f"set -e; rm -rf {self._staging_root}; mkdir -p {staging}",
             user="root",
         )
         if not init.success:

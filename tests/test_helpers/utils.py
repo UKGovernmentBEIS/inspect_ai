@@ -12,6 +12,7 @@ from pathlib import Path
 from random import random
 from types import FrameType
 from typing import Awaitable, Callable, Generator, ParamSpec, Sequence, TypeVar
+from unittest import mock
 
 import anyio
 import pytest
@@ -418,6 +419,17 @@ def skip_if_no_deepseek(func):
     return pytest.mark.api(skip_if_env_var("DEEPSEEK_API_KEY", exists=False)(func))
 
 
+def skip_if_no_meta(func):
+    func._needs_flaky_retry = True
+    has_key = "META_API_KEY" in os.environ or "MODEL_API_KEY" in os.environ
+    return pytest.mark.api(
+        pytest.mark.skipif(
+            not has_key,
+            reason="Test doesn't work without META_API_KEY or MODEL_API_KEY defined.",
+        )(func)
+    )
+
+
 def skip_if_no_sambanova(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("SAMBANOVA_API_KEY", exists=False)(func))
@@ -674,6 +686,26 @@ def keyboard_interrupt(seconds: int) -> Generator[None, None, None]:
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, original_handler)
+
+
+@contextlib.contextmanager
+def no_network() -> Generator[tuple[mock.Mock, mock.Mock], None, None]:
+    """Fail any DNS lookup or socket connection made inside the block.
+
+    Yields the `socket.getaddrinfo` and `socket.socket.connect` mocks so a test
+    can assert that neither was called.
+    """
+    with (
+        mock.patch(
+            "socket.getaddrinfo",
+            new=mock.Mock(side_effect=AssertionError("unexpected DNS lookup")),
+        ) as getaddrinfo,
+        mock.patch(
+            "socket.socket.connect",
+            new=mock.Mock(side_effect=AssertionError("unexpected connection")),
+        ) as connect,
+    ):
+        yield getaddrinfo, connect
 
 
 async def register_adaptive_controller(

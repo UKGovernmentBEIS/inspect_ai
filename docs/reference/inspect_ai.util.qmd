@@ -65,6 +65,7 @@ description: Miscellaneous utility functions.
 ### SandboxEnvironment
 ### SandboxConnection
 ### SandboxUnavailableError
+### SandboxUserUnsupportedError
 ### sandboxenv
 ### sandbox_service
 ### override_sandbox_output_limit

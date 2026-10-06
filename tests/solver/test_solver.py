@@ -1,14 +1,27 @@
+import asyncio
+from typing import Any
+
 import pytest
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
+from inspect_ai.model import (
+    ChatMessageUser,
+    GenerateConfig,
+    Model,
+    ModelName,
+    ModelOutput,
+    get_model,
+)
+from inspect_ai.model._model import init_active_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import (
     Generate,
+    Solver,
     TaskState,
     chain_of_thought,
     generate,
+    self_critique,
     solver,
 )
 from inspect_ai.solver._plan import Plan
@@ -101,3 +114,72 @@ def test_valid_solvers_succeed():
 
     for f in [is_async, IsAsyncCallable]:
         solver(name=f.__name__)(f)()
+
+
+def _repeating_model(text: str) -> Model:
+    # answers every call, so a model wrongly reused for a later call shows up
+    # as the wrong critique rather than as exhausted mock outputs
+    return get_model(
+        "mockllm/model",
+        custom_outputs=lambda *_: ModelOutput.from_content("mockllm/model", text),
+    )
+
+
+async def _critique_under_active_models(
+    critique: Solver, active_models: list[Model]
+) -> list[str]:
+    """Run the same solver instance once under each active model.
+
+    Returns the critique message that the solver adds for each call.
+    """
+
+    async def passthrough(state: TaskState, *args: Any, **kwargs: Any) -> TaskState:
+        return state
+
+    async def run(active: Model) -> str:
+        init_active_model(active, GenerateConfig())
+        state = TaskState(
+            model=ModelName("mockllm/model"),
+            sample_id=1,
+            epoch=1,
+            input="What is 1 + 1?",
+            messages=[],
+            output=ModelOutput.from_content("mockllm/model", "3"),
+        )
+        state = await critique(state, passthrough)
+        return state.messages[-1].text
+
+    return [await run(active) for active in active_models]
+
+
+def test_self_critique_instance_critiques_with_each_active_model() -> None:
+    critique = self_critique()
+
+    messages = asyncio.run(
+        _critique_under_active_models(
+            critique,
+            [
+                _repeating_model("critique from first active model"),
+                _repeating_model("critique from second active model"),
+            ],
+        )
+    )
+
+    assert "critique from first active model" in messages[0]
+    assert "critique from second active model" in messages[1]
+
+
+def test_self_critique_instance_prefers_explicit_model() -> None:
+    critique = self_critique(model=_repeating_model("critique from explicit model"))
+
+    messages = asyncio.run(
+        _critique_under_active_models(
+            critique,
+            [
+                _repeating_model("critique from first active model"),
+                _repeating_model("critique from second active model"),
+            ],
+        )
+    )
+
+    assert all("critique from explicit model" in message for message in messages)
