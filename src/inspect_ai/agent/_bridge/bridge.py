@@ -85,11 +85,17 @@ _ALLOWED_BRIDGE_HEADERS = frozenset(
 
 # Headers a sandboxed client may never set on the host's request, whatever
 # `forward_client_headers` lists: credentials, transport framing, and values
-# the provider SDK or Inspect owns.
+# the provider SDK or Inspect owns. The credential names cover the provider
+# SDKs Inspect uses: bearer tokens, Anthropic and Foundry keys, Azure OpenAI's
+# `api-key`, Google's `x-goog-api-key`, and AWS SigV4 (`x-amz-` prefix).
 _BLOCKED_CLIENT_HEADERS = frozenset(
     [
         "authorization",
+        "proxy-authorization",
         "x-api-key",
+        "api-key",
+        "x-goog-api-key",
+        "cookie",
         "host",
         "content-type",
         "content-length",
@@ -100,7 +106,7 @@ _BLOCKED_CLIENT_HEADERS = frozenset(
         "x-irid",
     ]
 )
-_BLOCKED_CLIENT_HEADER_PREFIXES = ("x-stainless-",)
+_BLOCKED_CLIENT_HEADER_PREFIXES = ("x-stainless-", "x-amz-")
 
 _FORWARD_CLIENT_HEADERS_OPTION = "sandbox_agent_bridge(forward_client_headers=...)"
 

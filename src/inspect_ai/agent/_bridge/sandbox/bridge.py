@@ -171,8 +171,9 @@ async def sandbox_agent_bridge(
             comma-separated value is matched one item at a time; items not
             listed are dropped with a warning, and the header is dropped when
             none remain. Defaults to `None`: no client header is forwarded
-            except `Accept-Encoding`. Credentials and transport headers (e.g.
-            `Authorization`, `Host`, `Content-Type`) cannot be listed.
+            except `Accept-Encoding`. Credential and transport headers (e.g.
+            `Authorization`, `api-key`, `x-goog-api-key`, `x-amz-*`, `Host`,
+            `Content-Type`) cannot be listed.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"

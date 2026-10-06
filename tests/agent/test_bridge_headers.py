@@ -16,7 +16,11 @@ from inspect_ai.agent._bridge.bridge import (
     filter_bridge_headers,
     resolve_forward_client_headers,
 )
-from inspect_ai.agent._bridge.sandbox.service import generate_anthropic
+from inspect_ai.agent._bridge.sandbox.service import (
+    generate_anthropic,
+    generate_completions,
+    generate_responses,
+)
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
@@ -323,6 +327,12 @@ class TestForwardClientHeaders:
             "User-Agent",
             "x-irid",
             "X-Stainless-Lang",
+            "Api-Key",
+            "x-goog-api-key",
+            "X-Amz-Security-Token",
+            "x-amz-date",
+            "Proxy-Authorization",
+            "Cookie",
         ],
     )
     def test_blocked_header_names_rejected(self, name: str) -> None:
@@ -432,3 +442,195 @@ class TestSandboxAnthropicRequest:
         assert request.headers["x-api-key"] == "test-key"
         assert "authorization" not in request.headers
         assert any("unlisted-beta-2026-01-01" in m for m in inspect_logger._warned)
+
+
+# Credential headers a sandboxed client sends, which no `forward_client_headers`
+# can list: host keys (OpenAI and Azure OpenAI, Anthropic and Foundry, Google)
+# and an AWS session token for a SigV4-signed request.
+_CLIENT_CREDENTIALS = {
+    "Authorization": "Bearer sandbox-token",
+    "x-api-key": "sandbox-key",
+    "Api-Key": "sandbox-key",
+    "x-goog-api-key": "sandbox-key",
+    "X-Amz-Security-Token": "sandbox-token",
+    "x-feature": "on",
+}
+
+_SANDBOX_CREDENTIAL_NAMES = {
+    name.lower() for name in _CLIENT_CREDENTIALS if name != "x-feature"
+}
+
+
+def _route_bridge(model: Any) -> SandboxAgentBridge:
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"agent-model": model},
+        forward_client_headers={"x-feature": ["on"]},
+    )
+
+
+def _capturing_client(
+    requests: list[httpx2.Request], body: dict[str, Any]
+) -> httpx2.AsyncClient:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        return httpx2.Response(200, json=body)
+
+    return httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+
+
+class TestSandboxRoutesKeepHostCredentials:
+    """A sandboxed client's credential headers never reach the provider SDK."""
+
+    def _assert_host_credentials(
+        self, request: httpx2.Request, host: dict[str, str]
+    ) -> None:
+        assert request.headers["x-feature"] == "on"
+        for name, value in host.items():
+            assert request.headers.get_list(name) == [value]
+        for name in _SANDBOX_CREDENTIAL_NAMES - set(host):
+            assert name not in request.headers
+
+    @pytest.mark.anyio
+    async def test_completions_route_to_azure_openai(self) -> None:
+        requests: list[httpx2.Request] = []
+        model = get_model(
+            "openai/azure/gpt-4o",
+            api_key="host-key",
+            base_url="https://example.openai.azure.com",
+            memoize=False,
+            responses_api=False,
+            streaming=False,
+            http_client=_capturing_client(
+                requests,
+                {
+                    "id": "chatcmpl-1",
+                    "object": "chat.completion",
+                    "created": 0,
+                    "model": "gpt-4o",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": "ok"},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 1,
+                        "completion_tokens": 1,
+                        "total_tokens": 2,
+                    },
+                },
+            ),
+        )
+        try:
+            await generate_completions(_route_bridge(model))(
+                {
+                    "model": "agent-model",
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+                _CLIENT_CREDENTIALS,
+            )
+        finally:
+            await model.api.aclose()
+
+        [request] = requests
+        self._assert_host_credentials(request, {"api-key": "host-key"})
+
+    @pytest.mark.anyio
+    async def test_responses_route_to_azure_openai(self) -> None:
+        requests: list[httpx2.Request] = []
+        model = get_model(
+            "openai/azure/gpt-4o",
+            api_key="host-key",
+            base_url="https://example.openai.azure.com",
+            memoize=False,
+            responses_api=True,
+            streaming=False,
+            http_client=_capturing_client(
+                requests,
+                {
+                    "id": "resp_1",
+                    "object": "response",
+                    "created_at": 0,
+                    "model": "gpt-4o",
+                    "status": "completed",
+                    "output": [
+                        {
+                            "type": "message",
+                            "id": "msg_1",
+                            "role": "assistant",
+                            "status": "completed",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": "ok",
+                                    "annotations": [],
+                                }
+                            ],
+                        }
+                    ],
+                    "parallel_tool_calls": True,
+                    "tool_choice": "auto",
+                    "tools": [],
+                },
+            ),
+        )
+        try:
+            await generate_responses(
+                cast(WebSearchProviders, None),
+                cast(CodeExecutionProviders, None),
+                _route_bridge(model),
+            )({"model": "agent-model", "input": "hi"}, _CLIENT_CREDENTIALS)
+        finally:
+            await model.api.aclose()
+
+        [request] = [r for r in requests if r.url.path.endswith("/responses")]
+        self._assert_host_credentials(request, {"api-key": "host-key"})
+
+    @pytest.mark.anyio
+    async def test_anthropic_route_to_anthropic(self) -> None:
+        requests: list[httpx2.Request] = []
+        model = get_model(
+            "anthropic/claude-sonnet-4-5",
+            api_key="host-key",
+            memoize=False,
+            streaming=False,
+            config=GenerateConfig(max_tokens=64),
+            http_client=_capturing_client(
+                requests,
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": "claude-sonnet-4-5",
+                    "content": [{"type": "text", "text": "ok"}],
+                    "stop_reason": "end_turn",
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 1, "output_tokens": 1},
+                },
+            ),
+        )
+        try:
+            await generate_anthropic(
+                cast(WebSearchProviders, None),
+                cast(CodeExecutionProviders, None),
+                _route_bridge(model),
+            )(
+                {
+                    "model": "agent-model",
+                    "max_tokens": 64,
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+                _CLIENT_CREDENTIALS,
+            )
+        finally:
+            await model.api.aclose()
+
+        [request] = requests
+        self._assert_host_credentials(request, {"x-api-key": "host-key"})
