@@ -493,10 +493,6 @@
       "count": 1,
       "undescribed": 1
     },
-    "type: ignore[arg-type]": {
-      "count": 1,
-      "undescribed": 1
-    },
     "type: ignore[call-arg]": {
       "count": 1,
       "undescribed": 1

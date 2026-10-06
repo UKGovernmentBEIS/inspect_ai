@@ -26,6 +26,7 @@
 - Bugfix: Remote MCP servers are now refused while an approval policy is active, rather than having their tools run by the model provider without approval.
 - Bugfix: Results of `sandbox_agent_bridge()` bridged tools are now truncated at `max_tool_output` (or the tool's `max_output`), as other tool results are.
 - Eval Set: Fixed logging with S3 credentials restricted to the log directory's prefix, and reading and writing `eval-set.json` for Azure log directories with a trailing slash or an account in the URL.
+- Analysis: Type checkers now accept column extract functions that take a specific event, message or sample type, or return a precise JSON type such as `list[dict[str, int]]`.
 
 ## 0.3.276 (02 October 2026)
 

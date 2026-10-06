@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Callable, Mapping, Type, cast
+from typing import Any, Callable, Mapping, Type, TypeVar, cast
 
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
@@ -7,13 +7,15 @@ from typing_extensions import override
 
 from inspect_ai.event._event import Event
 
-from ..columns import Column, ColumnType
+from ..columns import Column, ColumnType, JsonLike
 from .extract import (
     completion_as_str,
     model_event_input_as_str,
     tool_choice_as_str,
     tool_view_as_str,
 )
+
+E = TypeVar("E", bound=Event)
 
 
 class EventColumn(Column):
@@ -23,7 +25,7 @@ class EventColumn(Column):
         self,
         name: str,
         *,
-        path: str | JSONPath | Callable[[Event], JsonValue],
+        path: str | JSONPath | Callable[[E], JsonLike],
         required: bool = False,
         default: JsonValue | None = None,
         type: Type[ColumnType] | None = None,
@@ -37,16 +39,14 @@ class EventColumn(Column):
             type=type,
             value=value,
         )
-        self._extract_event = path if callable(path) else None
+        self._extract_event = (
+            cast(Callable[[Event], JsonValue], path) if callable(path) else None
+        )
 
     @override
     def path_schema(self) -> Mapping[str, Any] | None:
         return None
 
-
-# Extractors for one event type; callers pair these columns with a matching
-# events_df() filter.
-EventExtract = Callable[[Event], JsonValue]
 
 EventInfo: list[Column] = [
     EventColumn("event_id", path="uuid"),
@@ -67,13 +67,13 @@ ModelEventColumns: list[Column] = [
     EventColumn("model_event_model", path="model"),
     EventColumn("model_event_role", path="role"),
     EventColumn("model_event_requested_model", path="requested_model"),
-    EventColumn("model_event_input", path=cast(EventExtract, model_event_input_as_str)),
+    EventColumn("model_event_input", path=model_event_input_as_str),
     EventColumn("model_event_tools", path="tools"),
-    EventColumn("model_event_tool_choice", path=cast(EventExtract, tool_choice_as_str)),
+    EventColumn("model_event_tool_choice", path=tool_choice_as_str),
     EventColumn("model_event_config", path="config"),
     EventColumn("model_event_usage", path="output.usage"),
     EventColumn("model_event_time", path="output.time"),
-    EventColumn("model_event_completion", path=cast(EventExtract, completion_as_str)),
+    EventColumn("model_event_completion", path=completion_as_str),
     EventColumn("model_event_retries", path="retries"),
     EventColumn("model_event_error", path="error"),
     EventColumn("model_event_cache", path="cache"),
@@ -84,7 +84,7 @@ ModelEventColumns: list[Column] = [
 ToolEventColumns: list[Column] = [
     EventColumn("tool_event_function", path="function"),
     EventColumn("tool_event_arguments", path="arguments"),
-    EventColumn("tool_event_view", path=cast(EventExtract, tool_view_as_str)),
+    EventColumn("tool_event_view", path=tool_view_as_str),
     EventColumn("tool_event_result", path="result"),
     EventColumn("tool_event_truncated", path="truncated"),
     EventColumn("tool_event_error_type", path="error.type"),

@@ -1,7 +1,7 @@
 import abc
 from dataclasses import KW_ONLY, dataclass
 from datetime import date, datetime, time
-from typing import Any, Callable, Mapping, Type, TypeAlias
+from typing import Any, Callable, Mapping, Sequence, Type, TypeAlias
 
 from jsonpath_ng import JSONPath  # type: ignore
 from jsonpath_ng.ext import parse as untyped_parse  # type: ignore
@@ -18,6 +18,14 @@ ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
 """Valid types for columns.
 
 Values of `list` and `dict` are converted into column values as JSON `str`.
+"""
+
+JsonLike: TypeAlias = (
+    str | int | float | bool | None | Sequence["JsonLike"] | Mapping[str, "JsonLike"]
+)
+"""JSON-compatible value returned by a column extract function.
+
+Read-only container types, so precise types such as `list[dict[str, int]]` match.
 """
 
 
