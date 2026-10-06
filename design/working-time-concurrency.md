@@ -220,34 +220,50 @@ root lane. Inspect's own fork points give each child its own lane. Where a
 parent blocks on its children, the parent's lane is marked **joined** for
 that time (see "Fork and join sites").
 
-At any instant each lane is in one of four states. They are evaluated in
-this order:
+The design uses two separate vocabularies:
+
+- a **lane state** describes one lane at one instant: *blocked*, *in
+  flight*, *idle* or *active*;
+- an **instant classification** describes one instant in one scope (the
+  sample, or one scoped `working_limit()`): *working*, *waiting* or
+  *provisional*. Working instants add to working time and waiting instants
+  to waiting time. A provisional instant becomes one or the other once the
+  model attempts open at that instant resolve.
+
+The instant classification is computed from the lane states of every lane
+in the scope.
+
+**Lane states.** Each lane is in exactly one state. The conditions are
+checked top to bottom and the first match applies:
 
 | Lane state | Condition |
 | --- | --- |
-| waiting | at least one wait span is open in the lane |
-| in flight | no wait open, and at least one model attempt open |
-| idle | joined, with no wait or attempt open |
-| active | anything else |
+| blocked | at least one wait span is open in the lane |
+| in flight | no wait span open, and at least one model attempt open |
+| idle | joined, with no wait span or attempt open |
+| active | not joined, with no wait span or attempt open |
 
-A joined lane is never active, but its own waits and attempts still count.
-This matters when a parent makes its own model call while its children run,
-for example host-side calls inside a sandbox-bridge body.
+A joined lane is never active, but it can still be blocked or in flight
+through its own waits and attempts. This matters when a parent makes its
+own model call while its children run, for example host-side calls inside
+a sandbox-bridge body.
 
-**The rule.** For one scope (the sample, or one scoped `working_limit()`),
-an instant is classified from the lanes in that scope:
+**Instant classification.** For one scope, the rows are checked top to
+bottom over the lane states of all lanes in the scope, and the first match
+applies:
 
-1. If any lane is **active**, the instant is working.
-2. Otherwise, if any lane is **in flight**, the instant is provisional. It
-   becomes working if any of the attempts open at that instant turns out
-   productive, and waiting if none does (see "Model attempts").
-3. Otherwise, if any lane is **waiting**, the instant is waiting.
-4. Otherwise (no lanes, or only idle ones), the instant is working.
+| Lanes in the scope | Instant classification |
+| --- | --- |
+| at least one active | working |
+| none active, at least one in flight | provisional: becomes working if any attempt open at that instant turns out productive, and waiting if none does (see "Model attempts") |
+| none active or in flight, at least one blocked | waiting |
+| every lane idle, or no lanes at all | working |
 
-Rule 4 covers a sandboxed agent between requests: Inspect sees no work but
-the agent is doing its own, so the instant is charged.
+The last row covers a sandboxed agent between requests: Inspect sees no
+work, but the agent is doing its own, so the instant is charged.
 
-Within one lane the state is a union: one open wait makes the lane waiting.
+Within one lane the state is a union: one open wait span makes the lane
+blocked.
 Concurrency that Inspect does not create, such as an agent library's
 `asyncio.gather()` or a user's own task group, stays inside the caller's
 lane. It therefore falls back to today's merged behaviour (consequence (2)
@@ -261,7 +277,8 @@ correct answer.
 A sandboxed agent behind the bridge is the other unobserved case. Its
 requests reach the host as lanes, but its local work (shell commands, builds,
 its own tool loop) does not. While at least one of its requests is waiting
-and none is in flight, the instant is waiting, even if the agent is running
+and none is in flight, every visible lane is blocked or idle and the
+instant is waiting, even if the agent is running
 a long local command at the time (example 12).
 
 ### Worked examples
@@ -271,7 +288,7 @@ code-derived result on `main`; "Proposed" is the result under this design.
 
 | # | Scenario | Today | Proposed |
 | --- | --- | --- | --- |
-| 1 | Four lanes (`collect`), each: attempt 0.1 fails (retryable), backoff 2, attempt 0.1 fails, backoff 2, attempt 0.1 succeeds. Wall 4.3 | working −12.5 | All lanes in flight or waiting throughout; the failed attempts resolve as waiting, so the only productive time is the final 0.1 s. Working 0.1, waiting 4.2 |
+| 1 | Four lanes (`collect`), each: attempt 0.1 fails (retryable), backoff 2, attempt 0.1 fails, backoff 2, attempt 0.1 succeeds. Wall 4.3 | working −12.5 | All lanes in flight or blocked throughout; the failed attempts resolve as waiting, so the only productive time is the final 0.1 s. Working 0.1, waiting 4.2 |
 | 2a | Lane A holds `concurrency("k",1)` doing work for 3 s; lane B waits on it | working 0.0 | A is active throughout. Working 3.0 |
 | 2b | Main lane works for 600 s; a `background()` lane's monitor call is rate-limited the whole time | working ≈ 0 | Main lane active. Working 600 |
 | 2c | Sample fires 11 sub-agent requests at a 10-slot pool; one waits 30 s for a slot | 30 s credited | 10 lanes in flight and all succeed. Working 30 |
@@ -283,18 +300,18 @@ code-derived result on `main`; "Proposed" is the result under this design.
 | 5 | A cache hit after a 2 s original call | working +2 | No attempt opened. The hit costs only its local time |
 | 6 | Lane A attempt 0–10 fails (retryable); lane B attempt 5–15 succeeds | A's 10 s credited via reconciliation, if A's call later succeeds | 0–5 waiting, 5–15 working |
 | 7 | `collect()` parent joined; both children back off 0–20, then both run | 40 credited (two backoffs, summed) | 0–20 waiting; then working |
-| 8 | Sandbox agent bridge: no request in flight 0–5; one request backing off 5–25; one in flight 25–30 while another backs off | 25 credited: 20, plus the second request's 5 s backoff while the other was in flight | 0–5 working (rule 4), 5–25 waiting, 25–30 working if the in-flight attempt succeeds |
+| 8 | Sandbox agent bridge: no request in flight 0–5; one request backing off 5–25; one in flight 25–30 while another backs off | 25 credited: 20, plus the second request's 5 s backoff while the other was in flight | 0–5 working (last row of the instant classification: the solver lane is idle and there are no request lanes), 5–25 waiting, 25–30 working if the in-flight attempt succeeds |
 | 9 | Parallel sub-agents A and B, each inside its own `working_limit(60)`; A backs off while B works | Sample: A's backoff credited, B's work free. A's limit: own backoff credited | Sample: working. A's scope: waiting. B's scope: working |
 | 10 | `pause --now`: every lane's generate parked for 120 s | 120 s per parked call, summed | 120 waiting, with no incremental credit needed (the open spans stop the clock) |
 | 11 | One lane awaits human approval for 300 s, with nothing else running | charged 300 | 300 waiting |
 | 12 | Sandbox agent bridge: one request backs off 0–60 while the agent runs a 60 s build inside the sandbox | 60 credited (the backoff) | 60 waiting: the build is not visible to Inspect and goes uncharged (open question 4) |
-| 13 | An agent library run in-process issues two requests with its own `asyncio.gather()`: one backs off 0–60, the other is in flight 0–60 and succeeds | 60 credited (the backoff) | both share the caller's lane, which is waiting while either waits: 60 waiting, the in-flight work uncharged (open question 4) |
+| 13 | An agent library run in-process issues two requests with its own `asyncio.gather()`: one backs off 0–60, the other is in flight 0–60 and succeeds | 60 credited (the backoff) | both share the caller's lane, which is blocked while either waits: 60 waiting, the in-flight work uncharged (open question 4) |
 
 ### Classification of each source
 
 | Source | Proposed |
 | --- | --- |
-| `concurrency()` semaphore wait | wait span on the waiting lane; holding the semaphore is active |
+| `concurrency()` semaphore wait | wait span on the lane that is waiting for the semaphore (the lane is blocked); holding the semaphore leaves the lane active |
 | Model connection-slot wait, including the adaptive limiter | wait span |
 | Retry backoff sleep (`generate`, `compact`, `count_tokens`) | wait span around the actual sleep. Cancelling mid-sleep credits only the time slept |
 | A `generate` attempt in flight | in flight; resolved by outcome (see "Model attempts") |
@@ -350,7 +367,7 @@ failures with any reliability, and the documented contract credits
 "unsuccessful model generations". This design keeps crediting them, with two
 limits:
 
-- under the lane rule they are credited only when nothing else that Inspect
+- under the instant classification they are credited only when nothing else that Inspect
   observes in the sample is active, so they cannot buy free time for
   observed work. Work Inspect does not observe is the boundary in examples
   12 and 13; and
@@ -414,17 +431,18 @@ list[_Pending]`, plus `_prior_working` and `_prior_waiting` from a
 checkpoint.
 
 **Advancing.** Every mutating method first calls `_advance(now())`. That
-closes the segment `[_mark, now)` with the classification of the state
-*before* the change:
+closes the segment `[_mark, now)` with the instant classification of
+the state *before* the change:
 
 - working adds to `_working`;
 - waiting adds to `_waiting`;
 - provisional appends `_Pending(_mark, now, open_attempts)`, merged with
   the last entry when it is contiguous and has the same attempt set.
 
-Then `_mark = now`. Classification walks `_lanes` with the rule above and
-returns `"working"`, `"waiting"` or the frozenset of attempts open in
-in-flight lanes. A scope has a handful of lanes, so the walk is cheap.
+Then `_mark = now`. `_classify()` computes each lane's lane state from
+its `_LaneState` and applies the instant-classification table above. It
+returns the instant classification: `"working"`, `"waiting"`, or, for a
+provisional instant, the frozenset of attempts open in in-flight lanes. A scope has a handful of lanes, so the walk is cheap.
 Counters are an optimisation the implementer may add.
 
 **Model attempts.** `end_attempt` removes the attempt from its lane when the
@@ -747,13 +765,14 @@ sample.
   one-line fix for negative values, but a sample with two lanes reaches the
   clamp twice as fast. It hides the bug rather than defining a meaning.
 - **Proportional sharing (the clock runs at the fraction of lanes not
-  waiting).** It is closer to the critical path in fork-join shapes, where
-  the "any active" rule over-charges a little: if child A backs off while
-  child B works and A then works, both stretches are charged, although
-  without contention they would have overlapped. It needs the same lanes, makes every number
-  depend on the lane count, and a sample can change its count with idle
-  lanes. The over-charge in "any active" is bounded by work that really
-  ran, and a limit should err toward charging.
+  blocked).** It is closer to the critical path in fork-join shapes, where
+  this design's classification (working while any lane is active)
+  over-charges a little: if child A backs off while child B works and A
+  then works, both stretches are charged, although without contention they
+  would have overlapped. It needs the same lanes, makes every number depend
+  on the lane count, and a sample can change its count with idle lanes.
+  This design's over-charge is bounded by work that really ran, and a limit
+  should err toward charging.
 - **Charge every failed attempt (no provisional state).** This is much
   simpler: no pending segments, and the strongest answer to consequence 3.
   It breaks the documented contract ("unsuccessful model generations" are
@@ -950,7 +969,7 @@ registered and unregistered, and the parent joined, for `collect()`,
 `fork()` with a list of solvers, parallel tool stages, `background()`, the deep agent's
 `agent_wait`, and `SandboxService._handle_request_tracked`. A separate
 test runs `fork(state, solver)` with a single solver whose `generate` backs
-off, and asserts that no lane is added, the caller's lane is waiting during
+off, and asserts that no lane is added, the caller's lane is blocked during
 the backoff, and the sample's working time does not grow. The service is
 driven with a fake sandbox, as in the existing non-Docker tests in
 `tests/util/sandbox/test_sandbox_service.py`, so no Docker is needed. The
@@ -1035,7 +1054,7 @@ no effect until step 5 makes the option reachable.
    keep charging them, so a slow approver uses up the sample's budget.
 3. **Should credited retry time have a cap, including when `time_limit`,
    `timeout` and `max_retries` are all unset?** I recommend no cap. Under
-   the lane rule a sample cannot turn retries into free time for work
+   the instant classification a sample cannot turn retries into free time for work
    Inspect observes. Those three settings bound the wall clock only when
    the evaluator sets them, and the retry stop check runs only after an
    attempt returns, so with none set a sample can retry indefinitely, today
