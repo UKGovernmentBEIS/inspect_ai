@@ -1,4 +1,4 @@
-from typing import Any, Callable, Mapping, Type
+from typing import Any, Callable, Mapping, Type, TypeVar, cast
 
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
@@ -6,11 +6,13 @@ from typing_extensions import override
 
 from inspect_ai.model._chat_message import ChatMessage
 
-from ..columns import Column, ColumnType
+from ..columns import Column, ColumnType, JsonLike
 from .extract import (
     message_text,
     message_tool_calls,
 )
+
+M = TypeVar("M", bound=ChatMessage)
 
 
 class MessageColumn(Column):
@@ -20,7 +22,7 @@ class MessageColumn(Column):
         self,
         name: str,
         *,
-        path: str | JSONPath | Callable[[ChatMessage], JsonValue],
+        path: str | JSONPath | Callable[[M], JsonLike],
         required: bool = False,
         default: JsonValue | None = None,
         type: Type[ColumnType] | None = None,
@@ -34,7 +36,9 @@ class MessageColumn(Column):
             type=type,
             value=value,
         )
-        self._extract_message = path if callable(path) else None
+        self._extract_message = (
+            cast(Callable[[ChatMessage], JsonValue], path) if callable(path) else None
+        )
 
     @override
     def path_schema(self) -> Mapping[str, Any] | None:
