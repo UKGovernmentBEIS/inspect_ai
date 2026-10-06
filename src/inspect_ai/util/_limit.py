@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import abc
 import ast
 import math
 import operator
@@ -25,6 +24,7 @@ from typing_extensions import Self, override
 
 # isort: split
 # Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._limit import Limit as Limit
 from inspect_ai.core._limit import LimitExceededError as LimitExceededError
 
 # End of backward-compatible re-exports.
@@ -35,67 +35,6 @@ if TYPE_CHECKING:
 
 
 TNode = TypeVar("TNode", bound="_Node")
-
-
-class Limit(abc.ABC):
-    """Base class for all limit context managers."""
-
-    def __init__(self) -> None:
-        self._entered = False
-        # live override source for a sample-root node (attached by
-        # inspect_ai.util._limit_overrides.sample_limit_override_scope and
-        # resolved by the node's `limit` property); None for ordinary nodes
-        self._limit_override: Callable[[], int | None] | None = None
-
-    def _limit_override_value(self) -> int | None:
-        """The live override for this node, or ``None`` when none applies."""
-        return self._limit_override() if self._limit_override is not None else None
-
-    @abc.abstractmethod
-    def __enter__(self) -> Limit:
-        pass
-
-    @abc.abstractmethod
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        pass
-
-    @property
-    @abc.abstractmethod
-    def limit(self) -> float | None:
-        """The value of the limit being applied.
-
-        Can be None which represents no limit.
-        """
-        pass
-
-    @property
-    @abc.abstractmethod
-    def usage(self) -> float:
-        """The current usage of the resource being limited."""
-        pass
-
-    @property
-    def remaining(self) -> float | None:
-        """The remaining "unused" amount of the resource being limited.
-
-        Returns None if the limit is None.
-        """
-        if self.limit is None:
-            return None
-        return self.limit - self.usage
-
-    def _check_reuse(self) -> None:
-        if self._entered:
-            raise RuntimeError(
-                "Each Limit may only be used once in a single 'with' block. Please "
-                "create a new instance of the Limit."
-            )
-        self._entered = True
 
 
 @contextmanager
