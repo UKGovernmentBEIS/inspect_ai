@@ -465,6 +465,14 @@ async def wait_for_background_response(
         raise
 
 
+# Responses `reasoning` fields that come from GenerateConfig (`generate_summary`
+# is the deprecated name for `summary`), never from a `reasoning` object in
+# `extra_body`.
+_GENERATE_CONFIG_REASONING_FIELDS = frozenset(
+    ["effort", "mode", "summary", "generate_summary"]
+)
+
+
 def completion_params_responses(
     model_name: str,
     *,
@@ -524,21 +532,14 @@ def completion_params_responses(
         unsupported_warning("logit_bias")
     if config.seed is not None:
         unsupported_warning("seed")
-    client_reasoning = (
-        config.extra_body.get("reasoning") if config.extra_body is not None else None
-    )
 
     # models with reasoning enabled don't do sampling params
-    reasoning_enabled = (
-        isinstance(client_reasoning, dict)
-        or model_info.always_reasons()
-        or (
-            model_info.is_gpt_5_plus()
-            and (
-                config.reasoning_effort not in [None, "none"]
-                or (config.reasoning_effort is None and model_info.reasons_by_default())
-                or config.reasoning_mode == "pro"
-            )
+    reasoning_enabled = model_info.always_reasons() or (
+        model_info.is_gpt_5_plus()
+        and (
+            config.reasoning_effort not in [None, "none"]
+            or (config.reasoning_effort is None and model_info.reasons_by_default())
+            or config.reasoning_mode == "pro"
         )
     )
 
@@ -584,31 +585,33 @@ def completion_params_responses(
         params["parallel_tool_calls"] = config.parallel_tool_calls
 
     reasoning: dict[str, Any] = {}
-    # Reasoning may have been specified in config.extra_body (e.g. by a client
-    # talking to us through the agent bridge). Use it verbatim so fields with no
-    # GenerateConfig representation (e.g. `context`) survive intact.
-    if isinstance(client_reasoning, dict):
-        reasoning = client_reasoning
-    else:
-        if config.reasoning_effort is not None:
-            # models that predate `max` effort top out at `xhigh`; map `max` to it
-            # so the request isn't rejected. Mirrors the mapping in
-            # `OpenAIAPI._get_reasoning_params_for_config`.
-            reasoning["effort"] = (
-                "xhigh"
-                if (
-                    config.reasoning_effort == "max"
-                    and not model_info.supports_max_reasoning_effort()
-                )
-                else config.reasoning_effort
+    if config.reasoning_effort is not None:
+        # models that predate `max` effort top out at `xhigh`; map `max` to it
+        # so the request isn't rejected. Mirrors the mapping in
+        # `OpenAIAPI._get_reasoning_params_for_config`.
+        reasoning["effort"] = (
+            "xhigh"
+            if (
+                config.reasoning_effort == "max"
+                and not model_info.supports_max_reasoning_effort()
             )
-        if config.reasoning_mode is not None:
-            # passed through for all models: the API accepts "pro" wherever it can
-            # be honored (gpt-5.6+ and legacy -pro models) and rejects it with a
-            # clear param-naming error otherwise.
-            reasoning["mode"] = config.reasoning_mode
-        if config.reasoning_summary != "none":
-            reasoning["summary"] = config.reasoning_summary or "auto"
+            else config.reasoning_effort
+        )
+    if config.reasoning_mode is not None:
+        # passed through for all models: the API accepts "pro" wherever it can
+        # be honored (gpt-5.6+ and legacy -pro models) and rejects it with a
+        # clear param-naming error otherwise.
+        reasoning["mode"] = config.reasoning_mode
+    if config.reasoning_summary != "none":
+        reasoning["summary"] = config.reasoning_summary or "auto"
+    # A `reasoning` object in config.extra_body (e.g. from a client talking to us
+    # through the agent bridge) contributes the fields GenerateConfig does not
+    # model (e.g. `context`); the fields it does model come from config above.
+    extra_reasoning = (config.extra_body or {}).get("reasoning")
+    if isinstance(extra_reasoning, dict):
+        for key, value in extra_reasoning.items():
+            if key not in _GENERATE_CONFIG_REASONING_FIELDS:
+                reasoning[key] = value
     if len(reasoning) > 0:
         if model_info.has_reasoning_options():
             params["reasoning"] = reasoning

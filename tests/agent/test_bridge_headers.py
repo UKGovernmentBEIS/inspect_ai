@@ -2,18 +2,31 @@
 
 import importlib
 import json
+from typing import Any, cast
 
 import httpx
+import httpx2
+import pytest
 
 from inspect_ai._util import logger as inspect_logger
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.bridge import (
     _ALLOWED_BRIDGE_HEADERS,
     filter_bridge_headers,
 )
+from inspect_ai.agent._bridge.sandbox.service import generate_anthropic
+from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
+from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 
 # brotli ships no type stubs; binding it via importlib keeps mypy clean without a
-# suppression, and still fails loudly if httpx[brotli] stops pulling it in.
-brotli = importlib.import_module("brotli")
+# suppression, and still fails loudly if httpx[brotli] stops pulling it in. PyPy
+# gets brotlicffi instead, as httpx does.
+try:
+    brotli = importlib.import_module("brotli")
+except ImportError:
+    brotli = importlib.import_module("brotlicffi")
 
 
 class TestFilterBridgeHeaders:
@@ -267,3 +280,78 @@ class TestAllowedHeadersConfiguration:
     def test_accept_encoding_allowlisted(self):
         """Verify accept-encoding is in the allowlist."""
         assert "accept-encoding" in _ALLOWED_BRIDGE_HEADERS
+
+
+class TestSandboxAnthropicRequest:
+    """Client headers through the sandbox service to the Anthropic provider."""
+
+    @pytest.mark.anyio
+    async def test_allowed_beta_reaches_provider_and_brotli_response_decodes(
+        self,
+    ) -> None:
+        inspect_logger._warned.clear()
+        provider_requests: list[httpx2.Request] = []
+        message = {
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-5",
+            "content": [{"type": "text", "text": "decoded"}],
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 3, "output_tokens": 1},
+        }
+
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            provider_requests.append(request)
+            return httpx2.Response(
+                200,
+                content=brotli.compress(json.dumps(message).encode()),
+                headers={"content-encoding": "br", "content-type": "application/json"},
+            )
+
+        model = get_model(
+            "anthropic/claude-sonnet-4-5",
+            api_key="test-key",
+            memoize=False,
+            streaming=False,
+            config=GenerateConfig(max_tokens=64),
+            http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+        )
+        bridge = SandboxAgentBridge(
+            state=AgentState(messages=[]),
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=13131,
+            model=None,
+            model_aliases={"agent-model": model},
+            allowed_anthropic_betas=["allowed-beta-2026-01-01"],
+        )
+        generate = generate_anthropic(
+            cast(WebSearchProviders, None), cast(CodeExecutionProviders, None), bridge
+        )
+
+        try:
+            response: Any = await generate(
+                {
+                    "model": "agent-model",
+                    "max_tokens": 64,
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+                {
+                    "anthropic-beta": "allowed-beta-2026-01-01,unlisted-beta-2026-01-01",
+                    "accept-encoding": "br",
+                    "authorization": "Bearer sandbox-token",
+                },
+            )
+        finally:
+            await model.api.aclose()
+
+        assert response["content"][0]["text"] == "decoded"
+        [request] = provider_requests
+        assert request.headers["anthropic-beta"] == "allowed-beta-2026-01-01"
+        assert request.headers["accept-encoding"] == "br"
+        assert request.headers["x-api-key"] == "test-key"
+        assert "authorization" not in request.headers
+        assert any("unlisted-beta-2026-01-01" in m for m in inspect_logger._warned)

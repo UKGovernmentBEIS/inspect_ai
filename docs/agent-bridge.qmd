@@ -286,7 +286,7 @@ async with agent_bridge(state, forward_generation_config=True) as bridge:
     ...
 ```
 
-This option is available on both `agent_bridge()` and `sandbox_agent_bridge()`.
+This option is available on both `agent_bridge()` and `sandbox_agent_bridge()`. Values set in the Inspect model's own configuration still take precedence over the agent's. When the model uses the OpenAI Responses API, `reasoning` fields that Inspect does not model (e.g. `context`) are passed through as the agent sent them.
 
 ## Tool Approval
 

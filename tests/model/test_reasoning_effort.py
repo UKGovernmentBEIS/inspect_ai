@@ -636,51 +636,47 @@ def test_openai_responses_reasoning_mode_composes_with_effort():
     assert params["reasoning"]["effort"] == "high"
 
 
-# -- OpenAI Responses client-supplied reasoning passthrough --
+# -- OpenAI Responses `reasoning` object in extra_body --
 
 
-def test_openai_responses_client_reasoning_forwarded_verbatim():
-    # e.g. forwarded by the agent bridge in transparent mode; `context` has no
-    # GenerateConfig representation and must survive intact
-    client_reasoning = {"context": "all_turns", "effort": "max", "summary": "auto"}
-    params = _responses_params_for(
-        "gpt-5.6-sol", GenerateConfig(extra_body={"reasoning": client_reasoning})
-    )
-    assert params["reasoning"] == client_reasoning
-
-
-def test_openai_responses_client_reasoning_no_injected_summary():
+def test_openai_responses_extra_body_reasoning_adds_unmodelled_fields():
+    # e.g. attached by the agent bridge for a forwarded client request; `context`
+    # has no GenerateConfig representation and is sent as given, while the
+    # fields GenerateConfig models come from the config
     params = _responses_params_for(
         "gpt-5.6-sol",
         GenerateConfig(
-            extra_body={"reasoning": {"effort": "max", "context": "all_turns"}}
+            reasoning_effort="high",
+            reasoning_summary="none",
+            extra_body={
+                "reasoning": {
+                    "context": "all_turns",
+                    "effort": "low",
+                    "summary": "detailed",
+                    "generate_summary": "detailed",
+                    "mode": "pro",
+                }
+            },
         ),
     )
-    assert params["reasoning"] == {"effort": "max", "context": "all_turns"}
+    assert params["reasoning"] == {"effort": "high", "context": "all_turns"}
 
 
-def test_openai_responses_client_reasoning_takes_precedence_over_modelled():
-    params = _responses_params_for(
-        "gpt-5.6-sol",
-        GenerateConfig(
-            reasoning_effort="low",
-            extra_body={"reasoning": {"effort": "max", "context": "all_turns"}},
-        ),
-    )
-    assert params["reasoning"] == {"effort": "max", "context": "all_turns"}
-
-
-def test_openai_responses_client_reasoning_suppresses_sampling_params():
-    client_reasoning = {"effort": "high", "context": "all_turns"}
+def test_openai_responses_extra_body_reasoning_does_not_enable_reasoning():
     params = _responses_params_for(
         "gpt-5.4",
         GenerateConfig(
-            extra_body={"reasoning": client_reasoning},
+            reasoning_effort="none",
             temperature=0.7,
+            extra_body={"reasoning": {"effort": "high", "context": "all_turns"}},
         ),
     )
-    assert params["reasoning"] == client_reasoning
-    assert "temperature" not in params
+    assert params["reasoning"] == {
+        "effort": "none",
+        "summary": "auto",
+        "context": "all_turns",
+    }
+    assert params["temperature"] == 0.7
 
 
 def test_openai_responses_pro_mode_suppresses_sampling_params():

@@ -206,17 +206,27 @@ def _is_openai_responses_provider(model: Model) -> bool:
     return isinstance(model.api, OpenAIAPI)
 
 
-def _sends_responses_requests(model: Model) -> bool:
-    """Whether the resolved model's requests use the OpenAI Responses API.
+def _sends_responses_requests(
+    model: Model, tools: list[ToolInfo | Tool], config: GenerateConfig
+) -> bool:
+    """Whether the resolved model sends this request to the OpenAI Responses API.
 
-    Only those requests carry a forwarded client `reasoning` object verbatim;
-    other providers receive its effort and summary through `GenerateConfig`.
+    Only those requests carry the fields of a forwarded client `reasoning`
+    object that `GenerateConfig` does not model (e.g. `context`); other
+    providers receive its effort and summary through `GenerateConfig`.
     """
     try:
         from inspect_ai.model._providers.openai import OpenAIAPI
+        from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
     except Exception:
         return False
-    return isinstance(model.api, OpenAIAPI) and bool(model.api.responses_api)
+    if not isinstance(model.api, OpenAIAPI | OpenAICompatibleAPI):
+        return False
+    tool_infos = [
+        tool if isinstance(tool, ToolInfo) else tool_to_tool_info(tool)
+        for tool in tools
+    ]
+    return model.api.uses_responses_api(tool_infos, config)
 
 
 async def inspect_responses_api_request_impl(
@@ -322,11 +332,7 @@ async def inspect_responses_api_request_impl(
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
-    config = generate_config_from_openai_responses(
-        json_data,
-        forward_reasoning=bridge.forward_generation_config
-        and _sends_responses_requests(model),
-    )
+    config = generate_config_from_openai_responses(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
     validate_client_config(config)
@@ -340,6 +346,17 @@ async def inspect_responses_api_request_impl(
 
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
+
+    # the Responses provider takes the reasoning fields GenerateConfig does not
+    # model from extra_body (other providers would send them on as they are);
+    # a `reasoning` object in the Inspect model's own extra_body wins
+    client_reasoning = json_data.get("reasoning", None)
+    if (
+        bridge.forward_generation_config
+        and isinstance(client_reasoning, dict)
+        and _sends_responses_requests(model, tools, config)
+    ):
+        config.extra_body = {"reasoning": client_reasoning} | (config.extra_body or {})
 
     # if there is a bridge filter give it a shot first
     output, c_message = await bridge_generate(
@@ -786,9 +803,7 @@ def responses_tool_params_to_tools(tool_params: list[ToolParam]) -> list[Respons
     return tool_list_adapter.validate_python(tool_params)
 
 
-def generate_config_from_openai_responses(
-    json_data: dict[str, Any], *, forward_reasoning: bool = False
-) -> GenerateConfig:
+def generate_config_from_openai_responses(json_data: dict[str, Any]) -> GenerateConfig:
     # warn for unsupported params
     def warn_unsupported(param: str) -> None:
         if param in json_data:
@@ -845,8 +860,6 @@ def generate_config_from_openai_responses(
     for field in responses_extra_body_fields():
         if field in json_data:
             extra_body[field] = json_data[field]
-    if forward_reasoning and reasoning is not None:
-        extra_body["reasoning"] = reasoning
     if len(extra_body) > 0:
         config.extra_body = extra_body
 
