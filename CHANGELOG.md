@@ -33,6 +33,12 @@
 - Bugfix: Remote MCP servers are now refused while an approval policy is active, rather than having their tools run by the model provider without approval.
 - Bugfix: Results of `sandbox_agent_bridge()` bridged tools are now truncated at `max_tool_output` (or the tool's `max_output`), as other tool results are.
 - Eval Set: Fixed logging with S3 credentials restricted to the log directory's prefix, and reading and writing `eval-set.json` for Azure log directories with a trailing slash or an account in the URL.
+- Analysis: Type checkers now accept column extract functions that take a specific event, message or sample type, or return a precise JSON type such as `list[dict[str, int]]`.
+- Hugging Face: Concurrent requests for different models or generation settings are now generated with their own model and settings, not the first request's.
+- OpenAI and Anthropic: Fixed concurrent requests failing or restarting when another sample's request triggers a credential refresh (e.g. on an expired API key).
+- OpenAI: OpenAI: The OpenAI providers, message and output converters, and agent bridge now require openai >= 3.4.0.
+- Bugfix: Tool events now record the arguments an approver's `modify` decision substituted, and a `modify` that changes the function now fails the sample instead of running the wrong call.
+- Agent Bridge: `sandbox_agent_bridge()` now serves a request for an unknown model name with the eval's model and logs a warning; add the name to `model_aliases` to send it to another model.
 - Control Channel: `inspect ctl model throughput` now reports each model's input, output and cache read/write tokens per minute, in the table and in `--json` output; the table's output column is now per minute instead of per second.
 
 ## 0.3.276 (02 October 2026)

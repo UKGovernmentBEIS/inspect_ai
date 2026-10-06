@@ -21,11 +21,13 @@ from inspect_ai.approval._policy import (
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import ChatMessage, Model, ModelOutput, get_model
+from inspect_ai.model import ChatMessage, ChatMessageTool, Model, ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool._tool import tool
+from inspect_ai.tool._tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 
@@ -542,6 +544,125 @@ def test_approval_policy_comma_separated_list():
         approver=auto_approver(), tools=["web_browser*", "addition, python"]
     )
     check_approval(policy, decision="approve")
+
+
+@tool
+def echo(calls: list[str]) -> Tool:
+    async def execute(text: str) -> str:
+        """
+        Echo text back.
+
+        Args:
+            text (str): Text to echo.
+
+        Returns:
+            The text.
+        """
+        calls.append(text)
+        return text
+
+    return execute
+
+
+@approver
+def modifying_approver(arguments: dict[str, object], function: str = "") -> Approver:
+    """Approver which modifies each call's arguments (and its function, if given)."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id, function=function or call.function, arguments=arguments
+            ),
+        )
+
+    return approve
+
+
+def test_modify_arguments_run_and_are_recorded() -> None:
+    """The modified arguments run; the log keeps the model's proposal beside them."""
+    policy = ApprovalPolicy(approver=modifying_approver({"x": 2, "y": 3}), tools="*")
+    log = eval_with_approval(policy).log
+
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+
+    # the model's proposal is recorded as it was made
+    model_event = next(e for e in sample.events if isinstance(e, ModelEvent))
+    assert model_event.output.message.tool_calls
+    proposed = model_event.output.message.tool_calls[0]
+    assert proposed.arguments == {"x": 1, "y": 1}
+    approval_event = find_approval(log)
+    assert approval_event and approval_event.decision == "modify"
+    assert approval_event.call.arguments == {"x": 1, "y": 1}
+    assert approval_event.modified
+    assert approval_event.modified.arguments == {"x": 2, "y": 3}
+
+    # the tool event and tool message show what ran
+    (tool_event,) = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert (tool_event.function, tool_event.arguments) == ("addition", {"x": 2, "y": 3})
+    (tool_message,) = [m for m in sample.messages if isinstance(m, ChatMessageTool)]
+    assert tool_message.text == "5"
+
+
+def test_modify_to_another_function_fails_the_sample() -> None:
+    """A `modify` may not change the function: the sample fails and nothing runs."""
+    calls: list[str] = []
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition(), echo(calls)), generate()],
+        scorer=match(numeric=True),
+    )
+    policy = ApprovalPolicy(
+        approver=modifying_approver({"text": "2"}, function="echo"), tools="addition"
+    )
+    log = eval(task, model=approval_model(), approval=[policy])[0]
+
+    assert log.status == "error"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is not None
+    assert "modified call to 'echo' for a call to 'addition'" in sample.error.message
+    assert "may change only the arguments" in sample.error.message
+    assert calls == []
+    (tool_event,) = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert tool_event.function == "addition"
+    assert tool_event.failed is True
+    assert not any(isinstance(m, ChatMessageTool) for m in sample.messages)
+
+
+async def test_execute_tools_modify_to_another_function_runs_neither_tool() -> None:
+    import pytest
+
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._tool_def import ToolDef
+
+    proposed_calls: list[str] = []
+    target_calls: list[str] = []
+    target = ToolDef(echo(target_calls), name="target")
+    call = ToolCall(id="test", function="echo", arguments={"text": "proposed"})
+
+    with pytest.raises(RuntimeError, match="may change only the arguments"):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [ToolDef(echo(proposed_calls)), target],
+            approval=[
+                ApprovalPolicy(
+                    approver=modifying_approver({"text": "target"}, function="target"),
+                    tools="*",
+                )
+            ],
+        )
+
+    assert proposed_calls == []
+    assert target_calls == []
 
 
 if __name__ == "__main__":
