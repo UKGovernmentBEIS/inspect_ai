@@ -179,8 +179,8 @@ from .util import (
     client_request_string,
     client_response_schema,
     relax_tool_choice_for_withheld,
+    resolve_bridge_model,
     resolve_generate_config,
-    resolve_inspect_model,
     tool_choice_from_openai_string,
     validate_bridge_media,
     validate_client_config,
@@ -216,13 +216,15 @@ async def inspect_responses_api_request_impl(
 ) -> Response:
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(
+    routing = resolve_bridge_model(
         bridge_model_name,
-        bridge.model_aliases,
-        bridge.model,
+        model_aliases=bridge.model_aliases,
         model_resolver=bridge.model_resolver,
+        model=bridge.model,
+        allow_client_model_names=bridge.allow_client_model_names,
         provider="openai",
     )
+    model = routing.model
     model_name = model.api.model_name
     is_openai = _is_openai_responses_provider(model)
 
@@ -334,6 +336,7 @@ async def inspect_responses_api_request_impl(
         declared_in_input=lambda messages: _declarations_in_input(
             messages, web_search, code_execution, bridge
         ),
+        routing=routing,
     )
     if c_message is not None:
         messages.append(c_message)
@@ -875,8 +878,10 @@ def messages_from_responses_input(
 
         if len(pending_assistant_message_params) > 0:
             content: list[Content] = []
+            content_groups: list[list[Content]] = []
             tool_calls: list[ToolCall] = []
             for param in pending_assistant_message_params:
+                content_start = len(content)
                 # convert simple assistant message to standard format
                 if is_simple_assistant_message(param):
                     if isinstance(param["content"], str):
@@ -1055,8 +1060,10 @@ def messages_from_responses_input(
                         f"Unexpected assitant message type: {param['type']}"
                     )
 
+                content_groups.append(content[content_start:])
+
             # some scaffolds (e.g. codex) can present duplicate assistant content
-            content = filter_duplicate_assistant_content(content)
+            content = filter_duplicate_assistant_content(content_groups)
 
             messages.append(
                 ChatMessageAssistant(
@@ -1245,19 +1252,26 @@ def _tool_content_from_openai_tool_output(
 
 
 def filter_duplicate_assistant_content(
-    input: list[Content],
+    input: list[list[Content]],
 ) -> list[Content]:
-    """Remove repeated scaffold content without conflating blocks sharing state."""
+    """Remove scaffold repeats across input items, preserving blocks within an item.
+
+    A provider message may legitimately contain identical state-bearing text
+    blocks. Only compare a block against content from later input items.
+    """
     filtered_input: list[Content] = []
     seen_content: set[str] = set()
-    for c in reversed(input):
-        if c.type == "text" and c.internal:
-            key = c.model_dump_json()
-            if key not in seen_content:
+    for group in reversed(input):
+        group_keys: set[str] = set()
+        for c in reversed(group):
+            if c.type == "text" and c.internal:
+                key = c.model_dump_json()
+                if key not in seen_content:
+                    filtered_input.append(c)
+                group_keys.add(key)
+            else:
                 filtered_input.append(c)
-                seen_content.add(key)
-        else:
-            filtered_input.append(c)
+        seen_content.update(group_keys)
     return list(reversed(filtered_input))
 
 

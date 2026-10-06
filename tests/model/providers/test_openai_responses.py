@@ -2899,8 +2899,10 @@ def test_responses_bridge_preserves_multiple_internal_blocks(as_list: bool) -> N
 
 
 @pytest.mark.parametrize("duplicate", [False, True])
+@pytest.mark.parametrize("texts", [["first", "second"], ["first", "middle", "first"]])
 def test_responses_bridge_replays_distinct_blocks_with_shared_state(
     duplicate: bool,
+    texts: list[str],
 ) -> None:
     from typing import Any, cast
 
@@ -2912,26 +2914,20 @@ def test_responses_bridge_replays_distinct_blocks_with_shared_state(
     from inspect_ai.model._openai_responses import MESSAGE_ID
 
     internal: dict[str, JsonValue] = {MESSAGE_ID: "msg_shared"}
-    text = (
-        "first"
-        + content_internal_tag(internal)
-        + "second"
-        + content_internal_tag(internal)
-    )
+    text = "".join(text + content_internal_tag(internal) for text in texts)
     item = cast(ResponseInputItemParam, {"role": "assistant", "content": text})
     [message] = messages_from_responses_input(
         [item, item] if duplicate else [item], tools=[]
     )
     assert message.content == [
-        ContentText(text="first", internal=internal),
-        ContentText(text="second", internal=internal),
+        ContentText(text=text, internal=internal) for text in texts
     ]
     assert isinstance(message, ChatMessageAssistant)
     [replayed_item] = _openai_input_items_from_chat_message_assistant(message)
     replayed = cast(dict[str, Any], replayed_item)
     assert replayed["type"] == "message"
     assert replayed["id"] == "msg_shared"
-    assert [part["text"] for part in replayed["content"]] == ["first", "second"]
+    assert [part["text"] for part in replayed["content"]] == texts
 
 
 def test_responses_api_provider_ids_logged_without_raw_calls(tmp_path) -> None:

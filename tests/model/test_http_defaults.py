@@ -1096,7 +1096,7 @@ class TestAnthropicDefaults:
 
 
 class TestAnthropicClientLifetime:
-    """`aclose()` + `initialize()` is the auth-retry path (_model.py before_retry)."""
+    """`aclose()` + `initialize()` is the rebuild path of `refresh_credentials()`."""
 
     async def test_reinitialize_rebuilds_our_closed_client(self) -> None:
         # Reusing a closed client fails every later request with
