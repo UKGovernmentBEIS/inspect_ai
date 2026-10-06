@@ -47,16 +47,16 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
             max_batch_size_mb=200,
         )
         self._client = client
-        # Batch operations running on each client, so a replaced client is
+        # Batch API calls running on each client, so a replaced client is
         # closed only once nothing uses it.
         self._client_users: dict[AsyncClient, int] = {}
 
     async def replace_client(self, client: AsyncClient) -> None:
-        """Run later batch operations on `client`.
+        """Send later batch API calls on `client`.
 
         A credential refresh needs a new client, since an xAI client fixes its
-        API key when it is built. Operations already running keep the old
-        client, which is closed when the last of them ends.
+        API key when it is built. Calls already running keep the old client,
+        which is closed when the last of them ends.
         """
         old_client = self._client
         self._client = client
@@ -65,6 +65,11 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
 
     @asynccontextmanager
     async def _use_client(self) -> AsyncIterator[AsyncClient]:
+        """The current client, for one RPC.
+
+        Hold it for a single call only, so the next call after a credential
+        refresh uses the new client.
+        """
         client = self._client
         self._client_users[client] = self._client_users.get(client, 0) + 1
         try:
@@ -78,12 +83,6 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
 
     @override
     async def _create_batch(self, batch_requests: list[BatchRequest[Response]]) -> str:
-        async with self._use_client() as client:
-            return await self._create_batch_with(client, batch_requests)
-
-    async def _create_batch_with(
-        self, client: AsyncClient, batch_requests: list[BatchRequest[Response]]
-    ) -> str:
         requests: list[BaseChat] = []
         for batch_request in batch_requests:
             request_size_bytes = len(
@@ -121,19 +120,21 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
                 )
 
             request["batch_request_id"] = batch_request.custom_id
-            requests.append(client.chat.create(**request))
+            requests.append(self._client.chat.create(**request))
 
-        batch = await client.batch.create(
-            batch_name=f"inspect_batch_{int(time.time())}"
-        )
+        async with self._use_client() as client:
+            batch = await client.batch.create(
+                batch_name=f"inspect_batch_{int(time.time())}"
+            )
         # Add requests one-by-one to avoid large gRPC payloads in a single add call.
         # Observed gRPC transport caps (~4MB decode / ~20MB send on packed add)
         # are empirical, not documented API contract.
         for request in requests:
-            await client.batch.add(
-                batch_id=batch.batch_id,
-                batch_requests=[request],
-            )
+            async with self._use_client() as client:
+                await client.batch.add(
+                    batch_id=batch.batch_id,
+                    batch_requests=[request],
+                )
         return cast(str, batch.batch_id)
 
     @override
@@ -174,20 +175,15 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
         downloadable JSONL result files, so this provider handles paging and
         request-id mapping here instead of using FileBatcher.
         """
-        async with self._use_client() as client:
-            return await self._batch_results(client, batch)
-
-    async def _batch_results(
-        self, client: AsyncClient, batch: Batch[Response]
-    ) -> dict[str, Response | Exception]:
         results: dict[str, Response | Exception] = {}
         pagination_token: str | None = None
 
         while True:
-            result_page = await client.batch.list_batch_results(
-                batch_id=batch.id,
-                pagination_token=pagination_token,
-            )
+            async with self._use_client() as client:
+                result_page = await client.batch.list_batch_results(
+                    batch_id=batch.id,
+                    pagination_token=pagination_token,
+                )
 
             for result in result_page.results:
                 if result.batch_request_id not in batch.requests:

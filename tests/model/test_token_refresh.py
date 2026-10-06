@@ -739,7 +739,9 @@ class _GrokBatchServer(grpc.GenericRpcHandler):
     `token` is the key the provider's key hook supplies. The "parallel"
     batch's status check stays in flight once the "auth" batch exists, until
     the test sets `refreshed`. The "auth" batch's first status check fails
-    authentication, after which the old key is rejected.
+    authentication, after which the old key is rejected. With `hold` set, the
+    first call of that method waits after authenticating until the test sets
+    `release`, and results come in two pages.
     """
 
     def __init__(self, parallel_status: grpc.StatusCode) -> None:
@@ -752,6 +754,9 @@ class _GrokBatchServer(grpc.GenericRpcHandler):
         self.markers: dict[str, str] = {}
         self.request_ids: dict[str, str] = {}
         self.batch_keys: dict[str, list[str]] = {}
+        self.hold: str | None = None
+        self.held = anyio.Event()
+        self.release = anyio.Event()
 
     def keys_by_marker(self) -> dict[str, list[list[str]]]:
         """The keys each prompt's batches were sent with, repeats removed."""
@@ -770,11 +775,17 @@ class _GrokBatchServer(grpc.GenericRpcHandler):
         if self.expired and key == "old-token":
             await context.abort(grpc.StatusCode.UNAUTHENTICATED, "expired")
 
+    async def _hold(self, method: str) -> None:
+        if self.hold == method and not self.held.is_set():
+            self.held.set()
+            await self.release.wait()
+
     async def _create_batch(
         self, request: Any, context: grpc.aio.ServicerContext
     ) -> Any:
         batch_id = f"batch-{len(self.batch_keys)}"
         await self._authenticate(batch_id, context)
+        await self._hold("CreateBatch")
         return _BATCH_PB2.Batch(batch_id=batch_id)
 
     async def _add_batch_requests(
@@ -812,6 +823,9 @@ class _GrokBatchServer(grpc.GenericRpcHandler):
         self, request: Any, context: grpc.aio.ServicerContext
     ) -> Any:
         await self._authenticate(request.batch_id, context)
+        await self._hold("ListBatchResults")
+        if self.hold is not None and not request.pagination_token:
+            return _BATCH_PB2.ListBatchResultsResponse(pagination_token="page-2")
         completion = _CHAT_PB2.GetChatCompletionResponse(
             id="grok-response",
             outputs=[
@@ -998,4 +1012,37 @@ async def test_grok_batch_refresh_replaces_idle_client(
         }
         assert old_client_closed
         assert len(clients) == 2
+        assert not clients[1].closed
+
+
+@skip_if_trio
+@pytest.mark.parametrize("method", ["CreateBatch", "ListBatchResults"])
+async def test_grok_batch_refresh_during_multi_call_operation(
+    monkeypatch: pytest.MonkeyPatch, method: str
+) -> None:
+    """A refresh between the calls of one batch operation applies to the next call.
+
+    Creating a batch adds its requests in later calls, and results can span
+    several pages. The call in flight finishes with the old key; the old key
+    then expires, so the following calls must use the new one.
+    """
+    server = _GrokBatchServer(grpc.StatusCode.OK)
+    server.hold = method
+    closed_at_refresh: list[bool] = []
+    async with _grok_batch_provider(monkeypatch, server) as (api, clients):
+
+        async def refresh() -> None:
+            await server.held.wait()
+            server.token = "new-token"
+            server.expired = True
+            await api.refresh_credentials()
+            closed_at_refresh.append(clients[0].closed)
+            server.release.set()
+
+        with anyio.fail_after(10):
+            await tg_collect([lambda: _grok_batch_generate(api, "held"), refresh])
+        assert server.keys_by_marker() == {"held": [["old-token", "new-token"]]}
+        assert closed_at_refresh == [False]
+        assert len(clients) == 2
+        assert clients[0].closed
         assert not clients[1].closed
