@@ -47,6 +47,8 @@ from ._model_output import (
     StopReason,
     TopLogprob,
 )
+from ._reference import Reference
+from ._target import Target
 from ._tool_call import (
     ToolCall,
     ToolCallContent,
@@ -58,6 +60,7 @@ from ._tool_call import (
 from ._tool_choice import ToolChoice, ToolFunction
 from ._tool_info import INTERNAL_TOOL_TYPE, ToolInfo, internal_tool_type
 from ._tool_params import ToolParam, ToolParams
+from ._tool_result import ToolResult
 
 __all__ = [
     "AdaptiveConcurrency",
@@ -72,9 +75,9 @@ __all__ = [
     "ChatMessageUser",
     "Citation",
     "CitationBase",
-    "ContentCitation",
     "Content",
     "ContentAudio",
+    "ContentCitation",
     "ContentData",
     "ContentDocument",
     "ContentImage",
@@ -87,6 +90,7 @@ __all__ = [
     "GenerateConfigArgs",
     "ImageOutput",
     "INTERNAL_TOOL_TYPE",
+    "internal_tool_type",
     "JSONSchema",
     "JSONType",
     "Logprob",
@@ -95,10 +99,12 @@ __all__ = [
     "ModelOutput",
     "ModelUsage",
     "OutputModality",
+    "Reference",
     "ResponseSchema",
     "StopCategory",
     "StopDetails",
     "StopReason",
+    "Target",
     "ToolCall",
     "ToolCallContent",
     "ToolCallError",
@@ -110,7 +116,7 @@ __all__ = [
     "ToolInfo",
     "ToolParam",
     "ToolParams",
+    "ToolResult",
     "TopLogprob",
     "UrlCitation",
-    "internal_tool_type",
 ]
