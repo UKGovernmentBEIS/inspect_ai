@@ -368,6 +368,57 @@ def test_throughput_table_renders_rates_and_backoff(
     assert "310.2" in healthy and healthy.rstrip().endswith("-")
 
 
+def test_throughput_table_renders_input_and_cache_rates(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    base = {
+        "output_tokens_per_second": 41.7,
+        "requests_per_minute": 12.0,
+        "retries_per_minute": 0.0,
+        "retry_waits_active": 0,
+        "cumulative": {"retry_wait_seconds": 0},
+    }
+    _print_throughput_table(
+        [
+            {
+                **base,
+                "model": "anthropic/claude-sonnet-5",
+                "input_tokens_per_minute": 182340.0,
+                "cache_read_tokens_per_minute": 1523000.0,
+                "cache_write_tokens_per_minute": 45210.0,
+            },
+            {
+                **base,
+                "model": "openai/gpt-5",
+                "input_tokens_per_minute": 950.4,
+                "cache_read_tokens_per_minute": 0.0,
+                "cache_write_tokens_per_minute": 0.0,
+            },
+            # older server: the new keys are absent
+            {**base, "model": "google/gemini-3-pro"},
+        ]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    header = lines[0]
+    assert len(header) < 120
+    rows = {ln.split()[0]: ln for ln in lines[2:]}
+
+    def cell(row: str, column: str) -> str:
+        start = header.index(column)
+        return row[start : start + len(column)].strip()
+
+    claude = rows["anthropic/claude-sonnet-5"]
+    assert cell(claude, "in tok/min") == "182.3k"
+    assert cell(claude, "cache rd/wr/min") == "1.5M/45.2k"
+    gpt = rows["openai/gpt-5"]
+    assert cell(gpt, "in tok/min") == "950"
+    assert cell(gpt, "cache rd/wr/min") == "0/0"
+    older = rows["google/gemini-3-pro"]
+    assert cell(older, "in tok/min") == ""
+    assert cell(older, "cache rd/wr/min") == ""
+    assert cell(older, "out tok/s") == "41.7"
+
+
 def test_format_backoff() -> None:
     assert _format_backoff(None) == "-"
     assert _format_backoff(0) == "-"

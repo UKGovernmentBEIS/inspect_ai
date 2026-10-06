@@ -64,6 +64,12 @@ async def test_throughput_route_reports_models() -> None:
         assert row["cumulative"]["requests"] == 1
         assert row["cumulative"]["output_tokens"] == 20
         assert row["cumulative"]["retries"] == {"rate_limit": 1, "transient": 0}
+        assert row["input_tokens_per_minute"] > 0
+        assert row["cache_read_tokens_per_minute"] == 0
+        assert row["cache_write_tokens_per_minute"] == 0
+        assert row["cumulative"]["input_tokens"] == 10
+        assert row["cumulative"]["input_tokens_cache_read"] == 0
+        assert row["cumulative"]["input_tokens_cache_write"] == 0
 
 
 async def test_throughput_route_window_validation_and_clamp() -> None:
