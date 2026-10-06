@@ -23,6 +23,7 @@ FRONTIER_MODELS = {
     "openai": "openai/gpt-6-astra",
     "google": "google/gemini-3.8-flash",
     "grok": "grok/grok-4.7",
+    "meta": "meta/muse-spark-1.3",
 }
 """Model info database key of each provider's current frontier model.
 

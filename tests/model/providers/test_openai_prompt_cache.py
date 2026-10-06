@@ -11,6 +11,7 @@ genuine 4-breakpoint request limit.
 
 import random
 import string
+from contextlib import nullcontext
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -69,7 +70,7 @@ def _mock_completions_client(mock_completion: ChatCompletion) -> MagicMock:
 
 def _mock_http_hooks() -> MagicMock:
     http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.request = MagicMock(return_value=nullcontext("req_1"))
     http_hooks.end_request = MagicMock(return_value=None)
     return http_hooks
 

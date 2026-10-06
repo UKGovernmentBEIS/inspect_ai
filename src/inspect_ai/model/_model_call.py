@@ -38,6 +38,19 @@ The second parameter is the value. Return a modified value if appropriate.
 """
 
 
+class ModelRequestId(BaseModel):
+    """Provider request id from an HTTP response."""
+
+    id: str
+    """Request id."""
+
+    header: str
+    """Response header the id was read from (e.g. `x-request-id`)."""
+
+    status: int
+    """HTTP status code of the response."""
+
+
 class ModelCall(BaseModel):
     """Model call (raw request/response data)."""
 
