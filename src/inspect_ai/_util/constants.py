@@ -1,6 +1,14 @@
 from pathlib import Path
 from typing import Any, Literal
 
+# isort: split
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._constants import DESERIALIZING as DESERIALIZING
+from inspect_ai.core._constants import MESSAGE_CACHE as MESSAGE_CACHE
+
+# End of backward-compatible re-exports.
+
+
 PKG_AUTHOR = "UK AI Security Institute"
 PKG_AUTHOR_DIR = "UK-AISI"
 PKG_NAME = Path(__file__).parent.parent.stem
@@ -44,9 +52,6 @@ MODEL_NONE = "none/none"
 DEFAULT_BATCH_SIZE = 100
 DEFAULT_CACHE_DAYS = 7
 DEFAULT_LOG_MODEL_API_CALLS = 5
-
-DESERIALIZING = "deserializing"
-MESSAGE_CACHE = "message_cache"
 
 SKIP_TRANSCRIPT_DISPATCH = "inspect_skip_transcript"
 
