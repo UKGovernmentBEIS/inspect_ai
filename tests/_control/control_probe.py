@@ -161,11 +161,13 @@ class Capture(_Coordinator):
             for row in sample_rows:
                 sid = str(row["sample_id"])
                 epoch = int(row["epoch"])
+                # content=True: the capture is asserted against for error
+                # messages / event text, i.e. the opted-in content tier
                 self.errors[(eval_id, sid, epoch)] = await sample_error_detail(
-                    eval_id, sid, epoch
+                    eval_id, sid, epoch, content=True
                 )
                 self.events[(eval_id, sid, epoch)] = await sample_events(
-                    eval_id, sid, epoch
+                    eval_id, sid, epoch, content=True
                 )
 
     # query helpers -------------------------------------------------------

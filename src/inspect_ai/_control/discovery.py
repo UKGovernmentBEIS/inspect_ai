@@ -57,8 +57,8 @@ class DiscoveredControlServer:
 
     ``0`` when the discovery file predates the field — the one-time bootstrap
     default for servers launched before version reporting existed. The CLI
-    gates version-dependent knobs on this pre-flight (see ``_KNOB_SINCE`` in
-    ``inspect_ai._cli.ctl``).
+    gates version-dependent client behavior on this pre-flight (see
+    ``_PROVENANCE_SINCE`` in ``inspect_ai._cli.ctl``).
     """
 
 

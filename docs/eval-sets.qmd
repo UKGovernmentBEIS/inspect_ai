@@ -40,7 +40,9 @@ success, logs = eval_set(
 )
 ```
 
-Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.
+Note that in both cases we specified a custom log directory. The log directory is the scope in which an eval set's completed work is tracked, so each eval set wants one of its own. It defaults to `INSPECT_LOG_DIR` or `./logs`, which is fine when you run a single eval set within a parent directory.
+
+To give each model its own generation config, model args, or base url, use one `--model-spec` option per model instead of `--model`. This also lets an eval set run the same model more than once with different options. See [Multiple Models](models.qmd#multiple-models).
 
 Eval sets often run for a long time: to run one in the background, detached from your terminal, launch it with `--detach` and monitor it with `inspect ctl` (see [Detached Launch](control-channel.qmd#detached-launch)).
 
@@ -164,7 +166,7 @@ See the [Inspect Flow documentation](https://meridianlabs-ai.github.io/inspect_f
 
 ## Logging Context
 
-We mentioned above that you need to specify a dedicated log directory for each eval set that you run. This requirement exists for a couple of reasons:
+We mentioned above that each eval set you run wants a dedicated log directory. That matters for a couple of reasons:
 
 1.  The log directory provides a durable record of which tasks are completed so that you can run the eval set as many times as is required to finish all of the work. For example, you might get halfway through a run and then encounter provider rate limit errors. You'll want to be able to restart the eval set later (potentially even many hours later) and the dedicated log directory enables you to do this.
 

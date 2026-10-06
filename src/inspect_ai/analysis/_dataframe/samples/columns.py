@@ -77,6 +77,7 @@ SampleSummary: list[Column] = [
     SampleColumn("token_limit_usage", path="token_limit_usage", default=None),
     SampleColumn("error", path="error", default=""),
     SampleColumn("limit", path="limit"),
+    SampleColumn("limit_reason", path="limit_reason", default=None),
     SampleColumn("retries", path="retries"),
     SampleColumn("fallbacks", path=sample_total_fallbacks),
 ]

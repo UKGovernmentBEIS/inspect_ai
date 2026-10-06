@@ -55,8 +55,13 @@ from inspect_ai._util.error import PrerequisiteError, SilentException
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate
 
-# `_isolate_active_model` (autouse) and `short_data_dir` come from
-# tests/_control/conftest.py.
+# `isolate_active_model` (autouse) comes from tests/conftest.py, and
+# `short_data_dir` from tests/_control/conftest.py.
+
+# The handoff's subject is the default-on control surface (its socket path,
+# and `inspect eval` subprocesses that must bind one), so opt out of the
+# suite-wide control-server disable.
+pytestmark = pytest.mark.real_ctl_server
 
 
 @pytest.fixture

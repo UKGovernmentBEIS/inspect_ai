@@ -13,13 +13,18 @@ from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from ...model import ChatMessage, GenerateConfig
 from .._model import RetryDecision
 from .._openai import fill_empty_assistant_content
-from .util import environment_prerequisite_error
+from .util import environment_prerequisite_error, sample_cache_affinity_key
 
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
 # https://developers.cloudflare.com/workers-ai/configuration/open-ai-compatibility/
 
 CLOUDFLARE_API_KEY = "CLOUDFLARE_API_KEY"
 CLOUDFLARE_API_TOKEN = "CLOUDFLARE_API_TOKEN"
+
+# Routes requests carrying the same id to the same model instance, so a later
+# turn can hit the prefix cache an earlier one populated.
+# https://developers.cloudflare.com/workers-ai/features/prompt-caching/
+SESSION_AFFINITY_HEADER = "x-session-affinity"
 
 
 class CloudFlareAPI(OpenAICompatibleAPI):
@@ -62,6 +67,11 @@ class CloudFlareAPI(OpenAICompatibleAPI):
         self, input: list[ChatMessage]
     ) -> list[ChatCompletionMessageParam]:
         return fill_empty_assistant_content(await super().messages_to_openai(input))
+
+    @override
+    def request_headers(self, config: GenerateConfig) -> dict[str, str]:
+        session_id = sample_cache_affinity_key()
+        return {SESSION_AFFINITY_HEADER: session_id} if session_id else {}
 
     @override
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:

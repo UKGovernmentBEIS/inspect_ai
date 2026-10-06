@@ -1,5 +1,6 @@
 import json
 from collections.abc import Callable
+from logging import getLogger
 from typing import Any, Literal, Sequence
 
 from mistralai.client import Mistral
@@ -40,8 +41,9 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import inline_media_data_uri, provider_image_data_uri
+from inspect_ai._util.logger import warn_once
+from inspect_ai._util.url import is_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._providers.util.util import split_system_messages
@@ -64,6 +66,8 @@ from .._model_output import (
 )
 from .util.hooks import HttpxHooks
 
+logger = getLogger(__name__)
+
 
 async def mistral_conversation_generate(
     client: Mistral,
@@ -76,44 +80,46 @@ async def mistral_conversation_generate(
     handle_bad_request: Callable[[SDKError], ModelOutput | Exception],
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # build request
-    request_id = http_hooks.start_request()
-    instructions, inputs = await mistral_conversation_inputs(input, config)
-    completion_args = mistral_conversation_completion_args(
-        config, tool_choice if len(tools) > 0 else None
-    )
-    request: dict[str, Any] = dict(
-        model=model,
-        instructions=instructions or UNSET,
-        inputs=inputs,
-        tools=mistral_conversation_tools(tools) if len(tools) > 0 else UNSET,
-        completion_args=completion_args,
-        store=False,
-        http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
-        | (config.extra_headers or {}),
-    )
-
-    model_call = set_active_model_event_call(
-        request=request,
-    )
-
-    # send request
-    try:
-        conv_response = await client.beta.conversations.start_async(**request)
-
-        model_call.set_response(
-            conv_response.model_dump(), http_hooks.end_request(request_id)
+    with http_hooks.request() as request_id:
+        instructions, inputs = await mistral_conversation_inputs(input, config)
+        completion_args = mistral_conversation_completion_args(
+            config, tool_choice if len(tools) > 0 else None
         )
-    except SDKError as ex:
-        model_call.set_error(
-            {"error": {"message": str(ex)}}, http_hooks.end_request(request_id)
+        request: dict[str, Any] = dict(
+            model=model,
+            instructions=instructions or UNSET,
+            inputs=inputs,
+            tools=mistral_conversation_tools(tools) if len(tools) > 0 else UNSET,
+            completion_args=completion_args,
+            store=False,
+            http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+            | (config.extra_headers or {}),
         )
-        if ex.status_code == 400:
-            return handle_bad_request(ex), model_call
-        else:
-            raise ex
+
+        model_call = set_active_model_event_call(
+            request=request,
+        )
+
+        # send request
+        try:
+            conv_response = await client.beta.conversations.start_async(**request)
+
+            model_call.set_response(
+                conv_response.model_dump(), http_hooks.end_request(request_id)
+            )
+        except SDKError as ex:
+            model_call.set_error(
+                {"error": {"message": str(ex)}}, http_hooks.end_request(request_id)
+            )
+            if ex.status_code == 400:
+                return handle_bad_request(ex), model_call
+            else:
+                raise ex
 
     # return model output (w/ tool calls if they exist)
-    choices = completion_choices_from_conversation_response(model, conv_response, tools)
+    choices = await completion_choices_from_conversation_response(
+        model, conv_response, tools
+    )
     return ModelOutput(
         model=model,
         choices=choices,
@@ -127,6 +133,7 @@ async def mistral_conversation_generate(
             ),
             total_tokens=conv_response.usage.total_tokens or 0,
         ),
+        response_id=conv_response.conversation_id,
     ), model_call
 
 
@@ -343,8 +350,7 @@ async def mistral_content_chunk(
     if isinstance(content, ContentText):
         return TextChunk(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentImage):
-        # resolve image to url
-        image_url = await file_as_data_uri(content.image)
+        image_url = inline_media_data_uri(content.image, "image")
         return ImageURLChunk(
             image_url=ImageURL(
                 url=image_url,
@@ -354,15 +360,12 @@ async def mistral_content_chunk(
     elif isinstance(content, ContentReasoning):
         return ThinkChunk(thinking=[TextChunk(text=content.reasoning)])
     elif isinstance(content, ContentDocument):
-        if is_http_url(content.document):
-            return DocumentURLChunk(
-                document_url=content.document, document_name=content.filename
-            )
-        else:
-            file_data_uri = await file_as_data_uri(content.document)
-            return DocumentURLChunk(
-                document_url=file_data_uri, document_name=content.filename
-            )
+        file_data_uri = inline_media_data_uri(
+            content.document, "document", mime_type_hint=content.mime_type
+        )
+        return DocumentURLChunk(
+            document_url=file_data_uri, document_name=content.filename
+        )
 
     else:
         raise ValueError(
@@ -370,7 +373,7 @@ async def mistral_content_chunk(
         )
 
 
-def completion_choices_from_conversation_response(
+async def completion_choices_from_conversation_response(
     model: str, response: ConversationResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
     content: list[Content] = []
@@ -409,14 +412,14 @@ def completion_choices_from_conversation_response(
                                 break
                         # append content
                         content.append(
-                            content_from_mistral_content_chunk(
+                            await content_from_mistral_content_chunk(
                                 c, citations if len(citations) > 0 else None
                             )
                         )
                     elif isinstance(c, ToolReferenceChunk):
                         pass  # already scooped up by lookahead
                     elif isinstance(c, ImageURLChunk | ThinkChunk):
-                        content.append(content_from_mistral_content_chunk(c))
+                        content.append(await content_from_mistral_content_chunk(c))
                     else:
                         raise ValueError(
                             f"Unexpected content type from mistral: {type(c)}"
@@ -467,7 +470,37 @@ def completion_choices_from_conversation_response(
     ]
 
 
-def content_from_mistral_content_chunk(
+def mistral_output_image(
+    image: str, detail: Literal["auto", "low", "high"]
+) -> ContentImage | ContentText:
+    """Convert an image returned in Mistral model output to content.
+
+    Inline data URIs are validated and kept as images. Other references are
+    not downloaded, since the host would fetch whatever URL the model wrote,
+    and not kept as images, since a log viewer would fetch them. They become
+    text that records the reference.
+
+    Args:
+        image: Image reference from an `ImageURLChunk`.
+        detail: Image detail level for an inline image.
+
+    Returns:
+        The validated image, or text recording the reference that was not
+        downloaded.
+    """
+    if is_data_uri(image):
+        return ContentImage(image=provider_image_data_uri(image), detail=detail)
+    warn_once(
+        logger,
+        "Mistral returned an image URL in model output. Inspect does not download "
+        "image URLs from model output, so the URL is recorded as text.",
+    )
+    return ContentText(
+        text=f"[Image URL returned by the model, not downloaded: {image}]"
+    )
+
+
+async def content_from_mistral_content_chunk(
     chunk: TextChunk | ImageURLChunk | ThinkChunk,
     citations: Sequence[Citation] | None = None,
 ) -> Content:
@@ -476,11 +509,11 @@ def content_from_mistral_content_chunk(
             return ContentText(text=chunk.text, citations=citations)
         case ImageURLChunk():
             if isinstance(chunk.image_url, str):
-                return ContentImage(image=chunk.image_url, detail="auto")
+                return mistral_output_image(chunk.image_url, "auto")
             else:
-                return ContentImage(
-                    image=chunk.image_url.url,
-                    detail=chunk.image_url.detail  # type: ignore[arg-type]
+                return mistral_output_image(
+                    chunk.image_url.url,
+                    chunk.image_url.detail  # type: ignore[arg-type]
                     if isinstance(chunk.image_url.detail, str)
                     else "auto",
                 )

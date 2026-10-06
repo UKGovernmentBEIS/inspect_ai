@@ -1,10 +1,20 @@
-import pytest
-from test_helpers.utils import skip_if_no_mistral, skip_if_no_mistral_package
+import json
+import logging
+from typing import Any, Literal
 
-from inspect_ai._util.content import ContentImage
+import httpx2
+import pytest
+from test_helpers.utils import (
+    no_network,
+    skip_if_no_mistral,
+    skip_if_no_mistral_package,
+)
+
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
+    ModelOutput,
     get_model,
 )
 from inspect_ai.tool import (
@@ -116,34 +126,156 @@ async def test_mistral_with_description_parameter(tiktok_tool_with_description_p
 
 
 @skip_if_no_mistral_package
-def test_completion_content_chunks_image_url_string():
+async def test_completion_content_chunks_image_url_string():
     """Test that ImageURLChunk with string URL converts to ContentImage."""
     from mistralai.client.models import ImageURLChunk
 
     from inspect_ai.model._providers.mistral import completion_content_chunks
 
-    chunk = ImageURLChunk(image_url="data:image/png;base64,abc123")
-    result = completion_content_chunks(chunk)
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(image_url=image)
+    result = await completion_content_chunks(chunk)
     assert len(result) == 1
     assert isinstance(result[0], ContentImage)
-    assert result[0].image == "data:image/png;base64,abc123"
+    assert result[0].image == image
+
+
+def _assert_image_url_placeholder(content: Any, url: str) -> None:
+    assert isinstance(content, ContentText)
+    assert content.text == f"[Image URL returned by the model, not downloaded: {url}]"
 
 
 @skip_if_no_mistral_package
-def test_completion_content_chunks_image_url_object():
-    """Test that ImageURLChunk with ImageURL object converts to ContentImage with detail."""
+@pytest.mark.parametrize("detail", [None, "high"])
+async def test_completion_content_chunks_image_url_is_not_downloaded(
+    detail: Literal["low", "high"] | None,
+) -> None:
     from mistralai.client.models import ImageURL, ImageURLChunk
 
     from inspect_ai.model._providers.mistral import completion_content_chunks
 
+    url = "https://example.com/img.png"
     chunk = ImageURLChunk(
-        image_url=ImageURL(url="https://example.com/img.png", detail="high")
+        image_url=url if detail is None else ImageURL(url=url, detail=detail)
     )
-    result = completion_content_chunks(chunk)
+    with no_network() as (getaddrinfo, connect):
+        result = await completion_content_chunks(chunk)
+
+    getaddrinfo.assert_not_called()
+    connect.assert_not_called()
+    assert len(result) == 1
+    _assert_image_url_placeholder(result[0], url)
+
+
+@skip_if_no_mistral_package
+async def test_completion_content_chunks_data_uri_object_keeps_detail() -> None:
+    from mistralai.client.models import ImageURL, ImageURLChunk
+
+    from inspect_ai.model._providers.mistral import completion_content_chunks
+
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(image_url=ImageURL(url=image, detail="high"))
+    with no_network():
+        result = await completion_content_chunks(chunk)
+
     assert len(result) == 1
     assert isinstance(result[0], ContentImage)
-    assert result[0].image == "https://example.com/img.png"
+    assert result[0].image == image
     assert result[0].detail == "high"
+
+
+@skip_if_no_mistral_package
+async def test_mistral_output_url_placeholder_replays_as_text() -> None:
+    from mistralai.client.models import ImageURL, ImageURLChunk, TextChunk
+
+    from inspect_ai.model._providers.mistral import (
+        completion_content_chunks,
+        mistral_content_chunk,
+    )
+
+    url = "https://example.com/img.png"
+    chunk = ImageURLChunk(image_url=ImageURL(url=url, detail="high"))
+    with no_network():
+        content = (await completion_content_chunks(chunk))[0]
+        replayed = await mistral_content_chunk(content)
+
+    _assert_image_url_placeholder(content, url)
+    assert isinstance(content, ContentText)
+    assert isinstance(replayed, TextChunk)
+    assert replayed.text == content.text
+
+
+@skip_if_no_mistral_package
+@pytest.mark.parametrize("detail", [None, "low"])
+async def test_mistral_conversation_output_url_is_not_downloaded(
+    detail: Literal["low", "high"] | None,
+) -> None:
+    from mistralai.client.models import ImageURL, ImageURLChunk
+
+    from inspect_ai.model._providers.mistral_conversation import (
+        content_from_mistral_content_chunk,
+    )
+
+    url = "https://example.com/img.png"
+    chunk = ImageURLChunk(
+        image_url=url if detail is None else ImageURL(url=url, detail=detail)
+    )
+    with no_network() as (getaddrinfo, connect):
+        content = await content_from_mistral_content_chunk(chunk)
+
+    getaddrinfo.assert_not_called()
+    connect.assert_not_called()
+    _assert_image_url_placeholder(content, url)
+
+
+@skip_if_no_mistral_package
+@pytest.mark.parametrize("detail", [None, "low"])
+async def test_mistral_conversation_output_data_uri_unchanged(
+    detail: Literal["low", "high"] | None,
+) -> None:
+    from mistralai.client.models import ImageURL, ImageURLChunk
+
+    from inspect_ai.model._providers.mistral_conversation import (
+        content_from_mistral_content_chunk,
+    )
+
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(
+        image_url=image if detail is None else ImageURL(url=image, detail=detail)
+    )
+    with no_network():
+        content = await content_from_mistral_content_chunk(chunk)
+
+    assert isinstance(content, ContentImage)
+    assert content.image == image
+    assert content.detail == (detail or "auto")
+
+
+@skip_if_no_mistral_package
+async def test_mistral_output_image_url_warns_once(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from mistralai.client.models import ImageURLChunk
+
+    from inspect_ai.model._providers.mistral import completion_content_chunks
+    from inspect_ai.model._providers.mistral_conversation import (
+        content_from_mistral_content_chunk,
+    )
+
+    monkeypatch.setattr("inspect_ai._util.logger._warned", [])
+    with no_network(), caplog.at_level(logging.WARNING):
+        await completion_content_chunks(
+            ImageURLChunk(image_url="https://example.com/a.png")
+        )
+        await content_from_mistral_content_chunk(
+            ImageURLChunk(image_url="https://example.org/b.png")
+        )
+
+    warnings = [
+        r for r in caplog.records if "does not download image URLs" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert "example" not in warnings[0].getMessage()
 
 
 @skip_if_no_mistral_package
@@ -155,7 +287,7 @@ async def test_mistral_chat_forwards_config_extra_headers() -> None:
     from unittest import mock
     from unittest.mock import AsyncMock, MagicMock
 
-    import httpx
+    import httpx2
 
     from inspect_ai.model._providers.mistral import MistralAPI
     from inspect_ai.model._providers.util.hooks import HttpxHooks
@@ -175,7 +307,7 @@ async def test_mistral_chat_forwards_config_extra_headers() -> None:
     client = MagicMock()
     client.__enter__.return_value = client
     client.__exit__.return_value = False
-    client.sdk_configuration.async_client = httpx.AsyncClient()
+    client.sdk_configuration.async_client = httpx2.AsyncClient()
     client.chat.complete_async = AsyncMock(side_effect=_capture)
 
     with mock.patch("inspect_ai.model._providers.mistral.Mistral", return_value=client):
@@ -213,7 +345,7 @@ async def test_mistral_chat_forwards_reasoning_effort() -> None:
     from unittest import mock
     from unittest.mock import AsyncMock, MagicMock
 
-    import httpx
+    import httpx2
 
     from inspect_ai.model._providers.mistral import MistralAPI
 
@@ -233,7 +365,7 @@ async def test_mistral_chat_forwards_reasoning_effort() -> None:
         client = MagicMock()
         client.__enter__.return_value = client
         client.__exit__.return_value = False
-        client.sdk_configuration.async_client = httpx.AsyncClient()
+        client.sdk_configuration.async_client = httpx2.AsyncClient()
         client.chat.complete_async = AsyncMock(side_effect=_capture)
 
         with mock.patch(
@@ -251,3 +383,697 @@ async def test_mistral_chat_forwards_reasoning_effort() -> None:
     assert await request_effort(GenerateConfig(reasoning_effort="low")) == "high"
     assert await request_effort(GenerateConfig(reasoning_effort="none")) == "none"
     assert await request_effort(GenerateConfig()) == "OMITTED"
+
+
+# -- Streaming (on_stream) ------------------------------------------------------
+
+
+class _StreamCollector:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    async def __call__(self, event: Any) -> None:
+        self.events.append(event)
+
+
+@skip_if_no_mistral_package
+def test_mistral_resolve_streaming_honors_on_stream() -> None:
+    """Unset streaming is "auto": stream iff the caller passed on_stream."""
+    from inspect_ai.model import ResponseSchema
+    from inspect_ai.model._providers.mistral import MistralAPI
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+    from inspect_ai.util._json import JSONSchema
+
+    def _api(**kwargs: Any) -> MistralAPI:
+        return MistralAPI(model_name="mistral-large-latest", api_key="test", **kwargs)
+
+    config = GenerateConfig()
+    collector = _StreamCollector()
+
+    api = _api()
+    assert api.streaming is None
+    assert api.resolve_streaming(config) is False
+    with model_stream_observer(ModelStreamObserver("test", collector)):
+        assert api.resolve_streaming(config) is True
+
+        # auto mode declines requests carrying a response_schema
+        schema_config = GenerateConfig(
+            response_schema=ResponseSchema(
+                name="schema", json_schema=JSONSchema(type="object")
+            )
+        )
+        assert api.resolve_streaming(schema_config) is False
+        assert _api(streaming=True).resolve_streaming(schema_config) is True
+
+        # explicit opt-out wins over an on_stream callback
+        assert _api(streaming=False).resolve_streaming(config) is False
+
+    # explicit opt-in streams without a callback
+    assert _api(streaming=True).resolve_streaming(config) is True
+
+    # -M args are YAML-parsed so "auto" arrives as a string; a typo'd value
+    # raises rather than silently forcing streaming on or off
+    assert _api(streaming="auto").streaming is None
+    with pytest.raises(ValueError, match="streaming"):
+        _api(streaming="always")
+
+
+@skip_if_no_mistral_package
+async def test_mistral_completion_from_stream() -> None:
+    """The stream accumulator reconstructs the completion and reports deltas."""
+    from mistralai.client.models import (
+        CompletionChunk,
+        CompletionEvent,
+        CompletionResponseStreamChoice,
+        DeltaMessage,
+        FunctionCall,
+        TextChunk,
+        ThinkChunk,
+        ToolCall,
+        UsageInfo,
+    )
+
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+    from inspect_ai.model._stream import (
+        ModelStreamObserver,
+        StreamReasoningEvent,
+        StreamTextEvent,
+        StreamToolCallEvent,
+        model_stream_observer,
+    )
+
+    def _chunk(
+        choices: list[CompletionResponseStreamChoice],
+        usage: UsageInfo | None = None,
+    ) -> CompletionEvent:
+        return CompletionEvent(
+            data=CompletionChunk(
+                id="cmpl-1",
+                model="mistral-large-latest",
+                created=123,
+                choices=choices,
+                usage=usage,
+            )
+        )
+
+    events = [
+        # reasoning arrives as ThinkChunk content pieces
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0,
+                    delta=DeltaMessage(
+                        role="assistant",
+                        content=[ThinkChunk(thinking=[TextChunk(text="hmm")])],
+                    ),
+                    finish_reason=None,
+                )
+            ]
+        ),
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0, delta=DeltaMessage(content="hel"), finish_reason=None
+                )
+            ]
+        ),
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0,
+                    delta=DeltaMessage(
+                        tool_calls=[
+                            ToolCall(
+                                id="call_1",
+                                index=0,
+                                function=FunctionCall(name="bash", arguments="{"),
+                            )
+                        ]
+                    ),
+                    finish_reason=None,
+                )
+            ]
+        ),
+        # continuation fragment for the same tool call index
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0,
+                    delta=DeltaMessage(
+                        tool_calls=[
+                            ToolCall(
+                                index=0,
+                                function=FunctionCall(
+                                    name="", arguments='"cmd": "ls"}'
+                                ),
+                            )
+                        ]
+                    ),
+                    finish_reason="tool_calls",
+                )
+            ]
+        ),
+        # final chunk carries usage
+        _chunk(
+            [], usage=UsageInfo(prompt_tokens=3, completion_tokens=7, total_tokens=10)
+        ),
+    ]
+
+    async def _events() -> Any:
+        for event in events:
+            yield event
+
+    collector = _StreamCollector()
+    with model_stream_observer(ModelStreamObserver("test", collector)):
+        completion = await mistral_completion_from_stream(_events())
+
+    # final completion accumulated from the chunks
+    choice = completion.choices[0]
+    assert choice.finish_reason == "tool_calls"
+    message = choice.message
+    assert message is not None
+    content = message.content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ThinkChunk)
+    think_text = content[0].thinking[0]
+    assert isinstance(think_text, TextChunk) and think_text.text == "hmm"
+    assert isinstance(content[1], TextChunk)
+    assert content[1].text == "hel"
+    tool_calls = message.tool_calls
+    assert isinstance(tool_calls, list) and tool_calls[0].id == "call_1"
+    assert tool_calls[0].function.name == "bash"
+    assert tool_calls[0].function.arguments == '{"cmd": "ls"}'
+    assert completion.usage.total_tokens == 10
+
+    # deltas were reported to on_stream (with tool fragments attributed)
+    assert [type(e) for e in collector.events] == [
+        StreamReasoningEvent,
+        StreamTextEvent,
+        StreamToolCallEvent,
+        StreamToolCallEvent,
+    ]
+    assert collector.events[0].reasoning == "hmm"
+    assert collector.events[1].text == "hel"
+    assert collector.events[3].id == "call_1"
+    assert collector.events[3].function == "bash"
+    assert collector.events[3].arguments == '"cmd": "ls"}'
+
+
+@skip_if_no_mistral_package
+async def test_mistral_stream_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer only usage/heartbeat progress runs.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    from mistralai.client.models import (
+        CompletionChunk,
+        CompletionEvent,
+        CompletionResponseStreamChoice,
+        DeltaMessage,
+        UsageInfo,
+    )
+
+    import inspect_ai.model._providers.mistral as mistral_module
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+
+    async def fail(delta: Any) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(mistral_module, "report_model_stream_delta", fail)
+
+    def _chunk(
+        choices: list[CompletionResponseStreamChoice],
+        usage: UsageInfo | None = None,
+    ) -> CompletionEvent:
+        return CompletionEvent(
+            data=CompletionChunk(
+                id="cmpl-1",
+                model="mistral-large-latest",
+                created=123,
+                choices=choices,
+                usage=usage,
+            )
+        )
+
+    events = [
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0,
+                    delta=DeltaMessage(role="assistant", content="hel"),
+                    finish_reason=None,
+                )
+            ]
+        ),
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0, delta=DeltaMessage(content="lo"), finish_reason="stop"
+                )
+            ]
+        ),
+        _chunk(
+            [], usage=UsageInfo(prompt_tokens=3, completion_tokens=7, total_tokens=10)
+        ),
+    ]
+
+    async def _events() -> Any:
+        for event in events:
+            yield event
+
+    observer = ModelStreamObserver("test", None)
+    with model_stream_observer(observer):
+        completion = await mistral_completion_from_stream(_events())
+
+    # response assembly and the usage progress channel are unaffected
+    message = completion.choices[0].message
+    assert message is not None and message.content == "hello"
+    assert observer._tokens_current == 7
+
+
+@skip_if_no_mistral_package
+async def test_mistral_stream_parallel_tool_calls_without_index() -> None:
+    """Parallel calls with no server index don't collapse into one slot.
+
+    The SDK defaults an absent index to 0, so slotting must not trust the
+    default: each id-bearing fragment starts a new call.
+    """
+    from mistralai.client.models import (
+        CompletionChunk,
+        CompletionEvent,
+        CompletionResponseStreamChoice,
+        DeltaMessage,
+        FunctionCall,
+        ToolCall,
+    )
+
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+
+    async def _events() -> Any:
+        yield CompletionEvent(
+            data=CompletionChunk(
+                id="cmpl-1",
+                model="mistral-large-latest",
+                choices=[
+                    CompletionResponseStreamChoice(
+                        index=0,
+                        delta=DeltaMessage(
+                            tool_calls=[
+                                ToolCall(
+                                    id="call_a",
+                                    function=FunctionCall(
+                                        name="bash", arguments='{"a": 1}'
+                                    ),
+                                ),
+                                ToolCall(
+                                    id="call_b",
+                                    function=FunctionCall(
+                                        name="python", arguments='{"b": 2}'
+                                    ),
+                                ),
+                            ]
+                        ),
+                        finish_reason="tool_calls",
+                    )
+                ],
+            )
+        )
+
+    completion = await mistral_completion_from_stream(_events())
+    message = completion.choices[0].message
+    assert message is not None
+    tool_calls = message.tool_calls
+    assert isinstance(tool_calls, list) and len(tool_calls) == 2
+    assert tool_calls[0].id == "call_a"
+    assert tool_calls[0].function.arguments == '{"a": 1}'
+    assert tool_calls[1].id == "call_b"
+    assert tool_calls[1].function.arguments == '{"b": 2}'
+
+
+@skip_if_no_mistral_package
+async def test_mistral_completion_from_stream_text_only() -> None:
+    """All-string fragments join into plain string content."""
+    from mistralai.client.models import (
+        CompletionChunk,
+        CompletionEvent,
+        CompletionResponseStreamChoice,
+        DeltaMessage,
+    )
+
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+
+    async def _events() -> Any:
+        fragments: list[tuple[str, Any]] = [("hel", None), ("lo", "stop")]
+        for text, finish in fragments:
+            yield CompletionEvent(
+                data=CompletionChunk(
+                    id="cmpl-1",
+                    model="mistral-large-latest",
+                    choices=[
+                        CompletionResponseStreamChoice(
+                            index=0,
+                            delta=DeltaMessage(content=text),
+                            finish_reason=finish,
+                        )
+                    ],
+                )
+            )
+
+    completion = await mistral_completion_from_stream(_events())
+    message = completion.choices[0].message
+    assert message is not None and message.content == "hello"
+    assert completion.choices[0].finish_reason == "stop"
+
+
+@skip_if_no_mistral_package
+async def test_mistral_completion_from_stream_missing_usage_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A stream ending without usage warns rather than under-counting silently."""
+    from mistralai.client.models import (
+        CompletionChunk,
+        CompletionEvent,
+        CompletionResponseStreamChoice,
+        DeltaMessage,
+    )
+
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+
+    async def _events() -> Any:
+        yield CompletionEvent(
+            data=CompletionChunk(
+                # unique model name: warn_once dedupes on message text
+                # process-wide, and other stream tests also omit usage
+                id="cmpl-1",
+                model="mistral-missing-usage-test",
+                choices=[
+                    CompletionResponseStreamChoice(
+                        index=0,
+                        delta=DeltaMessage(content="hi"),
+                        finish_reason="stop",
+                    )
+                ],
+            )
+        )
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai.model._providers.mistral"):
+        completion = await mistral_completion_from_stream(_events())
+    assert completion.usage.total_tokens == 0
+    assert any(
+        "reported no token usage for a streamed response" in record.message
+        for record in caplog.records
+    )
+
+
+@skip_if_no_mistral_package
+async def test_mistral_streaming_true_warns_on_conversation_api(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An explicit streaming=true is ignored by the Conversation API — warn."""
+    from inspect_ai.model import ModelOutput
+    from inspect_ai.model._providers import mistral as mistral_provider
+
+    async def _conversation_generate(**kwargs: Any) -> ModelOutput:
+        return ModelOutput.from_content(
+            model="mistral-conversation-warn-test", content="hi"
+        )
+
+    monkeypatch.setattr(
+        mistral_provider, "mistral_conversation_generate", _conversation_generate
+    )
+    api = mistral_provider.MistralAPI(
+        # unique model name: warn_once dedupes on message text process-wide
+        model_name="mistral-conversation-warn-test",
+        api_key="test",
+        conversation_api=True,
+        streaming=True,
+    )
+    with caplog.at_level(logging.WARNING, logger="inspect_ai.model._providers.mistral"):
+        await api.generate(
+            [ChatMessageUser(content="hi")], [], "auto", GenerateConfig()
+        )
+    assert any(
+        "no effect on the Conversation API" in record.message
+        for record in caplog.records
+    )
+
+
+def _mistral_sdk_stream(body: bytes) -> Any:
+    """A real SDK event stream over a canned SSE body (HTTP 200)."""
+    from mistralai.client.models import CompletionEvent
+    from mistralai.client.utils import unmarshal_json
+    from mistralai.client.utils.eventstreaming import EventStreamAsync
+
+    response = httpx2.Response(
+        200,
+        headers={"content-type": "text/event-stream"},
+        content=body,
+        request=httpx2.Request("POST", "https://api.mistral.ai/v1/chat/completions"),
+    )
+    return EventStreamAsync(
+        response, lambda raw: unmarshal_json(raw, CompletionEvent), sentinel="[DONE]"
+    )
+
+
+def _sse(payload: dict[str, Any]) -> bytes:
+    return f"data: {json.dumps(payload)}\n\n".encode()
+
+
+_MISTRAL_CHUNK = dict(
+    id="cmpl-1",
+    model="mistral-large-latest",
+    created=123,
+    choices=[dict(index=0, delta=dict(content="hel"), finish_reason=None)],
+)
+
+
+@skip_if_no_mistral_package
+@pytest.mark.parametrize(
+    ("error_frame", "kind"),
+    [
+        # the error object Mistral documents for its API: `code` is a 4-digit
+        # internal id and `type` uses Mistral's own vocabulary. Its 429 body:
+        (
+            dict(
+                object="error",
+                message="Service tier capacity exceeded for this model.",
+                type="service_tier_capacity_exceeded",
+                param=None,
+                code="3505",
+            ),
+            "rate_limit",
+        ),
+        # any other Mistral-vocabulary error after HTTP 200 is server-side
+        (
+            dict(
+                object="error",
+                message="Internal error",
+                type="unexpected_error",
+                param=None,
+                code="9999",
+            ),
+            "transient",
+        ),
+        # the OpenAI-compatible envelope, classified by status-like code or
+        # by type
+        (dict(error=dict(message="Unavailable", code=503)), "transient"),
+        (dict(error=dict(message="Slow down", type="rate_limit_error")), "rate_limit"),
+        (
+            dict(error=dict(message="Unavailable", type="service_unavailable")),
+            "transient",
+        ),
+        # no code/type at all: an error frame is assumed to be a server-side
+        # failure
+        (dict(error=dict(message="Unavailable")), "transient"),
+        # only a code that positively identifies a client error stays unretried
+        (
+            dict(error=dict(message="Bad request", type="invalid_request", code=400)),
+            None,
+        ),
+    ],
+)
+async def test_mistral_stream_error_frame_classified(
+    error_frame: dict[str, Any], kind: str | None
+) -> None:
+    """A server error frame mid-stream is classified like a status would be.
+
+    The mistralai SDK decodes every frame as a `CompletionEvent` and has no
+    error-event handling, so an error frame surfaces as a raw pydantic
+    `ValidationError` from the stream iterator.
+    """
+    from pydantic import ValidationError
+
+    from inspect_ai.model import RetryDecision
+    from inspect_ai.model._providers.mistral import (
+        MistralAPI,
+        MistralStreamError,
+        mistral_completion_from_stream,
+    )
+
+    stream = _mistral_sdk_stream(_sse(_MISTRAL_CHUNK) + _sse(error_frame))
+    with pytest.raises(MistralStreamError, match="delivered an error") as ex:
+        await mistral_completion_from_stream(stream)
+    assert isinstance(ex.value.__cause__, ValidationError)
+
+    api = MistralAPI(model_name="mistral-large-latest", api_key="test")
+    decision = api.should_retry(ex.value)
+    assert isinstance(decision, RetryDecision)
+    if kind is None:
+        assert decision.retry is False
+    else:
+        assert decision.retry is True and decision.kind == kind
+
+
+@skip_if_no_mistral_package
+async def test_mistral_stream_schema_mismatch_not_retried() -> None:
+    """A frame that fails validation without an error payload propagates as-is."""
+    from pydantic import ValidationError
+
+    from inspect_ai.model._providers.mistral import (
+        MistralAPI,
+        mistral_completion_from_stream,
+    )
+
+    stream = _mistral_sdk_stream(_sse(dict(unexpected=True)))
+    with pytest.raises(ValidationError) as ex:
+        await mistral_completion_from_stream(stream)
+
+    api = MistralAPI(model_name="mistral-large-latest", api_key="test")
+    assert bool(api.should_retry(ex.value)) is False
+
+
+@skip_if_no_mistral_package
+async def test_mistral_completion_from_stream_empty() -> None:
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+
+    async def _events() -> Any:
+        return
+        yield
+
+    with pytest.raises(RuntimeError, match="without delivering any chunks"):
+        await mistral_completion_from_stream(_events())
+
+
+@skip_if_no_mistral
+async def test_mistral_stream_end_to_end() -> None:
+    """Passing on_stream alone enables streaming on the chat-completions path."""
+    from inspect_ai.model._stream import StreamTextEvent
+
+    events: list[Any] = []
+
+    async def collect(event: Any) -> None:
+        events.append(event)
+
+    model = get_model(
+        "mistral/mistral-small-latest",
+        conversation_api=False,
+        config=GenerateConfig(max_tokens=256, temperature=0.0),
+    )
+    response = await model.generate(
+        input=[ChatMessageUser(content="This is a test string. What are you?")],
+        on_stream=collect,
+    )
+    assert len(response.completion) >= 1
+    streamed = "".join(e.text for e in events if isinstance(e, StreamTextEvent))
+    assert streamed == response.completion
+
+
+def _mock_mistral_client() -> Any:
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    client.__enter__.return_value = client
+    client.__exit__.return_value = False
+    client.sdk_configuration.async_client = httpx2.AsyncClient()
+    return client
+
+
+@skip_if_no_mistral_package
+async def test_mistral_chat_output_records_response_id() -> None:
+    from unittest import mock
+    from unittest.mock import AsyncMock
+
+    from mistralai.client.models import (
+        AssistantMessage,
+        ChatCompletionChoice,
+        ChatCompletionResponse,
+        UsageInfo,
+    )
+
+    from inspect_ai.model._providers.mistral import MistralAPI
+
+    api = MistralAPI(
+        model_name="mistral/mistral-small-latest",
+        api_key="test-key",
+        conversation_api=False,
+    )
+    client = _mock_mistral_client()
+    client.chat.complete_async = AsyncMock(
+        return_value=ChatCompletionResponse(
+            id="mistral-response",
+            object="chat.completion",
+            model="mistral-small-latest",
+            created=0,
+            usage=UsageInfo(prompt_tokens=1, completion_tokens=1, total_tokens=2),
+            choices=[
+                ChatCompletionChoice(
+                    index=0,
+                    message=AssistantMessage(content="hi"),
+                    finish_reason="stop",
+                )
+            ],
+        )
+    )
+
+    with mock.patch("inspect_ai.model._providers.mistral.Mistral", return_value=client):
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "mistral-response"
+
+
+@skip_if_no_mistral_package
+async def test_mistral_conversation_output_records_conversation_id() -> None:
+    from unittest import mock
+    from unittest.mock import AsyncMock
+
+    from mistralai.client.models import (
+        ConversationResponse,
+        ConversationUsageInfo,
+        MessageOutputEntry,
+    )
+
+    from inspect_ai.model._providers.mistral import MistralAPI
+
+    api = MistralAPI(model_name="mistral/mistral-small-latest", api_key="test-key")
+    client = _mock_mistral_client()
+    client.beta.conversations.start_async = AsyncMock(
+        return_value=ConversationResponse(
+            conversation_id="conv_response",
+            outputs=[MessageOutputEntry(content="hi")],
+            usage=ConversationUsageInfo(
+                prompt_tokens=1, completion_tokens=1, total_tokens=2
+            ),
+        )
+    )
+
+    with mock.patch("inspect_ai.model._providers.mistral.Mistral", return_value=client):
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "conv_response"

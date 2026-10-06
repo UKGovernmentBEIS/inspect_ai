@@ -4,7 +4,7 @@ import pytest
 from test_helpers.utils import simple_task_state
 
 from inspect_ai._util.answer import answer_index
-from inspect_ai.scorer import CORRECT, INCORRECT, Target, choice
+from inspect_ai.scorer import CORRECT, INCORRECT, NOANSWER, Target, choice
 
 
 @pytest.mark.anyio
@@ -60,6 +60,99 @@ async def test_score_multiple_letters_with_separators(target: str):
     assert result.answer == "A, B"
 
 
+@pytest.mark.anyio
+async def test_score_multi_digit_choice_label():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: 10",
+        choices=[f"choice {index}" for index in range(36)],
+    )
+    for index in range(36):
+        state.choices.mark_choice(index, index == 35)
+
+    result = await scorer(state, Target("10"))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_score_multiple_multi_digit_choice_labels():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: 10, 12",
+        choices=[f"choice {index}" for index in range(40)],
+    )
+    for index in range(40):
+        state.choices.mark_choice(index, index in (35, 37))
+
+    result = await scorer(state, Target("10, 12"))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_score_mixed_letter_and_multi_digit_target():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: A, 10",
+        choices=[f"choice {index}" for index in range(36)],
+    )
+    for index in range(36):
+        state.choices.mark_choice(index, index in (0, 35))
+
+    result = await scorer(state, Target("A,10"))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_score_target_beyond_choices_raises():
+    # a "10" target resolves to index 35; with only 30 choices that is a
+    # dataset error and must raise rather than silently score incorrect
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: 10",
+        choices=[f"choice {index}" for index in range(30)],
+    )
+    for index in range(30):
+        state.choices.mark_choice(index, index == 0)
+
+    with pytest.raises(ValueError, match="beyond the task's 30 choices"):
+        await scorer(state, Target("10"))
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "target",
+    [
+        "No",  # alphanumeric, parseable as answer labels
+        "The answer is 42.",  # free text, unparseable as answer labels
+        "",  # empty
+    ],
+)
+async def test_score_no_choices_raises(target: str):
+    scorer = choice()
+    state = simple_task_state(model_output="No", choices=[])
+
+    with pytest.raises(
+        ValueError, match="The choice scorer requires samples with choices"
+    ):
+        await scorer(state, Target(target))
+
+
+@pytest.mark.anyio
+async def test_score_no_selection_is_incorrect():
+    scorer = choice()
+    state = simple_task_state(model_output="I don't know", choices=["Paris", "Berlin"])
+
+    result = await scorer(state, Target("A"))
+
+    assert result is not None
+    assert result.text == INCORRECT
+    assert result.answer == ""
+    assert result.explanation == "I don't know"
+
+
 def test_answer_index_rejects_separators():
     # answer_index() should never silently return garbage indices for
     # separator characters -- it should raise so callers know to filter.
@@ -67,6 +160,16 @@ def test_answer_index_rejects_separators():
         answer_index(",")
     with pytest.raises(ValueError):
         answer_index(" ")
+
+
+def test_answer_index_zero_and_invalid_alpha():
+    # "0" should raise ValueError rather than colliding with index 25 ("Z")
+    with pytest.raises(ValueError, match="numeric choices start at 1"):
+        answer_index("0")
+
+    # Multi-character alpha should raise ValueError
+    with pytest.raises(ValueError):
+        answer_index("AB")
 
 
 @pytest.mark.anyio
@@ -164,3 +267,104 @@ async def test_correct_multiple_answers_all_incorrect():
     assert result.text == CORRECT
     assert result.answer == ""
     assert result.explanation == "ANSWERS: "
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("completion", ["", "   "])
+async def test_score_empty_completion_is_noanswer(completion: str):
+    # the solver leaves choices unmarked when there is nothing to parse,
+    # which the scorer reads the same as all-False
+    scorer = choice()
+    state = simple_task_state(model_output=completion, choices=["choice 1", "choice 2"])
+
+    result = await scorer(state, Target("A"))
+
+    assert result is not None
+    assert result.text == NOANSWER
+    assert result.reason == "no_response"
+    assert result.answer == ""
+
+
+@pytest.mark.anyio
+async def test_score_unparsable_completion_marks_format_reason():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="I think it is the second one, honestly.",
+        choices=["choice 1", "choice 2"],
+    )
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == INCORRECT
+    assert result.reason == "invalid_response_format"
+    assert result.answer == ""
+
+
+@pytest.mark.anyio
+async def test_score_selected_choices_carry_no_reason():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: B", choices=["choice 1", "choice 2"]
+    )
+    state.choices.mark_choice(0, False)
+    state.choices.mark_choice(1, True)
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == INCORRECT
+    assert result.reason is None
+    assert result.answer == "B"
+
+    state = simple_task_state(
+        model_output="ANSWER: A", choices=["choice 1", "choice 2"]
+    )
+    state.choices.mark_choice(0, True)
+    state.choices.mark_choice(1, False)
+
+    result = await scorer(state, Target("A"))
+
+    assert result.text == CORRECT
+    assert result.reason is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("completion", ["", "   "])
+async def test_score_marked_choice_with_empty_completion_keeps_answer(
+    completion: str,
+):
+    scorer = choice()
+    state = simple_task_state(model_output=completion, choices=["choice 1", "choice 2"])
+    state.choices.mark_choice(0, False)
+    state.choices.mark_choice(1, True)
+
+    result = await scorer(state, Target("A"))
+
+    assert result is not None
+    assert result.text == INCORRECT
+    assert result.reason is None
+    assert result.answer == "B"
+
+
+def test_target_sequences():
+    t_str = Target("A")
+    assert len(t_str) == 1
+    assert t_str[0] == "A"
+    assert t_str.text == "A"
+
+    t_list = Target(["A", "B"])
+    assert len(t_list) == 2
+    assert t_list[0] == "A"
+    assert t_list[1] == "B"
+    assert t_list.text == "AB"
+
+    t_tuple = Target(("A", "B"))
+    assert len(t_tuple) == 2
+    assert t_tuple[0] == "A"
+    assert t_tuple[1] == "B"
+    assert t_tuple.text == "AB"
+
+    t_target = Target(t_tuple)
+    assert len(t_target) == 2
+    assert t_target[0] == "A"
+    assert t_target[1] == "B"
+    assert t_target.text == "AB"

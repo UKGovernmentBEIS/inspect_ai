@@ -33,17 +33,21 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 | `minimal` / `low` / `medium` / `high` / `xhigh` | identical                                    |
 | `max`                                           | `max` on GPT-5.6+; `xhigh` on earlier models |
 
+GPT-5.5 and later reason at the server default effort when `reasoning_effort` is not set, and in that state the API rejects `temperature`, `top_p`, and `logprobs`. Inspect drops those options with a warning; pass `reasoning_effort="none"` to disable reasoning and have them sent.
+
+GPT-6 Sol and GPT-6 Luna accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra and GPT-6.1 Sol always reason: they accept `low` through `max` only, and the API rejects `none` and `minimal` with an error. They also reject `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for these models.
+
 Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
 #### Anthropic Claude 4.6+ and Claude 5
 
-Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8 and the Claude 5 models default to `high` server-side.
+Opus 4.6, Opus 4.7, Opus 4.8, Sonnet 4.6, and the Claude 5 models all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort, while Opus 4.8, Sonnet 5, Sonnet 5.5, Opus 5, and Fable/Mythos 5.x default to `high` server-side and Opus 5.5 defaults to `medium`.
 
-For the Claude 5 models thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the effort and the model continues to reason at its server-side default.
+For Fable/Mythos 5.x and Opus 5.5 thinking is **always on** and cannot be disabled: passing `none` does not turn reasoning off — Inspect omits the `thinking` field and the model reasons at the configured `effort` (or the server-side default if none is set). Sonnet 5 and Opus 5 do accept `none` and disable thinking (Opus 5 only at effort `high` or below). Sonnet 5.5 rejects disabled thinking, so for `none` Inspect sends `between_tools`, its lowest thinking setting: no up-front thinking, with short progress notes between tool calls returned as reasoning. It is accepted only at effort `high` or below, so a higher `effort` is lowered to `high` with a warning.
 
 | Inspect input     | API value                                              |
 |-------------------|--------------------------------------------------------|
-| `none`            | reasoning omitted (Claude 5: not disabled — see above) |
+| `none`            | omitted (off by default) on Opus 4.6/Sonnet 4.6; disabled on Opus 4.7/4.8, Sonnet 5, Opus 5; `between_tools` on Sonnet 5.5; omitted (still on) for Fable/Mythos 5.x and Opus 5.5 |
 | `minimal` / `low` | `low`                                                  |
 | `medium`          | `medium`                                               |
 | `high`            | `high`                                                 |
@@ -68,15 +72,15 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Google Gemini 3
 
-Gemini 3 Flash exposes four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`); Gemini 3 Pro / Pro 3.1 omit `MINIMAL` and otherwise share the same scale.
+Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1 and Gemini 3.7 Flash and later omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
 
-| Inspect input            | API value (Flash)  | API value (Pro)   |
-|--------------------------|--------------------|-------------------|
-| `none`                   | thinking disabled  | thinking disabled |
-| `minimal`                | `MINIMAL`          | `LOW`             |
-| `low`                    | `LOW`              | `LOW`             |
-| `medium`                 | `MEDIUM`           | `MEDIUM`          |
-| `high` / `xhigh` / `max` | `HIGH`             | `HIGH`            |
+| Inspect input            | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3) |
+|--------------------------|-------------------------------------------|----------------------------|
+| `none`                   | thinking disabled                         | thinking disabled          |
+| `minimal`                | `MINIMAL`                                 | `LOW`                      |
+| `low`                    | `LOW`                                     | `LOW`                      |
+| `medium`                 | `MEDIUM`                                  | `MEDIUM`                   |
+| `high` / `xhigh` / `max` | `HIGH`                                    | `HIGH`                     |
 
 #### Google Gemini 2.5
 
@@ -94,20 +98,21 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Grok
 
-Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5 defaults to `high` effort and its reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
+Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`, `grok-4.6`, `grok-4.7`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5, 4.6 and 4.7 default to `high` effort and their reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
 
-| Inspect input            | API value         |
-|--------------------------|-------------------|
-| `none`                   | reasoning omitted |
-| `minimal` / `low`        | `low`             |
-| `medium`                 | `medium`          |
-| `high` / `xhigh` / `max` | `high`            |
+| Inspect input     | API value         |
+|-------------------|-------------------|
+| `none`            | reasoning omitted |
+| `minimal` / `low` | `low`             |
+| `medium`          | `medium`          |
+| `high`            | `high`            |
+| `xhigh` / `max`   | `xhigh`           |
 
-xAI documents an `xhigh` effort for `grok-4.20-multi-agent` (where effort controls how many agents collaborate), but the xAI SDK transport used by the grok provider cannot express values above `high`, so `xhigh` and `max` clamp to `high` for that model as well.
+`xhigh` is a real effort level from `grok-4.6` onward (for `grok-4.20-multi-agent` it controls how many agents collaborate); xAI [documents](https://docs.x.ai/developers/model-capabilities/text/reasoning) that Grok 4.X models without `xhigh` support (e.g. `grok-4.5`) treat it as `high`, so Inspect passes it through and lets the service downgrade. Grok 3 Mini documents only `low`/`high`, so `xhigh` and `max` clamp to `high` there. Sending `xhigh` requires `xai_sdk` >= 1.18 — on older SDK versions (whose transport cannot express values above `high`) Inspect clamps `xhigh` and `max` to `high` for all models.
 
 #### DeepSeek
 
-DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default (at `high` effort) and document a [three-level effort scale](https://api-docs.deepseek.com/guides/thinking_mode) of `low` / `high` / `max`. Inspect maps `reasoning_effort` as follows:
+DeepSeek models (`deepseek-flash` and `deepseek-v4-pro`) think by default (at `high` effort) and document a [three-level effort scale](https://api-docs.deepseek.com/guides/thinking_mode) of `low` / `high` / `max`. Inspect maps `reasoning_effort` as follows:
 
 | Inspect input     | API value         |
 |-------------------|-------------------|
@@ -116,7 +121,7 @@ DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default 
 | `medium` / `high` | `high`            |
 | `xhigh` / `max`   | `max`             |
 
-Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
+DeepSeek's own server-side mapping treats a raw `xhigh` as `high`; Inspect sends `max` for `xhigh` so the top of Inspect's scale reaches the top of DeepSeek's. Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
 
 #### Mistral
 
@@ -145,16 +150,54 @@ Passes through to the underlying model; OpenRouter itself maps `effort` to `budg
 
 
 
-#### Groq / Ollama / SageMaker
+#### LiteLLM Proxy
 
-Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values:
+Sends the requested value, which LiteLLM maps to the upstream provider's parameter (e.g. adaptive thinking with `output_config.effort` for Claude). When LiteLLM or the upstream model rejects the value, Inspect retries with the strongest effort the model accepts at or below it (otherwise the weakest above it), or with no effort if the model takes none, and warns once. LiteLLM decides which values a model takes from its model map, so for models it doesn't know set `base_model` in the proxy config (see [LiteLLM Proxy](providers.qmd#litellm-proxy-model-info)).
 
-| Inspect input            | API value         |
-|--------------------------|-------------------|
-| `none`                   | reasoning omitted |
-| `minimal` / `low`        | `low`             |
-| `medium`                 | `medium`          |
-| `high` / `xhigh` / `max` | `high`            |
+#### Groq / Ollama / SageMaker / SambaNova
+
+Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values. `none` is not a supported value, so it is omitted and the provider/model default applies — this does not disable reasoning (always-on models keep reasoning):
+
+| Inspect input            | API value                        |
+|--------------------------|----------------------------------|
+| `none`                   | omitted (provider/model default) |
+| `minimal` / `low`        | `low`                            |
+| `medium`                 | `medium`                         |
+| `high` / `xhigh` / `max` | `high`                           |
+
+#### Together
+
+Together accepts `low` / `medium` / `high` for all reasoning models, and additionally `xhigh` / `max` on some (e.g. DeepSeek V4 Pro); only gpt-oss rejects the top-end values. `minimal` is never accepted. `none` is not a supported effort value, so it is omitted and the provider/model default applies — to turn reasoning off on hybrid models, pass `reasoning={"enabled": false}` rather than an effort value.
+
+| Inspect input             | API value (gpt-oss)              | API value (other models)         |
+|---------------------------|----------------------------------|----------------------------------|
+| `none`                    | omitted (provider/model default) | omitted (provider/model default) |
+| `minimal`                 | `low`                            | `low`                            |
+| `low` / `medium` / `high` | identical                        | identical                        |
+| `xhigh` / `max`           | `high`                           | identical                        |
+
+#### Perplexity
+
+Accepts `minimal` in addition to `low` / `medium` / `high`, so Inspect keeps `minimal` and clamps only the top-end values. `none` is not a supported value, so it is omitted and the provider/model default applies (reasoning is not disabled):
+
+| Inspect input            | API value                        |
+|--------------------------|----------------------------------|
+| `none`                   | omitted (provider/model default) |
+| `minimal`                | `minimal`                        |
+| `low`                    | `low`                            |
+| `medium`                 | `medium`                         |
+| `high` / `xhigh` / `max` | `high`                           |
+
+#### Fireworks
+
+Effort validity is model-dependent. No Fireworks model accepts `minimal` (→ `low`). gpt-oss and MiniMax M2 accept only `low` / `medium` / `high`: they reject `none` (omitted, so the provider/model default applies) and `xhigh` / `max` (→ `high`). Other reasoning models — DeepSeek, GLM, Kimi, and MiniMax M3 — accept `none` and `xhigh` / `max`, so those pass through:
+
+| Inspect input             | API value (gpt-oss / MiniMax M2) | API value (other models) |
+|---------------------------|----------------------------------|--------------------------|
+| `none`                    | omitted (provider/model default) | `none`                   |
+| `minimal`                 | `low`                            | `low`                    |
+| `low` / `medium` / `high` | identical                        | identical                |
+| `xhigh` / `max`           | `high`                           | identical                |
 
 #### Bedrock
 
@@ -211,7 +254,7 @@ The following reasoning options are available from the CLI and within `GenerateC
 
 ## vLLM / SGLang {#vllm-sglang}
 
-vLLM and SGLang both support reasoning outputs, but the configuration is model-specific. See the [vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [SGLang](https://docs.sglang.ai/backend/separate_reasoning.html) docs for details.
+vLLM and SGLang both support reasoning outputs, but the configuration is model-specific. See the [vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [SGLang](https://docs.sglang.ai/advanced_features/separate_reasoning.html) docs for details.
 
 For vLLM, configure the model's reasoning parser using `-M` model arguments. For example, Qwen3:
 

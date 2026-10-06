@@ -4,11 +4,18 @@ import signal
 from asyncio.subprocess import Process as AsyncIOProcess
 from typing import Literal, NamedTuple
 
+import psutil
+
 from inspect_sandbox_tools._util.common_types import ToolException
+from inspect_sandbox_tools._util.process_tree import (
+    process_group_members,
+    terminate_process_tree,
+)
 from inspect_sandbox_tools._util.user_switch import (
+    RunAs,
     get_home_dir,
-    is_current_user,
     make_preexec,
+    switch_target,
 )
 
 from ._acked_chunk_buffer import AckedChunkBuffer
@@ -28,6 +35,21 @@ _BACKPRESSURE_BUFFER_SIZE = 100 * 1024 * 1024  # 100 MiB
 _MAX_POLL_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MiB per poll response
 
 
+def _leader_handle(process: AsyncIOProcess) -> psutil.Process | None:
+    """Identity-checked handle for the job's group leader, taken at spawn.
+
+    psutil records the creation time on construction, so the handle later
+    distinguishes the process we started from another that reused its PID.
+    None if the process was reaped before the handle could be taken.
+    """
+    if process.pid is None:
+        return None
+    try:
+        return psutil.Process(process.pid)
+    except psutil.NoSuchProcess:
+        return None
+
+
 class Job:
     """Manages an async subprocess with separate stdout/stderr streams.
 
@@ -45,7 +67,7 @@ class Job:
         stdin_open: bool = False,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
-        user: str | None = None,
+        user: str | RunAs | None = None,
         can_switch_user: bool = False,
     ) -> "Job":
         """Create and start a new Job for the given command.
@@ -64,24 +86,16 @@ class Job:
             user: User to run the command as (requires can_switch_user=True).
             can_switch_user: Whether the server can switch users (running as root).
         """
-        # If the requested user matches the current process user, no setuid needed
-        if user is not None and is_current_user(user):
-            user = None
-        if user is not None and not can_switch_user:
-            raise ToolException(
-                f"Cannot switch to user {user!r}: server is not running as root"
-            )
+        user = switch_target(user, can_switch_user)
 
         # Use stdin=PIPE if we have input to send or if stdin should stay open
         stdin = asyncio.subprocess.PIPE if (input is not None or stdin_open) else None
 
-        # Merge additional env vars with current environment if provided.
-        # When switching user, set HOME from /etc/passwd to match docker exec --user.
+        # Merge additional env vars with current environment if provided. When
+        # switching user, HOME follows the user unless the caller set it explicitly.
         subprocess_env: dict[str, str] | None = {**os.environ, **env} if env else None
         if user is not None:
-            if subprocess_env is None:
-                subprocess_env = {**os.environ}
-            subprocess_env["HOME"] = get_home_dir(user)
+            subprocess_env = {**os.environ, "HOME": get_home_dir(user), **(env or {})}
 
         process = await asyncio.create_subprocess_shell(
             command,
@@ -110,6 +124,7 @@ class Job:
 
     def __init__(self, process: AsyncIOProcess) -> None:
         self._process = process
+        self._leader = _leader_handle(process)
         self._stdout_buffer = BoundedByteBuffer(_BACKPRESSURE_BUFFER_SIZE)
         self._stderr_buffer = BoundedByteBuffer(_BACKPRESSURE_BUFFER_SIZE)
         self._stdout_output = DecodingBuffer(self._stdout_buffer)
@@ -117,6 +132,8 @@ class Job:
         self._state: Literal["running", "completed", "killed"] = "running"
         self._exit_code: int | None = None
         self._acked_buffer: AckedChunkBuffer[tuple[str, str]] = AckedChunkBuffer()
+        self._known_descendants: list[psutil.Process] = []
+        self._retired = False
 
         # Start background read tasks
         self._stdout_task = asyncio.create_task(
@@ -180,6 +197,13 @@ class Job:
         Since the subprocess was started with start_new_session=True, it is the
         leader of its own process group. We use os.killpg() to send signals to
         the entire group, ensuring child processes are also terminated.
+
+        The group is signalled only after checking that the leader is still the
+        process we started. Once it has exited and been reaped, its PID, and so
+        the group id, may belong to an unrelated process, which a server running
+        as root would then signal. A job whose leader exited on its own is
+        treated as finished: its buffered output is returned and any children
+        that outlived it may be left running.
         """
         if self._state != "running":
             self._acked_buffer.push(("", ""))
@@ -187,20 +211,18 @@ class Job:
             return OutputChunk(seq, *self._combine_chunks(chunks))
 
         self._state = "killed"
-        pgid = self._process.pid
-        assert pgid is not None, "Process was created without a pid"
-
-        # Try graceful termination first (SIGTERM to process group)
-        try:
-            os.killpg(pgid, signal.SIGTERM)
-            await asyncio.wait_for(self._process.wait(), timeout=timeout)
-        except asyncio.TimeoutError:
-            # Force kill if graceful termination times out (SIGKILL to process group)
-            os.killpg(pgid, signal.SIGKILL)
-            await self._process.wait()
-        except ProcessLookupError:
-            # Process already exited
-            pass
+        # Check and signal are not atomic. Likelihood that leader could exit, be
+        # reaped and have its PID reused between is unlikely, as the PID space must
+        # wrap inside that gap.
+        if self._leader_running():
+            pgid = self.pid
+            try:
+                os.killpg(pgid, signal.SIGTERM)
+                await asyncio.wait_for(self._process.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                await self._force_kill_group(pgid, timeout)
+            except ProcessLookupError:
+                pass
 
         await self._wait_for_readers()
 
@@ -208,6 +230,68 @@ class Job:
         self._acked_buffer.push((stdout, stderr))
         seq, chunks = self._acked_buffer.collect(ack_seq)
         return OutputChunk(seq, *self._combine_chunks(chunks))
+
+    async def shutdown(self, timeout: int = 30) -> None:
+        """Forcefully terminate this server-owned job during server shutdown."""
+        self._state = "killed"
+        known_descendants = [*self._known_descendants]
+        try:
+            await terminate_process_tree(
+                self._process,
+                timeout=timeout,
+                process_group=not self._retired,
+                known_descendants=known_descendants,
+            )
+        finally:
+            self._known_descendants.clear()
+            await self._wait_for_readers()
+
+    async def _force_kill_group(self, pgid: int, timeout: int) -> None:
+        """SIGKILL the group once SIGTERM's grace period has passed.
+
+        On Python 3.11+ ``Process.wait()`` returns only after every pipe has
+        closed, so the grace period can expire with the leader already dead
+        and its group gone while a descendant still holds stdout or stderr.
+        The leader is therefore rechecked before signalling by id, and the
+        wait after SIGKILL is bounded because it may never return while such
+        a descendant lives.
+        """
+        if not self._leader_running():
+            return
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+        try:
+            await asyncio.wait_for(self._process.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            pass
+
+    def _leader_running(self) -> bool:
+        """Whether the group leader is still the process this job started.
+
+        ``returncode`` alone is not enough: asyncio's child watcher reaps the
+        child before the event loop records the exit, and the PID is reusable
+        from the reap onward. The handle taken at spawn compares creation time,
+        so a reused PID reads as not running.
+        """
+        return (
+            self._process.returncode is None
+            and self._leader is not None
+            and self._leader.is_running()
+        )
+
+    def retire(self) -> None:
+        """Snapshot remaining group members before retaining a completed job."""
+        if self._retired:
+            return
+        self._retired = True
+        self._remember_descendants()
+
+    def _remember_descendants(self) -> None:
+        pid = self._process.pid
+        if pid is not None:
+            self._known_descendants.extend(process_group_members(pid, exclude_pid=pid))
 
     def _drain_buffers(
         self, final: bool = False, max_bytes: int | None = None

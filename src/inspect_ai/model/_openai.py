@@ -2,26 +2,30 @@ import functools
 import json
 import logging
 import re
+from collections.abc import AsyncIterable, Collection, Mapping
 from copy import copy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, TypeAlias, cast
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import RetryDecision
 
-import httpx
 from openai import (
-    DEFAULT_CONNECTION_LIMITS,
-    DEFAULT_TIMEOUT,
     APIConnectionError,
+    APIError,
+    APIResponseValidationError,
     APIStatusError,
     APITimeoutError,
+    ContentFilterFinishReasonError,
+    LengthFinishReasonError,
     OpenAIError,
     RateLimitError,
 )
+from openai.lib.streaming.chat import ChatCompletionStreamState
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
+    ChatCompletionChunk,
     ChatCompletionContentPartImageParam,
     ChatCompletionContentPartInputAudioParam,
     ChatCompletionContentPartParam,
@@ -45,7 +49,7 @@ from openai.types.chat import (
 from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
 from openai.types.chat.chat_completion_content_part_param import File, FileFile
 from openai.types.chat.chat_completion_message_function_tool_call import Function
-from openai.types.completion_usage import CompletionUsage
+from openai.types.completion_usage import CompletionUsage, PromptTokensDetails
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
 
@@ -61,8 +65,7 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import as_data_uri, inline_media_data_uri
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import (
@@ -102,23 +105,83 @@ from ._model_output import (
     as_stop_reason,
     collect_stop_details,
 )
+from ._stream import (
+    NoStreamDataError,
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class OpenAIResponseError(OpenAIError):
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, response_id: str | None = None) -> None:
         self.code = code
         self.message = message
+        self.response_id = response_id
 
     def __str__(self) -> str:
         return f"{self.code}: {self.message}"
 
 
-# is_o_series etc. have been moved to the OpenAIAPI class
-# in _providers/openai.py to enable proper overriding by subclasses
+# single-digit major so Azure's dot-less `gpt-35-turbo` doesn't parse as major 35
+# (a future `gpt-10` would need this widened)
+_GPT_VERSION_RE = re.compile(r"gpt-(\d)(?!\d)(?:\.(\d+))?")
+
+
+def openai_gpt_version(model_name: str) -> tuple[int, int] | None:
+    """(major, minor) of the `gpt-N[.M]` token in a model name, or None.
+
+    Searches rather than anchors so hosting prefixes (`openai.gpt-6-astra`) and
+    Azure deployment names (`my-gpt-6-deployment`) resolve too.
+    """
+    match = _GPT_VERSION_RE.search(model_name.lower())
+    if match is None:
+        return None
+    return (int(match.group(1)), int(match.group(2) or 0))
+
+
 def is_gpt_5_model(model_name: str) -> bool:
-    return "gpt-5" in model_name.lower()
+    """gpt-5 or any later major version (frontier request shape and reasoning)."""
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 0)
+
+
+def is_gpt_5_plus_model(model_name: str) -> bool:
+    """gpt-5.1 or later: reasoning can be turned off with `none` effort (except the models in `always_reasons_model`)."""
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 1)
+
+
+def is_gpt_6_model(model_name: str) -> bool:
+    """gpt-6 or any later major version (family detection only; see `always_reasons_model` for which members can't disable reasoning)."""
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (6, 0)
+
+
+def always_reasons_model(model_name: str) -> bool:
+    """Models whose reasoning can't be turned off with `none` effort.
+
+    The API rejects `none` and, since reasoning is always on, rejects sampling
+    params (`temperature`, `top_p`, logprobs) outright: o-series, gpt-5.0,
+    GPT-6 Astra, and GPT-6.1 Sol. GPT-6 Sol and Luna accept `none` like gpt-5.1+
+    (see https://developers.openai.com/api/docs/guides/latest-model). The GPT-6
+    checks are substring matches so hosting prefixes and Azure deployment names
+    resolve. Codenames don't match, so they keep the gpt-5.x sampling-param
+    behavior.
+    """
+    name = model_name.lower()
+    return (
+        is_o_series_model(model_name)
+        or (is_gpt_5_model(model_name) and not is_gpt_5_plus_model(model_name))
+        or "gpt-6-astra" in name
+        or "gpt-6.1-sol" in name
+    )
 
 
 def is_o_series_model(model_name: str) -> bool:
@@ -128,15 +191,146 @@ def is_o_series_model(model_name: str) -> bool:
     return "gpt" not in name and bool(re.search(r"o\d+", name))
 
 
-_GPT_VERSION_RE = re.compile(r"^gpt-(\d+)(?:\.(\d+))?")
-
-
 def supports_native_max_reasoning_effort(model_name: str) -> bool:
     """`max` reasoning effort shipped with gpt-5.6; earlier gpt-5.x top out at `xhigh`."""
-    match = _GPT_VERSION_RE.match(model_name.lower())
-    if match is None:
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 6)
+
+
+def supports_explicit_prompt_cache(model_name: str) -> bool:
+    """Explicit (marked) prompt-cache breakpoints shipped with gpt-5.6; earlier models are implicit-only."""
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 6)
+
+
+# Roles this provider actually emits `prompt_cache_breakpoint` for (user,
+# system/developer). Keep in sync with `_openai_system_content` and
+# `_openai_responses_content_param` — `resolve_explicit_prompt_cache` uses
+# this to detect a mark in an unsupported position.
+_CACHE_BREAKPOINT_SUPPORTED_ROLES = {"user", "system"}
+
+
+def _cache_breakpoint(block: ContentText) -> bool:
+    """Whether `block` requests an explicit cache breakpoint.
+
+    Uses `getattr` since Inspect's local response cache persists pickled
+    `ModelOutput` objects across version upgrades; unpickling bypasses
+    pydantic defaults, so a `ContentText` pickled before this field existed
+    genuinely lacks the attribute. A missing attribute means unmarked.
+    """
+    return bool(getattr(block, "cache_breakpoint", None))
+
+
+def count_cache_breakpoints(
+    messages: list[ChatMessage],
+    roles: Collection[str] | None = None,
+    require_text: bool = False,
+) -> int:
+    """Number of `ContentText.cache_breakpoint` marks across `messages`.
+
+    Args:
+        messages: Messages to scan.
+        roles: If given, count marks only on messages with one of these roles.
+        require_text: If True, only count marks on blocks with non-empty
+            text (an empty text block can't itself carry the marker — the
+            API rejects empty text content parts — so a mark on one can't be
+            represented at all).
+    """
+    return sum(
+        1
+        for message in messages
+        if (roles is None or message.role in roles)
+        if isinstance(message.content, list)
+        for content in message.content
+        if isinstance(content, ContentText) and _cache_breakpoint(content)
+        if not require_text or content.text
+    )
+
+
+def resolve_explicit_prompt_cache(
+    messages: list[ChatMessage],
+    model_name: str,
+    cache_prompt: Literal["auto"] | bool | None,
+) -> bool:
+    """Whether `messages` should switch this request to OpenAI's explicit prompt-cache mode.
+
+    True only when every `ContentText.cache_breakpoint` mark in `messages` is
+    in a supported position (non-empty user/system text blocks), the model
+    is gpt-5.6+, and `cache_prompt` hasn't disabled caching. Any mark in an
+    unsupported position (assistant, tool content, empty text block) forces
+    the whole request back to normal implicit caching, rather than honoring
+    some marks and silently dropping others.
+
+    No cap is applied on the number of marks: OpenAI documents a per-request
+    write budget but not a hard limit on `prompt_cache_breakpoint` count.
+    """
+    if cache_prompt is False:
         return False
-    return (int(match.group(1)), int(match.group(2) or 0)) >= (5, 6)
+    if not supports_explicit_prompt_cache(model_name):
+        return False
+    total_marks = count_cache_breakpoints(messages)
+    if total_marks == 0:
+        return False
+    representable_marks = count_cache_breakpoints(
+        messages, roles=_CACHE_BREAKPOINT_SUPPORTED_ROLES, require_text=True
+    )
+    return representable_marks == total_marks
+
+
+def apply_initial_system_checkpoint(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Add an automatic checkpoint at the end of the initial system/developer block.
+
+    Only called once a request has already switched to explicit mode. The
+    caller's own mark(s) place their boundary, but the leading
+    system/developer block plus preceding tools form a cumulative prefix
+    with no boundary of its own — marking the end of that block gives it
+    one.
+
+    Does nothing when there's no leading system/developer block, nothing
+    follows it, or it already carries a caller mark. Returns a new list;
+    never mutates the input.
+    """
+    i = 0
+    while i < len(messages) and isinstance(messages[i], ChatMessageSystem):
+        i += 1
+    if i == 0 or i >= len(messages):
+        return messages
+    leading = messages[:i]
+    if count_cache_breakpoints(leading) > 0:
+        return messages
+
+    last = cast(ChatMessageSystem, leading[-1])
+    if isinstance(last.content, str):
+        if not last.content:
+            return messages
+        marked_last: ChatMessage = last.model_copy(
+            update={"content": [ContentText(text=last.content, cache_breakpoint=True)]}
+        )
+    else:
+        blocks = list(last.content)
+        mark_at: int | None = None
+        for j in range(len(blocks) - 1, -1, -1):
+            block = blocks[j]
+            if isinstance(block, ContentText) and block.text:
+                mark_at = j
+                break
+        if mark_at is None:
+            return messages
+        marked_block = cast(ContentText, blocks[mark_at])
+        blocks[mark_at] = marked_block.model_copy(update={"cache_breakpoint": True})
+        marked_last = last.model_copy(update={"content": blocks})
+
+    return [*messages[: i - 1], marked_last, *messages[i:]]
+
+
+def reasons_by_default_model(model_name: str) -> bool:
+    """gpt-5.5+ reason at the server default effort when none is requested.
+
+    In that state the API rejects sampling params (`temperature`, `top_p`,
+    logprobs); gpt-5.1 through gpt-5.4 accept them when no effort is set.
+    """
+    version = openai_gpt_version(model_name)
+    return version is not None and version >= (5, 5)
 
 
 def needs_max_completion_tokens(model_name: str) -> bool:
@@ -197,19 +391,62 @@ def openai_chat_tool_call_param(
     )
 
 
+async def _openai_system_content(
+    message: ChatMessage, cache_breakpoints: bool
+) -> str | list[ChatCompletionContentPartTextParam]:
+    r"""`message`'s content for a Chat Completions system/developer/user-role message.
+
+    Keeps the flattened-string wire shape unless a breakpoint is actually
+    honored. When honored, blocks are split only at the marked boundaries —
+    unmarked runs on either side stay joined with `"\n"`, same as the
+    flattened representation.
+    """
+    if isinstance(message.content, str) or not cache_breakpoints:
+        return message.text
+    if not any(
+        isinstance(c, ContentText) and _cache_breakpoint(c) for c in message.content
+    ):
+        return message.text
+    parts: list[ChatCompletionContentPartTextParam] = []
+    run: list[str] = []
+    for c in message.content:
+        if not isinstance(c, ContentText):
+            continue
+        run.append(c.text)
+        if _cache_breakpoint(c) and run:
+            part = ChatCompletionContentPartTextParam(type="text", text="\n".join(run))
+            part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+            parts.append(part)
+            run = []
+    if run:
+        trailing_text = "\n".join(run)
+        if trailing_text:
+            parts.append(
+                ChatCompletionContentPartTextParam(type="text", text=trailing_text)
+            )
+        elif parts:
+            # an empty text part can't stand on its own (the API rejects
+            # it), so fold its separator(s) into the previous part instead
+            parts[-1]["text"] += "\n" * len(run)
+    return parts
+
+
 async def openai_chat_completion_part(
     content: Content,
+    cache_breakpoints: bool = False,
 ) -> ChatCompletionContentPartParam:
     if content.type == "text":
-        return ChatCompletionContentPartTextParam(type="text", text=content.text)
+        part = ChatCompletionContentPartTextParam(type="text", text=content.text)
+        if (
+            cache_breakpoints
+            and isinstance(content, ContentText)
+            and _cache_breakpoint(content)
+        ):
+            part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+        return part
     elif content.type == "image":
-        # API takes URL or base64 encoded file. If it's a remote file or
-        # data URL leave it alone, otherwise encode it
-        image_url = content.image
+        image_url = inline_media_data_uri(content.image, "image")
         detail = content.detail
-
-        if not is_http_url(image_url):
-            image_url = await file_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
@@ -218,14 +455,20 @@ async def openai_chat_completion_part(
             ),
         )
     elif content.type == "audio":
-        audio_data_uri = await file_as_data_uri(content.audio)
+        audio_data_uri = inline_media_data_uri(
+            content.audio,
+            "audio",
+            mime_type_hint=("audio/mpeg" if content.format == "mp3" else "audio/wav"),
+        )
         audio_data = audio_data_uri.split("base64,")[1]
 
         return ChatCompletionContentPartInputAudioParam(
             type="input_audio", input_audio=dict(data=audio_data, format=content.format)
         )
     elif content.type == "document":
-        document_data_uri = await file_as_data_uri(content.document)
+        document_data_uri = inline_media_data_uri(
+            content.document, "document", mime_type_hint=content.mime_type
+        )
 
         return File(
             type="file",
@@ -242,18 +485,24 @@ async def openai_chat_message(
     system_role: Literal["user", "system", "developer"] = "system",
     reasoning_handler: Callable[[ContentReasoning], dict[str, JsonValue] | str]
     | None = None,
+    cache_breakpoints: bool = False,
 ) -> ChatCompletionMessageParam:
     if message.role == "system":
         match system_role:
             case "user":
-                return ChatCompletionUserMessageParam(role="user", content=message.text)
+                return ChatCompletionUserMessageParam(
+                    role="user",
+                    content=await _openai_system_content(message, cache_breakpoints),
+                )
             case "system":
                 return ChatCompletionSystemMessageParam(
-                    role=message.role, content=message.text
+                    role=message.role,
+                    content=await _openai_system_content(message, cache_breakpoints),
                 )
             case "developer":
                 return ChatCompletionDeveloperMessageParam(
-                    role="developer", content=message.text
+                    role="developer",
+                    content=await _openai_system_content(message, cache_breakpoints),
                 )
     elif message.role == "user":
         return ChatCompletionUserMessageParam(
@@ -262,7 +511,7 @@ async def openai_chat_message(
                 message.content
                 if isinstance(message.content, str)
                 else [
-                    await openai_chat_completion_part(content)
+                    await openai_chat_completion_part(content, cache_breakpoints)
                     for content in message.content
                 ]
             ),
@@ -306,14 +555,21 @@ async def openai_chat_message(
 async def messages_to_openai(
     messages: list[ChatMessage],
     system_role: Literal["user", "system", "developer"] = "system",
+    cache_breakpoints: bool = False,
 ) -> list[ChatCompletionMessageParam]:
     """Convert messages to OpenAI Completions API compatible messages.
 
     Args:
        messages: List of messages to convert
        system_role: Role to use for system messages (newer OpenAI models use "developer" rather than "system").
+       cache_breakpoints: Honor `ContentText.cache_breakpoint` on user message text parts (gpt-5.6+ explicit prompt caching only; the caller is responsible for model/layout gating).
     """
-    return [await openai_chat_message(message, system_role) for message in messages]
+    return [
+        await openai_chat_message(
+            message, system_role, cache_breakpoints=cache_breakpoints
+        )
+        for message in messages
+    ]
 
 
 def fill_empty_assistant_content(
@@ -469,9 +725,23 @@ def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
 
 
 def openai_completion_usage(usage: ModelUsage) -> CompletionUsage:
+    input_tokens_cache_read = usage.input_tokens_cache_read or 0
+    input_tokens_cache_write = usage.input_tokens_cache_write or 0
+    prompt_tokens_details = (
+        PromptTokensDetails(
+            cached_tokens=input_tokens_cache_read,
+            cache_write_tokens=input_tokens_cache_write,
+        )
+        if usage.input_tokens_cache_read is not None
+        or usage.input_tokens_cache_write is not None
+        else None
+    )
     return CompletionUsage(
         completion_tokens=usage.output_tokens,
-        prompt_tokens=usage.input_tokens,
+        prompt_tokens=(
+            usage.input_tokens + input_tokens_cache_read + input_tokens_cache_write
+        ),
+        prompt_tokens_details=prompt_tokens_details,
         total_tokens=usage.total_tokens,
     )
 
@@ -482,7 +752,7 @@ def openai_finish_reason(
     match stop_reason:
         case "stop" | "tool_calls" | "content_filter":
             return stop_reason
-        case "model_length":
+        case "max_tokens" | "model_length":
             return "length"
         case _:
             return "stop"
@@ -769,10 +1039,12 @@ def content_from_openai(
             )
         ]
     elif content["type"] == "input_audio":
+        audio_format = content["input_audio"]["format"]
+        mime_type = "audio/mpeg" if audio_format == "mp3" else "audio/wav"
         return [
             ContentAudio(
-                audio=content["input_audio"]["data"],
-                format=content["input_audio"]["format"],
+                audio=as_data_uri(mime_type, content["input_audio"]["data"]),
+                format=audio_format,
             )
         ]
     elif content["type"] == "refusal":
@@ -898,23 +1170,38 @@ def model_output_from_openai(
     completion: ChatCompletion,
     choices: list[ChatCompletionChoice],
 ) -> ModelOutput:
+    cached_tokens = (
+        completion.usage.prompt_tokens_details.cached_tokens
+        if completion.usage
+        and completion.usage.prompt_tokens_details is not None
+        and completion.usage.prompt_tokens_details.cached_tokens is not None
+        else 0
+    )
+    cache_write_tokens = (
+        completion.usage.prompt_tokens_details.cache_write_tokens
+        if completion.usage
+        and completion.usage.prompt_tokens_details is not None
+        and completion.usage.prompt_tokens_details.cache_write_tokens is not None
+        else 0
+    )
     return ModelOutput(
         model=completion.model,
         choices=choices,
         usage=(
             ModelUsage(
-                input_tokens=completion.usage.prompt_tokens
-                - (
-                    completion.usage.prompt_tokens_details.cached_tokens
-                    if completion.usage.prompt_tokens_details is not None
-                    and completion.usage.prompt_tokens_details.cached_tokens is not None
-                    else 0
+                input_tokens=(
+                    completion.usage.prompt_tokens - cached_tokens - cache_write_tokens
                 ),
                 output_tokens=completion.usage.completion_tokens,
                 input_tokens_cache_read=(
                     completion.usage.prompt_tokens_details.cached_tokens
                     if completion.usage.prompt_tokens_details is not None
-                    else None  # openai only have cache read stats/pricing.
+                    else None
+                ),
+                input_tokens_cache_write=(
+                    completion.usage.prompt_tokens_details.cache_write_tokens
+                    if completion.usage.prompt_tokens_details is not None
+                    else None
                 ),
                 reasoning_tokens=(
                     completion.usage.completion_tokens_details.reasoning_tokens
@@ -926,7 +1213,120 @@ def model_output_from_openai(
             if completion.usage
             else None
         ),
+        response_id=completion.id,
     )
+
+
+async def openai_chat_completion_stream_final(
+    stream: AsyncIterable[ChatCompletionChunk],
+) -> ChatCompletion:
+    """Consume a raw chat-completions chunk stream and return the final completion.
+
+    Accumulates chunks with the SDK's `ChatCompletionStreamState` rather than
+    the resource-level `.stream()` helper: the helper validates tools before
+    sending anything and raises `ValueError` for any function tool without
+    `strict: true`, which would fail every tool-using generate (inspect does
+    not set `strict` by default).
+
+    Reports each chunk once to the model layer's stream observer
+    (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
+    callback and the pending event's progress record.
+
+    The SDK's final parse raises on length-truncated and content-filtered
+    completions rather than returning them; both are recovered here so they
+    are handled like the non-streaming path (stop_reason "max_tokens" /
+    "content_filter").
+    """
+    # no input_tools/response_format: parsed arguments aren't used (choices
+    # are read from the raw completion), and parseable input would make the
+    # accumulator raise mid-stream on length/content_filter finish reasons
+    state: ChatCompletionStreamState[Any] = ChatCompletionStreamState()
+    report_model_stream_start()
+    tool_calls: dict[int, _StreamToolCallInfo] = {}
+    saw_chunk = False
+    async for chunk in stream:
+        saw_chunk = True
+        state.handle_chunk(chunk)
+        await _report_chat_completion_chunk(chunk, tool_calls)
+    if not saw_chunk:
+        # get_final_completion() would fail on a bare assert; raise a
+        # descriptive, retryable error instead (misbehaving server: 200 with
+        # empty body)
+        raise NoStreamDataError(
+            "Streaming response ended without delivering any chunks."
+        )
+    try:
+        return state.get_final_completion()
+    except LengthFinishReasonError as ex:
+        return ex.completion
+    except ContentFilterFinishReasonError:
+        # the SDK raises without a payload; the snapshot carries
+        # finish_reason and any partial content
+        return state.current_completion_snapshot
+
+
+class _StreamToolCallInfo(NamedTuple):
+    """Attribution for a streamed tool call, remembered across fragments."""
+
+    id: str | None
+    function: str | None
+
+
+async def _report_chat_completion_chunk(
+    chunk: ChatCompletionChunk, tool_calls: dict[int, _StreamToolCallInfo]
+) -> None:
+    """Report one streamed chunk to the model layer's stream observer.
+
+    `tool_calls` remembers each call's id/function by index across chunks:
+    OpenAI streams them only on a call's first fragment, but reported deltas
+    attribute every fragment (matching the other providers' reporters).
+    Content deltas are gated on `model_stream_requested()` (see
+    `report_model_stream_delta`); the usage/heartbeat progress channel runs
+    regardless.
+    """
+    # cumulative usage arrives on the final chunk when the server reports it
+    # (e.g. via stream_options.include_usage)
+    if chunk.usage is not None:
+        report_model_stream_progress(chunk.usage.completion_tokens)
+
+    # report content deltas from the first choice only — interleaving multiple
+    # choices' fragments into the single delta stream would corrupt
+    # accumulating consumers (num_choices > 1)
+    delta = next((c.delta for c in chunk.choices if c.index == 0), None)
+    reported = False
+    if delta is not None and model_stream_requested():
+        # openai-compatible servers surface chain-of-thought as a
+        # reasoning_content/reasoning extra field on the delta
+        reasoning = getattr(delta, "reasoning_content", None) or getattr(
+            delta, "reasoning", None
+        )
+        if isinstance(reasoning, str) and reasoning:
+            await report_model_stream_delta(StreamReasoningEvent(reasoning=reasoning))
+            reported = True
+        if delta.content:
+            await report_model_stream_delta(StreamTextEvent(text=delta.content))
+            reported = True
+        for tool_call in delta.tool_calls or []:
+            function = tool_call.function
+            info = tool_calls.get(tool_call.index, _StreamToolCallInfo(None, None))
+            info = _StreamToolCallInfo(
+                id=tool_call.id or info.id,
+                function=(function.name if function is not None else None)
+                or info.function,
+            )
+            tool_calls[tool_call.index] = info
+            await report_model_stream_delta(
+                StreamToolCallEvent(
+                    id=info.id,
+                    function=info.function,
+                    arguments=(function.arguments or "")
+                    if function is not None
+                    else "",
+                )
+            )
+            reported = True
+    if not reported and chunk.usage is None:
+        report_model_stream_progress()
 
 
 def openai_stop_details(choice: Any) -> StopDetails | None:
@@ -949,6 +1349,10 @@ def openai_stop_details(choice: Any) -> StopDetails | None:
         )
         if isinstance(extra, dict):
             filter_results = extra.get("content_filter_results")
+    # azure.ai.inference models are dict-backed and don't expose undeclared
+    # fields as attributes — read the raw mapping directly
+    if filter_results is None and isinstance(choice, Mapping):
+        filter_results = choice.get("content_filter_results")
 
     # Only categories that actually triggered filtering count — `detected` alone
     # (e.g. protected-material/jailbreak flagged but not blocked) can appear on a
@@ -1130,8 +1534,7 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
     """Classify an OpenAI SDK exception as rate_limit / transient / not retryable.
 
     Returns None when the exception isn't retryable. Reads `Retry-After` and
-    `x-ratelimit-reset-*` from the response headers when available so the
-    adaptive controller can honor server-suggested wait times.
+    `x-ratelimit-reset-*` from the response headers when available.
     """
     from inspect_ai.model._model import RetryDecision
 
@@ -1158,32 +1561,104 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
         return None
     if isinstance(ex, APIConnectionError | APITimeoutError):
         return RetryDecision.transient()
+    if isinstance(ex, APIError):
+        # a failure delivered mid-stream (after HTTP 200) is raised by the
+        # SDK as a bare APIError with no status code, so only the body's
+        # `code`/`type` are available
+        return classify_error_body(ex.code, ex.type)
     return None
 
 
-def openai_handle_bad_request(
-    model_name: str, e: APIStatusError
-) -> ModelOutput | Exception:
-    # extract message
-    if isinstance(e.body, dict) and "message" in e.body.keys():
-        content = str(e.body.get("message"))
-    else:
-        content = e.message
+def classify_error_body(
+    code: object, error_type: object, transient_names: Collection[str] = ()
+) -> "RetryDecision | None":
+    """Classify an error body's `code`/`type` as rate_limit / transient / None.
+
+    For errors that carry no HTTP status (an error payload delivered
+    mid-stream after HTTP 200). A numeric HTTP status in `code` classifies
+    through the standard status rules: OpenAI-compatible servers often put one
+    there (vLLM/SGLang: `{"type": "InternalServerError", "code": 500}`,
+    OpenRouter: `{"code": 502}`). Otherwise the `code`/`type` spellings are
+    normalized (`rate_limit_error`/`RateLimitError`/... all compare equal) and
+    matched against the OpenAI vocabulary (`rate_limit_exceeded`,
+    `server_error`) plus the common server-error variants; `transient_names`
+    adds a provider's own transient spellings, given already normalized
+    (lowercase, no underscores). Anything unrecognized returns None so the
+    caller can apply further provider-specific checks or leave it unretried.
+    """
+    from inspect_ai.model._model import RetryDecision
+
+    status = http_status_from_error_code(code)
+    if status is not None:
+        if status == 429:
+            return RetryDecision.rate_limit()
+        if is_retryable_http_status(status):
+            return RetryDecision.transient()
+        return None
+    names = {
+        v.lower().replace("_", "") for v in (code, error_type) if isinstance(v, str)
+    }
+    if names & {"ratelimitexceeded", "ratelimiterror"}:
+        return RetryDecision.rate_limit()
+    if names & (
+        {
+            "servererror",
+            "internalservererror",
+            "internalerror",
+            "serviceunavailable",
+            "serviceunavailableerror",
+        }
+        | set(transient_names)
+    ):
+        return RetryDecision.transient()
+    return None
+
+
+def http_status_from_error_code(code: object) -> int | None:
+    """Coerce an error body `code` to an HTTP status when it is one.
+
+    OpenAI-compatible servers often put a numeric HTTP status in `code`
+    (as an int or a digit string). The SDK annotates `APIError.code` as
+    `Optional[str]` but passes body values through unconverted, so an int
+    arrives as an int at runtime. Providers whose own `code` vocabulary is
+    numeric but not an HTTP status (Mistral's 4-digit ids) get None.
+    """
+    if isinstance(code, int) or (isinstance(code, str) and code.isdecimal()):
+        status = int(code)
+        return status if 100 <= status <= 599 else None
+    return None
+
+
+def openai_refusal_model_output(
+    model_name: str,
+    code: str | None,
+    error_type: str | None,
+    message: str,
+    content: str | None = None,
+) -> ModelOutput | None:
+    """Map an OpenAI refusal/limit error to model output, or None if unrecognized.
+
+    `message` is the SDK error message (used for heuristic matching); `content`
+    is the text recorded as the model output when it differs (e.g. the error
+    body's message), defaulting to `message`.
+    """
+    content = content if content is not None else message
 
     # narrow stop_reason
     stop_reason: StopReason | None = None
     stop_details: StopDetails | None = None
-    if e.code == "context_length_exceeded":
+    if code == "context_length_exceeded":
         stop_reason = "model_length"
     elif (
-        e.code == "invalid_prompt"  # seems to happen for o1/o3
-        or e.code == "content_policy_violation"  # seems to happen for vision
-        or e.code == "content_filter"  # seems to happen on azure
-        or e.code == "cyber_policy"  # seems to happen for 5.4
-        or (e.type == "invalid_request_error" and "blocked" in e.message)
+        code == "invalid_prompt"  # seems to happen for o1/o3
+        or code == "content_policy_violation"  # seems to happen for vision
+        or code == "content_filter"  # seems to happen on azure
+        or code == "bio_policy"
+        or code == "cyber_policy"  # seems to happen for 5.4
+        or (error_type == "invalid_request_error" and "blocked" in message)
     ):
         stop_reason = "content_filter"
-        if e.code == "cyber_policy":
+        if code == "cyber_policy":
             stop_details = StopDetails(
                 type="refusal",
                 category="cyber",
@@ -1201,7 +1676,49 @@ def openai_handle_bad_request(
             stop_details=stop_details,
         )
     else:
-        return e
+        return None
+
+
+def openai_handle_bad_request(model_name: str, e: APIError) -> ModelOutput | Exception:
+    """Convert a refusal/limit error into model output where possible.
+
+    Accepts the `APIError` base (not just `APIStatusError`): only `body`,
+    `message`, `code`, and `type` are read, and mid-stream errors (see
+    `openai_handle_stream_error`) carry those without a status code.
+    """
+    # extract message
+    if isinstance(e.body, dict) and "message" in e.body.keys():
+        content = str(e.body.get("message"))
+    else:
+        content = e.message
+
+    output = openai_refusal_model_output(model_name, e.code, e.type, e.message, content)
+    return output if output is not None else e
+
+
+def openai_handle_stream_error(
+    model_name: str, e: APIError | OpenAIResponseError
+) -> ModelOutput | None:
+    """Convert a mid-stream safeguard/content-filter block into model output.
+
+    With streaming enabled the server returns HTTP 200 and then delivers
+    safeguard blocks as an error event in the stream body, bypassing the
+    bad-request handling that converts blocks into `content_filter` output on
+    the non-streaming path. Depending on the error's shape the SDK raises it
+    from the stream iterator as a plain `APIError` (with no error status it
+    cannot infer a `BadRequestError`), or yields it as an error event that
+    inspect raises as `OpenAIResponseError` (responses API). Returns the
+    converted `ModelOutput` for recognized blocks, or None when the caller
+    should re-raise: either the error is a status/validation/connection error
+    (which must keep their existing retry semantics) or it isn't a recognized
+    refusal.
+    """
+    if isinstance(e, OpenAIResponseError):
+        return openai_refusal_model_output(model_name, e.code, None, e.message)
+    if isinstance(e, APIStatusError | APIResponseValidationError | APIConnectionError):
+        return None
+    handled = openai_handle_bad_request(model_name, e)
+    return handled if isinstance(handled, ModelOutput) else None
 
 
 def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
@@ -1222,22 +1739,3 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
-
-
-class OpenAIAsyncHttpxClient(httpx.AsyncClient):
-    """Custom async client that uses OpenAI's default settings.
-
-    This ensures proper proxy support and follows OpenAI's recommended configuration.
-    OpenAI has already incorporated timeout improvements for reasoning models in their
-    default transport, so we don't need custom socket options.
-
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        # Use OpenAI's default settings which handle proxies correctly
-        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
-        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
-        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
-        kwargs.setdefault("follow_redirects", True)
-
-        super().__init__(**kwargs)

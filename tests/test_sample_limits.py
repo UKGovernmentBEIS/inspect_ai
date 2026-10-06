@@ -5,6 +5,7 @@ from typing import Generator
 import anyio
 import pytest
 from test_helpers.limits import check_limit_event, find_limit_event
+from test_helpers.tools import addition
 from test_helpers.utils import (
     flaky_retry,
     skip_if_no_docker,
@@ -14,6 +15,7 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, eval
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.approval import ApprovalPolicy, auto_approver
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model._chat_message import ChatMessageUser
@@ -29,7 +31,7 @@ from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._metrics import mean
 from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
-from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.solver import Generate, TaskState, solver, use_tools
 from inspect_ai.solver._solver import Solver, generate
 from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._limit import TokenLimit, sample_limits
@@ -213,6 +215,27 @@ def test_token_limit():
     check_limit_event(log, "token")
 
 
+def test_token_limit_reached_exactly_refuses_next_generate():
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=repeat_forever(mock_model_output(tokens=5)),
+    )
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        token_limit=10,
+    )
+
+    log = eval(task, model=model)[0]
+    # two calls reach the limit exactly; the third is refused before it is sent
+    total_tokens = sum(usage.total_tokens for usage in log.stats.model_usage.values())
+    assert total_tokens == 10
+    event = find_limit_event(log)
+    assert event is not None and event.type == "token"
+    assert event.message == "Token limit reached. value: 10; limit: 10"
+
+
 def test_token_limit_does_not_apply_to_scorer():
     model = get_model(
         "mockllm/model",
@@ -338,6 +361,7 @@ def test_turn_limit():
     assert log.samples[0].limit is not None
     assert log.samples[0].limit.type == "turn"
     assert log.samples[0].limit.limit == turn_limit
+    assert log.samples[0].limit.reason == "Turn limit exceeded. value: 3; limit: 2"
 
 
 def test_turn_limit_does_not_apply_to_scorer():
@@ -802,3 +826,40 @@ def test_model_cost_config_dict() -> None:
     assert log.status == "success"
     usage = list(log.stats.model_usage.values())[0]
     assert usage.total_cost == pytest.approx(0.007)
+
+
+def test_operator_limit_records_reason() -> None:
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="addition",
+                tool_arguments={"x": 1, "y": 1},
+            ),
+            ModelOutput.from_content("mockllm/model", content="2"),
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[use_tools(addition()), generate()],
+        scorer=match(numeric=True),
+        approval=[ApprovalPolicy(approver=auto_approver("terminate"), tools="*")],
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+
+    # the terminating approver's reason reaches the sample's own record, not
+    # just the transcript event — 'operator' alone doesn't say which
+    # termination this was
+    limit = log.samples[0].limit
+    assert limit is not None
+    assert limit.type == "operator"
+    assert limit.reason == "Tool call approver requested termination."
+
+    # and survives into the summary, the cheap read path
+    summary = log.samples[0].summary()
+    assert summary.limit == "operator"
+    assert summary.limit_reason == "Tool call approver requested termination."

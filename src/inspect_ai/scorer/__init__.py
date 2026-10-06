@@ -1,6 +1,7 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._answer import AnswerPattern, answer
+from ._cascade import cascade
 from ._choice import choice
 from ._classification import exact, f1
 from ._match import includes, match
@@ -13,9 +14,11 @@ from ._metric import (
     UNCHANGED,
     Metric,
     MetricProtocol,
+    Reference,
     SampleScore,
     Score,
     ScoreEdit,
+    ScoreReason,
     Value,
     ValueToFloat,
     metric,
@@ -25,17 +28,21 @@ from ._metrics.accuracy import accuracy
 from ._metrics.aggregate import aggregate
 from ._metrics.categorical import categorical, frequency
 from ._metrics.grouped import grouped
+from ._metrics.krippendorff import krippendorff_alpha
 from ._metrics.mean import mean
 from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
-from ._metrics.std import bootstrap_stderr, std, stderr, var
+from ._metrics.std import bootstrap_stderr, ci, ci_wilson, std, stderr, var
 from ._model import model_graded_fact, model_graded_qa
 from ._multi import multi_scorer
 from ._pattern import pattern
 from ._perplexity import perplexity
+from ._precomputed import precomputed_scores
 from ._reducer import (
     ScoreReducer,
     ScoreReducers,
     at_least,
+    collect_score,
+    majority_score,
     max_score,
     mean_score,
     median_score,
@@ -57,9 +64,11 @@ __all__ = [
     "MetricProtocol",
     "NOANSWER",
     "PARTIAL",
+    "Reference",
     "SampleScore",
     "Score",
     "ScoreEdit",
+    "ScoreReason",
     "ScoreReducer",
     "ScoreReducers",
     "Scorer",
@@ -72,13 +81,19 @@ __all__ = [
     "answer",
     "at_least",
     "bootstrap_stderr",
+    "cascade",
     "categorical",
     "choice",
+    "ci",
+    "ci_wilson",
+    "collect_score",
     "exact",
     "f1",
     "frequency",
     "grouped",
     "includes",
+    "krippendorff_alpha",
+    "majority_score",
     "match",
     "math",
     "max_score",
@@ -96,6 +111,7 @@ __all__ = [
     "perplexity",
     "perplexity_per_seq",
     "perplexity_per_token",
+    "precomputed_scores",
     "score",
     "score_reducer",
     "scorer",

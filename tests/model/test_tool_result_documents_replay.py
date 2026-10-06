@@ -62,7 +62,7 @@ def test_multiple_tool_responses_remain_adjacent_when_not_at_end_of_list():
 
 async def test_model_generate_replays_documents_as_user_messages():
     """Providers without native replay move documents into a fabricated user message."""
-    document = ContentDocument(document="/path/to/report.pdf")
+    document = ContentDocument(document="data:application/pdf;base64,AAAA")
     api = _CaptureAPI()
     model = Model(api, GenerateConfig())
 
@@ -83,7 +83,7 @@ async def test_model_generate_replays_documents_as_user_messages():
 
 async def test_model_generate_preserves_document_tool_results_for_supporting_providers():
     """Native providers keep structured document tool results unchanged."""
-    document = ContentDocument(document="/path/to/report.pdf")
+    document = ContentDocument(document="data:application/pdf;base64,AAAA")
     api = _CaptureAPI(replay_documents=True)
     model = Model(api, GenerateConfig())
 
@@ -98,8 +98,8 @@ async def test_model_generate_preserves_document_tool_results_for_supporting_pro
 
 async def test_model_generate_preserves_image_and_document_order_in_fallback():
     """Mixed media fallback preserves the original content order."""
-    image = ContentImage(image="image_for_tool")
-    document = ContentDocument(document="/path/to/report.pdf")
+    image = ContentImage(image="data:image/png;base64,AAAA")
+    document = ContentDocument(document="data:application/pdf;base64,AAAA")
     api = _CaptureAPI()
     model = Model(api, GenerateConfig())
 

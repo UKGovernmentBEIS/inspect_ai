@@ -12,6 +12,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
     ChatMessageUser,
+    ModelOutput,
     get_model,
 )
 from inspect_ai.solver import generate, use_tools
@@ -144,8 +145,19 @@ def searcher3() -> Agent:
     return execute
 
 
-@skip_if_no_openai
 def test_agent_handoff_assistant_prefix():
+    # the "[searcher3]" prefix is applied by the framework, so script the
+    # handoff against mockllm: the outer model hands off, searcher3's own
+    # get_model().generate() consumes the second output, then the outer
+    # model answers (a live model can loop on the handoff indefinitely)
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call("mockllm/model", "transfer_to_searcher3", {}),
+            ModelOutput.from_content("mockllm/model", "The max_searches is 5."),
+            ModelOutput.from_content("mockllm/model", "The searcher3 reported 5."),
+        ],
+    )
     log = eval(
         Task(
             dataset=[
@@ -153,7 +165,7 @@ def test_agent_handoff_assistant_prefix():
             ]
         ),
         solver=[use_tools(handoff(searcher3())), generate()],
-        model="openai/gpt-4o-mini",
+        model=model,
     )[0]
     assert log.samples
     messages = log.samples[0].messages
@@ -326,6 +338,11 @@ def check_agent_handoff_output_filter(
         solver=[use_tools(handoff(oracle(), output_filter=output_filter)), generate()],
         model="openai/gpt-4o-mini",
         log_format="json",
+        # bound the handoff loop: with output_filter=None the oracle injects a
+        # "give me another answer?" user turn that can prompt the model to hand
+        # off again, and with no limit a runaway loop runs until CI's per-test
+        # timeout kills the worker with no output (meridianlabs-ai/inspect_ai#232)
+        message_limit=20,
     )[0]
     assert log.samples
     assert len(log.samples[0].messages) == messages_len

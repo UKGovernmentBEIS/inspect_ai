@@ -34,7 +34,7 @@ inspect eval examples/skills/task.py --model openai/gpt-4o
 inspect eval examples/skills/task.py --model openai/gpt-4o --limit 1
 ```
 
-The evaluation runs in a Docker container (Ubuntu 24.04) where the agent can execute system commands.
+The evaluation runs in a Docker container (Ubuntu 24.04) where the agent can execute system commands. Its internal Docker network provides an interface for the network-information task but does not permit Internet access.
 
 ## How It Works
 

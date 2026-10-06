@@ -56,7 +56,7 @@ inspect eval simpleqa.py --model openai/gpt-4o
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval simpleqa.py --model anthropic/claude-sonnet-4-0
+inspect eval simpleqa.py --model anthropic/claude-sonnet-4-6
 ```
 
 #### Google
@@ -64,7 +64,7 @@ inspect eval simpleqa.py --model anthropic/claude-sonnet-4-0
 ``` bash
 pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
-inspect eval simpleqa.py --model google/gemini-2.5-pro
+inspect eval simpleqa.py --model google/gemini-3.5-flash-lite
 ```
 
 #### HF
@@ -176,7 +176,7 @@ def ctf():
 
 2.  The `includes()` scorer passes if the target flag appears in the agent's submitted answer.
 
-3.  `sandbox="docker"` runs all tool calls inside an isolated Docker container (configured by a `Dockerfile` or `compose.yaml` alongside the task).
+3.  `sandbox="docker"` provides the isolated Docker container used by `bash()` (configured by a `Dockerfile` or `compose.yaml` alongside the task).
 
 Use `inspect view` to view the results and look more carefully at individual transcripts:
 
@@ -227,4 +227,3 @@ To learn more about using Inspect see the following documentation sections:
 -   [Extensions](extensions.qmd) shows how to extend Inspect with new model APIs, components, sandboxes, approvers, hooks, and filesystems.
 
 You may also want to explore the [Evals](evals/index.qmd) listing of ready-to-run benchmark implementations, the [Extensions](extensions/index.qmd) gallery of community packages, and the [Reference](reference/index.qmd) for the complete Python and CLI API.
-

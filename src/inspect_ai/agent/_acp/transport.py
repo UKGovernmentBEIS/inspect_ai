@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     )
 
     from inspect_ai.agent._channel import AgentChannel, AgentRef
+    from inspect_ai.agent._channel.channel import TurnState
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
@@ -80,6 +81,13 @@ class ElicitationRequest:
     session_id: str
     requested_schema: "ElicitationSchema"
     tool_call_id: str | None = None
+
+
+@dataclass(frozen=True)
+class TurnStateUpdate:
+    """Turn-state transition carried on the ordered ACP update bus."""
+
+    state: "TurnState"
 
 
 # Loose heterogeneous payload — early tests publish dicts; the live
@@ -382,6 +390,16 @@ class AcpTransport(Protocol):
         """
         ...
 
+    @property
+    def turn_active(self) -> bool:
+        """Whether the bound agent is currently inside its turn scope.
+
+        Read after :meth:`subscribe_turn_state` to obtain a race-free current
+        snapshot followed by every subsequent transition. The no-op transport
+        always returns ``False``.
+        """
+        ...
+
     def subscribe_interrupted(self, callback: Callable[[], None]) -> Callable[[], None]:
         """Register a callback fired on every :meth:`cancel_current_turn`.
 
@@ -405,6 +423,20 @@ class AcpTransport(Protocol):
         provides the resumption text. Returns an idempotent
         unsubscribe callable. No-op session returns a no-op
         unsubscribe.
+        """
+        ...
+
+    def subscribe_turn_state(
+        self, callback: Callable[[TurnState], None]
+    ) -> Callable[[], None]:
+        """Register a callback fired on the bound channel's turn-scope transitions.
+
+        Receives ``"started"`` / ``"ended"`` / ``"cancelled"`` as the
+        agent enters and exits :meth:`AgentChannel.turn_scope`. Used
+        by per-connection forwarders to emit ``inspect/turn_state``
+        so an ACP client has an exact "agent is working" signal.
+        Returns an idempotent unsubscribe callable. No-op session
+        returns a no-op unsubscribe.
         """
         ...
 

@@ -16,6 +16,8 @@ from inspect_ai.model._model import (
     init_model_usage,
     init_role_usage,
 )
+from inspect_ai.review._apply import have_tool_review, init_tool_review
+from inspect_ai.review._policy import ReviewPolicy
 from inspect_ai.util._concurrency import init_concurrency
 from inspect_ai.util._input.manager import init_human_question_manager
 from inspect_ai.util._subprocess import init_max_subprocesses
@@ -50,7 +52,7 @@ def init_eval_context(
 
 def init_model_context(
     model: Model,
-    model_roles: dict[str, Model] | None = None,
+    model_roles: dict[str, Model | list[Model]] | None = None,
     config: GenerateConfig = GenerateConfig(),
 ) -> None:
     init_active_model(model, config)
@@ -61,10 +63,13 @@ def init_model_context(
 
 def init_task_context(
     model: Model,
-    model_roles: dict[str, Model] | None = None,
+    model_roles: dict[str, Model | list[Model]] | None = None,
     config: GenerateConfig = GenerateConfig(),
     approval: list[ApprovalPolicy] | None = None,
+    review: list[ReviewPolicy] | None = None,
 ) -> None:
     init_model_context(model, model_roles, config)
     if not have_tool_approval():
         init_tool_approval(approval)
+    if not have_tool_review():
+        init_tool_review(review)

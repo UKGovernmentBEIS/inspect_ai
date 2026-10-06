@@ -27,18 +27,24 @@ from ._edit import (
 )
 from ._file import (
     EvalLogInfo,
+    WriteEvalLogResult,
     list_eval_logs,
     list_eval_logs_async,
     read_eval_log,
     read_eval_log_async,
+    read_eval_log_headers_async,
     read_eval_log_sample,
+    read_eval_log_sample_async,
     read_eval_log_sample_summaries,
+    read_eval_log_sample_summaries_async,
     read_eval_log_samples,
     read_eval_log_samples_by_id,
+    read_eval_log_samples_by_id_async,
     write_eval_log,
     write_eval_log_async,
     write_log_dir_manifest,
 )
+from ._headline import ResolvedHeadlineMetric, headline_metric
 from ._log import (
     ConnectionLimitChange,
     EvalConfig,
@@ -60,11 +66,14 @@ from ._log import (
     EvalStats,
     EvalStatus,
     EventsData,
+    HeadlineMetric,
 )
 from ._metric import recompute_metrics
 from ._recover import (
+    IncompleteAction,
     RecoverableEvalLog,
     RecoveryNotAvailable,
+    RecoveryThresholdExceeded,
     recover_eval_log,
     recoverable_eval_logs,
 )
@@ -104,6 +113,10 @@ __all__ = [
     "EvalStats",
     "EvalStatus",
     "EvalLogInfo",
+    "WriteEvalLogResult",
+    "HeadlineMetric",
+    "ResolvedHeadlineMetric",
+    "headline_metric",
     "Transcript",
     "TranscriptHistory",
     "TranscriptHistoryUnavailableError",
@@ -113,10 +126,14 @@ __all__ = [
     "list_eval_logs_async",
     "read_eval_log",
     "read_eval_log_async",
+    "read_eval_log_headers_async",
     "read_eval_log_sample",
+    "read_eval_log_sample_async",
     "read_eval_log_sample_summaries",
+    "read_eval_log_sample_summaries_async",
     "read_eval_log_samples",
     "read_eval_log_samples_by_id",
+    "read_eval_log_samples_by_id_async",
     "condense_sample",
     "condense_events",
     "EventsData",
@@ -140,8 +157,10 @@ __all__ = [
     "uninvalidate_samples",
     "recover_eval_log",
     "recoverable_eval_logs",
+    "IncompleteAction",
     "RecoverableEvalLog",
     "RecoveryNotAvailable",
+    "RecoveryThresholdExceeded",
     "ConnectionLimitChange",
 ]
 

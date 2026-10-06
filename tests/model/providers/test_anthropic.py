@@ -1,9 +1,15 @@
 import types
+from pathlib import Path
 from typing import Any, Literal, cast
-from unittest.mock import AsyncMock, create_autospec
+from unittest.mock import AsyncMock, create_autospec, patch
 
 import pytest
-from test_helpers.utils import skip_if_no_anthropic
+from test_helpers.output_cache import check_output_cache_round_trip
+from test_helpers.utils import (
+    setenv_if_unset,
+    skip_if_no_anthropic,
+    skip_if_no_bedrock,
+)
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import (
@@ -23,7 +29,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._providers.anthropic import AnthropicAPI
-from inspect_ai.tool import ToolCall, ToolInfo
+from inspect_ai.tool import ToolCall, ToolFunction, ToolInfo
 
 
 @pytest.mark.anyio
@@ -44,6 +50,15 @@ async def test_anthropic_api() -> None:
     message = "This is a test string. What are you?"
     response = await model.generate(input=message)
     assert len(response.completion) >= 1
+
+
+@skip_if_no_anthropic
+async def test_anthropic_output_cache(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    await check_output_cache_round_trip(
+        "anthropic/claude-haiku-4-5", monkeypatch, tmp_path
+    )
 
 
 @skip_if_no_anthropic
@@ -94,6 +109,63 @@ def test_anthropic_oauth_beta_preserved_with_effort() -> None:
             os.environ["ANTHROPIC_AUTH_TOKEN"] = orig
         else:
             os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
+
+
+def test_anthropic_oauth_client_accepts_caller_default_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression test for the OAuth branch's `default_headers` collision.
+
+    `AsyncAnthropic() got multiple values for keyword argument
+    'default_headers'` was raised whenever ANTHROPIC_AUTH_TOKEN is set and
+    the caller passes its own default_headers via model_args (e.g. a
+    per-session tracing header).
+    """
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "test-oauth-token")
+    caller_headers = {"x-session-id": "test-session"}
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", default_headers=caller_headers)
+    custom_headers = cast(dict[str, str], api.client._custom_headers)
+    assert custom_headers["x-session-id"] == "test-session"
+    assert custom_headers["anthropic-beta"] == "oauth-2025-04-20"
+    # the caller's own dict must not be mutated by the merge
+    assert caller_headers == {"x-session-id": "test-session"}
+
+
+def test_anthropic_oauth_client_merges_caller_anthropic_beta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The OAuth beta must survive a caller-supplied anthropic-beta header.
+
+    When the caller's own default_headers already carries an
+    `anthropic-beta` value, comma-join both rather than let either clobber
+    the other (same merge `_beta_header_value` does for per-request betas).
+    """
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "test-oauth-token")
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6",
+        default_headers={"anthropic-beta": "context-1m-2025-08-07"},
+    )
+    custom_headers = cast(dict[str, str], api.client._custom_headers)
+    betas = [b.strip() for b in custom_headers["anthropic-beta"].split(",")]
+    assert betas == ["oauth-2025-04-20", "context-1m-2025-08-07"]
+
+
+def test_anthropic_api_key_client_forwards_caller_default_headers_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression guard for the non-OAuth (API key) branch.
+
+    It is untouched by the OAuth merge above and keeps forwarding a
+    caller's default_headers as given.
+    """
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6",
+        api_key="test-key",
+        default_headers={"x-session-id": "test-session"},
+    )
+    custom_headers = cast(dict[str, str], api.client._custom_headers)
+    assert custom_headers == {"x-session-id": "test-session"}
 
 
 def test_anthropic_extra_headers_not_mutated_across_calls() -> None:
@@ -212,35 +284,43 @@ def test_anthropic_thinking_keeps_display_without_full_thinking_beta() -> None:
 
 
 @pytest.mark.parametrize(
-    "model_name,disabled",
+    "model_name,thinking_type",
     [
         # 4.7+ run adaptive thinking by default and accept `disabled`
-        ("claude-opus-5", True),
-        ("claude-sonnet-5", True),
-        ("claude-opus-4-8", True),
-        ("claude-opus-4-7", True),
-        # Fable/Mythos 5 always think and reject `disabled` — leave thinking unset
-        ("claude-fable-5", False),
-        ("claude-mythos-5", False),
+        ("claude-opus-5", "disabled"),
+        ("claude-sonnet-5", "disabled"),
+        ("claude-opus-4-8", "disabled"),
+        ("claude-opus-4-7", "disabled"),
+        # Sonnet 5.5 rejects `disabled`; `between_tools` is its lowest setting
+        ("claude-sonnet-5-5", "between_tools"),
+        ("anthropic.claude-sonnet-5-5", "between_tools"),
+        # Fable/Mythos 5 and Opus 5.5 always think and reject `disabled` —
+        # leave thinking unset
+        ("claude-fable-5", None),
+        ("claude-mythos-5", None),
+        ("claude-fable-5-1", None),
+        ("claude-mythos-5-1", None),
+        ("claude-opus-5-5", None),
         # pre-4.7 default to no thinking — omitting the field already means off
-        ("claude-sonnet-4-6", False),
-        ("claude-sonnet-4-5", False),
+        ("claude-sonnet-4-6", None),
+        ("claude-sonnet-4-5", None),
     ],
 )
 def test_anthropic_reasoning_effort_none_disables_thinking(
-    model_name: str, disabled: bool
+    model_name: str, thinking_type: str | None
 ) -> None:
-    """`reasoning_effort="none"` disables thinking only where it applies.
+    """`reasoning_effort="none"` turns thinking off only where it applies.
 
     Sends `thinking:{type:"disabled"}` where thinking is on by default and can be
-    turned off (Claude 4.7+, excluding Fable/Mythos); omits it otherwise.
+    turned off (Claude 4.7+, excluding Fable/Mythos and Opus 5.5), and
+    `between_tools` on Sonnet 5.5; omits it otherwise.
     """
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     params, _e, _h, _b = api.completion_config(
         GenerateConfig(max_tokens=64, reasoning_effort="none")
     )
-    if disabled:
-        assert params["thinking"] == {"type": "disabled"}
+    if thinking_type is not None:
+        assert params["thinking"] == {"type": thinking_type}
     else:
         assert "thinking" not in params
 
@@ -267,6 +347,50 @@ def test_anthropic_opus_5_disabled_thinking_clamps_effort(
     assert params["output_config"]["effort"] == "high"
 
 
+@pytest.mark.parametrize("effort", ["xhigh", "max"])
+def test_anthropic_sonnet_5_5_between_tools_clamps_effort(
+    effort: Literal["xhigh", "max"],
+    _warn_once_messages: list[str],
+) -> None:
+    """Sonnet 5.5 rejects `between_tools` with effort above `high`; clamp to `high`."""
+    api = AnthropicAPI(model_name="claude-sonnet-5-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort=effort)
+    )
+    assert params["thinking"] == {"type": "between_tools"}
+    assert params["output_config"]["effort"] == "high"
+    assert any(
+        "claude-sonnet-5-5" in m and "clamping effort to 'high'" in m
+        for m in _warn_once_messages
+    )
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high"])
+def test_anthropic_sonnet_5_5_between_tools_keeps_effort_at_or_below_high(
+    effort: Literal["low", "medium", "high"],
+) -> None:
+    """Effort at or below `high` passes through unclamped with `between_tools`."""
+    api = AnthropicAPI(model_name="claude-sonnet-5-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort=effort)
+    )
+    assert params["thinking"] == {"type": "between_tools"}
+    assert params["output_config"]["effort"] == effort
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
+def test_anthropic_sonnet_5_5_reasoning_effort_is_adaptive(
+    effort: Literal["low", "medium", "high", "xhigh", "max"],
+) -> None:
+    """A real reasoning effort routes to adaptive thinking on Sonnet 5.5."""
+    api = AnthropicAPI(model_name="claude-sonnet-5-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort=effort)
+    )
+    assert params["thinking"] == {"type": "adaptive", "display": "summarized"}
+    assert params["output_config"]["effort"] == effort
+
+
 @pytest.mark.parametrize("model_name", ["claude-opus-4-8", "claude-sonnet-5"])
 def test_anthropic_disabled_thinking_keeps_high_effort_elsewhere(
     model_name: str,
@@ -288,6 +412,47 @@ def test_anthropic_opus_5_disabled_thinking_keeps_high_effort() -> None:
     )
     assert params["thinking"] == {"type": "disabled"}
     assert params["output_config"]["effort"] == "high"
+
+
+@pytest.mark.parametrize("model_name", ["claude-opus-5-5", "claude-fable-5-1"])
+@pytest.mark.parametrize("effort", ["low", "xhigh"])
+def test_anthropic_reasoning_effort_none_keeps_effort_where_thinking_always_on(
+    model_name: str, effort: Literal["low", "xhigh"]
+) -> None:
+    """Models that can't disable thinking omit `thinking` and keep the configured effort.
+
+    `xhigh` pins the divergence from Opus 5, which clamps effort to `high` when
+    it disables thinking.
+    """
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort=effort)
+    )
+    assert "thinking" not in params
+    assert params["output_config"]["effort"] == effort
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
+def test_anthropic_opus_5_5_reasoning_effort_is_adaptive(
+    effort: Literal["low", "medium", "high", "xhigh", "max"],
+) -> None:
+    """Opus 5.5 drives thinking through adaptive effort only; no budget is ever sent."""
+    api = AnthropicAPI(model_name="claude-opus-5-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort=effort)
+    )
+    assert params["thinking"]["type"] == "adaptive"
+    assert "budget_tokens" not in params["thinking"]
+    assert params["output_config"]["effort"] == effort
+
+
+def test_anthropic_opus_5_5_rejects_reasoning_tokens() -> None:
+    """An explicit thinking budget fails fast on Opus 5.5 (the API 400s on it)."""
+    from inspect_ai._util.error import PrerequisiteError
+
+    api = AnthropicAPI(model_name="claude-opus-5-5", api_key="test-key")
+    with pytest.raises(PrerequisiteError):
+        api.completion_config(GenerateConfig(max_tokens=64, reasoning_tokens=1024))
 
 
 @pytest.mark.parametrize(
@@ -330,14 +495,14 @@ def test_anthropic_full_thinking_beta_via_client_default_header() -> None:
 
 
 @skip_if_no_anthropic
-def test_anthropic_should_retry():
-    import httpx
+def test_anthropic_should_retry() -> None:
+    import httpx2
     from anthropic import APIStatusError
 
     # scaffold for should_retry
     model = get_model("anthropic/claude-sonnet-4-6")
-    response = httpx.Response(
-        status_code=405, request=httpx.Request("GET", "https://example.com")
+    response = httpx2.Response(
+        status_code=405, request=httpx2.Request("GET", "https://example.com")
     )
 
     # check whether we handle overloaded_error correctly
@@ -355,8 +520,8 @@ def test_anthropic_should_retry():
     model.api.should_retry(ex)
 
     # truncated request body (TCP interruption) should be retried
-    truncation_response = httpx.Response(
-        status_code=400, request=httpx.Request("POST", "https://example.com")
+    truncation_response = httpx2.Response(
+        status_code=400, request=httpx2.Request("POST", "https://example.com")
     )
     ex = APIStatusError(
         "error",
@@ -372,8 +537,8 @@ def test_anthropic_should_retry():
     assert model.api.should_retry(ex)
 
     # genuine 400 errors should NOT be retried
-    genuine_400_response = httpx.Response(
-        status_code=400, request=httpx.Request("POST", "https://example.com")
+    genuine_400_response = httpx2.Response(
+        status_code=400, request=httpx2.Request("POST", "https://example.com")
     )
     ex = APIStatusError(
         "error",
@@ -391,8 +556,8 @@ def test_anthropic_should_retry():
     # deterministic encoding errors (e.g. surrogate pairs) should NOT be retried
     ex = APIStatusError(
         "error",
-        response=httpx.Response(
-            status_code=400, request=httpx.Request("POST", "https://example.com")
+        response=httpx2.Response(
+            status_code=400, request=httpx2.Request("POST", "https://example.com")
         ),
         body={
             "type": "error",
@@ -414,7 +579,7 @@ def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
     rather than BadRequestError. handle_bad_request() must still convert
     "content filtering" messages into a content_filter refusal.
     """
-    import httpx
+    import httpx2
     from anthropic import APIStatusError
 
     from inspect_ai.model._model_output import ModelOutput
@@ -422,9 +587,9 @@ def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
     api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
     ex = APIStatusError(
         "Output blocked by content filtering policy",
-        response=httpx.Response(
+        response=httpx2.Response(
             status_code=200,
-            request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+            request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"),
         ),
         body={
             "type": "error",
@@ -448,7 +613,7 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
     status_code == 413 and re-raised everything else, so content-filter errors
     that surfaced mid-stream killed the eval instead of becoming a refusal.
     """
-    import httpx
+    import httpx2
     from anthropic import APIStatusError
 
     from inspect_ai.model._model_output import ModelOutput
@@ -466,9 +631,9 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
     ) -> tuple[dict[str, Any], ModelOutput]:
         raise APIStatusError(
             "Output blocked by content filtering policy",
-            response=httpx.Response(
+            response=httpx2.Response(
                 status_code=200,
-                request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+                request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"),
             ),
             body={
                 "type": "error",
@@ -911,9 +1076,10 @@ async def test_anthropic_cache_marks_penultimate_block() -> None:
     api = create_autospec(AnthropicAPI, instance=True)
     api.service_model_name.return_value = "claude-sonnet-4-6"
     api.partition_tools.return_value = ([], [])
-    # instance attribute set in __init__, not captured by create_autospec
-    api.cache_ttl = None
     api.resolve_chat_input = types.MethodType(AnthropicAPI.resolve_chat_input, api)
+    api._resolve_chat_input_explicit = types.MethodType(
+        AnthropicAPI._resolve_chat_input_explicit, api
+    )
 
     def marked(content: Any) -> list[int]:
         assert isinstance(content, list)
@@ -921,7 +1087,10 @@ async def test_anthropic_cache_marks_penultimate_block() -> None:
 
     async def resolve(input: list[ChatMessage], cache: bool = True) -> Any:
         return await api.resolve_chat_input(
-            input=input, tools=[], config=GenerateConfig(cache_prompt=cache)
+            input=input,
+            tools=[],
+            config=GenerateConfig(cache_prompt=cache),
+            cache_ttl=None,
         )
 
     # multi-block last message: mark content[-2]
@@ -976,13 +1145,11 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
     `cache_control: Extra inputs are not permitted`.
     ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
     """
-    import os
-
-    os.environ.setdefault("AWS_REGION", "us-east-1")
-    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
-    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_REGION", "us-east5")
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
 
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
 
@@ -1138,10 +1305,9 @@ def test_anthropic_claude_4_7_strips_sampling_params(
 ) -> None:
     """Claude 4.7+ rejects temperature/top_p/top_k outright; the provider must omit them."""
     api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
-    params, _extra_body, _headers, _betas = api.completion_config(
-        _cfg(**{param: value})
-    )
+    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
     assert param not in params
+    assert param not in extra_body
 
 
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
@@ -1150,10 +1316,11 @@ def test_anthropic_claude_4_7_strips_sampling_params_with_reasoning_effort_none(
 ) -> None:
     """reasoning_effort='none' must not re-enable sending sampling params on 4.7."""
     api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
-    params, _extra_body, _headers, _betas = api.completion_config(
+    params, extra_body, _headers, _betas = api.completion_config(
         _cfg(reasoning_effort="none", **{param: value})
     )
     assert param not in params
+    assert param not in extra_body
 
 
 @pytest.mark.parametrize(
@@ -1163,12 +1330,15 @@ def test_anthropic_claude_4_7_strips_sampling_params_with_reasoning_effort_none(
 def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
     model_name: str, param: str, value: float | int
 ) -> None:
-    """Pre-4.7 models still accept sampling params when thinking is off."""
+    """Pre-4.7 models still send sampling params when thinking is off.
+
+    anthropic >= 1.0 removed them from the method signatures, so they are
+    routed via extra_body rather than params.
+    """
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    params, _extra_body, _headers, _betas = api.completion_config(
-        _cfg(**{param: value})
-    )
-    assert params[param] == value
+    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
+    assert param not in params
+    assert extra_body[param] == value
 
 
 @pytest.mark.parametrize(
@@ -1177,6 +1347,8 @@ def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
         "claude-opus-4-8",
         "claude-fable-5",
         "claude-opus-5-0",
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
         "claude-sonnet-4-7",
         "claude-sonnet-5-0",
     ],
@@ -1187,10 +1359,137 @@ def test_anthropic_future_4_7_plus_strips_sampling_params(
 ) -> None:
     """All 4.7+ models inherit the adaptive-thinking restriction."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    params, _extra_body, _headers, _betas = api.completion_config(
-        _cfg(**{param: value})
-    )
+    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
     assert param not in params
+    assert param not in extra_body
+
+
+@pytest.mark.anyio
+async def test_anthropic_batch_merges_extra_body_into_params() -> None:
+    """The Batches API has no extra_body — its fields (e.g. sampling params) must land directly in each request's params."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    import anyio
+
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._anthropic_batch import AnthropicBatcher
+    from inspect_ai.model._providers.util.batch import BatchRequest
+    from inspect_ai.model._retry import model_retry_config
+
+    client = MagicMock()
+    client.messages.batches.create = AsyncMock(return_value=MagicMock(id="batch_1"))
+    batcher = AnthropicBatcher(
+        client,
+        BatchConfig(size=1, send_delay=0.01, tick=0.001),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+    send_stream, _receive_stream = anyio.create_memory_object_stream[Any]()
+    request: BatchRequest[Any] = BatchRequest(
+        request={
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 64,
+            "messages": [{"role": "user", "content": "hi"}],
+            "extra_headers": {"x-header": "y"},
+            "extra_body": {"temperature": 0.5, "top_k": 10},
+        },
+        result_stream=send_stream,
+    )
+    batch_id = await batcher._create_batch([request])
+    assert batch_id == "batch_1"
+    (call,) = client.messages.batches.create.call_args_list
+    params = call.kwargs["requests"][0]["params"]
+    assert params["temperature"] == 0.5
+    assert params["top_k"] == 10
+    assert "extra_body" not in params
+    assert call.kwargs["extra_headers"] == {"x-header": "y"}
+
+
+@pytest.mark.anyio
+async def test_anthropic_batch_sends_each_header_set_separately() -> None:
+    """Requests with different headers go in separate batches, each with its own headers; the request id is never sent at batch level."""
+    import functools
+    from unittest.mock import MagicMock
+
+    import anyio
+
+    from inspect_ai._util._async import tg_collect
+    from inspect_ai._util.background import set_background_task_group
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._anthropic_batch import AnthropicBatcher
+    from inspect_ai.model._providers.util.batch import BatchCheckResult
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+    from inspect_ai.model._retry import model_retry_config
+
+    class CompletingAnthropicBatcher(AnthropicBatcher):
+        """Completes each batch at once, answering each request with its id."""
+
+        async def _check_batch(self, batch):
+            return BatchCheckResult(
+                completed_count=len(batch.requests),
+                failed_count=0,
+                created_at=0,
+                completion_info=True,
+            )
+
+        async def _handle_batch_result(self, batch, completion_info):
+            return {custom_id: custom_id for custom_id in batch.requests}
+
+    client = MagicMock()
+    client.messages.batches.create = AsyncMock(
+        side_effect=[MagicMock(id="batch_1"), MagicMock(id="batch_2")]
+    )
+    batcher = CompletingAnthropicBatcher(
+        client,
+        BatchConfig(size=10, send_delay=0.02, tick=0.001),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+
+    def request(name: str, beta: str) -> dict[str, Any]:
+        return {
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 64,
+            "messages": [{"role": "user", "content": name}],
+            "extra_headers": {
+                HttpxHooks.REQUEST_ID_HEADER: f"rid-{name}",
+                "anthropic-beta": beta,
+            },
+        }
+
+    async with anyio.create_task_group() as tg:
+        set_background_task_group(tg)
+        try:
+            results = await tg_collect(
+                [
+                    functools.partial(
+                        batcher.generate_for_request, request("a1", "beta-a")
+                    ),
+                    functools.partial(
+                        batcher.generate_for_request, request("b1", "beta-b")
+                    ),
+                    functools.partial(
+                        batcher.generate_for_request, request("a2", "beta-a")
+                    ),
+                ]
+            )
+        finally:
+            set_background_task_group(None)
+
+    assert [str(result) for result in results] == ["rid-a1", "rid-b1", "rid-a2"]
+    batches = sorted(
+        (
+            sorted(r["custom_id"] for r in call.kwargs["requests"]),
+            call.kwargs["extra_headers"],
+        )
+        for call in client.messages.batches.create.call_args_list
+    )
+    assert batches == [
+        (["rid-a1", "rid-a2"], {"anthropic-beta": "beta-a"}),
+        (["rid-b1"], {"anthropic-beta": "beta-b"}),
+    ]
 
 
 @pytest.fixture
@@ -1337,7 +1636,11 @@ async def test_anthropic_opus_5_disabled_thinking_effort_clamp_live() -> None:
         ("claude-opus-4-8", 128000),
         # Claude 5 (GA opus/fable + hypothetical tier-named): 128k via "claude 5+" branch
         ("claude-opus-5", 128000),
+        ("claude-opus-5-5", 128000),
+        ("claude-sonnet-5-5", 128000),
         ("claude-fable-5", 128000),
+        ("claude-fable-5-1", 128000),
+        ("claude-mythos-5-1", 128000),
         ("claude-opus-5-0", 128000),
         ("claude-sonnet-5-0", 128000),
         # Non-opus 4.5 / 4.6+ (incl. 4.7 and future 4.x minor): 64k
@@ -1368,8 +1671,12 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
         "claude-opus-5",
         "claude-fable-5",
         "claude-mythos-5",
-        # forward-compat variants: point release, tier-named, new codename
+        # point releases
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
         "claude-fable-5-1",
+        "claude-mythos-5-1",
+        # forward-compat variants: tier-named, new codename
         "claude-opus-5-0",
         "claude-saga-5",
     ],
@@ -1413,24 +1720,22 @@ def _computer_tool_info() -> ToolInfo:
 
 
 @pytest.mark.parametrize(
-    "model_name", ["claude-fable-5", "claude-mythos-5", "claude-saga-5"]
+    "model_name",
+    ["claude-fable-5", "claude-mythos-5", "claude-fable-5-1", "claude-saga-5"],
 )
-def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
-    """Undocumented Claude 5 models error on computer use rather than degrade.
+def test_anthropic_claude_5_computer_use_toolset(model_name: str) -> None:
+    """Fable/Mythos and codename Claude 5 models default to the computer toolset.
 
-    Covers Fable/Mythos and forward-compat codename variants. Sonnet 5 and
-    Opus 5 are supported and covered by test_anthropic_computer_use_tool_version.
+    They also accept the legacy `computer_20251124` tool (used on platforms
+    without the toolset, or with `computer_toolset=false`). Sonnet 5 and
+    Opus 5 keep the legacy tool and are covered by
+    test_anthropic_computer_use_tool_version; the full mode matrix lives in
+    test_anthropic_computer_toolset.py.
     """
-    from inspect_ai._util.error import PrerequisiteError
-
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    with pytest.raises(PrerequisiteError) as exc_info:
-        api.computer_use_tool_param(_computer_tool_info())
-    # PrerequisiteError stores the message on .message (it doesn't call super().__init__);
-    # .message is a RenderableType, so coerce to str for the substring checks.
-    message = str(exc_info.value.message)
-    assert "Computer use is not supported" in message
-    assert model_name in message
+    param = api.computer_use_tool_param(_computer_tool_info())
+    assert param is not None
+    assert param["type"] == "computer_toolset_20260801"
 
 
 @pytest.mark.parametrize(
@@ -1457,6 +1762,728 @@ def test_anthropic_computer_use_tool_version(
     param = api.computer_use_tool_param(_computer_tool_info())
     assert param is not None
     assert param["type"] == expected_type
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    ["bedrock/anthropic.claude-opus-5-5", "bedrock/anthropic.claude-sonnet-5-5"],
+)
+def test_anthropic_5_5_computer_use_on_bedrock(model_name: str) -> None:
+    """Bedrock still accepts `computer_20251124` on Opus 5.5 and Sonnet 5.5."""
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    param = api.computer_use_tool_param(_computer_tool_info())
+    assert param is not None
+    assert param["type"] == "computer_20251124"
+
+
+# ---------------------------------------------------------------------------
+# Fable/Mythos 5.1: forced tool choice + thinking block binding
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("claude-fable-5-1", True),
+        ("claude-mythos-5-1", True),
+        ("anthropic.claude-fable-5-1", True),
+        ("claude-fable-5-1-20260901", True),
+        # assume later point releases keep the 5.1 behavior
+        ("claude-fable-5-2", True),
+        ("claude-fable-5-12", True),
+        ("claude-fable-5.1", True),
+        # base names and other models don't match
+        ("claude-fable-5", False),
+        ("claude-fable-5-0", False),
+        ("claude-mythos-5", False),
+        ("claude-sonnet-5", False),
+        ("claude-opus-5", False),
+        ("claude-opus-5-1", False),
+        ("claude-saga-5-1", False),
+        ("claude-haiku-4-5", False),
+        ("claude-3-5-sonnet-latest", False),
+        # 1M-context style and date suffixes are not point releases
+        ("claude-fable-5-1m", False),
+        ("claude-fable-5-2026", False),
+        ("claude-fable-5-20260609", False),
+    ],
+)
+def test_anthropic_is_claude_fable_5_1_or_later(
+    model_name: str, expected: bool
+) -> None:
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.is_claude_fable_5_1_or_later() is expected
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("claude-opus-5-5", True),
+        ("anthropic.claude-opus-5-5", True),
+        ("us.anthropic.claude-opus-5-5-20260922-v1:0", True),
+        ("claude-opus-5-5@20260922", True),
+        ("claude-opus-5.5", True),
+        ("claude-opus-5-5-20260922", True),
+        # assume later point releases keep the 5.5 behavior
+        ("claude-opus-5-6", True),
+        ("claude-opus-5-10", True),
+        # the base release, earlier (hypothetical) point releases, other tiers
+        ("claude-opus-5", False),
+        ("claude-opus-5-0", False),
+        ("claude-opus-5-1", False),
+        ("claude-sonnet-5-5", False),
+        ("claude-fable-5-1", False),
+        ("claude-opus-4-5", False),
+        # 1M-context style and date suffixes are not point releases
+        ("claude-opus-5-5m", False),
+        ("claude-opus-5-20260922", False),
+    ],
+)
+def test_anthropic_is_claude_opus_5_5_or_later(model_name: str, expected: bool) -> None:
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.is_claude_opus_5_5_or_later() is expected
+    if expected:
+        # 5.5 is still an Opus 5 / Claude 5 model for the shared gates
+        assert api.is_claude_opus_5() is True
+        assert api.is_claude_5() is True
+        assert api.is_claude_fable_5_1_or_later() is False
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("claude-sonnet-5-5", True),
+        ("anthropic.claude-sonnet-5-5", True),
+        ("us.anthropic.claude-sonnet-5-5-20260928-v1:0", True),
+        ("claude-sonnet-5-5@20260928", True),
+        ("claude-sonnet-5.5", True),
+        ("claude-sonnet-5-5-20260928", True),
+        # assume later point releases keep the 5.5 behavior
+        ("claude-sonnet-5-6", True),
+        ("claude-sonnet-5-10", True),
+        # the base release, earlier (hypothetical) point releases, other tiers
+        ("claude-sonnet-5", False),
+        ("claude-sonnet-5-0", False),
+        ("claude-sonnet-5-1", False),
+        ("claude-opus-5-5", False),
+        ("claude-sonnet-4-5", False),
+        ("claude-sonnet-4-6", False),
+        # 1M-context style and date suffixes are not point releases
+        ("claude-sonnet-5-5m", False),
+        ("claude-sonnet-5-20260629", False),
+    ],
+)
+def test_anthropic_is_claude_sonnet_5_5_or_later(
+    model_name: str, expected: bool
+) -> None:
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.is_claude_sonnet_5_5_or_later() is expected
+    if expected:
+        # 5.5 is still a Sonnet 5 / Claude 5 model for the shared gates
+        assert api.is_claude_sonnet_5() is True
+        assert api.is_claude_5() is True
+        assert api.is_claude_opus_5_5_or_later() is False
+
+
+@pytest.mark.parametrize(
+    "model_name", ["claude-fable-5-1", "claude-mythos-5-1", "claude-opus-5-5"]
+)
+def test_anthropic_fable_5_1_degrades_forced_tool_choice(model_name: str) -> None:
+    """Fable/Mythos 5.1 and Opus 5.5 reject forced tool choice (400); degrade to auto."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.resolved_tool_choice("any") == "auto"
+    assert api.resolved_tool_choice(ToolFunction(name="get_weather")) == "auto"
+    # auto and none are unchanged on these models
+    assert api.resolved_tool_choice("auto") == "auto"
+    assert api.resolved_tool_choice("none") == "none"
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "claude-fable-5",
+        "claude-mythos-5",
+        "claude-sonnet-5",
+        "claude-opus-5",
+        "claude-opus-4-8",
+    ],
+)
+def test_anthropic_forced_tool_choice_unchanged_elsewhere(model_name: str) -> None:
+    """Models other than Fable/Mythos 5.1 and Opus 5.5 keep forced tool choice."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.resolved_tool_choice("any") == "any"
+    tool_function = ToolFunction(name="get_weather")
+    assert api.resolved_tool_choice(tool_function) is tool_function
+
+
+def _request_with_thinking_history() -> dict[str, Any]:
+    return {
+        "messages": [
+            {"role": "user", "content": [{"type": "text", "text": "hi"}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "", "signature": "sig"},
+                    {"type": "text", "text": "hello"},
+                ],
+            },
+            {"role": "user", "content": [{"type": "text", "text": "again"}]},
+        ]
+    }
+
+
+@pytest.mark.parametrize(
+    "model_name", ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5"]
+)
+def test_anthropic_fable_5_1_thinking_block_binding(model_name: str) -> None:
+    """Replayed thinking blocks opt into drop_block on prefix mismatch."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
+
+
+def test_anthropic_fable_5_1_thinking_block_binding_merges_existing() -> None:
+    """An existing thinking param keeps its fields when block_binding is added."""
+    api = AnthropicAPI(model_name="claude-fable-5-1", api_key="test-key")
+    request = _request_with_thinking_history() | {
+        "thinking": {"type": "adaptive", "display": "summarized"}
+    }
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "display": "summarized",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
+
+
+def test_anthropic_fable_5_1_binding_applies_without_thinking_blocks() -> None:
+    """The opt-in applies to every 5.1 request (uniform headers for batching)."""
+    api = AnthropicAPI(model_name="claude-fable-5-1", api_key="test-key")
+    request: dict[str, Any] = {
+        "messages": [{"role": "user", "content": [{"type": "text", "text": "hi"}]}]
+    }
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
+
+
+@pytest.mark.parametrize("model_name", ["claude-fable-5", "claude-opus-5"])
+def test_anthropic_fable_5_no_binding_on_base_model(model_name: str) -> None:
+    """The base Fable 5 and Opus 5 models do not bind thinking blocks."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == []
+    assert "thinking" not in request
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "bedrock/anthropic.claude-fable-5-1",
+        "vertex/claude-fable-5-1",
+        "azure/claude-fable-5-1",
+        "bedrock/anthropic.claude-opus-5-5",
+        "vertex/claude-opus-5-5",
+        "azure/claude-opus-5-5",
+        "vertex/claude-sonnet-5-5",
+        "azure/claude-sonnet-5-5",
+    ],
+)
+def test_anthropic_fable_5_1_no_binding_off_first_party(model_name: str) -> None:
+    """The thinking-binding beta is first-party only, except Sonnet 5.5 on Bedrock."""
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
+    setenv_if_unset("AZUREAI_ANTHROPIC_BASE_URL", "https://fake-azure.example.com")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == []
+    assert "thinking" not in request
+
+
+def test_anthropic_sonnet_5_5_between_tools_has_no_binding_config() -> None:
+    """`between_tools` takes no other field, so block_binding is not added to it.
+
+    The beta header is still sent, keeping headers uniform across a task's
+    requests.
+    """
+    api = AnthropicAPI(model_name="claude-sonnet-5-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none")
+    )
+    request = _request_with_thinking_history() | params
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {"type": "between_tools"}
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "bedrock/anthropic.claude-sonnet-5-5",
+        "bedrock/global.anthropic.claude-sonnet-5-5",
+    ],
+)
+def test_anthropic_sonnet_5_5_binding_on_bedrock(model_name: str) -> None:
+    """Bedrock offers the thinking-binding beta for Sonnet 5.5."""
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == ["thinking-binding-controls-2026-08-01"]
+    assert request["thinking"] == {
+        "type": "adaptive",
+        "block_binding": {"prefix_mismatch_behavior": "drop_block"},
+    }
+
+
+def test_anthropic_mythos_5_1_no_binding() -> None:
+    """Mythos 5.1 does not run the binding check, so no opt-in is sent."""
+    api = AnthropicAPI(model_name="claude-mythos-5-1", api_key="test-key")
+    request = _request_with_thinking_history()
+    betas: list[str] = []
+    api.apply_thinking_block_binding(request, betas)
+    assert betas == []
+    assert "thinking" not in request
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_name,expected_type",
+    [
+        ("claude-fable-5-1", "auto"),
+        ("claude-fable-5", "tool"),
+        ("claude-opus-5-5", "auto"),
+        ("claude-opus-5", "tool"),
+        ("claude-sonnet-5-5", "auto"),
+        ("claude-sonnet-5", "tool"),
+    ],
+)
+async def test_anthropic_forced_tool_choice_request_wiring(
+    model_name: str, expected_type: str
+) -> None:
+    """The degraded tool choice is what actually lands in the request."""
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    captured: dict[str, Any] = {}
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    with patch.object(api, "_perform_request_and_continuations", fake_perform):
+        output, _call = await api.generate(
+            input=[ChatMessageUser(content="What is 1 + 1?")],
+            tools=[
+                ToolInfo(
+                    name="addition",
+                    description="Add two numbers.",
+                    parameters=ToolParams(
+                        properties={"x": ToolParam(type="integer")}, required=["x"]
+                    ),
+                )
+            ],
+            tool_choice=ToolFunction(name="addition"),
+            config=GenerateConfig(max_tokens=64),
+        )
+
+    assert captured["tool_choice"]["type"] == expected_type
+    # a degradation is recorded per-request in output metadata; an honored
+    # forced tool choice leaves no such marker
+    assert isinstance(output, ModelOutput)
+    if expected_type == "auto":
+        assert output.metadata is not None
+        assert output.metadata["tool_choice_degraded"] == {
+            "requested": {"type": "tool", "name": "addition"},
+            "used": {"type": "auto"},
+        }
+    else:
+        assert not (output.metadata or {}).get("tool_choice_degraded")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_name,expect_degraded",
+    [
+        # forcing is never honored on 5.1 / Opus 5.5, so record the degradation
+        ("claude-fable-5-1", True),
+        ("claude-opus-5-5", True),
+        ("claude-sonnet-5-5", True),
+        # other models keep their existing log shape on this long-standing path
+        ("claude-opus-4-8", False),
+    ],
+)
+async def test_anthropic_forced_tool_choice_with_thinking_records_metadata(
+    model_name: str, expect_degraded: bool
+) -> None:
+    """A forced choice dropped by the thinking gate is recorded on 5.1 models.
+
+    With thinking active, tool_choice is omitted for all Claude models; on
+    Fable/Mythos 5.1 the degradation must still land in the output metadata.
+    """
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    captured: dict[str, Any] = {}
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+        span_recorder: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    with patch.object(api, "_perform_request_and_continuations", fake_perform):
+        output, _call = await api.generate(
+            input=[ChatMessageUser(content="What is 1 + 1?")],
+            tools=[
+                ToolInfo(
+                    name="addition",
+                    description="Add two numbers.",
+                    parameters=ToolParams(
+                        properties={"x": ToolParam(type="integer")}, required=["x"]
+                    ),
+                )
+            ],
+            tool_choice="any",
+            config=GenerateConfig(max_tokens=64, reasoning_effort="high"),
+        )
+
+    assert "tool_choice" not in captured
+    assert isinstance(output, ModelOutput)
+    if expect_degraded:
+        assert output.metadata is not None
+        assert output.metadata["tool_choice_degraded"] == {
+            "requested": {"type": "any"},
+            "used": {"type": "auto"},
+        }
+    else:
+        assert not (output.metadata or {}).get("tool_choice_degraded")
+
+
+def _message_with_transformations(transformations: list[dict[str, Any]]) -> Any:
+    """Build an SDK Message carrying the input_transformations response field.
+
+    The SDK doesn't model the field (it arrives via extra="allow"), so
+    validate it from a dict — the same way it lands when parsed off the wire.
+    """
+    from anthropic.types import Message
+
+    return Message.model_validate(
+        {
+            "id": "msg_test",
+            "content": [{"type": "text", "text": "hello"}],
+            "model": "claude-fable-5-1",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+            "input_transformations": transformations,
+        }
+    )
+
+
+@pytest.mark.anyio
+async def test_anthropic_thinking_dropped_warning(
+    _warn_once_messages: list[str],
+) -> None:
+    """A reported thinking_dropped transformation warns and lands in metadata."""
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    transformations = [
+        {
+            "type": "thinking_dropped",
+            "path": "messages.1.content.0",
+            "reason": "prefix_binding_mismatch",
+        }
+    ]
+    output, _pause = await model_output_from_message(
+        client=None,
+        model=None,
+        message=_message_with_transformations(transformations),
+        tools=[],
+    )
+    assert any(
+        "dropped replayed thinking block" in m
+        and "claude-fable-5-1" in m
+        and "prefix_binding_mismatch" in m
+        for m in _warn_once_messages
+    )
+    assert output.metadata is not None
+    assert output.metadata["extra_body"]["input_transformations"] == transformations
+
+
+@pytest.mark.anyio
+async def test_anthropic_no_thinking_dropped_warning_when_empty(
+    _warn_once_messages: list[str],
+) -> None:
+    """An empty input_transformations list (nothing dropped) emits no warning."""
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    await model_output_from_message(
+        client=None,
+        model=None,
+        message=_message_with_transformations([]),
+        tools=[],
+    )
+    assert not any("dropped replayed thinking block" in m for m in _warn_once_messages)
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+@pytest.mark.parametrize(
+    "model_name", ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5"]
+)
+async def test_anthropic_bound_thinking_drop_reported_live(
+    model_name: str,
+    _warn_once_messages: list[str],
+) -> None:
+    """A history edit before a replayed bound thinking block drops (not 400s) and warns.
+
+    Turn 1 produces a thinking block; turn 2 replays it under an edited system
+    prompt. Without the drop_block opt-in this request would fail with 400
+    "The block is bound to a different conversation" (on accounts subject to
+    binding enforcement); with it, the request succeeds, the API reports the
+    drop via input_transformations, and inspect surfaces a warning.
+    """
+    await _check_bound_thinking_drop(f"anthropic/{model_name}", _warn_once_messages)
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_anthropic_bound_thinking_drop_reported_bedrock_live(
+    _warn_once_messages: list[str],
+) -> None:
+    """Sonnet 5.5 on Bedrock drops a prefix-mismatched thinking block (not 400s)."""
+    await _check_bound_thinking_drop(
+        "anthropic/bedrock/global.anthropic.claude-sonnet-5-5", _warn_once_messages
+    )
+
+
+async def _check_bound_thinking_drop(model_str: str, warn_messages: list[str]) -> None:
+    from inspect_ai.model import ChatMessageSystem as SystemMsg
+
+    model = get_model(
+        model_str,
+        config=GenerateConfig(reasoning_effort="high", max_tokens=8192),
+    )
+    prompt = "Find all real solutions of 3*x^3 - 5*x = 1 to 3 decimal places."
+    first = await model.generate(
+        input=[
+            SystemMsg(content="You are a terse assistant. SYSTEM VERSION A."),
+            ChatMessageUser(content=prompt),
+        ]
+    )
+    content = first.choices[0].message.content
+    assert isinstance(content, list)
+    assert any(c.type == "reasoning" for c in content), "turn 1 produced no reasoning"
+
+    second = await model.generate(
+        input=[
+            SystemMsg(content="You are a terse assistant. SYSTEM VERSION B (edited)."),
+            ChatMessageUser(content=prompt),
+            first.choices[0].message,
+            ChatMessageUser(content="Now add 9 to the largest solution."),
+        ]
+    )
+    assert len(second.completion) >= 1
+    assert second.metadata is not None
+    transformations = second.metadata["extra_body"]["input_transformations"]
+    assert any(t.get("type") == "thinking_dropped" for t in transformations)
+    assert any("dropped replayed thinking block" in m for m in warn_messages)
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_fable_5_1_generate_live() -> None:
+    """Fable 5.1 accepts our request shape (adaptive thinking + effort) and generates."""
+    model = get_model(
+        "anthropic/claude-fable-5-1",
+        config=GenerateConfig(effort="high", max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_fable_5_1_forced_tool_choice_live() -> None:
+    """Forced tool choice must not 400 on Fable 5.1 (degraded to auto)."""
+    from test_helpers.tools import addition
+
+    model = get_model(
+        "anthropic/claude-fable-5-1",
+        config=GenerateConfig(max_tokens=1024),
+    )
+    response = await model.generate(
+        input="What is 1 + 1? Use the addition tool to compute it.",
+        tools=[addition()],
+        tool_choice=ToolFunction(name="addition"),
+    )
+    assert len(response.completion) >= 1 or response.message.tool_calls
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_opus_5_5_generate_live() -> None:
+    """Opus 5.5 accepts our request shape (adaptive thinking + effort) and generates."""
+    model = get_model(
+        "anthropic/claude-opus-5-5",
+        config=GenerateConfig(effort="low", max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_opus_5_5_reasoning_effort_none_live() -> None:
+    """reasoning_effort='none' must not 400 on Opus 5.5 (thinking stays on)."""
+    model = get_model(
+        "anthropic/claude-opus-5-5",
+        config=GenerateConfig(reasoning_effort="none", max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_opus_5_5_forced_tool_choice_live() -> None:
+    """Forced tool choice must not 400 on Opus 5.5 (degraded to auto)."""
+    from test_helpers.tools import addition
+
+    model = get_model(
+        "anthropic/claude-opus-5-5",
+        config=GenerateConfig(max_tokens=1024),
+    )
+    response = await model.generate(
+        input="What is 1 + 1? Use the addition tool to compute it.",
+        tools=[addition()],
+        tool_choice=ToolFunction(name="addition"),
+    )
+    assert len(response.completion) >= 1 or response.message.tool_calls
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_sonnet_5_5_generate_live() -> None:
+    """Sonnet 5.5 accepts our request shape (adaptive thinking + effort) and generates."""
+    model = get_model(
+        "anthropic/claude-sonnet-5-5",
+        config=GenerateConfig(effort="low", max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+@pytest.mark.parametrize("effort", [None, "max"])
+async def test_anthropic_sonnet_5_5_reasoning_effort_none_live(
+    effort: Literal["max"] | None,
+) -> None:
+    """reasoning_effort='none' must not 400 on Sonnet 5.5 (sent as between_tools).
+
+    `max` pins the effort clamp: the API rejects `between_tools` above `high`.
+    """
+    model = get_model(
+        "anthropic/claude-sonnet-5-5",
+        config=GenerateConfig(reasoning_effort="none", effort=effort, max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+@pytest.mark.parametrize("effort", [None, "max"])
+async def test_anthropic_sonnet_5_5_reasoning_effort_none_bedrock_live(
+    effort: Literal["max"] | None,
+) -> None:
+    """reasoning_effort='none' (between_tools) must not 400 on Bedrock either."""
+    model = get_model(
+        "anthropic/bedrock/global.anthropic.claude-sonnet-5-5",
+        config=GenerateConfig(reasoning_effort="none", effort=effort, max_tokens=128),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_sonnet_5_5_forced_tool_choice_live() -> None:
+    """Forced tool choice must not 400 on Sonnet 5.5 (degraded to auto)."""
+    await _check_forced_tool_choice_degrades("anthropic/claude-sonnet-5-5")
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+async def test_anthropic_sonnet_5_5_forced_tool_choice_bedrock_live() -> None:
+    """Forced tool choice must not 400 on Sonnet 5.5 via Bedrock (degraded to auto)."""
+    await _check_forced_tool_choice_degrades(
+        "anthropic/bedrock/global.anthropic.claude-sonnet-5-5"
+    )
+
+
+async def _check_forced_tool_choice_degrades(model_str: str) -> None:
+    from test_helpers.tools import addition
+
+    model = get_model(model_str, config=GenerateConfig(max_tokens=1024))
+    response = await model.generate(
+        input="What is 1 + 1? Use the addition tool to compute it.",
+        tools=[addition()],
+        tool_choice=ToolFunction(name="addition"),
+    )
+    assert len(response.completion) >= 1 or response.message.tool_calls
+    assert response.metadata is not None
+    assert response.metadata["tool_choice_degraded"]["used"] == {"type": "auto"}
 
 
 # ---------------------------------------------------------------------------
@@ -1719,6 +2746,135 @@ async def test_anthropic_stream_capture_restores_container() -> None:
     assert message.container.id == "container_from_delta"
 
 
+async def test_anthropic_stream_capture_tolerates_compaction_delta() -> None:
+    """A compaction_delta must not be reported as a text stream delta.
+
+    The non-beta RawContentBlockDelta union has no compaction variant, so the
+    SDK deserializes the event into TextDelta(type="compaction_delta",
+    text=None); reporting that as StreamTextEvent raised a ValidationError.
+    Delta reporting only runs with an on_stream consumer, so one is installed
+    here to keep the dispatch path under test.
+    """
+    from anthropic._models import construct_type
+    from anthropic.types import Message, RawMessageStreamEvent
+
+    from inspect_ai.model._providers.anthropic import (
+        _capture_compaction_from_stream,
+    )
+    from inspect_ai.model._stream import (
+        ModelStreamObserver,
+        StreamEvent,
+        model_stream_observer,
+    )
+
+    snapshot = cast(
+        Message,
+        construct_type(
+            value={
+                "id": "msg_x",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-opus-4-6",
+                "content": [{"type": "compaction", "content": None}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+            type_=Message,
+        ),
+    )
+    delta_event = construct_type(
+        value={
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "compaction_delta", "content": "compacted summary"},
+        },
+        type_=RawMessageStreamEvent,
+    )
+
+    class FakeStream:
+        current_message_snapshot = snapshot
+
+        def __aiter__(self) -> Any:
+            async def events() -> Any:
+                yield types.SimpleNamespace(type="message_start")
+                yield delta_event
+
+            return events()
+
+    collected: list[StreamEvent] = []
+
+    async def collect(event: StreamEvent) -> None:
+        collected.append(event)
+
+    with model_stream_observer(ModelStreamObserver("anthropic/test", collect)):
+        message, compaction_content = await _capture_compaction_from_stream(
+            cast(Any, FakeStream())
+        )
+    assert compaction_content == "compacted summary"
+    # the compaction block in the snapshot must be fixed up with the content
+    assert getattr(message.content[0], "content", None) == "compacted summary"
+    # the misparsed delta fell through to a heartbeat, not a text event
+    assert collected == []
+
+
+async def test_anthropic_stream_reports_no_deltas_without_on_stream() -> None:
+    """Delta construction must not run for callers without on_stream.
+
+    Anthropic auto-streams (reasoning / large max_tokens) for callers that
+    never asked for stream events, so even a delta the SDK misparsed into an
+    invalid shape (here text=None, which StreamTextEvent would reject) must
+    not be able to fail their call.
+    """
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    from inspect_ai.model._providers.anthropic import (
+        _capture_compaction_from_stream,
+    )
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+
+    snapshot = cast(
+        Message,
+        construct_type(
+            value={
+                "id": "msg_x",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-opus-4-6",
+                "content": [{"type": "text", "text": "hi"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+            type_=Message,
+        ),
+    )
+
+    class FakeStream:
+        current_message_snapshot = snapshot
+
+        def __aiter__(self) -> Any:
+            async def events() -> Any:
+                yield types.SimpleNamespace(type="message_start")
+                # a text delta whose construction as StreamTextEvent would
+                # raise ValidationError (text must be a str)
+                yield types.SimpleNamespace(
+                    type="content_block_delta",
+                    index=0,
+                    delta=types.SimpleNamespace(type="text_delta", text=None),
+                )
+
+            return events()
+
+    # no observer at all (provider-internal generate)
+    message, _ = await _capture_compaction_from_stream(cast(Any, FakeStream()))
+    assert message.content[0].text == "hi"  # type: ignore[union-attr]
+
+    # observer installed but no on_stream handler (a normal eval's generate)
+    with model_stream_observer(ModelStreamObserver("anthropic/test", None)):
+        message, _ = await _capture_compaction_from_stream(cast(Any, FakeStream()))
+    assert message.content[0].text == "hi"  # type: ignore[union-attr]
+
+
 @skip_if_no_anthropic
 @pytest.mark.slow
 async def test_anthropic_container_continuation_live() -> None:
@@ -1875,3 +3031,516 @@ async def test_anthropic_container_continuation_live() -> None:
         break
     else:
         pytest.skip("model did not produce the mixed server/client tool turn")
+
+
+# ---------------------------------------------------------------------------
+# reasoning token counting (model_output_from_message)
+# ---------------------------------------------------------------------------
+
+
+class _CountTokensStub:
+    """Duck-typed stand-in for AsyncAnthropic that records count_tokens calls.
+
+    Mirrors the live API's validation: a user message with empty content is
+    rejected (400 "user messages must have non-empty content").
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.messages = types.SimpleNamespace(count_tokens=self._count_tokens)
+
+    async def _count_tokens(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        content = kwargs["messages"][0]["content"]
+        if not content:
+            raise RuntimeError(
+                "Error code: 400 - messages.0: user messages must have "
+                "non-empty content"
+            )
+        return types.SimpleNamespace(input_tokens=42)
+
+
+def _thinking_response_message(thinking: str) -> Any:
+    from anthropic.types.message import Message
+
+    return Message.model_validate(
+        {
+            "id": "msg_01",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-5",
+            "content": [
+                {"type": "thinking", "thinking": thinking, "signature": "sig"},
+                {"type": "text", "text": "The answer is 4."},
+            ],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+        }
+    )
+
+
+@pytest.mark.anyio
+async def test_anthropic_empty_thinking_skips_reasoning_token_count() -> None:
+    """Empty thinking text must not be sent to the count_tokens API.
+
+    On models where adaptive thinking runs by default (Sonnet 5, Fable 5) and
+    no reasoning_effort is configured, the API's default display="omitted"
+    returns thinking blocks whose text is "". Sending "" to count_tokens gets
+    a 400 ("user messages must have non-empty content") on every generate —
+    swallowed by the estimate fallback, which then reports reasoning_tokens=1.
+    An empty block should be counted as 0 without touching the API.
+    """
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+        model_output_from_message,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    client = _CountTokensStub()
+
+    output, _ = await model_output_from_message(
+        client,  # type: ignore[arg-type]
+        "claude-sonnet-5",
+        _thinking_response_message(thinking=""),
+        [],
+    )
+
+    assert client.calls == [], (
+        "count_tokens API must not be called for empty thinking text "
+        f"(got {len(client.calls)} call(s): {client.calls})"
+    )
+    assert output.usage is not None
+    # follows the existing "reasoning_tokens if > 0 else None" convention
+    assert output.usage.reasoning_tokens is None
+
+
+@pytest.mark.anyio
+async def test_anthropic_nonempty_thinking_counts_reasoning_tokens() -> None:
+    """Non-empty thinking text is still counted via the count_tokens API."""
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+        model_output_from_message,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    client = _CountTokensStub()
+
+    output, _ = await model_output_from_message(
+        client,  # type: ignore[arg-type]
+        "claude-sonnet-5",
+        _thinking_response_message(thinking="Let me reason this through."),
+        [],
+    )
+
+    assert len(client.calls) == 1
+    assert output.usage is not None
+    assert output.usage.reasoning_tokens == 42
+
+
+def _progress_update_response_message() -> Any:
+    """An Opus 5.5 tool-use turn: an empty progress-update thinking block before each call."""
+    from anthropic.types.message import Message
+
+    return Message.model_validate(
+        {
+            "id": "msg_01",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-opus-5-5",
+            "content": [
+                {"type": "thinking", "thinking": "", "signature": "sig-1"},
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "tool_a",
+                    "input": {"x": "1"},
+                },
+                {"type": "thinking", "thinking": "", "signature": "sig-2"},
+                {
+                    "type": "tool_use",
+                    "id": "toolu_2",
+                    "name": "tool_b",
+                    "input": {"x": "2"},
+                },
+            ],
+            "stop_reason": "tool_use",
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+        }
+    )
+
+
+@pytest.mark.anyio
+async def test_anthropic_progress_update_thinking_between_tool_calls() -> None:
+    """Empty progress-update thinking blocks between tool calls parse and replay intact.
+
+    On Opus 5.5 (as on Fable 5.1) the text the model writes between tool calls
+    arrives as `thinking` blocks whose text is empty at the default
+    display="omitted". They must not hit the count_tokens API, must not become
+    visible text, and must replay in place (signatures intact) ahead of the tool
+    call each precedes.
+    """
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        init_sample_anthropic_assistant_internal,
+        model_output_from_message,
+    )
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    arg = ToolParams(properties={"x": ToolParam(type="string")}, required=["x"])
+    tools = [
+        ToolInfo(name="tool_a", description="A.", parameters=arg),
+        ToolInfo(name="tool_b", description="B.", parameters=arg),
+    ]
+    init_sample_anthropic_assistant_internal()
+    client: Any = _CountTokensStub()
+    output, _ = await model_output_from_message(
+        client, "claude-opus-5-5", _progress_update_response_message(), tools
+    )
+
+    assert client.calls == []
+    choice = output.choices[0]
+    assert choice.stop_reason == "tool_calls"
+    message = choice.message
+    assert message.tool_calls is not None
+    assert [tc.function for tc in message.tool_calls] == ["tool_a", "tool_b"]
+    assert isinstance(message.content, list)
+    reasoning = [c for c in message.content if isinstance(c, ContentReasoning)]
+    assert [r.summary for r in reasoning] == ["", ""]
+    assert not any(isinstance(c, ContentText) and c.text for c in message.content)
+
+    replay = await assistant_message_block_params(message)
+    assert [p["type"] for p in replay] == [
+        "thinking",
+        "tool_use",
+        "thinking",
+        "tool_use",
+    ]
+    assert [p.get("signature") for p in replay if p["type"] == "thinking"] == [
+        "sig-1",
+        "sig-2",
+    ]
+
+
+async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
+    """Interleaved thinking and client tool calls must survive a parse/rebuild.
+
+    A `[thinking, tool_use, thinking, tool_use]` turn must round-trip through
+    parse -> ChatMessageAssistant -> rebuild with its thinking blocks still
+    separated by their client tool calls -- not front-loaded and made adjacent.
+
+    Claude 4+ interleaves thinking with client tool calls in a single turn. Parse
+    routes thinking into `.content` but client tool calls into the separate
+    `.tool_calls` list; rebuilding by appending all tool_use blocks last produces
+    `[thinking, thinking, tool_use, tool_use]`, which the API rejects on replay
+    with "thinking ... blocks in the latest assistant message cannot be modified".
+    This is a pure structural test (constructed blocks, placeholder signatures, no
+    network): the check is on block ORDER, so signature validity is irrelevant.
+    """
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        dump_anthropic_assistant_internal,
+        init_sample_anthropic_assistant_internal,
+    )
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    arg = ToolParams(properties={"x": ToolParam(type="string")}, required=["x"])
+    tools = [
+        ToolInfo(name="tool_a", description="Tool A.", parameters=arg),
+        ToolInfo(name="tool_b", description="Tool B.", parameters=arg),
+    ]
+    interleaved: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="sig1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="sig2"),
+        ToolUseBlock(type="tool_use", id="b", name="tool_b", input={"x": "2"}),
+    ]
+
+    def thinking_blocks_adjacent(order: list[str]) -> bool:
+        idx = [i for i, t in enumerate(order) if t in ("thinking", "redacted_thinking")]
+        return any(b == a + 1 for a, b in zip(idx, idx[1:]))
+
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        interleaved, tools
+    )
+    message = ChatMessageAssistant(
+        content=content, tool_calls=tool_calls, model="claude-opus-4-8"
+    )
+    order: list[str] = [
+        p["type"] for p in await assistant_message_block_params(message)
+    ]
+    assert order == ["thinking", "tool_use", "thinking", "tool_use"], order
+    assert not thinking_blocks_adjacent(order)
+
+    # the interleaving must survive a serialize/restore of the assistant internal
+    # (the position record round-trips like the rest of the internal state, e.g.
+    # when a sample is resumed from a log on a later turn)
+    dumped = dump_anthropic_assistant_internal()
+    assert dumped is not None
+    init_sample_anthropic_assistant_internal()  # reset
+    init_sample_anthropic_assistant_internal(dumped)  # restore
+    restored_order = [p["type"] for p in await assistant_message_block_params(message)]
+    assert restored_order == ["thinking", "tool_use", "thinking", "tool_use"], (
+        restored_order
+    )
+
+
+async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:
+    """A turn ending in an interleaved thinking block must not end on thinking.
+
+    Splicing a client tool call earlier in the turn can leave a thinking block as
+    the final block (`[thinking, tool_use, thinking]`). The API rejects a message
+    whose last block is thinking, so a placeholder text block must be appended.
+    """
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+    )
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    arg = ToolParams(properties={"x": ToolParam(type="string")}, required=["x"])
+    tools = [ToolInfo(name="tool_a", description="A.", parameters=arg)]
+    blocks: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="s1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="s2"),
+    ]
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        blocks, tools
+    )
+    message = ChatMessageAssistant(
+        content=content, tool_calls=tool_calls, model="claude-opus-4-8"
+    )
+    order: list[str] = [
+        p["type"] for p in await assistant_message_block_params(message)
+    ]
+    assert order == ["thinking", "tool_use", "thinking", "text"], order
+
+
+async def test_anthropic_interleaved_parallel_tool_calls_grouped() -> None:
+    """Parallel client tool calls at one interleaved position stay grouped in order."""
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+    )
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    arg = ToolParams(properties={"x": ToolParam(type="string")}, required=["x"])
+    tools = [
+        ToolInfo(name="tool_a", description="A.", parameters=arg),
+        ToolInfo(name="tool_b", description="B.", parameters=arg),
+        ToolInfo(name="tool_c", description="C.", parameters=arg),
+    ]
+    blocks: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="s1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ToolUseBlock(type="tool_use", id="b", name="tool_b", input={"x": "2"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="s2"),
+        ToolUseBlock(type="tool_use", id="c", name="tool_c", input={"x": "3"}),
+    ]
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        blocks, tools
+    )
+    message = ChatMessageAssistant(
+        content=content, tool_calls=tool_calls, model="claude-opus-4-8"
+    )
+    params = await assistant_message_block_params(message)
+    assert [p["type"] for p in params] == [
+        "thinking",
+        "tool_use",
+        "tool_use",
+        "thinking",
+        "tool_use",
+    ], [p["type"] for p in params]
+    assert [p["id"] for p in params if p["type"] == "tool_use"] == ["a", "b", "c"]
+
+
+async def test_anthropic_unrecorded_tool_call_appended_last() -> None:
+    """A client tool call with no recorded interleave position falls back to last.
+
+    Messages assembled outside the Anthropic parse (another provider's history, a
+    scaffold-built message) carry no recorded position; those tool calls must land
+    after the content, matching the historical append-last behavior.
+    """
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        init_sample_anthropic_assistant_internal,
+    )
+    from inspect_ai.tool._tool_call import ToolCall
+
+    init_sample_anthropic_assistant_internal()  # empty: no positions recorded
+    message = ChatMessageAssistant(
+        content=[ContentReasoning(summary="t1", reasoning="s1", redacted=True)],
+        tool_calls=[ToolCall(id="z", function="tool_a", arguments={"x": "1"})],
+        model="claude-opus-4-8",
+    )
+    order: list[str] = [
+        p["type"] for p in await assistant_message_block_params(message)
+    ]
+    assert order == ["thinking", "tool_use"], order
+
+
+async def test_anthropic_collapsed_message_ignores_recorded_positions() -> None:
+    """A collapsed assistant message falls back to append-last tool placement.
+
+    `combine_messages` concatenates two messages' content and tool_calls, so a
+    position recorded against the second message's content would splice its
+    tool_use into the first message's items. Positions are only meaningful
+    within the message they were recorded against: a message carrying
+    `combined_from` metadata must use the historical append-last placement.
+    """
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._model import combine_messages
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+    )
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    arg = ToolParams(properties={"x": ToolParam(type="string")}, required=["x"])
+    tools = [ToolInfo(name="tool_a", description="Tool A.", parameters=arg)]
+    wire: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="sig1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="sig2"),
+    ]
+
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        wire, tools
+    )
+    injected = ChatMessageAssistant(content="I'll check.", model="claude-opus-4-8")
+    parsed = ChatMessageAssistant(
+        content=content, tool_calls=tool_calls, model="claude-opus-4-8"
+    )
+    combined = combine_messages(injected, parsed, ChatMessageAssistant)
+    assert isinstance(combined, ChatMessageAssistant)
+    assert combined.metadata and "combined_from" in combined.metadata
+
+    order: list[str] = [
+        p["type"] for p in await assistant_message_block_params(combined)
+    ]
+    # recorded position 1 is relative to the parsed message alone; in the
+    # combined message it would land the tool_use inside the injected text.
+    # Appended last (with thinking blocks front-loaded by the fallback) is the
+    # historical, deterministic behavior.
+    assert order[-1] == "tool_use", order
+    assert order[0] == "text", order
+
+
+@pytest.mark.anyio
+async def test_reasoning_tokens_use_reported_thinking_tokens() -> None:
+    """Prefer the API's own thinking-token count over re-counting the text.
+
+    Re-counting costs an extra count_tokens round trip per thinking block and
+    prices the summary rather than the reasoning it stands in for.
+    """
+    from anthropic.types import Message, OutputTokensDetails, ThinkingBlock, Usage
+
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    message = Message(
+        id="msg_reported",
+        type="message",
+        role="assistant",
+        model="claude-opus-4-8",
+        stop_reason="end_turn",
+        content=[ThinkingBlock(type="thinking", thinking="deliberating", signature="")],
+        usage=Usage(
+            input_tokens=10,
+            output_tokens=500,
+            output_tokens_details=OutputTokensDetails(thinking_tokens=412),
+        ),
+    )
+
+    def fail_if_called(*args: object, **kwargs: object) -> None:
+        raise AssertionError("count_tokens called despite a reported count")
+
+    with patch(
+        "inspect_ai.model._providers.anthropic.count_tokens", new=fail_if_called
+    ):
+        output, _ = await model_output_from_message(
+            client=cast(Any, object()),
+            model="claude-opus-4-8",
+            message=message,
+            tools=[],
+        )
+
+    assert output.usage is not None
+    assert output.usage.reasoning_tokens == 412
+    # subset, not additive: output already includes thinking; total = in + out
+    assert output.usage.output_tokens == 500
+    assert output.usage.total_tokens == 510
+
+
+@pytest.mark.anyio
+async def test_reasoning_tokens_fall_back_to_counting_thinking_text() -> None:
+    """Endpoints that report no thinking-token detail still get a count."""
+    from anthropic.types import Message, ThinkingBlock, Usage
+
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    message = Message(
+        id="msg_unreported",
+        type="message",
+        role="assistant",
+        model="claude-opus-4-8",
+        stop_reason="end_turn",
+        content=[ThinkingBlock(type="thinking", thinking="deliberating", signature="")],
+        usage=Usage(input_tokens=10, output_tokens=500),
+    )
+
+    async def fake_count_tokens(*args: object, **kwargs: object) -> int:
+        return 37
+
+    with patch(
+        "inspect_ai.model._providers.anthropic.count_tokens", new=fake_count_tokens
+    ):
+        output, _ = await model_output_from_message(
+            client=cast(Any, object()),
+            model="claude-opus-4-8",
+            message=message,
+            tools=[],
+        )
+
+    assert output.usage is not None
+    assert output.usage.reasoning_tokens == 37
+
+
+@pytest.mark.anyio
+async def test_anthropic_output_records_message_id_as_response_id() -> None:
+    from anthropic.types import Message, Usage
+
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    message = Message(
+        id="msg_response",
+        type="message",
+        role="assistant",
+        model="claude-opus-4-8",
+        stop_reason="end_turn",
+        content=[],
+        usage=Usage(input_tokens=1, output_tokens=1),
+    )
+    output, _ = await model_output_from_message(
+        client=None,
+        model="claude-opus-4-8",
+        message=message,
+        tools=[],
+    )
+
+    assert output.response_id == "msg_response"

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from pydantic import JsonValue
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
@@ -13,6 +14,7 @@ from inspect_ai.analysis import (
     EventInfo,
     EventTiming,
     MessageColumns,
+    ModelEventColumns,
     SampleSummary,
     evals_df,
     events_df,
@@ -20,8 +22,10 @@ from inspect_ai.analysis import (
     samples_df,
 )
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
+from inspect_ai.analysis._dataframe.extract import score_details
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
 from inspect_ai.analysis._dataframe.util import resolve_logs
+from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalLog,
     MetadataEdit,
@@ -32,6 +36,9 @@ from inspect_ai.log import (
     read_eval_log,
     write_eval_log,
 )
+from inspect_ai.model import get_model
+from inspect_ai.model._model import requested_model
+from inspect_ai.solver import Generate, TaskState, solver
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 SECURITY_GUIDE_LOG = LOGS_DIR / "2025-05-12T20-28-26-04-00_security-guide.json"
@@ -371,6 +378,39 @@ def test_events_df_filter():
     assert len(df) == 4
 
 
+def test_events_df_model_event_requested_model(tmp_path: Path):
+    @solver
+    def bridged_then_direct():
+        async def solve(state: TaskState, generate: Generate):
+            model = get_model()
+            with requested_model("gpt-4o-mini"):
+                await model.generate("bridged")
+            await model.generate("direct")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="Say hello.")], solver=bridged_then_direct())
+    log = eval(task, model="mockllm/model", log_dir=str(tmp_path))[0]
+
+    df = events_df(
+        log,
+        columns=EventInfo + ModelEventColumns,
+        filter=lambda e: e.event == "model",
+    )
+    assert df["model_event_model"].tolist() == ["mockllm/model", "mockllm/model"]
+    requested = df["model_event_requested_model"]
+    assert requested.iloc[0] == "gpt-4o-mini"
+    assert pd.isna(requested.iloc[1])
+
+    # logs written before the field have no value
+    old = events_df(
+        LOGS_DIR, columns=ModelEventColumns, filter=lambda e: e.event == "model"
+    )
+    assert len(old) > 0
+    assert old["model_event_requested_model"].isna().all()
+
+
 def test_eval_df_display_name():
     with tempfile.TemporaryDirectory() as log_dir:
         eval(Task(display_name="My Task"), model="mockllm/model", log_dir=log_dir)
@@ -478,6 +518,23 @@ def test_evals_df_reflects_edited_tags_and_metadata(tmp_path: Path):
     df = evals_df(log_dir)
     assert df["tags"].to_list() == ["added"]
     assert df["metadata"].to_list() == ['{"key": "edited"}']
+
+
+def test_score_details_includes_reason() -> None:
+    scores: JsonValue = {
+        "match": {
+            "value": "I",
+            "answer": "foo",
+            "reason": "invalid_response_format",
+        },
+        "other": {"value": "C"},
+    }
+    details = score_details(scores)
+    assert details["match"] == "I"
+    assert details["match_reason"] == "invalid_response_format"
+    assert details["match_answer"] == "foo"
+    # None-safety: absent reason produces no column entry
+    assert "other_reason" not in details
 
 
 def test_dataframe_functions_empty_list(

@@ -2,10 +2,9 @@ import threading
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import httpx
+import httpx2
 import pytest
-
-from inspect_ai.model._openai import OpenAIAsyncHttpxClient
+from openai import DefaultAsyncHttpxClient
 
 
 class _EchoHandler(BaseHTTPRequestHandler):
@@ -39,8 +38,10 @@ async def test_openai_async_client_respects_http_proxy(monkeypatch: pytest.Monke
     proxy_url = "http://127.0.0.1:9"
     for key in ("http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"):
         monkeypatch.setenv(key, proxy_url)
+    for key in ("no_proxy", "NO_PROXY"):
+        monkeypatch.setenv(key, "")
 
     with _http_server() as port:
-        async with OpenAIAsyncHttpxClient() as client:
-            with pytest.raises(httpx.TransportError):
+        async with DefaultAsyncHttpxClient() as client:
+            with pytest.raises(httpx2.TransportError):
                 await client.get(f"http://127.0.0.1:{port}/")

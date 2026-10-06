@@ -33,8 +33,10 @@ activity.
 
 from __future__ import annotations
 
+import time
 from collections import defaultdict
 from functools import partial
+from itertools import chain
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from inspect_ai._util._async import tg_collect
@@ -42,7 +44,10 @@ from inspect_ai._util.error import is_cancellation_message
 from inspect_ai._util.file import local_path
 
 if TYPE_CHECKING:
+    from inspect_ai._control.cancel import PendingToolCall
     from inspect_ai._control.eval_state import EvalState
+    from inspect_ai._eval.task.scheduler import SampleKey
+    from inspect_ai.log._log import EvalSampleSummary
     from inspect_ai.log._samples import ActiveSample
 
 # The canonical per-sample status vocabulary of the samples listing — the
@@ -161,7 +166,7 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         get_eval_states,
         resolve_deferred_sample_stats,
     )
-    from inspect_ai._control.pause import process_paused
+    from inspect_ai._control.pause import process_paused, process_paused_now
     from inspect_ai.log._samples import active_samples
 
     states = get_eval_states()
@@ -263,9 +268,15 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 # a pre-registration attempt has no task_id, so only the
                 # process latch can hold it (its model latch already gated
                 # dispatch upstream); mid-startup is never "safe to kill",
-                # hence quiesced stays False
+                # hence quiesced stays False. Held samples are keyed by
+                # task_id, so a pre-registration row can't count them.
                 "paused": ["process"] if process_paused() else None,
+                "paused_now": ["process"] if process_paused_now() else None,
                 "quiesced": False,
+                "held": 0,
+                # pre-registration, so no cancel handle exists to carry a
+                # pending graceful resolution
+                "resolving": None,
                 "attempts": 1,
                 "samples": {
                     "total": 0,
@@ -307,15 +318,21 @@ async def current_sample_summaries(
       runs (gap-free, ahead of disk; via ``EvalState.live.sample_summaries``),
       falling back to the finalized on-disk log once the recorder is gone
       (eval finished / torn down) — read once and memoized on the state
-      (see :func:`_sample_summaries_from_log`).
+      (see :func:`completed_eval_sample_summaries`).
     - **pending** ← synthesized from the eval's registered planned
-      ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``)
-      that aren't yet running or done — no live source holds these.
+      ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``
+      and ``EvalState.sample_epochs``) that aren't yet running or done — no
+      live source holds these.
 
     Merged and deduped by ``(sample_id, epoch)``; a terminal record
     (completed / error) supersedes a running one, which supersedes a
-    pending one. Sorted running → terminal → pending. Returns an empty
-    list when the eval isn't in this process.
+    pending one. A retry attempt's log is seeded with the prior attempt's
+    records (``TaskLogger.seed_from_prior``), but the live source withholds
+    a seeded record until the reuse sweep accepts it or its re-run
+    completes (``TaskLogger.sample_summaries``), so a sample awaiting or
+    running its re-run has no terminal row here and reads pending or
+    running like any other. Sorted running → terminal → pending. Returns
+    an empty list when the eval isn't in this process.
 
     Each entry has: ``sample_id``, ``epoch``, ``status`` (a
     :data:`SAMPLE_STATUSES` member), ``started_at``, ``completed_at``,
@@ -326,7 +343,8 @@ async def current_sample_summaries(
     see :func:`_sample_activity`; ``None`` on non-running rows and when
     nothing is pending), ``events`` (live transcript event count; ``None``
     for terminal / pending samples), ``scores`` (``{scorer: value}``, empty
-    until scored), ``error``, ``retries``, ``limit``.
+    until scored), ``error``, ``retries``, ``limit``, ``limit_reason`` (why the
+    limit fired — agent-influenceable free text, gated by ``content``).
 
     ``sample_filter="errors"`` restricts the result to samples that carry an
     error or have been retried (``error`` set, or ``retries`` > 0) — the
@@ -347,6 +365,8 @@ async def current_sample_summaries(
         existing = by_key.get(key)
         # Keep the first record for a key, except let a terminal record
         # supersede a still-running one (a sample that has since finished).
+        # A seeded prior record for a re-running sample never reaches here:
+        # the live source withholds it until the re-run completes.
         if existing is None or (
             existing["status"] == "running" and summary["status"] != "running"
         ):
@@ -375,6 +395,16 @@ async def current_sample_summaries(
                 by_key[key] = _requeued_summary(summary)
             continue
         _merge(summary)
+
+    # Cancelled before start (design/ctl/queued-sample-cancel.md): terminal
+    # in the counters but absent from the log, so synthesize the rows here.
+    # Runs before (and independently of) the pending synthesis — the
+    # cancelled keys must keep rendering after `sample_ids` clears (the
+    # last-outstanding-work carve-out), so this is not keyed off the
+    # planned ids. Skipped under the errors filter like the pending rows
+    # (a cancelled-before-start sample carries no error and no retries).
+    if sample_filter != "errors":
+        _add_cancelled_samples(eval_id, by_key)
 
     # Pending: planned samples not yet running or done. No live source
     # holds these, so synthesize them from the registered planned ids.
@@ -413,6 +443,7 @@ async def current_sample_listing(
     statuses: frozenset[str] | None = None,
     limit: int | None = DEFAULT_SAMPLE_LIST_LIMIT,
     sample_filter: Literal["errors"] | None = None,
+    content: bool = False,
 ) -> SampleListing:
     """The capped samples listing for one eval (histogram + rows).
 
@@ -440,6 +471,14 @@ async def current_sample_listing(
     under it the ``counts`` histogram covers only the filtered samples:
     the whole-eval listing is exactly what the filter exists to avoid
     building.
+
+    ``content`` gates each row's ``error`` message and ``limit_reason`` — free
+    text the evaluated agent can influence (tool-raised exceptions embed agent
+    output; a bridged agent supplies its own termination reason via
+    ``AgentBridge.request_terminate()``). The default withholds both, leaving
+    ``status`` / ``retries`` / ``limit`` as the metadata signal, so the listing
+    stays readable by a monitor that must never ingest agent-controlled text
+    (see "Trust boundary for readers" in design/ctl/control-channel.md).
     """
     summaries = await current_sample_summaries(eval_id, sample_filter)
 
@@ -453,6 +492,16 @@ async def current_sample_listing(
         rows = _filter_active_since(rows, active_since)
     if statuses is not None:
         rows = [s for s in rows if s["status"] in statuses]
+    if not content:
+        # withhold the error message and the limit's reason (row copies — the
+        # summaries may be the memoized log read); `status` still reads "error"
+        # and `limit` still names the limit type
+        rows = [
+            {**s, "error": None, "limit_reason": None}
+            if s.get("error") is not None or s.get("limit_reason") is not None
+            else s
+            for s in rows
+        ]
 
     truncated = limit is not None and len(rows) > limit
     if truncated:
@@ -478,16 +527,20 @@ def _add_pending_samples(
     from inspect_ai._control.eval_state import get_eval_state
 
     state = get_eval_state(eval_id)
-    if state is None or not state.sample_ids:
+    if state is None:
         return
-    for sample_id in state.sample_ids:
-        for epoch in range(1, max(1, state.epochs) + 1):
-            key = (sample_id, epoch)
-            if key not in by_key:
-                by_key[key] = _pending_summary(sample_id, epoch)
+    planned = (
+        (sample_id, epoch)
+        for sample_id in state.sample_ids
+        for epoch in range(1, max(1, state.epochs) + 1)
+    )
+    for sample_id, epoch in chain(planned, state.sample_epochs):
+        key = (sample_id, epoch)
+        if key not in by_key:
+            by_key[key] = _pending_summary(sample_id, epoch)
 
 
-def _pending_requeue_keys(eval_id: str) -> frozenset[tuple[str, int]]:
+def _pending_requeue_keys(eval_id: str) -> frozenset[SampleKey]:
     """The eval's requeue-pending ``(sample_id, epoch)`` keys (str-keyed).
 
     Non-empty only while a requeue directive has been accepted and its
@@ -499,6 +552,61 @@ def _pending_requeue_keys(eval_id: str) -> frozenset[tuple[str, int]]:
     if state is None or state.sample_requeue is None:
         return frozenset()
     return state.sample_requeue.pending_keys()
+
+
+def _cancelled_before_start_keys(eval_id: str) -> frozenset[SampleKey]:
+    """The eval's cancelled-before-start ``(sample_id, epoch)`` keys (str-keyed).
+
+    Non-empty once a queued-sample cancel has been accepted for a
+    never-started sample (``design/ctl/queued-sample-cancel.md``). A key
+    persists after its parked coroutine discards — the sample is terminally
+    cancelled with no record, so the row keeps rendering ``cancelled``.
+    """
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    if state is None or state.sample_requeue is None:
+        return frozenset()
+    return state.sample_requeue.cancelled_keys()
+
+
+def _add_cancelled_samples(
+    eval_id: str, by_key: dict[tuple[Any, int], dict[str, Any]]
+) -> None:
+    """Synthesized ``cancelled`` rows for the cancelled-before-start keys."""
+    keys = _cancelled_before_start_keys(eval_id)
+    if not keys:
+        return
+    # the dataset-typed id (captured at queue arrival) keys the row — and
+    # dedupes it against the pending synthesis — like the planned rows; the
+    # capture survives `sample_ids` clearing at completed_at, so a row's id
+    # can't flip int → str when the cancel finished the eval
+    for sample_id, epoch in keys:
+        typed = _queued_typed_id(eval_id, sample_id, epoch)
+        key = (typed, epoch)
+        if key not in by_key:
+            by_key[key] = _cancelled_before_start_summary(typed, epoch)
+
+
+def _queued_typed_id(eval_id: str, sample_id: str, epoch: int) -> Any:
+    """The dataset-typed id for a queued/cancelled route-string key.
+
+    Every read surface echoes dataset-typed ids (int vs str); the queued
+    rows have no record to read one from, so the requeue handle's capture
+    (at queue arrival / requeue accept) serves. Falls back to the string
+    form when no handle is attached.
+    """
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    if state is None or state.sample_requeue is None:
+        return sample_id
+    return state.sample_requeue.sample_view(sample_id, epoch).typed_id
+
+
+def _cancelled_before_start_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
+    """A cancelled-before-start sample: terminal status, no record to show."""
+    return {**_pending_summary(sample_id, epoch), "status": "cancelled"}
 
 
 def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
@@ -529,6 +637,8 @@ def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
         "scores": {},
         "error": None,
         "limit": None,
+        "limit_reason": None,
+        "interrupt": None,
     }
 
 
@@ -553,6 +663,8 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "error": None,
         "retries": None,
         "limit": None,
+        "limit_reason": None,
+        "interrupt": None,
     }
 
 
@@ -574,32 +686,70 @@ def _sorted_samples(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return summaries
 
 
+async def completed_eval_sample_summaries(
+    state: "EvalState",
+) -> "list[EvalSampleSummary]":
+    """The eval's raw completed-sample summaries (recorder, else on-disk log).
+
+    The shared recorder-vs-log split (with the on-disk memo) behind both the
+    listing here and the interim-scoring pass's target enumeration, so the
+    two can't drift. Prefer the live recorder: gap-free and independent of
+    realtime logging. It returns ``None`` once torn down (eval finished) — a
+    clean signal to fall back to the log. Any other failure is unexpected
+    and propagates to the API entry point.
+
+    The fallback log is only reached when the live recorder is unavailable
+    (a reused eval, a finished eval whose recorder was torn down, or a
+    superseded retry attempt whose providers were detached), so it is
+    finalized and immutable — the first request's read (possibly against
+    S3, with ``EvalSampleSummary`` validation per sample) is memoized on the
+    state (``EvalState.log_sample_summaries``) and later requests are served
+    from memory; a keep-alive-parked process polled every 30s must not
+    re-pay it per poll. Concurrent first requests may each read (benign:
+    identical immutable data, no await between the read completing and the
+    memo write; all writers run on the eval's loop). The log may however no
+    longer *exist*: the retry sweep deletes superseded attempts' logs while
+    their EvalStates persist (clearing the memo as it does — see
+    ``invalidate_log_sample_summaries``) — degrade to an empty listing,
+    without memoizing it, rather than failing the request.
+    """
+    if state.live is not None:
+        summaries = await state.live.sample_summaries()
+        if summaries is not None:
+            return summaries
+
+    # The log_location is always set on the state (register_eval /
+    # register_completed_eval set it before any sample runs), so there's no
+    # need to also consult active_samples.
+    memoized = state.log_sample_summaries
+    if memoized is not None:
+        return memoized
+    if state.log_location:
+        from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+        try:
+            summaries = await read_eval_log_sample_summaries_async(state.log_location)
+        except FileNotFoundError:
+            return []
+        state.log_sample_summaries = summaries
+        return summaries
+    return []
+
+
 async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     """The eval's completed-sample summaries (recorder, else on-disk log)."""
     from inspect_ai._control.eval_state import get_eval_state
 
     state = get_eval_state(eval_id)
-
+    if state is None:
+        return []
     # Whether a failure of this attempt will be retried — controls whether a
     # cancelled sample reads as `pending` (re-run coming) or `cancelled`.
-    will_retry = state.will_retry if state is not None else False
-
-    # Prefer the live recorder: gap-free and independent of realtime
-    # logging. It returns None once torn down (eval finished) — a clean
-    # signal to fall back to the log. Any other failure is unexpected and
-    # propagates to the API entry point.
-    if state is not None and state.live is not None:
-        summaries = await state.live.sample_summaries()
-        if summaries is not None:
-            return [_summary_from_eval_sample_summary(s, will_retry) for s in summaries]
-
-    # Fallback: the on-disk log. The log_location is always set on the
-    # state by the time we get here (register_eval / register_completed_eval
-    # set it before any sample runs), so there's no need to also consult
-    # active_samples.
-    if state is not None and state.log_location:
-        return await _sample_summaries_from_log(state)
-    return []
+    will_retry = state.will_retry
+    return [
+        _summary_from_eval_sample_summary(s, will_retry)
+        for s in await completed_eval_sample_summaries(state)
+    ]
 
 
 async def _full_sample(
@@ -670,7 +820,7 @@ async def _read_full_sample(
 
 
 async def sample_error_detail(
-    eval_id: str, sample_id: str, epoch: int
+    eval_id: str, sample_id: str, epoch: int, content: bool = False
 ) -> dict[str, Any] | None:
     """Summary + error detail for one sample (``GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>``).
 
@@ -699,22 +849,35 @@ async def sample_error_detail(
     is never ``error`` — it reads as ``pending``/``cancelled`` with the
     cancellation repr suppressed (:func:`_cancellation_status`).
 
+    ``content`` gates the error free text (message / tracebacks) — strings
+    the evaluated agent can influence. The default withholds them: each
+    error renders as an empty dict, so presence (and the ``retries`` count)
+    stays readable by a monitor that must never ingest agent-controlled
+    text (see "Trust boundary for readers" in design/ctl/control-channel.md).
+
     Returns ``None`` when the eval isn't in this process, or the sample isn't
     running and isn't readable yet — the endpoint turns that into a 404.
     """
     # Running sample first: it isn't in the log yet, and active_samples is the
     # only place its in-flight error history lives.
-    running = _running_sample_error_detail(eval_id, sample_id, epoch)
+    running = _running_sample_error_detail(eval_id, sample_id, epoch, content)
     if running is not None:
         return running
 
     sample = await _full_sample(
-        eval_id,
-        sample_id,
-        epoch,
-        exclude_fields={"messages", "events", "store", "attachments", "output"},
+        eval_id, sample_id, epoch, exclude_fields=set(SAMPLE_DETAIL_EXCLUDE_FIELDS)
     )
     if sample is None:
+        # a cancelled-before-start sample has no record: mirror the listing's
+        # synthesized terminal row (design/ctl/queued-sample-cancel.md),
+        # dataset-typed id included
+        if (sample_id, epoch) in _cancelled_before_start_keys(eval_id):
+            return {
+                **_cancelled_before_start_summary(
+                    _queued_typed_id(eval_id, sample_id, epoch), epoch
+                ),
+                "error_retries": [],
+            }
         return None
 
     # The sample's summary row supplies the summary fields (timing / tokens /
@@ -751,10 +914,35 @@ async def sample_error_detail(
             "status": "queued",
             "retries": len(seeded),
             "error": None,
-            "error_retries": [_error_dict(e) for e in seeded],
+            "error_retries": [_error_dict(e, content) for e in seeded],
             "scores": {},
         }
 
+    return terminal_sample_detail(
+        sample, row, will_retry=_eval_will_retry(eval_id), content=content
+    )
+
+
+# The heavy fields the sample detail read never consumes (only error data and
+# the summary fields are needed).
+SAMPLE_DETAIL_EXCLUDE_FIELDS = frozenset(
+    {"messages", "events", "store", "attachments", "output"}
+)
+
+
+def terminal_sample_detail(
+    sample: Any,
+    row: dict[str, Any] | None,
+    *,
+    will_retry: bool,
+    content: bool,
+) -> dict[str, Any]:
+    """The detail envelope for a logged sample and its (ungated) summary row.
+
+    ``sample`` is the ``EvalSample`` read without
+    :data:`SAMPLE_DETAIL_EXCLUDE_FIELDS`. Shared by :func:`sample_error_detail`
+    and the ``--log-dir`` reader, so the two surfaces cannot drift.
+    """
     # status/error apply the listing's classification
     # (_summary_from_eval_sample_summary reads the same error message), so the
     # detail's override of the row can't contradict it: a cancellation is
@@ -764,9 +952,9 @@ async def sample_error_detail(
     if sample.error is None:
         status, error = "completed", None
     elif is_cancellation_message(sample.error.message):
-        status, error = _cancellation_status(_eval_will_retry(eval_id)), None
+        status, error = _cancellation_status(will_retry), None
     else:
-        status, error = "error", _error_dict(sample.error)
+        status, error = "error", _error_dict(sample.error, content)
 
     return {
         **(row or {}),
@@ -775,8 +963,14 @@ async def sample_error_detail(
         "status": status,
         "retries": len(sample.error_retries) if sample.error_retries else 0,
         "error": error,
-        "error_retries": [_error_dict(e) for e in (sample.error_retries or [])],
+        "error_retries": [
+            _error_dict(e, content) for e in (sample.error_retries or [])
+        ],
         "scores": {name: score.value for name, score in (sample.scores or {}).items()},
+        # the row arrives ungated (the listing does its own redaction), so the
+        # limit's reason — agent-influenceable, like the error message above —
+        # must be withheld here too
+        "limit_reason": (row or {}).get("limit_reason") if content else None,
     }
 
 
@@ -803,7 +997,7 @@ def find_active_sample(
 
 
 def _running_sample_error_detail(
-    eval_id: str, sample_id: str, epoch: int
+    eval_id: str, sample_id: str, epoch: int, content: bool = False
 ) -> dict[str, Any] | None:
     """Summary + error detail for a sample currently running in this process, or None.
 
@@ -822,52 +1016,24 @@ def _running_sample_error_detail(
     return {
         **_active_sample_summary(s),
         "retries": s.retries,
-        "error_retries": [_error_dict(e) for e in s.error_retries],
+        "error_retries": [_error_dict(e, content) for e in s.error_retries],
     }
 
 
-def _error_dict(error: Any) -> dict[str, Any]:
-    """Serialize an EvalError / EvalRetryError (message + traceback) to a dict."""
+def _error_dict(error: Any, content: bool) -> dict[str, Any]:
+    """Serialize an EvalError / EvalRetryError (message + traceback) to a dict.
+
+    Without ``content`` the free-text fields are withheld — the dict is empty
+    but non-``None``, so consumers still see that an error occurred (its
+    text is agent-influenced; see :func:`sample_error_detail`).
+    """
+    if not content:
+        return {}
     return {
         "message": error.message,
         "traceback": error.traceback,
         "traceback_ansi": error.traceback_ansi,
     }
-
-
-async def _sample_summaries_from_log(state: "EvalState") -> list[dict[str, Any]]:
-    """Completed-sample summaries read from the on-disk log, memoized.
-
-    Only reached when the live recorder is unavailable (a reused eval, a
-    finished eval whose recorder was torn down, or a superseded retry
-    attempt whose providers were detached), so the log is finalized and
-    immutable — the first request's read (possibly against S3, with
-    ``EvalSampleSummary`` validation per sample) is cached on the state
-    (``EvalState.log_sample_summaries``) and later requests are served from
-    memory; a keep-alive-parked process polled every 30s must not re-pay it
-    per poll. Concurrent first requests may each read (benign: identical
-    immutable data, no await between the read completing and the memo
-    write). The memo write needs no registry lock for the same reason
-    ``_build_summary``'s ``observe_started`` fold doesn't: all writers run
-    on the eval's loop.
-
-    The log may however no longer *exist*: the retry sweep
-    (``retry_cleanup``) deletes superseded attempts' logs while their
-    EvalStates persist through any keep-alive park (clearing the memo as it
-    does — see ``invalidate_log_sample_summaries``) — degrade to an empty
-    listing, without memoizing it, rather than failing the request. Any
-    other read error is unexpected and propagates to the API entry point.
-    """
-    summaries = state.log_sample_summaries
-    if summaries is None:
-        from inspect_ai.log._file import read_eval_log_sample_summaries_async
-
-        try:
-            summaries = await read_eval_log_sample_summaries_async(state.log_location)
-        except FileNotFoundError:
-            return []
-        state.log_sample_summaries = summaries
-    return [_summary_from_eval_sample_summary(s, state.will_retry) for s in summaries]
 
 
 def _cancellation_status(will_retry: bool) -> str:
@@ -928,6 +1094,8 @@ def _summary_from_eval_sample_summary(
         "error": error,
         "retries": summary.retries,
         "limit": summary.limit,
+        "limit_reason": summary.limit_reason,
+        "interrupt": None,
     }
 
 
@@ -945,6 +1113,13 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
     listing (:func:`_sample_summaries_from_active`) and the per-sample detail
     (:func:`_running_sample_error_detail`) so the two views can't drift.
     """
+    from inspect_ai._control.eval_state import stable_task_id_for_eval
+    from inspect_ai.util._limit_overrides import sample_limit_override
+
+    # the override store wants the stable task id, while
+    # ActiveSample.eval_id is the per-attempt eval id
+    override_task_id = stable_task_id_for_eval(s.eval_id)
+
     if s.completed is not None:
         status = "completed"
     elif s.started is not None:
@@ -952,20 +1127,36 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
     else:
         status = "queued"
     # Liveness signals (the only freshest source is the in-memory
-    # transcript). `last_activity_at` is when the sample last produced an
-    # event; `events` is a monotonic count. Together they let a consumer
+    # transcript). `last_activity_at` is when the sample last observed
+    # progress; `events` is a monotonic count. Together they let a consumer
     # tell "stalled" from "working" without diffing successive polls — the
     # per-turn token/message counters don't move *within* an in-flight
     # model call, but these advance on every model / tool / store event.
-    # Neither moves *during* one long model call (the pending ModelEvent is
-    # appended at call start and updated in place on return), which is what
-    # `activity` exists to disambiguate: it names the in-flight operation so
-    # a sample mid-generate doesn't read as silently idle
-    # (design/ctl/generate-progress.md).
+    # During one long model call the transcript itself is silent (the
+    # pending ModelEvent is appended at call start and updated in place on
+    # return): `activity` names the in-flight operation, and when the
+    # provider call streams, the pending event's progress record advances
+    # `last_activity_at` per chunk — so idle means "time since last
+    # observed progress" uniformly (design/ctl/generate-progress.md,
+    # layers 2–3).
+    from inspect_ai.event._model import ModelEvent, model_event_progress
+
     last_event = s.transcript.history.last_event
     last_activity_at = (
         last_event.timestamp.timestamp() if last_event is not None else s.started
     )
+    for ev in s.transcript.pending_events:
+        if isinstance(ev, ModelEvent):
+            progress = model_event_progress(ev)
+            if (
+                progress is not None
+                and progress.last_progress_at is not None
+                and (
+                    last_activity_at is None
+                    or progress.last_progress_at > last_activity_at
+                )
+            ):
+                last_activity_at = progress.last_progress_at
     return {
         "sample_id": s.sample.id,
         "epoch": s.epoch,
@@ -977,7 +1168,11 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
         "message_count": s.total_messages,
         "turn_count": s.total_turns,
         "token_limit_usage": s.token_limit_usage,
-        "token_limit_total": s.token_limit,
+        # a live `ctl config --token-limit` override supersedes the ceiling
+        # the sample started with
+        "token_limit_total": sample_limit_override(
+            override_task_id, "token_limit", s.token_limit
+        ),
         "token_limit_type": s.token_limit_type,
         "last_activity_at": last_activity_at,
         "activity": _sample_activity(s) if status == "running" else None,
@@ -986,6 +1181,13 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
         "error": None,
         "retries": s.retries or None,
         "limit": None,
+        "limit_reason": None,
+        # the pending cancel resolution, whatever its origin — the
+        # poller-visible evidence that a `sample cancel` of an initializing
+        # sample (rendered `queued` here) was accepted and is waiting for the
+        # sample to start; a running sample inside its logging window reports
+        # it too (design/ctl/initializing-sample-cancel.md). Purely additive.
+        "interrupt": s.interrupt_action,
     }
 
 
@@ -995,49 +1197,97 @@ def _sample_activity(s: "ActiveSample") -> dict[str, Any] | None:
     Reads the transcript's ``pending_events`` sidecar — O(in-flight ops),
     never an event scan (the samples handler shares the eval's event loop;
     see the cost-audit note in design/ctl/generate-progress.md) — and
-    classifies as the TUI does (``SampleToolbar.sync_sample``): any pending
-    ``ToolEvent`` → tool activity (the earliest one leads, even when a
-    nested model call is also pending); else a pending ``ModelEvent`` →
-    model activity; else a generate retry backoff recorded on the sample
-    (no pending event exists during the wait) → ``retry_wait``.
+    classifies as the TUI does (``SampleToolbar.sync_sample``), with one
+    branch ahead of it: a pending human interaction
+    (:attr:`ActiveSample.pending_interactions`) → ``approval`` /
+    ``question``; else any pending ``ToolEvent`` → tool activity (the
+    earliest one leads, even when a nested model call is also pending); else
+    a pending ``ModelEvent`` → model activity; else a generate retry backoff
+    recorded on the sample (no pending event exists during the wait) →
+    ``retry_wait``.
+
+    The human interaction leads because nothing else reports it at all: an
+    approval is awaited *before* ``call_tool`` records the tool's event, so
+    without this branch a sample parked overnight has no pending event of any
+    kind and reads as silently idle.
 
     The shape is stable across types so ``jq`` consumers see every key:
     ``type`` / ``count`` / ``started_at`` / ``detail`` always carry values
     (``count`` is the concurrent pending ops of the type — for
     ``retry_wait``, the failed attempt number; ``detail`` the model name or
-    tool function); ``retries`` is the pending model call's in-call
+    tool function, and empty for a ``question``, which has no structural
+    subject); ``retries`` is the pending model call's in-call
     (provider-SDK) retries; ``deadline`` is when a ``retry_wait`` elapses;
-    ``tokens`` / ``last_progress_at`` are reserved for the layer-2 progress
-    channel and ``None`` until it ships.
+    ``tokens`` / ``last_progress_at`` come from the pending model event's
+    stream progress record (layer 2) — ``None`` for non-streamed calls and
+    providers not yet instrumented. ``tool`` activity — and a human wait
+    sitting inside a running tool — additionally carries ``calls``, every
+    pending tool call as ``{id, function, started_at, cancel_requested}``, so
+    ``sample list --json`` alone yields the id ``sample cancel-tool-call``
+    targets, and a delivered-but-unheeded cancel (a wedged call no scope can
+    stop) stays visible.
     """
-    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.event._model import ModelEvent, model_event_progress
     from inspect_ai.event._tool import ToolEvent
 
     first_model: ModelEvent | None = None
     model_count = 0
-    first_tool: ToolEvent | None = None
-    tool_count = 0
+    tool_events: list[ToolEvent] = []
     for ev in s.transcript.pending_events:
         if isinstance(ev, ModelEvent):
             if first_model is None:
                 first_model = ev
             model_count += 1
         elif isinstance(ev, ToolEvent):
-            if first_tool is None:
-                first_tool = ev
-            tool_count += 1
+            tool_events.append(ev)
 
-    if first_tool is not None:
+    # An approval is awaited *before* its tool's event is recorded, and an
+    # `InputEvent` is written only once the question is answered -- so nothing
+    # in the transcript marks either wait while it lasts, and the sample's
+    # own record of it is the only signal an external runner has for telling
+    # "working" from "stopped on you".
+    kind = s.pending_interaction
+    if kind is not None:
+        from inspect_ai._control.cancel import _pending_tool_call
+
+        waits = [p for p in s.pending_interactions if p.kind == kind]
+        # `detail` is the tool call being decided -- structural, and the one
+        # piece of an approval request that is safe to relay verbatim, since
+        # the arguments and an `ask_user` prompt are model-generated text. A
+        # question carries none for that reason. `calls` stays populated where
+        # a wait happens to sit inside a running tool (an `ask_user` from a
+        # tool does), so cancelling it is still targetable from this row.
         return _activity(
-            "tool", tool_count, first_tool.timestamp.timestamp(), first_tool.function
+            kind,
+            len(waits),
+            min(wait.started_at for wait in waits),
+            next((wait.subject for wait in waits if wait.subject), ""),
+            calls=[_pending_tool_call(ev) for ev in tool_events] or None,
+        )
+
+    if tool_events:
+        from inspect_ai._control.cancel import _pending_tool_call
+
+        first_tool = tool_events[0]
+        return _activity(
+            "tool",
+            len(tool_events),
+            first_tool.timestamp.timestamp(),
+            first_tool.function,
+            calls=[_pending_tool_call(ev) for ev in tool_events],
         )
     if first_model is not None:
+        progress = model_event_progress(first_model)
         return _activity(
             "model",
             model_count,
             first_model.timestamp.timestamp(),
             first_model.model,
             retries=first_model.retries or None,
+            tokens=progress.output_tokens if progress is not None else None,
+            last_progress_at=(
+                progress.last_progress_at if progress is not None else None
+            ),
         )
     retry_wait = s.retry_wait
     if retry_wait is not None:
@@ -1059,6 +1309,9 @@ def _activity(
     *,
     retries: int | None = None,
     deadline: float | None = None,
+    tokens: int | None = None,
+    last_progress_at: float | None = None,
+    calls: list[PendingToolCall] | None = None,
 ) -> dict[str, Any]:
     return {
         "type": type,
@@ -1067,8 +1320,9 @@ def _activity(
         "detail": detail,
         "retries": retries,
         "deadline": deadline,
-        "tokens": None,
-        "last_progress_at": None,
+        "calls": calls,
+        "tokens": tokens,
+        "last_progress_at": last_progress_at,
     }
 
 
@@ -1129,7 +1383,12 @@ def _build_summary(
         latest.started_at if latest.started_at is not None else started_at_fallback
     )
 
-    from inspect_ai._control.pause import task_dispatched_count, task_pause_sources
+    from inspect_ai._control.pause import (
+        task_dispatched_count,
+        task_held_count,
+        task_pause_now_sources,
+        task_pause_sources,
+    )
 
     in_flight_samples = [
         s for s in samples if s.started is not None and s.completed is None
@@ -1139,7 +1398,7 @@ def _build_summary(
     completed = latest.completed
     errored = latest.errored
     cancelled = latest.cancelled
-    queued = max(0, total - completed - errored - cancelled - in_flight)
+    queued = latest.queued(in_flight)
     completed_at = latest.completed_at
     status = "completed" if completed_at is not None else "running"
 
@@ -1162,6 +1421,32 @@ def _build_summary(
         else None
     )
     quiesced = paused is not None and task_dispatched_count(latest.task_id) == 0
+    # the hard (`pause --now`) subset of the paused sources, and the samples
+    # held at their next model call. `held` is reported even on rows with no
+    # latch sources of their own: the hard model gate keys on the model
+    # actually being called, so another task's hard pause can hold this
+    # task's grader/role calls (see task_held_count).
+    paused_now = (
+        (task_pause_now_sources(latest.task_id, latest.model or None) or None)
+        if paused is not None
+        else None
+    )
+    held = task_held_count(latest.task_id)
+
+    # the pending graceful resolution, if any — "drain" / "score" / "error"
+    # (never "abort"/"retry", which tear the task down rather than leaving it
+    # running toward a resolution). What lets a poller tell a draining tail
+    # from a stall: drain's window is long by design and the counters offer
+    # no early signal (queued samples abandon only as slots free), and the
+    # same field makes a stalled score/error resolution (hung scorer)
+    # visible. Purely additive — an older CLI ignores it.
+    resolving = (
+        latest.task_cancel.cancel_type
+        if completed_at is None
+        and latest.task_cancel is not None
+        and latest.task_cancel.cancel_type in ("drain", "score", "error")
+        else None
+    )
 
     # Usage = the accumulated total for terminal samples (survives them
     # leaving active_samples — "usage so far") plus the live usage of the
@@ -1184,6 +1469,13 @@ def _build_summary(
         s.http_retries for s in in_flight_samples
     )
 
+    # Cumulative rate (tokens ÷ elapsed), NOT windowed — the per-model
+    # windowed rates are GET /models/throughput's job; this cheap additive
+    # field answers "which of my parallel tasks is starved?" from the task
+    # row alone. None (rather than 0) before any elapsed time.
+    elapsed = (completed_at or time.time()) - eval_started_at
+    tokens_per_second = round(total_tokens / elapsed, 1) if elapsed > 0 else None
+
     return {
         "run_id": run_id,
         "eval_id": latest.eval_id,
@@ -1200,7 +1492,10 @@ def _build_summary(
         "started_at": eval_started_at,
         "completed_at": completed_at,
         "paused": paused,
+        "paused_now": paused_now,
         "quiesced": quiesced,
+        "held": held,
+        "resolving": resolving,
         "attempts": attempts,
         # Planned epoch count. `ctl sample cancel` uses it to require an
         # explicit EPOCH when the task runs more than one (a defaulted epoch
@@ -1216,6 +1511,7 @@ def _build_summary(
             "queued": queued,
         },
         "total_tokens": total_tokens,
+        "tokens_per_second": tokens_per_second,
         "total_messages": total_messages,
         "refusals": refusals,
         "http_retries": http_retries,

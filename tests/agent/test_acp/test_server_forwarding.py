@@ -248,17 +248,57 @@ async def _initialize(
     await client.request("initialize", params)
 
 
-async def _drain_bind_preamble(client: _RpcClient) -> None:
-    """Drain the two notifications every successful bind emits.
+async def _drain_bind_preamble(
+    client: _RpcClient, *, replay_notifications: int = 0
+) -> list[dict[str, Any]]:
+    """Drain notifications emitted before live forwarding starts.
 
     1. ``AgentMessageChunk`` — picker confirmation from ``_notify_binding``
     2. ``SessionInfoUpdate`` — Phase 2 title from ``_send_session_info_title``
+    3. Zero or more replayed ``session/update`` notifications
+    4. ``inspect/turn_state`` — current turn snapshot from the forwarder
 
-    Replaces the older single ``next_notification()  # drain bind
-    confirmation`` pattern that no longer covers all bind-time output.
+    The helper sessions are idle; a dedicated test covers an active snapshot.
     """
     await client.next_notification()  # AgentMessageChunk
     await client.next_notification()  # SessionInfoUpdate
+    replay = [await client.next_notification() for _ in range(replay_notifications)]
+    turn_state = await client.next_notification()
+    assert turn_state["method"] == "inspect/turn_state"
+    assert turn_state["params"]["state"] == "ended"
+    return replay
+
+
+@skip_if_trio
+@unix_only
+async def test_bind_mid_turn_emits_started_snapshot(
+    short_data_dir: Path, register_target
+) -> None:
+    """A client attaching during a turn immediately learns it is active."""
+    from inspect_ai.agent import AgentChannel
+
+    session, _tr = _make_live_session_with_transcript()
+    channel = AgentChannel()
+    ref = channel._ref()
+    with channel.turn_scope():
+        assert session.maybe_bind(channel, ref) is True
+        register_target(
+            _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+        )
+        async with acp_server(eval_id="evt-turn-snapshot", transport=True) as server:
+            assert server is not None
+            client = await _connect(server)
+            try:
+                await _initialize(client)
+                await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+                await client.next_notification()  # picker confirmation
+                await client.next_notification()  # session title
+                turn_state = await client.next_notification()
+                assert turn_state["method"] == "inspect/turn_state"
+                assert turn_state["params"]["state"] == "started"
+            finally:
+                await client.close()
+    session.unbind(ref)
 
 
 # ---------------------------------------------------------------------------
@@ -862,13 +902,9 @@ async def test_replay_emits_recent_history_before_live(
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await _drain_bind_preamble(client)
+            replay = await _drain_bind_preamble(client, replay_notifications=3)
 
-            # Now read replayed notifications.
-            texts: list[str] = []
-            for _ in range(3):
-                notif = await client.next_notification()
-                texts.append(notif["params"]["update"]["content"]["text"])
+            texts = [notif["params"]["update"]["content"]["text"] for notif in replay]
             assert texts == ["chunk-0", "chunk-1", "chunk-2"]
         finally:
             await client.close()
@@ -894,20 +930,15 @@ async def test_replay_caps_to_max_events(short_data_dir: Path, register_target) 
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await _drain_bind_preamble(client)
+            replay = await _drain_bind_preamble(
+                client, replay_notifications=REPLAY_MAX_EVENTS
+            )
 
-            # Drain everything available with a short timeout.
             received: list[str] = []
-            try:
-                while True:
-                    notif = await client.next_notification(timeout=0.5)
-                    if notif["method"] != "session/update":
-                        continue
-                    update = notif["params"]["update"]
-                    if update.get("sessionUpdate") == "agent_message_chunk":
-                        received.append(update["content"]["text"])
-            except asyncio.TimeoutError:
-                pass
+            for notif in replay:
+                update = notif["params"]["update"]
+                if update.get("sessionUpdate") == "agent_message_chunk":
+                    received.append(update["content"]["text"])
             # Replay surfaces last REPLAY_MAX_EVENTS events.
             assert len(received) == REPLAY_MAX_EVENTS
             # First replayed is the (total - REPLAY_MAX_EVENTS)-th event.
@@ -940,9 +971,9 @@ async def test_replay_applies_plan_policy(
         try:
             await _initialize(client, client_name="zed")
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await _drain_bind_preamble(client)
+            replay = await _drain_bind_preamble(client, replay_notifications=1)
 
-            notif = await client.next_notification()
+            notif = replay[0]
             update = notif["params"]["update"]
             assert update["sessionUpdate"] == "plan"
             assert update["entries"][0]["content"] == "replayed step"
@@ -973,9 +1004,8 @@ async def test_replay_notifications_carry_replay_meta_marker(
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await _drain_bind_preamble(client)
-            for _ in range(2):
-                notif = await client.next_notification()
+            replay = await _drain_bind_preamble(client, replay_notifications=2)
+            for notif in replay:
                 meta = notif["params"].get("_meta") or {}
                 assert meta.get(REPLAY_META_KEY) is True, (
                     f"replay notification missing marker: {notif}"
@@ -1037,7 +1067,7 @@ async def test_replay_then_live_ordering(short_data_dir: Path, register_target) 
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await _drain_bind_preamble(client)
+            replay = await _drain_bind_preamble(client, replay_notifications=2)
 
             # Publish a LIVE notification immediately after bind. The
             # client's first two semantic notifications should still
@@ -1048,10 +1078,9 @@ async def test_replay_then_live_ordering(short_data_dir: Path, register_target) 
                 )
             )
 
-            seen: list[str] = []
-            for _ in range(3):
-                notif = await client.next_notification()
-                seen.append(notif["params"]["update"]["content"]["text"])
+            seen = [notif["params"]["update"]["content"]["text"] for notif in replay]
+            notif = await client.next_notification()
+            seen.append(notif["params"]["update"]["content"]["text"])
             assert seen == ["historical-1", "historical-2", "live-1"]
         finally:
             await client.close()
@@ -1551,6 +1580,67 @@ async def test_score_event_post_agent_reaches_subscribed_client(
 
 
 @skip_if_trio
+async def test_turn_state_is_ordered_after_buffered_session_updates() -> None:
+    """Turn closure cannot overtake transcript content already in the FIFO."""
+    from unittest.mock import AsyncMock
+
+    import anyio
+    from acp.helpers import session_notification, text_block, update_agent_message
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    session, _tr = _make_live_session_with_transcript()
+    release = anyio.Event()
+    send_calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def _gated_send(method: str, payload: dict[str, Any]) -> None:
+        send_calls.append((method, payload))
+        if method == "session/update" and not release.is_set():
+            await release.wait()
+
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = _gated_send
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-ordered", target_session_id=session.session_id
+    )
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-ordered",
+    )
+    await forwarders.start(session)
+    try:
+        send_calls.clear()
+        for content in ("first", "second"):
+            session.publish(
+                session_notification(
+                    session.session_id,
+                    update_agent_message(text_block(content)),
+                )
+            )
+
+        while not send_calls:
+            await asyncio.sleep(0)
+
+        session._on_channel_turn_state("ended")
+        release.set()
+        await forwarders.drain()
+
+        assert [method for method, _ in send_calls] == [
+            "session/update",
+            "session/update",
+            "inspect/turn_state",
+        ]
+    finally:
+        release.set()
+        await forwarders.stop()
+
+
+@skip_if_trio
 async def test_forwarders_drain_blocks_until_pending_notifications_sent() -> None:
     """``Forwarders.drain()`` doesn't return until the bus is empty.
 
@@ -1579,7 +1669,8 @@ async def test_forwarders_drain_blocks_until_pending_notifications_sent() -> Non
 
     async def _gated_send(method: str, payload: dict[str, Any]) -> None:
         send_calls.append((method, payload))
-        await release.wait()
+        if method == "session/update":
+            await release.wait()
 
     fake_conn = AsyncMock()
     fake_conn.send_notification = _gated_send
@@ -1695,7 +1786,8 @@ async def test_forwarders_drain_waits_for_in_flight_item() -> None:
 
     async def _gated_send(method: str, payload: dict[str, Any]) -> None:
         send_calls.append((method, payload))
-        await release.wait()
+        if method == "session/update":
+            await release.wait()
 
     fake_conn = AsyncMock()
     fake_conn.send_notification = _gated_send
@@ -1794,8 +1886,8 @@ async def test_forwarders_drain_is_noop_when_buffer_empty() -> None:
 
 
 @skip_if_trio
-async def test_forwarders_drain_returns_when_forwarder_task_dies() -> None:
-    """Drain doesn't hang forever if the forwarder task exited mid-buffer."""
+async def test_initial_turn_state_failure_aborts_forwarder_startup() -> None:
+    """A failed bind snapshot detaches clients and live subscriptions."""
     from unittest.mock import AsyncMock
 
     from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
@@ -1803,9 +1895,6 @@ async def test_forwarders_drain_returns_when_forwarder_task_dies() -> None:
 
     session, _tr = _make_live_session_with_transcript()
 
-    # send_notification raises on every call → the forwarder's
-    # acp_send_guard sees a send failure on the first item and
-    # exits the loop.
     async def _always_fail(*_args: Any, **_kwargs: Any) -> None:
         raise ConnectionError("peer gone")
 
@@ -1825,15 +1914,91 @@ async def test_forwarders_drain_returns_when_forwarder_task_dies() -> None:
         wire_session_id="wire-z",
     )
     await forwarders.start(session)
-    try:
-        # Wait for the start preamble + the forwarder task to die.
-        for _ in range(10):
-            await asyncio.sleep(0.01)
-            if forwarders._semantic_task and forwarders._semantic_task.done():
-                break
 
-        # Even if drain captures a non-zero buffered count, it must
-        # not hang once the forwarder is done.
+    assert forwarders._semantic_task is None
+    assert forwarders._semantic_stream is None
+    assert forwarders._target is None
+    assert session._subscribers == []
+    assert not session.has_approver_clients()
+
+
+@skip_if_trio
+async def test_forwarders_drain_returns_when_forwarder_task_dies() -> None:
+    """Drain doesn't hang forever if the forwarder task exited mid-buffer.
+
+    Covers both ``.done()`` guards in :meth:`Forwarders.drain`: a waiter
+    already parked when the task dies must wake and return (mid-wait
+    guard), and a subsequent drain call must return immediately (entry
+    guard). The gate fails only ``session/update`` so startup — which
+    sends the initial ``inspect/turn_state`` snapshot — completes and
+    the live forwarder task actually starts.
+    """
+    from unittest.mock import AsyncMock
+
+    import anyio
+    from acp.helpers import session_notification, text_block, update_agent_message
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    session, _tr = _make_live_session_with_transcript()
+
+    release = anyio.Event()
+    send_calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def _gated_failing_send(method: str, payload: dict[str, Any]) -> None:
+        send_calls.append((method, payload))
+        if method == "session/update":
+            await release.wait()
+            raise ConnectionError("peer gone")
+
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = _gated_failing_send
+
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-dead", target_session_id=session.session_id
+    )
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-dead",
+    )
+    await forwarders.start(session)
+    try:
+        assert forwarders._semantic_task is not None
+        preamble_count = len(send_calls)
+
+        # Two items: the task parks in the gated send on the first;
+        # the second stays buffered so drain snapshots pending work.
+        for content in ("first", "second"):
+            session.publish(
+                session_notification(
+                    session.session_id, update_agent_message(text_block(content))
+                )
+            )
+        deadline = asyncio.get_event_loop().time() + 1.0
+        while len(send_calls) <= preamble_count:
+            if asyncio.get_event_loop().time() > deadline:
+                raise AssertionError("forwarder didn't pull item within 1s")
+            await asyncio.sleep(0)
+
+        drain_task = asyncio.create_task(forwarders.drain())
+        await asyncio.sleep(0)
+        assert not drain_task.done(), "drain returned with items still pending"
+
+        # Release the gate → the send raises → the forwarder task dies
+        # with "second" still buffered. The parked drain must wake and
+        # return rather than wait for a counter target it can never hit.
+        release.set()
+        await asyncio.wait_for(drain_task, timeout=0.5)
+        assert forwarders._semantic_task.done()
+
+        # Entry guard: a fresh drain on the dead forwarder returns
+        # immediately even though the buffer is non-empty.
         await asyncio.wait_for(forwarders.drain(), timeout=0.5)
     finally:
+        release.set()
         await forwarders.stop()

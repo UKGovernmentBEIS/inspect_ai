@@ -7,12 +7,10 @@ from collections.abc import Callable, Iterator
 from typing import Any, Literal, TextIO, cast
 
 import click
-import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    TypeAdapter,
     ValidationError,
     field_validator,
 )
@@ -25,7 +23,7 @@ from inspect_ai._eval.handoff import (
     set_ctl_pointer_armed,
     set_launch_handoff_listener,
 )
-from inspect_ai._util.config import resolve_args
+from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_BATCH_SIZE,
@@ -38,24 +36,27 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.error import PrerequisiteError, SilentException
 from inspect_ai._util.file import filesystem
+
+# re-exported: a command's locals are still the common way in, and the
+# normalisation they go through is now shared with `eval_set_env`
+from inspect_ai._util.generate_config_args import (
+    _parse_adaptive_connections_cli,
+    config_from_locals,
+)
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
+from inspect_ai.approval._policy import ApprovalPolicyConfig
+from inspect_ai.log import IncompleteAction
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs, get_model
-from inspect_ai.model._cache import CachePolicy
+from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
 from inspect_ai.model._generate_config import (  # noqa: F811
-    BatchConfig,
-    ImageOutput,
-    OutputModality,
     ResponseSchema,
 )
-from inspect_ai.model._model_config import ModelConfig
+from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
-from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
 from inspect_ai.util._limit import TokenLimit
-from inspect_ai.util._resource import resource
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from .common import (
@@ -70,9 +71,9 @@ from .util import (
     int_bool_or_str_flag_callback,
     int_bool_or_str_retry_flag_callback,
     int_or_bool_flag_callback,
-    parse_cli_args,
     parse_cli_config,
     parse_model_role_cli_args,
+    parse_model_spec_cli_args,
     parse_sandbox,
     token_limit_flag_callback,
 )
@@ -102,11 +103,10 @@ class EvalCommand(SectionedCommand):
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
 MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)"
-MAX_SUBPROCESSES_HELP = (
-    "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
-)
+MAX_SUBPROCESSES_HELP = "Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)"
 MAX_SANDBOXES_HELP = "Maximum number of sandboxes (per-provider) to run in parallel."
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
+SANDBOX_PREBUILT_HELP = "Treat sandbox images as prebuilt (skip builds and fail at startup when an image is missing)"
 FAIL_ON_ERROR_HELP = "Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count."
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
 NO_LOG_REALTIME_HELP = (
@@ -117,10 +117,12 @@ CONTINUE_ON_FAIL_HELP = "Do not immediately fail the eval if the error threshold
 RETRY_ON_ERROR_HELP = "Retry samples if they encounter errors (by default, no retries occur). Specify --retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times."
 SCORE_ON_ERROR_HELP = "Score samples that error rather than failing the eval mid-run. Errors still count toward the --fail-on-error threshold for marking the log as 'error'. Only fires after retries (if any) are exhausted."
 LOG_IMAGES_HELP = (
-    "Include base64 encoded versions of filename or URL based images in the log file."
+    "Retain inline image and other media bytes in the log file. "
+    "This option does not control media fetching."
 )
 LOG_MODEL_API_HELP = "Log raw model api requests and responses. Note that error requests/responses are always logged."
 LOG_REFUSALS_HELP = "Log warnings for model refusals."
+FAIL_ON_REFUSAL_HELP = "Fail a sample (with a ModelRefusalError) when a model refuses a request (stop_reason 'content_filter'). Applies to every model used by the eval, including model roles (a role's own setting wins). Note that with the default --fail-on-error the first refusal fails the whole eval; combine with --no-fail-on-error or --continue-on-fail to keep running. Use --no-fail-on-refusal to override a task or model config that enables it."
 LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems)."
 LOG_SHARED_HELP = "Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds)."
 NO_SCORE_HELP = (
@@ -141,9 +143,12 @@ MAX_RETRIES_HELP = (
 )
 TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
 ATTEMPT_TIMEOUT_HELP = "Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."
+STREAM_IDLE_TIMEOUT_HELP = "Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries). Setting it requests streaming; it has no effect on calls that do not stream."
 CACHE_HELP = "Policy for caching of model generations. Specify --cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g. (e.g. 1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full `CachePolicy` configuration."
 BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
 CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for the default (every 500k tokens), --checkpoint=token:N{k,m,b} / time:N{s,m,h,d} / turn:N / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
+INCOMPLETE_ACTION_HELP = "Disposition applied when recovering a crashed log, for samples that were in progress at crash: 'retry' (default) re-runs them; 'error' resolves them as operator terminations — if that leaves every expected sample final, the recovered log finalizes with status 'success' and is not re-run."
+INCOMPLETE_MAX_HELP = "Safety threshold for --incomplete-action error (count if >= 1, or proportion of expected samples if strictly less than 1): when more than this many samples are in progress, fall back to the default recover-and-retry behavior. Has no effect (a warning is logged) with --incomplete-action retry."
 
 
 def _notification_callback(
@@ -254,7 +259,9 @@ def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SCAN_MODEL_ROLE",
         help=(
             "Named scanner-side model role with model name or YAML/JSON config "
-            "(e.g. --scan-model-role grader=mockllm/model)."
+            "(e.g. --scan-model-role grader=mockllm/model). Bind multiple models "
+            "to a role with a comma-separated list of names or a YAML/JSON list "
+            "of configs."
         ),
     )
     @click.option(
@@ -296,6 +303,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="YAML or JSON config file with model arguments.",
     )
     @click.option(
+        "--model-spec",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_MODEL_SPEC",
+        help='Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. --model-spec "{model: openai/gpt-4o, temperature: 0}" (same fields as --model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with --model, --model-base-url, --model-config, or -M.',
+    )
+    @click.option(
         "--run-config",
         type=str,
         envvar="INSPECT_EVAL_RUN_CONFIG",
@@ -306,7 +320,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
-        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}"',
+        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-4o,google/gemini-2.0-flash',
     )
     @click.option(
         "-T",
@@ -369,6 +383,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Config file for tool call approval.",
     )
     @click.option(
+        "--review",
+        type=str,
+        envvar="INSPECT_EVAL_REVIEW",
+        help="Config file for tool result review.",
+    )
+    @click.option(
         "--notification",
         "notification",
         is_flag=False,
@@ -409,6 +429,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help=NO_SANDBOX_CLEANUP_HELP,
         envvar="INSPECT_EVAL_NO_SANDBOX_CLEANUP",
+    )
+    @click.option(
+        "--sandbox-prebuilt",
+        type=bool,
+        is_flag=True,
+        help=SANDBOX_PREBUILT_HELP,
+        envvar="INSPECT_EVAL_SANDBOX_PREBUILT",
     )
     @click.option(
         "--checkpoint",
@@ -528,6 +555,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=int,
         help=ATTEMPT_TIMEOUT_HELP,
         envvar="INSPECT_EVAL_ATTEMPT_TIMEOUT",
+    )
+    @click.option(
+        "--stream-idle-timeout",
+        type=int,
+        help=STREAM_IDLE_TIMEOUT_HELP,
+        envvar="INSPECT_EVAL_STREAM_IDLE_TIMEOUT",
     )
     @click.option(
         "--max-samples",
@@ -827,7 +860,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--cache-prompt",
         type=click.Choice(["auto", "true", "false"]),
-        help="Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only.",
+        help="Whether to cache the prompt prefix. Enabled by default. Set to False to disable: on OpenAI this only disables explicit ContentText.cache_breakpoint marks — the model's own implicit caching stays in effect.",
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
     @click.option(
@@ -835,6 +868,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         help="Fallback models (comma-separated, tried in order) when the model's safety classifiers refuse the request. Anthropic Claude API only.",
         envvar="INSPECT_EVAL_FALLBACK_MODELS",
+    )
+    @click.option(
+        "--fail-on-refusal/--no-fail-on-refusal",
+        type=bool,
+        is_flag=True,
+        default=None,
+        help=FAIL_ON_REFUSAL_HELP,
+        envvar="INSPECT_EVAL_FAIL_ON_REFUSAL",
     )
     @click.option(
         "--verbosity",
@@ -883,6 +924,18 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         help="JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.",
         envvar="INSPECT_EVAL_RESPONSE_SCHEMA",
+    )
+    @click.option(
+        "--extra-headers",
+        type=str,
+        help='Extra headers to send with requests, as a JSON or YAML mapping (e.g. \'{"X-Trace-Id": "abc"}\'). Not supported by all providers.',
+        envvar="INSPECT_EVAL_EXTRA_HEADERS",
+    )
+    @click.option(
+        "--extra-body",
+        type=str,
+        help='Extra fields to add to the request body, as a JSON or YAML mapping (e.g. \'{"chat_template_kwargs": {"enable_thinking": true}}\'). Not supported by all providers.',
+        envvar="INSPECT_EVAL_EXTRA_BODY",
     )
     @click.option(
         "--cache",
@@ -983,6 +1036,7 @@ def eval_command(ctx: click.Context, /, **params: Any) -> None:
                 "m": "model_args",
                 "t": "task_args",
                 "model_role": "model_roles",
+                "model_spec": "model",
                 "no_sandbox_cleanup": "sandbox_cleanup",
                 "s": "solver",
                 "solver_config": "solver",
@@ -1062,6 +1116,7 @@ def _eval_command_impl(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
@@ -1085,9 +1140,11 @@ def _eval_command_impl(
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
+    review: str | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -1101,6 +1158,7 @@ def _eval_command_impl(
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
+    stream_idle_timeout: int | None,
     max_connections: int | None,
     adaptive_connections: str | None,
     max_tokens: int | None,
@@ -1123,6 +1181,7 @@ def _eval_command_impl(
     max_tool_output: int | None,
     cache_prompt: str | None,
     fallback_models: str | None,
+    fail_on_refusal: bool | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
@@ -1131,6 +1190,8 @@ def _eval_command_impl(
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    extra_headers: str | None,
+    extra_body: str | None,
     cache: int | str | None,
     batch: int | str | None,
     modalities: str | None,
@@ -1192,6 +1253,7 @@ def _eval_command_impl(
         model_base_url=model_base_url,
         m=m,
         model_config=model_config,
+        model_spec=model_spec,
         run_config=run_config,
         model_role=model_role,
         t=t,
@@ -1215,9 +1277,11 @@ def _eval_command_impl(
         metadata=metadata,
         trace=trace,
         approval=approval,
+        review=review,
         notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
+        sandbox_prebuilt=sandbox_prebuilt,
         checkpoint=checkpoint,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
@@ -1315,6 +1379,20 @@ def _eval_command_impl(
     envvar="INSPECT_EVAL_NO_RETRY_CLEANUP",
 )
 @click.option(
+    "--incomplete-action",
+    type=click.Choice(["retry", "error"]),
+    default="retry",
+    help=INCOMPLETE_ACTION_HELP,
+    envvar="INSPECT_EVAL_INCOMPLETE_ACTION",
+)
+@click.option(
+    "--incomplete-max",
+    type=click.FloatRange(min=0),
+    default=None,
+    help=INCOMPLETE_MAX_HELP,
+    envvar="INSPECT_EVAL_INCOMPLETE_MAX",
+)
+@click.option(
     "--bundle-dir",
     type=str,
     is_flag=False,
@@ -1354,14 +1432,18 @@ def eval_set_command(
     retry_wait: int | None,
     retry_connections: float | None,
     no_retry_cleanup: bool | None,
+    incomplete_action: IncompleteAction,
+    incomplete_max: float | None,
     solver: str | None,
     trace: bool | None,
     approval: str | None,
+    review: str | None,
     notification: bool | str | None,
     model: str | None,
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
@@ -1385,6 +1467,7 @@ def eval_set_command(
     metadata: tuple[str, ...] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -1398,6 +1481,7 @@ def eval_set_command(
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
+    stream_idle_timeout: int | None,
     max_connections: int | None,
     adaptive_connections: str | None,
     max_tokens: int | None,
@@ -1420,6 +1504,7 @@ def eval_set_command(
     max_tool_output: int | None,
     cache_prompt: str | None,
     fallback_models: str | None,
+    fail_on_refusal: bool | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
@@ -1428,6 +1513,8 @@ def eval_set_command(
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    extra_headers: str | None,
+    extra_body: str | None,
     cache: int | str | None,
     batch: int | str | None,
     modalities: str | None,
@@ -1509,6 +1596,7 @@ def eval_set_command(
             model_base_url=model_base_url,
             m=m,
             model_config=model_config,
+            model_spec=model_spec,
             run_config=run_config,
             model_role=model_role,
             t=t,
@@ -1532,9 +1620,11 @@ def eval_set_command(
             metadata=metadata,
             trace=trace,
             approval=approval,
+            review=review,
             notification=notification,
             sandbox=sandbox,
             no_sandbox_cleanup=no_sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             checkpoint=checkpoint,
             epochs=epochs,
             epochs_reducer=epochs_reducer,
@@ -1577,6 +1667,8 @@ def eval_set_command(
             retry_wait=retry_wait,
             retry_connections=retry_connections,
             retry_cleanup=not no_retry_cleanup,
+            incomplete_action=incomplete_action,
+            incomplete_max=incomplete_max,
             bundle_dir=bundle_dir,
             bundle_overwrite=True if bundle_overwrite else False,
             embed_viewer=True if embed_viewer else False,
@@ -1605,7 +1697,9 @@ class RunConfigInput(BaseModel):
 
     task: str | TaskInput | None = None
     model: str | ModelConfig | None = None
-    model_roles: dict[str, ModelConfig] = Field(default_factory=dict)
+    model_roles: dict[str, ModelConfig | list[ModelConfig]] = Field(
+        default_factory=dict
+    )
     generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
     eval_config: EvalConfig = Field(default_factory=EvalConfig)
     solver: str | SolverInput | None = None
@@ -1665,9 +1759,9 @@ class RunConfigInput(BaseModel):
         # Model roles
         if self.model_roles:
             params["model_roles"] = {
-                role: get_model(
-                    mc.model, config=mc.config, base_url=mc.base_url, **mc.args
-                )
+                role: [model_config_to_model(m) for m in mc]
+                if isinstance(mc, list)
+                else model_config_to_model(mc)
                 for role, mc in self.model_roles.items()
             }
 
@@ -1682,10 +1776,24 @@ class RunConfigInput(BaseModel):
 
         # Eval config — combine epochs + epochs_reducer into Epochs
         ec = self.eval_config.model_dump(exclude_none=True)
+        if "approval" in ec:
+            ec["approval"] = ApprovalPolicyConfig.model_validate(ec["approval"])
         epochs = ec.pop("epochs", None)
         epochs_reducer = ec.pop("epochs_reducer", None)
         if epochs is not None:
             ec["epochs"] = Epochs(epochs, create_reducers(epochs_reducer))
+        # token_limit_type is stored beside token_limit on EvalConfig, but
+        # eval() takes a single token_limit (int or TokenLimit). Leaving the
+        # type in the flattened kwargs makes GenerateConfig reject it.
+        token_limit = ec.pop("token_limit", None)
+        token_limit_type = ec.pop("token_limit_type", None)
+        if token_limit is not None:
+            if token_limit_type not in (None, "all"):
+                ec["token_limit"] = TokenLimit(
+                    tokens=token_limit, type=token_limit_type
+                )
+            else:
+                ec["token_limit"] = token_limit
         params.update(ec)
 
         # Tags and metadata
@@ -1745,6 +1853,75 @@ def merge_run_config_params(
     return params
 
 
+_SINGLE_MODEL_OPTION_NAMES = {"model", "model_base_url", "model_config", "m"}
+"""Click names of the options that configure one shared main model."""
+
+
+def resolve_model_spec(
+    model_spec: tuple[str, ...] | None, run_params: dict[str, Any]
+) -> list[Model] | None:
+    """Resolve `--model-spec` into one model per spec.
+
+    A spec builds a `Model`, and `get_model()` returns a `Model` unchanged. The
+    single model options (`--model`, `--model-base-url`, `--model-config`, `-M`)
+    and a `--run-config` `model` field therefore reach nothing beside a spec, so
+    treat them as mutually exclusive with `--model-spec`.
+
+    A typed option beats an ambient environment value, so the source of each
+    side decides the outcome:
+
+    - Both typed on the command line: raise.
+    - A typed spec against an environment option: the spec wins.
+    - An environment spec against a typed option: the option wins and this
+      returns None. An `INSPECT_EVAL_MODEL_SPEC` in a `.env` file must not
+      break every explicit `--model`.
+
+    A `--run-config` `model` field counts as typed, because a config file states
+    it explicitly.
+
+    Args:
+        model_spec: The `--model-spec` values.
+        run_params: The parameters that `--run-config` supplies.
+
+    Returns:
+        One model per spec, or None to leave the model to `--model`.
+
+    Raises:
+        PrerequisiteError: The command line holds a spec and a conflicting
+            option.
+    """
+    if not model_spec:
+        return None
+
+    from click.core import ParameterSource
+
+    ctx = click.get_current_context(silent=True)
+    if ctx is None:
+        return parse_model_spec_cli_args(model_spec)
+
+    def typed(name: str) -> bool:
+        return ctx.get_parameter_source(name) == ParameterSource.COMMANDLINE
+
+    conflicting = [
+        param.opts[0]
+        for param in ctx.command.params
+        if param.name is not None
+        and param.name in _SINGLE_MODEL_OPTION_NAMES
+        and typed(param.name)
+    ]
+    if "model" in run_params:
+        conflicting.append("the 'model' field of --run-config")
+    if conflicting:
+        if not typed("model_spec"):
+            return None
+        raise PrerequisiteError(
+            f"--model-spec cannot be used with {' / '.join(conflicting)}. Put "
+            "the model, config, args, and base url inside each --model-spec."
+        )
+
+    return parse_model_spec_cli_args(model_spec)
+
+
 def eval_exec(
     tasks: tuple[str, ...] | None,
     solver: str | None,
@@ -1756,6 +1933,7 @@ def eval_exec(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
@@ -1779,9 +1957,11 @@ def eval_exec(
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
+    review: str | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -1825,6 +2005,8 @@ def eval_exec(
     retry_wait: int | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
+    incomplete_action: IncompleteAction = "retry",
+    incomplete_max: float | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     embed_viewer: bool = False,
@@ -1845,6 +2027,8 @@ def eval_exec(
     task_args = parse_cli_config(t, task_config)
     solver_args = parse_cli_config(s, solver_config)
     model_args = parse_cli_config(m, model_config)
+
+    eval_models = resolve_model_spec(model_spec, run_params)
 
     # resolve scanner spec
     from inspect_ai._display.core.results import set_retry_args_suffix
@@ -1933,6 +2117,7 @@ def eval_exec(
 
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
+    sandbox_prebuilt = True if sandbox_prebuilt else None
     log_samples = False if no_log_samples else None
     log_realtime = False if no_log_realtime else None
     log_images = False if log_images is False else None
@@ -1944,7 +2129,7 @@ def eval_exec(
     cli_params: dict[str, Any] = (
         dict(
             tasks=list(tasks) if tasks else None,
-            model=model,
+            model=eval_models if eval_models is not None else model,
             model_base_url=model_base_url,
             model_args=model_args,
             model_roles=eval_model_roles,
@@ -1955,9 +2140,11 @@ def eval_exec(
             metadata=eval_metadata,
             trace=trace,
             approval=approval,
+            review=review,
             notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             checkpoint=parse_checkpoint(checkpoint),
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -2009,6 +2196,8 @@ def eval_exec(
         params["retry_wait"] = retry_wait
         params["retry_connections"] = retry_connections
         params["retry_cleanup"] = retry_cleanup
+        params["incomplete_action"] = incomplete_action
+        params["incomplete_max"] = incomplete_max
         params["bundle_dir"] = bundle_dir
         params["bundle_overwrite"] = bundle_overwrite
         params["embed_viewer"] = embed_viewer
@@ -2181,158 +2370,6 @@ def _stdout_owned_for_json() -> Iterator[TextIO]:
             os.dup2(saved_stdout.fileno(), stdout_fd)
 
 
-def _parse_adaptive_connections_cli(
-    value: str | None,
-) -> bool | int | AdaptiveConcurrency | None:
-    """Parse a CLI string into an adaptive_connections value.
-
-    Accepts: None (passthrough), bool keywords ("true"/"yes" / "false"/"no",
-    case-insensitive), a bare integer N (shorthand for
-    `AdaptiveConcurrency(max=N)`), or a min-max / min-start-max shorthand
-    like "4-80" / "4-20-80" delegated to AdaptiveConcurrency's parser.
-    Raises `click.BadParameter` on invalid input so the CLI surfaces a
-    clean usage message instead of a raw pydantic ValidationError.
-
-    Note: `"1"`/`"0"` are treated as the integer-max shorthand, not as
-    bool aliases. Users who want explicit on/off should pass `true`/`false`.
-    """
-    if value is None:
-        return None
-    v = value.strip().lower()
-    if v in ("true", "yes"):
-        return True
-    if v in ("false", "no"):
-        return False
-    # Bare integer → max shorthand.
-    if v.isdigit():
-        return int(v)
-    try:
-        return AdaptiveConcurrency.model_validate(value)
-    except Exception as ex:
-        raise click.BadParameter(
-            f"{value!r} is not a valid value. Expected `true`, `false`, an "
-            f"integer max (e.g. `200`), or bounds shorthand like `4-80` "
-            f"or `4-20-80`.",
-            param_hint="--adaptive-connections",
-        ) from ex
-
-
-def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
-    # start with config file if specified
-    adapter = TypeAdapter(GenerateConfigArgs)
-    run_config_file = locals.get("run_config")
-    generate_config_file = locals.pop("generate_config", None)
-    if run_config_file and generate_config_file:
-        raise PrerequisiteError("--run-config cannot be used with --generate-config.")
-    if generate_config_file:
-        # read file
-        generate_config = resolve_args(generate_config_file)
-
-        # validate all the fields are valid
-        extra_keys = generate_config.keys() - GenerateConfigArgs.__annotations__.keys()
-        if extra_keys:
-            raise PrerequisiteError(
-                f"Unexpected GenerateConfig fields in {generate_config_file}: {extra_keys}"
-            )
-
-        # create base config
-        base_config = adapter.validate_python(generate_config, strict=True)
-    else:
-        base_config = GenerateConfigArgs()
-
-    # build generate config
-    config_keys = list(GenerateConfigArgs.__mutable_keys__)  # type: ignore
-    config = GenerateConfigArgs(**base_config)
-    for key, value in locals.items():
-        if key in config_keys and value is not None:
-            if key == "stop_seqs":
-                value = value.split(",")
-            if key == "fallback_models":
-                value = [m.strip() for m in value.split(",")]
-            if key == "logprobs" and value is False:
-                value = None
-            if key == "logit_bias" and value is not None:
-                value = parse_logit_bias(value)
-            if key == "cache_prompt":
-                if value.lower() == "true":
-                    value = True
-                elif value.lower() == "false":
-                    value = False
-            if key == "parallel_tool_calls":
-                if value is not False:
-                    value = None
-            if key == "internal_tools":
-                if value is not False:
-                    value = None
-            if key == "response_schema":
-                if value is not None:
-                    value = ResponseSchema.model_validate_json(value)
-            if key == "cache":
-                match value:
-                    case str():
-                        policy = CachePolicy.from_string(value)
-                        if policy is not None:
-                            value = policy
-                        else:
-                            value = CachePolicy.model_validate(resolve_args(value))
-                    case int():
-                        value = CachePolicy(expiry=f"{value}D")
-
-            if key == "batch":
-                match value:
-                    case str():
-                        value = BatchConfig.model_validate(resolve_args(value))
-
-            if key == "adaptive_connections" and isinstance(value, str):
-                value = _parse_adaptive_connections_cli(value)
-
-            if key == "modalities":
-                value = parse_modalities(value)
-
-            config[key] = value  # type: ignore
-    return config
-
-
-def parse_modalities(value: str) -> list[Any]:
-    """Parse modalities from comma-separated names or YAML/JSON file."""
-    # Check if it's a file path
-    fs = filesystem(value)
-    if fs.exists(value):
-        content = resource(value, type="file")
-        is_json = content.strip().startswith("[") or content.strip().startswith("{")
-        config = json.loads(content) if is_json else yaml.safe_load(content)
-        if not isinstance(config, list):
-            raise PrerequisiteError(
-                f"Modalities config file must contain a list, got: {type(config).__name__}"
-            )
-        result: list[OutputModality] = []
-        for item in config:
-            if isinstance(item, str):
-                result.append(item)  # type: ignore[arg-type]
-            elif isinstance(item, dict):
-                result.append(ImageOutput.model_validate(item))
-            else:
-                raise PrerequisiteError(f"Invalid modality item: {item}")
-        return result
-    else:
-        # Check if it looks like a file path that doesn't exist
-        if "/" in value or "\\" in value or value.endswith((".json", ".yaml", ".yml")):
-            raise PrerequisiteError(f"Modalities file not found: {value}")
-        # Comma-separated literal names (e.g. "image" or "image,audio")
-        tokens = [m.strip() for m in value.split(",")]
-        return [t for t in tokens if t]  # type: ignore[misc]
-
-
-def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
-    logit_biases = parse_cli_args(logit_bias.split(",")) if logit_bias else None
-    if logit_biases:
-        return dict(
-            zip([int(key) for key in logit_biases.keys()], logit_biases.values())
-        )
-    else:
-        return None
-
-
 def parse_comma_separated(value: str | None) -> list[str] | None:
     if value is not None:
         return value.split(",")
@@ -2382,6 +2419,12 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     type=bool,
     is_flag=True,
     help=NO_SANDBOX_CLEANUP_HELP,
+)
+@click.option(
+    "--sandbox-prebuilt",
+    type=bool,
+    is_flag=True,
+    help=SANDBOX_PREBUILT_HELP,
 )
 @click.option(
     "--trace",
@@ -2556,6 +2599,12 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_ATTEMPT_TIMEOUT",
 )
 @click.option(
+    "--stream-idle-timeout",
+    type=int,
+    help=STREAM_IDLE_TIMEOUT_HELP,
+    envvar="INSPECT_EVAL_STREAM_IDLE_TIMEOUT",
+)
+@click.option(
     "--log-level-transcript",
     type=click.Choice(
         [level.lower() for level in ALL_LOG_LEVELS],
@@ -2574,6 +2623,20 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     + " For resume to find checkpoint files, pass the same `--checkpoint` value used on the original eval.",
     envvar="INSPECT_EVAL_CHECKPOINT",
 )
+@click.option(
+    "--incomplete-action",
+    type=click.Choice(["retry", "error"]),
+    default="retry",
+    help=INCOMPLETE_ACTION_HELP,
+    envvar="INSPECT_EVAL_INCOMPLETE_ACTION",
+)
+@click.option(
+    "--incomplete-max",
+    type=click.FloatRange(min=0),
+    default=None,
+    help=INCOMPLETE_MAX_HELP,
+    envvar="INSPECT_EVAL_INCOMPLETE_MAX",
+)
 @scanner_options
 @common_options
 def eval_retry_command(
@@ -2585,6 +2648,7 @@ def eval_retry_command(
     max_subprocesses: int | None,
     max_sandboxes: int | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     trace: bool | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
@@ -2607,8 +2671,11 @@ def eval_retry_command(
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
+    stream_idle_timeout: int | None,
     log_level_transcript: str,
     checkpoint: str | None,
+    incomplete_action: IncompleteAction,
+    incomplete_max: float | None,
     scanner: str | None,
     scanner_arg: tuple[str, ...] | None,
     scans: str | None,
@@ -2650,6 +2717,7 @@ def eval_retry_command(
 
         # resolve negating options
         sandbox_cleanup = False if no_sandbox_cleanup else None
+        sandbox_prebuilt = True if sandbox_prebuilt else None
         log_samples = False if no_log_samples else None
         log_realtime = False if no_log_realtime else None
         log_images = False if log_images is False else None
@@ -2730,6 +2798,7 @@ def eval_retry_command(
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
                 sandbox_cleanup=sandbox_cleanup,
+                sandbox_prebuilt=sandbox_prebuilt,
                 trace=trace,
                 fail_on_error=fail_on_error,
                 continue_on_fail=continue_on_fail,
@@ -2751,9 +2820,12 @@ def eval_retry_command(
                 max_retries=max_retries,
                 timeout=timeout,
                 attempt_timeout=attempt_timeout,
+                stream_idle_timeout=stream_idle_timeout,
                 max_connections=max_connections,
                 adaptive_connections=adaptive_connections_value,
                 checkpoint=parse_checkpoint(checkpoint),
+                incomplete_action=incomplete_action,
+                incomplete_max=incomplete_max,
             )
 
         if json_output:

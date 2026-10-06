@@ -31,10 +31,12 @@ from inspect_ai.agent._acp.event_mapping import (
 )
 from inspect_ai.agent._acp.inspect_ext import (
     INSPECT_SESSION_ENDED_METHOD,
+    INSPECT_TURN_STATE_METHOD,
     REPLAY_META_KEY,
     PlanPolicyTransformer,
     RawEventForwarder,
 )
+from inspect_ai.agent._acp.transport import TurnStateUpdate
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.connection import ConnectionState
@@ -43,6 +45,7 @@ if TYPE_CHECKING:
         ApproverClient,
         ElicitationClient,
     )
+    from inspect_ai.agent._channel.channel import TurnState
 
 logger = getLogger(__name__)
 
@@ -227,6 +230,7 @@ class Forwarders:
         # ATTACH live subscribers (also sync) — from here on new events
         # go into the live buffers, not the snapshot.
         self._semantic_stream = target.attach()
+        turn_state: TurnState = "started" if target.turn_active else "ended"
         subscription = self._state.raw_events_subscription
         if subscription is not None:
             self._raw_forwarder = RawEventForwarder(
@@ -262,6 +266,15 @@ class Forwarders:
         # ``_semantic_task`` yet, possibly-not-started raw forwarder).
         replay_status = await self._run_replay(snapshot)
         if replay_status.should_exit:
+            await self.stop()
+            return
+
+        # The snapshot was captured at the same synchronous attachment point
+        # as the semantic stream. Any later transition is already queued, so
+        # sending the snapshot now (after replay) preserves live FIFO order.
+        with acp_send_guard("ACP turn_state snapshot: send failed") as snapshot_status:
+            await self._send_turn_state(turn_state)
+        if snapshot_status.should_exit:
             await self.stop()
             return
 
@@ -406,6 +419,14 @@ class Forwarders:
                 # snapshotted is empty, not whether each item ended
                 # up on the wire vs. dropped.
                 try:
+                    if isinstance(notif, TurnStateUpdate):
+                        with acp_send_guard(
+                            "ACP turn_state forwarder: send failed"
+                        ) as send:
+                            await self._send_turn_state(notif.state)
+                        if send.should_exit:
+                            return
+                        continue
                     with acp_guard(
                         "ACP semantic forwarder: transform / rewrite failed "
                         "for one notification; skipping"
@@ -479,6 +500,12 @@ class Forwarders:
                 INSPECT_SESSION_ENDED_METHOD,
                 {"sessionId": self._wire_session_id},
             )
+
+    async def _send_turn_state(self, state: TurnState) -> None:
+        await self._connection.send_notification(
+            INSPECT_TURN_STATE_METHOD,
+            {"sessionId": self._wire_session_id, "state": state},
+        )
 
     async def drain(self) -> None:
         """Block until the forwarder has processed all currently-buffered items.

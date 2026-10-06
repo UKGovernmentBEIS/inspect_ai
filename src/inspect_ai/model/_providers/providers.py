@@ -121,6 +121,10 @@ def vllm_completions() -> type[ModelAPI]:
 
 @modelapi(name="cloudflare")
 def cloudflare() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("CloudFlare API")
+
+    # in the clear
     from .cloudflare import CloudFlareAPI
 
     return CloudFlareAPI
@@ -130,7 +134,7 @@ def cloudflare() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "2.0.1"
+    MIN_VERSION = "3.0.0"
 
     # verify we have the package
     try:
@@ -193,6 +197,22 @@ def moonshot() -> type[ModelAPI]:
     from .moonshot import MoonshotAPI
 
     return MoonshotAPI
+
+
+@modelapi(name="meta")
+def meta() -> type[ModelAPI]:
+    validate_openai_client("Meta Model API")
+    from .meta import MetaAPI
+
+    return MetaAPI
+
+
+@modelapi(name="litellm-proxy")
+def litellm_proxy() -> type[ModelAPI]:
+    validate_openai_client("LiteLLM Proxy")
+    from .litellm_proxy import LiteLLMProxyAPI
+
+    return LiteLLMProxyAPI
 
 
 @modelapi(name="deepseek")
@@ -359,7 +379,7 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "2.45.0"
+    MIN_VERSION = "3.1.0"
 
     # verify we have the package
     try:
@@ -373,7 +393,9 @@ def validate_openai_client(feature: str) -> None:
 
 def validate_anthropic_client(feature: str) -> None:
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.115.0"
+    # 1.0.0 removed temperature/top_p/top_k from method signatures, removed
+    # LegacyAPIResponse, and moved from httpx to httpx2 — inspect requires it
+    MIN_VERSION = "1.0.0"
 
     # verify we have the package
     try:

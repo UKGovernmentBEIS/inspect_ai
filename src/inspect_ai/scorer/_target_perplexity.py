@@ -25,14 +25,13 @@ Each ``Sample`` should have either:
 from __future__ import annotations
 
 import logging
-import math
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._model import get_model
 from inspect_ai.solver._task_state import TaskState
 
 from ._metric import Score
-from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
+from ._metrics.perplexity import _exp_or_inf, perplexity_per_seq, perplexity_per_token
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -68,15 +67,15 @@ def target_perplexity(
 
     async def score(state: TaskState, target: Target) -> Score:
         if not state.output.choices:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation="No model output choices available.",
             )
 
         choice = state.output.choices[0]
         if not choice.prompt_logprobs or choice.prompt_logprobs.content is None:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation=(
                     "No prompt logprobs available. "
                     "Ensure prompt_logprobs is set in GenerateConfig."
@@ -104,15 +103,15 @@ def target_perplexity(
                 n = 1
 
         if n <= 0:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation=f"num_target_tokens must be > 0, got {n}.",
             )
 
         all_lps = choice.prompt_logprobs.content
         if len(all_lps) < n:
-            return Score(
-                value=float("nan"),
+            return Score.unscored(
+                reason="scoring_failed",
                 explanation=(
                     f"prompt_logprobs has {len(all_lps)} entries but "
                     f"num_target_tokens={n}."
@@ -122,18 +121,19 @@ def target_perplexity(
         target_lps = all_lps[-n:]
         sum_log_probs = sum(lp.logprob for lp in target_lps)
         nll = -sum_log_probs / n
+        perplexity_value = _exp_or_inf(nll)
 
         return Score(
             value=nll,
             explanation=(
                 f"target tokens={n}, "
                 f"per-token NLL={nll:.4f}, "
-                f"perplexity={math.exp(nll):.4f}"
+                f"perplexity={perplexity_value:.4f}"
             ),
             metadata={
                 "num_tokens": n,
                 "sum_log_probs": sum_log_probs,
-                "perplexity": math.exp(nll),
+                "perplexity": perplexity_value,
             },
         )
 

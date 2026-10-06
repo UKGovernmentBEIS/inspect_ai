@@ -1,8 +1,8 @@
+import asyncio
 import pwd
 
-from ..._util.common_types import ToolException
 from ..._util.session_controller import SessionController
-from ..._util.user_switch import is_current_user
+from ..._util.user_switch import RunAs, switch_target
 from ._session import Session
 from .tool_types import BashRestartResult, InteractResult
 
@@ -13,15 +13,10 @@ class Controller(SessionController[Session]):
     """BashSessionController provides support for isolated inspect subtask sessions."""
 
     async def new_session(
-        self, user: str | None = None, can_switch_user: bool = False
+        self, user: str | RunAs | None = None, can_switch_user: bool = False
     ) -> str:
-        if user is not None and is_current_user(user):
-            user = None
-        if user is not None and not can_switch_user:
-            raise ToolException(
-                f"Cannot switch to user {user!r}: server is not running as root"
-            )
-        if user is not None:
+        user = switch_target(user, can_switch_user)
+        if isinstance(user, str):
             try:
                 pwd.getpwnam(user)
             except KeyError:
@@ -44,3 +39,17 @@ class Controller(SessionController[Session]):
 
     async def restart(self, session_name: str, timeout: int = 30) -> BashRestartResult:
         return await self.session_for_name(session_name).restart(timeout)
+
+    async def shutdown(self) -> None:
+        """Terminate every bash session owned by this server."""
+        with self._lock:
+            sessions = list(self._sessions.values())
+            self._sessions.clear()
+
+        results = await asyncio.gather(
+            *(session.shutdown(timeout=30) for session in sessions),
+            return_exceptions=True,
+        )
+        errors = [result for result in results if isinstance(result, Exception)]
+        if errors:
+            raise RuntimeError("; ".join(str(error) for error in errors))

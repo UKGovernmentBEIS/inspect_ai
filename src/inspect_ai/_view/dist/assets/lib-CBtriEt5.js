@@ -727,9 +727,7 @@ var n = o$1(((exports) => {
 		switch (t.nodeType) {
 			case p: r = t.cloneNode(!1), r.ownerDocument = e;
 			case C: break;
-			case m:
-				n = !0;
-				break;
+			case m: n = !0;
 		}
 		if (r ||= t.cloneNode(!1), r.ownerDocument = e, r.parentNode = null, n) for (var i = t.firstChild; i;) r.appendChild(Ce(e, i, n)), i = i.nextSibling;
 		return r;
@@ -3068,9 +3066,7 @@ var i = o$1(((exports) => {
 					case u:
 						var _ = e.slice(t, v);
 						m.warning(`attribute "` + _ + `" missed quot(")!!`), h(g, _, t);
-					case d:
-						y = f;
-						break;
+					case d: y = f;
 				}
 				else switch (y) {
 					case c:

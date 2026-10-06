@@ -109,12 +109,55 @@ def test_moonshot_kimi_k3_coerces_forced_tool_choice(
     assert not _warn_once_messages
 
 
+def test_moonshot_kimi_k2_6_drops_forced_tool_choice(
+    mock_moonshot_env, _warn_once_messages
+):
+    """Non-K3 Kimi models reject both named and 'required' tool_choice with thinking — coerce to "auto"."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+    from inspect_ai.tool import ToolFunction
+
+    api = MoonshotAPI(model_name="kimi-k2.6")
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice=ToolFunction(name="addition"), config=GenerateConfig()
+    )
+    assert tool_choice == "auto"
+    assert any(
+        "addition" in m and "kimi-k2.6" in m and '"auto"' in m
+        for m in _warn_once_messages
+    ), "expected a warning for dropped tool forcing"
+
+
+def test_moonshot_kimi_k2_6_coerces_any_tool_choice(
+    mock_moonshot_env, _warn_once_messages
+):
+    """Explicit tool_choice="any" (sent as 'required') also 400s on non-K3 Kimi — coerce to "auto"."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k2.6")
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice="any", config=GenerateConfig()
+    )
+    assert tool_choice == "auto"
+    assert any("kimi-k2.6" in m and '"auto"' in m for m in _warn_once_messages), (
+        "expected a warning for coerced tool_choice"
+    )
+
+    # K3 accepts 'required', so "any" passes through there
+    _warn_once_messages.clear()
+    api = MoonshotAPI(model_name="kimi-k3")
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice="any", config=GenerateConfig()
+    )
+    assert tool_choice == "any"
+    assert not _warn_once_messages
+
+
 def test_moonshot_thinking_disabled_preserves_forced_tool_choice(mock_moonshot_env):
     """Disabling thinking via extra_body lifts the named tool_choice restriction."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
     from inspect_ai.tool import ToolFunction
 
-    api = MoonshotAPI(model_name="kimi-k2.5")
+    api = MoonshotAPI(model_name="kimi-k2.6")
     _, tool_choice, _ = api.resolve_tools(
         tools=[],
         tool_choice=ToolFunction(name="addition"),
@@ -131,11 +174,11 @@ def test_moonshot_forwards_model_args(mock_moonshot_env):
     assert api.client.default_headers.get("X-Test") == "yes"
 
 
-def test_moonshot_kimi_k2_5_drops_fixed_sampling_params(mock_moonshot_env):
-    """All Kimi thinking models use fixed sampling by default, not just K3."""
+def test_moonshot_kimi_k2_6_drops_fixed_sampling_params(mock_moonshot_env):
+    """All Kimi thinking models use fixed sampling, not just K3."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
-    api = MoonshotAPI(model_name="kimi-k2.5")
+    api = MoonshotAPI(model_name="kimi-k2.6")
     params = api.completion_params(
         config=GenerateConfig(temperature=0.7, top_p=0.9),
         tools=False,
@@ -144,18 +187,18 @@ def test_moonshot_kimi_k2_5_drops_fixed_sampling_params(mock_moonshot_env):
     assert "top_p" not in params
 
 
-def test_moonshot_thinking_disabled_preserves_sampling_params(mock_moonshot_env):
-    """Disabling thinking via extra_body lifts the fixed-sampling restriction."""
+def test_moonshot_thinking_disabled_still_drops_sampling_params(mock_moonshot_env):
+    """Fixed sampling applies even with thinking disabled (only the pinned value changes)."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
-    api = MoonshotAPI(model_name="kimi-k2.5")
+    api = MoonshotAPI(model_name="kimi-k2.6")
     params = api.completion_params(
         config=GenerateConfig(
             temperature=0.7, extra_body={"thinking": {"type": "disabled"}}
         ),
         tools=False,
     )
-    assert params["temperature"] == 0.7
+    assert "temperature" not in params
 
 
 def test_moonshot_legacy_model_preserves_sampling_params(mock_moonshot_env):
@@ -173,16 +216,16 @@ def test_moonshot_legacy_model_preserves_sampling_params(mock_moonshot_env):
 
 def test_moonshot_context_overflow_maps_to_model_length(mock_moonshot_env):
     """Moonshot's token-limit 400 (no error code) must map to stop_reason model_length."""
-    import httpx
+    import httpx2
     from openai import APIStatusError
 
     from inspect_ai.model._model_output import ModelOutput
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
     api = MoonshotAPI(model_name="kimi-k3")
-    response = httpx.Response(
+    response = httpx2.Response(
         status_code=400,
-        request=httpx.Request("POST", "https://api.moonshot.ai/v1/chat/completions"),
+        request=httpx2.Request("POST", "https://api.moonshot.ai/v1/chat/completions"),
     )
     message = (
         "Invalid request: Your request exceeded model token limit: "
@@ -215,7 +258,7 @@ def test_moonshot_base_url_default(mock_moonshot_env):
 
 def test_moonshot_retries_503_as_rate_limit(mock_moonshot_env) -> None:
     """503 must be retried as a rate limit (scales down adaptive concurrency)."""
-    import httpx
+    import httpx2
     from openai import InternalServerError
 
     from inspect_ai.model._model import RetryDecision
@@ -224,10 +267,10 @@ def test_moonshot_retries_503_as_rate_limit(mock_moonshot_env) -> None:
     api = MoonshotAPI(model_name="kimi-k3")
 
     def sdk_error(status_code: int, headers: dict[str, str] | None = None):
-        response = httpx.Response(
+        response = httpx2.Response(
             status_code=status_code,
             headers=headers,
-            request=httpx.Request(
+            request=httpx2.Request(
                 "POST", "https://api.moonshot.ai/v1/chat/completions"
             ),
         )

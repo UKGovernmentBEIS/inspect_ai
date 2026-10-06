@@ -1,22 +1,31 @@
 import logging
 import os
 import pickle
+import re
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from hashlib import md5
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from shutil import rmtree
-from typing import Any, Optional
+from typing import Any
 
 from dateutil.relativedelta import relativedelta
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from inspect_ai._util.appdirs import inspect_cache_dir
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
+from inspect_ai.core._cache_policy import _parse_expiry
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from ._chat_message import ChatMessage
 from ._model_output import ModelOutput
+
+# isort: split
+# Backward-compatible re-exports of names that moved to inspect_ai.core.
+from inspect_ai.core._cache_policy import CachePolicy as CachePolicy
+
+# End of backward-compatible re-exports.
 
 logger = logging.getLogger(__name__)
 
@@ -25,67 +34,50 @@ def trace(msg: str, *args: Any) -> None:
     trace_message(logger, "Cache", msg, *args)
 
 
-def _path_is_in_cache(path: Path | str) -> bool:
-    """This ensures the path is in our cache directory, just in case the `model` is ../../../home/ubuntu/maliciousness"""
-    if isinstance(path, str):
-        path = Path(path)
+def _path_is_in_cache(path: Path | str, root: Path | None = None) -> bool:
+    """Whether `path` is strictly inside the cache directory.
 
-    return cache_path() in Path(os.path.normpath(path)).parents
-
-
-def _parse_expiry(period: str) -> int:
-    """Returns the number of seconds in the period where period is a string of the format "12h" or "1W" etc."""
-    factor = period[-1]
-    match factor:
-        case "s":
-            return int(period[:-1])
-        case "m":
-            return int(period[:-1]) * 60
-        case "h":
-            return int(period[:-1]) * 60 * 60
-        case "D":
-            return int(period[:-1]) * 60 * 60 * 24
-        case "W":
-            return int(period[:-1]) * 60 * 60 * 24 * 7
-        case "M":
-            return int(period[:-1]) * 60 * 60 * 24 * 30
-        case "Y":
-            return int(period[:-1]) * 60 * 60 * 24 * 365
-        case _:
-            raise ValueError(f"Invalid expiry: {period}")
+    Both paths are resolved first, so a symlink that leads out of the cache
+    directory fails the check.
+    """
+    try:
+        resolved_root = (root or _cache_root()).resolve()
+        return resolved_root in Path(path).resolve().parents
+    except (OSError, RuntimeError, ValueError):
+        # unresolvable (e.g. a symlink loop or an embedded NUL): not provably
+        # in the cache
+        return False
 
 
-class CachePolicy(BaseModel):
-    """Caching options for model generation."""
+def _is_safe_model_name(model: str) -> bool:
+    """Whether `model` is a relative path with no `.` or `..` segments.
 
-    expiry: str | None = Field(default="1W")
-    """The expiry time for cache entries (Default "1W").
-    This is a string of the format "12h" for 12 hours or "1W" for a week,
-    etc. This is how long we will keep the cache entry, if we access it
-    after this point we'll clear it. Setting to `None` will cache
-    indefinitely."""
+    Both `/` and backslash count as separators, and a segment of only dots and
+    spaces is refused (Windows trims trailing dots and spaces), so a name is
+    judged the same way on every platform.
+    """
+    if "\0" in model or PurePosixPath(model).anchor or PureWindowsPath(model).anchor:
+        return False
+    return all(
+        segment == "" or segment.strip(". ") != ""
+        for segment in re.split(r"[/\\]", model)
+    )
 
-    per_epoch: bool = Field(default=True)
-    """Default True. By default we cache responses separately
-    for different epochs. The general use case is that if there are
-    multiple epochs, we should cache each response separately because
-    scorers will aggregate across epochs. However, sometimes a response
-    can be cached regardless of epoch if the call being made isn't under
-    test as part of the evaluation. If False, this option allows you to
-    bypass that and cache independently of the epoch."""
 
-    scopes: dict[str, str] = Field(default_factory=dict)
-    """A dictionary of additional metadata that should
-    be included in the cache key. This allows for more fine-grained
-    control over the cache key generation."""
-
-    @staticmethod
-    def from_string(expiry: str) -> Optional["CachePolicy"]:
-        try:
-            _parse_expiry(expiry)  # confirm this is a legit expiry
-            return CachePolicy(expiry=expiry)
-        except ValueError:
-            return None
+def _cache_entry_path(entry: "CacheEntry") -> Path | None:
+    """Path of the cache file for `entry`, or None (with a warning) if it is outside the cache directory."""
+    try:
+        filename = cache_path(model=entry.model) / entry.key
+        if _path_is_in_cache(filename):
+            return filename
+    except ValueError:
+        pass
+    warn_once(
+        logger,
+        f"Model output caching is disabled for model {entry.model!r}: "
+        "its cache entries would be outside the cache directory.",
+    )
+    return None
 
 
 # The `epoch` is an essential part of the cache key for `generate` call. When
@@ -136,23 +128,67 @@ class CacheEntry:
         self.key = _cache_key(self)
 
 
+# Runtime/transport GenerateConfig knobs that cannot change what the provider
+# returns, and so must not affect the cache key. Their union must equal
+# GENERATE_CONFIG_FIELDS_TO_EXCLUDE (the task-identity partition in
+# inspect_ai._eval.evalset) — both answer the same question, and
+# test_cache_key_neutral_fields_match_task_identity fails when they diverge.
+#
+# Which bucket a field goes in decides whether existing caches survive
+# classifying it:
+#
+#  - Dropped fields are absent from the serialized config. Right for a field
+#    classified when it is added to GenerateConfig: keys written before the
+#    field existed were already computed without it, so they still match.
+#  - Neutralized fields are serialized as their default instead. Right for a
+#    field that has been part of the key already — dropping one rewrites every
+#    key in every existing cache, whereas a config that leaves it unset
+#    serializes exactly as it did before.
+_CACHE_KEY_DROPPED_FIELDS = {
+    "max_connections",
+    "adaptive_connections",
+    "max_retries",
+    "timeout",
+    "stream_idle_timeout",
+    "cache",
+    "batch",
+    # never reaches the provider request (it decides what generate() does with
+    # a refusal, and refusals are never cached), so a cache hit can't depend on
+    # it. Unlike the fields above it *does* change sample outcomes, so it stays
+    # in eval-set task identity (GENERATE_CONFIG_FIELDS_TO_EXCLUDE).
+    "fail_on_refusal",
+}
+
+_CACHE_KEY_NEUTRALIZED_FIELDS = {
+    "attempt_timeout",
+    "cache_prompt",
+}
+
+
+def _cache_key_config(config: BaseModel) -> dict[str, Any]:
+    """The generate config as the cache key sees it, with runtime knobs made inert."""
+    values = config.model_dump(exclude=_CACHE_KEY_DROPPED_FIELDS)
+    fields = type(config).model_fields
+    for field in _CACHE_KEY_NEUTRALIZED_FIELDS & values.keys():
+        values[field] = fields[field].get_default()
+    return values
+
+
 def _cache_key(entry: CacheEntry) -> str:
     components = [
-        entry.config.model_dump(
-            # Exclude fields that don't affect the model output
-            exclude=set(
-                [
-                    "max_connections",
-                    "adaptive_connections",
-                    "max_retries",
-                    "timeout",
-                    "cache",
-                    "batch",
-                ]
-            )
-        ),
+        _cache_key_config(entry.config),
         ",".join(
-            [str(message.model_dump(exclude=set(["id"]))) for message in entry.input]
+            [
+                str(
+                    message.model_dump(
+                        exclude={
+                            "id": True,
+                            "content": {"__all__": {"cache_breakpoint"}},
+                        }
+                    )
+                )
+                for message in entry.input
+            ]
         ),
         entry.base_url,
         entry.tool_choice,
@@ -197,8 +233,20 @@ def cache_store(
     entry: CacheEntry,
     output: ModelOutput,
 ) -> bool:
-    """Cache a value in the cache directory."""
-    filename = cache_path(model=entry.model) / entry.key
+    """Cache a value in the cache directory.
+
+    Outputs stopped by a provider content filter are never cached: refusal
+    retry loops (e.g. `react()`'s `retry_refusals`) re-call generate with
+    identical inputs, so a cached refusal would be replayed on every retry
+    instead of giving the model a fresh attempt.
+    """
+    if any(choice.stop_reason == "content_filter" for choice in output.choices):
+        trace("Not caching content_filter output: %s", entry.key)
+        return False
+
+    filename = _cache_entry_path(entry)
+    if filename is None:
+        return False
 
     try:
         filename.parent.mkdir(parents=True, exist_ok=True)
@@ -215,7 +263,9 @@ def cache_store(
 
 def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
     """Fetch a value from the cache directory."""
-    filename = cache_path(model=entry.model) / entry.key
+    filename = _cache_entry_path(entry)
+    if filename is None:
+        return None
     try:
         trace("Fetching from cache: %s", filename)
 
@@ -251,7 +301,7 @@ def cache_clear(model: str = "") -> bool:
     try:
         path = cache_path(model)
 
-        if (model == "" or _path_is_in_cache(path)) and path.exists():
+        if path.exists():
             trace("Clearing cache: %s", path)
             rmtree(path)
             return True
@@ -267,17 +317,31 @@ def cache_path(model: str = "") -> Path:
 
     Args:
        model: Path to cache directory for specific model.
+
+    Raises:
+       ValueError: If the directory for `model` would not be inside the
+          cache directory (e.g. the name has `..` segments). Nothing is
+          created in that case.
     """
+    generate_cache = _cache_root()
+    path = generate_cache / model if model else generate_cache
+    if model and (
+        not _is_safe_model_name(model) or not _path_is_in_cache(path, generate_cache)
+    ):
+        raise ValueError(
+            f"The cache directory for model {model!r} would be outside {generate_cache}."
+        )
+    generate_cache.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _cache_root() -> Path:
+    """The cache directory, without creating it."""
     env_cache_dir = os.environ.get("INSPECT_CACHE_DIR", None)
     if env_cache_dir:
-        generate_cache = Path(env_cache_dir) / "generate"
-        generate_cache.mkdir(parents=True, exist_ok=True)
+        return Path(env_cache_dir) / "generate"
     else:
-        generate_cache = inspect_cache_dir("generate")
-    if model:
-        return generate_cache / model
-    else:
-        return generate_cache
+        return inspect_cache_dir("generate", create=False)
 
 
 def _cache_size_directories_only(filter_by: list[str]) -> list[tuple[str, int]]:
@@ -364,9 +428,12 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
             an empty list, this will search the entire cache.
     """
     expired_cache_entries = []
-    filter_by_paths = [
-        cache_path(model) for model in filter_by if _path_is_in_cache(cache_path(model))
-    ]
+    filter_by_paths = []
+    for model in filter_by:
+        try:
+            filter_by_paths.append(cache_path(model))
+        except ValueError as ex:
+            warn_once(logger, str(ex))
 
     if filter_by and not filter_by_paths:
         # An edge case where all the paths we get are invalid ones (e.g.
@@ -374,7 +441,8 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
         return []
 
     trace("Filtering by paths: %s", filter_by_paths)
-    for dirpath, _dirnames, filenames in os.walk(cache_path()):
+    root = cache_path()
+    for dirpath, _dirnames, filenames in os.walk(root):
         if filter_by_paths and Path(dirpath) not in filter_by_paths:
             trace("Skipping path %s", dirpath)
             continue
@@ -383,6 +451,9 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
         for filename in filenames:
             path = Path(dirpath) / filename
             trace("Checking path %s", path)
+            if not _path_is_in_cache(path, root):
+                trace("Skipping path outside the cache: %s", path)
+                continue
             try:
                 with open(path, "rb") as f:
                     expiry, _cache_entry = pickle.load(f)
@@ -401,12 +472,17 @@ def cache_prune(files: list[Path] = []) -> None:
 
     Args:
         files: List of files to prune. If empty, this
-            will search the entire cache.
+            will search the entire cache. Files outside the
+            cache directory are skipped.
     """
     if not files:
         files = cache_list_expired()
 
+    root = _cache_root()
     for file in files:
+        if not _path_is_in_cache(file, root):
+            logger.warning(f"Not pruning {file}: it is outside the cache directory.")
+            continue
         try:
             with open(file, "rb") as f:
                 expiry, _cache_entry = pickle.load(f)

@@ -1,4 +1,7 @@
+import asyncio
+
 from inspect_sandbox_tools._util.common_types import ToolException
+from inspect_sandbox_tools._util.user_switch import RunAs
 
 from ._job import Job
 from .tool_types import CloseStdinResult, KillResult, PollResult, WriteStdinResult
@@ -13,6 +16,7 @@ class Controller:
 
     def __init__(self) -> None:
         self._jobs: dict[int, Job] = {}
+        self._retired_jobs: list[Job] = []
 
     async def submit(
         self,
@@ -21,7 +25,7 @@ class Controller:
         stdin_open: bool = False,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
-        user: str | None = None,
+        user: str | RunAs | None = None,
         can_switch_user: bool = False,
     ) -> int:
         """Create a new job and return its PID.
@@ -56,6 +60,8 @@ class Controller:
         # concurrent kill() already removed the job between our await and here.
         if result.state in ("completed", "killed"):
             if self._jobs.pop(pid, None) is not None:
+                job.retire()
+                self._retired_jobs.append(job)
                 await job.cleanup()
 
         return result
@@ -67,6 +73,8 @@ class Controller:
         # Use pop to avoid KeyError if a concurrent poll() already removed the
         # job between our await and here.
         if self._jobs.pop(pid, None) is not None:
+            job.retire()
+            self._retired_jobs.append(job)
             await job.cleanup()
         return KillResult(seq=seq, stdout=stdout, stderr=stderr)
 
@@ -81,6 +89,32 @@ class Controller:
         job = self._get_job(pid)
         seq, stdout, stderr = await job.close_stdin(ack_seq)
         return CloseStdinResult(seq=seq, stdout=stdout, stderr=stderr)
+
+    async def shutdown(self) -> None:
+        """Terminate every job owned by this server."""
+        jobs = [*self._jobs.values(), *self._retired_jobs]
+        self._jobs.clear()
+        self._retired_jobs.clear()
+
+        async def shutdown_job(job: Job) -> None:
+            errors: list[Exception] = []
+            try:
+                await job.shutdown()
+            except Exception as ex:
+                errors.append(ex)
+            try:
+                await job.cleanup()
+            except Exception as ex:
+                errors.append(ex)
+            if errors:
+                raise RuntimeError("; ".join(str(error) for error in errors))
+
+        results = await asyncio.gather(
+            *(shutdown_job(job) for job in jobs), return_exceptions=True
+        )
+        errors = [result for result in results if isinstance(result, Exception)]
+        if errors:
+            raise RuntimeError("; ".join(str(error) for error in errors))
 
     def _get_job(self, pid: int) -> Job:
         """Get job by PID or raise error."""

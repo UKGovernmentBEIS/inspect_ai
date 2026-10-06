@@ -2,3 +2,4 @@ services:
   default:
     image: aisiuk/inspect-tool-support
     init: true
+    # network_mode is omitted because this example browses external websites.
