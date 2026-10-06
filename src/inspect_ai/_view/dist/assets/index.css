@@ -165,108 +165,24 @@
   background: var(--bs-primary);
   color: white;
 }
-._ansiDisplayContainer_1749m_1 {
-  position: relative;
-  width: 100%;
-}
-
-._ansiDisplay_1749m_1 {
-  font-family: monospace;
-  white-space: pre-wrap;
-  line-height: normal;
-  --ansiBlack: #000000;
-  --ansiRed: #cd3131;
-  --ansiGreen: #00bc00;
-  --ansiYellow: #949800;
-  --ansiBlue: #0451a5;
-  --ansiMagenta: #bc05bc;
-  --ansiCyan: #0598bc;
-  --ansiWhite: #555555;
-  --ansiBrightBlack: #666666;
-  --ansiBrightRed: #cd3131;
-  --ansiBrightGreen: #14ce14;
-  --ansiBrightYellow: #b5ba00;
-  --ansiBrightBlue: #0451a5;
-  --ansiBrightMagenta: #bc05bc;
-  --ansiBrightCyan: #0598bc;
-  --ansiBrightWhite: #a5a5a5;
-}
-
-._ansiDisplayRaw_1749m_28 {
-  margin: 0;
+/* A bidi island: strong RTL/LTR characters in untrusted text can't reorder
+   the UI text around it, and each line takes its direction from its own
+   content (as a terminal would) instead of the page's. */
+._untrustedText_tpj36_4 {
+  unicode-bidi: plaintext;
   white-space: pre-wrap;
 }
 
-._ansiDisplayToggle_1749m_33 {
-  position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
-  z-index: 10;
-  opacity: 0.7;
-  transition: opacity 0.2s;
+/* Inline untrusted text inherits its container's wrapping, so single-line
+   labels and grid cells still truncate. */
+._untrustedInlineText_tpj36_11 {
+  unicode-bidi: plaintext;
 }
 
-._ansiDisplayContainer_1749m_1:hover ._ansiDisplayToggle_1749m_33 {
-  opacity: 1;
-}
-
-.dark-mode ._ansiDisplay_1749m_1 {
-  --ansiBlack: #000000;
-  --ansiRed: #cd3131;
-  --ansiGreen: #0dbc79;
-  --ansiYellow: #e5e510;
-  --ansiBlue: #2472c8;
-  --ansiMagenta: #bc3fbc;
-  --ansiCyan: #11a8cd;
-  --ansiWhite: #e5e5e5;
-  --ansiBrightBlack: #666666;
-  --ansiBrightRed: #f14c4c;
-  --ansiBrightGreen: #23d18b;
-  --ansiBrightYellow: #f5f543;
-  --ansiBrightBlue: #3b8eea;
-  --ansiBrightMagenta: #d670d6;
-  --ansiBrightCyan: #29b8db;
-  --ansiBrightWhite: #e5e5e5;
-}
-
-@keyframes _ansi-display-run-blink_1749m_1 {
-  50% {
-    opacity: 0;
-  }
-}
-
-._ansiDisplayToggle_1749m_33 {
-  padding: 0 0.2rem;
-  background-color: var(--bs-body-bg);
-}
-.btn._toolButton_13erz_1 {
-  background-color: var(--bs-light-border-subtle);
-  border: 1px solid var(--bs-border-color);
-  white-space: nowrap;
-}
-
-._marginRight_13erz_7 {
-  margin-right: 0.5em;
-}
-
-._toolButton_13erz_1:focus {
-  outline: none;
-  box-shadow:
-    0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
-    inset 0 2px 4px rgba(0, 0, 0, 0.15),
-    inset 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.btn._toolButton_13erz_1._subtle_13erz_19 {
-  background-color: var(--bs-light);
-}
-
-.btn._toolButton_13erz_1._latched_13erz_23,
-.btn._toolButton_13erz_1._latched_13erz_23:hover {
-  background-color: var(--bs-secondary-bg);
-  box-shadow:
-    inset 0 2px 4px rgba(0, 0, 0, 0.15),
-    inset 0 1px 2px rgba(0, 0, 0, 0.1);
+._placeholder_tpj36_15 {
+  font-style: italic;
+  color: var(--bs-secondary-color);
+  margin-inline-end: 0.5em;
 }
 ._errorPanel_13pj6_1 {
   flex-direction: column;
@@ -551,6 +467,12 @@
 
 .markdown-content p:last-child {
   margin-bottom: 0;
+}
+
+/* Untrusted content is shown as its literal source text. */
+.untrusted-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 ._panel_tison_1 {
   width: 100%;
@@ -1459,1471 +1381,6 @@ button._segment_116ql_10._disabled_116ql_51:hover {
 
 ._center_f9jlf_28 {
   text-align: center;
-}
-._notice_mpxkz_1 {
-  margin-top: 0.25rem;
-  font-size: var(--inspect-font-size-smaller);
-  color: var(--bs-secondary-color);
-  font-style: italic;
-}
-._reference_7p4hu_1 {
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-._scroller_1uwiu_1 {
-  position: relative;
-  /* One scroll owner: native anchoring must not fight the virtualizer's own resize compensation. */
-  overflow-anchor: none;
-}
-._keyPairContainer_1u1d5_1 {
-  display: grid;
-  grid-template-columns: max-content auto;
-  column-gap: 0.5em;
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
-._keyPairBordered_1u1d5_9 {
-  border-bottom: solid 1px var(--bs-border-color);
-}
-
-/* Copy button column (opt-in via copyButton prop) */
-
-._keyPairCopy_1u1d5_15 {
-  grid-template-columns: max-content auto max-content;
-}
-
-/* Wrapper carries the hover reveal so CopyButton's own opacity
-   styles still apply unchanged inside it. */
-._copyCell_1u1d5_21 {
-  opacity: 0;
-  justify-self: end;
-  transition: opacity 0.2s;
-}
-
-._copyCell_1u1d5_21 button {
-  padding: 0;
-  line-height: 1;
-}
-
-._keyPairContainer_1u1d5_1:hover ._copyCell_1u1d5_21,
-._copyCell_1u1d5_21:focus-within {
-  opacity: 1;
-}
-
-._key_1u1d5_1 {
-  display: grid;
-  grid-template-columns: 1em auto;
-  cursor: pointer;
-}
-
-._pre_1u1d5_43 {
-  margin-bottom: 0;
-}
-
-._treeIcon_1u1d5_47 {
-  margin-top: -3px;
-}
-/* MetadataGrid — Section Cards
-   Compact density, mono labels, striped rows, rule-style section headers.
-   Colors mapped to existing theme variables for light/dark support. */
-
-._grid_17hbv_5 {
-  font-family: var(--bs-body-font-family);
-  font-size: var(--inspect-font-size-small);
-  color: var(--bs-body-color);
-  line-height: 1.5;
-}
-
-/* ── Rows ─────────────────────────────────────────────────────── */
-
-._rows_17hbv_14 {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 1em;
-}
-
-._row_17hbv_14 {
-  display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
-  padding-block: 3px;
-  border-bottom: 1px dotted var(--bs-light-border-subtle);
-  align-items: baseline;
-}
-
-._rows_17hbv_14 > ._row_17hbv_14:last-child {
-  border-bottom: none;
-}
-
-/* ── Striped variant (opt-in via striped prop) ───────────────── */
-
-._striped_17hbv_35 ._row_17hbv_14 {
-  padding-inline: 0.5rem;
-}
-
-._striped_17hbv_35 ._rows_17hbv_14 > ._row_17hbv_14:nth-child(even) {
-  background: var(--bs-light-bg-subtle);
-}
-
-._key_17hbv_43 {
-  font-family: var(--bs-font-monospace);
-  font-size: var(--inspect-font-size-smallest);
-  color: var(--bs-secondary);
-  font-feature-settings: "calt" 0;
-  letter-spacing: 0;
-  word-break: break-all;
-}
-
-._val_17hbv_52 {
-  color: var(--bs-body-color);
-  overflow-wrap: anywhere;
-  font-feature-settings: "tnum";
-}
-
-._val_17hbv_52 pre {
-  margin: 0;
-  padding: 0;
-}
-
-/* ── Copy button (opt-in via copyButton option) ──────────────── */
-
-._rowsCopy_17hbv_65 {
-  grid-template-columns: auto 1fr max-content;
-}
-
-/* Wrapper carries the hover reveal so CopyButton's own opacity
-   styles still apply unchanged inside it. */
-._copyCell_17hbv_71 {
-  opacity: 0;
-  justify-self: end;
-  align-self: center;
-  transition: opacity 0.2s;
-}
-
-._copyCell_17hbv_71 button {
-  padding: 0;
-  line-height: 1;
-}
-
-._row_17hbv_14:hover ._copyCell_17hbv_71,
-._copyCell_17hbv_71:focus-within {
-  opacity: 1;
-}
-
-/* ── Sections (nested objects promoted to titled groups) ──────── */
-
-._group_17hbv_90 {
-  margin-top: 14px;
-}
-
-._rows_17hbv_14 + ._group_17hbv_90 {
-  margin-top: 14px;
-}
-
-._group_17hbv_90 + ._group_17hbv_90 {
-  margin-top: 12px;
-}
-
-._groupHeader_17hbv_102 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
-  padding-bottom: 2px;
-}
-
-._groupKey_17hbv_110 {
-  font-family: var(--bs-font-monospace);
-  font-size: var(--inspect-font-size-smallest);
-  font-weight: 500;
-  color: var(--bs-body-color);
-  letter-spacing: 0;
-}
-
-._groupRule_17hbv_118 {
-  flex: 1;
-  height: 1px;
-  background: var(--bs-light-border-subtle);
-}
-
-/* ── Depth 1 — tighter, lighter ──────────────────────────────── */
-
-._depth1_17hbv_126 {
-  font-size: calc(var(--inspect-font-size-small) - 0.05rem);
-}
-
-._depth1_17hbv_126 ._row_17hbv_14 {
-  padding-block: 2px;
-}
-
-._depth1_17hbv_126 ._key_17hbv_43 {
-  color: var(--bs-tertiary-color);
-  font-size: var(--inspect-font-size-smallestest);
-}
-
-._depth1Group_17hbv_139 {
-  margin-top: 10px;
-}
-
-._depth1Group_17hbv_139 ._groupHeader_17hbv_102 {
-  margin-bottom: 2px;
-}
-
-._depth1Group_17hbv_139 ._groupKey_17hbv_110 {
-  color: var(--bs-secondary);
-  font-size: var(--inspect-font-size-smallestest);
-}
-
-/* ── Depth 2+ — yet tighter ──────────────────────────────────── */
-
-._depth2_17hbv_154 {
-  font-size: calc(var(--inspect-font-size-small) - 0.1rem);
-}
-
-._depth2_17hbv_154 ._row_17hbv_14 {
-  padding-block: 2px;
-}
-
-/* ── Toggle (maxRows collapse) ───────────────────────────────── */
-
-._toggleContainer_17hbv_164 {
-  display: flex;
-  height: 20px;
-  margin-top: 8px;
-  margin-left: 0.5rem;
-  background-color: var(--bs-body-bg);
-  border-radius: 5px;
-  border: solid var(--bs-light-border-subtle) 1px;
-  width: fit-content;
-}
-
-._toggleButton_17hbv_175 {
-  font-size: var(--inspect-font-size-smallest);
-  border: none;
-  padding: 0 0.5rem;
-  background-color: transparent;
-  color: var(--bs-body-color);
-  cursor: pointer;
-}
-._query_seqs2_1 {
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-}
-
-._summary_seqs2_6 {
-  margin-bottom: 0.5rem;
-}
-
-._preWrap_seqs2_10 {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-._preCompact_seqs2_15 {
-  margin-bottom: 0;
-}
-._title_1pwo3_1 {
-  margin-bottom: 0.25em;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  column-gap: 0.3em;
-  align-items: baseline;
-  color: var(--bs-secondary) !important;
-  font-weight: var(--bs-body-font-weight) !important;
-}
-
-._content_1pwo3_11 {
-  margin-bottom: 0.5em;
-  overflow-wrap: anywhere;
-}
-
-._grid_1pwo3_16 {
-  border: solid var(--bs-border-color) 1px;
-  border-radius: var(--bs-border-radius);
-  padding: 0.5em;
-}
-
-._content_1pwo3_11 ._grid_1pwo3_16 .text-style-label {
-  text-transform: none !important;
-}
-._contentData_1lrx1_1 {
-  margin-bottom: 0.5em;
-}
-._webSearch_1376z_1 {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 0.5em;
-  align-items: baseline;
-}
-
-._query_1376z_8 {
-  font-family: var(--bs-font-monospace);
-}
-._result_svtwi_1 a:hover {
-  text-decoration: underline;
-}
-
-._result_svtwi_1 a {
-  opacity: 0.8;
-  text-decoration: none;
-}
-._documentFrame_66um0_1 {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  row-gap: 0.5em;
-  padding-top: 1em;
-  padding-bottom: 1em;
-}
-
-._documentFrameTitle_66um0_9 {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 0.3em;
-  align-items: center;
-}
-
-._downloadLink_66um0_16 {
-  padding: 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-}
-
-._downloadLink_66um0_16:hover {
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-._imageDocument_66um0_30 {
-  max-width: 100%;
-  max-height: 200px;
-  object-fit: cover;
-}
-._jsonMessage_oxf8d_1 {
-}
-._citations_1gzkd_1 {
-  margin-top: 1em;
-  margin-bottom: 1em;
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 0.5em;
-}
-
-._citationLink_1gzkd_9 {
-  display: block;
-  color: var(--bs-body-color);
-  text-decoration: none;
-}
-a._citationLink_1gzkd_9:hover {
-  text-decoration: underline;
-}
-._contentImage_a1z7v_1 {
-  max-width: 800px;
-  border: solid var(--bs-border-color) 1px;
-}
-
-._reasoning_a1z7v_6 {
-  border: solid var(--bs-light-border-subtle) 1px;
-  padding: 1em;
-  margin-bottom: 0.5em;
-  background-color: var(--bs-light-bg-subtle);
-  border-radius: var(--bs-border-radius);
-  overflow-wrap: anywhere;
-}
-
-._breakable_a1z7v_15 {
-  overflow-wrap: break-word;
-  min-width: 0;
-}
-
-._codePanel_a1z7v_20 {
-  margin: 0rem;
-  overflow-y: scroll;
-  overflow-x: auto;
-}
-
-._codePanelPre_a1z7v_26 {
-  padding: 0;
-}
-
-._codePanelPre_a1z7v_26 code {
-  white-space: pre-wrap !important;
-  overflow-wrap: break-word !important;
-  word-break: break-all !important;
-}
-/* Shared tool-call block grammar. Colors come from the tool-block tokens,
-   which are neutral by default and only colorized under the readable
-   variant (the Event Colors toggle); the output well is the tool-output
-   fill, hairlines/border are the subtle border token. */
-._block_mcsgc_5 {
-  border-left: var(--inspect-tool-block-edge);
-}
-
-/* `clip`, not `hidden`: both round the corners, but `hidden` makes this
-   frame a scroll container, which traps the sticky "less…" toggle of the
-   ExpandablePanels inside at the block's bottom edge — off screen for any
-   output taller than the viewport. */
-._standalone_mcsgc_13 {
-  border-top: 1px solid var(--bs-light-border-subtle);
-  border-right: 1px solid var(--bs-light-border-subtle);
-  border-bottom: 1px solid var(--bs-light-border-subtle);
-  border-radius: var(--bs-border-radius);
-  overflow: clip;
-}
-
-._header_mcsgc_21 {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.8rem 0 0.8rem;
-  background-color: var(--inspect-tool-block-header-bg);
-}
-
-/* The zero bottom padding above assumes an input/output zone follows; a
-   header-only block (no input, no output yet) otherwise sits flush against
-   the container's bottom edge. */
-._header_mcsgc_21:last-child {
-  padding-bottom: 0.5rem;
-}
-
-._icon_mcsgc_36 {
-  flex: none;
-  font-size: 13px;
-  color: var(--inspect-tool-block-ink);
-}
-
-._title_mcsgc_42 {
-  flex: none;
-  font-family: var(--bs-font-monospace);
-  font-size: var(--inspect-font-size-smaller);
-  font-weight: 600;
-  color: var(--inspect-tool-block-ink);
-}
-
-._summary_mcsgc_50 {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--bs-font-monospace);
-  font-size: var(--inspect-font-size-smaller);
-  color: var(--bs-secondary-color);
-}
-
-._pill_mcsgc_61 {
-  flex: none;
-  /* Right-aligned even when there is no args summary to push it over. */
-  margin-left: auto;
-  font-size: var(--inspect-font-size-smallestest);
-  font-weight: 500;
-  line-height: 1.5;
-  color: var(--bs-secondary-color);
-  background-color: var(--bs-body-bg);
-  border: 1px solid var(--bs-light-border-subtle);
-  border-radius: 999px;
-  padding: 1px 7px;
-}
-
-._inputZone_mcsgc_75 {
-  background-color: var(--inspect-tool-block-input-bg);
-  padding: 0 0.5rem 0.2rem 0.5rem;
-}
-
-/* Horizontal scrolling for wide input lives on the rendered input itself,
-   inside the ExpandablePanel's content — a scroll container on the zone
-   would sit between the panel and the transcript scroller and trap its
-   sticky toggle (see `.standalone`). */
-._inputZone_mcsgc_75 .tool-call-input {
-  overflow-x: auto;
-}
-
-._outputWell_mcsgc_88 {
-  border-top: 1px solid var(--bs-light-border-subtle);
-  background-color: var(--inspect-tool-block-output-bg);
-  padding: 12px 15px;
-  font-size: var(--inspect-font-size-smaller);
-  line-height: 1.6;
-}
-
-/* The zones own their padding/fill; flatten the boxed surfaces that nested
-   renderers (prism code blocks, tool-call-input call-outs, tool output wells)
-   would otherwise stack inside them. !important outranks the readable
-   variant's higher-specificity :root[data-theme-variant] surface rules. */
-._inputZone_mcsgc_75 pre.tool-call-input,
-._inputZone_mcsgc_75 div.tool-call-input {
-  background-color: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-._inputZone_mcsgc_75 .tool-call-input pre[class*="language-"] {
-  margin: 0 !important;
-  padding: 0 !important;
-  background-color: transparent !important;
-}
-
-._outputWell_mcsgc_88 .tool-output {
-  background-color: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-._error_wtrgp_1 {
-  color: var(--inspect-tool-error-color);
-  background-color: var(--inspect-tool-error-bg);
-  padding: 0.5em 0.7em;
-  border-radius: var(--bs-border-radius);
-  font-family: var(--bs-font-monospace);
-  overflow-wrap: anywhere;
-  margin: 0.5em 0;
-}
-
-._message_wtrgp_11 {
-  white-space: pre-wrap;
-}
-._todoList_1t8rx_1 {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 0.3em;
-}
-
-._inProgress_1t8rx_9 {
-  font-weight: bold;
-}
-._outputPre_7phrr_1 {
-  padding: 0.5em;
-  margin-top: 0.25em;
-  margin-bottom: 0;
-}
-
-._toolView_7phrr_7 {
-  padding-top: 0 !important;
-}
-
-._toolView_7phrr_7 pre {
-  margin-bottom: 0;
-}
-
-._toolView_7phrr_7 p > code {
-  font-size: var(--inspect-text-size-small) !important;
-  color: var(--bs-body-color) !important;
-}
-
-._outputCode_7phrr_20 {
-  font-size: var(--inspect-text-size-small) !important;
-  overflow-wrap: anywhere !important;
-  white-space: pre-wrap !important;
-}
-._tool_13xcg_1 {
-  margin-bottom: 0.5em;
-}
-
-._execOutput_13xcg_5 {
-  margin: 0;
-  padding: 0;
-  background-color: transparent;
-  border: 0;
-  font-size: var(--inspect-font-size-smaller);
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-._execError_13xcg_16 {
-  color: var(--inspect-tool-error-color);
-}
-._toolImage_1cvly_1 {
-  max-width: 800px;
-  border: solid var(--inspect-tool-output-border) 1px;
-}
-
-._output_1cvly_6 {
-  display: grid;
-}
-
-._textOutput_1cvly_10 {
-  padding-left: 2px;
-  padding: 0.5em 0.5em 0.5em 0.5em;
-  white-space: pre-wrap;
-  margin-bottom: 0;
-  font-size: 0.9em !important;
-  border-radius: var(--bs-border-radius);
-}
-
-._textCode_1cvly_19 {
-  word-wrap: anywhere;
-  color: inherit;
-}
-._container_nfqzf_1 {
-  position: relative;
-  display: inline-block;
-  max-width: 100%;
-}
-
-/* Match MessageContent's contentImage so the Action tab image renders like
-   the Result tab image. display: block avoids an inline baseline gap that
-   would offset the overlay from the image box. */
-._screenshot_nfqzf_10 {
-  display: block;
-  max-width: 800px;
-  border: solid var(--bs-border-color) 1px;
-}
-
-._overlay_nfqzf_16 {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-._badge_nfqzf_24 {
-  position: absolute;
-  bottom: 16px;
-  background-color: rgba(0, 0, 0, 0.8);
-  font-family: monospace;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: bold;
-  white-space: pre-wrap;
-  max-width: 80%;
-  word-break: break-word;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-}
-
-._type_nfqzf_39 {
-  color: #4ade80;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-._key_nfqzf_45 {
-  color: #fbbf24;
-  right: 16px;
-}
-._submitView_1ru17_1 {
-  display: grid;
-  row-gap: 0.5em;
-}
-._catalog_gx8eg_1 {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-._namespace_gx8eg_7 {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-._namespaceName_gx8eg_13 {
-  font-weight: 600;
-}
-
-._namespaceDescription_gx8eg_17 {
-  opacity: 0.8;
-}
-
-._tool_gx8eg_21 {
-  margin-left: 0.25rem;
-}
-
-._summary_gx8eg_25 {
-  cursor: pointer;
-}
-
-._summary_gx8eg_25::marker {
-  color: var(--bs-secondary, #6c757d);
-  font-size: 0.8em;
-}
-
-._summary_gx8eg_25::-webkit-details-marker {
-  color: var(--bs-secondary, #6c757d);
-}
-
-._toolNoDetails_gx8eg_38 {
-  margin-left: 0.25rem;
-}
-
-._description_gx8eg_42 {
-  margin: 0.25rem 0 0.25rem 1rem;
-}
-._image_1evla_1 {
-  margin-right: 0.2rem;
-  opacity: 0.4;
-}
-
-._toolTitle_1evla_6 {
-  color: unset !important;
-  overflow-wrap: anywhere;
-}
-
-._description_1evla_11 {
-  margin-left: 0.3em;
-  color: var(--inspect-tool-description-color);
-}
-._toolCallView_x6cus_1 {
-  display: grid;
-  row-gap: 0.5em;
-}
-/* Custom tool views (answer, submit, todo lists) own their full rendering —
-   they get the block frame (accent edge + container border) without the
-   header row. */
-._custom_wwbdp_4 {
-  border: 1px solid var(--bs-light-border-subtle);
-  border-left: var(--inspect-tool-block-edge);
-  border-radius: var(--bs-border-radius);
-  /* `clip` rounds the corners without becoming a scroll container, which
-     would trap the sticky "less…" toggle of the panels inside. */
-  overflow: clip;
-  padding: 0.7rem;
-}
-._message_o8d3m_1 {
-  font-weight: 300;
-  margin-left: 0;
-  margin-right: 0;
-  white-space: normal;
-  min-width: 0;
-}
-
-._systemRole_o8d3m_9 {
-  opacity: 0.7;
-}
-
-/* Segmented assistant turn: prose bands and flush tool rows stack with
-   hairline separators inside the turn container. */
-._turnSegments_o8d3m_15 > * + * {
-  border-top: 1px solid var(--bs-light-border-subtle);
-}
-
-/* The prose row keeps the assistant band; the left accent token is neutral
-   by default and colorized under the readable variant (where the
-   [data-message-role] rules re-apply the identical color). Extra vertical
-   padding gives the prose rows more weight between the tool rows. */
-._proseSegment_o8d3m_23 {
-  padding: 0.9rem 0.7rem;
-  border-left: var(--inspect-turn-prose-edge);
-}
-
-._timestamp_o8d3m_28 {
-  opacity: 0.5;
-  font-size: var(--inspect-font-size-smaller);
-  font-weight: normal;
-}
-
-._messageGrid_o8d3m_34 {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  column-gap: 0.5em;
-  font-weight: 500;
-  margin-bottom: 0.3em;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-._toolMessageGrid_o8d3m_44 {
-  border-bottom: solid 1px var(--bs-border-color);
-}
-
-._headerEnd_o8d3m_48 {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5em;
-  flex: none;
-}
-
-._messageContents_o8d3m_55 {
-  margin-left: 0;
-  padding-bottom: 0;
-}
-
-._messageContents_o8d3m_55._indented_o8d3m_60 {
-  margin-left: 0rem;
-}
-
-._copyLink_o8d3m_64 {
-  opacity: 0;
-  padding-left: 0;
-  padding-right: 2em;
-  margin-left: 0.2rem;
-}
-
-._copyLink_o8d3m_64:hover {
-  opacity: 0.75;
-}
-
-._metadataLabel_o8d3m_75 {
-  padding-top: 1em;
-}
-
-._hover_o8d3m_79 ._copyLink_o8d3m_64 {
-  opacity: 0.75;
-}
-._grid_1k0mq_1 {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  /* row-gap spaces blocks within a turn (message → tool box); margin-bottom
-     spaces turns. Keep them equal so every gap reads the same. */
-  row-gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-._user_1k0mq_10 {
-  background-color: var(--bs-secondary-bg);
-  border-radius: var(--bs-border-radius);
-  border: solid 1px var(--bs-light-border-subtle);
-}
-
-._container_1k0mq_16 {
-  padding-left: 0.7rem;
-  padding-right: 0.7rem;
-  padding-top: 0.5rem;
-  border-left: solid 1px var(--bs-light-border-subtle);
-  border-right: solid 1px var(--bs-light-border-subtle);
-}
-
-._first_1k0mq_24 {
-  border-top-left-radius: var(--bs-border-radius);
-  border-top-right-radius: var(--bs-border-radius);
-  border-top: solid 1px var(--bs-light-border-subtle);
-  padding-top: 0.7rem;
-}
-
-._last_1k0mq_31 {
-  border-bottom-left-radius: var(--bs-border-radius);
-  border-bottom-right-radius: var(--bs-border-radius);
-  border-bottom: solid 1px var(--bs-light-border-subtle);
-  padding-bottom: 0.7rem;
-}
-
-._highlight_1k0mq_38 {
-  background-color: rgba(var(--bs-info-rgb), 0.12);
-}
-
-/* Assistant turn with server-side tool calls: one seamless container — the
-   prose band and flush tool rows inside supply their own left edges, so the
-   frame itself has no left border. */
-._turnContainer_1k0mq_45 {
-  border: 1px solid var(--bs-light-border-subtle);
-  border-left: none;
-  border-radius: var(--bs-border-radius);
-  /* `clip` rounds the corners without becoming a scroll container, which
-     would trap the sticky "less…" toggle of the panels inside. */
-  overflow: clip;
-}
-
-/* Self-contained box (used when tool calls are un-embedded) so the assistant
-   message and each tool call read as separate cards rather than one connected
-   band. */
-._box_1k0mq_57 {
-  position: relative;
-  border: solid 1px var(--bs-light-border-subtle);
-  border-radius: var(--bs-border-radius);
-  padding: 0.7rem;
-}
-
-/* Tool blocks carry their own frame; the wrapper only anchors the chip. */
-._toolPart_1k0mq_65 {
-  position: relative;
-}
-
-/* Tool-call number chip, pinned to the top-right of its box to mirror the
-   position chip on a message's role line. */
-._toolLabel_1k0mq_71 {
-  position: absolute;
-  top: 0.45rem;
-  right: 0.7rem;
-  z-index: 1;
-}
-
-._bottomMargin_1k0mq_78 {
-  margin-bottom: 0.75rem;
-}
-
-._codeCompact_1k0mq_82 {
-  /* styles for compact code display */
-}
-
-._simple_1k0mq_86 {
-  /* styles for simple display mode */
-}
-._badge_1c7cn_1,
-._inline_1c7cn_2 {
-  display: inline-flex;
-  align-items: center;
-  margin: 0;
-  font-family: var(
-    --bs-font-monospace,
-    ui-monospace,
-    "SF Mono",
-    "JetBrains Mono",
-    Menlo,
-    Consolas,
-    monospace
-  );
-  font-size: 11.5px;
-  line-height: 1;
-  font-weight: 400;
-  background: var(--inspect-msg-label-bg);
-  border: 1px solid var(--inspect-msg-label-border);
-  color: var(--inspect-msg-label-text);
-  transition: background 0.12s ease;
-}
-
-/* Pointer + hover only when the chip actually activates something. */
-._interactive_1c7cn_25 {
-  cursor: pointer;
-}
-
-._badge_1c7cn_1 {
-  flex: none;
-  padding: 3px 8px;
-  border-radius: 6px;
-  user-select: none;
-}
-
-._inline_1c7cn_2 {
-  padding: 1px 6px;
-  border-radius: 5px;
-  white-space: nowrap;
-  text-decoration: none;
-  vertical-align: baseline;
-}
-
-._interactive_1c7cn_25:hover {
-  background: var(--inspect-msg-label-bg-hover);
-}
-._bar_pg4l8_1 {
-  --glint: rgba(64, 72, 104, 0.1);
-  --label: #5c5c63;
-
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  width: 100%;
-  padding: 11px 15px;
-  border-radius: var(--bs-border-radius);
-  overflow: hidden;
-  border: 1px solid var(--bs-light-border-subtle);
-  background: var(--bs-body-bg);
-}
-
-._bar_pg4l8_1::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    100deg,
-    transparent 38%,
-    var(--glint) 50%,
-    transparent 62%
-  );
-  background-size: 220% 100%;
-  background-repeat: no-repeat;
-  animation: _gen-sweep_pg4l8_1 2.8s linear infinite;
-}
-
-._barLabelOnly_pg4l8_34 {
-  justify-content: flex-start;
-}
-
-._label_pg4l8_38 {
-  position: relative;
-  font-weight: 400;
-  font-size: 13.5px;
-  line-height: 1;
-  letter-spacing: 0.005em;
-  color: var(--label);
-}
-
-._ell_pg4l8_47 {
-  display: inline-flex;
-}
-
-._ell_pg4l8_47 i {
-  font-style: normal;
-  animation: _gen-ell_pg4l8_1 1.5s ease-in-out infinite both;
-}
-
-._ell_pg4l8_47 i:nth-child(2) {
-  animation-delay: 0.18s;
-}
-
-._ell_pg4l8_47 i:nth-child(3) {
-  animation-delay: 0.36s;
-}
-
-._attempt_pg4l8_64 {
-  position: relative;
-  font-family: var(--bs-font-monospace);
-  font-size: 11px;
-  color: var(--bs-secondary-color);
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--bs-secondary-color) 15%, transparent);
-}
-
-@keyframes _gen-sweep_pg4l8_1 {
-  0% {
-    background-position: 180% 0;
-  }
-  100% {
-    background-position: -80% 0;
-  }
-}
-
-@keyframes _gen-ell_pg4l8_1 {
-  0%,
-  80%,
-  100% {
-    opacity: 0.22;
-  }
-  40% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  ._bar_pg4l8_1 {
-    --glint: rgba(255, 255, 255, 0.08);
-    --label: #c2c2c9;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  ._bar_pg4l8_1::before,
-  ._ell_pg4l8_47 i {
-    animation: none;
-  }
-  ._ell_pg4l8_47 i {
-    opacity: 0.55;
-  }
-}
-._bar_q6epo_1 {
-  --glint: rgba(64, 72, 104, 0.1);
-  --label: #5c5c63;
-
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 11px 15px;
-  border-radius: var(--bs-border-radius);
-  overflow: hidden;
-  border: 1px solid var(--bs-light-border-subtle);
-  background: var(--bs-body-bg);
-}
-
-._bar_q6epo_1::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    100deg,
-    transparent 38%,
-    var(--glint) 50%,
-    transparent 62%
-  );
-  background-size: 220% 100%;
-  background-repeat: no-repeat;
-  animation: _le-sweep_q6epo_1 2.8s linear infinite;
-}
-
-._compact_q6epo_33 {
-  border: none;
-  background: transparent;
-  padding: 8px;
-  gap: 8px;
-}
-
-._compact_q6epo_33::before {
-  display: none;
-}
-
-._spinner_q6epo_44 {
-  position: relative;
-  flex: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid color-mix(in oklab, var(--label) 25%, transparent);
-  border-top-color: var(--label);
-  animation: _le-spin_q6epo_1 0.8s linear infinite;
-}
-
-._label_q6epo_55 {
-  position: relative;
-  font-weight: 400;
-  font-size: 13.5px;
-  line-height: 1;
-  letter-spacing: 0.005em;
-  color: var(--label);
-}
-
-._compact_q6epo_33 ._label_q6epo_55 {
-  font-size: 11.5px;
-}
-
-._ell_q6epo_68 {
-  display: inline-flex;
-}
-
-._ell_q6epo_68 i {
-  font-style: normal;
-  animation: _le-ell_q6epo_1 1.5s ease-in-out infinite both;
-}
-
-._ell_q6epo_68 i:nth-child(2) {
-  animation-delay: 0.18s;
-}
-
-._ell_q6epo_68 i:nth-child(3) {
-  animation-delay: 0.36s;
-}
-
-@keyframes _le-sweep_q6epo_1 {
-  0% {
-    background-position: 180% 0;
-  }
-  100% {
-    background-position: -80% 0;
-  }
-}
-
-@keyframes _le-spin_q6epo_1 {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes _le-ell_q6epo_1 {
-  0%,
-  80%,
-  100% {
-    opacity: 0.22;
-  }
-  40% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  ._bar_q6epo_1 {
-    --glint: rgba(255, 255, 255, 0.08);
-    --label: #c2c2c9;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  ._bar_q6epo_1::before,
-  ._spinner_q6epo_44,
-  ._ell_q6epo_68 i {
-    animation: none;
-  }
-  ._ell_q6epo_68 i {
-    opacity: 0.55;
-  }
-}
-._list_zuqui_1 {
-  width: 100%;
-  margin-top: 1em;
-  padding-bottom: 0.5rem;
-}
-
-._generatingRow_zuqui_7 {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  margin-bottom: 0.75rem;
-}
-._container_1sdtt_1 {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
-
-._body_1sdtt_8 {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-._searchArea_1sdtt_15 {
-  padding: 0.5rem;
-  border-bottom: 1px solid var(--bs-border-color);
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
-._inputShell_1sdtt_23 {
-  display: flex;
-  min-width: 0;
-}
-
-._inputShell_1sdtt_23 vscode-textarea {
-  display: block;
-  width: 100%;
-}
-
-._controlsRow_1sdtt_33 {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-._topRow_1sdtt_40 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-._typeToggle_1sdtt_47 {
-  display: flex;
-  flex: 0 0 auto;
-}
-
-._topActions_1sdtt_52 {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-._textarea_1sdtt_58 {
-  width: 100%;
-  font-family: inherit;
-  font-size: var(--inspect-font-size-small);
-  color: var(--bs-body-color);
-}
-
-._modeRow_1sdtt_65 {
-  flex: 1 1 16rem;
-  min-width: 0;
-  min-height: 0;
-}
-
-._modeControls_1sdtt_71 {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-._modeToggle_1sdtt_77 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.2rem;
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  background: var(--bs-body-bg);
-  color: var(--bs-secondary-color);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  transition:
-    border-color 0.12s ease,
-    background-color 0.12s ease,
-    color 0.12s ease;
-}
-
-._modeToggle_1sdtt_77:hover {
-  background-color: var(--bs-secondary-bg);
-  color: var(--bs-body-color);
-}
-
-._modeToggleActive_1sdtt_100 {
-  background-color: var(--bs-secondary-bg);
-  color: var(--bs-body-color);
-}
-
-._modelPill_1sdtt_105 {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  width: 100%;
-  min-width: 0;
-  padding: 0.15rem 0.45rem;
-  padding-right: 0;
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  background-color: var(--bs-body-bg);
-  transition: border-color 0.12s ease;
-}
-
-._modelPill_1sdtt_105:focus-within {
-  border-color: var(--vscode-focusBorder);
-}
-
-._modelInputShell_1sdtt_123 {
-  flex: 1;
-  min-width: 0;
-}
-
-._modelInput_1sdtt_123 {
-  flex: 1;
-  min-width: 0;
-  font-family: inherit;
-  font-size: var(--inspect-font-size-small);
-  line-height: 1.4;
-  padding: 0.05rem 0;
-  border: 0;
-  background: transparent;
-  color: var(--bs-body-color);
-}
-
-._modelInput_1sdtt_123:focus {
-  outline: none;
-}
-
-._iconAction_1sdtt_144 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--bs-primary-color);
-  cursor: pointer;
-  transition:
-    background-color 0.12s ease,
-    color 0.12s ease;
-}
-
-._iconAction_1sdtt_144:hover {
-  background: var(--vscode-toolbar-hoverBackground);
-  color: var(--bs-body-color);
-}
-
-._iconActionActive_1sdtt_166 {
-  background: var(--vscode-toolbar-hoverBackground);
-  color: var(--bs-body-color);
-}
-
-._runButton_1sdtt_171 {
-  flex: 0 0 auto;
-  padding: 0.24rem 0.65rem;
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  background-color: var(--bs-secondary-bg);
-  color: var(--bs-body-color);
-  font-size: var(--inspect-font-size-small);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-._runButton_1sdtt_171:hover:not(:disabled) {
-  background-color: var(--bs-tertiary-bg);
-}
-
-._runButton_1sdtt_171:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-._results_1sdtt_192 {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-._sectionHeader_1sdtt_202 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  font-size: var(--inspect-font-size-smallest);
-  color: var(--bs-primary-color);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-._resultCard_1sdtt_214 {
-  background-color: var(--bs-body-bg);
-  font-size: var(--inspect-font-size-small);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-._matchCount_1sdtt_222 {
-  font-weight: 600;
-  color: var(--bs-primary-color);
-  font-size: var(--inspect-font-size-smallest);
-}
-
-._recentList_1sdtt_228 {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-._recentItem_1sdtt_234 {
-  padding: 6px 10px;
-  font-size: var(--inspect-font-size-small);
-  color: var(--bs-body-color);
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-._recentItem_1sdtt_234:hover {
-  background: var(--bs-primary);
-  color: white;
-}
-
-._recentEmpty_1sdtt_249 {
-  padding: 0.6rem 0.5rem;
-  color: var(--bs-primary-color);
-  font-size: var(--inspect-font-size-small);
-  text-align: center;
-}
-
-._emptyState_1sdtt_256 {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 8rem;
-  color: var(--bs-primary-color);
-  font-size: var(--inspect-font-size-small);
-  text-align: center;
-}
-
-._searchingText_1sdtt_267 {
-  margin: 0;
-}
-
-._searchingElapsed_1sdtt_271 {
-  color: var(--bs-secondary-color);
-  font-variant-numeric: tabular-nums;
 }
 ._gate_fvpnz_1 {
   display: flex;
@@ -20079,6 +18536,1471 @@ li > ul {
     background-color: transparent;
   }
 }
+._notice_mpxkz_1 {
+  margin-top: 0.25rem;
+  font-size: var(--inspect-font-size-smaller);
+  color: var(--bs-secondary-color);
+  font-style: italic;
+}
+._reference_7p4hu_1 {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+._scroller_1uwiu_1 {
+  position: relative;
+  /* One scroll owner: native anchoring must not fight the virtualizer's own resize compensation. */
+  overflow-anchor: none;
+}
+._keyPairContainer_1u1d5_1 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 0.5em;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+._keyPairBordered_1u1d5_9 {
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
+/* Copy button column (opt-in via copyButton prop) */
+
+._keyPairCopy_1u1d5_15 {
+  grid-template-columns: max-content auto max-content;
+}
+
+/* Wrapper carries the hover reveal so CopyButton's own opacity
+   styles still apply unchanged inside it. */
+._copyCell_1u1d5_21 {
+  opacity: 0;
+  justify-self: end;
+  transition: opacity 0.2s;
+}
+
+._copyCell_1u1d5_21 button {
+  padding: 0;
+  line-height: 1;
+}
+
+._keyPairContainer_1u1d5_1:hover ._copyCell_1u1d5_21,
+._copyCell_1u1d5_21:focus-within {
+  opacity: 1;
+}
+
+._key_1u1d5_1 {
+  display: grid;
+  grid-template-columns: 1em auto;
+  cursor: pointer;
+}
+
+._pre_1u1d5_43 {
+  margin-bottom: 0;
+}
+
+._treeIcon_1u1d5_47 {
+  margin-top: -3px;
+}
+/* MetadataGrid — Section Cards
+   Compact density, mono labels, striped rows, rule-style section headers.
+   Colors mapped to existing theme variables for light/dark support. */
+
+._grid_17hbv_5 {
+  font-family: var(--bs-body-font-family);
+  font-size: var(--inspect-font-size-small);
+  color: var(--bs-body-color);
+  line-height: 1.5;
+}
+
+/* ── Rows ─────────────────────────────────────────────────────── */
+
+._rows_17hbv_14 {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1em;
+}
+
+._row_17hbv_14 {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  padding-block: 3px;
+  border-bottom: 1px dotted var(--bs-light-border-subtle);
+  align-items: baseline;
+}
+
+._rows_17hbv_14 > ._row_17hbv_14:last-child {
+  border-bottom: none;
+}
+
+/* ── Striped variant (opt-in via striped prop) ───────────────── */
+
+._striped_17hbv_35 ._row_17hbv_14 {
+  padding-inline: 0.5rem;
+}
+
+._striped_17hbv_35 ._rows_17hbv_14 > ._row_17hbv_14:nth-child(even) {
+  background: var(--bs-light-bg-subtle);
+}
+
+._key_17hbv_43 {
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smallest);
+  color: var(--bs-secondary);
+  font-feature-settings: "calt" 0;
+  letter-spacing: 0;
+  word-break: break-all;
+}
+
+._val_17hbv_52 {
+  color: var(--bs-body-color);
+  overflow-wrap: anywhere;
+  font-feature-settings: "tnum";
+}
+
+._val_17hbv_52 pre {
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Copy button (opt-in via copyButton option) ──────────────── */
+
+._rowsCopy_17hbv_65 {
+  grid-template-columns: auto 1fr max-content;
+}
+
+/* Wrapper carries the hover reveal so CopyButton's own opacity
+   styles still apply unchanged inside it. */
+._copyCell_17hbv_71 {
+  opacity: 0;
+  justify-self: end;
+  align-self: center;
+  transition: opacity 0.2s;
+}
+
+._copyCell_17hbv_71 button {
+  padding: 0;
+  line-height: 1;
+}
+
+._row_17hbv_14:hover ._copyCell_17hbv_71,
+._copyCell_17hbv_71:focus-within {
+  opacity: 1;
+}
+
+/* ── Sections (nested objects promoted to titled groups) ──────── */
+
+._group_17hbv_90 {
+  margin-top: 14px;
+}
+
+._rows_17hbv_14 + ._group_17hbv_90 {
+  margin-top: 14px;
+}
+
+._group_17hbv_90 + ._group_17hbv_90 {
+  margin-top: 12px;
+}
+
+._groupHeader_17hbv_102 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  padding-bottom: 2px;
+}
+
+._groupKey_17hbv_110 {
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smallest);
+  font-weight: 500;
+  color: var(--bs-body-color);
+  letter-spacing: 0;
+}
+
+._groupRule_17hbv_118 {
+  flex: 1;
+  height: 1px;
+  background: var(--bs-light-border-subtle);
+}
+
+/* ── Depth 1 — tighter, lighter ──────────────────────────────── */
+
+._depth1_17hbv_126 {
+  font-size: calc(var(--inspect-font-size-small) - 0.05rem);
+}
+
+._depth1_17hbv_126 ._row_17hbv_14 {
+  padding-block: 2px;
+}
+
+._depth1_17hbv_126 ._key_17hbv_43 {
+  color: var(--bs-tertiary-color);
+  font-size: var(--inspect-font-size-smallestest);
+}
+
+._depth1Group_17hbv_139 {
+  margin-top: 10px;
+}
+
+._depth1Group_17hbv_139 ._groupHeader_17hbv_102 {
+  margin-bottom: 2px;
+}
+
+._depth1Group_17hbv_139 ._groupKey_17hbv_110 {
+  color: var(--bs-secondary);
+  font-size: var(--inspect-font-size-smallestest);
+}
+
+/* ── Depth 2+ — yet tighter ──────────────────────────────────── */
+
+._depth2_17hbv_154 {
+  font-size: calc(var(--inspect-font-size-small) - 0.1rem);
+}
+
+._depth2_17hbv_154 ._row_17hbv_14 {
+  padding-block: 2px;
+}
+
+/* ── Toggle (maxRows collapse) ───────────────────────────────── */
+
+._toggleContainer_17hbv_164 {
+  display: flex;
+  height: 20px;
+  margin-top: 8px;
+  margin-left: 0.5rem;
+  background-color: var(--bs-body-bg);
+  border-radius: 5px;
+  border: solid var(--bs-light-border-subtle) 1px;
+  width: fit-content;
+}
+
+._toggleButton_17hbv_175 {
+  font-size: var(--inspect-font-size-smallest);
+  border: none;
+  padding: 0 0.5rem;
+  background-color: transparent;
+  color: var(--bs-body-color);
+  cursor: pointer;
+}
+._query_seqs2_1 {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+._summary_seqs2_6 {
+  margin-bottom: 0.5rem;
+}
+
+._preWrap_seqs2_10 {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+._preCompact_seqs2_15 {
+  margin-bottom: 0;
+}
+._title_1pwo3_1 {
+  margin-bottom: 0.25em;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 0.3em;
+  align-items: baseline;
+  color: var(--bs-secondary) !important;
+  font-weight: var(--bs-body-font-weight) !important;
+}
+
+._content_1pwo3_11 {
+  margin-bottom: 0.5em;
+  overflow-wrap: anywhere;
+}
+
+._grid_1pwo3_16 {
+  border: solid var(--bs-border-color) 1px;
+  border-radius: var(--bs-border-radius);
+  padding: 0.5em;
+}
+
+._content_1pwo3_11 ._grid_1pwo3_16 .text-style-label {
+  text-transform: none !important;
+}
+._contentData_1lrx1_1 {
+  margin-bottom: 0.5em;
+}
+._webSearch_1376z_1 {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.5em;
+  align-items: baseline;
+}
+
+._query_1376z_8 {
+  font-family: var(--bs-font-monospace);
+}
+._result_svtwi_1 a:hover {
+  text-decoration: underline;
+}
+
+._result_svtwi_1 a {
+  opacity: 0.8;
+  text-decoration: none;
+}
+._documentFrame_66um0_1 {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  row-gap: 0.5em;
+  padding-top: 1em;
+  padding-bottom: 1em;
+}
+
+._documentFrameTitle_66um0_9 {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.3em;
+  align-items: center;
+}
+
+._downloadLink_66um0_16 {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+._downloadLink_66um0_16:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+._imageDocument_66um0_30 {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+}
+._jsonMessage_oxf8d_1 {
+}
+._citations_1gzkd_1 {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.5em;
+}
+
+._citationLink_1gzkd_9 {
+  display: block;
+  color: var(--bs-body-color);
+  text-decoration: none;
+}
+a._citationLink_1gzkd_9:hover {
+  text-decoration: underline;
+}
+._contentImage_a1z7v_1 {
+  max-width: 800px;
+  border: solid var(--bs-border-color) 1px;
+}
+
+._reasoning_a1z7v_6 {
+  border: solid var(--bs-light-border-subtle) 1px;
+  padding: 1em;
+  margin-bottom: 0.5em;
+  background-color: var(--bs-light-bg-subtle);
+  border-radius: var(--bs-border-radius);
+  overflow-wrap: anywhere;
+}
+
+._breakable_a1z7v_15 {
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+._codePanel_a1z7v_20 {
+  margin: 0rem;
+  overflow-y: scroll;
+  overflow-x: auto;
+}
+
+._codePanelPre_a1z7v_26 {
+  padding: 0;
+}
+
+._codePanelPre_a1z7v_26 code {
+  white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+  word-break: break-all !important;
+}
+/* Shared tool-call block grammar. Colors come from the tool-block tokens,
+   which are neutral by default and only colorized under the readable
+   variant (the Event Colors toggle); the output well is the tool-output
+   fill, hairlines/border are the subtle border token. */
+._block_mcsgc_5 {
+  border-left: var(--inspect-tool-block-edge);
+}
+
+/* `clip`, not `hidden`: both round the corners, but `hidden` makes this
+   frame a scroll container, which traps the sticky "less…" toggle of the
+   ExpandablePanels inside at the block's bottom edge — off screen for any
+   output taller than the viewport. */
+._standalone_mcsgc_13 {
+  border-top: 1px solid var(--bs-light-border-subtle);
+  border-right: 1px solid var(--bs-light-border-subtle);
+  border-bottom: 1px solid var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+  overflow: clip;
+}
+
+._header_mcsgc_21 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.8rem 0 0.8rem;
+  background-color: var(--inspect-tool-block-header-bg);
+}
+
+/* The zero bottom padding above assumes an input/output zone follows; a
+   header-only block (no input, no output yet) otherwise sits flush against
+   the container's bottom edge. */
+._header_mcsgc_21:last-child {
+  padding-bottom: 0.5rem;
+}
+
+._icon_mcsgc_36 {
+  flex: none;
+  font-size: 13px;
+  color: var(--inspect-tool-block-ink);
+}
+
+._title_mcsgc_42 {
+  flex: none;
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smaller);
+  font-weight: 600;
+  color: var(--inspect-tool-block-ink);
+}
+
+._summary_mcsgc_50 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smaller);
+  color: var(--bs-secondary-color);
+}
+
+._pill_mcsgc_61 {
+  flex: none;
+  /* Right-aligned even when there is no args summary to push it over. */
+  margin-left: auto;
+  font-size: var(--inspect-font-size-smallestest);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--bs-secondary-color);
+  background-color: var(--bs-body-bg);
+  border: 1px solid var(--bs-light-border-subtle);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+._inputZone_mcsgc_75 {
+  background-color: var(--inspect-tool-block-input-bg);
+  padding: 0 0.5rem 0.2rem 0.5rem;
+}
+
+/* Horizontal scrolling for wide input lives on the rendered input itself,
+   inside the ExpandablePanel's content — a scroll container on the zone
+   would sit between the panel and the transcript scroller and trap its
+   sticky toggle (see `.standalone`). */
+._inputZone_mcsgc_75 .tool-call-input {
+  overflow-x: auto;
+}
+
+._outputWell_mcsgc_88 {
+  border-top: 1px solid var(--bs-light-border-subtle);
+  background-color: var(--inspect-tool-block-output-bg);
+  padding: 12px 15px;
+  font-size: var(--inspect-font-size-smaller);
+  line-height: 1.6;
+}
+
+/* The zones own their padding/fill; flatten the boxed surfaces that nested
+   renderers (prism code blocks, tool-call-input call-outs, tool output wells)
+   would otherwise stack inside them. !important outranks the readable
+   variant's higher-specificity :root[data-theme-variant] surface rules. */
+._inputZone_mcsgc_75 pre.tool-call-input,
+._inputZone_mcsgc_75 div.tool-call-input {
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+._inputZone_mcsgc_75 .tool-call-input pre[class*="language-"] {
+  margin: 0 !important;
+  padding: 0 !important;
+  background-color: transparent !important;
+}
+
+._outputWell_mcsgc_88 .tool-output {
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+._error_wtrgp_1 {
+  color: var(--inspect-tool-error-color);
+  background-color: var(--inspect-tool-error-bg);
+  padding: 0.5em 0.7em;
+  border-radius: var(--bs-border-radius);
+  font-family: var(--bs-font-monospace);
+  overflow-wrap: anywhere;
+  margin: 0.5em 0;
+}
+
+._message_wtrgp_11 {
+  white-space: pre-wrap;
+}
+._todoList_1t8rx_1 {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.3em;
+}
+
+._inProgress_1t8rx_9 {
+  font-weight: bold;
+}
+._outputPre_7phrr_1 {
+  padding: 0.5em;
+  margin-top: 0.25em;
+  margin-bottom: 0;
+}
+
+._toolView_7phrr_7 {
+  padding-top: 0 !important;
+}
+
+._toolView_7phrr_7 pre {
+  margin-bottom: 0;
+}
+
+._toolView_7phrr_7 p > code {
+  font-size: var(--inspect-text-size-small) !important;
+  color: var(--bs-body-color) !important;
+}
+
+._outputCode_7phrr_20 {
+  font-size: var(--inspect-text-size-small) !important;
+  overflow-wrap: anywhere !important;
+  white-space: pre-wrap !important;
+}
+._tool_13xcg_1 {
+  margin-bottom: 0.5em;
+}
+
+._execOutput_13xcg_5 {
+  margin: 0;
+  padding: 0;
+  background-color: transparent;
+  border: 0;
+  font-size: var(--inspect-font-size-smaller);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+._execError_13xcg_16 {
+  color: var(--inspect-tool-error-color);
+}
+._toolImage_1cvly_1 {
+  max-width: 800px;
+  border: solid var(--inspect-tool-output-border) 1px;
+}
+
+._output_1cvly_6 {
+  display: grid;
+}
+
+._textOutput_1cvly_10 {
+  padding-left: 2px;
+  padding: 0.5em 0.5em 0.5em 0.5em;
+  white-space: pre-wrap;
+  margin-bottom: 0;
+  font-size: 0.9em !important;
+  border-radius: var(--bs-border-radius);
+}
+
+._textCode_1cvly_19 {
+  word-wrap: anywhere;
+  color: inherit;
+}
+._container_nfqzf_1 {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* Match MessageContent's contentImage so the Action tab image renders like
+   the Result tab image. display: block avoids an inline baseline gap that
+   would offset the overlay from the image box. */
+._screenshot_nfqzf_10 {
+  display: block;
+  max-width: 800px;
+  border: solid var(--bs-border-color) 1px;
+}
+
+._overlay_nfqzf_16 {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+._badge_nfqzf_24 {
+  position: absolute;
+  bottom: 16px;
+  background-color: rgba(0, 0, 0, 0.8);
+  font-family: monospace;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: bold;
+  white-space: pre-wrap;
+  max-width: 80%;
+  word-break: break-word;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+._type_nfqzf_39 {
+  color: #4ade80;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+._key_nfqzf_45 {
+  color: #fbbf24;
+  right: 16px;
+}
+._submitView_1ru17_1 {
+  display: grid;
+  row-gap: 0.5em;
+}
+._catalog_gx8eg_1 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+._namespace_gx8eg_7 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+._namespaceName_gx8eg_13 {
+  font-weight: 600;
+}
+
+._namespaceDescription_gx8eg_17 {
+  opacity: 0.8;
+}
+
+._tool_gx8eg_21 {
+  margin-left: 0.25rem;
+}
+
+._summary_gx8eg_25 {
+  cursor: pointer;
+}
+
+._summary_gx8eg_25::marker {
+  color: var(--bs-secondary, #6c757d);
+  font-size: 0.8em;
+}
+
+._summary_gx8eg_25::-webkit-details-marker {
+  color: var(--bs-secondary, #6c757d);
+}
+
+._toolNoDetails_gx8eg_38 {
+  margin-left: 0.25rem;
+}
+
+._description_gx8eg_42 {
+  margin: 0.25rem 0 0.25rem 1rem;
+}
+._image_1evla_1 {
+  margin-right: 0.2rem;
+  opacity: 0.4;
+}
+
+._toolTitle_1evla_6 {
+  color: unset !important;
+  overflow-wrap: anywhere;
+}
+
+._description_1evla_11 {
+  margin-left: 0.3em;
+  color: var(--inspect-tool-description-color);
+}
+._toolCallView_x6cus_1 {
+  display: grid;
+  row-gap: 0.5em;
+}
+/* Custom tool views (answer, submit, todo lists) own their full rendering —
+   they get the block frame (accent edge + container border) without the
+   header row. */
+._custom_wwbdp_4 {
+  border: 1px solid var(--bs-light-border-subtle);
+  border-left: var(--inspect-tool-block-edge);
+  border-radius: var(--bs-border-radius);
+  /* `clip` rounds the corners without becoming a scroll container, which
+     would trap the sticky "less…" toggle of the panels inside. */
+  overflow: clip;
+  padding: 0.7rem;
+}
+._message_o8d3m_1 {
+  font-weight: 300;
+  margin-left: 0;
+  margin-right: 0;
+  white-space: normal;
+  min-width: 0;
+}
+
+._systemRole_o8d3m_9 {
+  opacity: 0.7;
+}
+
+/* Segmented assistant turn: prose bands and flush tool rows stack with
+   hairline separators inside the turn container. */
+._turnSegments_o8d3m_15 > * + * {
+  border-top: 1px solid var(--bs-light-border-subtle);
+}
+
+/* The prose row keeps the assistant band; the left accent token is neutral
+   by default and colorized under the readable variant (where the
+   [data-message-role] rules re-apply the identical color). Extra vertical
+   padding gives the prose rows more weight between the tool rows. */
+._proseSegment_o8d3m_23 {
+  padding: 0.9rem 0.7rem;
+  border-left: var(--inspect-turn-prose-edge);
+}
+
+._timestamp_o8d3m_28 {
+  opacity: 0.5;
+  font-size: var(--inspect-font-size-smaller);
+  font-weight: normal;
+}
+
+._messageGrid_o8d3m_34 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.5em;
+  font-weight: 500;
+  margin-bottom: 0.3em;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+._toolMessageGrid_o8d3m_44 {
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
+._headerEnd_o8d3m_48 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  flex: none;
+}
+
+._messageContents_o8d3m_55 {
+  margin-left: 0;
+  padding-bottom: 0;
+}
+
+._messageContents_o8d3m_55._indented_o8d3m_60 {
+  margin-left: 0rem;
+}
+
+._copyLink_o8d3m_64 {
+  opacity: 0;
+  padding-left: 0;
+  padding-right: 2em;
+  margin-left: 0.2rem;
+}
+
+._copyLink_o8d3m_64:hover {
+  opacity: 0.75;
+}
+
+._metadataLabel_o8d3m_75 {
+  padding-top: 1em;
+}
+
+._hover_o8d3m_79 ._copyLink_o8d3m_64 {
+  opacity: 0.75;
+}
+._grid_1k0mq_1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  /* row-gap spaces blocks within a turn (message → tool box); margin-bottom
+     spaces turns. Keep them equal so every gap reads the same. */
+  row-gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+._user_1k0mq_10 {
+  background-color: var(--bs-secondary-bg);
+  border-radius: var(--bs-border-radius);
+  border: solid 1px var(--bs-light-border-subtle);
+}
+
+._container_1k0mq_16 {
+  padding-left: 0.7rem;
+  padding-right: 0.7rem;
+  padding-top: 0.5rem;
+  border-left: solid 1px var(--bs-light-border-subtle);
+  border-right: solid 1px var(--bs-light-border-subtle);
+}
+
+._first_1k0mq_24 {
+  border-top-left-radius: var(--bs-border-radius);
+  border-top-right-radius: var(--bs-border-radius);
+  border-top: solid 1px var(--bs-light-border-subtle);
+  padding-top: 0.7rem;
+}
+
+._last_1k0mq_31 {
+  border-bottom-left-radius: var(--bs-border-radius);
+  border-bottom-right-radius: var(--bs-border-radius);
+  border-bottom: solid 1px var(--bs-light-border-subtle);
+  padding-bottom: 0.7rem;
+}
+
+._highlight_1k0mq_38 {
+  background-color: rgba(var(--bs-info-rgb), 0.12);
+}
+
+/* Assistant turn with server-side tool calls: one seamless container — the
+   prose band and flush tool rows inside supply their own left edges, so the
+   frame itself has no left border. */
+._turnContainer_1k0mq_45 {
+  border: 1px solid var(--bs-light-border-subtle);
+  border-left: none;
+  border-radius: var(--bs-border-radius);
+  /* `clip` rounds the corners without becoming a scroll container, which
+     would trap the sticky "less…" toggle of the panels inside. */
+  overflow: clip;
+}
+
+/* Self-contained box (used when tool calls are un-embedded) so the assistant
+   message and each tool call read as separate cards rather than one connected
+   band. */
+._box_1k0mq_57 {
+  position: relative;
+  border: solid 1px var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+  padding: 0.7rem;
+}
+
+/* Tool blocks carry their own frame; the wrapper only anchors the chip. */
+._toolPart_1k0mq_65 {
+  position: relative;
+}
+
+/* Tool-call number chip, pinned to the top-right of its box to mirror the
+   position chip on a message's role line. */
+._toolLabel_1k0mq_71 {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.7rem;
+  z-index: 1;
+}
+
+._bottomMargin_1k0mq_78 {
+  margin-bottom: 0.75rem;
+}
+
+._codeCompact_1k0mq_82 {
+  /* styles for compact code display */
+}
+
+._simple_1k0mq_86 {
+  /* styles for simple display mode */
+}
+._badge_1c7cn_1,
+._inline_1c7cn_2 {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  font-family: var(
+    --bs-font-monospace,
+    ui-monospace,
+    "SF Mono",
+    "JetBrains Mono",
+    Menlo,
+    Consolas,
+    monospace
+  );
+  font-size: 11.5px;
+  line-height: 1;
+  font-weight: 400;
+  background: var(--inspect-msg-label-bg);
+  border: 1px solid var(--inspect-msg-label-border);
+  color: var(--inspect-msg-label-text);
+  transition: background 0.12s ease;
+}
+
+/* Pointer + hover only when the chip actually activates something. */
+._interactive_1c7cn_25 {
+  cursor: pointer;
+}
+
+._badge_1c7cn_1 {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  user-select: none;
+}
+
+._inline_1c7cn_2 {
+  padding: 1px 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+  text-decoration: none;
+  vertical-align: baseline;
+}
+
+._interactive_1c7cn_25:hover {
+  background: var(--inspect-msg-label-bg-hover);
+}
+._bar_pg4l8_1 {
+  --glint: rgba(64, 72, 104, 0.1);
+  --label: #5c5c63;
+
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 11px 15px;
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+  border: 1px solid var(--bs-light-border-subtle);
+  background: var(--bs-body-bg);
+}
+
+._bar_pg4l8_1::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 38%,
+    var(--glint) 50%,
+    transparent 62%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: _gen-sweep_pg4l8_1 2.8s linear infinite;
+}
+
+._barLabelOnly_pg4l8_34 {
+  justify-content: flex-start;
+}
+
+._label_pg4l8_38 {
+  position: relative;
+  font-weight: 400;
+  font-size: 13.5px;
+  line-height: 1;
+  letter-spacing: 0.005em;
+  color: var(--label);
+}
+
+._ell_pg4l8_47 {
+  display: inline-flex;
+}
+
+._ell_pg4l8_47 i {
+  font-style: normal;
+  animation: _gen-ell_pg4l8_1 1.5s ease-in-out infinite both;
+}
+
+._ell_pg4l8_47 i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+._ell_pg4l8_47 i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+._attempt_pg4l8_64 {
+  position: relative;
+  font-family: var(--bs-font-monospace);
+  font-size: 11px;
+  color: var(--bs-secondary-color);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--bs-secondary-color) 15%, transparent);
+}
+
+@keyframes _gen-sweep_pg4l8_1 {
+  0% {
+    background-position: 180% 0;
+  }
+  100% {
+    background-position: -80% 0;
+  }
+}
+
+@keyframes _gen-ell_pg4l8_1 {
+  0%,
+  80%,
+  100% {
+    opacity: 0.22;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  ._bar_pg4l8_1 {
+    --glint: rgba(255, 255, 255, 0.08);
+    --label: #c2c2c9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ._bar_pg4l8_1::before,
+  ._ell_pg4l8_47 i {
+    animation: none;
+  }
+  ._ell_pg4l8_47 i {
+    opacity: 0.55;
+  }
+}
+._bar_q6epo_1 {
+  --glint: rgba(64, 72, 104, 0.1);
+  --label: #5c5c63;
+
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 15px;
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+  border: 1px solid var(--bs-light-border-subtle);
+  background: var(--bs-body-bg);
+}
+
+._bar_q6epo_1::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 38%,
+    var(--glint) 50%,
+    transparent 62%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: _le-sweep_q6epo_1 2.8s linear infinite;
+}
+
+._compact_q6epo_33 {
+  border: none;
+  background: transparent;
+  padding: 8px;
+  gap: 8px;
+}
+
+._compact_q6epo_33::before {
+  display: none;
+}
+
+._spinner_q6epo_44 {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in oklab, var(--label) 25%, transparent);
+  border-top-color: var(--label);
+  animation: _le-spin_q6epo_1 0.8s linear infinite;
+}
+
+._label_q6epo_55 {
+  position: relative;
+  font-weight: 400;
+  font-size: 13.5px;
+  line-height: 1;
+  letter-spacing: 0.005em;
+  color: var(--label);
+}
+
+._compact_q6epo_33 ._label_q6epo_55 {
+  font-size: 11.5px;
+}
+
+._ell_q6epo_68 {
+  display: inline-flex;
+}
+
+._ell_q6epo_68 i {
+  font-style: normal;
+  animation: _le-ell_q6epo_1 1.5s ease-in-out infinite both;
+}
+
+._ell_q6epo_68 i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+._ell_q6epo_68 i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes _le-sweep_q6epo_1 {
+  0% {
+    background-position: 180% 0;
+  }
+  100% {
+    background-position: -80% 0;
+  }
+}
+
+@keyframes _le-spin_q6epo_1 {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes _le-ell_q6epo_1 {
+  0%,
+  80%,
+  100% {
+    opacity: 0.22;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  ._bar_q6epo_1 {
+    --glint: rgba(255, 255, 255, 0.08);
+    --label: #c2c2c9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ._bar_q6epo_1::before,
+  ._spinner_q6epo_44,
+  ._ell_q6epo_68 i {
+    animation: none;
+  }
+  ._ell_q6epo_68 i {
+    opacity: 0.55;
+  }
+}
+._list_zuqui_1 {
+  width: 100%;
+  margin-top: 1em;
+  padding-bottom: 0.5rem;
+}
+
+._generatingRow_zuqui_7 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-bottom: 0.75rem;
+}
+._container_1sdtt_1 {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+._body_1sdtt_8 {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+._searchArea_1sdtt_15 {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--bs-border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+._inputShell_1sdtt_23 {
+  display: flex;
+  min-width: 0;
+}
+
+._inputShell_1sdtt_23 vscode-textarea {
+  display: block;
+  width: 100%;
+}
+
+._controlsRow_1sdtt_33 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+._topRow_1sdtt_40 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+._typeToggle_1sdtt_47 {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+._topActions_1sdtt_52 {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+._textarea_1sdtt_58 {
+  width: 100%;
+  font-family: inherit;
+  font-size: var(--inspect-font-size-small);
+  color: var(--bs-body-color);
+}
+
+._modeRow_1sdtt_65 {
+  flex: 1 1 16rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+._modeControls_1sdtt_71 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+._modeToggle_1sdtt_77 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background: var(--bs-body-bg);
+  color: var(--bs-secondary-color);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+._modeToggle_1sdtt_77:hover {
+  background-color: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
+}
+
+._modeToggleActive_1sdtt_100 {
+  background-color: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
+}
+
+._modelPill_1sdtt_105 {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.15rem 0.45rem;
+  padding-right: 0;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background-color: var(--bs-body-bg);
+  transition: border-color 0.12s ease;
+}
+
+._modelPill_1sdtt_105:focus-within {
+  border-color: var(--vscode-focusBorder);
+}
+
+._modelInputShell_1sdtt_123 {
+  flex: 1;
+  min-width: 0;
+}
+
+._modelInput_1sdtt_123 {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: var(--inspect-font-size-small);
+  line-height: 1.4;
+  padding: 0.05rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--bs-body-color);
+}
+
+._modelInput_1sdtt_123:focus {
+  outline: none;
+}
+
+._iconAction_1sdtt_144 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bs-primary-color);
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+._iconAction_1sdtt_144:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--bs-body-color);
+}
+
+._iconActionActive_1sdtt_166 {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--bs-body-color);
+}
+
+._runButton_1sdtt_171 {
+  flex: 0 0 auto;
+  padding: 0.24rem 0.65rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background-color: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
+  font-size: var(--inspect-font-size-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+._runButton_1sdtt_171:hover:not(:disabled) {
+  background-color: var(--bs-tertiary-bg);
+}
+
+._runButton_1sdtt_171:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+._results_1sdtt_192 {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+._sectionHeader_1sdtt_202 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: var(--inspect-font-size-smallest);
+  color: var(--bs-primary-color);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+._resultCard_1sdtt_214 {
+  background-color: var(--bs-body-bg);
+  font-size: var(--inspect-font-size-small);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+._matchCount_1sdtt_222 {
+  font-weight: 600;
+  color: var(--bs-primary-color);
+  font-size: var(--inspect-font-size-smallest);
+}
+
+._recentList_1sdtt_228 {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+._recentItem_1sdtt_234 {
+  padding: 6px 10px;
+  font-size: var(--inspect-font-size-small);
+  color: var(--bs-body-color);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._recentItem_1sdtt_234:hover {
+  background: var(--bs-primary);
+  color: white;
+}
+
+._recentEmpty_1sdtt_249 {
+  padding: 0.6rem 0.5rem;
+  color: var(--bs-primary-color);
+  font-size: var(--inspect-font-size-small);
+  text-align: center;
+}
+
+._emptyState_1sdtt_256 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 8rem;
+  color: var(--bs-primary-color);
+  font-size: var(--inspect-font-size-small);
+  text-align: center;
+}
+
+._searchingText_1sdtt_267 {
+  margin: 0;
+}
+
+._searchingElapsed_1sdtt_271 {
+  color: var(--bs-secondary-color);
+  font-variant-numeric: tabular-nums;
+}
 ._circle_17gxn_1 {
   width: 36px;
   height: 22px;
@@ -21283,981 +21205,683 @@ li > ul {
   height: 100%;
   position: relative;
 }
-._toolsGrid_1qqm2_1 {
-  display: grid;
-  row-gap: 0em;
-}
-
-._tools_1qqm2_1 {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  column-gap: 1rem;
-  margin: 0;
-  align-items: baseline;
-}
-
-._tool_1qqm2_1 {
-  padding: 0;
-  color: inherit !important;
-}
-._root_ugt1x_1 {
-  /* A var, not a plain 100vh, so a host whose chrome sits above the page
-     (scout's ProjectBar) can shrink the root via its className without a
-     cascade-order fight — an overflowing root gets its header clipped once
-     mount-time scrolling nudges the overflow-hidden ancestor. */
-  height: var(--focus-turn-view-height, 100vh);
-  display: flex;
-  flex-direction: column;
-}
-
-/* Fixed secondary header under the app chrome: agent-path breadcrumb on the
-   left; turn label + turn/lane navigation + exit-focus on the right. A
-   non-scrolling sibling of the scroll container (the column layout pins it). */
-._focusBar_ugt1x_14 {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5em;
-  padding: 0.3rem 0.5rem;
-  background-color: var(--bs-body-bg);
-  border-bottom: 1px solid var(--bs-border-color);
-}
-
-._crumbs_ugt1x_25 {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-  white-space: nowrap;
-  color: var(--bs-secondary);
-}
-
-._laneName_ugt1x_33 {
-  font-weight: 500;
-}
-
-/* Breadcrumb segments that act (ancestor links, lane picker) render as plain
-   text in the bar's muted color; hover matches the bar's icon buttons. */
-._crumbButton_ugt1x_39 {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25em;
-  padding: 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font-size: inherit;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-._crumbButton_ugt1x_39:hover {
-  color: var(--bs-body-color);
-  text-decoration: underline;
-}
-
-._crumbButton_ugt1x_39:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
-
-._crumbSeparator_ugt1x_62 {
-  font-size: 0.7em;
-  opacity: 0.6;
-}
-
-._laneMenu_ugt1x_67 {
-  display: flex;
-  flex-direction: column;
-  row-gap: 0.15em;
-}
-
-._laneMenuItem_ugt1x_73 {
-  display: block;
-  border: none;
-  background: none;
-  color: var(--bs-body-color);
-  font-family: inherit;
-  text-align: left;
-  white-space: nowrap;
-  cursor: pointer;
-  border-radius: var(--bs-border-radius);
-  padding: 0.1em 0.4em;
-}
-
-._laneMenuItem_ugt1x_73:hover {
-  background-color: var(--bs-secondary-bg);
-}
-
-._laneMenuItemCurrent_ugt1x_90 {
-  font-weight: 600;
-}
-
-._controls_ugt1x_94 {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15em;
-  color: var(--bs-secondary);
-}
-
-._turnLabel_ugt1x_101 {
-  white-space: nowrap;
-  margin-right: 0.35em;
-}
-
-._divider_ugt1x_106 {
-  display: inline-block;
-  width: 1px;
-  align-self: stretch;
-  background-color: var(--bs-border-color);
-  margin: 2px 0.5em;
-  opacity: 0.5;
-}
-
-._button_ugt1x_115 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0.3em;
-  border: none;
-  background: none;
-  color: var(--bs-secondary);
-  cursor: pointer;
-  line-height: 1.6;
-  text-decoration: none;
-}
-
-._button_ugt1x_115:hover:not(:disabled) {
-  color: var(--bs-body-color);
-}
-
-._button_ugt1x_115:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
-
-._button_ugt1x_115:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-/* Only the scroll container flexes. Host-provided header chrome must not
-   shrink: an overflow:hidden header (scout's navbar) has no automatic
-   min-height, so with the scroller's content-sized flex basis it would get
-   crushed whenever the focused turn is taller than the viewport. */
-._root_ugt1x_1 > :not(._container_ugt1x_146) {
-  flex-shrink: 0;
-}
-
-._container_ugt1x_146 {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0 0.5rem 1rem;
-}
-
-/* A single focused event isn't a transcript list — drop the per-card box and
-   the expanded-boundary gutter (both are transcript-row chrome). Keep the
-   background so the model's sticky header stays opaque as content scrolls. */
-._container_ugt1x_146 [id^="event-panel-"] {
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0;
-}
-
-/* Sample/transcript-level error strip: persistent on every focused turn
-   (only the last turn's slice carries the actual error card). */
-._errorStrip_ugt1x_168 {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5em;
-  width: 100%;
-  border: none;
-  border-bottom: solid 1px var(--bs-border-color);
-  background: var(--bs-danger-bg-subtle);
-  color: var(--bs-danger-text-emphasis);
-  font-size: 0.8rem;
-  padding: 0.25rem 1rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-._errorStripLabel_ugt1x_183 {
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
-}
-
-._errorStripMessage_ugt1x_191 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Zero-height sticky dock so mounting the bar never shifts the event list;
-   it centers the bar over the events column. Sits above the sticky card
-   headers (z-index 1) and the swimlanes (500). `top` is set inline to the
-   chrome offset. */
-._dock_1hs1n_5 {
-  position: sticky;
-  z-index: 600;
-  height: 0;
-  display: flex;
-  justify-content: center;
-  /* The zero-height dock would otherwise stretch the bar to its own height,
-     collapsing the bar's vertical padding. */
-  align-items: flex-start;
-  pointer-events: none;
-}
-
-._bar_1hs1n_17 {
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 24px;
-  padding: 12px 16px;
-  background: var(--bs-body-bg);
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-}
-
-._title_1hs1n_30 {
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--bs-secondary-color);
-  white-space: nowrap;
-}
-
-/* Width is set inline (fits the placeholder range / prefilled value). */
-._input_1hs1n_39 {
-  padding: 2px 6px;
-  font-size: 12.5px;
-  color: var(--bs-body-color);
-  background: var(--bs-body-bg);
-  border: 1px solid var(--inspect-focus-border-color);
-  border-radius: var(--bs-border-radius);
-  outline: none;
-}
-
-._input_1hs1n_39:focus {
-  box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.18);
-}
-
-._input_1hs1n_39::placeholder {
-  color: var(--bs-tertiary-color);
-}
-
-._range_1hs1n_57 {
-  font-size: 13px;
-  color: var(--bs-secondary-color);
-  white-space: nowrap;
-}
-
-._divider_1hs1n_63 {
-  width: 1px;
-  height: 18px;
-  background: var(--bs-border-color);
-}
-
-._hint_1hs1n_69 {
-  font-size: 11.5px;
-  color: var(--bs-secondary-color);
-  white-space: nowrap;
-}
-
-._hintKey_1hs1n_75 {
-  font-weight: 600;
-}
-
-._close_1hs1n_79 {
-  display: inline-flex;
-  align-items: center;
-  padding: 0;
-  border: none;
-  background: none;
-  font-size: 15px;
-  color: var(--bs-secondary-color);
-  cursor: pointer;
-  line-height: 1;
-}
-
-._close_1hs1n_79:hover {
-  color: var(--bs-body-color);
-}
-._selectorContainer_djjmp_1 {
+/* Colour roles (handoff decision 4): hue says WHO (agent rows), red says
+   STATUS, and these two say WHAT. The tool teal is saturated and lifted
+   well off the model grey (≥ 1.8 : 1 light, ≥ 2.4 : 1 dark) so a tool
+   tick reads next to a model span in either theme (design owner
+   2026-09-15). */
+._chart_md8fn_6 {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  margin-right: 2px;
-}
-
-._selectorButton_djjmp_8 {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  background-color: var(--bs-body-bg);
-  color: var(--bs-body-color);
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius-pill, 999px);
-  padding: 0 8px;
-  font-size: var(--inspect-font-size-smallest);
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  line-height: 1.5;
-}
-
-._selectorButton_djjmp_8:hover {
-  background-color: var(--bs-tertiary-bg);
-}
-
-._chevron_djjmp_28 {
-  font-size: 0.6em;
-  margin-left: 1px;
-}
-
-._backdrop_djjmp_33 {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 998;
-}
-
-._dropdownMenu_djjmp_42 {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 2px;
-  background: var(--bs-body-bg);
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15);
-  z-index: 999;
-  min-width: 100%;
-  overflow: hidden;
-  padding: 2px 0;
-}
-
-._dropdownItem_djjmp_57 {
-  display: block;
   width: 100%;
-  padding: 2px 10px;
-  background: none;
-  border: none;
-  text-align: left;
-  cursor: pointer;
-  color: var(--bs-body-color);
-  font-size: var(--inspect-font-size-smallest);
-  white-space: nowrap;
+  --sa-model-color: #64748b;
+  --sa-tool-color: #14b8a6;
+  --sa-tool-label-color: #0f766e;
 }
 
-._dropdownItem_djjmp_57:hover {
-  background-color: var(--bs-tertiary-bg);
-}
-
-._dropdownItemActive_djjmp_74 {
-  font-weight: 600;
-}
-._selectBox_19rqv_1 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1em;
-  height: 1em;
-  padding: 0;
-  margin-right: 0.15em;
-  border: 1px solid var(--bs-border-color);
-  border-radius: 0.25em;
-  background-color: var(--bs-body-bg);
-  color: #fff;
-  font-size: 0.9rem;
-  line-height: 1;
-  opacity: 0.85;
-  cursor: pointer;
-}
-
-._selectBox_19rqv_1._selectBoxChecked_19rqv_19 {
-  opacity: 1;
-  background-color: var(--bs-primary);
-  border-color: var(--bs-primary);
-}
-
-._selectBox_19rqv_1:focus-visible {
-  outline: 2px solid var(--bs-primary);
-  outline-offset: 1px;
-}
-
-._selectBox_19rqv_1 i {
-  font-size: 0.75em;
-  line-height: 1;
-}
-._title_9b4ex_1 {
-  display: grid;
-  grid-template-columns: max-content max-content minmax(0, 1fr);
-  column-gap: 0.3em;
-}
-
-._title_9b4ex_1._selectable_9b4ex_7 {
-  grid-template-columns: max-content max-content max-content minmax(0, 1fr);
-  align-items: center;
-}
-
-/* Selected for export — EventPanel's edge + tint; margin absorbs the border. */
-._contents_9b4ex_13._selected_9b4ex_13 {
-  border-left: 3px solid var(--inspect-jump-target-ring-color);
-  margin-left: -2px;
-  background-color: rgba(77, 126, 191, 0.05);
-}
-
-._contents_9b4ex_13 {
-  padding: 0.4em;
-  margin-bottom: 0;
-  border: solid 1px var(--bs-light-border-subtle);
-  border-radius: var(--bs-border-radius);
-}
-
-._below_9b4ex_26 {
-  margin-top: 0.4em;
-}
-._headline_1l22a_1 {
+._svg_md8fn_14 {
   display: block;
-  min-width: 0;
-}
-
-._inlineExplanation_1l22a_6 {
-  margin-left: 0.3em;
-}
-
-._rejected_1l22a_10 {
-  color: var(--bs-danger);
-}
-._panel_8zdtn_1 {
-  margin: 0.5em 0;
-}
-._tab_1je38_1 {
-  min-width: 4rem;
-  padding: 0.1rem 0.6rem;
-  border-radius: var(--bs-border-radius);
-}
-._wrapper_og902_1 {
-  position: relative;
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  min-width: 0;
-  flex: 1;
-}
-
-._navs_og902_10 {
-  margin-right: 0;
-  flex-wrap: nowrap;
-}
-
-/* Off-screen single-line copy of the pills used to measure the natural
-   width that determines whether to render tabs or the picker. */
-._probe_og902_17 {
   position: absolute;
   top: 0;
   left: 0;
-  visibility: hidden;
-  pointer-events: none;
-  width: max-content;
-  flex-wrap: nowrap;
 }
 
-._probeItem_og902_27 {
-  min-width: 4rem;
-  padding: 0.1rem 0.6rem;
-  white-space: nowrap;
-}
-._trigger_nqyxq_1 {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.1rem 0.6rem;
-  border: none;
-  border-radius: var(--bs-border-radius);
-  white-space: nowrap;
-  max-width: 100%;
-  min-width: 0;
-  cursor: pointer;
-  /* `.nav-link.active` colors only apply inside a `.nav-pills` parent;
-     the picker button isn't nested in one, so apply them directly. */
-  background-color: var(--bs-nav-pills-link-active-bg, var(--bs-primary));
-  color: var(--bs-nav-pills-link-active-color, #fff);
+/* Uppercase 9px band labels, letter-spacing set inline (SVG attr). */
+._bandLabel_md8fn_22 {
+  font-size: 9px;
+  fill: var(--bs-secondary-color);
 }
 
-._trigger_nqyxq_1:hover {
-  filter: brightness(1.05);
-}
-
-._label_nqyxq_21 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-._chevron_nqyxq_27 {
-  margin-left: 0.4em;
-  font-size: 0.75em;
-  flex-shrink: 0;
-}
-
-._backdrop_nqyxq_33 {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  /* Above Bootstrap's sticky-top (1020) so sticky bars don't occlude the menu. */
-  z-index: 1049;
-}
-
-._menu_nqyxq_43 {
-  position: fixed;
-  background: var(--bs-body-bg);
-  border: 1px solid var(--bs-border-color);
-  border-radius: 0.25rem;
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  z-index: 1050;
-  overflow: hidden;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-._item_nqyxq_55 {
-  display: block;
-  width: 100%;
-  padding: 0.25rem 0.75rem;
-  background: none;
-  border: none;
-  text-align: left;
-  cursor: pointer;
-  color: var(--bs-body-color);
-  white-space: nowrap;
-  transition: background-color 0.15s ease-in-out;
-}
-
-._item_nqyxq_55:hover {
-  background-color: var(--bs-tertiary-bg);
-}
-
-._item_nqyxq_55:active {
-  background-color: var(--bs-secondary-bg);
-}
-
-._item_nqyxq_55._selected_nqyxq_76 {
-  background-color: var(--bs-primary);
-  color: var(--bs-light);
-}
-
-._item_nqyxq_55._selected_nqyxq_76:hover {
-  background-color: var(--bs-primary);
-  filter: brightness(1.05);
-}
-._stickyWrapper_loteg_1 {
-  position: sticky;
-  /* `top` is set inline from StickyScrollContext (the chrome offset). */
-  /* Full-bleed: cancel the parent card's padding so the sticky bar
-     spans the entire card width, then re-apply padding internally. */
-  margin: -5px -0.625rem -5px -0.625rem;
-  padding: 5px 0.625rem;
-  /* Opaque (matches the host card) even when unstuck so colored message bands
-     don't bleed through the header as it scrolls off during the push-off. */
-  background-color: inherit;
-  z-index: 1;
-  border-bottom: solid 1px transparent;
-}
-
-/* Header pinned at its sticky offset (attribute toggled by useStickyStuck). */
-._stickyWrapper_loteg_1[data-sticky-stuck] {
-  background-color: var(--bs-light);
-  border-bottom-color: var(--bs-light-border-subtle);
-}
-
-._label_loteg_21 {
-  margin-right: 0.2em;
-  justify-self: end;
-}
-
-/* Single line, truncated with an ellipsis rather than wrapping: the header's
-   grid track shrinks this cell (via `minmax(0, max-content)`) whenever the
-   turnNav cluster and/or tab picker need the room, and a wrapped second line
-   would grow the sticky header's height instead of just losing title text. */
-._title_loteg_30 {
-  min-width: 0;
-  line-height: 1.6;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-._titleExtra_loteg_38 {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-  margin-left: 0.5em;
-}
-
-._navs_loteg_45 {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  min-width: 0;
-}
-
-._turnLabel_loteg_52 {
-  margin-left: 1rem;
-  margin-top: 0.2rem;
-  opacity: 0.5;
-  font-size: var(--inspect-font-size-smallest);
-  white-space: nowrap;
-}
-
-._turnNav_loteg_60 {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 1rem;
-  cursor: default;
-}
-
-._turnNav_loteg_60 ._turnLabel_loteg_52 {
-  margin-left: 0;
-  margin-top: 0;
-}
-
-/* Non-capstone headers of a turn hide their cluster while the capstone is on
-   screen, revealing it only when this header is pinned. `visibility` (not
-   `display`) so the grid column keeps its width and nothing reflows. */
-._turnNavFollower_loteg_75 {
-  visibility: hidden;
-}
-
-._stickyWrapper_loteg_1[data-sticky-stuck] ._turnNavFollower_loteg_75 {
-  visibility: visible;
-}
-
-._turnLabelButton_loteg_83 {
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  padding: 2px 8px;
-  border-radius: var(--bs-border-radius);
-  cursor: pointer;
-}
-
-/* Link-like text highlight, matching the sibling chevron/focus buttons —
-   deliberately no pill hover; no other header button has a pill treatment. */
-._turnLabelButton_loteg_83:hover {
-  color: var(--bs-body-color);
-  opacity: 1;
-}
-
-._turnButton_loteg_100 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0.25em;
-  border: none;
-  background: none;
-  color: var(--bs-secondary);
-  cursor: pointer;
-  line-height: 1;
-  text-decoration: none;
-  font-size: var(--inspect-font-size-smallest);
-}
-
-._turnButton_loteg_100:hover:not(:disabled) {
-  color: var(--bs-body-color);
-}
-
-._turnButton_loteg_100:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
-
-._turnButton_loteg_100:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-a._turnButton_loteg_100 {
-  padding: 0 0.4em;
-}
-
-._card_loteg_132 {
-  position: relative;
-  background-color: var(--bs-body-bg);
-  padding: 0.625rem;
-  border: solid 1px var(--bs-light-border-subtle);
-  border-radius: var(--bs-border-radius);
-}
-
-/* Landing target of the latest go-to-turn jump — persistent selection ring. */
-._card_loteg_132._jumpTarget_loteg_141 {
-  outline: 2px solid var(--inspect-jump-target-ring-color);
-  outline-offset: 2px;
-}
-
-/* Selected for export; compounded to outrank .depthRoot, margin absorbs the border like .expanded. */
-._card_loteg_132._selected_loteg_147 {
-  border-left: 3px solid var(--inspect-jump-target-ring-color);
-  margin-left: -2px;
-  background-color: rgba(77, 126, 191, 0.05);
-}
-
-._cardContent_loteg_153 {
-  padding: 0;
-  display: inherit;
-}
-
-._cardContent_loteg_153._hidden_loteg_158 {
-  display: none;
-}
-
-._hidden_loteg_158 {
-  display: none;
-}
-
-._copyLink_loteg_166 {
-  font-size: 1.2em;
-  opacity: 0;
-  padding-left: 0.2em;
-  padding-right: 0;
-  vertical-align: middle;
-  line-height: 1;
-  margin-left: 0.25em;
-}
-
-._hover_loteg_176 ._copyLink_loteg_166 {
-  opacity: 0.75;
-}
-
-/* Extra air between the turn label and the event-number pill. */
-._eventLabel_loteg_181 {
-  margin-left: 0.5em;
-}
-
-._root_loteg_185 {
-  background-color: var(--bs-light-bg-subtle);
-  border-radius: unset;
-}
-
-/* A panel showing non-summary detail gets a contrasting gray right gutter (same
-   3px width as the colorful message/tool edges, --bs-secondary so it reads in
-   both light and dark). The negative margin offsets the extra 2px over the
-   default 1px border so widening it doesn't shift the card. Compounded with
-   .card so it outranks .depthRoot's `border-right: none`, keeping the gutter on
-   depth-0 / lane-scoped events. */
-._card_loteg_132._expanded_loteg_146 {
-  border-right: 3px solid var(--bs-secondary);
-  margin-right: -2px;
-}
-
-/* The chevron button is styled down to the bare glyph — the surrounding
-   header cells supply the visual affordance. */
-._collapseToggle_loteg_203 {
-  display: flex;
-  align-items: center;
-  padding: 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-._bottomDongle_loteg_214 {
-  display: block;
-  font-family: inherit;
-  font-weight: inherit;
-  position: absolute;
-  margin: 0 auto;
-  width: fit-content;
-  bottom: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: var(--bs-body-bg);
-  border: solid 1px var(--bs-light-border-subtle);
-  color: var(--bs-secondary);
-  border-radius: var(--bs-border-radius);
-  padding: 0em 0.4em;
-  cursor: pointer;
-}
-
-._dongleIcon_loteg_232 {
-  padding-right: 0.3em;
-}
-
-@media print {
-  ._card_loteg_132 {
-    break-inside: avoid;
-  }
-}
-._branchPoint_w0zdg_1 {
-  --bp-bg: var(--bs-tertiary-bg, #fafbfd);
-  --bp-hairline: var(--bs-border-color, #e5e7eb);
-  --bp-segmented-border: var(--bs-border-color, #d1d5db);
-  --bp-segmented-bg: var(--bs-body-bg, #ffffff);
-  --bp-label: var(--bs-secondary-color, #6b7280);
-  --bp-active-bg: var(--bs-secondary-bg, #e5e7eb);
-
-  background: var(--bp-bg);
-  border-top: 1px solid var(--bp-hairline);
-  border-bottom: 1px solid var(--bp-hairline);
-  padding: 6px 18px;
-
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-._label_w0zdg_20 {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-}
-
-._glyph_w0zdg_27 {
-  display: inline-flex;
-  align-items: center;
-  color: var(--bp-label);
-  font-size: 14px;
-  line-height: 1;
-  flex: none;
-}
-
-._labelText_w0zdg_36 {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--bp-label);
-}
-
-._segmented_w0zdg_44 {
-  display: inline-flex;
-  border: 1px solid var(--bp-segmented-border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--bp-segmented-bg);
-}
-
-._segment_w0zdg_44 {
-  all: unset;
-  padding: 3px 12px;
-  background: var(--bp-segmented-bg);
-  color: var(--bp-label);
-  font-size: 11.5px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-left: 1px solid var(--bp-segmented-border);
-  user-select: none;
-}
-._segment_w0zdg_44:first-of-type {
-  border-left: 0;
-}
-._segment_w0zdg_44:hover:not([aria-checked="true"]):not(:disabled) {
-  background: var(--bp-active-bg);
-  color: var(--bs-body-color, inherit);
-}
-._segment_w0zdg_44[aria-checked="true"] {
-  background: var(--bp-active-bg);
-  color: var(--bs-body-color, inherit);
-  font-weight: 600;
-  cursor: default;
-}
-._segment_w0zdg_44:disabled:not([aria-checked="true"]) {
-  cursor: default;
-}
-._segment_w0zdg_44:focus-visible {
-  outline: 2px solid var(--bp-segmented-border);
-  outline-offset: 2px;
-}
-
-._continuesGlyph_w0zdg_87 {
-  width: 9px;
-  height: 9px;
-  fill: currentColor;
-  flex: none;
-  opacity: 0.85;
-}
-._panel_1us8t_1 {
-  margin: 0.2em 0;
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 1em;
-  row-gap: 0.3em;
-  align-items: baseline;
-}
-
-._rowValue_1us8t_10 {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1em;
-}
-
-._files_1us8t_16 {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1em;
+._bandHeadline_md8fn_27 {
+  font-size: 9px;
+  fill: var(--bs-secondary-color);
   font-family: var(--bs-font-monospace);
 }
 
-._file_1us8t_16 {
-  overflow-wrap: anywhere;
+._axisLine_md8fn_33 {
+  stroke: var(--bs-border-color);
 }
 
-._fileOverflow_1us8t_27 {
-  font-style: italic;
+._axisLabel_md8fn_37 {
+  font-size: 9px;
+  fill: var(--bs-secondary-color);
+}
+
+._yTickLabel_md8fn_42 {
+  font-size: 9px;
+  fill: var(--bs-secondary-color);
+}
+
+/* ── working time ── */
+
+._workingBlock_md8fn_49 {
+  fill: #5b8ec4;
+}
+
+._stallBracket_md8fn_53 {
+  stroke: #adb5bd;
+  stroke-width: 1;
+  fill: none;
+}
+
+._stallBracketRetry_md8fn_59 {
+  stroke: #b04a3c;
+  stroke-width: 1;
+  fill: none;
+}
+
+._stallLabel_md8fn_65 {
+  font-size: 9px;
+  fill: var(--bs-secondary-color);
+}
+
+._stallLabelRetry_md8fn_70 {
+  font-size: 9px;
+  fill: #b04a3c;
+}
+
+/* ── curves ── */
+
+/* Painted geometry only: the full-plot hit surface beneath reads the
+   curves, so a stroke or fill must never catch the pointer — a hover
+   landing on a context vertex, or a travelling pointer crossing the line,
+   would otherwise reach nothing (review pass 15). */
+._tokenSeries_md8fn_81 {
+  fill: none;
+  stroke: #495057;
+  stroke-width: 1.2;
+  pointer-events: none;
+}
+
+._contextSeries_md8fn_88 {
+  fill: none;
+  stroke: #3a7bd5;
+  stroke-width: 1.2;
+  pointer-events: none;
+}
+
+._contextDot_md8fn_95 {
+  fill: #3a7bd5;
+  pointer-events: none;
+}
+
+._compactionDrop_md8fn_100 {
+  stroke: #2b6a94;
+  stroke-dasharray: 3 2;
+}
+
+._compactionLabel_md8fn_105 {
+  font-size: 9px;
+  fill: #2b6a94;
+}
+
+/* ── shared cursor (handoff 11a) ── */
+
+/* One hairline through every band at the anchor time. */
+._cursorLine_md8fn_113 {
+  stroke: #adb5bd;
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* Dark pill on the axis pinning the exact time (or turn). */
+._cursorPill_md8fn_120 {
+  fill: #212529;
+  pointer-events: none;
+}
+
+._cursorPillText_md8fn_125 {
+  fill: #fff;
+  font-family: var(--bs-font-monospace);
+  font-size: 9px;
+  pointer-events: none;
+}
+
+/* Read-out dot per visible row on the curve bands (stroke = row hue). */
+._readoutDot_md8fn_133 {
+  fill: var(--bs-body-bg);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+/* Full-plot hit surface — sits under every span/marker so they still
+   receive their own hovers. */
+._plotHit_md8fn_141 {
+  fill: transparent;
+}
+
+/* Stall regions on the working band carry their own hover target. */
+._stallHit_md8fn_146 {
+  fill: transparent;
+}
+
+/* Token burn stacked by conversation (handoff 10a): each layer fills in
+   its row hue at 0.28 with a 1px top edge in the same hue (both inline). */
+._tokenLayer_md8fn_152 {
+  opacity: 0.28;
+  stroke: none;
+  pointer-events: none;
+}
+
+._tokenLayerEdge_md8fn_158 {
+  fill: none;
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* Gutter legend under a curve band's label: swatch · name. */
+._legendName_md8fn_165 {
+  font-size: 9px;
+  fill: var(--bs-body-color);
+}
+
+/* ── model & tool activity ── */
+
+._rowLabel_md8fn_172 {
+  font-size: 9px;
+  fill: var(--bs-body-color);
+}
+
+._rowLabelMuted_md8fn_177 {
+  fill: #adb5bd;
+}
+
+._modelSpan_md8fn_181 {
+  fill: var(--sa-model-color);
+}
+
+._toolSpan_md8fn_185 {
+  fill: var(--sa-tool-color);
+}
+
+/* Failed tool call: red-outlined span (handoff decision 4). */
+._failedSpan_md8fn_190 {
+  fill: #fdf1ef;
+  stroke: #b04a3c;
+}
+
+._pendingSpan_md8fn_195 {
+  opacity: 0.55;
+}
+
+/* Span hover (handoff 11a): the hovered rect outlines. Its turn-mates no
+   longer dim (design owner, 2026-09-15). */
+._spanHovered_md8fn_201 {
+  stroke: #212529;
+  stroke-width: 1;
+}
+
+/* ── Turns axis (handoff 8b) ── */
+
+/* Column rects: no rounding, a 1.5px body-bg seam between columns. */
+._turnRect_md8fn_209 {
+  stroke: var(--bs-body-bg);
+  stroke-width: 1.5;
+}
+
+/* The seam rule above shares `.failedSpan` / `.spanHovered`'s specificity
+   and comes later, so on a Turns rect it would win: the failed outline and
+   the hover outline are restated at higher specificity. */
+._turnRect_md8fn_209._failedSpan_md8fn_190 {
+  stroke: #b04a3c;
+  stroke-width: 1;
+}
+
+._turnRect_md8fn_209._spanHovered_md8fn_201 {
+  stroke: #212529;
+  stroke-width: 1;
+}
+
+/* Faint full-height column separators behind every band. */
+._turnSeparator_md8fn_228 {
+  stroke: #f1f3f5;
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* A rejected call's slot: the tool never ran. */
+._ghostSpan_md8fn_235 {
+  fill: #f7f3fc;
+  stroke: #6b4fa8;
+  stroke-dasharray: 2 2;
+  pointer-events: none;
+}
+
+._ghostLabel_md8fn_242 {
+  font-size: 8px;
+  fill: #6b4fa8;
+}
+
+/* A crowded half whose slots are all rejected calls: one ghost that,
+   unlike the per-slot ghosts, takes the aggregate's hover and click. Its
+   dashed stroke is declared after `.spanHovered`, so the hover outline is
+   restated at higher specificity. */
+._ghostAggregate_md8fn_251 {
+  pointer-events: auto;
+}
+
+._ghostAggregate_md8fn_251._spanHovered_md8fn_201 {
+  stroke: #212529;
+}
+
+._axisLabelMuted_md8fn_259 {
+  fill: var(--bs-secondary-color);
+  opacity: 0.8;
+}
+
+/* Grader / secondary-role rows render muted (handoff decision 4). */
+._roleRow_md8fn_265 {
   opacity: 0.7;
 }
-._panel_8zdtn_1 {
-  margin: 0.5em 0;
-}
-._empty_f9al6_1 {
-  padding: 0 18px 14px;
-  color: var(--bs-secondary-color, #6b7280);
+
+/* "+N more" fold row: a grey summary of the conversations past the cap. */
+._foldRow_md8fn_270 {
+  opacity: 0.6;
 }
 
-._headline_f9al6_6 {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
+/* Parent conversation waiting on a spawned child — the only idle ever
+   drawn on the activity band (handoff 10a). */
+._blockedThread_md8fn_276 {
+  stroke: #adb5bd;
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
 }
 
-._detail_f9al6_12 {
-  font-size: 12.5px;
-  margin-top: 4px;
+._blockedLabel_md8fn_282 {
+  font-size: 8px;
+  fill: #adb5bd;
 }
 
-._detail_f9al6_12 code {
-  background: var(--bs-body-bg, #ffffff);
-  border: 1px solid var(--bs-border-color, #e5e7eb);
+/* ── agent gutter (handoff 10a) ── */
+
+._gutterCheckbox_md8fn_289 {
+  fill: none;
+  stroke: #212529;
+  stroke-width: 1;
+}
+
+._gutterCheckboxOn_md8fn_295 {
+  fill: #212529;
+}
+
+._gutterCheck_md8fn_289 {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+._gutterExpand_md8fn_307 {
+  font-size: 9px;
+  fill: var(--bs-secondary-color);
+}
+
+._gutterName_md8fn_312 {
+  font-size: 9px;
+  fill: #212529;
+}
+
+._gutterModel_md8fn_317 {
+  font-size: 8px;
+  fill: var(--bs-secondary-color);
+}
+
+._gutterHit_md8fn_322 {
+  fill: transparent;
+  cursor: pointer;
+  outline: none;
+}
+
+._burstLabel_md8fn_328 {
+  font-size: 8px;
+  fill: var(--sa-tool-label-color);
+}
+
+._retryBadge_md8fn_333 {
+  font-size: 9px;
+  fill: #b04a3c;
+}
+
+/* Density strip columns: the majority kind's colour, opacity by count. */
+._densityModel_md8fn_339 {
+  fill: var(--sa-model-color);
+}
+
+._densityTool_md8fn_343 {
+  fill: var(--sa-tool-color);
+}
+
+._densityFailure_md8fn_347 {
+  fill: #b04a3c;
+  pointer-events: none;
+}
+
+/* Hover-only: the strip has no click action, so no pointer cursor. */
+._densityHit_md8fn_353 {
+  fill: transparent;
+}
+
+/* ── marker rail ── */
+
+/* Only the hit rect is interactive — the group's stem line would
+   otherwise capture hovers meant for the bands beneath it. */
+._marker_md8fn_361 {
+  pointer-events: none;
+}
+
+/* Focusable for keyboard access to the card, but click-inert. Bootstrap's
+   reboot gives every [role="button"] a pointer; the descendant selector
+   outranks it. */
+._marker_md8fn_361 ._markerHit_md8fn_368 {
+  fill: transparent;
+  pointer-events: all;
+  cursor: default;
+  outline: none;
+}
+
+/* Bordered count box above a clustered glyph (stroke/text take the
+   category hue inline) — the task timeline's ordinal-box token. */
+._clusterBoxRect_md8fn_377 {
+  fill: var(--bs-body-bg);
+  stroke-opacity: 0.55;
+  pointer-events: none;
+}
+
+._clusterBoxText_md8fn_383 {
+  font-family: var(--bs-font-monospace);
+  font-size: 9px;
+  pointer-events: none;
+}
+
+/* ── dark theme ── */
+
+[data-bs-theme="dark"] ._chart_md8fn_6 {
+  --sa-tool-color: #2dd4bf;
+  --sa-tool-label-color: #5eead4;
+}
+
+[data-bs-theme="dark"] ._tokenSeries_md8fn_81 {
+  stroke: #adb5bd;
+}
+
+[data-bs-theme="dark"] ._contextSeries_md8fn_88 {
+  stroke: #6ea0dc;
+}
+
+[data-bs-theme="dark"] ._contextDot_md8fn_95 {
+  fill: #6ea0dc;
+}
+
+[data-bs-theme="dark"] ._compactionDrop_md8fn_100 {
+  stroke: #6ba3c9;
+}
+
+[data-bs-theme="dark"] ._compactionLabel_md8fn_105 {
+  fill: #8fbcd9;
+}
+
+[data-bs-theme="dark"] ._stallBracket_md8fn_53 {
+  stroke: #6c757d;
+}
+
+[data-bs-theme="dark"] ._stallBracketRetry_md8fn_59 {
+  stroke: #d98b7f;
+}
+
+[data-bs-theme="dark"] ._stallLabelRetry_md8fn_70 {
+  fill: #d98b7f;
+}
+
+[data-bs-theme="dark"] ._failedSpan_md8fn_190 {
+  fill: #322019;
+  stroke: #d98b7f;
+}
+
+[data-bs-theme="dark"] ._turnRect_md8fn_209._failedSpan_md8fn_190 {
+  stroke: #d98b7f;
+}
+
+[data-bs-theme="dark"] ._retryBadge_md8fn_333 {
+  fill: #d98b7f;
+}
+
+[data-bs-theme="dark"] ._densityFailure_md8fn_347 {
+  fill: #d98b7f;
+}
+
+[data-bs-theme="dark"] ._rowLabelMuted_md8fn_177 {
+  fill: #6c757d;
+}
+
+[data-bs-theme="dark"] ._blockedThread_md8fn_276 {
+  stroke: #6c757d;
+}
+
+[data-bs-theme="dark"] ._blockedLabel_md8fn_282 {
+  fill: #868e96;
+}
+
+[data-bs-theme="dark"] ._gutterCheckbox_md8fn_289 {
+  stroke: #dee2e6;
+}
+
+[data-bs-theme="dark"] ._gutterCheckboxOn_md8fn_295 {
+  fill: #dee2e6;
+}
+
+[data-bs-theme="dark"] ._gutterCheck_md8fn_289 {
+  stroke: #212529;
+}
+
+[data-bs-theme="dark"] ._gutterName_md8fn_312 {
+  fill: #dee2e6;
+}
+
+[data-bs-theme="dark"] ._cursorLine_md8fn_113 {
+  stroke: #6c757d;
+}
+
+[data-bs-theme="dark"] ._cursorPill_md8fn_120 {
+  fill: #dee2e6;
+}
+
+[data-bs-theme="dark"] ._cursorPillText_md8fn_125 {
+  fill: #212529;
+}
+
+[data-bs-theme="dark"] ._spanHovered_md8fn_201 {
+  stroke: #f8f9fa;
+}
+
+[data-bs-theme="dark"] ._turnRect_md8fn_209._spanHovered_md8fn_201 {
+  stroke: #f8f9fa;
+}
+
+[data-bs-theme="dark"] ._turnSeparator_md8fn_228 {
+  stroke: #2b3035;
+}
+
+[data-bs-theme="dark"] ._ghostSpan_md8fn_235 {
+  fill: #2a2436;
+  stroke: #b39ddb;
+}
+
+[data-bs-theme="dark"] ._ghostLabel_md8fn_242 {
+  fill: #b39ddb;
+}
+
+[data-bs-theme="dark"] ._ghostAggregate_md8fn_251._spanHovered_md8fn_201 {
+  stroke: #f8f9fa;
+}
+/* One tooltip card for every hovered thing (handoff 11a/11b): reuses the
+   .lineTooltip chrome — white, 1px border, r3, soft shadow, 0.72rem,
+   tabular numerals — at a fixed 262px width. */
+._tooltip_1y9z1_4 {
+  position: absolute;
+  width: 262px;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
   border-radius: 3px;
-  padding: 1px 5px;
-  font-size: 11.5px;
-  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
+  padding: 6px 8px 4px 8px;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--bs-body-color);
 }
-._panel_vz394_1 {
-  margin: 0.2em 0;
+
+._header_1y9z1_21 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  white-space: nowrap;
 }
-._grid_1pgwi_1 {
-  width: 100%;
+
+._subject_1y9z1_28 {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._statusFailed_1y9z1_36 {
+  color: #a13b2c;
+}
+
+._statusRejected_1y9z1_40 {
+  color: #6b4fa8;
+}
+
+._timeLine_1y9z1_44 {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.68rem;
+  color: var(--bs-secondary-color);
+}
+
+._who_1y9z1_50 {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+._swatch_1y9z1_58 {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+._dot_1y9z1_65 {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+}
+
+._glyph_1y9z1_74 {
+  font-size: 0.65rem;
+}
+
+._grid_1y9z1_78 {
   display: grid;
-  grid-template-columns: 1fr max-content;
-  column-gap: 1em;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 0.75rem;
+  row-gap: 1px;
+  align-items: baseline;
+}
+
+._key_1y9z1_86 {
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+._value_1y9z1_91 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._mono_1y9z1_98 {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.68rem;
+}
+
+._muted_1y9z1_103 {
+  color: var(--bs-secondary-color);
+}
+
+._ellipsis_1y9z1_107 {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+._list_1y9z1_116 {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+._listRow_1y9z1_122 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+._listRow_1y9z1_122 > :nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+._listRowHovered_1y9z1_134 {
+  font-weight: 600;
+}
+
+._note_1y9z1_138 {
+  color: var(--bs-body-color);
+}
+
+._footer_1y9z1_142 {
+  margin-top: 2px;
+  padding: 3px 0 0 0;
+  border: none;
+  border-top: 1px dotted var(--bs-border-color);
+  background: none;
+  color: #2a78d6;
+  font-size: 0.7rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+._footer_1y9z1_142:hover {
+  text-decoration: underline;
+}
+
+/* ── dark theme ── */
+
+[data-bs-theme="dark"] ._statusFailed_1y9z1_36 {
+  color: #d98b7f;
+}
+
+[data-bs-theme="dark"] ._statusRejected_1y9z1_40 {
+  color: #b39ddb;
+}
+
+[data-bs-theme="dark"] ._footer_1y9z1_142 {
+  color: #6ea0dc;
 }
 ._wrapper_14pl5_1 {
   font-variant-numeric: tabular-nums;
@@ -23354,6 +22978,1515 @@ a._turnButton_loteg_100 {
 ._tableNoTop_ald9k_64 {
   margin-top: 0;
 }
+._container_143e5_1 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+._filterRow_143e5_7 {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.72rem;
+  flex-wrap: wrap;
+  padding-top: 0.25rem;
+}
+
+._caption_143e5_16 {
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-right: 0.25rem;
+}
+
+/* Filled colour pills: fill + border + text in one hue per category — the
+   same hue the category's glyph uses on the rail, so the filter row doubles
+   as the rail's legend. */
+._filterPill_143e5_28 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  line-height: 1.2;
+  background: none;
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+._pillCount_143e5_42 {
+  font-weight: 400;
+}
+
+._pillEmpty_143e5_46 {
+  opacity: 0.6;
+  cursor: default;
+}
+
+._pillAll_143e5_51 {
+  color: var(--bs-body-color);
+}
+
+._pillAll_143e5_51._pillSelected_143e5_55 {
+  background: #212529;
+  border-color: #212529;
+  color: #fff;
+}
+
+._pillError_143e5_61 {
+  background: #fdf1ef;
+  border-color: #ecc8c1;
+  color: #a13b2c;
+}
+
+._pillLimit_143e5_67 {
+  background: #fffaeb;
+  border-color: #e8d8a0;
+  color: #8a6d1a;
+}
+
+._pillApproval_143e5_73 {
+  background: #f7f3fc;
+  border-color: #d9cfe8;
+  color: #4a2e73;
+}
+
+._pillInput_143e5_79 {
+  background: #f2f7fc;
+  border-color: #cfe0f1;
+  color: #1d4f7c;
+}
+
+._pillInterrupt_143e5_85 {
+  background: #f8f9fa;
+  border-color: #dee2e6;
+  color: #6c757d;
+}
+
+._pillCompaction_143e5_91 {
+  background: #eef6fb;
+  border-color: #c3dcea;
+  color: #2b6a94;
+}
+
+/* The one palette addition (handoff): a green Scores hue. */
+._pillScore_143e5_98 {
+  background: #f0f7f2;
+  border-color: #d3e3d8;
+  color: #2f8a52;
+}
+
+/* Selected = solid fill with white text; unselected pills stay tinted. */
+._pillError_143e5_61._pillSelected_143e5_55 {
+  background: #b04a3c;
+  border-color: #b04a3c;
+  color: #fff;
+}
+
+._pillLimit_143e5_67._pillSelected_143e5_55 {
+  background: #8a6d1a;
+  border-color: #8a6d1a;
+  color: #fff;
+}
+
+._pillApproval_143e5_73._pillSelected_143e5_55 {
+  background: #6b4fa8;
+  border-color: #6b4fa8;
+  color: #fff;
+}
+
+._pillInput_143e5_79._pillSelected_143e5_55 {
+  background: #1d4f7c;
+  border-color: #1d4f7c;
+  color: #fff;
+}
+
+._pillInterrupt_143e5_85._pillSelected_143e5_55 {
+  background: #6c757d;
+  border-color: #6c757d;
+  color: #fff;
+}
+
+._pillCompaction_143e5_91._pillSelected_143e5_55 {
+  background: #2b6a94;
+  border-color: #2b6a94;
+  color: #fff;
+}
+
+._pillScore_143e5_98._pillSelected_143e5_55 {
+  background: #2f8a52;
+  border-color: #2f8a52;
+  color: #fff;
+}
+
+._pillSelected_143e5_55 ._pillCount_143e5_42 {
+  color: inherit;
+}
+
+._search_143e5_151 {
+  margin-left: auto;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 3px;
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  font-size: 0.72rem;
+  padding: 0.125rem 0.5rem;
+  width: 220px;
+}
+
+._search_143e5_151::placeholder {
+  color: var(--bs-secondary-color);
+}
+
+._list_143e5_166 {
+  border: 1px solid var(--bs-border-color);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem 0.5rem;
+}
+
+._empty_143e5_175 {
+  padding: 0.75rem;
+  color: var(--bs-secondary-color);
+  font-size: 0.8rem;
+}
+
+/* Four fixed columns — Time / Kind / Event / By (task-timeline parity). */
+._headerRow_143e5_182,
+._row_143e5_183 {
+  display: grid;
+  grid-template-columns: 110px 64px minmax(0, 1fr) minmax(56px, max-content);
+  /* rem, not em — the header row's smaller font would shrink an em gap,
+     shifting its Kind/Event labels left of the row cells. */
+  column-gap: 1rem;
+  align-items: start;
+  padding: 0.4rem 0.25rem;
+}
+
+._headerRow_143e5_182 {
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--bs-border-color);
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+._timeSort_143e5_204 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-transform: inherit;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+}
+
+._byHeader_143e5_220 {
+  text-align: right;
+}
+
+._row_143e5_183 {
+  border-bottom: 1px dotted var(--bs-border-color);
+  cursor: pointer;
+}
+
+/* Rows are virtualized (absolutely positioned), so :last-child would match
+   whatever row happens to render last — the bottom row is flagged by index. */
+._row_143e5_183._rowLast_143e5_231 {
+  border-bottom: none;
+}
+
+._rowSelected_143e5_235 {
+  background: var(--bs-secondary-bg);
+  outline: 1px solid var(--bs-border-color);
+  border-radius: 3px;
+}
+
+/* Hover-linked wash while the row's glyph is hovered on the rail — the
+   inset bar carries the category hue. */
+._rowWash_143e5_243 {
+  background: #faf8fd;
+}
+
+._washError_143e5_247 {
+  box-shadow: inset 2px 0 0 #b04a3c;
+  background: #fdf6f5;
+}
+
+._washLimit_143e5_252 {
+  box-shadow: inset 2px 0 0 #8a6d1a;
+  background: #fffaeb;
+}
+
+._washApproval_143e5_257 {
+  box-shadow: inset 2px 0 0 #6b4fa8;
+}
+
+._washInput_143e5_261 {
+  box-shadow: inset 2px 0 0 #1d4f7c;
+  background: #f7fafd;
+}
+
+._washInterrupt_143e5_266 {
+  box-shadow: inset 2px 0 0 #6c757d;
+  background: #f8f9fa;
+}
+
+._washCompaction_143e5_271 {
+  box-shadow: inset 2px 0 0 #2b6a94;
+  background: #f4f9fc;
+}
+
+._washScore_143e5_276 {
+  box-shadow: inset 2px 0 0 #2f8a52;
+  background: #f4faf6;
+}
+
+._time_143e5_204 {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.72rem;
+  color: var(--bs-secondary-color);
+  padding-top: 2px;
+}
+
+/* Centers the pill on the row's first text line. */
+._kindCell_143e5_289 {
+  display: flex;
+  align-items: center;
+  height: calc(0.8rem * 1.5);
+}
+
+/* Same filled pill as the filter row at 0.65rem uppercase, so a row's Kind
+   cell and its filter pill are visibly one object. */
+._kindPill_143e5_297 {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+/* Body: one size, one weight, two colours — mono separates values from
+   prose; no bold and no status colour anywhere in the cell. */
+._event_143e5_311 {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--bs-body-color);
+  line-height: 1.5;
+}
+
+._muted_143e5_318 {
+  color: var(--bs-secondary-color);
+}
+
+._mono_143e5_322 {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.75rem;
+}
+
+/* Author demoted to a right-aligned channel — user vs system at a glance. */
+._by_143e5_220 {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--bs-secondary-color);
+  text-align: right;
+  padding-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._openEvent_143e5_339 {
+  font-size: 0.72rem;
+  color: var(--bs-link-color);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+._openEvent_143e5_339:hover {
+  text-decoration: underline;
+}
+
+/* ── dark theme (mirrors the task timeline's pill overrides; Scores gets
+      its new dark variant per the handoff) ── */
+
+[data-bs-theme="dark"] ._pillAll_143e5_51._pillSelected_143e5_55 {
+  background: #dee2e6;
+  border-color: #dee2e6;
+  color: #212529;
+}
+
+[data-bs-theme="dark"] ._pillError_143e5_61 {
+  background: #322019;
+  border-color: #6b3a30;
+  color: #d98b7f;
+}
+
+[data-bs-theme="dark"] ._pillLimit_143e5_67 {
+  background: #3a3220;
+  border-color: #5c512f;
+  color: #e8d8a0;
+}
+
+[data-bs-theme="dark"] ._pillApproval_143e5_73 {
+  background: #2a2333;
+  border-color: #4a3d63;
+  color: #cbb8ec;
+}
+
+[data-bs-theme="dark"] ._pillInput_143e5_79 {
+  background: #16222e;
+  border-color: #2c4a66;
+  color: #8db8dd;
+}
+
+[data-bs-theme="dark"] ._pillInterrupt_143e5_85 {
+  background: #26282b;
+  border-color: #4a5056;
+  color: #9aa3ab;
+}
+
+[data-bs-theme="dark"] ._pillCompaction_143e5_91 {
+  background: #16242e;
+  border-color: #2b4c66;
+  color: #8fbcd9;
+}
+
+[data-bs-theme="dark"] ._pillScore_143e5_98 {
+  background: #1d2b22;
+  border-color: #2f4a3a;
+  color: #7fc79b;
+}
+
+[data-bs-theme="dark"] ._pillError_143e5_61._pillSelected_143e5_55,
+[data-bs-theme="dark"] ._pillLimit_143e5_67._pillSelected_143e5_55,
+[data-bs-theme="dark"] ._pillApproval_143e5_73._pillSelected_143e5_55,
+[data-bs-theme="dark"] ._pillInput_143e5_79._pillSelected_143e5_55,
+[data-bs-theme="dark"] ._pillInterrupt_143e5_85._pillSelected_143e5_55,
+[data-bs-theme="dark"] ._pillCompaction_143e5_91._pillSelected_143e5_55,
+[data-bs-theme="dark"] ._pillScore_143e5_98._pillSelected_143e5_55 {
+  color: #fff;
+}
+
+[data-bs-theme="dark"] ._pillError_143e5_61._pillSelected_143e5_55 {
+  background: #b04a3c;
+  border-color: #b04a3c;
+}
+
+[data-bs-theme="dark"] ._pillLimit_143e5_67._pillSelected_143e5_55 {
+  background: #8a6d1a;
+  border-color: #8a6d1a;
+}
+
+[data-bs-theme="dark"] ._pillApproval_143e5_73._pillSelected_143e5_55 {
+  background: #6b4fa8;
+  border-color: #6b4fa8;
+}
+
+[data-bs-theme="dark"] ._pillInput_143e5_79._pillSelected_143e5_55 {
+  background: #1d4f7c;
+  border-color: #1d4f7c;
+}
+
+[data-bs-theme="dark"] ._pillInterrupt_143e5_85._pillSelected_143e5_55 {
+  background: #6c757d;
+  border-color: #6c757d;
+}
+
+[data-bs-theme="dark"] ._pillCompaction_143e5_91._pillSelected_143e5_55 {
+  background: #2b6a94;
+  border-color: #2b6a94;
+}
+
+[data-bs-theme="dark"] ._pillScore_143e5_98._pillSelected_143e5_55 {
+  background: #2f8a52;
+  border-color: #2f8a52;
+}
+
+[data-bs-theme="dark"] ._rowWash_143e5_243 {
+  background: #221d2b;
+}
+
+[data-bs-theme="dark"] ._washError_143e5_247 {
+  background: #2b1f1b;
+}
+
+[data-bs-theme="dark"] ._washLimit_143e5_252 {
+  background: #2b2619;
+}
+
+[data-bs-theme="dark"] ._washApproval_143e5_257 {
+  background: #221d2b;
+}
+
+[data-bs-theme="dark"] ._washInput_143e5_261 {
+  background: #1a222b;
+}
+
+[data-bs-theme="dark"] ._washInterrupt_143e5_266 {
+  background: #222528;
+}
+
+[data-bs-theme="dark"] ._washCompaction_143e5_271 {
+  background: #19242c;
+}
+
+[data-bs-theme="dark"] ._washScore_143e5_276 {
+  background: #1c2620;
+}
+._container_pqeak_1 {
+  padding: 0.5em 1em 1em 1em;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+._pickerRow_pqeak_9 {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.72rem;
+  flex-wrap: wrap;
+}
+
+._caption_pqeak_17 {
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-right: 0.25rem;
+}
+
+._bandChip_pqeak_26 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+  border-radius: 999px;
+  line-height: 1.2;
+  background: none;
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+._bandChipOn_pqeak_41 {
+  border-color: var(--bs-secondary);
+  background: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
+}
+
+._bandChip_pqeak_26 i {
+  font-size: 0.7rem;
+}
+
+/* Wall clock | Turns (shared SegmentedControl) at the right end of the picker. */
+._axisToggle_pqeak_52 {
+  margin-left: auto;
+  display: inline-flex;
+}
+._toolsGrid_1qqm2_1 {
+  display: grid;
+  row-gap: 0em;
+}
+
+._tools_1qqm2_1 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 1rem;
+  margin: 0;
+  align-items: baseline;
+}
+
+._tool_1qqm2_1 {
+  padding: 0;
+  color: inherit !important;
+}
+._root_ugt1x_1 {
+  /* A var, not a plain 100vh, so a host whose chrome sits above the page
+     (scout's ProjectBar) can shrink the root via its className without a
+     cascade-order fight — an overflowing root gets its header clipped once
+     mount-time scrolling nudges the overflow-hidden ancestor. */
+  height: var(--focus-turn-view-height, 100vh);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fixed secondary header under the app chrome: agent-path breadcrumb on the
+   left; turn label + turn/lane navigation + exit-focus on the right. A
+   non-scrolling sibling of the scroll container (the column layout pins it). */
+._focusBar_ugt1x_14 {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.3rem 0.5rem;
+  background-color: var(--bs-body-bg);
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+._crumbs_ugt1x_25 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  white-space: nowrap;
+  color: var(--bs-secondary);
+}
+
+._laneName_ugt1x_33 {
+  font-weight: 500;
+}
+
+/* Breadcrumb segments that act (ancestor links, lane picker) render as plain
+   text in the bar's muted color; hover matches the bar's icon buttons. */
+._crumbButton_ugt1x_39 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+._crumbButton_ugt1x_39:hover {
+  color: var(--bs-body-color);
+  text-decoration: underline;
+}
+
+._crumbButton_ugt1x_39:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+._crumbSeparator_ugt1x_62 {
+  font-size: 0.7em;
+  opacity: 0.6;
+}
+
+._laneMenu_ugt1x_67 {
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.15em;
+}
+
+._laneMenuItem_ugt1x_73 {
+  display: block;
+  border: none;
+  background: none;
+  color: var(--bs-body-color);
+  font-family: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: var(--bs-border-radius);
+  padding: 0.1em 0.4em;
+}
+
+._laneMenuItem_ugt1x_73:hover {
+  background-color: var(--bs-secondary-bg);
+}
+
+._laneMenuItemCurrent_ugt1x_90 {
+  font-weight: 600;
+}
+
+._controls_ugt1x_94 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15em;
+  color: var(--bs-secondary);
+}
+
+._turnLabel_ugt1x_101 {
+  white-space: nowrap;
+  margin-right: 0.35em;
+}
+
+._divider_ugt1x_106 {
+  display: inline-block;
+  width: 1px;
+  align-self: stretch;
+  background-color: var(--bs-border-color);
+  margin: 2px 0.5em;
+  opacity: 0.5;
+}
+
+._button_ugt1x_115 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.3em;
+  border: none;
+  background: none;
+  color: var(--bs-secondary);
+  cursor: pointer;
+  line-height: 1.6;
+  text-decoration: none;
+}
+
+._button_ugt1x_115:hover:not(:disabled) {
+  color: var(--bs-body-color);
+}
+
+._button_ugt1x_115:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+._button_ugt1x_115:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Only the scroll container flexes. Host-provided header chrome must not
+   shrink: an overflow:hidden header (scout's navbar) has no automatic
+   min-height, so with the scroller's content-sized flex basis it would get
+   crushed whenever the focused turn is taller than the viewport. */
+._root_ugt1x_1 > :not(._container_ugt1x_146) {
+  flex-shrink: 0;
+}
+
+._container_ugt1x_146 {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 0.5rem 1rem;
+}
+
+/* A single focused event isn't a transcript list — drop the per-card box and
+   the expanded-boundary gutter (both are transcript-row chrome). Keep the
+   background so the model's sticky header stays opaque as content scrolls. */
+._container_ugt1x_146 [id^="event-panel-"] {
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0;
+}
+
+/* Sample/transcript-level error strip: persistent on every focused turn
+   (only the last turn's slice carries the actual error card). */
+._errorStrip_ugt1x_168 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  width: 100%;
+  border: none;
+  border-bottom: solid 1px var(--bs-border-color);
+  background: var(--bs-danger-bg-subtle);
+  color: var(--bs-danger-text-emphasis);
+  font-size: 0.8rem;
+  padding: 0.25rem 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+._errorStripLabel_ugt1x_183 {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+._errorStripMessage_ugt1x_191 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Zero-height sticky dock so mounting the bar never shifts the event list;
+   it centers the bar over the events column. Sits above the sticky card
+   headers (z-index 1) and the swimlanes (500). `top` is set inline to the
+   chrome offset. */
+._dock_1hs1n_5 {
+  position: sticky;
+  z-index: 600;
+  height: 0;
+  display: flex;
+  justify-content: center;
+  /* The zero-height dock would otherwise stretch the bar to its own height,
+     collapsing the bar's vertical padding. */
+  align-items: flex-start;
+  pointer-events: none;
+}
+
+._bar_1hs1n_17 {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 12px 16px;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+._title_1hs1n_30 {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+/* Width is set inline (fits the placeholder range / prefilled value). */
+._input_1hs1n_39 {
+  padding: 2px 6px;
+  font-size: 12.5px;
+  color: var(--bs-body-color);
+  background: var(--bs-body-bg);
+  border: 1px solid var(--inspect-focus-border-color);
+  border-radius: var(--bs-border-radius);
+  outline: none;
+}
+
+._input_1hs1n_39:focus {
+  box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.18);
+}
+
+._input_1hs1n_39::placeholder {
+  color: var(--bs-tertiary-color);
+}
+
+._range_1hs1n_57 {
+  font-size: 13px;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+._divider_1hs1n_63 {
+  width: 1px;
+  height: 18px;
+  background: var(--bs-border-color);
+}
+
+._hint_1hs1n_69 {
+  font-size: 11.5px;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+._hintKey_1hs1n_75 {
+  font-weight: 600;
+}
+
+._close_1hs1n_79 {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 15px;
+  color: var(--bs-secondary-color);
+  cursor: pointer;
+  line-height: 1;
+}
+
+._close_1hs1n_79:hover {
+  color: var(--bs-body-color);
+}
+._selectorContainer_djjmp_1 {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 2px;
+}
+
+._selectorButton_djjmp_8 {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius-pill, 999px);
+  padding: 0 8px;
+  font-size: var(--inspect-font-size-smallest);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+._selectorButton_djjmp_8:hover {
+  background-color: var(--bs-tertiary-bg);
+}
+
+._chevron_djjmp_28 {
+  font-size: 0.6em;
+  margin-left: 1px;
+}
+
+._backdrop_djjmp_33 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 998;
+}
+
+._dropdownMenu_djjmp_42 {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 2px;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15);
+  z-index: 999;
+  min-width: 100%;
+  overflow: hidden;
+  padding: 2px 0;
+}
+
+._dropdownItem_djjmp_57 {
+  display: block;
+  width: 100%;
+  padding: 2px 10px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--bs-body-color);
+  font-size: var(--inspect-font-size-smallest);
+  white-space: nowrap;
+}
+
+._dropdownItem_djjmp_57:hover {
+  background-color: var(--bs-tertiary-bg);
+}
+
+._dropdownItemActive_djjmp_74 {
+  font-weight: 600;
+}
+._selectBox_19rqv_1 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  padding: 0;
+  margin-right: 0.15em;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.25em;
+  background-color: var(--bs-body-bg);
+  color: #fff;
+  font-size: 0.9rem;
+  line-height: 1;
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+._selectBox_19rqv_1._selectBoxChecked_19rqv_19 {
+  opacity: 1;
+  background-color: var(--bs-primary);
+  border-color: var(--bs-primary);
+}
+
+._selectBox_19rqv_1:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 1px;
+}
+
+._selectBox_19rqv_1 i {
+  font-size: 0.75em;
+  line-height: 1;
+}
+._title_9b4ex_1 {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  column-gap: 0.3em;
+}
+
+._title_9b4ex_1._selectable_9b4ex_7 {
+  grid-template-columns: max-content max-content max-content minmax(0, 1fr);
+  align-items: center;
+}
+
+/* Selected for export — EventPanel's edge + tint; margin absorbs the border. */
+._contents_9b4ex_13._selected_9b4ex_13 {
+  border-left: 3px solid var(--inspect-jump-target-ring-color);
+  margin-left: -2px;
+  background-color: rgba(77, 126, 191, 0.05);
+}
+
+._contents_9b4ex_13 {
+  padding: 0.4em;
+  margin-bottom: 0;
+  border: solid 1px var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+}
+
+._below_9b4ex_26 {
+  margin-top: 0.4em;
+}
+._headline_1l22a_1 {
+  display: block;
+  min-width: 0;
+}
+
+._inlineExplanation_1l22a_6 {
+  margin-left: 0.3em;
+}
+
+._rejected_1l22a_10 {
+  color: var(--bs-danger);
+}
+._panel_8zdtn_1 {
+  margin: 0.5em 0;
+}
+._tab_1je38_1 {
+  min-width: 4rem;
+  padding: 0.1rem 0.6rem;
+  border-radius: var(--bs-border-radius);
+}
+._wrapper_og902_1 {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 0;
+  flex: 1;
+}
+
+._navs_og902_10 {
+  margin-right: 0;
+  flex-wrap: nowrap;
+}
+
+/* Off-screen single-line copy of the pills used to measure the natural
+   width that determines whether to render tabs or the picker. */
+._probe_og902_17 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  width: max-content;
+  flex-wrap: nowrap;
+}
+
+._probeItem_og902_27 {
+  min-width: 4rem;
+  padding: 0.1rem 0.6rem;
+  white-space: nowrap;
+}
+._trigger_nqyxq_1 {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.6rem;
+  border: none;
+  border-radius: var(--bs-border-radius);
+  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+  cursor: pointer;
+  /* `.nav-link.active` colors only apply inside a `.nav-pills` parent;
+     the picker button isn't nested in one, so apply them directly. */
+  background-color: var(--bs-nav-pills-link-active-bg, var(--bs-primary));
+  color: var(--bs-nav-pills-link-active-color, #fff);
+}
+
+._trigger_nqyxq_1:hover {
+  filter: brightness(1.05);
+}
+
+._label_nqyxq_21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._chevron_nqyxq_27 {
+  margin-left: 0.4em;
+  font-size: 0.75em;
+  flex-shrink: 0;
+}
+
+._backdrop_nqyxq_33 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Above Bootstrap's sticky-top (1020) so sticky bars don't occlude the menu. */
+  z-index: 1049;
+}
+
+._menu_nqyxq_43 {
+  position: fixed;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.25rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  z-index: 1050;
+  overflow: hidden;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+._item_nqyxq_55 {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 0.75rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--bs-body-color);
+  white-space: nowrap;
+  transition: background-color 0.15s ease-in-out;
+}
+
+._item_nqyxq_55:hover {
+  background-color: var(--bs-tertiary-bg);
+}
+
+._item_nqyxq_55:active {
+  background-color: var(--bs-secondary-bg);
+}
+
+._item_nqyxq_55._selected_nqyxq_76 {
+  background-color: var(--bs-primary);
+  color: var(--bs-light);
+}
+
+._item_nqyxq_55._selected_nqyxq_76:hover {
+  background-color: var(--bs-primary);
+  filter: brightness(1.05);
+}
+._stickyWrapper_loteg_1 {
+  position: sticky;
+  /* `top` is set inline from StickyScrollContext (the chrome offset). */
+  /* Full-bleed: cancel the parent card's padding so the sticky bar
+     spans the entire card width, then re-apply padding internally. */
+  margin: -5px -0.625rem -5px -0.625rem;
+  padding: 5px 0.625rem;
+  /* Opaque (matches the host card) even when unstuck so colored message bands
+     don't bleed through the header as it scrolls off during the push-off. */
+  background-color: inherit;
+  z-index: 1;
+  border-bottom: solid 1px transparent;
+}
+
+/* Header pinned at its sticky offset (attribute toggled by useStickyStuck). */
+._stickyWrapper_loteg_1[data-sticky-stuck] {
+  background-color: var(--bs-light);
+  border-bottom-color: var(--bs-light-border-subtle);
+}
+
+._label_loteg_21 {
+  margin-right: 0.2em;
+  justify-self: end;
+}
+
+/* Single line, truncated with an ellipsis rather than wrapping: the header's
+   grid track shrinks this cell (via `minmax(0, max-content)`) whenever the
+   turnNav cluster and/or tab picker need the room, and a wrapped second line
+   would grow the sticky header's height instead of just losing title text. */
+._title_loteg_30 {
+  min-width: 0;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._titleExtra_loteg_38 {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 0.5em;
+}
+
+._navs_loteg_45 {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+._turnLabel_loteg_52 {
+  margin-left: 1rem;
+  margin-top: 0.2rem;
+  opacity: 0.5;
+  font-size: var(--inspect-font-size-smallest);
+  white-space: nowrap;
+}
+
+._turnNav_loteg_60 {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 1rem;
+  cursor: default;
+}
+
+._turnNav_loteg_60 ._turnLabel_loteg_52 {
+  margin-left: 0;
+  margin-top: 0;
+}
+
+/* Non-capstone headers of a turn hide their cluster while the capstone is on
+   screen, revealing it only when this header is pinned. `visibility` (not
+   `display`) so the grid column keeps its width and nothing reflows. */
+._turnNavFollower_loteg_75 {
+  visibility: hidden;
+}
+
+._stickyWrapper_loteg_1[data-sticky-stuck] ._turnNavFollower_loteg_75 {
+  visibility: visible;
+}
+
+._turnLabelButton_loteg_83 {
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  padding: 2px 8px;
+  border-radius: var(--bs-border-radius);
+  cursor: pointer;
+}
+
+/* Link-like text highlight, matching the sibling chevron/focus buttons —
+   deliberately no pill hover; no other header button has a pill treatment. */
+._turnLabelButton_loteg_83:hover {
+  color: var(--bs-body-color);
+  opacity: 1;
+}
+
+._turnButton_loteg_100 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25em;
+  border: none;
+  background: none;
+  color: var(--bs-secondary);
+  cursor: pointer;
+  line-height: 1;
+  text-decoration: none;
+  font-size: var(--inspect-font-size-smallest);
+}
+
+._turnButton_loteg_100:hover:not(:disabled) {
+  color: var(--bs-body-color);
+}
+
+._turnButton_loteg_100:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+._turnButton_loteg_100:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+a._turnButton_loteg_100 {
+  padding: 0 0.4em;
+}
+
+._card_loteg_132 {
+  position: relative;
+  background-color: var(--bs-body-bg);
+  padding: 0.625rem;
+  border: solid 1px var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+}
+
+/* Landing target of the latest go-to-turn jump — persistent selection ring. */
+._card_loteg_132._jumpTarget_loteg_141 {
+  outline: 2px solid var(--inspect-jump-target-ring-color);
+  outline-offset: 2px;
+}
+
+/* Selected for export; compounded to outrank .depthRoot, margin absorbs the border like .expanded. */
+._card_loteg_132._selected_loteg_147 {
+  border-left: 3px solid var(--inspect-jump-target-ring-color);
+  margin-left: -2px;
+  background-color: rgba(77, 126, 191, 0.05);
+}
+
+._cardContent_loteg_153 {
+  padding: 0;
+  display: inherit;
+}
+
+._cardContent_loteg_153._hidden_loteg_158 {
+  display: none;
+}
+
+._hidden_loteg_158 {
+  display: none;
+}
+
+._copyLink_loteg_166 {
+  font-size: 1.2em;
+  opacity: 0;
+  padding-left: 0.2em;
+  padding-right: 0;
+  vertical-align: middle;
+  line-height: 1;
+  margin-left: 0.25em;
+}
+
+._hover_loteg_176 ._copyLink_loteg_166 {
+  opacity: 0.75;
+}
+
+/* Extra air between the turn label and the event-number pill. */
+._eventLabel_loteg_181 {
+  margin-left: 0.5em;
+}
+
+._root_loteg_185 {
+  background-color: var(--bs-light-bg-subtle);
+  border-radius: unset;
+}
+
+/* A panel showing non-summary detail gets a contrasting gray right gutter (same
+   3px width as the colorful message/tool edges, --bs-secondary so it reads in
+   both light and dark). The negative margin offsets the extra 2px over the
+   default 1px border so widening it doesn't shift the card. Compounded with
+   .card so it outranks .depthRoot's `border-right: none`, keeping the gutter on
+   depth-0 / lane-scoped events. */
+._card_loteg_132._expanded_loteg_146 {
+  border-right: 3px solid var(--bs-secondary);
+  margin-right: -2px;
+}
+
+/* The chevron button is styled down to the bare glyph — the surrounding
+   header cells supply the visual affordance. */
+._collapseToggle_loteg_203 {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+._bottomDongle_loteg_214 {
+  display: block;
+  font-family: inherit;
+  font-weight: inherit;
+  position: absolute;
+  margin: 0 auto;
+  width: fit-content;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--bs-body-bg);
+  border: solid 1px var(--bs-light-border-subtle);
+  color: var(--bs-secondary);
+  border-radius: var(--bs-border-radius);
+  padding: 0em 0.4em;
+  cursor: pointer;
+}
+
+._dongleIcon_loteg_232 {
+  padding-right: 0.3em;
+}
+
+@media print {
+  ._card_loteg_132 {
+    break-inside: avoid;
+  }
+}
+._branchPoint_w0zdg_1 {
+  --bp-bg: var(--bs-tertiary-bg, #fafbfd);
+  --bp-hairline: var(--bs-border-color, #e5e7eb);
+  --bp-segmented-border: var(--bs-border-color, #d1d5db);
+  --bp-segmented-bg: var(--bs-body-bg, #ffffff);
+  --bp-label: var(--bs-secondary-color, #6b7280);
+  --bp-active-bg: var(--bs-secondary-bg, #e5e7eb);
+
+  background: var(--bp-bg);
+  border-top: 1px solid var(--bp-hairline);
+  border-bottom: 1px solid var(--bp-hairline);
+  padding: 6px 18px;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+._label_w0zdg_20 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+._glyph_w0zdg_27 {
+  display: inline-flex;
+  align-items: center;
+  color: var(--bp-label);
+  font-size: 14px;
+  line-height: 1;
+  flex: none;
+}
+
+._labelText_w0zdg_36 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bp-label);
+}
+
+._segmented_w0zdg_44 {
+  display: inline-flex;
+  border: 1px solid var(--bp-segmented-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bp-segmented-bg);
+}
+
+._segment_w0zdg_44 {
+  all: unset;
+  padding: 3px 12px;
+  background: var(--bp-segmented-bg);
+  color: var(--bp-label);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-left: 1px solid var(--bp-segmented-border);
+  user-select: none;
+}
+._segment_w0zdg_44:first-of-type {
+  border-left: 0;
+}
+._segment_w0zdg_44:hover:not([aria-checked="true"]):not(:disabled) {
+  background: var(--bp-active-bg);
+  color: var(--bs-body-color, inherit);
+}
+._segment_w0zdg_44[aria-checked="true"] {
+  background: var(--bp-active-bg);
+  color: var(--bs-body-color, inherit);
+  font-weight: 600;
+  cursor: default;
+}
+._segment_w0zdg_44:disabled:not([aria-checked="true"]) {
+  cursor: default;
+}
+._segment_w0zdg_44:focus-visible {
+  outline: 2px solid var(--bp-segmented-border);
+  outline-offset: 2px;
+}
+
+._continuesGlyph_w0zdg_87 {
+  width: 9px;
+  height: 9px;
+  fill: currentColor;
+  flex: none;
+  opacity: 0.85;
+}
+._panel_1us8t_1 {
+  margin: 0.2em 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1em;
+  row-gap: 0.3em;
+  align-items: baseline;
+}
+
+._rowValue_1us8t_10 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+}
+
+._files_1us8t_16 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  font-family: var(--bs-font-monospace);
+}
+
+._file_1us8t_16 {
+  overflow-wrap: anywhere;
+}
+
+._fileOverflow_1us8t_27 {
+  font-style: italic;
+  opacity: 0.7;
+}
+._panel_8zdtn_1 {
+  margin: 0.5em 0;
+}
+._empty_f9al6_1 {
+  padding: 0 18px 14px;
+  color: var(--bs-secondary-color, #6b7280);
+}
+
+._headline_f9al6_6 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
+}
+
+._detail_f9al6_12 {
+  font-size: 12.5px;
+  margin-top: 4px;
+}
+
+._detail_f9al6_12 code {
+  background: var(--bs-body-bg, #ffffff);
+  border: 1px solid var(--bs-border-color, #e5e7eb);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 11.5px;
+  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
+}
+._panel_vz394_1 {
+  margin: 0.2em 0;
+}
+._grid_1pgwi_1 {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr max-content;
+  column-gap: 1em;
+}
 ._container_1ww70_1 {
   margin: 1em 0 0 0;
 }
@@ -23569,44 +24702,44 @@ a._turnButton_loteg_100 {
   --srb-bg: oklch(0.29 0.005 260);
   --srb-bd: oklch(0.42 0.008 260);
 }
-._container_12m69_1 {
+._container_17lir_1 {
   margin: 0.5em 0 0 0;
   width: 100%;
 }
 
-._all_12m69_6 {
+._all_17lir_6 {
   display: flex;
   flex-direction: column;
   gap: 1em;
 }
 
-._tableSelection_12m69_12 {
+._tableSelection_17lir_12 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._config_12m69_18 {
+._config_17lir_18 {
   margin-top: 0;
 }
 
-._codePre_12m69_22 {
+._codePre_17lir_22 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_12m69_22 {
+._code_17lir_22 {
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-._progress_12m69_34 {
+._progress_17lir_34 {
   margin-left: 0;
 }
 
-._error_12m69_38 {
+._error_17lir_38 {
   color: var(--bs-danger);
   padding: 0.5em;
   border: 1px solid var(--bs-danger);
@@ -23617,7 +24750,7 @@ a._turnButton_loteg_100 {
   margin: 0.5em 0;
 }
 
-._cancelled_12m69_49 {
+._cancelled_17lir_49 {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -23630,12 +24763,12 @@ a._turnButton_loteg_100 {
   margin: 0.5em 0;
 }
 
-._showAllLink_12m69_62 {
+._showAllLink_17lir_62 {
   text-align: center;
   padding: 0.5em 0 0.7em;
 }
 
-._showAllLink_12m69_62 button {
+._showAllLink_17lir_62 button {
   padding: 0;
   border: none;
   background: none;
@@ -23645,20 +24778,20 @@ a._turnButton_loteg_100 {
   text-decoration: none;
 }
 
-._showAllIcon_12m69_77 {
+._showAllIcon_17lir_77 {
   margin-right: 0.35em;
 }
 
-._showAllLink_12m69_62 button:hover {
+._showAllLink_17lir_62 button:hover {
   color: var(--bs-body-color);
   text-decoration: underline;
 }
 
-._toolConfig_12m69_86 {
+._toolConfig_17lir_86 {
   padding-top: 0.5em;
 }
 
-._toolChoice_12m69_90 {
+._toolChoice_17lir_90 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   display: grid;
   grid-template-columns: max-content minmax(0, auto);
@@ -23668,8 +24801,54 @@ a._turnButton_loteg_100 {
   overflow-wrap: anywhere;
 }
 
-._fallbackBadge_12m69_100 {
+._fallbackBadge_17lir_100 {
   font-style: italic;
+}
+
+._providerIds_17lir_104 {
+  display: grid;
+  grid-template-columns: auto auto auto max-content;
+  column-gap: 1em;
+}
+
+._providerIdRow_17lir_110 {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: baseline;
+  padding-block: 3px;
+  border-bottom: 1px dotted var(--bs-light-border-subtle);
+}
+
+._providerIdRow_17lir_110:last-child {
+  border-bottom: none;
+}
+
+._providerIdRow_17lir_110 button {
+  padding: 0;
+  line-height: 1;
+  align-self: center;
+}
+
+._providerIdLabel_17lir_129 {
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smallest);
+  color: var(--bs-secondary);
+}
+
+._providerIdValue_17lir_135 {
+  font-family: var(--bs-font-monospace);
+  color: var(--bs-body-color);
+  overflow-wrap: anywhere;
+}
+
+._providerIdStatus_17lir_141 {
+  color: var(--bs-secondary);
+  font-feature-settings: "tnum";
+}
+
+._providerIdFailed_17lir_146 {
+  color: var(--bs-danger);
 }
 ._noMargin_1a3fk_1 {
   margin-bottom: 0;
@@ -25313,6 +26492,25 @@ a._turnButton_loteg_100 {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Cell helpers exposed for column renderers. */
+._cell_8nkqa_2 {
+  line-height: var(--bs-body-line-height);
+}
+
+._wrapAnywhere_8nkqa_6 {
+  overflow-wrap: break-word;
+}
+
+._noLeft_8nkqa_10 {
+  padding-left: 0;
+}
+
+._score_8nkqa_14 {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 ._panel_h02oy_1 {
   background: transparent;
   display: flex;
@@ -26621,25 +27819,6 @@ pre._value_8citi_25 {
    * sample count past the viewport. Shrinking to the pane makes the grid
    * the horizontal scroller and keeps the footer pinned in view. */
   min-width: 0;
-}
-/* Cell helpers exposed for column renderers. */
-._cell_8nkqa_2 {
-  line-height: var(--bs-body-line-height);
-}
-
-._wrapAnywhere_8nkqa_6 {
-  overflow-wrap: break-word;
-}
-
-._noLeft_8nkqa_10 {
-  padding-left: 0;
-}
-
-._score_8nkqa_14 {
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 ._container_1tduz_1 {
   display: flex;
@@ -28080,7 +29259,7 @@ pre._value_8citi_25 {
 /* "Refined Classic" look: hairline rows, no wrapper/column chrome, muted
    headers, Bootstrap-variable colors so it tracks light/dark mode. */
 
-._gridContainer_t8clh_4 {
+._gridContainer_1o53x_4 {
   max-width: 100%;
   max-height: 60vh;
   overflow: auto;
@@ -28088,19 +29267,18 @@ pre._value_8citi_25 {
 }
 
 /* Title-region summary card: size to content, no inner scroll/padding. */
-._cardContainer_t8clh_12 {
+._cardContainer_1o53x_12 {
   max-width: 100%;
   overflow: visible;
 }
 
-._groupGrid_t8clh_17 + ._groupGrid_t8clh_17 {
+._groupGrid_1o53x_17 + ._groupGrid_1o53x_17 {
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: solid 1px var(--bs-light-border-subtle);
 }
 
-._table_t8clh_23 {
-  table-layout: fixed;
+._table_1o53x_23 {
   border-collapse: separate;
   border-spacing: 0;
   background-color: transparent;
@@ -28108,15 +29286,15 @@ pre._value_8citi_25 {
   font-size: 12px;
 }
 
-._table_t8clh_23 th,
-._table_t8clh_23 td {
+._table_1o53x_23 th,
+._table_1o53x_23 td {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   padding: 0 12px;
 }
 
-._table_t8clh_23 td {
+._table_1o53x_23 td {
   height: 32px;
   border-bottom: 1px solid var(--bs-border-color-translucent);
   font-variant-numeric: tabular-nums;
@@ -28130,7 +29308,7 @@ pre._value_8citi_25 {
 /* 0.8rem / 500 matches what the AG grid actually rendered (its theme's
    headerFontSize param never took effect; headers inherited the app's
    0.8rem with AG's default 500 header weight). */
-._table_t8clh_23 th {
+._table_1o53x_23 th {
   height: 28px;
   border-bottom: 1px solid var(--bs-border-color);
   background-color: var(--bs-light-bg-subtle);
@@ -28142,12 +29320,12 @@ pre._value_8citi_25 {
 
 /* Group header row: unlabeled cells (placeholders over ungrouped columns)
    drop their bottom border so the column reads as one tall header cell. */
-._groupRow_t8clh_66 th {
+._groupRow_1o53x_65 th {
   height: 24px;
   border-bottom-color: transparent;
 }
 
-._groupRow_t8clh_66 th._groupLabel_t8clh_71 {
+._groupRow_1o53x_65 th._groupLabel_1o53x_70 {
   border-bottom-color: var(--bs-border-color);
   text-align: center;
   text-transform: uppercase;
@@ -28156,13 +29334,13 @@ pre._value_8citi_25 {
 
 /* `.table th`/`.table td` outrank single-class selectors, so these
    per-column overrides repeat the element for equal-or-higher specificity. */
-._table_t8clh_23 th._numericHeader_t8clh_80,
-._table_t8clh_23 td._numericCell_t8clh_81 {
+._table_1o53x_23 th._numericHeader_1o53x_79,
+._table_1o53x_23 td._numericCell_1o53x_80 {
   text-align: right;
 }
 
 /* Scorer column reads as the row label — a touch heavier + higher contrast. */
-._scorerCell_t8clh_86 {
+._scorerCell_1o53x_85 {
   font-weight: 500;
   color: var(--bs-emphasis-color);
 }
@@ -28170,54 +29348,78 @@ pre._value_8citi_25 {
 /* Breathing room at the edges so values don't sit flush with the modal
    border (and so the last column doesn't get overlapped by the vertical
    scroll bar). */
-._table_t8clh_23 th._scorerHeader_t8clh_94,
-._table_t8clh_23 td._scorerCell_t8clh_86 {
+._table_1o53x_23 th._scorerHeader_1o53x_93,
+._table_1o53x_23 td._scorerCell_1o53x_85 {
   padding-left: 1rem;
 }
 
-._table_t8clh_23 th._lastHeader_t8clh_99,
-._table_t8clh_23 td._lastCell_t8clh_100 {
+._table_1o53x_23 th._lastHeader_1o53x_98,
+._table_1o53x_23 td._lastCell_1o53x_99 {
   padding-right: 0.5rem;
 }
 
-._sortable_t8clh_104 {
+._sortable_1o53x_103 {
   cursor: pointer;
   user-select: none;
 }
 
-._headerLabel_t8clh_109 {
+._headerLabel_1o53x_108 {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   max-width: 100%;
 }
 
-._sortIcon_t8clh_116 {
+._sortIcon_1o53x_115 {
   font-size: 10px;
 }
 
-._compact_t8clh_120 th,
-._compact_t8clh_120 td {
+._sortIconIdle_1o53x_119 {
+  visibility: hidden;
+}
+
+/* The full view auto-sizes columns so names read in full (only the compact
+   card truncates). Full width lets stacked group tables line up: the scorer
+   column absorbs the slack, keeping metric columns flush right. */
+._table_1o53x_23:not(._compact_1o53x_126) {
+  width: 100%;
+}
+
+/* A scorer name too long for the capped dialog wraps, not ellipsizes. */
+._table_1o53x_23:not(._compact_1o53x_126) td._scorerCell_1o53x_85 {
+  min-width: 180px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+._compact_1o53x_126 {
+  table-layout: fixed;
+}
+
+._compact_1o53x_126 th,
+._compact_1o53x_126 td {
   padding: 0 8px;
 }
 
-._compact_t8clh_120 td {
+._compact_1o53x_126 td {
   height: 26px;
 }
 
 /* Inline card sits on the title-bar surface — let it show through rather
    than painting its own header chrome, and don't leave a floating rule
    under the last row. */
-._compact_t8clh_120 th {
+._compact_1o53x_126 th {
   height: 24px;
   background-color: transparent;
 }
 
-._compact_t8clh_120 tbody tr:last-child td {
+._compact_1o53x_126 tbody tr:last-child td {
   border-bottom: none;
 }
 
-._compact_t8clh_120 ._groupRow_t8clh_66 th {
+._compact_1o53x_126 ._groupRow_1o53x_65 th {
   height: 20px;
 }
 ._unscoredSamples_1h85z_1 {
