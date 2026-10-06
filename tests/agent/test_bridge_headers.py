@@ -10,9 +10,11 @@ import pytest
 
 from inspect_ai._util import logger as inspect_logger
 from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge.bridge import (
     _ALLOWED_BRIDGE_HEADERS,
     filter_bridge_headers,
+    resolve_forward_client_headers,
 )
 from inspect_ai.agent._bridge.sandbox.service import generate_anthropic
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
@@ -130,40 +132,6 @@ class TestFilterBridgeHeaders:
         result = filter_bridge_headers(headers)
         assert result == {"anthropic-beta": "code-execution-2025-08-25"}
 
-    def test_anthropic_beta_restricted_to_allowed_betas(self):
-        """Only allowed betas survive; whitespace around values is tolerated."""
-        inspect_logger._warned.clear()
-        headers = {"Anthropic-Beta": "beta-a-2026-01-01, beta-b-2026-01-01,beta-c"}
-        result = filter_bridge_headers(
-            headers,
-            allowed_anthropic_betas=frozenset({"beta-a-2026-01-01", "beta-c"}),
-        )
-        assert result == {"Anthropic-Beta": "beta-a-2026-01-01,beta-c"}
-        assert [m for m in inspect_logger._warned if "beta-" in m] == [
-            "Agent bridge dropped Anthropic beta 'beta-b-2026-01-01' requested by "
-            "the sandboxed agent. To forward it, add it to "
-            "sandbox_agent_bridge(allowed_anthropic_betas=...)."
-        ]
-
-    def test_anthropic_beta_dropped_when_no_betas_allowed(self):
-        """With an empty allowlist the header is removed; other headers remain."""
-        inspect_logger._warned.clear()
-        headers = {
-            "anthropic-beta": "context-1m-2025-08-07",
-            "Accept-Encoding": "gzip, br",
-        }
-        result = filter_bridge_headers(headers, allowed_anthropic_betas=frozenset())
-        assert result == {"Accept-Encoding": "gzip, br"}
-        assert any("context-1m-2025-08-07" in m for m in inspect_logger._warned)
-
-    def test_anthropic_beta_only_header_dropped_returns_none(self):
-        """Dropping the only forwarded header leaves no headers to forward."""
-        result = filter_bridge_headers(
-            {"anthropic-beta": "beta-d-2026-01-01"},
-            allowed_anthropic_betas=frozenset(),
-        )
-        assert result is None
-
     def test_anthropic_version_stripped(self):
         """Test that anthropic-version header is dropped.
 
@@ -253,6 +221,115 @@ class TestFilterBridgeHeaders:
         }
 
 
+def _sandbox_filter(
+    headers: dict[str, str], forward_client_headers: dict[str, list[str]] | None
+) -> dict[str, str] | None:
+    return filter_bridge_headers(
+        headers,
+        forward_client_headers=resolve_forward_client_headers(forward_client_headers),
+    )
+
+
+class TestForwardClientHeaders:
+    """The sandbox bridge's `forward_client_headers` allowlist."""
+
+    def setup_method(self) -> None:
+        inspect_logger._warned.clear()
+        bridge_module._logged_unlisted_client_headers.clear()
+
+    def test_default_forwards_only_accept_encoding(self) -> None:
+        headers = {
+            "anthropic-beta": "context-1m-2025-08-07",
+            "Accept-Encoding": "gzip, br",
+            "x-custom-header": "value",
+        }
+        assert _sandbox_filter(headers, None) == {"Accept-Encoding": "gzip, br"}
+        assert bridge_module._logged_unlisted_client_headers == {
+            "anthropic-beta",
+            "x-custom-header",
+        }
+
+    def test_unlisted_and_blocked_headers_not_warned(self) -> None:
+        headers = {
+            "x-stainless-os": "Linux",
+            "authorization": "Bearer secret",
+            "x-custom-header": "value",
+        }
+        assert _sandbox_filter(headers, None) is None
+        _sandbox_filter(headers, None)
+        # unlisted names are logged once each at info level; blocked ones never
+        assert bridge_module._logged_unlisted_client_headers == {"x-custom-header"}
+        assert inspect_logger._warned == []
+
+    def test_listed_values_forwarded_and_others_dropped_with_warning(self) -> None:
+        """Only listed tokens survive; whitespace around them is tolerated."""
+        headers = {"Anthropic-Beta": "beta-a-2026-01-01, beta-b-2026-01-01,beta-c"}
+        result = _sandbox_filter(
+            headers, {"anthropic-beta": ["beta-a-2026-01-01", "beta-c"]}
+        )
+        assert result == {"Anthropic-Beta": "beta-a-2026-01-01,beta-c"}
+        assert inspect_logger._warned == [
+            "Agent bridge dropped 'beta-b-2026-01-01' from the sandboxed agent's "
+            "'anthropic-beta' header. To forward it, add it to "
+            "sandbox_agent_bridge(forward_client_headers=...)."
+        ]
+
+    def test_header_dropped_when_no_values_remain(self) -> None:
+        result = _sandbox_filter(
+            {"anthropic-beta": "beta-d-2026-01-01", "Accept-Encoding": "br"},
+            {"anthropic-beta": ["beta-a-2026-01-01"]},
+        )
+        assert result == {"Accept-Encoding": "br"}
+        assert any("beta-d-2026-01-01" in m for m in inspect_logger._warned)
+
+    def test_header_names_case_insensitive(self) -> None:
+        result = _sandbox_filter(
+            {"X-MY-HEADER": "on"}, {"x-My-Header": ["on"], "X-Other": ["1"]}
+        )
+        assert result == {"X-MY-HEADER": "on"}
+
+    def test_listing_accept_encoding_narrows_it(self) -> None:
+        result = _sandbox_filter(
+            {"accept-encoding": "gzip, br, zstd"}, {"Accept-Encoding": ["br"]}
+        )
+        assert result == {"accept-encoding": "br"}
+
+    def test_bare_string_mapping_rejected(self) -> None:
+        with pytest.raises(TypeError, match="forward_client_headers"):
+            resolve_forward_client_headers(cast(Any, "anthropic-beta"))
+
+    def test_non_mapping_rejected(self) -> None:
+        with pytest.raises(TypeError, match="forward_client_headers"):
+            resolve_forward_client_headers(cast(Any, ["anthropic-beta"]))
+
+    def test_bare_string_values_rejected(self) -> None:
+        """A bare string would otherwise become a set of its characters."""
+        with pytest.raises(TypeError, match="anthropic-beta"):
+            resolve_forward_client_headers(
+                cast(Any, {"anthropic-beta": "context-1m-2025-08-07"})
+            )
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "Authorization",
+            "x-api-key",
+            "Host",
+            "content-type",
+            "Content-Length",
+            "transfer-encoding",
+            "connection",
+            "anthropic-version",
+            "User-Agent",
+            "x-irid",
+            "X-Stainless-Lang",
+        ],
+    )
+    def test_blocked_header_names_rejected(self, name: str) -> None:
+        with pytest.raises(ValueError, match=name):
+            resolve_forward_client_headers({name: ["anything"]})
+
+
 class TestAllowedHeadersConfiguration:
     """Test the allowed headers configuration."""
 
@@ -326,7 +403,7 @@ class TestSandboxAnthropicRequest:
             port=13131,
             model=None,
             model_aliases={"agent-model": model},
-            allowed_anthropic_betas=["allowed-beta-2026-01-01"],
+            forward_client_headers={"anthropic-beta": ["allowed-beta-2026-01-01"]},
         )
         generate = generate_anthropic(
             cast(WebSearchProviders, None), cast(CodeExecutionProviders, None), bridge

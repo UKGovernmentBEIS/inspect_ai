@@ -1700,7 +1700,7 @@ async def test_sandbox_bridge_live_anthropic_allowed_beta_and_brotli() -> None:
         port=13131,
         model=None,
         model_aliases={"agent-model": model},
-        allowed_anthropic_betas=[beta],
+        forward_client_headers={"anthropic-beta": [beta]},
     )
     try:
         response: Any = await generate_anthropic(None, None, bridge)(

@@ -135,16 +135,19 @@ Ordinary function tools are never withheld — those are executed by the bridged
 
 For the same reason, all media content (images, audio, video, and documents) in a request to a sandbox bridge must be an inline `data:` URI. A remote URL or host path would otherwise be dereferenced outside the sandbox, on the agent's behalf.
 
-Anthropic beta features are granted the same way. An agent's SDK requests them in the `anthropic-beta` header, and some change the billing, output limits, or thinking behavior of the host's requests, so `sandbox_agent_bridge()` forwards only the betas the evaluation lists and drops others with a warning:
+Request headers are granted the same way. Apart from `Accept-Encoding`, `sandbox_agent_bridge()` drops every header the agent's SDK sends, since a header can change the billing, limits, or behavior of the host's requests (for example `anthropic-beta`, which turns on Anthropic beta features). To forward one, list the header and the values the agent may send for it:
 
 ``` python
 async with sandbox_agent_bridge(
-    state, allowed_anthropic_betas=["context-management-2025-06-27"]
+    state,
+    forward_client_headers={"anthropic-beta": ["context-management-2025-06-27"]},
 ) as bridge:
     ...
 ```
 
-Betas configured on the Inspect model itself (e.g. with the `betas` model arg) are not affected.
+Header names are case-insensitive. A comma-separated value is checked one item at a time: items you did not list are dropped with a warning, and the header is dropped if none remain. A header you did not list is logged once by name. Credentials and transport headers such as `Authorization`, `Host`, and `Content-Type` cannot be forwarded.
+
+Headers configured on the Inspect model itself (e.g. the Anthropic `betas` model arg or `extra_headers`) are not affected.
 
 None of this restricts the in-process `agent_bridge()`, where the scaffold
 already runs with the host's network and filesystem and there is no boundary to

@@ -1,5 +1,5 @@
 import contextlib
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from logging import getLogger
 from typing import TYPE_CHECKING, AsyncIterator
 
@@ -67,7 +67,7 @@ async def sandbox_agent_bridge(
     forward_generation_config: bool = False,
     approval: list["ApprovalPolicy"] | None = None,
     checkpointer: Checkpointer | None = None,
-    allowed_anthropic_betas: Sequence[str] | None = None,
+    forward_client_headers: Mapping[str, Sequence[str]] | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -164,13 +164,15 @@ async def sandbox_agent_bridge(
             state (messages, output, compaction prefix) for checkpoint backup
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
-        allowed_anthropic_betas: Anthropic beta features (`anthropic-beta`
-            header values, e.g. `"context-management-2025-06-27"`) the sandboxed
-            agent may request on its model calls. Betas the agent requests that
-            are not listed are dropped with a warning. Defaults to `None` (no
-            agent-requested betas are forwarded), since a beta can change
-            billing, output limits or thinking behavior of the host's requests.
-            Betas configured on the Inspect model itself are unaffected.
+        forward_client_headers: Client request headers the sandboxed agent may
+            send to the model provider, mapping each header name
+            (case-insensitive) to its allowed values, e.g.
+            `{"anthropic-beta": ["context-management-2025-06-27"]}`. A
+            comma-separated value is matched one item at a time; items not
+            listed are dropped with a warning, and the header is dropped when
+            none remain. Defaults to `None`: no client header is forwarded
+            except `Accept-Encoding`. Credentials and transport headers (e.g.
+            `Authorization`, `Host`, `Content-Type`) cannot be listed.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -215,7 +217,7 @@ async def sandbox_agent_bridge(
                 approval=approval,
                 checkpointer=checkpointer,
                 allow_remote_mcp=allow_remote_mcp,
-                allowed_anthropic_betas=allowed_anthropic_betas,
+                forward_client_headers=forward_client_headers,
             )
 
             # register bridged tools with the bridge

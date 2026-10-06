@@ -142,7 +142,7 @@ def generate_completions(
         completion = await inspect_completions_api_request(
             json_data,
             filter_bridge_headers(
-                headers, allowed_anthropic_betas=bridge.allowed_anthropic_betas
+                headers, forward_client_headers=bridge.forward_client_headers
             ),
             bridge,
         )
@@ -163,7 +163,7 @@ def generate_responses(
         completion = await inspect_responses_api_request(
             json_data,
             filter_bridge_headers(
-                headers, allowed_anthropic_betas=bridge.allowed_anthropic_betas
+                headers, forward_client_headers=bridge.forward_client_headers
             ),
             web_search,
             code_execution,
@@ -186,7 +186,7 @@ def generate_anthropic(
         completion = await inspect_anthropic_api_request(
             json_data,
             filter_bridge_headers(
-                headers, allowed_anthropic_betas=bridge.allowed_anthropic_betas
+                headers, forward_client_headers=bridge.forward_client_headers
             ),
             web_search,
             code_execution,

@@ -774,7 +774,7 @@ def test_sandbox_bridge_forwards_allowed_betas_and_decodes_brotli() -> None:
             async with sandbox_agent_bridge(
                 state,
                 model_aliases={"agent-model": target_model},
-                allowed_anthropic_betas=["allowed-beta-2026-01-01"],
+                forward_client_headers={"anthropic-beta": ["allowed-beta-2026-01-01"]},
             ) as bridge:
                 seen.append(
                     await _mcp_http_request_with_retry(

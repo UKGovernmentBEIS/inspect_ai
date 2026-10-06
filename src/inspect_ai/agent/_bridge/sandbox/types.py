@@ -1,7 +1,7 @@
 from collections import deque
 from logging import getLogger
 from os.path import commonprefix
-from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, NamedTuple, NoReturn, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
@@ -9,6 +9,7 @@ from pydantic_core import to_jsonable_python
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
 from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
@@ -58,7 +59,7 @@ class SandboxAgentBridge(AgentBridge):
         allow_remote_mcp: bool = False,
         allow_remote_media: bool = False,
         model_resolver: ModelResolver | None = None,
-        allowed_anthropic_betas: Sequence[str] | None = None,
+        forward_client_headers: Mapping[str, Sequence[str]] | None = None,
     ) -> None:
         super().__init__(
             state,
@@ -80,12 +81,9 @@ class SandboxAgentBridge(AgentBridge):
         self.bridged_tools = {}
         self.served_tools = {}
         self.proposal_exempt_servers = proposal_exempt_servers or set()
-        if isinstance(allowed_anthropic_betas, str):
-            raise TypeError(
-                "allowed_anthropic_betas must be a list of beta names, not a "
-                f"string (got {allowed_anthropic_betas!r})."
-            )
-        self.allowed_anthropic_betas = frozenset(allowed_anthropic_betas or ())
+        self.forward_client_headers = resolve_forward_client_headers(
+            forward_client_headers
+        )
         for server, tools in (bridged_tools or {}).items():
             self.register_bridged_tools(server, tools)
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
@@ -117,10 +115,11 @@ class SandboxAgentBridge(AgentBridge):
     not guarantee that a host tool runs only for a call the model proposed.
     """
 
-    allowed_anthropic_betas: frozenset[str]
-    """Anthropic betas the sandboxed client may request via `anthropic-beta`.
+    forward_client_headers: dict[str, frozenset[str]]
+    """Client headers (lowercase name) and values the sandboxed client may send.
 
-    Client-requested betas not listed here are dropped before the host request.
+    Other client headers and values, except `Accept-Encoding`, are dropped
+    before the host request.
     """
 
     grants_tool_execution = True

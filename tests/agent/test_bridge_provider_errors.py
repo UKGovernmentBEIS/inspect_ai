@@ -113,7 +113,9 @@ def test_provider_error_payload_bare_exception() -> None:
 # ---------- _forward_provider_errors (service.py) ----------
 
 
-def _bridge(allowed_anthropic_betas: list[str] | None = None) -> SandboxAgentBridge:
+def _bridge(
+    forward_client_headers: dict[str, list[str]] | None = None,
+) -> SandboxAgentBridge:
     return SandboxAgentBridge(
         state=AgentState(messages=[]),
         filter=None,
@@ -121,7 +123,7 @@ def _bridge(allowed_anthropic_betas: list[str] | None = None) -> SandboxAgentBri
         compaction=None,
         port=13131,
         model=None,
-        allowed_anthropic_betas=allowed_anthropic_betas,
+        forward_client_headers=forward_client_headers,
     )
 
 
@@ -208,7 +210,7 @@ async def test_sandbox_generation_filters_and_forwards_client_headers(
 
     monkeypatch.setattr(bridge_service, "inspect_completions_api_request", request)
     generate = bridge_service.generate_completions(
-        _bridge(allowed_anthropic_betas=["code-execution-2025-08-25"])
+        _bridge({"anthropic-beta": ["code-execution-2025-08-25"]})
     )
 
     await generate(
@@ -242,7 +244,7 @@ async def test_sandbox_responses_filters_and_forwards_client_headers(
     generate = bridge_service.generate_responses(
         cast(WebSearchProviders, None),
         cast(CodeExecutionProviders, None),
-        _bridge(allowed_anthropic_betas=["code-execution-2025-08-25"]),
+        _bridge({"anthropic-beta": ["code-execution-2025-08-25"]}),
     )
 
     await generate(
@@ -276,7 +278,7 @@ async def test_sandbox_anthropic_filters_and_forwards_client_headers(
     generate = bridge_service.generate_anthropic(
         cast(WebSearchProviders, None),
         cast(CodeExecutionProviders, None),
-        _bridge(allowed_anthropic_betas=["code-execution-2025-08-25"]),
+        _bridge({"anthropic-beta": ["code-execution-2025-08-25"]}),
     )
 
     await generate(
@@ -294,7 +296,7 @@ async def test_sandbox_anthropic_filters_and_forwards_client_headers(
 async def test_sandbox_anthropic_forwards_only_allowed_client_betas(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Client betas reach the host request only when the eval author allows them."""
+    """Client headers reach the host request only when the eval author lists them."""
     inspect_logger._warned.clear()
     received_headers: list[dict[str, str] | None] = []
 
@@ -326,7 +328,7 @@ async def test_sandbox_anthropic_forwards_only_allowed_client_betas(
     listed_generate = bridge_service.generate_anthropic(
         cast(WebSearchProviders, None),
         cast(CodeExecutionProviders, None),
-        _bridge(allowed_anthropic_betas=["allowed-beta-2026-01-01"]),
+        _bridge({"anthropic-beta": ["allowed-beta-2026-01-01"]}),
     )
     await listed_generate({"model": "inspect"}, client_headers)
 
@@ -335,16 +337,18 @@ async def test_sandbox_anthropic_forwards_only_allowed_client_betas(
         {"accept-encoding": "gzip, br", "anthropic-beta": "allowed-beta-2026-01-01"},
     ]
     assert [m for m in inspect_logger._warned if "unlisted-beta" in m] == [
-        "Agent bridge dropped Anthropic beta 'unlisted-beta-2026-01-01' requested "
-        "by the sandboxed agent. To forward it, add it to "
-        "sandbox_agent_bridge(allowed_anthropic_betas=...)."
+        "Agent bridge dropped 'unlisted-beta-2026-01-01' from the sandboxed "
+        "agent's 'anthropic-beta' header. To forward it, add it to "
+        "sandbox_agent_bridge(forward_client_headers=...)."
     ]
 
 
-def test_sandbox_bridge_rejects_string_for_allowed_anthropic_betas() -> None:
-    """A bare string would otherwise become a set of its characters."""
-    with pytest.raises(TypeError, match="allowed_anthropic_betas"):
-        _bridge(allowed_anthropic_betas=cast(list[str], "context-1m-2025-08-07"))
+def test_sandbox_bridge_validates_forward_client_headers() -> None:
+    """Invalid allowlists fail when the bridge is constructed."""
+    with pytest.raises(TypeError, match="forward_client_headers"):
+        _bridge({"anthropic-beta": cast(list[str], "context-1m-2025-08-07")})
+    with pytest.raises(ValueError, match="Authorization"):
+        _bridge({"Authorization": ["Bearer x"]})
 
 
 async def test_sandbox_google_generation_accepts_service_headers(

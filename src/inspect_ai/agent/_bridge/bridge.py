@@ -1,7 +1,7 @@
 import contextlib
 import importlib.util
 import re
-from collections.abc import Collection
+from collections.abc import Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import wraps
@@ -59,15 +59,16 @@ if TYPE_CHECKING:
 
 logger = getLogger(__name__)
 
-# Headers forwarded from bridge clients (exact match, case-insensitive).
+# Headers forwarded from in-process bridge clients (exact match,
+# case-insensitive).
 #
-# This is an explicit allowlist, not a blocklist: a bridge client runs as
-# untrusted sandbox code, so a header that reaches the host's provider
-# request could otherwise re-route billing/tenant scope on the host's API
-# key (e.g. OpenAI's `OpenAI-Organization`/`OpenAI-Project`, Google's
-# `x-goog-user-project`) or leak other sensitive/internal state. Only
+# This is an explicit allowlist, not a blocklist: a header that reaches the
+# host's provider request could otherwise re-route billing/tenant scope on the
+# host's API key (e.g. OpenAI's `OpenAI-Organization`/`OpenAI-Project`,
+# Google's `x-goog-user-project`) or leak other sensitive/internal state. Only
 # headers with a demonstrated need for client-request fidelity are listed
-# here; everything else is dropped.
+# here; everything else is dropped. The sandbox bridge forwards
+# `accept-encoding` and the headers its `forward_client_headers` lists.
 _ALLOWED_BRIDGE_HEADERS = frozenset(
     [
         # The bridged client's supported response encodings. Forwarding
@@ -77,64 +78,146 @@ _ALLOWED_BRIDGE_HEADERS = frozenset(
         "accept-encoding",
         # Claude Code and Codex set this to opt into API features. Without
         # it the bridged agent runs against a different feature surface
-        # than the identical agent outside Inspect. The sandbox bridge
-        # narrows its values to the betas the eval author allows.
+        # than the identical agent outside Inspect.
         "anthropic-beta",
     ]
 )
+
+# Headers a sandboxed client may never set on the host's request, whatever
+# `forward_client_headers` lists: credentials, transport framing, and values
+# the provider SDK or Inspect owns.
+_BLOCKED_CLIENT_HEADERS = frozenset(
+    [
+        "authorization",
+        "x-api-key",
+        "host",
+        "content-type",
+        "content-length",
+        "transfer-encoding",
+        "connection",
+        "anthropic-version",
+        "user-agent",
+        "x-irid",
+    ]
+)
+_BLOCKED_CLIENT_HEADER_PREFIXES = ("x-stainless-",)
+
+_FORWARD_CLIENT_HEADERS_OPTION = "sandbox_agent_bridge(forward_client_headers=...)"
+
+
+def _is_blocked_client_header(lower_name: str) -> bool:
+    return lower_name in _BLOCKED_CLIENT_HEADERS or lower_name.startswith(
+        _BLOCKED_CLIENT_HEADER_PREFIXES
+    )
+
+
+def resolve_forward_client_headers(
+    forward_client_headers: Mapping[str, Sequence[str]] | None,
+) -> dict[str, frozenset[str]]:
+    """Validate `forward_client_headers`, keyed by lowercase header name.
+
+    Raises:
+        TypeError: The mapping or one of its value lists is a bare string.
+        ValueError: A header that must never cross the sandbox boundary is listed.
+    """
+    if forward_client_headers is None:
+        return {}
+    if isinstance(forward_client_headers, str) or not isinstance(
+        forward_client_headers, Mapping
+    ):
+        raise TypeError(
+            "forward_client_headers must map header names to lists of allowed "
+            f"values (got {forward_client_headers!r})."
+        )
+    resolved: dict[str, frozenset[str]] = {}
+    for name, values in forward_client_headers.items():
+        lower_name = name.lower()
+        if _is_blocked_client_header(lower_name):
+            raise ValueError(
+                f"forward_client_headers cannot list '{name}': the sandboxed agent "
+                "may never set this header on the host's model request."
+            )
+        if isinstance(values, str):
+            raise TypeError(
+                f"forward_client_headers['{name}'] must be a list of allowed "
+                f"values, not a string (got {values!r})."
+            )
+        resolved[lower_name] = resolved.get(lower_name, frozenset()) | frozenset(
+            value.strip() for value in values
+        )
+    return resolved
 
 
 def filter_bridge_headers(
     headers: dict[str, str] | None,
     *,
-    allowed_anthropic_betas: Collection[str] | None = None,
+    forward_client_headers: Mapping[str, frozenset[str]] | None = None,
 ) -> dict[str, str] | None:
     """Filter headers from bridge clients to an explicit allowlist.
 
-    Only headers in `_ALLOWED_BRIDGE_HEADERS` are forwarded to the host's
-    provider request; every other header supplied by the sandboxed client
-    is dropped, including provider tenant/billing headers such as
-    `OpenAI-Organization`, `OpenAI-Project`, or Google's
-    `x-goog-user-project`.
+    Every header supplied by the client that is not allowed is dropped,
+    including provider tenant/billing headers such as `OpenAI-Organization`,
+    `OpenAI-Project`, or Google's `x-goog-user-project`.
 
     Args:
         headers: Headers sent by the bridge client.
-        allowed_anthropic_betas: Anthropic betas the client may request. When
-            provided, `anthropic-beta` values not in this collection are
-            dropped with a warning, and the header is removed if none remain.
-            `None` forwards the client's `anthropic-beta` value as sent.
+        forward_client_headers: The sandbox bridge's allowed client headers,
+            from `resolve_forward_client_headers`. `Accept-Encoding` is
+            forwarded as sent unless listed here. A listed header keeps only
+            its listed comma-separated values (the others are dropped with a
+            warning) and is removed if none remain. `None` (the in-process
+            bridge) forwards the headers in `_ALLOWED_BRIDGE_HEADERS` as sent.
     """
     if headers is None:
         return None
     filtered: dict[str, str] = {}
     for name, value in headers.items():
         lower_name = name.lower()
-        if lower_name not in _ALLOWED_BRIDGE_HEADERS:
-            continue
-        if lower_name == "anthropic-beta" and allowed_anthropic_betas is not None:
-            value = _allowed_betas_value(value, allowed_anthropic_betas)
-            if not value:
-                continue
-        filtered[name] = value
+        if forward_client_headers is None:
+            if lower_name in _ALLOWED_BRIDGE_HEADERS:
+                filtered[name] = value
+        elif lower_name in forward_client_headers:
+            value = _allowed_header_value(
+                name, value, forward_client_headers[lower_name]
+            )
+            if value:
+                filtered[name] = value
+        elif lower_name == "accept-encoding":
+            filtered[name] = value
+        elif not _is_blocked_client_header(lower_name):
+            _log_unlisted_client_header(lower_name)
     return filtered if filtered else None
 
 
-def _allowed_betas_value(value: str, allowed: Collection[str]) -> str:
-    """Keep the allowed betas of a comma-separated `anthropic-beta` value."""
+def _allowed_header_value(name: str, value: str, allowed: frozenset[str]) -> str:
+    """Keep the allowed tokens of a comma-separated header value."""
     kept: list[str] = []
-    for beta in (b.strip() for b in value.split(",")):
-        if not beta:
+    for token in (t.strip() for t in value.split(",")):
+        if not token:
             continue
-        if beta in allowed:
-            kept.append(beta)
+        if token in allowed:
+            kept.append(token)
         else:
             warn_once(
                 logger,
-                f"Agent bridge dropped Anthropic beta '{beta}' requested by the "
-                "sandboxed agent. To forward it, add it to "
-                "sandbox_agent_bridge(allowed_anthropic_betas=...).",
+                f"Agent bridge dropped '{token}' from the sandboxed agent's "
+                f"'{name.lower()}' header. To forward it, add it to "
+                f"{_FORWARD_CLIENT_HEADERS_OPTION}.",
             )
     return ",".join(kept)
+
+
+_logged_unlisted_client_headers: set[str] = set()
+
+
+def _log_unlisted_client_header(lower_name: str) -> None:
+    """Log, once per header name, a client header the sandbox bridge dropped."""
+    if lower_name not in _logged_unlisted_client_headers:
+        _logged_unlisted_client_headers.add(lower_name)
+        logger.info(
+            f"Agent bridge did not forward the sandboxed agent's '{lower_name}' "
+            f"header. To forward it, list it in {_FORWARD_CLIENT_HEADERS_OPTION}."
+        )
 
 
 @contextlib.asynccontextmanager
