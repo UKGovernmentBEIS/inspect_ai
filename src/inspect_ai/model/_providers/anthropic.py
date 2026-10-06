@@ -820,6 +820,11 @@ class AnthropicAPI(ModelAPI):
                         request["tool_choice"] = message_tool_choice(
                             resolved_choice, config
                         )
+                        if (
+                            isinstance(resolved_choice, ToolFunction)
+                            and resolved_choice.name == "web_search"
+                        ):
+                            _allow_direct_web_search(tools_param)
 
                 # additional options
                 req, extra_body, headers, betas = self.completion_config(config)
@@ -2632,6 +2637,9 @@ def _supports_memory(model_name: str) -> bool:
     ) or _is_claude_5(model_name)
 
 
+_WEB_SEARCH_TOOL_TYPES = ("web_search_20250305", "web_search_20260209")
+
+
 def _web_search_tool_params(
     maybe_anthropic_options: object,
     web_search_filtering: bool = False,
@@ -2648,27 +2656,29 @@ def _web_search_tool_params(
             f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
         )
 
+    # an explicit search tool version (e.g. the one a bridged client declared)
+    # selects the matching search/fetch pair
+    if maybe_anthropic_options and "type" in maybe_anthropic_options:
+        tool_type = maybe_anthropic_options["type"]
+        if tool_type not in _WEB_SEARCH_TOOL_TYPES:
+            raise ValueError(
+                f"Unsupported Anthropic web_search tool type {tool_type!r} "
+                f"(supported: {', '.join(_WEB_SEARCH_TOOL_TYPES)})."
+            )
+        web_search_filtering = tool_type == "web_search_20260209"
+
     # use the dynamic filtering tool versions when supported (these run web
     # search/fetch inside the code execution sandbox so the model can filter
     # results programmatically before they enter the context window)
     web_fetch_tool: BetaWebFetchTool20250910Param | BetaWebFetchTool20260209Param
     web_search_tool: WebSearchTool20250305Param | WebSearchTool20260209Param
     if web_search_filtering:
-        # The _20260209 versions default `allowed_callers` to the code execution
-        # caller only, so a request that forces the tool (`tool_choice` naming
-        # web_search, as Claude Code's WebSearch does) is rejected with a 400.
-        # Allow both callers: dynamic filtering stays available and the model can
-        # still be told to search directly. A caller-supplied `allowed_callers`
-        # (below) overrides this.
         web_fetch_tool = BetaWebFetchTool20260209Param(
-            name="web_fetch",
-            type="web_fetch_20260209",
-            allowed_callers=["direct", "code_execution_20260120"],
+            name="web_fetch", type="web_fetch_20260209"
         )
         web_search_tool = WebSearchTool20260209Param(
             name="web_search",
             type="web_search_20260209",
-            allowed_callers=["direct", "code_execution_20260120"],
         )
     else:
         web_fetch_tool = BetaWebFetchTool20250910Param(
@@ -2774,6 +2784,23 @@ def is_web_fetch_tool(
     param: ToolParamDef,
 ) -> TypeGuard[BetaWebFetchTool20250910Param | BetaWebFetchTool20260209Param]:
     return param.get("name") == "web_fetch" and not is_tool_param(param)
+
+
+def _allow_direct_web_search(tools_param: list[ToolParamDef]) -> None:
+    """Let a forced tool choice call the dynamic filtering web search.
+
+    `web_search_20260209` defaults `allowed_callers` to the code execution
+    caller only, and the API rejects a `tool_choice` naming a tool the model
+    cannot call directly. A forced choice is a request for a direct call, so
+    add the direct caller unless `allowed_callers` was set explicitly.
+    """
+    for param in tools_param:
+        if (
+            is_web_search_tool(param)
+            and param["type"] == "web_search_20260209"
+            and "allowed_callers" not in param
+        ):
+            param["allowed_callers"] = ["direct", "code_execution_20260120"]
 
 
 def is_memory_tool(param: ToolParamDef) -> TypeGuard[BetaMemoryTool20250818Param]:

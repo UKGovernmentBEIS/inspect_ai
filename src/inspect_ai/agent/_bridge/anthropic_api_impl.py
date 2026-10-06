@@ -50,6 +50,7 @@ from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
+    _WEB_SEARCH_TOOL_TYPES,
     ToolParamDef,
     anthropic_extra_body_fields,
     assistant_message_blocks,
@@ -444,10 +445,13 @@ def resolve_web_search_providers(
     if anthropic_options is True or (
         isinstance(anthropic_options, dict) and len(anthropic_options) == 0
     ):
-        # this came from the user in the external scaffold. we want
-        # all the fields except the type as our 'web_search' config
+        # this came from the user in the external scaffold. we want all its
+        # fields as our 'web_search' config, including its tool version (e.g.
+        # Claude Code's forced WebSearch declares web_search_20250305); an
+        # unsupported version is dropped and the provider picks one
         tool_param = tool_param.copy()
-        del tool_param["type"]  # type: ignore[misc]
+        if tool_param.get("type") not in _WEB_SEARCH_TOOL_TYPES:
+            del tool_param["type"]  # type: ignore[misc]
 
         # this came from the inspect agent_bridge() call. we want
         # to replace it with whatever the user specified in the scaffold.

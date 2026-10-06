@@ -469,6 +469,32 @@ def anthropic_web_search_agent() -> Agent:
 
 
 @agent
+def anthropic_forced_web_search_agent(tool_type: str) -> Agent:
+    """Forces the named web_search tool, as Claude Code's WebSearch does."""
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            async with AsyncAnthropic() as client:
+                tools: Any = [{"type": tool_type, "name": "web_search", "max_uses": 8}]
+                await client.messages.create(
+                    model="inspect",
+                    max_tokens=4096,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": user_prompt(state.messages).text,
+                        }
+                    ],
+                    tools=tools,
+                    tool_choice={"type": "tool", "name": "web_search"},
+                )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
 def anthropic_web_search_multiturn_agent() -> Agent:
     """Two-call scaffold whose follow-up request replays the searched turn.
 
@@ -1089,6 +1115,32 @@ def test_bridged_web_search_tool_anthropic_filtering():
     assert log.samples
     model_events = [e for e in log.samples[0].events if e.event == "model"]
     assert len(model_events) >= 2
+
+
+@skip_if_no_anthropic
+def test_bridged_forced_web_search_keeps_client_version():
+    # Claude Code's forced WebSearch declares web_search_20250305; a frontier
+    # model would otherwise get web_search_20260209
+    log = eval(
+        web_search_task(anthropic_forced_web_search_agent("web_search_20250305")),
+        model="anthropic/claude-opus-5",
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"type": "web_search_20250305"' in log_json
+    assert '"type": "web_search_20260209"' not in log_json
+    check_server_tool_use(log, "web_search")
+
+
+@skip_if_no_anthropic
+def test_bridged_forced_web_search_filtering_version():
+    log = eval(
+        web_search_task(anthropic_forced_web_search_agent("web_search_20260209")),
+        model="anthropic/claude-sonnet-4-6",
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"type": "web_search_20260209"' in log_json
+    assert '"direct"' in log_json
+    check_server_tool_use(log, "web_search")
 
 
 @skip_if_no_anthropic
