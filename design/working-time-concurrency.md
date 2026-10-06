@@ -1,23 +1,22 @@
 # Working time under concurrency within a sample
 
-Status: proposed, 2026-10-01. Issue: none (design requested directly by
-Ransom). Author: agent (Claude), reviewed by Codex; see the PR.
+Status: proposed, 2026-10-01; revised 2026-10-06 with Ransom's decisions
+(listed under "Decisions"). Issue: none. Author: agent (Claude), reviewed by
+Codex; see the PR.
 
-## Why
+## Why: working time a sample is not charged for
 
 `working_limit` is documented as limiting "only the time spent working (as
 opposed to retrying in response to rate limits or waiting on other shared
 resources)" (`docs/_working_limits.md`). It is computed as wall-clock time
-since the sample started minus accumulated waiting time. The waiting ledger
-was designed for a sample that does one thing at a time. Samples now run
-model requests concurrently: parallel tool calls, sub-agents, `background()`
-workers, and sandboxed agents (Claude Code, Codex CLI and others) whose
-requests come in through the sandbox agent bridge. Under that concurrency the
-ledger is wrong in both directions.
+since the sample started minus credited waiting time. A limit like this is
+only worth having if the sample cannot get working time it is not charged
+for. On `main` it can. A model can trigger every route below, without any
+help from the eval author, by sending parallel tool calls, sub-agents or
+concurrent requests from a sandboxed agent.
 
-Measured on `main` at 0321960a92, with a fake provider and the real retry
-loop (one sample, `mockllm` as the eval model, the calls made from a custom
-solver):
+Measured on `main` at 0321960a92. The setup was one sample, a fake provider
+behind the real retry loop, and the calls made from a custom solver:
 
 | Scenario | Wall clock | Logged `working_time` |
 | --- | --- | --- |
@@ -26,67 +25,102 @@ solver):
 | The same 2 s request twice with `cache=True` (the second is a cache hit) | 2.01 s | **4.01 s** |
 | One 4 s request under `working_limit=1` | 1.01 s | limit hit at 1.0 s, mid-request |
 
-The consequences:
+The routes:
 
-1. **Waiting can exceed wall-clock time.** Retry backoff and
-   provider-internal retry time are added per call. Concurrent calls in one
-   sample add their waits together, so working time stops or goes negative,
-   and `working_limit` never trips.
-2. **One waiting task stops the whole sample's clock.** Semaphore waits are
-   merged so that the sample counts as waiting whenever at least one of its
-   tasks waits, even while other tasks in the sample are doing work. A sample
-   that always keeps one request queued, or one background call backing off,
-   gets its other work for free. A sample can arrange this without help:
-   enough concurrent requests of its own fill the connection pool, and its
-   next request waits for a slot that the sample itself holds.
-3. **Retries extend real run time past the limit.** Time spent on retried
-   attempts is excluded from working time. A sample whose requests keep
-   failing in retryable ways (timeouts on very long outputs, provider errors
-   on oversized input) runs far past `working_limit` in wall-clock time. With
-   (1) and (2), its other work can also go uncharged while it does.
+- **R1. Negative working time.** Retry backoff and the after-call
+  reconciliation are credited separately for each call. When concurrent
+  calls retry, their credits add up, so waiting time can exceed wall-clock
+  time. Four concurrent retrying calls log −12.53 s for a 4.32 s sample.
+  Once working time is negative, `working_limit` never trips, however long
+  the sample runs. This is the key result. The limit can be switched off
+  by the sample's own behaviour, and the values already reach downstream
+  consumers: METR's hawk clamps `working_time` to zero before storing it
+  (`inspect-action` at 564a080f: `hawk/core/importer/eval/converter.py:252`,
+  with a non-negative check constraint at `hawk/core/db/models.py:265`).
+- **R2. Keep one wait open.** Semaphore and connection-slot waits are
+  merged, so the sample counts as waiting whenever any of its tasks waits.
+  One background call stuck in backoff, or one task queued on a semaphore,
+  stops the clock for all other work. In the second row, 3 s of
+  semaphore-held work logs as 0.004 s.
+- **R3. Fill its own connection pool.** A sample that sends more concurrent
+  requests than `max_connections` makes its own next request wait for a
+  slot that its other requests hold. That wait is credited while those
+  requests do the work.
+- **R4. Unseen work during a credited wait.** While any credited wait is
+  open, work that Inspect cannot see is free. Examples are a background
+  process started through a sandbox exec tool, a sandboxed CLI agent's
+  local commands, or an in-process agent library's own `asyncio.gather()`
+  (an OpenAI Agents SDK agent running two parallel tool calls through
+  `agent_bridge()`).
+- **R5. Stretch waits with retryable failures.** Retried attempts and the
+  backoff after them are credited. A sample can provoke failures that are
+  retried: timeouts on very long outputs, provider errors on unusual input,
+  and some request errors the retry policy retries, such as quota 429s on
+  OpenAI-compatible providers and some Anthropic 400s
+  (`src/inspect_ai/model/_openai.py:1539`,
+  `src/inspect_ai/model/_providers/anthropic.py:1835`). Its other work goes
+  uncharged while the waits run (R2 and R4), and its wall-clock run grows.
 
-The cache-hit row is a separate defect in the same reconciliation code (a
-negative "waiting" credit); it is fixed by the same change. The last row
-shows that enforcement already charges a request while it is in flight. This
-design keeps that behaviour (see "Enforcement").
+The cache-hit row is a separate bug in the same reconciliation, which adds
+the original call's time on a hit. The last row shows that enforcement
+already charges a request while it is in flight.
+
+## Decisions (Ransom, 2026-10-06)
+
+These replace the opt-in, lane-based design of earlier revisions:
+
+1. **Default-on.** The accounting changes for everyone; there is no opt-in
+   option. The current accounting is broken (R1–R5, cache hits), so keeping
+   it as the default preserves wrong results, not reproducible ones. The
+   standing rule of 2026-09-15 (behaviour changes need explicit config)
+   protects behaviour that is correct; it does not apply to a clock that is
+   wrong.
+2. **Human approval and human input are waiting** where waiting is credited
+   at all (option A, samples with no sandbox).
+3. **No cap on credited retry time,** even with `time_limit`, `timeout` and
+   `max_retries` all unset. The docs recommend setting `time_limit` next to
+   `working_limit`.
+4. **Charge all time unless Inspect is sure everything is waiting.** An
+   in-flight model attempt is not a sure wait, so failed and timed-out
+   attempts are charged. This changes the documented contract that
+   "unsuccessful model generations" are excluded.
+5. **A sample with a sandbox is never credited.** A model with any exec tool
+   can start a background process that keeps running during a later wait.
+   Sandbox freezing is not designed.
+6. **A visible in-flight model attempt makes the sample working,** even when
+   a wait is open beside it.
+7. **No credit while an in-process `agent_bridge()` is active,** for the same
+   reason as sandboxes (R4).
+8. **Document and warn.** `working_limit` is effectively `time_limit` for
+   samples with a sandbox or an active `agent_bridge()`; warn when such a
+   sample has a `working_limit`.
+9. **No lanes.** Credit applies only when no concurrent region is open; any
+   open concurrent region means all time is charged.
+10. **Motivate from cheating** (the "Why" above).
+11. **Consider working time = wall-clock time** as a real alternative, with
+    usage data (option B below).
 
 ## Goals and non-goals
 
 Goals:
 
-- One definition of working time and waiting time that holds under
-  concurrency within a sample. Working time never exceeds wall-clock time,
-  the sample's reported (settled) working time never decreases, and one
-  waiting task does not stop the clock while other work that Inspect can
-  observe proceeds. Work Inspect cannot observe is the boundary in the
-  last non-goal.
-- One accounting model that covers every source of waiting: semaphore and
+- Close R1–R5. A sample or model cannot get working time it is not charged
+  for. Working time never exceeds wall-clock time and never decreases.
+- One rule for every source of waiting. The sources are semaphore and
   connection-slot waits, retry backoff, provider-internal retries,
-  rate-limit waits, batch waits, hard-pause holds, human approval and human
+  rate-limit waits, batch waits, hard-pause holds, human approval and
   input, and checkpoint/resume.
-- A stated rule for retries the sample itself can cause, and for whether any
-  cap applies.
-- Scoped `working_limit()` nodes (sub-agents) measured over their own work,
-  not their siblings'.
-- Deterministic tests for every worked example.
-- Existing evals keep their current numbers unless their authors opt in.
+- Applies by default, with the change in results stated per kind of eval.
+- A fair comparison with "working time is wall-clock time", including
+  usage data, and a recommendation.
 
 Non-goals:
 
-- Token and cost limits, and reserving tokens for in-flight concurrent
-  requests (out of scope per the task).
+- Token and cost limits (out of scope per the task).
 - Changing `time_limit`: it stays a wall-clock deadline.
-- Attributing an event's duration to its own lane rather than to the
-  sample. Event durations are made interval-correct (see "Event
-  durations"), but they still measure the whole sample's working time
-  during the event (see "Not this design").
-- Making Inspect see concurrency it does not create, such as an agent
-  library's own `asyncio.gather()` or local work inside a sandboxed agent
-  beside its model requests. The design states what happens there
-  (examples 12 and 13): such work can go uncharged while every request
-  Inspect sees is waiting, so consequence (2) is fixed only for
-  concurrency Inspect observes. Whether that boundary is acceptable is open
-  question 4.
+- Freezing or pausing sandboxes during waits (decision 5).
+- Credit for concurrency an eval author creates in custom solver code (their
+  own task groups); option A documents it as an accuracy limit.
 
 ## Current behaviour
 
@@ -158,8 +192,8 @@ Everything else counts as working time:
 
 - **Summing.** Direct reports are added per call. `design/ctl/pause-resume.md`
   already notes "simultaneous backoffs double-credit identically today" and
-  names "a sample-level overlap guard" as follow-up work. This design is
-  that follow-up.
+  names "a sample-level overlap guard" as follow-up work. Both options
+  below go further than an overlap guard.
 - **Merging is too generous.** "At least one task waiting" counts the whole
   sample as waiting (measured above).
 - **Merged spans go to the wrong scoped limit.** A merged span is reported
@@ -189,929 +223,500 @@ stores the root node's `usage` and `_waiting_time` as `working_elapsed` and
 prior working time (`:202`). As a result, `working_start` keeps rising across
 attempts, while the logged `working_time` covers only the current attempt.
 
-## Design
 
-### Meaning
+## Usage of `working_limit` and `working_time`
 
-**Working time** is the wall-clock time during which the sample is making
-progress or could be. **Waiting time** is the wall-clock time during which
-the sample can make no progress because everything it is doing is held back
-by something outside it. That covers shared-capacity limits, provider rate
-limits and failures, operator pauses and a person it is waiting on. Waiting
-time is a subset of the sample's timeline, so:
+Searched 2026-10-06. Private usage (AISI, METR's own runs through hawk,
+labs) is not visible to these searches, so the counts are a lower bound on
+real use and say nothing about private evals.
 
-- `working_time + waiting_time = wall-clock time`, and both are
-  non-negative. `working_time ≤ total_time` always holds.
-- Each instant counts as one or the other, once. Concurrent waits never add
-  up.
+**inspect_evals** (local checkout at 9080b5e9f, 2026-10-05, the same as
+`origin/main`; `grep -rl` over `src/`). Of 133 eval directories, 1 sets
+`working_limit`: `swe_lancer` (`swe_lancer.py:140`), which is sandboxed.
+For comparison, 14 files set `time_limit` and 26 set `message_limit`.
 
-**`time_limit` and `working_limit`.** `time_limit` bounds real run time. It
-is the backstop for everything this accounting credits, including retries
-the sample may have caused. `working_limit` bounds the time the sample
-spends working, so it is useful only when it is below `time_limit`.
-Evaluators who want both a fair budget under contention and a bound on real
-run time set both.
+**GitHub code search** (REST `search/code`, first 100 results per query, for
+`working_limit language:python` with 659 matches, `working-limit` with 1,344
+matches, and `working_time inspect_ai` with 912 matches). Most matches are
+Inspect itself, copies of Inspect vendored into other repos (inspect_arg,
+PRInTS, ResearchGym, leaven, forks), and unrelated projects that use the same
+words. What remains, after reading each file:
 
-### Lanes
+| Repository (public) | Use | Sandbox |
+| --- | --- | --- |
+| UKGovernmentBEIS/inspect_evals `swe_lancer` | `working_limit` on the task | yes (Docker) |
+| UKGovernmentBEIS/control-arena (vLLM setting smoke eval; CLI) | `--working-limit` option | yes (vLLM setting); CLI pass-through |
+| usnistgov/caisi-cyber-evals | README runs `--working-limit 7200` | yes (Docker) |
+| lyptus-research/cyber-task-horizons-data | records `working_limit` of 1800–7200 per benchmark run | yes (cyber tasks) |
+| allenai/agent-baselines (inspect-swe solvers) | README recommends `--working-limit` | yes (sandbox agent bridge) |
+| AnastasiaKWei/healthy-rl | scripts pass `--working-limit 1800` | yes (`--max-sandboxes`) |
+| boundary-bench, agent-glovebox | pass `working_limit` through to tasks | yes |
+| malidib/alidib-ukaisi | `--working-limit 250` | yes (`local` sandbox) |
+| groq/openbench `livemcpbench` | task default `working_limit=600` | none seen (react agent with MCP tools) |
+| a2ui-project/a2ui | `working_limit: 350` | none seen |
+| aisa-group/decomposing-eval-awareness (AgentHarm runner) | `--working-limit 600` | none (AgentHarm uses simulated tools) |
+| March-7/Red-Teaming-AiFChem-Agent (SOSBench runner) | `--working-limit` (default 25) | none seen |
+| compl-ai, METR hawk / inspect-action, inspect_flow | pass-through config and stored columns | depends on the task |
+| epoch-research/MirrorCode, ianarawjo/evalstats | example or simulation scripts | unclear |
+| METR/inspect-agents `human_approval.py` | a `human` approver that credits approval waits by calling the private `report_sample_waiting_time` | used with sandboxed agents |
 
-A sample's concurrent work runs in **lanes**. A lane is a line of work that,
-when not waiting, is presumed to be working. The sample's main task is the
-root lane. Inspect's own fork points give each child its own lane. Where a
-parent blocks on its children, the parent's lane is marked **joined** for
-that time (see "Fork and join sites").
+Of about fifteen real users, eleven are sandboxed and four have no sandbox
+that the search could see. The METR approver deserves its own line. It
+exists because approval waits burn `working_limit` today. It works around
+that through a private API, and it is the one concrete user found that
+depends on crediting a wait in sandboxed samples (open question 2).
 
-The design uses two separate vocabularies:
+**Consumers of the logged `working_time`.** The value is read in these
+places:
 
-- a **lane state** describes one lane at one instant: *blocked*, *in
-  flight*, *idle* or *active*;
-- an **instant classification** describes one instant in one scope (the
-  sample, or one scoped `working_limit()`): *working*, *waiting* or
-  *provisional*. Working instants add to working time and waiting instants
-  to waiting time. A provisional instant becomes one or the other once the
-  model attempts open at that instant resolve.
+- Inspect's own samples dataframe (`analysis/_dataframe/samples/columns.py:74`)
+  and events dataframe (`working_start` and `working_time`,
+  `analysis/_dataframe/events/columns.py:57`).
+- The viewer's sample activity panel and transcript timing
+  (`ts-mono/packages/inspect-components/src/sample-activity/activityData.ts:625`,
+  `:882`; `ToolEventView.tsx:132`; `SubtaskEventView.tsx:57`).
+- inspect_scout's sample metadata and columns
+  (`_transcript/sample_metadata.py:137`, `_transcript/log.py:115`).
+- hawk's importer and database column `working_time_seconds`, clamped to
+  zero (`converter.py:252`, `models.py:265`).
+- inspect_flow, which stores `working_limit` only (`_runner/task_log.py:59`).
+- Public analysis scripts: control-arena `analysis/_types.py`, a2ui
+  `eval/a2ui_eval/shared/utils.py`, inspect-mlflow, evalanche, aiq-magnet
+  and EXP-Bench utilities.
 
-The instant classification is computed from the lane states of every lane
-in the scope.
+All of them read a float in seconds. None depends on how the waiting part
+is computed.
 
-**Lane states.** Each lane is in exactly one state. The conditions are
-checked top to bottom and the first match applies:
+## Option A: credit only sure waits in a sample with nothing else going on
 
-| Lane state | Condition |
+This is decisions 1–9 applied together.
+
+### The rule
+
+At each instant a sample is either **credited** (the instant is waiting
+time) or **charged** (working time). An instant is credited only when all
+five conditions hold:
+
+1. the sample has no sandbox environment;
+2. no in-process `agent_bridge()` context is active;
+3. no concurrent region is open;
+4. no model attempt is in flight;
+5. at least one sure wait is open.
+
+Every other instant is charged. There are no lanes and no per-task state:
+the sample clock keeps four counters (bridges, regions, attempts, waits) and
+a flag for the sandbox.
+
+**Sure waits** are spans during which Inspect knows the code that opened
+them can make no progress:
+
+| Sure wait | Where it opens and closes |
 | --- | --- |
-| blocked | at least one wait span is open in the lane |
-| in flight | no wait span open, and at least one model attempt open |
-| idle | joined, with no wait span or attempt open |
-| active | not joined, with no wait span or attempt open |
+| Retry backoff sleep (`generate`, `compact`, `count_tokens`) | a tenacity `sleep=` wrapper around `anyio.sleep` in `model_retry_config()` (`src/inspect_ai/model/_retry.py`), installed when `report_waiting_time` is not `None`, so batch admin loops are excluded as today |
+| `concurrency()` semaphore wait | `sample_waiting_for()` (`working.py:76`), around the acquire only |
+| Model connection-slot wait, including the adaptive limiter | `ConnectionSlot.acquire` (`_model.py:799`) |
+| Hard-pause hold and the slot reacquire after it | `wait_generate_dispatch` (`src/inspect_ai/_control/pause.py:627`) |
+| Human approval and human input | `ActiveSample.awaiting_human()` (`log/_samples.py:369`) |
+| Batch request in the batcher's local queue, until its batch is submitted | `Batcher.generate_for_request` (`batch.py:102`), with a `submitted` event the batcher sets on submission and before delivering any result or error |
 
-A joined lane is never active, but it can still be blocked or in flight
-through its own waits and attempts. This matters when a parent makes its
-own model call while its children run, for example host-side calls inside
-a sandbox-bridge body.
+A batch request's local-queue wait is the one sure wait inside a model
+attempt. While it is open, the enclosing attempt does not count as in
+flight: the span decrements the attempt counter on entry and restores it on
+exit.
 
-**Instant classification.** For one scope, the rows are checked top to
-bottom over the lane states of all lanes in the scope, and the first match
-applies:
+**Concurrent regions** are Inspect's own fork sites. A region opens when the
+site starts running more than one thing at once and closes when the site
+finishes:
 
-| Lanes in the scope | Instant classification |
+| Site | Region |
 | --- | --- |
-| at least one active | working |
-| none active, at least one in flight | provisional: becomes working if any attempt open at that instant turns out productive, and waiting if none does (see "Model attempts") |
-| none active or in flight, at least one blocked | waiting |
-| every lane idle, or no lanes at all | working |
+| Parallel tool-call stage with two or more calls (`src/inspect_ai/model/_call_tools.py:728`) | around the stage's outer task group; one-call stages open none |
+| `collect()` with two or more tasks (`src/inspect_ai/util/_collect.py:36`) | around the task group |
+| `fork()` with a list of solvers (`src/inspect_ai/solver/_fork.py:48`) | around the `tg_collect`; a single solver (`:45`) opens none |
+| `background()` (`src/inspect_ai/util/_background.py:81`) | from the start of the background task to its end; this covers deep-agent background sub-agents, which are started through `background()` (`agent/_deepagent/agent_tool.py:620`) |
 
-The last row covers a sandboxed agent between requests: Inspect sees no
-work, but the agent is doing its own, so the instant is charged.
+A synchronous sub-agent (handoff, `as_tool`, a deep agent's foreground
+sub-agent) runs inline in its caller and opens no region.
 
-Within one lane the state is a union: one open wait span makes the lane
-blocked.
-Concurrency that Inspect does not create, such as an agent library's
-`asyncio.gather()` or a user's own task group, stays inside the caller's
-lane. It therefore falls back to today's merged behaviour (consequence (2)
-remains for it) but never to summing (consequence (1) is gone everywhere).
-When the untracked children are simply awaited by a parent that does
-nothing else, which is the common shape (for example `call_tool_task` under
-`run_one` at `_call_tools.py:611`, or the task `subtask()` creates through
-`tg_collect` at `src/inspect_ai/util/_subtask.py:154`), the union is the
-correct answer.
+**Model attempts** are counted from the start of the provider call in
+`Model._generate`'s inner `generate()` (`_model.py:1560`) to its `finally`.
+Cache hits return earlier and open no attempt. Failed, timed-out and
+cancelled attempts are charged like successful ones. The SDK's own retries
+inside an attempt are charged too, because the attempt is in flight. The
+after-call reconciliation (`_model.py:1749`) is removed.
 
-A sandboxed agent behind the bridge is the other unobserved case. Its
-requests reach the host as lanes, but its local work (shell commands, builds,
-its own tool loop) does not. While at least one of its requests is waiting
-and none is in flight, every visible lane is blocked or idle and the
-instant is waiting, even if the agent is running
-a long local command at the time (example 12).
+**Sandbox and bridge.** The sandbox flag is set when the sample clock starts.
+`init_sample_working_time()` runs after sandbox setup (`run.py:2667`, after
+`active.sandbox_environments` is set at `:2655`), and receives
+`credit_eligible = not sandbox_environments`. A `local` sandbox counts as a
+sandbox. `agent_bridge()` (`src/inspect_ai/agent/_bridge/bridge.py:100`)
+increments the bridge counter for its body. `sandbox_agent_bridge()` needs a
+sandbox, so the sandbox flag already covers it.
+
+### How each condition closes a route
+
+| Route | Closed by |
+| --- | --- |
+| R1 negative working time | one counter-based clock per sample; credit is a subset of the timeline, so `0 ≤ working_time ≤ total_time` |
+| R2 one wait kept open | condition 3: any open region, including a long-running `background()` worker, charges everything |
+| R3 own connection pool full | conditions 3 and 4: the requests holding the slots are in flight inside a region |
+| R4 unseen work | conditions 1 and 2: no credit with a sandbox or an active `agent_bridge()`. The remaining gap is an eval author's own task groups in custom solver code (accuracy limit) |
+| R5 provoked retries | condition 4: failed attempts are charged. Only backoff sleeps between attempts are credited, and only when nothing else runs, so the sample gains wall-clock time but no uncharged work |
 
 ### Worked examples
 
-Times are seconds from the sample's start. "Today" is the measured or
-code-derived result on `main`; "Proposed" is the result under this design.
+Times are seconds. "Today" is measured or derived from the code on `main`.
 
-| # | Scenario | Today | Proposed |
-| --- | --- | --- | --- |
-| 1 | Four lanes (`collect`), each: attempt 0.1 fails (retryable), backoff 2, attempt 0.1 fails, backoff 2, attempt 0.1 succeeds. Wall 4.3 | working −12.5 | All lanes in flight or blocked throughout; the failed attempts resolve as waiting, so the only productive time is the final 0.1 s. Working 0.1, waiting 4.2 |
-| 2a | Lane A holds `concurrency("k",1)` doing work for 3 s; lane B waits on it | working 0.0 | A is active throughout. Working 3.0 |
-| 2b | Main lane works for 600 s; a `background()` lane's monitor call is rate-limited the whole time | working ≈ 0 | Main lane active. Working 600 |
-| 2c | Sample fires 11 sub-agent requests at a 10-slot pool; one waits 30 s for a slot | 30 s credited | 10 lanes in flight and all succeed. Working 30 |
-| 3a | A sandboxed agent re-sends a request that the provider rejects with 400 (not retried by Inspect), 20 times at 1 s each | charged 20 (no reconciliation on failure) | Charged 20: each attempt resolves as productive (non-retryable) |
-| 3b | A request whose 300 s attempts keep timing out (retried), with nothing else running | backoff credited, and the failed attempts too if the call eventually succeeds; wall clock unbounded without `timeout` or `time_limit` | All credited (retryable, no other lane active). The bound is `time_limit` and the call's `timeout` and `max_retries`. No new cap (see "Retries the sample can cause") |
-| 3c | As 3b, while another lane runs sandbox commands through Inspect | timeout credited, the other lane's work free | The other lane is active, so working. Retries give no free time to work Inspect observes |
-| 3d | A request-attributable error that the provider's policy still retries: an OpenAI-compatible provider's `insufficient_quota` 429, an Anthropic 400 whose body contains "overloaded", or a 401 under an API-key override hook; retried until `max_retries` is exhausted | backoff credited; attempts charged (the call ends in an error, so no reconciliation) | attempts and backoff credited, including the last attempt, because credit follows the retry policy (see "Retries the sample can cause") |
-| 4 | One attempt 0–10 s succeeds; `call.time` = 4 (SDK retried internally before the last HTTP request) | 6 s credited after success | 0–6 waiting, 6–10 working |
-| 5 | A cache hit after a 2 s original call | working +2 | No attempt opened. The hit costs only its local time |
-| 6 | Lane A attempt 0–10 fails (retryable); lane B attempt 5–15 succeeds | A's 10 s credited via reconciliation, if A's call later succeeds | 0–5 waiting, 5–15 working |
-| 7 | `collect()` parent joined; both children back off 0–20, then both run | 40 credited (two backoffs, summed) | 0–20 waiting; then working |
-| 8 | Sandbox agent bridge: no request in flight 0–5; one request backing off 5–25; one in flight 25–30 while another backs off | 25 credited: 20, plus the second request's 5 s backoff while the other was in flight | 0–5 working (last row of the instant classification: the solver lane is idle and there are no request lanes), 5–25 waiting, 25–30 working if the in-flight attempt succeeds |
-| 9 | Parallel sub-agents A and B, each inside its own `working_limit(60)`; A backs off while B works | Sample: A's backoff credited, B's work free. A's limit: own backoff credited | Sample: working. A's scope: waiting. B's scope: working |
-| 10 | `pause --now`: every lane's generate parked for 120 s | 120 s per parked call, summed | 120 waiting, with no incremental credit needed (the open spans stop the clock) |
-| 11 | One lane awaits human approval for 300 s, with nothing else running | charged 300 | 300 waiting |
-| 12 | Sandbox agent bridge: one request backs off 0–60 while the agent runs a 60 s build inside the sandbox | 60 credited (the backoff) | 60 waiting: the build is not visible to Inspect and goes uncharged (open question 4) |
-| 13 | An agent library run in-process issues two requests with its own `asyncio.gather()`: one backs off 0–60, the other is in flight 0–60 and succeeds | 60 credited (the backoff) | both share the caller's lane, which is blocked while either waits: 60 waiting, the in-flight work uncharged (open question 4) |
+| # | Scenario | Today | Option A | Option B (wall clock) |
+| --- | --- | --- | --- | --- |
+| 1 | 4 `collect()`ed calls, each: 0.1 attempt fails, 2 backoff, 0.1 fails, 2 backoff, 0.1 succeeds (wall 4.3) | working −12.5 | region open: working 4.3 | 4.3 |
+| 2 | `collect()`: task A holds `concurrency("k",1)` for 3 s, task B waits on it | 0.0 | region: 3.0 | 3.0 |
+| 3 | main loop works 600 s; a `background()` monitor's call is rate-limited throughout | ≈ 0 | background region: 600 | 600 |
+| 4 | 11 parallel sub-agent calls at a 10-slot pool; one waits 30 s for a slot | 30 credited | region: charged | charged |
+| 5 | sequential react agent with a sandbox `bash` tool; a background process runs during a 60 s backoff | 60 credited | sandbox: charged | charged |
+| 6 | OpenAI Agents SDK through `agent_bridge()`: parallel tool calls, one agent-as-tool backing off 40 s, one Python tool computing 40 s | 40 credited | bridge active: charged | charged |
+| 7 | sequential, no sandbox: one 300 s attempt times out, 30 s backoff, 10 s attempt succeeds | 330 credited (if the call succeeds) | 310 charged, 30 credited | 340 charged |
+| 8 | sequential, no sandbox: a 429 followed by 120 s backoff | 120 credited | 120 credited | charged |
+| 9 | two parallel sub-agents, each inside its own `working_limit(60)`; A backs off while B works | A's own backoff credited to A's limit | region: both limits charged (a regression; see "Costs") | charged |
+| 10 | sequential, no sandbox: `pause --now` holds the call 120 s | 120 credited | 120 credited | charged |
+| 11 | sequential, no sandbox: human approval takes 300 s | charged | 300 credited | charged |
+| 12 | a cache hit after a 2 s original call | working +2 | local time only | local time only |
+| 13 | a successful 10 s attempt whose SDK retried internally (`call.time` 4) | 6 credited | charged (in flight) | charged |
+| 14 | custom solver with its own task group, no Inspect region: one task backs off 60 s, the other computes 60 s | 60 credited | 60 credited (accuracy limit) | charged |
+| 15 | sequential, no sandbox, batch mode: 15 s in the local queue, then an hour at the provider | almost nothing credited | 15 credited, the hour charged | charged |
+| 16 | any sandboxed eval (swe_lancer, cyber, inspect_swe agents) during a rate-limit storm | backoff credited | charged | charged |
 
-### Classification of each source
-
-| Source | Proposed |
-| --- | --- |
-| `concurrency()` semaphore wait | wait span on the lane that is waiting for the semaphore (the lane is blocked); holding the semaphore leaves the lane active |
-| Model connection-slot wait, including the adaptive limiter | wait span |
-| Retry backoff sleep (`generate`, `compact`, `count_tokens`) | wait span around the actual sleep. Cancelling mid-sleep credits only the time slept |
-| A `generate` attempt in flight | in flight; resolved by outcome (see "Model attempts") |
-| Retried (retryable) `generate` attempt | resolved fully non-productive: waiting unless another lane was active |
-| Non-retryable failure, cancellation, or an attempt never resolved | resolved productive: charged |
-| Provider-SDK retries inside a successful attempt | the part before `end - call.time` is non-productive, the rest productive |
-| `compact` and `count_tokens` attempts | active (charged), as today. Only their backoff is a wait |
-| Cache hit | no attempt; local work |
-| Hard-pause hold, and the slot reacquire after it | wait span |
-| Batch request in the batcher's local queue, until its batch is submitted | wait span |
-| Submitted batch request at the provider | in flight, as for any attempt (productive on success, as today) |
-| Human approval and human input (`awaiting_human`) | wait span |
-| Human agent session | active, as today |
-| Rate-limit waits | these are the backoff and adaptive-slot waits above; no separate mechanism |
-| Checkpoint/resume | prior working and waiting carried as offsets (see below) |
-
-**Retries the sample can cause.** Credit follows the retry policy exactly:
-an attempt is credited when `Model.should_retry()` (`_model.py:1765`, the
-predicate behind `retry_if_exception` at `_retry.py:127` and `:170`) says
-to retry it, and charged otherwise. The accountant does not second-guess
-that policy. Most request-attributable errors are not retried and are
-therefore charged: 4xx validation errors, context length, refusals and
-`content_filter`. A loop that re-sends such requests is charged in full,
-whether the loop is in a sandboxed agent, in the bridge's `retry_refusals`,
-or in the solver.
-
-The policy does retry some errors that the request can cause, and those
-attempts are credited:
-
-- **Quota exhaustion on OpenAI-compatible providers.** `openai_classify_retry()`
-  classifies every `RateLimitError` and HTTP 429 as `rate_limit`
-  (`src/inspect_ai/model/_openai.py:1539`), including `insufficient_quota`.
-  `OpenAIAPI.should_retry()` skips quota errors only by matching the
-  message "You exceeded your current quota"
-  (`src/inspect_ai/model/_providers/openai.py:704`), and
-  `OpenAICompatibleAPI` (`openai_compatible.py:412`) has no such check.
-- **Some Anthropic 400s.** A body containing "overloaded" or "internal
-  server error", and a 400 for truncated JSON, are retried as transient
-  (`src/inspect_ai/model/_providers/anthropic.py:1835`).
-- **401 under an API-key override hook.** `Model.should_retry()` retries an
-  authentication failure when a hook overrides API keys (`_model.py:1825`).
-
-These attempts are credited even when the retries run out and the call
-fails, because tenacity's `after` callback runs before the stop check
-(example 3d). Today they are charged in that case, since no reconciliation
-runs when the call ends in an error. This design does not change the retry
-policy; making these errors non-retryable is separate work (see "Not this
-design").
-
-Retryable failures the sample can provoke (timeouts on very long outputs,
-provider errors on unusual input) cannot be told apart from infrastructure
-failures with any reliability, and the documented contract credits
-"unsuccessful model generations". This design keeps crediting them, with two
-limits:
-
-- under the instant classification they are credited only when nothing else that Inspect
-  observes in the sample is active, so they cannot buy free time for
-  observed work. Work Inspect does not observe is the boundary in examples
-  12 and 13; and
-- the real run time they add is bounded only by settings the evaluator
-  chooses: the sample's `time_limit`, and the call's `timeout` and
-  `max_retries`. All three are optional, and the retry stop condition is
-  checked only after an attempt returns (`_retry.py:147`). With none of
-  them set, a sample can retry indefinitely today and under this design.
-
-No new cap is added. An optional cap is open question 3.
-
-### The accountant: `WorkingClock`
-
-New class in `src/inspect_ai/_util/working.py`. One instance per scope. All
-methods are synchronous; they are called only from the event loop thread.
-No lock is needed, because the calls do not interleave between `await`
-points (AGENTS.md, "No speculative locks"); the class docstring says so.
+### The sample clock
 
 ```python
-LaneId = int
-AttemptId = int
-
 @dataclass
-class _LaneState:
-    waits: int = 0                     # open wait spans in this lane
-    attempts: set[AttemptId] = field(default_factory=set)
-    joined: int = 0                    # nesting depth of lane_joined()
-
-class _Pending(NamedTuple):
+class SampleClock:
+    now: Callable[[], float]          # time.monotonic in production; injected in tests
     start: float
-    end: float
-    attempts: frozenset[AttemptId]     # attempts open during [start, end)
+    credit_eligible: bool             # no sandbox
+    bridges: int = 0
+    regions: int = 0
+    attempts: int = 0
+    waits: int = 0
+    _credited: float = 0.0
+    _mark: float = 0.0                # start of the open interval
+    _prior_working: float = 0.0       # checkpoint restore
 
-class WorkingClock:
-    def __init__(self, now: Callable[[], float], lanes: Iterable[LaneId] = ()) -> None: ...
+    def crediting(self) -> bool:
+        return (self.credit_eligible and self.bridges == 0 and self.regions == 0
+                and self.attempts == 0 and self.waits > 0)
 
-    # lane membership
-    def add_lane(self, lane: LaneId) -> None: ...
-    def remove_lane(self, lane: LaneId) -> None: ...
-    def join(self, lane: LaneId) -> None: ...
-    def unjoin(self, lane: LaneId) -> None: ...
-
-    # activity
-    def begin_wait(self, lane: LaneId) -> None: ...
-    def end_wait(self, lane: LaneId) -> None: ...
-    def begin_attempt(self, lane: LaneId, attempt: AttemptId) -> None: ...
-    def end_attempt(self, lane: LaneId, attempt: AttemptId) -> None: ...
-    def resolve_attempt(self, attempt: AttemptId, productive_from: float) -> None: ...
-
-    # readings
-    def working_time(self) -> float: ...          # upper bound: provisional counted as working
-    def settled_working_time(self) -> float: ...  # lower bound: provisional excluded
-    def elapsed(self) -> float: ...
-    def restore(self, prior_working: float, prior_waiting: float) -> None: ...
-    def close(self, at: float | None = None) -> None: ...  # resolves leftovers as productive, freezes
+    def change(self, counter: str, delta: int) -> None:  # advance, then apply
+    def working_time(self) -> float: ...   # prior + elapsed - credited - open credited interval
+    def waiting_time(self) -> float: ...   # credited, including the open interval
 ```
 
-State: `_lanes: dict[LaneId, _LaneState]`, `_mark` (start of the open
-segment), `_working` and `_waiting` (settled seconds), `_pending:
-list[_Pending]`, plus `_prior_working` and `_prior_waiting` from a
-checkpoint.
+Every counter change first closes the interval since `_mark`, adding it to
+`_credited` if `crediting()` was true, and then applies the change. The
+readings are exact at all times; nothing is provisional or settled later.
+Working time never decreases, so event durations are plain differences of
+`working_time()` readings, and tool and subtask events keep today's formula
+with the new reading (`_call_tools.py:503`, `:631`; `_subtask.py:128`,
+`:139`). No probes are needed.
 
-**Advancing.** Every mutating method first calls `_advance(now())`. That
-closes the segment `[_mark, now)` with the instant classification of
-the state *before* the change:
+The helpers in `working.py`, all of which do nothing outside a sample, are:
 
-- working adds to `_working`;
-- waiting adds to `_waiting`;
-- provisional appends `_Pending(_mark, now, open_attempts)`, merged with
-  the last entry when it is contiguous and has the same attempt set.
+- `sample_wait()`, a sync context manager for a sure wait;
+- `concurrent_region()`;
+- `model_attempt()`, plus `suspend_attempt()` for the batch queue;
+- `bridge_active()`.
 
-Then `_mark = now`. `_classify()` computes each lane's lane state from
-its `_LaneState` and applies the instant-classification table above. It
-returns the instant classification: `"working"`, `"waiting"`, or, for a
-provisional instant, the frozenset of attempts open in in-flight lanes. A scope has a handful of lanes, so the walk is cheap.
-Counters are an optimisation the implementer may add.
+`report_sample_waiting_time()` is kept as a deprecated no-op that logs one
+warning per process, because METR's approver calls it (see "Compatibility").
+`record_waiting_time()` and the per-node `_waiting_time` in `_WorkingLimit`
+are removed. Counters are plain integers: Inspect runs on one event loop
+thread, so no lock is needed (AGENTS.md, "No speculative locks").
 
-**Model attempts.** `end_attempt` removes the attempt from its lane when the
-provider call returns or raises. `resolve_attempt` can come later, once the
-retry policy has decided. `productive_from` is:
+### Scoped `working_limit()`
 
-| Outcome | `productive_from` |
-| --- | --- |
-| success | `max(attempt_start, attempt_end - output.time)` (`output.time` is `call.time` when the provider recorded one, else the attempt's duration) |
-| retryable failure | `attempt_end` (nothing productive) |
-| non-retryable failure, cancellation, or still unresolved at `close()` | `attempt_start` (all productive) |
+Per-scope clocks are not needed. Credit requires that no concurrent region
+is open, so when a scope is being credited it is the only Inspect-visible
+work in the sample. Its working time is then the sample's working time over
+the same interval. A node therefore records `sample_clock.working_time()`
+on `__enter__`, and its `usage` is the current reading minus that value.
+Outside a running sample there is no clock, so a scoped `working_limit()`
+measures wall-clock time. Today, retries outside a sample are credited to
+the limit tree and the default timing object.
 
-Resolving attempt `a` rewrites each pending segment that contains `a`.
-Segments are split at `productive_from` when needed:
+The cost is example 9. A scoped limit on a sub-agent inside a fork region
+is charged for everything during the region, including its own backoff.
+Today it is credited for its own waits. No public user of scoped working
+limits on parallel sub-agents was found. If one appears, the fallback is a
+reduced per-child model (per child: open waits, open attempts, joined) for
+regions only.
 
-- the part at or after `productive_from` is settled as working;
-- the part before it has `a` removed from its attempt set; if the set is
-  then empty, that part is settled as waiting, and otherwise it stays
-  pending.
+### Warning for samples that get no credit
 
-The pending list holds only the segments that overlap unresolved attempts.
-Its length grows with the transitions that happen while any attempt is
-unresolved, so one long attempt beside many short ones can build a long
-list. To keep resolution cheap, the clock also keeps an index from each
-unresolved attempt to its pending segments, so resolving an attempt touches
-only the segments that contain it. Segments leave the list as soon as their
-attempt sets are empty. A stress test (see "Testing") puts a number on the
-cost.
+When a sample has a `working_limit` and either has a sandbox (known when
+the clock starts) or enters `agent_bridge()`, Inspect logs one warning per
+task, not per sample, so an eval with thousands of samples logs it once:
 
-**Readings.**
+> working_limit applies as a wall-clock limit to samples with a sandbox (or
+> an active agent_bridge()): waits are not credited for them. Consider
+> time_limit.
 
-- `working_time() = _prior_working + _working + Σ pending + (now - _mark if
-  the open segment is not waiting)`. This is an upper bound and is used for
-  limit enforcement.
-- `settled_working_time()` is the same with pending and provisional time
-  left out. It is a lower bound. It never decreases, because pending time
-  can only resolve to working (an increase) or to waiting (no change).
-  It sets `working_start`, so event start times stay monotonic. It is
-  not used for event durations, because a difference of two settled
-  readings can include earlier work that resolved during the event (see
-  "Event durations").
-- After `close()` nothing is pending and the two readings are equal. The
-  logged value is therefore exact.
+It is keyed on the task's stable id and the reason (`sandbox` or
+`agent_bridge`) and uses `warn_once`.
 
-### Event durations
+### Enforcement, checkpoints and events
 
-`ToolEvent.working_time` and `SubtaskEvent.working_time` are durations: the
-working time inside the event's own interval. A difference of two sample
-readings cannot give that, because a provisional segment from before the
-event can resolve during it. For example, an attempt runs 0–6 and succeeds;
-a tool runs 5–6. The settled reading goes from 0 to 6 during the tool, so
-the difference would charge 6 seconds to a 1-second tool.
+- **Monitor.** `monitor_working_limit` checks the root node's `usage` once
+  a second, as today. Waits stop the clock in real time, so neither the
+  pause gate's 0.5 s credit ticks nor the backoff's credit in advance are
+  needed. The pause tick loop stays, because it also bounds how long an
+  escape takes. The guard that skips the check during an active model event
+  never fires today (see "Current behaviour") and is removed: in-flight
+  attempts are charged by rule.
+- **Checkpoints.** The payload keys stay the same. `working_elapsed` is
+  `working_time()` and `working_waiting` is `waiting_time()`. Restore
+  seeds `_prior_working` (always) and the root node's anchor (with
+  `check=True`), as today.
+- **Logged values.** `EvalSample.working_time` is the clock's working time
+  for the current attempt, closed at the instant `total_time` is measured,
+  so `working_time ≤ total_time` holds exactly. `working_start` is the
+  reading plus `_prior_working`.
 
-Event durations therefore use **probes** on the sample clock:
+### Costs accepted in option A
 
-```python
-class WorkingProbe:
-    def working_time(self) -> float: ...   # working time within [opened, now)
-    def close(self) -> float: ...          # idempotent: detaches on first call, returns the frozen value
+- Sandboxed evals (eleven of about fifteen public users) get no credit:
+  their `working_limit` is a wall-clock limit checked once a second.
+- Rate-limited parallel generation is charged. For example, eight
+  `collect()`ed generations backing off together are charged in full.
+- A `background()` worker that runs for the whole sample removes all credit
+  for that sample.
+- Failed and timed-out attempts, and SDK-internal retries, are charged. The
+  documented "unsuccessful model generations are excluded" contract
+  changes.
+- Scoped limits inside regions are always charged (example 9).
+- An eval author's own task groups can still hide work behind a sure wait
+  (example 14).
 
-def open_working_probe() -> WorkingProbe | None:  # concurrent mode only
-```
+## Option B: working time is wall-clock time
 
-- Opening a probe calls `_advance(now)`, so the next segment starts at the
-  probe's start time.
-- Every segment the clock closes while the probe is open adds its length to
-  the probe if it is working or provisional, and nothing if it is waiting.
-  A probe therefore sees only time inside its own interval and can never
-  exceed the event's elapsed time.
-- Provisional time counts as working, as it does for enforcement. A probe
-  is not reduced when a provisional segment later resolves as waiting. The
-  duration is an upper bound restricted to the event's interval, which is
-  the conservative choice.
-- The first `close()` adds the open segment up to now (unless it is
-  waiting), removes the probe from the clock and freezes the value. Later
-  calls return the frozen value and do nothing else, so the normal
-  completion path and a cleanup path can both call it safely.
+No waiting credit anywhere. `working_time == total_time` for every sample,
+and `working_limit` is a wall-clock limit.
 
-**Ownership and cleanup.** An open probe adds work to every segment
-transition and accumulates time until it is closed, so every probe has one
-owner that closes it on every exit, including exceptions and cancellation.
-Unfinished events are logged as they are today; only the probe's
-lifetime is specified here.
+- **`working_limit` API.** Keep `working_limit` (task, eval, eval set, CLI,
+  scoped `working_limit()`) working, with wall-clock semantics. Mark it
+  deprecated in the docs in favour of `time_limit`, and log one notice per
+  task when it is set. Removing it is a separate, later decision. It is
+  part of task identity and appears in configs, inspect_flow and hawk's
+  database. Its behaviour still differs slightly from `time_limit`:
+  `working_limit` raises `LimitExceededError` at checks and from the
+  once-a-second monitor, while `time_limit` cancels through a cancel scope
+  and gives the scorer a timeout.
+- **Logged `working_time`.** The field stays and equals `total_time` (on a
+  resumed sample, it includes the prior attempt like `working_start`).
+  Setting it to `None` would break consumers that coerce `None` to 0, such
+  as hawk's `sample.working_time or 0.0`.
+- **Events.** `working_start` is elapsed time since the sample started.
+  Tool and subtask `working_time` are their elapsed times.
+  `ModelEvent.working_time` (`output.time`) is unchanged.
+- **Pause and human waits.** `pause --now` holds and human approvals burn
+  `working_limit`, as they already burn `time_limit`. The pause-resume and
+  interim-scoring designs (`design/ctl/pause-resume.md`,
+  `design/ctl/interim-scoring.md`) promise that held time does not burn
+  `working_limit`. Those notes and the control-channel docs change.
+- **Checkpoints.** `working_elapsed` is elapsed time and `working_waiting`
+  is 0. An older snapshot restores its `working_elapsed` as the prior
+  elapsed time. That gives one resume a little extra budget, which is
+  documented.
+- **Code.** The waiting ledger and every reporter go. That covers the retry
+  credit callback, the reconciliation, the pause credit ticks, the merging
+  in `sample_waiting`/`sample_waiting_for`, `record_waiting_time` and the
+  monitor guard. `report_sample_waiting_time()` stays as a deprecated no-op
+  that warns once. The change is a net deletion.
 
-- **Subtasks** (`src/inspect_ai/util/_subtask.py`). The probe is opened at
-  the baseline (`:128`) and closed in a `finally` around the `await
-  func(...)` (`:135`). The completion path (`:139`) reads the frozen value.
-  A subtask that raises, whose exception the solver catches before carrying
-  on, or that is cancelled leaves no probe behind.
-- **Tool stages** (`src/inspect_ai/model/_call_tools.py`). The stage owns a
-  dict of its probes. Probes are opened at the baselines (`:503`) only for
-  calls that will execute: skipped calls (`:546`) open none and keep
-  `waiting_time=0`. The completion sites (`:591`, `:631`, `:699`, `:787`)
-  close their call's probe. A `try/finally` around the whole stage,
-  including the outer task group (`:728`), closes every probe still open.
-  The existing `except Exception` at `:739` does not catch cancellation,
-  which is why the cleanup is a `finally`.
-- **Backstop.** The sample clock's `close()` detaches any probe still open
-  and logs a warning once per sample, so a missed cleanup costs accuracy
-  but cannot grow without bound. The tests assert that the warning never
-  fires.
+## Comparison and recommendation
 
-The producers pass `waiting_time = elapsed - probe.close()` to the existing
-setters, so `ToolEvent._set_result()` (`src/inspect_ai/event/_tool.py:107`)
-and the event schema do not change. In legacy mode these sites keep today's
-`sample_waiting_time()` deltas. A probe costs one list entry on the sample
-clock while it is open.
+| | Option A (sure waits only) | Option B (wall clock) |
+| --- | --- | --- |
+| Closes R1–R5 | yes, except an eval author's own task groups (example 14) | yes, by construction |
+| Who still gets credit | samples with no sandbox, no active `agent_bridge()` and no open region: four of about fifteen public users, and only while they run one thing at a time | nobody |
+| `working_limit` meaning | "wall clock minus sure waits while idle"; equal to wall clock for sandboxed and bridged samples | wall clock everywhere |
+| Pause, human waits | credited in eligible samples | charged |
+| Logged `working_time` | ≤ `total_time`; equal for most samples | equal to `total_time` |
+| Implementation | rewrite of the sample clock; spans at 6 wait sites; regions at 4 fork sites; attempt counting; bridge counter; sandbox flag; warning; checkpoint; about 40 tests | deletions across the same files, a deprecation notice, docs, and updated tests |
+| Ongoing cost | every new fork site, wait site or agent integration must be classified correctly, or a route reopens | none |
 
-### Scopes: the sample and scoped `working_limit()`
-
-Every place that needs working time owns a `WorkingClock`. The sample owns
-one in `SampleTiming.clock`, and every `_WorkingLimit` node opened in
-concurrent mode owns one. The **scope chain** of a context is the clocks of
-the working-limit nodes from `working_limit_tree.get()` up to the root,
-followed by the sample's clock. Every lane, wait and attempt event is
-applied to each clock in the chain captured when the event begins. A wait's
-end and an attempt's resolution go to the same clocks as its begin, even if
-a node has since closed: a closed clock ignores events.
-
-- `_WorkingLimit.__enter__` (concurrent mode) creates its clock with the
-  current lane, which is executing and therefore active. Lanes forked
-  inside the node register with it, because the child's context inherits
-  the node. The node's `usage` is `clock.working_time()`, and its `__exit__`
-  closes the clock.
-- A scoped limit therefore measures the work of the lanes inside its scope.
-  It is not charged for a sibling's work (example 9), and merged spans no
-  longer go to whichever task finished last.
-- The monitor checks the root node, as today. Scoped nodes are checked at
-  `check_working_limit()` call sites, as today.
-
-### Fork and join sites
-
-Two context managers in `working.py`:
-
-```python
-@asynccontextmanager
-async def work_lane() -> AsyncIterator[None]:
-    """Run the enclosed block in a new lane registered with the current scope chain."""
-
-@contextmanager
-def lane_joined() -> Iterator[None]:
-    """Mark the current lane joined (it cannot be active) while the block runs."""
-```
-
-`work_lane()` sets the `_lane` ContextVar in the child task. The root lane is
-set by `init_sample_working_time()`. Lane ids come from an
-`itertools.count()` on the `SampleTiming`. Sites:
-
-| Site | Change |
-| --- | --- |
-| `collect()` (`src/inspect_ai/util/_collect.py:36`) | each `run_task` in `work_lane()`; the task group inside `lane_joined()` |
-| `fork()` with a list of solvers (`src/inspect_ai/solver/_fork.py:48`) | each partial passed to `tg_collect` wrapped so that `solver_subtask` runs in `work_lane()`; the `tg_collect` inside `lane_joined()`. The wrapping is in `fork()`'s list branch, not in `solver_subtask` itself |
-| `fork()` with a single solver (`_fork.py:45`) | no change: `solver_subtask` runs in the caller's lane, so the caller's lane carries the child's waits (the task that `subtask()` creates inherits that lane) |
-| Parallel tool-call stages (`_call_tools.py:728`) | each `run_one` in `work_lane()`; the stage's outer task group inside `lane_joined()` |
-| `background()` (`src/inspect_ai/util/_background.py:81`) | `run` in `work_lane()`; the caller is *not* joined (it keeps working) |
-| Deep agent `agent_wait` (`src/inspect_ai/agent/_deepagent/lifecycle_tools.py:306`) | both wait modes inside `lane_joined()` (the parent blocks on background lanes) |
-| Sandbox service request handler (`SandboxService._handle_request_tracked`, `src/inspect_ai/util/_sandbox/service.py:397`) | each request in `work_lane()`. This covers bridged model requests and bridged host tools; the human agent's commands get lanes too and stay active |
-| `sandbox_agent_bridge()` body (`src/inspect_ai/agent/_bridge/sandbox/bridge.py:244`) | `yield bridge` inside `lane_joined()`: the solver lane hands its work to the sandboxed agent |
-
-Outside a running sample (the default `SampleTiming`, which has no clock),
-every helper does nothing.
-
-### Instrumentation of each waiting source
-
-Helpers in `working.py`. Each checks the sample's accounting mode, so the
-call sites stay the same in both modes:
-
-```python
-@contextmanager
-def sample_wait() -> Iterator[None]:
-    """Open a wait span on the current lane (concurrent mode; no-op in legacy)."""
-
-def begin_model_attempt() -> ModelAttempt | None:
-    """Open an attempt on the current lane (concurrent mode only)."""
-
-class ModelAttempt:
-    def end(self) -> None: ...                     # provider call returned or raised
-    def succeeded(self, output_time: float | None) -> None: ...
-    def retryable_failure(self) -> None: ...
-    def charge(self) -> None: ...                  # non-retryable / cancelled / leftover; idempotent
-```
-
-- `sample_waiting()` and `sample_waiting_for()` keep their legacy merging in
-  legacy mode and become `sample_wait()` spans in concurrent mode.
-- `report_sample_waiting_time()` and `record_waiting_time()` become no-ops in
-  concurrent mode. A lump credit cannot be placed on the timeline, so no
-  concurrent-mode code calls them. The generate closure, the pause gate's
-  incremental credits and the reconciliation all stay unchanged as the
-  legacy path.
-- **Backoff.** `model_retry_config()` gains a tenacity `sleep=` callable that
-  wraps `anyio.sleep` in `sample_wait()`. It is installed whenever
-  `report_waiting_time` is not `None`, so batch admin loops (which pass
-  `None`) still record nothing. `ModelRetryConfig` gains the `sleep` key.
-- **Attempts.** In `Model._generate`'s inner `generate()`, the attempt opens
-  at `time_start` (`_model.py:1560`) and `ModelAttempt.end()` runs in the
-  existing `finally`. Cache hits return before this point and open no
-  attempt. `succeeded(output.time)` runs after `output.time` is set
-  (`_model.py:1669`). `model_retry_config()` gains an optional
-  `after_retryable` callback passed as tenacity `after=`, which tenacity
-  runs only when the retry predicate returned true and before the stop
-  check. `_generate` passes one that calls `retryable_failure()` on the
-  current attempt. A `finally` around the whole retry call calls `charge()`
-  on any attempt still unresolved: the exception escaped because it was not
-  retryable, or the call was cancelled.
-- **Hard pause.** `wait_generate_dispatch` (`pause.py:627`) wraps the park
-  loop and the reacquire in `sample_wait()`. The 0.5 s incremental credits
-  remain for legacy mode. The tick loop stays, because it also bounds how
-  long an escape takes.
-- **Human waits.** `ActiveSample.awaiting_human()` (`log/_samples.py:369`)
-  opens `sample_wait()` for its duration.
-- **Batch local queue.** `BatchRequest` gains `submitted: anyio.Event`. The
-  batcher sets it once the request's batch is accepted by the provider, and
-  also before delivering any result or error, so a waiter can never block
-  past its result. `generate_for_request` (`batch.py:102`) awaits it inside
-  `sample_wait()` before awaiting the result.
-
-### Enforcement and the monitor
-
-The root node's `usage` is the upper-bound `working_time()`. An attempt in
-flight is charged until it resolves, as it is today (the fourth row of the
-"Why" table). A retryable failure is credited back when it resolves, so
-`usage` can fall at that point, as it does today when the reconciliation
-runs. The monitor and the `check_working_limit()` call sites are unchanged.
-Open wait spans stop the clock in real time, so a wait no longer needs to be
-credited in advance or in ticks to keep the monitor from firing during it.
-That is why backoff and hold spans are simple context managers here.
-
-### Checkpoint and resume
-
-The payload keys stay the same (`working_elapsed`, `working_waiting`).
-
-- `dump_sample_runtime()` writes the root clock's `working_time()` and
-  `elapsed() - working_time()` in concurrent mode, and the node fields in
-  legacy mode.
-- `restore_sample_runtime()` always gives the sample clock the prior
-  working time as `_prior_working`, so `sample_working_time()` and
-  `working_start` keep rising (today's line `:202` does the same for both
-  resume kinds). Only with `check=True` does it also call
-  `root.clock.restore(prior_working, prior_waiting)` before the limit
-  checks, matching today's `:190`.
-- The logged `working_time` stays attempt-local: `settled_working_time()`
-  minus `_prior_working`.
-- A `resume_for_scoring` restore arms nothing, as today.
-- The mode is read from the eval config, which a resume reuses, so both
-  attempts use the same accounting.
-
-### Configuration: opt-in, legacy by default
-
-The new accounting changes when `working_limit` trips, so it changes eval
-trajectories. Following the rule that such changes apply only under
-explicit configuration (decision: Ransom, 2026-09-15), it is selected by a
-new option:
-
-```python
-working_time_accounting: Literal["legacy", "concurrent"] | None = None  # None means "legacy"
-```
-
-- **Surfaces.** The option is accepted wherever `working_limit` is accepted,
-  with the same precedence (eval overrides task): `Task(...)`,
-  `task_with()`, `eval()`, `eval_async()`, `eval_set()`, CLI
-  `--working-time-accounting` on `inspect eval` and `inspect eval-set`.
-- **Recording.** It is stored as an optional field on `EvalConfig`
-  (`src/inspect_ai/log/_log.py:94`). `eval_retry()` reads it back the way it
-  reads `working_limit` (`src/inspect_ai/_eval/eval.py:1819`).
-- **Task identity.** In `eval_set_overrides.py` it is listed in
-  `NOT_OVERRIDABLE` as "part of task identity". It joins the task-identifier
-  hash only when it is not `None`, so existing identifiers do not change.
-- **Mode lookup.** `init_sample_working_time(start, accounting)` stores the
-  resolved mode on `SampleTiming`, and every helper reads it there.
-- **Legacy mode** runs today's code paths unchanged. Its numbers are
-  today's, including the defects listed above. The new helpers are no-ops.
-- **Concurrent mode** runs only the new paths. The legacy reporters are
-  no-ops.
-
-Each instrumented site calls both kinds of helper, and exactly one kind acts.
-Removing legacy mode later means deleting the legacy reporters and the mode
-check. The alternative of making concurrent the default is an open question
-below.
-
-### Clock source
-
-Every `WorkingClock` in a sample uses `SampleTiming.now`, which is
-`time.monotonic` in production. That removes the mismatch between
-`time.monotonic()` and `anyio.current_time()` in concurrent mode. Tests
-inject a fake clock through `init_sample_working_time(..., now=fake)` and
-patch the backoff sleep's module-level `_sleep` indirection to advance the
-fake clock. The `_sample_timing` default stays as it is, so legacy readers
-outside a sample behave as today. The default object has no clock
-(`clock is None`), so every concurrent-mode helper does nothing outside a
-sample.
-
-### Cancellation and errors
-
-- Wait spans and lanes are context managers, so cancellation closes them.
-- Attempts are always resolved: by the outcome hooks, otherwise by the
-  `finally` around the retry call (`charge()`), and otherwise by `close()` at
-  sample end.
-- A clock event for a lane the clock does not know (an accounting bug, for
-  example an unbalanced join) logs a warning once per sample and is
-  ignored, because an accounting bug must not fail a sample. A test covers
-  this behaviour, and the wiring tests assert that no such warning is
-  logged.
-- The sample clock's origin is the `start_time` passed to
-  `init_sample_working_time()` (`run.py:2667`), the same instant `total_time`
-  is measured from. `create_eval_sample` closes it with `close(at=end)`, at
-  the instant it computes `total_time`, so the logged `working_time ≤
-  total_time` holds exactly. In concurrent mode the logged value is the
-  sample clock's attempt-local settled working time, not `total_time -
-  sample_waiting_time()`.
+**Recommendation: option B.** After decisions 4–9, option A's credit
+survives only in samples that run one thing at a time without a sandbox
+or an in-process bridge. Among public users that is four scripts or
+small evals, and the eval that motivated `working_limit` (a sandboxed
+agent; see the docs example, which uses `sandbox="docker"`) gets nothing.
+Option A would keep a second clock with a subtle eligibility rule. Every
+future concurrency feature would have to be classified against it, and
+each misclassification reopens a cheating route. Option B is a net
+deletion, and its one meaning is easy to state. Choose option A if fair
+treatment of rate-limit waits for non-sandboxed sequential evals (examples
+8, 10, 11) is worth that ongoing cost. Option A is fully specified above
+so that it can be built.
 
 ## Alternatives considered
 
-- **Merge everything (waiting when at least one task waits).** Extending
-  today's semaphore merging to retries and holds fixes summing
-  (consequence 1) with no lanes. It leaves consequence 2 in place and can
-  be used to stop the clock deliberately (examples 2b and 2c), and a limit
-  that can be pushed to zero is not a limit. It is what untracked
-  concurrency falls back to.
-- **Sum per task (today's retry path), clamped to wall clock.** This is a
-  one-line fix for negative values, but a sample with two lanes reaches the
-  clamp twice as fast. It hides the bug rather than defining a meaning.
-- **Proportional sharing (the clock runs at the fraction of lanes not
-  blocked).** It is closer to the critical path in fork-join shapes, where
-  this design's classification (working while any lane is active)
-  over-charges a little: if child A backs off while child B works and A
-  then works, both stretches are charged, although without contention they
-  would have overlapped. It needs the same lanes, makes every number depend
-  on the lane count, and a sample can change its count with idle lanes.
-  This design's over-charge is bounded by work that really ran, and a limit
-  should err toward charging.
-- **Charge every failed attempt (no provisional state).** This is much
-  simpler: no pending segments, and the strongest answer to consequence 3.
-  It breaks the documented contract ("unsuccessful model generations" are
-  excluded) and would charge infrastructure stalls. The stream-idle-timeout
-  design cites 16% of calls hanging against a 600 s timeout, which would be
-  charged to every sample that met them. Rejected as the default. It could
-  be added later as a third mode.
-- **Infer lanes from task identity instead of fork sites.** anyio has no
-  portable way to learn when a task exits (asyncio's done callbacks have no
-  trio equivalent), so tasks could never be removed from the active set.
-- **Lane-less "every open model call waiting" rule.** Treat the sample as
-  waiting when every open model call is in a waiting phase, and ignore
-  other work. No fork-site changes are needed, but a sandbox exec or tool
-  running beside a backing-off call is free (example 2b with a tool
-  instead of a model call), which is consequence 2 again.
-- **One sample-wide clock for scoped limits (`usage` = change in sample
-  working time).** No per-node clocks are needed, but parallel sub-agents
-  are charged for each other's work (example 9), which is a regression from
-  today's per-context crediting.
-- **Default-on with no legacy mode.** This gives one code path and fixes
-  every eval. It changes results for existing evals that set
-  `working_limit` and use concurrency, approval or caching, with nothing
-  for their authors to opt out of. Offered as the alternative in the open
-  questions.
+- **Lanes with provisional attempts** (earlier revisions of this design).
+  Per-lane states, in-flight attempts resolved by retry outcome, pending
+  segments and event probes. It closes R1–R3 for observed concurrency, but
+  it leaves R4 for sandboxes and in-process libraries and needs the most
+  machinery. Replaced by decisions 4 and 9.
+- **Reduced per-child model** (per child: open waits, open attempts, joined)
+  instead of charging whole regions. It would keep credit for example 9 and
+  for rate-limited parallel generation. It is the fallback if a user who
+  depends on credit under concurrency appears; none was found.
+- **Opt-in new accounting with the old as default.** Dropped by decision 1:
+  the old accounting is broken, not merely different.
+- **A legacy escape hatch** (an option that restores today's accounting).
+  Not recommended for either option. Today's accounting is the bug: it lets
+  a sample turn the limit off (R1). An option that restores it would keep a
+  second code path only to reproduce wrong numbers. Anyone who needs past
+  numbers can pin an Inspect version.
+- **Freezing sandboxes during waits.** Not assessed (decision 5).
+- **Clamping today's sums to wall clock.** It fixes negative values but
+  keeps R2–R5.
 
 ## Compatibility and migration
 
-No migration is required. Legacy mode is the default and reproduces today's
-behaviour. Evals that opt in see the following.
+The change applies by default. There is no new option and no schema
+change.
 
-- **Reported `working_time`** (`EvalSample.working_time`, the samples
-  dataframe `working_time` column, the viewer). It is never negative and
-  never above `total_time`. It is higher where concurrency used to stop the
-  clock or sum waits, and lower where cache hits used to add time. It
-  excludes human approval and input waits and batch local-queue time.
-- **`working_limit` enforcement and `sample_limits().working.usage`** follow
-  the same numbers. Agents that read the remaining working time see
-  consistent values.
-- **Events.** `working_start` is now monotonic and is based on the settled
-  reading. Tool and subtask `working_time` come from probes: the sample's
-  working time inside the event's interval, counting provisional time as
-  working. They exclude only waits during which the sample could make no
-  progress, not every concurrent sibling wait, and never exceed the
-  event's elapsed time. The events dataframe `working_time` column and the
-  viewer's tool and subtask views show these values unchanged in form.
-  `ModelEvent.working_time` (`output.time`) is unchanged.
-- **Scoped `working_limit()`** measures its own lanes. Code relying on a
-  sibling's waits being credited to it sees more charged time.
-- **Log schema.** There is one new optional `EvalConfig` field,
-  `working_time_accounting`. Older readers ignore unknown fields, because
-  pydantic's default is `extra="ignore"` and `EvalConfig` does not change
-  it. The viewer's generated TypeScript types change, which needs a
-  coordinated `ts-mono` update (`.agents/skills/land-ts-mono/SKILL.md`).
-  There is no viewer UI change.
-- **Dataframes.** `working_time_accounting` is added to the eval columns
-  next to `working_limit` (`src/inspect_ai/analysis/_dataframe/evals/columns.py:121`),
-  so analyses can separate the two kinds of numbers.
-- **Older Inspect versions.** An older version reads a concurrent-mode log
-  and ignores the field. Running `eval_retry()` or an eval set's retry on
-  that log with an older version silently uses legacy accounting. Supported
-  boundary: the mode is honoured only by versions that know the field; the
-  docs say so next to the option.
-- **Downstream projections.** `inspect_flow` (task/log projections such as
-  `_runner/task_log.py`) and `inspect-action` (its log importer) do not
-  carry the new field. Legacy runs are unaffected. For opted-in logs,
-  reconstruction in those tools loses the mode until they add it (see "Not
-  this design").
-- **Checkpoints.** The payload keys and their meanings are unchanged, so
-  snapshots restore across versions. A snapshot from a legacy run resumed
-  under the same config stays legacy.
-- **Eval sets.** The task identifier changes only for tasks that set the
-  option.
-- **Private APIs.** `report_sample_waiting_time`, `record_waiting_time`,
-  `sample_waiting` and `sample_waiting_for` keep their signatures. Satellite
-  repos (`inspect_swe`, `inspect_evals`, `inspect_flow`, `inspect_scout`,
-  `inspect-action`) do not use them; checked by grep on 2026-10-01.
-- **Docs.** `docs/_working_limits.md` and `docs/setting-limits.qmd` describe
-  both modes. The CHANGELOG entry is part of the implementation PR.
+What changes, by kind of eval:
+
+- **Sandboxed evals with `working_limit`** (swe_lancer, cyber benchmarks,
+  inspect_swe agents, control-arena): under both options, rate-limit
+  backoff, connection waits, hard-pause holds and human approvals are now
+  charged. Samples that finished before may hit the limit. Users should
+  raise `working_limit` or move to `time_limit`. The warning or notice says
+  so.
+- **Evals using `agent_bridge()`:** the same, while the bridge is active.
+- **Non-sandboxed evals with `working_limit`:**
+  - Option A: credit only while sequential. Failed attempts and SDK retries
+    are charged (a contract change), human waits are credited (new), and
+    cache hits no longer add time.
+  - Option B: everything is charged.
+- **Evals without `working_limit`:** results are unchanged. The logged
+  `working_time` changes: it is never negative and never above
+  `total_time`, and under option B it equals `total_time`. Event
+  `working_start` values are monotonic.
+- **Private API users.** METR's approver
+  (`METR/inspect-agents/packages/agents/src/metr_agents/human_approval.py`)
+  calls `report_sample_waiting_time`. It becomes a deprecated no-op that
+  warns once, so their approval waits are charged in sandboxed samples
+  (open question 2). No other satellite or public user of the private
+  helpers was found.
+- **Downstream readers** (dataframes, viewer, inspect_scout, hawk,
+  inspect_flow) keep working: the field names and types are unchanged.
+  hawk's clamp to zero becomes a no-op.
+
+**Docs and CHANGELOG.** `docs/_working_limits.md` and
+`docs/setting-limits.qmd` get the new meaning (and, for option B, the
+deprecation in favour of `time_limit`). The grok note in
+`docs/providers.qmd` about `working_time` and internal retries goes. The
+control-channel docs on `pause --now` say whether held time burns
+`working_limit`. There is one CHANGELOG line, for example "`working_limit`
+now counts time as working unless a sample is only waiting (option A) /
+now measures wall-clock time (option B)". It names the change in results
+for sandboxed evals.
 
 ## Security
 
-No untrusted content reaches the new code. The accountant receives only
-timestamps, lane ids and attempt ids that Inspect generates, plus
-`output.time`, a float a provider adapter derives from its own timers. Two
-inputs can be influenced:
-
-- **Timing from the model or sandboxed agent.** The sample can choose how
-  many concurrent requests it sends, how long its outputs are and which
-  requests fail. That is the gaming surface this design narrows: requests
-  never sum, a saturated pool is charged, non-retryable errors are charged,
-  and retryable failures are credited only when nothing else that Inspect
-  observes is active. Three things remain:
-  - a lone lane whose retryable failures the sample provokes, bounded only
-    by `time_limit` and the per-call `timeout` and `max_retries` when the
-    evaluator sets them;
-  - request-attributable errors that the provider's retry policy retries
-    (example 3d);
-  - work Inspect does not observe: a sandboxed agent can keep one request
-    backing off while it runs local commands, and an in-process agent
-    library can run work beside a waiting request in the same lane
-    (examples 12 and 13). That work goes uncharged. Open question 4 asks
-    whether this boundary is acceptable.
-- **`output.time` from a provider.** A wrong value only moves the split
-  inside one attempt, and `productive_from` is clamped to the attempt's own
-  interval.
-
-Bridge request handlers get lanes from host-side code
-(`_handle_request_tracked`). A sandboxed agent cannot create lanes except by
-sending requests, and each request's lane lasts only while it is handled.
+No untrusted content reaches the new code. The inputs a sample controls
+are its concurrency, its outputs and which requests fail. These are the
+routes R1–R5, and both options close them. Option A leaves one gap: work an
+eval author's own task groups run behind a sure wait. That is the author's
+own code, not something the model can trigger. Option B has no gap.
 
 ## Testing
 
-All async tests run under both backends (`--runtrio` before the PR). Pure
-clock tests use a fake `now`. Integration tests patch
-`inspect_ai._util.working`'s `_now` and `_sleep`, and use a fake `ModelAPI`
-whose attempts block on `anyio.Event`s set by the test, so the order of
-events is fixed and no test waits on a sleep.
+All async tests run under both backends (`--runtrio` before the PR). Tests
+inject the clock through `init_sample_working_time(..., now=fake)` and patch
+the backoff sleep's `_sleep` indirection. Their fake `ModelAPI` attempts
+block on `anyio.Event`s, so ordering is fixed and no test waits on a sleep.
 
-**`WorkingClock` unit tests** go in `tests/util/test_limit_working.py`, the
-existing file for working-limit behaviour. There is one test per worked
-example, driven by a scripted sequence of `(time, event)`, asserting
-`working_time()`, `settled_working_time()` and `elapsed()`:
+**Option B** (the recommendation):
 
-- examples 1, 2a, 2b, 2c, 3a, 3b, 3c, 3d, 4, 5, 6, 7, 8, 10, 11, 12 and
-  13, as in the table (12 and 13 assert the documented boundary: the
-  unobserved work is credited as waiting);
-- example 9: one clock for the sample and one for each scoped node, fed
-  through the scope-chain helper;
-- probes: an attempt running 0–6 that resolves as successful during a tool
-  probe opened at 5 and closed at 6 gives the probe 1 second, not 6; the
-  same check for a subtask probe; a probe never exceeds its elapsed time;
-  a second `close()` returns the frozen value and changes nothing;
-- a stress case: one attempt open for 600 s while 10,000 short attempts in
-  other lanes start, end and resolve, asserting the pending list is empty
-  once everything resolves and recording the time per resolution against a
-  fixed budget, so the cost of the pending index is measured;
-- a provisional segment split by a successful attempt's `productive_from`,
-  and one that straddles two attempts resolving in either order;
-- a joined lane with its own wait counted (the bridge body's host call), and
-  a joined lane with nothing open ignored;
-- invariants over 500 seeded random event sequences: `0 ≤ working ≤ elapsed`,
-  `settled ≤ working`, `settled` non-decreasing, and after `close()`,
-  `settled == working` and `working + waiting == elapsed`;
-- `restore()` offsets and `close()` resolving leftover attempts as charged;
-- an unknown-lane event warns and is ignored, without raising.
+- `tests/test_sample_limits.py`: with retries, a semaphore wait, a cache
+  hit and concurrent retrying calls, `working_time == total_time`, and
+  `working_limit` trips at the wall-clock time.
+- `tests/_control/test_pause.py`: the existing held-span credit tests
+  change to assert that hold time is charged.
+- `tests/util/test_limit_working.py`: the `record_waiting_time` tests are
+  removed, and scoped `working_limit()` usage equals elapsed time.
+- `report_sample_waiting_time()` is a no-op that warns once.
+- The deprecation notice appears once per task.
+- `tests/checkpoint/test_sample_runtime.py`: an older snapshot with
+  `working_waiting > 0` restores.
 
-**Wiring tests in concurrent mode** go in `tests/test_sample_limits.py`.
-Each runs one sample with `working_time_accounting="concurrent"` and a fake
-clock, and asserts `sample_working_time()` captured in the solver and the
-logged `working_time`:
+**Option A:**
 
-- four `collect()`ed calls with two retryable failures each (example 1):
-  working time equals the productive attempt time, and waiting equals the
-  rest of the wall clock;
-- the `concurrency()` holder and waiter (example 2a), and a `background()`
-  call stuck in backoff beside a working main lane (example 2b), with a
-  `working_limit` that trips at the expected fake time;
-- a non-retryable failure caught and re-sent by the solver, charged
-  (example 3a);
-- classification-driven credit (example 3d), using real SDK exception
-  objects through the providers' own `should_retry`: an
-  `OpenAICompatibleAPI` `insufficient_quota` 429 and an Anthropic 400 whose
-  body contains "overloaded" are credited, including the final attempt
-  when `max_retries` runs out; an OpenAI 400 is charged;
-- a tool event and a subtask event that start while an older attempt in
-  another lane is in flight and end after it resolves: their
-  `working_time` covers only their own interval;
-- probe cleanup, asserting the sample clock holds no open probes afterwards
-  and the backstop warning never fires: a subtask that raises and whose
-  exception the solver catches, three times in a row; a cancelled subtask;
-  a stage with fail-fast skipped calls; and a stage cancelled while its
-  calls run;
-- an SDK-internal retry split using a fake `call.time` (example 4), and a
-  cache hit (example 5);
-- `pause --now` held by the gate test helpers in `tests/_control/test_pause.py`
-  (example 10, added there);
-- human approval through a test approver that blocks on an event
-  (example 11);
-- scoped `working_limit()` around two parallel tool calls (example 9),
-  using `execute_tools` with two tools;
-- cancellation mid-backoff and mid-attempt: spans close, the attempt is
-  charged, and no pending segments are left;
-- checkpoint round trip in `tests/checkpoint/test_sample_runtime.py`: dump
-  under concurrent mode, restore, and check that `working_start` keeps
-  rising and the logged `working_time` is attempt-local.
-
-**Legacy-mode regression tests.** The same first three scenarios run in
-legacy mode and assert today's numbers within tolerance, including the
-negative working time in example 1. The existing working-limit, pause,
-concurrency and checkpoint tests run unchanged.
-
-**Fork-site tests.** These are spy tests asserting that a new lane is
-registered and unregistered, and the parent joined, for `collect()`,
-`fork()` with a list of solvers, parallel tool stages, `background()`, the deep agent's
-`agent_wait`, and `SandboxService._handle_request_tracked`. A separate
-test runs `fork(state, solver)` with a single solver whose `generate` backs
-off, and asserts that no lane is added, the caller's lane is blocked during
-the backoff, and the sample's working time does not grow. The service is
-driven with a fake sandbox, as in the existing non-Docker tests in
-`tests/util/sandbox/test_sandbox_service.py`, so no Docker is needed. The
-`sandbox_agent_bridge()` join is covered by one Docker-gated slow test in
-`tests/agent/`, which runs a sandboxed client issuing two concurrent
-requests, one of which backs off. It is marked `slow`, so PR CI skips it and
-the scheduled slow-test runs include it.
-
-**Batch.** A unit test of the `Batcher` with a fake provider checks that
-`submitted` is set on submission and also on a creation failure, and that
-the local-queue wait is credited.
-
-**Config plumbing.** `tests/test_eval.py` checks the option flows from
-`Task` and `eval()` into `EvalConfig` and back through `eval_retry`.
-`tests/test_task_identifier_version.py` checks the identifier is unchanged
-when the option is unset and changes when it is set. The eval-set override
-test checks the `NOT_OVERRIDABLE` entry.
+- Clock unit tests (`tests/util/test_limit_working.py`) for each condition
+  and every worked example. Seeded random sequences check that working time
+  never decreases and `0 ≤ working ≤ elapsed`.
+- Wiring tests (`tests/test_sample_limits.py`) for each sure wait, each
+  region site, the batch attempt suspension, the sandbox flag (`local`
+  sandbox included) and the `agent_bridge()` counter.
+- The warning appears once per task.
+- Scoped limits use deltas.
+- Checkpoint round trip.
 
 ## Implementation plan
 
-Each step is one PR, or one commit if they ship together. Steps 1 to 4 have
-no effect until step 5 makes the option reachable.
+For option B (recommended):
 
-1. **Accountant.** `WorkingClock`, `_LaneState`, `_Pending`, the lane and
-   wait helpers, `ModelAttempt`, mode and clock on `SampleTiming`, and the
-   `now` and `_sleep` indirections, all in
-   `src/inspect_ai/_util/working.py`. Unit tests in
-   `tests/util/test_limit_working.py`.
-2. **Scopes.** `_WorkingLimit` owns a clock in concurrent mode, the
-   scope-chain helper, and the no-op legacy reporters in concurrent mode
-   (`src/inspect_ai/util/_limit.py`). Checkpoint dump and restore
-   (`src/inspect_ai/util/_checkpoint/sample_runtime.py`). Sample clock
-   close and the logged value (`src/inspect_ai/_eval/task/run.py`). Tests in
-   `tests/util/test_limit_working.py` and
-   `tests/checkpoint/test_sample_runtime.py`.
-3. **Sources.** Backoff `sleep` and `after_retryable`
-   (`src/inspect_ai/model/_retry.py`); attempts in `Model._generate`
-   (`src/inspect_ai/model/_model.py`); the hard-pause span
-   (`src/inspect_ai/_control/pause.py`); `awaiting_human`
-   (`src/inspect_ai/log/_samples.py`); the batch `submitted` event
-   (`src/inspect_ai/model/_providers/util/batch.py`, plus any batcher that
-   builds `BatchRequest` itself); event probes in the tool-stage producers
-   (`src/inspect_ai/model/_call_tools.py`) and subtasks
-   (`src/inspect_ai/util/_subtask.py`). Wiring tests, including the
-   classification and probe tests.
-4. **Lanes.** `collect()` (`src/inspect_ai/util/_collect.py`), the list
-   branch of `fork()` (`src/inspect_ai/solver/_fork.py`), parallel tool stages
-   (`src/inspect_ai/model/_call_tools.py`), `background()`
-   (`src/inspect_ai/util/_background.py`), deep agent `agent_wait`
-   (`src/inspect_ai/agent/_deepagent/lifecycle_tools.py`),
-   `SandboxService._handle_request_tracked`
-   (`src/inspect_ai/util/_sandbox/service.py`), and the
-   `sandbox_agent_bridge()` join
-   (`src/inspect_ai/agent/_bridge/sandbox/bridge.py`). Fork-site tests and
-   the slow bridge test.
-5. **Option.** `working_time_accounting` on `Task` and `task_with`
-   (`src/inspect_ai/_eval/task/task.py`); `eval`, `eval_async` and
-   `eval_retry` (`src/inspect_ai/_eval/eval.py`); `eval_set`
-   (`src/inspect_ai/_eval/evalset.py`) and `NOT_OVERRIDABLE`
-   (`src/inspect_ai/_eval/eval_set_overrides.py`); resolution into the
-   eval config (`src/inspect_ai/_eval/run.py`, next to `working_limit`); the
-   CLI (`src/inspect_ai/_cli/eval.py`); `EvalConfig`
-   (`src/inspect_ai/log/_log.py`); the task identifier; the dataframe
-   column (`src/inspect_ai/analysis/_dataframe/evals/columns.py`); passing
-   it to `init_sample_working_time` (`run.py`); the regenerated OpenAPI and
-   TypeScript types through `land-ts-mono`; docs (`docs/_working_limits.md`,
-   `docs/setting-limits.qmd`) and the CHANGELOG. Config plumbing tests.
+1. `src/inspect_ai/_util/working.py`: reduce to start time and elapsed
+   time. `sample_waiting_time()` returns 0, `report_sample_waiting_time()`
+   becomes a deprecated no-op with a warning, and `sample_waiting` and
+   `sample_waiting_for` become pass-throughs.
+2. `src/inspect_ai/util/_limit.py`: `_WorkingLimit.usage` is elapsed time.
+   Remove `record_waiting_time` and the monitor's model-event guard. Add the
+   once-per-task deprecation notice.
+3. `src/inspect_ai/model/_model.py`, `_retry.py`,
+   `src/inspect_ai/_control/pause.py`: remove the retry credit callback,
+   the reconciliation and the hold credits (keep the escape tick).
+4. `src/inspect_ai/_eval/task/run.py`: logged `working_time` is
+   `total_time`. Update `util/_checkpoint/sample_runtime.py`, and the event
+   producers in `_call_tools.py` and `_subtask.py`.
+5. Docs (`_working_limits.md`, `setting-limits.qmd`, `providers.qmd`, the
+   control-channel pause docs), the notes in `design/ctl/pause-resume.md`
+   and `design/ctl/interim-scoring.md`, the CHANGELOG, and the tests
+   above.
+
+For option A: `SampleClock` and the helpers (`working.py`); the sure-wait
+spans (`_retry.py`, `_concurrency.py` via `working.py`, `_model.py`,
+`pause.py`, `log/_samples.py`, `batch.py`); attempt counting and removal of
+the reconciliation (`_model.py`); regions (`_call_tools.py`, `_collect.py`,
+`_fork.py`, `_background.py`); the bridge counter (`agent/_bridge/bridge.py`);
+the sandbox flag and logged value (`run.py`); scoped deltas, the warning and
+removal of the monitor guard (`_limit.py`); checkpoint; docs, CHANGELOG and
+tests.
 
 ## Open questions
 
-1. **Opt-in or default-on?** Settled by the standing rule that changes to
-   eval behaviour need explicit configuration (decision: Ransom,
-   2026-09-15): opt-in, as designed. Default-on would need that decision
-   changed. It would remove step 5's option plumbing and the dual helpers,
-   at the cost of changed results for existing evals that set
-   `working_limit` and use concurrency, human approval or caching. A later
-   release could flip the default once the new mode has been used.
-2. **Should human approval and human input count as waiting?** I recommend
-   yes, as designed. The sample is blocked on a person, which is the same
-   kind of wait as an operator's `pause --now`, and that is already
-   credited. This applies only in concurrent mode. The alternative is to
-   keep charging them, so a slow approver uses up the sample's budget.
-3. **Should credited retry time have a cap, including when `time_limit`,
-   `timeout` and `max_retries` are all unset?** I recommend no cap. Under
-   the instant classification a sample cannot turn retries into free time for work
-   Inspect observes. Those three settings bound the wall clock only when
-   the evaluator sets them, and the retry stop check runs only after an
-   attempt returns, so with none set a sample can retry indefinitely, today
-   and under this design. A cap, for example credited retry time at most
-   equal to `working_limit`, would add a setting whose value nobody can
-   choose well, and would charge infrastructure outages to samples. The
-   alternative to a cap is documentation: recommend `time_limit` alongside
-   `working_limit`. If a cap is wanted, the accountant supports it directly
-   (a per-scope counter of credited attempt time).
-4. **Is accounting limited to concurrency Inspect observes acceptable?**
-   Inspect sees the lanes it creates and the requests a sandboxed agent
-   sends through the bridge. It does not see a sandboxed agent's local work
-   or an in-process agent library's own task group. Options:
-   - (a) As designed: the bridge body is joined, and unobserved work beside
-     a waiting request goes uncharged (examples 12 and 13). Bridged agents
-     keep credit for rate-limit waits, which is what `working_limit` is
-     for. The cost is that consequence (2) remains for unobserved work.
-   - (b) Charge unobserved work conservatively: leave the bridge body's
-     lane active, so a bridged agent's request waits are never credited.
-     This makes the limit impossible to game but charges every rate-limit
-     wait to bridged agents, a regression from today's legacy credit for
-     the main users of the bridge.
-   - (c) A middle option, such as crediting a bridged agent's waits only
-     after a grace period: arbitrary, and still guesses about work Inspect
-     cannot see.
-
-   I recommend (a), with the boundary documented next to the option. The
-   in-process case is the same choice. It falls back to today's merged
-   behaviour without the summing, and (b) has no equivalent there short of
-   charging every wait in such a lane.
+1. **Option A or option B?** I recommend B (see "Comparison and
+   recommendation"). A is the choice if credit for rate-limit waits in
+   non-sandboxed sequential evals is worth the extra clock and its ongoing
+   upkeep.
+2. **METR's human-approval credit in sandboxed samples.** METR's public
+   approver reports approval waits through the private
+   `report_sample_waiting_time` so that long approval deadlines do not
+   burn `working_limit`. Decision 5 (option A) and option B both charge
+   those waits. I recommend accepting that: the helper becomes a no-op that
+   warns once, and METR moves to `time_limit` or a larger `working_limit`.
+   An exception for human waits in sandboxed samples would reopen R4 for
+   background processes, although only for as long as a human takes. The
+   question is for Ransom because it changes a named user's behaviour.
 
 ## Not this design
 
-- Remove or fix `monitor_working_limit`'s model-event guard (`_limit.py:930`),
-  which never fires. Concurrent mode does not need it, and legacy mode's
-  behaviour is what was measured.
-- Per-event attribution: tool and subtask events could report their own
-  lane's working time instead of the sample's change, and a lane-level
-  clock would allow it.
-- Break down waiting time by cause (backoff, slot, hold, human, batch) in
-  `EvalSample`, for analysis and the viewer.
-- Lanes for untracked concurrency in agent libraries used through the
-  in-process `agent_bridge()` (for example an OpenAI Agents SDK `gather`),
-  and for `tg_collect` uses outside `fork()` (multi-scorer, internal
-  utilities).
-- Default wall-clock backstop when `working_limit` is set without
-  `time_limit`.
-- Make request-attributable errors non-retryable in the provider retry
-  policies: OpenAI-compatible `insufficient_quota` 429s, and Anthropic 400s
-  matched by body text (example 3d). This changes retry behaviour for every
-  eval, not only accounting.
-- Carry `working_time_accounting` through `inspect_flow`'s task/log
-  projections and `inspect-action`'s log importer.
-- `compact()` and `count_tokens()` failed attempts are charged in both
-  modes. Crediting them like `generate` attempts is a small follow-up.
-- Make `time_limit` and `working_limit` share one clock source in legacy
-  mode (asyncio and trio currently differ).
-- The shared default `SampleTiming` object that legacy reporters change
-  outside a sample. Legacy mode keeps it, and concurrent mode never uses
-  it.
+- Remove `working_limit` entirely (after a deprecation period under option
+  B).
+- A breakdown of waiting time by cause in the log (option A).
+- Credit for concurrency in eval authors' own task groups, or a reduced
+  per-child model for regions.
+- Making request-attributable errors (quota 429s, Anthropic 400s matched by
+  body text) non-retryable in provider retry policies.
+- Freezing sandboxes during waits.
