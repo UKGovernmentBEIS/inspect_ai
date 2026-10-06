@@ -197,6 +197,7 @@ async def test_model_output_from_google_basic() -> None:
             total_token_count=30,
         ),
         model_version="gemini-2.0-flash-exp",
+        response_id="g-convert-response",
     )
 
     result = await model_output_from_google(response)
@@ -210,6 +211,7 @@ async def test_model_output_from_google_basic() -> None:
     assert result.usage.input_tokens == 10
     assert result.usage.output_tokens == 20
     assert result.usage.total_tokens == 30
+    assert result.response_id == "g-convert-response"
 
 
 async def test_model_output_from_google_with_tool_calls() -> None:
