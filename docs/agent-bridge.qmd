@@ -195,6 +195,8 @@ The bridge handles:
 - Writing an MCP server script to the sandbox that forwards tool calls to the host
 - Returning `MCPServerConfigStdio` configs that CLI agents can use to connect
 
+Bridged tool results are truncated in the same way as other tool results: at the tool's own `max_output` if it declares one, otherwise at `max_tool_output` from the generate config (16KB by default). Results returned as content (e.g. `list[ContentText]`) are not truncated, as for other tools.
+
 ### Execution Contract {#bridged-tools-execution}
 
 Bridged tools execute only for calls the model proposed in a bridged generation, once per proposal. Each tool call in a model response handed to the agent grants one execution of exactly that tool with exactly those arguments (as approved, or as modified by an [approval policy](#tool-approval)); a `tools/call` request with no matching grant is denied and the error is returned to the agent, which surfaces it to the model. This holds whether or not an approval policy is active. Tool discovery (`tools/list`) is unaffected.

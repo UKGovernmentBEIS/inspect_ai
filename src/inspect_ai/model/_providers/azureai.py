@@ -71,6 +71,7 @@ from .._model_output import (
     ChatCompletionChoice,
     ModelOutput,
     ModelUsage,
+    ServedModelUsage,
     StopReason,
     collect_stop_details,
 )
@@ -338,6 +339,7 @@ class AzureAIAPI(ModelAPI):
                 )
                 if response.usage is not None
                 else None,
+                response_id=response.id or None,
             ), model_call
 
         except AzureError as ex:
@@ -464,7 +466,23 @@ class AzureAIAPI(ModelAPI):
         Users can explicitly specify org: azureai/moonshotai/kimi-k2.5 → moonshotai/kimi-k2.5
         Otherwise auto-detects for known models: azureai/gpt-4o → openai/gpt-4o
         """
-        base_name = self.service_model_name()
+        return self._canonical_model_name(self.service_model_name())
+
+    @override
+    def served_model_usage(self, output: ModelOutput) -> list[ServedModelUsage] | None:
+        # an Azure AI model name is a deployment name, which need not name the
+        # model the deployment serves
+        if (
+            output.usage is not None
+            and output.model
+            and output.model != self.service_model_name()
+        ):
+            return [
+                ServedModelUsage(self._canonical_model_name(output.model), output.usage)
+            ]
+        return None
+
+    def _canonical_model_name(self, base_name: str) -> str:
         # Explicit org prefix takes precedence
         if self.org_prefix:
             return f"{self.org_prefix}/{base_name}"
