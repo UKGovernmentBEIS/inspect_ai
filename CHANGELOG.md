@@ -2,6 +2,7 @@
 
 - Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
 - Tool review now also reviews `handoff()` calls, as approval does.
+- Fixed the human reviewer filling in tool arguments inside tool output that contains `{{{...}}}` (three or more braces).
 - Fixed model calls and token counting in multiprocess Scout scans using the default model configuration.
 - Bugfix: Interrupting after scoring no longer drops the scored sample from a cancelled evaluation log while its sandbox is being cleaned up.
 - Bugfix: Overflow recovery no longer drops the sample's input from the recorded conversation, so scorers and the viewer still see the task after a forced compaction.
