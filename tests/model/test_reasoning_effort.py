@@ -183,18 +183,22 @@ def _google_api(model_name: str) -> GoogleGenAIAPI:
 
 
 @pytest.mark.parametrize(
-    "effort,expected_budget",
+    "model_name,effort,expected_budget",
     [
-        ("minimal", 2048),
-        ("low", 4096),
-        ("medium", 10000),
-        ("high", 16000),
-        ("xhigh", 32000),
-        ("max", 32000),
+        ("gemini-2.5-flash", "minimal", 2048),
+        ("gemini-2.5-flash", "low", 4096),
+        ("gemini-2.5-flash", "medium", 10000),
+        ("gemini-2.5-flash", "high", 16000),
+        # capped at the model's maximum budget
+        ("gemini-2.5-flash", "xhigh", 24576),
+        ("gemini-2.5-flash", "max", 24576),
+        ("gemini-2.5-flash-lite", "max", 24576),
+        ("gemini-2.5-pro", "xhigh", 32000),
+        ("gemini-2.5-pro", "max", 32000),
     ],
 )
-def test_google_gemini_2_5_effort_bridge(effort, expected_budget):
-    api = _google_api("gemini-2.5-flash")
+def test_google_gemini_2_5_effort_bridge(model_name, effort, expected_budget):
+    api = _google_api(model_name)
     thinking_config = api.chat_thinking_config(GenerateConfig(reasoning_effort=effort))
     assert thinking_config is not None
     assert thinking_config.thinking_budget == expected_budget

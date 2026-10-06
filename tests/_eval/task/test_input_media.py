@@ -942,3 +942,68 @@ def test_runtime_media_reference_does_not_invoke_resolver() -> None:
     assert (
         logged_message_image_reference(logs[0].samples[0]) == "test://runtime/image.png"
     )
+
+
+@pytest.mark.parametrize(
+    "kind,content",
+    [
+        ("image", ContentImage(image="test://bucket/seed")),
+        ("audio", ContentAudio(audio="test://bucket/seed", format="mp3")),
+        ("video", ContentVideo(video="test://bucket/seed", format="mp4")),
+        (
+            "document",
+            ContentDocument(document="test://bucket/seed", mime_type="application/pdf"),
+        ),
+    ],
+)
+def test_seed_id_added_as_epoch_does_not_inherit_authority(
+    kind: str, content: ContentImage | ContentAudio | ContentVideo | ContentDocument
+) -> None:
+    # a runtime sample reusing a seed id (and its exact media reference) as a
+    # further epoch is runtime input: only the seed run is materialized
+    resolver_calls: list[str] = []
+    seen: dict[int, str] = {}
+
+    async def resolver(uri: str) -> str:
+        resolver_calls.append(uri)
+        return "data:application/octet-stream;base64,dHJ1c3RlZA=="
+
+    def seed_sample() -> Sample:
+        return Sample(id="seed", input=[ChatMessageUser(content=[content])])
+
+    class Source(SampleSource):
+        def __init__(self) -> None:
+            self.added = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [seed_sample()]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self.added:
+                return None
+            self.added = True
+            enqueue_sample(seed_sample(), epoch=2)
+            return []
+
+    @solver
+    def record_input() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            assert not isinstance(state.input, str)
+            message_content = state.input[0].content
+            assert isinstance(message_content, list)
+            seen[state.epoch] = getattr(message_content[0], kind)
+            return state
+
+        return solve
+
+    with media_resolver("test", resolver):
+        logs = eval(
+            Task(dataset=Source(), solver=record_input()),
+            model="mockllm/model",
+            display="none",
+        )
+
+    assert logs[0].status == "success"
+    assert resolver_calls == ["test://bucket/seed"]
+    assert seen[1].startswith("data:")
+    assert seen[2] == "test://bucket/seed"

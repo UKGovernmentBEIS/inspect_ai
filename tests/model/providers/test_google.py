@@ -1,20 +1,26 @@
 import asyncio
 import base64
+import hashlib
 import time
-from typing import Any
+from pathlib import Path
+from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import anyio
 import pytest
+from google.genai import Client
 from google.genai.errors import APIError, ClientError, ServerError
 from google.genai.types import (
     Blob,
     Candidate,
     Content,
+    File,
+    FileState,
     FinishReason,
     FunctionCall,
     FunctionCallingConfigMode,
+    GenerateContentConfig,
     GenerateContentResponse,
     HttpOptions,
     JobState,
@@ -29,16 +35,24 @@ from inspect_ai._util.content import (
     Content as InspectContent,
 )
 from inspect_ai._util.content import (
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.kvstore import KVStore
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessage, ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ModelOutput,
+)
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 from inspect_ai.model._model import ModelAPI, RetryDecision
+from inspect_ai.model._providers import google as google_provider
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
 )
@@ -47,6 +61,7 @@ from inspect_ai.model._providers.google import (
     _malformed_function_message,
     _malformed_function_retry,
     _report_stream_part_delta,
+    chat_content_to_part,
     completion_choice_from_candidate,
     content,
 )
@@ -2216,3 +2231,242 @@ def test_model_client_preserves_verify_false_for_aiohttp() -> None:
     client = api.model_client(HttpOptions(client_args={"verify": False}))
 
     assert client._api_client._async_client_session_request_args["ssl"] is False
+
+
+class _FakeFiles:
+    """Records Files API uploads and serves them back by name."""
+
+    def __init__(self) -> None:
+        self.files: dict[str, File] = {}
+        self.uploads: list[str] = []
+        self.gets: list[str] = []
+
+    def upload(self, *, file: Any, config: dict[str, Any]) -> File:
+        name = f"files/{len(self.files)}"
+        self.files[name] = File(
+            name=name,
+            uri=f"https://example.com/{name}",
+            mime_type=config["mime_type"],
+            state=FileState.ACTIVE,
+        )
+        self.uploads.append(config["mime_type"])
+        return self.files[name]
+
+    def get(self, *, name: str) -> File:
+        self.gets.append(name)
+        return self.files[name]
+
+
+class _GoogleFiles(NamedTuple):
+    client: Client
+    files: _FakeFiles
+    db_path: Path
+
+
+@pytest.fixture
+def google_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _GoogleFiles:
+    db_path = tmp_path / "google_files.db"
+    monkeypatch.setattr(
+        google_provider,
+        "inspect_kvstore",
+        lambda name, max_entries=None: KVStore(db_path.as_posix(), max_entries),
+    )
+    client = Client(api_key="test-key")
+    fake = _FakeFiles()
+    monkeypatch.setattr(client, "_files", fake)
+    return _GoogleFiles(client, fake, db_path)
+
+
+def _document(mime_type: str, data: bytes = b"a,b\n1,2\n") -> ContentDocument:
+    return ContentDocument(
+        document=f"data:{mime_type};base64,{base64.b64encode(data).decode()}"
+    )
+
+
+async def test_google_files_cache_keys_on_mime_type(
+    google_files: _GoogleFiles,
+) -> None:
+    client, fake, _ = google_files
+    csv_part = await chat_content_to_part(client, _document("text/csv"))
+    text_part = await chat_content_to_part(client, _document("text/plain"))
+
+    assert fake.uploads == ["text/csv", "text/plain"]
+    assert csv_part.file_data and text_part.file_data
+    assert csv_part.file_data.mime_type == "text/csv"
+    assert text_part.file_data.mime_type == "text/plain"
+    assert csv_part.file_data.file_uri != text_part.file_data.file_uri
+
+
+async def test_google_files_cache_reuses_same_bytes_and_mime_type(
+    google_files: _GoogleFiles,
+) -> None:
+    client, fake, _ = google_files
+    first = await chat_content_to_part(client, _document("text/csv"))
+    second = await chat_content_to_part(client, _document("text/csv"))
+
+    assert fake.uploads == ["text/csv"]
+    assert fake.gets == ["files/0"]
+    assert first.file_data and second.file_data
+    assert first.file_data.file_uri == second.file_data.file_uri
+    assert second.file_data.mime_type == "text/csv"
+
+
+async def test_google_files_cache_ignores_old_format_entries(
+    google_files: _GoogleFiles,
+) -> None:
+    client, fake, db_path = google_files
+    data = b"a,b\n1,2\n"
+    # an entry written by the previous cache, keyed by the bytes' sha256 only
+    old = fake.upload(file=None, config={"mime_type": "text/csv"})
+    fake.uploads.clear()
+    with KVStore(db_path.as_posix()) as files_db:
+        files_db.put(hashlib.sha256(data).hexdigest(), str(old.name))
+
+    part = await chat_content_to_part(client, _document("text/csv", data))
+
+    assert fake.gets == []
+    assert fake.uploads == ["text/csv"]
+    assert part.file_data and part.file_data.mime_type == "text/csv"
+    assert part.file_data.file_uri != old.uri
+
+
+async def test_google_files_cache_scoped_to_api_key(
+    google_files: _GoogleFiles, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, fake, db_path = google_files
+    await chat_content_to_part(client, _document("text/csv"))
+    other_client = Client(api_key="other-key")
+    monkeypatch.setattr(other_client, "_files", fake)
+    await chat_content_to_part(other_client, _document("text/csv"))
+
+    assert fake.uploads == ["text/csv", "text/csv"]
+    assert fake.gets == []
+    with KVStore(db_path.as_posix()) as files_db:
+        rows = files_db.conn.execute("SELECT key, value FROM kv_store").fetchall()
+    assert len(rows) == 2
+    stored = " ".join(" ".join(row) for row in rows)
+    assert "test-key" not in stored and "other-key" not in stored
+
+
+@pytest.mark.anyio
+async def test_google_output_records_response_id() -> None:
+    mock_generate = AsyncMock(
+        return_value=GenerateContentResponse(candidates=[], response_id="g-response")
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+        result = await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    assert output.response_id == "g-response"
+
+
+@pytest.mark.anyio
+async def test_google_streamed_response_keeps_response_id() -> None:
+    async def chunks() -> Any:
+        for text in ["hel", "lo"]:
+            yield GenerateContentResponse(
+                candidates=[
+                    Candidate(
+                        content=Content(parts=[Part(text=text)], role="model"),
+                        index=0,
+                    )
+                ],
+                response_id="g-stream-response",
+            )
+
+    client = MagicMock()
+    client.aio.models.generate_content_stream = AsyncMock(return_value=chunks())
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    response = await api._stream_generate_content(
+        client, "gemini-2.0-flash", [], GenerateContentConfig()
+    )
+
+    assert response.response_id == "g-stream-response"
+
+
+def test_google_explicit_api_key_overrides_ambient_adc(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit API key must win over GOOGLE_USE_ADC's ambient default."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    monkeypatch.setenv("GOOGLE_API_KEY", "ambient-key")
+
+    def unexpected_adc_resolution(*_args: Any, **_kwargs: Any) -> Any:
+        pytest.fail(
+            "ambient ADC should not be resolved when an explicit API key is supplied"
+        )
+
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        unexpected_adc_resolution,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="explicit-key",
+    )
+
+    assert api.api_key == "explicit-key"
+    assert api._oauth is False
+
+
+def test_google_ambient_adc_overrides_environment_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ambient ADC must take precedence over an API key found only in the environment."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "true")
+    monkeypatch.setenv("GOOGLE_API_KEY", "ambient-key")
+    credentials = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        lambda *_args, **_kwargs: credentials,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key=None,
+    )
+
+    assert api._oauth is True
+    assert api._credentials is credentials
+
+
+def test_google_explicit_use_adc_overrides_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit use_adc=true remains authoritative over a supplied API key."""
+    monkeypatch.setenv("GOOGLE_USE_ADC", "false")
+    credentials = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.google.resolve_google_credentials",
+        lambda *_args, **_kwargs: credentials,
+    )
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="explicit-key",
+        use_adc=True,
+    )
+
+    assert api._oauth is True
+    assert api._credentials is credentials

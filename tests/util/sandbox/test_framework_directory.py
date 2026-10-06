@@ -1571,7 +1571,7 @@ async def test_write_never_replaces_an_existing_entry(
     await ensure_framework_directory(local, str(target), user=None)
     existing = target / "f"
     existing.write_text("original\n")
-    with pytest.raises(RuntimeError, match="File exists"):
+    with pytest.raises(RuntimeError, match="Cannot write"):
         await write_file_in_framework_directory(
             local, str(target), "f", "replacement\n", user=None, file_mode=0o600
         )
@@ -1584,7 +1584,7 @@ async def test_write_never_replaces_an_existing_entry(
     decoy = parent / "decoy"
     decoy.write_text("decoy\n")
     os.symlink(decoy, existing)
-    with pytest.raises(RuntimeError, match="File exists"):
+    with pytest.raises(RuntimeError, match="Cannot write"):
         await write_file_in_framework_directory(
             local, str(target), "f", "replacement\n", user=None, file_mode=0o600
         )
