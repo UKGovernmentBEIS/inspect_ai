@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from inspect_ai import Task, eval, eval_retry, eval_set, task, task_with
 from inspect_ai._eval.eval_set_manifest import INSPECT_EVAL_SET_CAPTURE, EvalSetCapture
 from inspect_ai._eval.eval_set_overrides import INSPECT_EVAL_SET_OVERRIDES
+from inspect_ai._sentinel._config import resolve_sentinel_spec
 from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import registry_info
@@ -189,6 +191,73 @@ def test_config_file_and_registered_name(tmp_path: Path) -> None:
     log = eval(sentinel_task(), model="mockllm/model", sentinel="d2_rule")[0]
     assert config_data(log) == {"name": "d2_rule", "params": {}}
     assert active_root(log) == "d2_rule"
+
+
+@pytest.mark.parametrize("suffix", [".yaml", ".json"])
+def test_a_file_holds_the_config_under_sentinel(tmp_path: Path, suffix: str) -> None:
+    content = {"sentinel": {"escape": {"name": "d2_rule"}}}
+    file = tmp_path / f"sentinel{suffix}"
+    file.write_text(json.dumps(content) if suffix == ".json" else yaml.dump(content))
+    built = resolve_sentinel_spec(str(file))
+    assert isinstance(built, dict)
+    assert registry_info(built["escape"]).name == "d2_rule"
+
+
+@pytest.mark.parametrize(
+    "content", [{"approvers": []}, {"sentinel": [], "extra": 1}, [{"name": "d2_rule"}]]
+)
+def test_a_file_must_hold_only_a_sentinel_key(tmp_path: Path, content: Any) -> None:
+    file = tmp_path / "sentinel.yaml"
+    file.write_text(yaml.dump(content))
+    with pytest.raises(ValueError, match="only key is 'sentinel'"):
+        resolve_sentinel_spec(str(file))
+
+
+@pytest.mark.parametrize(
+    "text, where, key",
+    [
+        (
+            "sentinel:\n  attempt:\n    name: d2_rule\n  attempt:\n    name: d2_rule\n",
+            "sentinel",
+            "attempt",
+        ),
+        (
+            "sentinel:\n  - name: d2_rule\n    params:\n      reason: a\n      reason: b\n",
+            r"sentinel\[0\]\.params",
+            "reason",
+        ),
+        ("sentinel: []\nsentinel: []\n", "the top level", "sentinel"),
+        (
+            '{"sentinel": {"a": {"name": "d2_rule", "name": "d2_suspicion"}}}',
+            r"sentinel\.a",
+            "name",
+        ),
+    ],
+)
+def test_a_repeated_key_in_a_file_is_an_error(
+    tmp_path: Path, text: str, where: str, key: str
+) -> None:
+    file = tmp_path / "sentinel.yaml"
+    file.write_text(text)
+    with pytest.raises(
+        ValueError, match=rf"sentinel\.yaml: {where}: duplicate key '{key}'"
+    ):
+        resolve_sentinel_spec(str(file))
+
+
+def test_tab_indented_json_is_read(tmp_path: Path) -> None:
+    file = tmp_path / "sentinel.json"
+    file.write_text('{\n\t"sentinel": [\n\t\t{"name": "d2_rule"}\n\t]\n}\n')
+    built = resolve_sentinel_spec(str(file))
+    assert isinstance(built, list)
+    assert registry_info(built[0]).name == "d2_rule"
+
+
+def test_a_malformed_file_names_the_file(tmp_path: Path) -> None:
+    file = tmp_path / "broken.yaml"
+    file.write_text("sentinel: [\n")
+    with pytest.raises(ValueError, match=r"broken\.yaml: could not parse"):
+        resolve_sentinel_spec(str(file))
 
 
 def test_nested_config_round_trips_through_the_log(tmp_path: Path) -> None:
