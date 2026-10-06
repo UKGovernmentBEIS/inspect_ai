@@ -213,3 +213,30 @@ def test_task_state_input_text_empty_user_message():
         ValueError, match="input_text requested from TaskState but none available"
     ):
         _ = state_no_user.input_text
+
+
+def test_task_state_input_text_non_text_user_message():
+    from inspect_ai.model import ContentAudio, ContentImage, ContentText
+
+    def input_text(content: list[Any]) -> str:
+        return TaskState(
+            model=ModelName("mockllm/model"),
+            sample_id=1,
+            epoch=1,
+            input=[ChatMessageUser(content=content)],
+            messages=[],
+        ).input_text
+
+    image = ContentImage(image="data:image/png;base64,iVBORw0KGgo=")
+    audio = ContentAudio(audio="data:audio/wav;base64,UklGRg==", format="wav")
+
+    # no text: name the non-text parts rather than returning a blank string
+    assert input_text([image]) == "[image]"
+    assert input_text([ContentText(text=""), image]) == "[image]"
+    assert input_text([image, audio]) == "[image] [audio]"
+
+    # text present: the text alone, as before
+    assert input_text([ContentText(text="Describe this."), image]) == "Describe this."
+
+    # no content parts at all: genuinely empty
+    assert input_text([]) == ""

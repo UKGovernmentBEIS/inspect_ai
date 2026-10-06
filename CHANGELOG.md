@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Solver: Allow empty user message text in TaskState.input_text. (#5046)
+- Solver: `TaskState.input_text` no longer raises when the last user message has no text; image-only and other non-text messages return placeholders such as `[image]`, and an empty message returns `""`. (#5046)
 - Fixed model calls and token counting in multiprocess Scout scans using the default model configuration.
 - Bugfix: Interrupting after scoring no longer drops the scored sample from a cancelled evaluation log while its sandbox is being cleaned up.
 - Bugfix: Overflow recovery no longer drops the sample's input from the recorded conversation, so scorers and the viewer still see the task after a forced compaction.
