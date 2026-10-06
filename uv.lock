@@ -2291,7 +2291,7 @@ requires-dist = [
     { name = "nbformat", marker = "extra == 'dev'" },
     { name = "nest-asyncio2", specifier = ">=1.7.2" },
     { name = "numpy" },
-    { name = "openai", marker = "extra == 'dev'", specifier = ">=3.1.0" },
+    { name = "openai", marker = "extra == 'dev'", specifier = ">=3.4.0" },
     { name = "pandas", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "pandas-stubs", marker = "extra == 'dev'" },
     { name = "panflute", marker = "extra == 'dev'" },
