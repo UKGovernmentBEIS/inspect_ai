@@ -31,9 +31,11 @@ The routes:
   reconciliation are credited separately for each call. When concurrent
   calls retry, their credits add up, so waiting time can exceed wall-clock
   time. Four concurrent retrying calls log −12.53 s for a 4.32 s sample.
-  Once working time is negative, `working_limit` never trips, however long
-  the sample runs. This is the key result. The limit can be switched off
-  by the sample's own behaviour, and the values already reach downstream
+  A negative balance is a debt the limit has to work off before it can
+  trip. Repeated overlapping retries can keep credited time ahead of
+  elapsed time, and the limit does not trip while that continues. This is
+  the key result. The sample's own behaviour can hold the limit off, and
+  the values already reach downstream
   consumers: METR's hawk clamps `working_time` to zero before storing it
   (`inspect-action` at 564a080f: `hawk/core/importer/eval/converter.py:252`,
   with a non-negative check constraint at `hawk/core/db/models.py:265`).
@@ -400,15 +402,14 @@ class SampleClock:
     waits: int = 0
     _credited: float = 0.0
     _mark: float = 0.0                # start of the open interval
-    _prior_working: float = 0.0       # checkpoint restore
 
     def crediting(self) -> bool:
         return (self.credit_eligible and self.bridges == 0 and self.regions == 0
                 and self.attempts == 0 and self.waits > 0)
 
     def change(self, counter: str, delta: int) -> None:  # advance, then apply
-    def working_time(self) -> float: ...   # prior + elapsed - credited - open credited interval
-    def waiting_time(self) -> float: ...   # credited, including the open interval
+    def working_time(self) -> float: ...   # this attempt: elapsed - credited - open credited interval
+    def waiting_time(self) -> float: ...   # this attempt: credited, including the open interval
 ```
 
 Every counter change first closes the interval since `_mark`, adding it to
@@ -472,14 +473,10 @@ It is keyed on the task's stable id and the reason (`sandbox` or
   escape takes. The guard that skips the check during an active model event
   never fires today (see "Current behaviour") and is removed: in-flight
   attempts are charged by rule.
-- **Checkpoints.** The payload keys stay the same. `working_elapsed` is
-  `working_time()` and `working_waiting` is `waiting_time()`. Restore
-  seeds `_prior_working` (always) and the root node's anchor (with
-  `check=True`), as today.
-- **Logged values.** `EvalSample.working_time` is the clock's working time
-  for the current attempt, closed at the instant `total_time` is measured,
-  so `working_time ≤ total_time` holds exactly. `working_start` is the
-  reading plus `_prior_working`.
+- **Checkpoints and logged values.** See "Resume accounting" below for
+  both options. The clock's readings cover only the current attempt.
+  `EvalSample.working_time` is `working_time()`, closed at the instant
+  `total_time` is measured, so `working_time ≤ total_time` holds exactly.
 
 ### Costs accepted in option A
 
@@ -510,11 +507,13 @@ and `working_limit` is a wall-clock limit.
   `working_limit` raises `LimitExceededError` at checks and from the
   once-a-second monitor, while `time_limit` cancels through a cancel scope
   and gives the scorer a timeout.
-- **Logged `working_time`.** The field stays and equals `total_time` (on a
-  resumed sample, it includes the prior attempt like `working_start`).
-  Setting it to `None` would break consumers that coerce `None` to 0, such
-  as hawk's `sample.working_time or 0.0`.
-- **Events.** `working_start` is elapsed time since the sample started.
+- **Logged `working_time`.** The field stays and equals `total_time`. Both
+  are attempt-local on a resumed sample (`run.py:3377`, `:3410`). Setting
+  it to `None` would break consumers that coerce `None` to 0, such as
+  hawk's `sample.working_time or 0.0`.
+- **Events.** `working_start` is cumulative elapsed time: the prior
+  attempts' wall time plus this attempt's elapsed time (see "Resume
+  accounting").
   Tool and subtask `working_time` are their elapsed times.
   `ModelEvent.working_time` (`output.time`) is unchanged.
 - **Pause and human waits.** `pause --now` holds and human approvals burn
@@ -522,15 +521,74 @@ and `working_limit` is a wall-clock limit.
   interim-scoring designs (`design/ctl/pause-resume.md`,
   `design/ctl/interim-scoring.md`) promise that held time does not burn
   `working_limit`. Those notes and the control-channel docs change.
-- **Checkpoints.** `working_elapsed` is elapsed time and `working_waiting`
-  is 0. An older snapshot restores its `working_elapsed` as the prior
-  elapsed time. That gives one resume a little extra budget, which is
-  documented.
+- **Checkpoints.** See "Resume accounting". Option B takes the prior
+  amount from the stored wall time, never from an older snapshot's
+  discounted `working_elapsed`.
 - **Code.** The waiting ledger and every reporter go. That covers the retry
   credit callback, the reconciliation, the pause credit ticks, the merging
   in `sample_waiting`/`sample_waiting_for`, `record_waiting_time` and the
   monitor guard. `report_sample_waiting_time()` stays as a deprecated no-op
   that warns once. The change is a net deletion.
+
+## Resume accounting (both options)
+
+Today the checkpoint code keeps three things apart
+(`src/inspect_ai/util/_checkpoint/sample_runtime.py:98`, `:179`), and both
+options keep that separation:
+
+- **Event offsets are cumulative.** `working_start` includes the prior
+  attempts exactly once.
+- **Logged durations are attempt-local.** `EvalSample.working_time`, like
+  `total_time` (`run.py:3377`), covers only the current attempt.
+- **Enforcement includes prior usage only on a normal resume.** A scoring
+  resume (`check=False`) must be able to score a sample whose budget was
+  already spent.
+
+The root `working_limit` node is entered before restore (`run.py:2691`), so
+restore sets a separate prior-usage term on the node instead of seeding the
+clock.
+
+**Definitions.** At restore:
+
+- `P_wall` is the prior attempts' wall time. It is the payload's
+  `time_elapsed` (`sample_runtime.py:56`, `:72`), which is written whether or
+  not a `time_limit` is set, is cumulative across resumes, and is never
+  discounted. If an older payload lacks `time_elapsed`, the fallback is
+  `working_elapsed + working_waiting`: the root node's `usage` plus its
+  `_waiting_time`, which equals its elapsed wall time. If neither is
+  present, it is 0.
+- `P_work` is the prior attempts' working time. Under option A it is the
+  payload's `working_elapsed`, clamped to `[0, P_wall]`. The clamp matters
+  because a snapshot written by today's code can hold a negative or
+  inflated value: a current-code dump after 5 s with 20 s of credit has
+  `time_elapsed=5`, `working_elapsed=-15`, `working_waiting=20`, and A
+  restores `P_work = 0`. Under option B, `P_work = P_wall`.
+
+**Formulas.** `A(t)` is the current attempt's working time: the clock's
+`working_time()` under option A, and elapsed time under option B. `E` is
+`A` at the moment the root node is entered.
+
+| Quantity | Formula |
+| --- | --- |
+| `sample_working_time()`, so every event's `working_start` | `P_work + A(t)` |
+| Logged `EvalSample.working_time` | `A(end)`, attempt-local |
+| Root node `usage` on a normal resume (`check=True`) | `P_work + (A(t) - E)` |
+| Root node `usage` on a scoring resume (`check=False`) | `A(t) - E`; prior usage excluded |
+| Scoped node `usage` (entered after restore) | `A(t) - A(enter)`, unaffected by prior attempts |
+| Dump: `working_elapsed` | `P_work + A(t)`, cumulative |
+| Dump: `working_waiting` | option A: `(P_wall - P_work) + waiting_time()`; option B: 0 |
+| Dump: `time_elapsed` | unchanged (the time limit's cumulative usage) |
+
+So a scoring resume with 45 s of prior working time under a 30 s limit
+starts its root node at 0 and is not stopped by the monitor. Consecutive
+resumes stay correct: each dump writes cumulative values, and each restore
+reads them once.
+
+**Migration.** Under option B, snapshots written by today's code restore
+`P_wall` from `time_elapsed`. Waiting credited before the snapshot (which
+can be larger than the elapsed time, R1) is not carried forward, so a
+resumed sample is charged its real elapsed time from then on. Under option
+A, the clamp bounds whatever a legacy snapshot carries to `[0, P_wall]`.
 
 ## Comparison and recommendation
 
@@ -648,8 +706,17 @@ block on `anyio.Event`s, so ordering is fixed and no test waits on a sleep.
   removed, and scoped `working_limit()` usage equals elapsed time.
 - `report_sample_waiting_time()` is a no-op that warns once.
 - The deprecation notice appears once per task.
-- `tests/checkpoint/test_sample_runtime.py`: an older snapshot with
-  `working_waiting > 0` restores.
+- `tests/checkpoint/test_sample_runtime.py`, for the formulas in "Resume
+  accounting":
+  - a normal resume;
+  - a scoring resume with a spent budget (45 s prior, 30 s limit, not
+    stopped);
+  - two consecutive resumes;
+  - an old snapshot with positive waiting credit and a negative
+    `working_elapsed` (`time_elapsed=5`, `working_elapsed=-15`,
+    `working_waiting=20`, restored as `P_wall=5`);
+  - a payload without `time_elapsed`, which falls back to `working_elapsed +
+    working_waiting`.
 
 **Option A:**
 
@@ -661,7 +728,8 @@ block on `anyio.Event`s, so ordering is fixed and no test waits on a sleep.
   sandbox included) and the `agent_bridge()` counter.
 - The warning appears once per task.
 - Scoped limits use deltas.
-- Checkpoint round trip.
+- Checkpoint tests in `tests/checkpoint/test_sample_runtime.py` for the
+  same cases as option B, plus the clamp of `P_work` to `[0, P_wall]`.
 
 ## Implementation plan
 
@@ -678,8 +746,9 @@ For option B (recommended):
    `src/inspect_ai/_control/pause.py`: remove the retry credit callback,
    the reconciliation and the hold credits (keep the escape tick).
 4. `src/inspect_ai/_eval/task/run.py`: logged `working_time` is
-   `total_time`. Update `util/_checkpoint/sample_runtime.py`, and the event
-   producers in `_call_tools.py` and `_subtask.py`.
+   `total_time`. Update `util/_checkpoint/sample_runtime.py` to the
+   "Resume accounting" formulas (`P_wall` from `time_elapsed`, with the
+   fallback), and the event producers in `_call_tools.py` and `_subtask.py`.
 5. Docs (`_working_limits.md`, `setting-limits.qmd`, `providers.qmd`, the
    control-channel pause docs), the notes in `design/ctl/pause-resume.md`
    and `design/ctl/interim-scoring.md`, the CHANGELOG, and the tests
