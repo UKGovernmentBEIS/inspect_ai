@@ -87,8 +87,13 @@ def _load_eval_yaml(path: Path) -> dict[str, Any]:
     which crashes or silently corrupts non-ASCII task configs on Windows
     (cp1252) and under the C locale (#5597).
     """
-    with open(path, "r", encoding="utf-8") as f:
-        return cast(dict[str, Any], yaml.safe_load(f))
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return cast(dict[str, Any], yaml.safe_load(f))
+    except UnicodeDecodeError as ex:
+        raise PrerequisiteError(
+            f"eval.yaml file at {path} is not valid UTF-8: {ex}"
+        ) from ex
 
 
 def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:

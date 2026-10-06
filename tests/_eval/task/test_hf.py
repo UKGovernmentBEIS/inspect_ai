@@ -363,15 +363,23 @@ def test_hf_task_epochs_negative():
         HFTask.model_validate(config)
 
 
+# --- eval.yaml loading tests ---
+
+
 def test_eval_yaml_read_as_utf8_under_non_utf8_locale(tmp_path):
     # eval.yaml is UTF-8 by spec. Under a non-UTF-8 default encoding the
     # pre-fix read crashed (C locale) or silently corrupted (cp1252) on
-    # any non-ASCII task config. U+0181 ("Ɓ") encodes to C6 81: 0x81 is
-    # undefined in cp1252, so the byte sequence hard-fails under both the
-    # C locale and the Windows ANSI code page, and round-trips as UTF-8.
+    # any non-ASCII task config. U+0181 ("Ɓ") encodes to C6 81: that
+    # hard-fails under the C locale (ascii) and cp1252 (0x81 undefined);
+    # on DBCS code pages such as cp936 it silently decodes to the wrong
+    # character, caught by the value assertion below.
     yaml_path = tmp_path / "eval.yaml"
     yaml_path.write_text(
-        "tasks:\n  - id: t\n    dataset:\n      name: 'Ɓorg/data'\n",
+        "tasks:\n"
+        "  - id: t\n"
+        "    field_spec: {input: question, target: answer}\n"
+        "    solvers: [{name: system_message, args: {system_message: 'You are Ɓ'}}]\n"
+        "    scorers: [{name: match}]\n",
         encoding="utf-8",
     )
 
@@ -396,4 +404,4 @@ def test_eval_yaml_read_as_utf8_under_non_utf8_locale(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     data = json.loads(result.stdout)
-    assert data["tasks"][0]["dataset"]["name"] == "Ɓorg/data"
+    assert data["tasks"][0]["solvers"][0]["args"]["system_message"] == "You are Ɓ"
