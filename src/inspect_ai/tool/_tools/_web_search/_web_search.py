@@ -176,6 +176,8 @@ def web_search(
           See https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses
 
         - anthropic: Supports Anthropic's web search parameters.
+          Set `allowed_callers` to `["direct"]` to disable dynamic filtering
+          for both native web search and web fetch. Omit it to keep provider defaults.
           See https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#tool-definition
 
         - perplexity: Supports Perplexity's web search parameters.

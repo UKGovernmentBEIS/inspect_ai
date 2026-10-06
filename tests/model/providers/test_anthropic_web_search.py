@@ -1,11 +1,15 @@
+import json
+
+import httpx2 as httpx
 import pytest
 
+from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._providers.anthropic import (
     AnthropicAPI,
     _supports_web_search,
     _web_search_tool_params,
 )
-from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool import ToolInfo, bash, python, web_search
 
 
 class TestAnthropicWebSearch:
@@ -69,6 +73,85 @@ class TestAnthropicWebSearch:
                 "allowed_domains": ["nhl.com"],
             },
         ]
+
+    @pytest.mark.parametrize("filtering", [False, True])
+    @pytest.mark.parametrize(
+        "allowed_callers",
+        [["direct"], ["direct", "code_execution_20260120"]],
+    )
+    def test_web_search_allowed_callers(
+        self, filtering: bool, allowed_callers: list[str]
+    ) -> None:
+        result = _web_search_tool_params(
+            {"allowed_callers": allowed_callers, "max_uses": 3},
+            web_search_filtering=filtering,
+        )
+        assert result == [
+            {
+                "name": "web_fetch",
+                "type": "web_fetch_20260209" if filtering else "web_fetch_20250910",
+                "allowed_callers": allowed_callers,
+                "max_uses": 3,
+            },
+            {
+                "name": "web_search",
+                "type": "web_search_20260209" if filtering else "web_search_20250305",
+                "allowed_callers": allowed_callers,
+                "max_uses": 3,
+            },
+        ]
+
+
+@pytest.mark.parametrize("model_name", ["claude-sonnet-4-5", "claude-sonnet-5-5"])
+@pytest.mark.parametrize("direct_only", [False, True])
+async def test_public_web_search_allowed_callers_request(
+    model_name: str, direct_only: bool
+) -> None:
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        tools = {tool["name"]: tool for tool in json.loads(request.content)["tools"]}
+        assert set(tools) == {"web_search", "web_fetch", "bash", "python"}
+        for name in ("web_search", "web_fetch"):
+            if direct_only:
+                assert tools[name]["allowed_callers"] == ["direct"]
+            else:
+                assert "allowed_callers" not in tools[name]
+        for name in ("bash", "python"):
+            assert "input_schema" in tools[name]
+            assert "allowed_callers" not in tools[name]
+        return httpx.Response(
+            200,
+            json={
+                "id": "msg_test",
+                "type": "message",
+                "role": "assistant",
+                "model": model_name,
+                "content": [{"type": "text", "text": "Done"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle_request)
+    ) as client:
+        model = get_model(
+            f"anthropic/{model_name}",
+            api_key="test-key",
+            http_client=client,
+            streaming=False,
+            memoize=False,
+        )
+        search = (
+            web_search(providers={"anthropic": {"allowed_callers": ["direct"]}})
+            if direct_only
+            else web_search(providers="anthropic")
+        )
+        output = await model.generate(
+            "Hello",
+            tools=[search, bash(), python()],
+            config=GenerateConfig(cache_prompt=False, max_tokens=1024, max_retries=0),
+        )
+        assert output.completion == "Done"
 
 
 class TestWebSearchFilteringGate:
