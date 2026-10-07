@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from copy import copy
 from logging import getLogger
 from typing import Any, Literal, cast
 from weakref import WeakKeyDictionary
@@ -310,7 +311,8 @@ class _Host:
                 "Pass None for the 'monitor' role."
             )
         if model is not None and role is None:
-            resolved = get_model(model)
+            resolved = copy(get_model(model))
+            resolved._set_role("sentinel")
         else:
             role = role or "monitor"
             if model is None and role not in model_roles():

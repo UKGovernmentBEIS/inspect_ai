@@ -1273,7 +1273,7 @@ def role_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [r.getMessage() for r in caplog.records if "sentinel role" in r.getMessage()]
 
 
-def test_host_generate_with_only_a_model_ignores_the_monitor_role(
+def test_host_generate_with_only_a_model_labels_it_sentinel(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING):
@@ -1284,8 +1284,19 @@ def test_host_generate_with_only_a_model_ignores_the_monitor_role(
     [event] = sentinel_events(log)
     assert event.error is not None
     assert "Default output from mockllm/model" in event.error
-    assert monitor_calls(log) == [("mockllm/model", None)]
+    assert monitor_calls(log) == [("mockllm/model", "sentinel")]
     assert not role_warnings(caplog)
+    assert "sentinel" in log.stats.role_usage
+    assert log.samples
+    events = log.samples[0].events
+    agent_calls = [
+        e
+        for e in events
+        if isinstance(e, ModelEvent) and e.span_id not in sentinel_span_ids(events)
+    ]
+    assert agent_calls
+    assert all(e.model == "mockllm/model" and e.role is None for e in agent_calls)
+    assert get_model("mockllm/model").role is None
 
 
 def test_host_generate_falls_back_to_the_model_for_an_unconfigured_role(
