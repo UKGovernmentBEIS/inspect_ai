@@ -93,9 +93,12 @@ class StoreModel(BaseModel):
                 validate[name] = data[ns_name]
 
         # perform validation (use a scratch store so model_post_init of
-        # the validation model doesn't write into any real store)
+        # the validation model doesn't write into any real store; keys are
+        # field names, so ignore any validation aliases)
         self.__class__.model_validate(
-            validate | {"store": Store(), "instance": self.instance}
+            validate | {"store": Store(), "instance": self.instance},
+            by_alias=False,
+            by_name=True,
         )
 
     def _validate_value(self, name: str, value: Any) -> None:

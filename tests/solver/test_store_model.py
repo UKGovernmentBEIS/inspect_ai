@@ -1,7 +1,7 @@
 from typing import Any, Iterator
 
 import pytest
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import AliasGenerator, BaseModel, ConfigDict, Field, ValidationError
 
 from inspect_ai import Task, eval
 from inspect_ai.solver._solver import Solver, solver
@@ -339,3 +339,27 @@ def test_store_model_instance_validation_uses_own_namespace():
     with pytest.raises(ValidationError):
         model.x = "invalid"
     assert store.get("MyModel:m1:x") == 5
+
+
+@pytest.mark.parametrize(
+    "alias_generator", [str.upper, AliasGenerator(validation_alias=str.upper)]
+)
+def test_store_model_validation_ignores_aliases(
+    ambient_store: Store, alias_generator: Any
+) -> None:
+    class AliasedModel(StoreModel):
+        model_config = ConfigDict(alias_generator=alias_generator)
+        x: int = 5
+
+    own_store = Store()
+    model = AliasedModel.model_validate({"STORE": own_store, "INSTANCE": "m1"})
+
+    model.x = 10
+    model.model_dump_json()
+
+    assert ambient_store._data == {}
+    assert own_store.get("AliasedModel:m1:x") == 10
+
+    with pytest.raises(ValidationError):
+        setattr(model, "x", "invalid")
+    assert own_store.get("AliasedModel:m1:x") == 10
