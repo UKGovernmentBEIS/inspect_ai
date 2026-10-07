@@ -645,13 +645,17 @@ def test_multi_function_monitor_shares_state_across_calls() -> None:
     assert log.samples[0].store["Trajectory:d3_trajectory:calls"] == 2
 
 
-def test_host_generate_uses_the_monitor_role() -> None:
+@pytest.mark.parametrize("model", [None, "monitor"])
+def test_host_generate_uses_the_monitor_role(model: str | None) -> None:
     monitor_model = get_model(
         "mockllm/model",
         custom_outputs=[ModelOutput.from_content("mockllm/model", content="0.75")],
         memoize=False,
     )
-    log = run(observe_only([d3_asks_model()]), model_roles={"monitor": monitor_model})
+    log = run(
+        observe_only([d3_asks_with(model=model)]),
+        model_roles={"monitor": monitor_model},
+    )
     assert log.status == "success", log.error
 
     [event] = sentinel_events(log)
@@ -1244,8 +1248,17 @@ def test_host_generate_rejects_a_model_instance() -> None:
     log = run(observe_only([d3_asks_with(model=cast(str, _scoring_model("0.5")))]))
     [event] = sentinel_events(log)
     assert event.error is not None
+    assert "TypeError" in event.error
     assert "not a Model" in event.error
     assert "model_roles" in event.error
+
+
+def test_host_generate_rejects_an_empty_model() -> None:
+    log = run(observe_only([d3_asks_with(model="")]))
+    [event] = sentinel_events(log)
+    assert event.error is not None
+    assert "ValueError" in event.error
+    assert "not an empty string" in event.error
 
 
 @pytest.mark.parametrize("model,role", [(None, "monitor"), ("judge", "judge")])

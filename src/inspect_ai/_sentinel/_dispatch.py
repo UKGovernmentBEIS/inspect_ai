@@ -296,6 +296,11 @@ class _Host:
                 "Configure the Model for a role with Task(model_roles={'<role>': model}) "
                 "or --model-role, and pass the role name."
             )
+        if model == "":
+            raise ValueError(
+                "Host.generate() model must be a model role or a model name, "
+                "not an empty string. Pass None for the 'monitor' role."
+            )
         if model is not None and "/" in model:
             resolved = get_model(model)
         else:
