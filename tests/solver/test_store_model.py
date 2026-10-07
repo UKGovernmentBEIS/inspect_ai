@@ -1,7 +1,15 @@
 from typing import Any, Iterator
 
 import pytest
-from pydantic import AliasGenerator, BaseModel, ConfigDict, Field, ValidationError
+from pydantic import (
+    AliasChoices,
+    AliasGenerator,
+    AliasPath,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+)
 
 from inspect_ai import Task, eval
 from inspect_ai.solver._solver import Solver, solver
@@ -355,6 +363,7 @@ def test_store_model_validation_with_aliases(
     model = AliasedModel.model_validate({"STORE": own_store, "INSTANCE": "m1"})
 
     model.x = 10
+    model.model_dump()
     model.model_dump_json()
 
     assert ambient_store._data == {}
@@ -363,6 +372,36 @@ def test_store_model_validation_with_aliases(
     with pytest.raises(ValidationError):
         setattr(model, "x", "invalid")
     assert own_store.get("AliasedModel:m1:x") == 10
+
+
+@pytest.mark.parametrize(
+    "validation_alias",
+    [
+        lambda name: AliasPath("payload", name),
+        lambda name: AliasChoices(AliasPath("payload", name), name.upper()),
+    ],
+)
+def test_store_model_validation_with_path_aliases(
+    ambient_store: Store, validation_alias: Any
+) -> None:
+    class PathAliasedModel(StoreModel):
+        model_config = ConfigDict(
+            alias_generator=AliasGenerator(validation_alias=validation_alias)
+        )
+        x: int = 5
+
+    own_store = Store()
+    model = PathAliasedModel.model_validate(
+        {"payload": {"store": own_store, "instance": "m1"}}
+    )
+    assert model.store is own_store
+
+    model.x = 10
+    model.model_dump()
+    model.model_dump_json()
+
+    assert ambient_store._data == {}
+    assert own_store.get("PathAliasedModel:m1:x") == 10
 
 
 class AliasedNested(BaseModel):

@@ -2,7 +2,7 @@ from typing import Any, Type, TypeVar
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, TypeAdapter
 
-from ._store import Store, store
+from ._store import Store, _subtask_store, store
 
 
 class StoreModel(BaseModel):
@@ -83,12 +83,8 @@ class StoreModel(BaseModel):
         # validate store or custom dict
         data = data if data is not None else self.store._data
 
-        # pick out this instance's fields to validate (use a scratch store so
-        # model_post_init of the validation model doesn't write into any real store)
-        validate: dict[str, Any] = {
-            self._validation_key("store"): Store(),
-            self._validation_key("instance"): self.instance,
-        }
+        # pick out this instance's fields to validate
+        validate: dict[str, Any] = {}
         for name in self.__class__.model_fields.keys():
             if name in ["store", "instance"]:
                 continue
@@ -96,8 +92,14 @@ class StoreModel(BaseModel):
             if ns_name in data:
                 validate[self._validation_key(name)] = data[ns_name]
 
-        # perform validation
-        self.__class__.model_validate(validate)
+        # perform validation (the validation model's store defaults to store(),
+        # so point that at a scratch store: its model_post_init then can't
+        # write into any real store)
+        token = _subtask_store.set(Store())
+        try:
+            self.__class__.model_validate(validate)
+        finally:
+            _subtask_store.reset(token)
 
     def _validation_key(self, name: str) -> str:
         """Input key for a field in model_validate().
