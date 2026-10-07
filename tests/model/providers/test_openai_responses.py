@@ -2900,7 +2900,9 @@ def test_responses_bridge_preserves_multiple_internal_blocks(as_list: bool) -> N
 
 @pytest.mark.parametrize("duplicate", [False, True])
 @pytest.mark.parametrize("serialized", [False, True])
-@pytest.mark.parametrize("texts", [["first", "second"], ["first", "middle", "first"]])
+@pytest.mark.parametrize(
+    "texts", [["first", "second"], ["first", "middle", "first"], ["first", "", "last"]]
+)
 def test_responses_bridge_replays_distinct_blocks_with_shared_state(
     duplicate: bool,
     serialized: bool,

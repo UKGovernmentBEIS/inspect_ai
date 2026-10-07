@@ -1072,9 +1072,7 @@ def messages_from_responses_input(
                                     )
                                 )
                                 asst_content = remaining_text
-                            if (
-                                asst_content
-                            ):  # Only add text if there's remaining content
+                            if asst_content or content_internal is not None:
                                 content.append(
                                     ContentText(
                                         text=asst_content,
