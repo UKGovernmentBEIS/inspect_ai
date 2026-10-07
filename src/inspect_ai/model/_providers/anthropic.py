@@ -1397,7 +1397,7 @@ class AnthropicAPI(ModelAPI):
                 (
                     self.is_claude_opus_5()
                     or self.is_claude_sonnet_5_5_or_later()
-                    or self.is_claude_haiku_5()
+                    or self.is_claude_haiku_5_5_or_later()
                 )
                 and isinstance(output_config, dict)
                 and output_config.get("effort") in ("xhigh", "max")
@@ -1439,6 +1439,14 @@ class AnthropicAPI(ModelAPI):
                     logger,
                     "fallback_models is not supported with the Anthropic "
                     "Batches API and will be ignored.",
+                )
+            elif self.is_claude_haiku_5_5_or_later():
+                # Haiku 5.5 publishes no allowed_fallback_models and rejects
+                # the `fallbacks` param with a 400
+                warn_once(
+                    logger,
+                    f"fallback_models is not supported by the model "
+                    f"'{self.service_model_name()}' and will be ignored.",
                 )
             else:
                 betas.append(FALLBACK_BETA)
@@ -1543,11 +1551,11 @@ class AnthropicAPI(ModelAPI):
         # Claude 5: only tier-named models accept `disabled`. Fable/Mythos also
         # always think but reject `disabled` (400) — as do unknown codename
         # Claude 5 models, which are assumed to follow Fable rather than the
-        # tier-named (opus/sonnet/haiku) models.
+        # tier-named (opus/sonnet) models and Haiku 5.5.
         return (
             self.is_claude_sonnet_5()
             or self.is_claude_opus_5()
-            or self.is_claude_haiku_5()
+            or self.is_claude_haiku_5_5_or_later()
         )
 
     def apply_thinking_block_binding(
@@ -5134,7 +5142,7 @@ def _warn_refusal_without_fallback(
         return
     if not (api.is_claude_5() or api.is_claude_latest()):
         return
-    if api.is_claude_haiku_5():
+    if api.is_claude_haiku_5_5_or_later():
         return
     # classifier refusal (stop_details.type == "refusal") distinguishes
     # rescuable safety-classifier declines from other content_filter stops

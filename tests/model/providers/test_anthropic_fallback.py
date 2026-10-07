@@ -141,6 +141,25 @@ def test_fallback_ignored_in_batch_mode(monkeypatch: pytest.MonkeyPatch) -> None
     assert any("Batches" in w for w in warnings)
 
 
+def test_fallback_ignored_on_haiku_5_5(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Haiku 5.5 rejects the `fallbacks` param, so it is not sent."""
+    from inspect_ai._util import logger as logger_mod
+    from inspect_ai.model._providers import anthropic as anthropic_mod
+
+    warnings: list[str] = []
+    logger_mod._warned.clear()
+    monkeypatch.setattr(
+        anthropic_mod.logger, "warning", lambda msg: warnings.append(msg)
+    )
+
+    api = AnthropicAPI(model_name="claude-haiku-5-5", api_key="test-key")
+    config = GenerateConfig(max_tokens=64, fallback_models=[FALLBACK_MODEL])
+    _params, extra_body, _headers, betas = api.completion_config(config)
+    assert "fallbacks" not in extra_body
+    assert FALLBACK_BETA not in betas
+    assert any("fallback_models" in w and "claude-haiku-5-5" in w for w in warnings)
+
+
 # ---------------------------------------------------------------------------
 # response side: detection, serving model, metadata, usage
 # ---------------------------------------------------------------------------
