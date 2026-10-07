@@ -94,10 +94,9 @@ class StoreModel(BaseModel):
 
         # perform validation (use a scratch store so model_post_init of
         # the validation model doesn't write into any real store; keys are
-        # field names, so ignore any validation aliases)
+        # field names, so accept them even when the model has aliases)
         self.__class__.model_validate(
             validate | {"store": Store(), "instance": self.instance},
-            by_alias=False,
             by_name=True,
         )
 

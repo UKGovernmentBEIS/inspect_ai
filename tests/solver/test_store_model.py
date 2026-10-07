@@ -363,3 +363,27 @@ def test_store_model_validation_ignores_aliases(
     with pytest.raises(ValidationError):
         setattr(model, "x", "invalid")
     assert own_store.get("AliasedModel:m1:x") == 10
+
+
+class AliasedNested(BaseModel):
+    value: int = Field(default=0, alias="v")
+
+
+class AliasedNestedModel(StoreModel):
+    nested: AliasedNested = Field(default_factory=AliasedNested)
+
+
+def test_store_model_nested_aliases_still_validate() -> None:
+    store = Store()
+    model = AliasedNestedModel(store=store)
+
+    setattr(model, "nested", {"v": 42})
+    assert model.nested.value == 42
+    model.model_dump()
+
+    store.set("AliasedNestedModel:nested", {"v": 7})
+    assert model.model_dump()["nested"] == {"value": 7}
+
+    with pytest.raises(ValidationError):
+        setattr(model, "nested", {"v": "invalid"})
+    assert model.nested.value == 7
