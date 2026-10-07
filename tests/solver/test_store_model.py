@@ -1,11 +1,22 @@
-from typing import Any
+from typing import Any, Iterator
 
 import pytest
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import (
+    AliasChoices,
+    AliasGenerator,
+    AliasPath,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from inspect_ai import Task, eval
 from inspect_ai.solver._solver import Solver, solver
 from inspect_ai.util import Store, StoreModel, store, store_as
+from inspect_ai.util._store import _subtask_store
 
 
 class MyModel(StoreModel):
@@ -292,3 +303,192 @@ def test_error_on_embed_store_model():
     illegal = IllegalModel2()
     with pytest.raises(TypeError):
         illegal.my_model = MyModel()
+
+
+@pytest.fixture
+def ambient_store() -> Iterator[Store]:
+    ambient = Store()
+    token = _subtask_store.set(ambient)
+    try:
+        yield ambient
+    finally:
+        _subtask_store.reset(token)
+
+
+def test_store_model_validation_does_not_write_ambient_store(ambient_store: Store):
+    own_store = Store()
+    model = MyModel(store=own_store)
+
+    model.x = 10
+    model.model_dump()
+
+    assert ambient_store._data == {}
+    assert own_store.get("MyModel:x") == 10
+
+
+def test_store_model_instance_validation_does_not_write_ambient_store(
+    ambient_store: Store,
+):
+    own_store = Store()
+    model = MyModel(store=own_store, instance="m1")
+    MyModel(store=own_store)
+
+    model.x = 10
+    model.model_dump()
+
+    assert ambient_store._data == {}
+    assert own_store.get("MyModel:m1:x") == 10
+    assert own_store.get("MyModel:x") == 5
+
+
+def test_store_model_instance_validation_uses_own_namespace():
+    store = Store()
+    model = MyModel(store=store, instance="m1")
+    MyModel(store=store)
+
+    with pytest.raises(ValidationError):
+        model.x = "invalid"
+    assert store.get("MyModel:m1:x") == 5
+
+
+@pytest.mark.parametrize(
+    "alias_generator", [str.upper, AliasGenerator(validation_alias=str.upper)]
+)
+def test_store_model_validation_with_aliases(
+    ambient_store: Store, alias_generator: Any
+) -> None:
+    class AliasedModel(StoreModel):
+        model_config = ConfigDict(alias_generator=alias_generator)
+        x: int = 5
+
+    own_store = Store()
+    model = AliasedModel.model_validate({"STORE": own_store, "INSTANCE": "m1"})
+
+    model.x = 10
+    model.model_dump()
+    model.model_dump_json()
+
+    assert ambient_store._data == {}
+    assert own_store.get("AliasedModel:m1:x") == 10
+
+
+@pytest.mark.parametrize(
+    "validation_alias",
+    [
+        lambda name: AliasPath("payload", name),
+        lambda name: AliasChoices(AliasPath("payload", name), name.upper()),
+    ],
+)
+def test_store_model_validation_with_path_aliases(
+    ambient_store: Store, validation_alias: Any
+) -> None:
+    class PathAliasedModel(StoreModel):
+        model_config = ConfigDict(
+            alias_generator=AliasGenerator(validation_alias=validation_alias)
+        )
+        x: int = 5
+
+    own_store = Store()
+    model = PathAliasedModel.model_validate(
+        {"payload": {"store": own_store, "instance": "m1"}}
+    )
+    assert model.store is own_store
+
+    model.x = 10
+    model.model_dump()
+    model.model_dump_json()
+
+    assert ambient_store._data == {}
+    assert own_store.get("PathAliasedModel:m1:x") == 10
+
+
+def _limit() -> int:
+    return store().get("limit", 0)
+
+
+class LimitedNested(BaseModel):
+    value: int = 0
+    limit: int = Field(default_factory=_limit)
+
+    @field_validator("value")
+    @classmethod
+    def check_value(cls, value: int) -> int:
+        if value > store().get("limit", 0):
+            raise ValueError("value over limit")
+        return value
+
+
+class LimitedModel(StoreModel):
+    x: int = 0
+    nested: LimitedNested = Field(default_factory=LimitedNested)
+
+    @field_validator("x")
+    @classmethod
+    def check_x(cls, x: int) -> int:
+        if x > store().get("limit", 0):
+            raise ValueError("x over limit")
+        return x
+
+    @model_validator(mode="after")
+    def check_nested(self) -> "LimitedModel":
+        if self.nested.limit != store().get("limit", 0):
+            raise ValueError("nested limit differs from store")
+        return self
+
+
+@pytest.mark.parametrize("own_store", [True, False])
+def test_store_model_validators_see_sample_store(
+    ambient_store: Store, own_store: bool
+) -> None:
+    ambient_store.set("limit", 100)
+    model = LimitedModel(store=Store() if own_store else ambient_store)
+
+    model.x = 10
+    model.nested = LimitedNested(value=10)
+    model.model_dump()
+    model.model_dump_json()
+    assert model.x == 10
+
+    with pytest.raises(ValidationError):
+        model.x = 1000
+    assert model.x == 10
+
+
+class NamedLimit(StoreModel):
+    x: int = 1
+
+    @model_validator(mode="after")
+    def check_m1_limit(self) -> "NamedLimit":
+        if self.instance == "m1" and self.x > 5:
+            raise ValueError("m1 is limited to 5")
+        return self
+
+
+@pytest.mark.parametrize("own_store", [True, False])
+def test_store_model_validators_see_instance(
+    ambient_store: Store, own_store: bool
+) -> None:
+    backing = Store() if own_store else ambient_store
+    model = NamedLimit(store=backing, instance="m1")
+
+    with pytest.raises(ValidationError):
+        model.x = 10
+    assert backing.get("NamedLimit:m1:x") == 1
+
+    NamedLimit(store=backing).x = 10
+    assert backing.get("NamedLimit:x") == 10
+
+
+@pytest.mark.parametrize("name", ["store", "instance"])
+def test_store_model_binding_is_read_only(ambient_store: Store, name: str) -> None:
+    backing = Store()
+    model = MyModel(store=backing, instance="m1")
+    before = dict(backing._data)
+
+    with pytest.raises(AttributeError):
+        setattr(model, name, Store() if name == "store" else "m2")
+
+    assert model.store is backing
+    assert model.instance == "m1"
+    assert backing._data == before
+    assert ambient_store._data == {}

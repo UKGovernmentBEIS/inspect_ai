@@ -4,6 +4,9 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from ._store import Store, store
 
+# validation context key marking the temporary model built by _validate_store()
+_VALIDATING = "_inspect_store_model_validating"
+
 
 class StoreModel(BaseModel):
     """Store backed Pydandic BaseModel.
@@ -18,6 +21,16 @@ class StoreModel(BaseModel):
     instance: str | None = Field(exclude=True, default=None)
 
     def model_post_init(self, __context: Any) -> None:
+        # temporary model built by _validate_store(): take the model's
+        # instance and a scratch store (so field reads see the values under
+        # validation), and skip syncing with any real store
+        if isinstance(__context, dict) and __context.get(_VALIDATING):
+            self.__dict__["instance"] = __context["instance"]
+            self.__dict__["store"] = Store()
+            for name in self.__class__.model_fields.keys():
+                self._validate_value(name, self.__dict__[name])
+            return
+
         for name in self.__class__.model_fields.keys():
             if name == "store":
                 continue
@@ -51,6 +64,11 @@ class StoreModel(BaseModel):
             return super().__getattribute__(name)
 
     def __setattr__(self, name: str, value: Any) -> None:
+        if name in ["store", "instance"]:
+            raise AttributeError(
+                f"'{name}' can't be changed after a StoreModel is created "
+                "(bind the model with store_as() or the constructor)."
+            )
         self._validate_value(name, value)
         if name in self.__class__.model_fields:
             # validate with the new value (can throw ValidationError)
@@ -83,15 +101,19 @@ class StoreModel(BaseModel):
         # validate store or custom dict
         data = data if data is not None else self.store._data
 
-        # pick out keys to validate
+        # pick out this instance's fields to validate
         validate: dict[str, Any] = {}
-        for k, v in data.items():
-            if k.startswith(f"{self.__class__.__name__}:"):
-                unprefixed = self._un_ns_name(k)
-                validate[unprefixed] = v
+        for name in self.__class__.model_fields.keys():
+            if name in ["store", "instance"]:
+                continue
+            ns_name = self._ns_name(name)
+            if ns_name in data:
+                validate[name] = data[ns_name]
 
         # perform validation
-        self.__class__.model_validate(validate)
+        self.__class__.model_validate(
+            validate, context={_VALIDATING: True, "instance": self.instance}
+        )
 
     def _validate_value(self, name: str, value: Any) -> None:
         # validate that we aren't using a nested StoreModel
@@ -104,12 +126,6 @@ class StoreModel(BaseModel):
     def _ns_name(self, name: str) -> str:
         namespace = f"{self.instance}:" if self.instance is not None else ""
         return f"{self.__class__.__name__}:{namespace}{name}"
-
-    def _un_ns_name(self, name: str) -> str:
-        name = name.replace(f"{self.__class__.__name__}:", "", 1)
-        if self.instance:
-            name = name.replace(f"{self.instance}:", "", 1)
-        return name
 
     def _get_and_coerce_field(self, field_name: str) -> Any:
         """Get a field value from the store, coerce it to the proper type, and update if needed.
