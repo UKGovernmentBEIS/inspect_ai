@@ -79,6 +79,7 @@ from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
 from inspect_ai.tool import (
     ToolCall,
+    ToolCallError,
     ToolInfo,
     ToolParam,
     ToolParams,
@@ -191,6 +192,83 @@ def test_completion_choice_multiple_function_calls():
         assert call.id.startswith("calculator_"), (
             f"ID should start with function name: {call.id}"
         )
+
+
+def test_completion_choice_drops_safety_decision():
+    """A safety_decision is not replayed, so its result needs no acknowledgement."""
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(
+                        name="purchase",
+                        args={
+                            "item": "espresso machine",
+                            "safety_decision": {
+                                "decision": "require_confirmation",
+                                "explanation": "A purchase.",
+                            },
+                        },
+                    )
+                ),
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+
+    choice = completion_choice_from_candidate("test-model", candidate)
+
+    assert choice.message.tool_calls is not None
+    assert choice.message.tool_calls[0].arguments == {"item": "espresso machine"}
+
+
+async def test_tool_result_sent_as_output() -> None:
+    message = ChatMessageTool(
+        content="2", tool_call_id="addition_1", function="addition"
+    )
+
+    google_content = await content(MagicMock(), message)
+
+    assert google_content.parts is not None
+    response = google_content.parts[0].function_response
+    assert response is not None
+    assert response.name == "addition"
+    assert response.response == {"output": "2"}
+
+
+async def test_tool_error_sent_as_error() -> None:
+    message = ChatMessageTool(
+        content="",
+        tool_call_id="addition_1",
+        function="addition",
+        error=ToolCallError("parsing", "x must be an integer"),
+    )
+
+    google_content = await content(MagicMock(), message)
+
+    assert google_content.parts is not None
+    response = google_content.parts[0].function_response
+    assert response is not None
+    assert response.response == {"error": "x must be an integer"}
+
+
+async def test_computer_tool_result_keeps_computer_use_shape() -> None:
+    message = ChatMessageTool(
+        content="clicked", tool_call_id="click_at_abc", function="computer"
+    )
+
+    google_content = await content(MagicMock(), message)
+
+    assert google_content.parts is not None
+    response = google_content.parts[0].function_response
+    assert response is not None
+    assert response.name == "click_at"
+    assert response.response == {
+        "content": "clicked",
+        "safety_acknowledgement": "true",
+        "url": "",
+    }
 
 
 def test_completion_choice_inline_data_image():
@@ -1012,6 +1090,26 @@ async def test_malformed_function_call_retry_adds_feedback_messages():
         roles = [c.role for c in contents]
         assert "model" in roles
         assert "user" in roles
+
+
+async def test_function_tools_add_no_system_instruction():
+    mock_generate = AsyncMock(return_value=_create_success_response_with_tool_call())
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.5-pro", base_url=None, api_key="test-key"
+        )
+        await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    config = mock_generate.call_args.kwargs["config"]
+    assert config.tools
+    assert config.system_instruction is None
 
 
 # Tests for count_tokens with unpaired tool messages

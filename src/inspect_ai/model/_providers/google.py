@@ -154,7 +154,6 @@ from inspect_ai.util._json import json_schema_dump
 from ._first_party import FRONTIER_MODELS
 from ._gemini_function_calling import (
     DEFAULT_MALFORMED_FUNCTION_MESSAGE,
-    FUNCTION_CALLING_HINT,
     MALFORMED_FUNCTION_RETRY_PROMPT,
     MAX_TOOL_CALLING_ATTEMPTS,
     malformed_function_apology,
@@ -474,10 +473,7 @@ class GoogleGenAIAPI(ModelAPI):
                 else:
                     gemini_tool_config = None
                 system_instruction = await extract_system_message_as_parts(
-                    client,
-                    input,
-                    tools,
-                    include_function_calling_hint=not has_native_tools,
+                    client, input
                 )
                 # Map modalities to Google's response_modalities
                 response_modalities = None
@@ -1682,15 +1678,14 @@ async def content(
         return Content(role="model", parts=content_parts)
 
     elif isinstance(message, ChatMessageTool):
-        content_text = (
-            message.error.message if message.error is not None else message.text
-        )
-        response_dict: dict[str, object] = {
-            "content": content_text,
-            "safety_acknowledgement": "true",
-        }
         if message.function == "computer":
-            response_dict["url"] = ""
+            response_dict: dict[str, object] = {
+                "content": message.error.message
+                if message.error is not None
+                else message.text,
+                "safety_acknowledgement": "true",
+                "url": "",
+            }
             response_name = (
                 message.tool_call_id.rsplit("_", 1)[0]
                 if message.tool_call_id
@@ -1699,6 +1694,7 @@ async def content(
             # Computer-use models support multimodal function responses.
             fn_response_parts = await computer_tool_result_parts(message)
         else:
+            response_dict = function_response_body(message)
             response_name = message.function or ""
             fn_response_parts = None
         response = FunctionResponse(
@@ -1723,6 +1719,22 @@ async def content(
                 if isinstance(item, ContentImage):
                     parts.append(await content_part(client, item))
         return Content(role="user", parts=parts)
+
+
+def function_response_body(message: ChatMessageTool) -> dict[str, object]:
+    """The `FunctionResponse.response` for a non-computer tool result.
+
+    Uses the keys the Gemini API documents: `output` for the result and
+    `error` for a failed call. The older `{"content": ...}` body made
+    gemini-2.5-pro repeat tool calls after a result, sometimes without end.
+
+    No `safety_acknowledgement`: the API requires one only when the replayed
+    call carries a `safety_decision`, and those are removed from non-computer
+    calls when the response is read.
+    """
+    if message.error is not None:
+        return {"error": message.error.message}
+    return {"output": message.text}
 
 
 async def content_part(client: Client, content: InspectContent | str) -> Part:
@@ -1757,8 +1769,6 @@ async def chat_content_to_part(
 async def extract_system_message_as_parts(
     client: Client,
     messages: list[ChatMessage],
-    tools: list[ToolInfo],
-    include_function_calling_hint: bool = True,
 ) -> list[File | Part | Image | str] | None:
     system_parts: list[File | Part | Image | str] = []
     for message in messages:
@@ -1772,13 +1782,6 @@ async def extract_system_message_as_parts(
                 )
             else:
                 raise ValueError(f"Unsupported system message content: {content}")
-
-    # if there are function declaration tools then inject a hint to prevent
-    # MALFORMED_FUNCTION_CALL. skipped for native-only tools (e.g. code execution)
-    # as sending it causes FAILED_PRECONDITION from the API.
-    # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
-    if len(tools) > 0 and include_function_calling_hint:
-        system_parts.append(Part(text=FUNCTION_CALLING_HINT))
 
     # if every part is text then return list[str] rather than list[Part]
     # works around issue w/ open-telemetry not expecting parts

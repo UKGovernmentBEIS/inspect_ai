@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
+- Google: Fixed Gemini models repeating tool calls after a tool result, sometimes until a sample limit was reached.
 
 ## 0.3.277 (06 October 2026)
 

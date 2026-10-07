@@ -26,8 +26,8 @@ sends an object as Gemini's function response itself rather than under
 `content`. Vertex reads `$ref` keys in that object (an OpenAPI document, say)
 as references to multimodal response parts and rejects the request with a
 400. Tool results that are JSON objects are therefore wrapped as
-`{"content": text}` before they reach the proxy, which is how the native
-Google provider sends every tool result.
+`{"content": text}` before they reach the proxy, which is how LiteLLM sends
+a plain-text tool result.
 """
 
 import json
