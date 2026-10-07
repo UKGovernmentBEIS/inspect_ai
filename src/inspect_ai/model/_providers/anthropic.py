@@ -1379,7 +1379,7 @@ class AnthropicAPI(ModelAPI):
                 betas.append("output-128k-2025-02-19")
 
         elif config.reasoning_effort == "none" and self._supports_disabling_thinking():
-            # Claude 4.7+ (incl. Sonnet 5 and Opus 5) run adaptive thinking by
+            # Claude 4.7+ (incl. Sonnet 5, Opus 5, Haiku 5.5) run adaptive thinking by
             # default, so `reasoning_effort="none"` must explicitly disable it.
             # Pre-4.7 models default to no thinking, so omitting the field
             # already suffices. Sonnet 5.5 rejects `disabled` and names
@@ -1692,9 +1692,6 @@ class AnthropicAPI(ModelAPI):
     def is_claude_opus_5(self) -> bool:
         return self.is_claude_5() and "opus" in self.model_family()
 
-    def is_claude_haiku_5(self) -> bool:
-        return self.is_claude_5() and "haiku" in self.model_family()
-
     def is_claude_fable_5_1_or_later(self) -> bool:
         return is_claude_fable_5_1_model(self.model_family())
 
@@ -1707,7 +1704,7 @@ class AnthropicAPI(ModelAPI):
         return is_claude_sonnet_5_5_model(self.model_family())
 
     def is_claude_haiku_5_5_or_later(self) -> bool:
-        """Haiku 5.5 or a later point release (a subset of is_claude_haiku_5)."""
+        """Haiku 5.5 or a later Haiku 5 point release."""
         return is_claude_haiku_5_5_model(self.model_family())
 
     def computer_use_toolset(self) -> bool:
@@ -1716,7 +1713,7 @@ class AnthropicAPI(ModelAPI):
         Auto mode (no `computer_toolset` model arg) uses the toolset where the
         legacy `computer_20251124` tool is rejected (Opus 5.5, Sonnet 5.5, and
         Haiku 5.5 on the Claude API and Vertex) and, where the platform offers
-        it, for Fable/Mythos 5.x and any other non-tier-named Claude 5 model. Every other model keeps the
+        it, for Fable/Mythos 5.x and other Claude 5 models treated like them. Every other model keeps the
         legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock and
         Foundry, which offer only the legacy tool.
         """
@@ -1729,15 +1726,15 @@ class AnthropicAPI(ModelAPI):
     def computer_toolset_preferred(self) -> bool:
         """Whether the toolset is the default computer use path where offered.
 
-        Fable/Mythos 5.x (and any other non-tier-named Claude 5 codename)
-        default to the toolset, which is GA for them on the Claude API and
+        Fable/Mythos 5.x (and any other Claude 5 model not known to follow
+        the Sonnet/Opus 5 or Haiku 5.5 rules) default to the toolset, which is GA for them on the Claude API and
         Vertex; they also accept the legacy tool, so `computer_toolset=false`
         and platforms without the toolset fall back to it.
         """
         return self.is_claude_5() and not (
             self.is_claude_sonnet_5()
             or self.is_claude_opus_5()
-            or self.is_claude_haiku_5()
+            or self.is_claude_haiku_5_5_or_later()
         )
 
     def computer_toolset_available(self) -> bool:

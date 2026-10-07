@@ -1947,8 +1947,7 @@ def test_anthropic_is_claude_haiku_5_5_or_later(
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     assert api.is_claude_haiku_5_5_or_later() is expected
     if expected:
-        # 5.5 is still a Haiku 5 / Claude 5 model for the shared gates
-        assert api.is_claude_haiku_5() is True
+        # 5.5 is still a Claude 5 model for the shared gates
         assert api.is_claude_5() is True
         assert api.is_claude_sonnet_5_5_or_later() is False
         assert api.is_claude_opus_5_5_or_later() is False

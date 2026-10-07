@@ -255,7 +255,7 @@ Or via the `eval()` / `GenerateConfig` API:
 eval("arc.py", model="anthropic/claude-fable-5", fallback_models=["claude-opus-4-8"])
 ```
 
-This is a feature of the first-party Anthropic API only — it is not supported on Bedrock, Vertex, or Azure, nor with [batch mode](models-batch.qmd), and is ignored (with a warning) in those cases.
+This is a feature of the first-party Anthropic API only — it is not supported on Bedrock, Vertex, or Azure, nor with [batch mode](models-batch.qmd) or Claude Haiku 5.5 (which has no permitted fallback targets), and is ignored (with a warning) in those cases.
 
 See the [Fallbacks](fallbacks.qmd) article for complete documentation, including what gets recorded in logs, dataframes, and the viewer when fallbacks occur.
 
