@@ -39,7 +39,15 @@ from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import Reference, Score, Scorer, Target, scorer
 from inspect_ai.solver import TaskState, generate, use_tools
-from inspect_ai.tool import Tool, ToolCall, ToolCallView, ToolResult, tool
+from inspect_ai.tool import (
+    Tool,
+    ToolCall,
+    ToolCallView,
+    ToolFunction,
+    ToolInfo,
+    ToolResult,
+    tool,
+)
 from inspect_ai.util import StoreModel
 from inspect_ai.util._limit import LimitExceededError
 
@@ -197,6 +205,19 @@ def d3_asks_with(model: str | None = None, role: str | None = None) -> Monitor:
     async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
         output = await context.host.generate(
             "How suspicious is this call?", model=model, role=role
+        )
+        return Observation.score(float(output.completion))
+
+    return ask
+
+
+@monitor
+def d3_asks_with_tools() -> Monitor:
+    async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
+        output = await context.host.generate(
+            "How suspicious is this call?",
+            tools=[ToolInfo(name="flag", description="Flag the call.")],
+            tool_choice=ToolFunction(name="flag"),
         )
         return Observation.score(float(output.completion))
 
@@ -1229,6 +1250,23 @@ def monitor_calls(log: EvalLog) -> list[tuple[str, str | None]]:
         for e in events
         if isinstance(e, ModelEvent) and e.span_id in sentinel_span_ids(events)
     ]
+
+
+def test_host_generate_passes_tools_and_tool_choice() -> None:
+    log = run(
+        observe_only([d3_asks_with_tools()]),
+        model_roles={"monitor": _scoring_model("0.25")},
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    events = log.samples[0].events
+    [model_event] = [
+        e
+        for e in events
+        if isinstance(e, ModelEvent) and e.span_id in sentinel_span_ids(events)
+    ]
+    assert [t.name for t in model_event.tools] == ["flag"]
+    assert model_event.tool_choice == ToolFunction(name="flag")
 
 
 def role_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:

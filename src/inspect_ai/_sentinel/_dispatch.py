@@ -56,6 +56,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewer,
     resolve_tool_call_view,
 )
+from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import suspend_token_limit, suspend_turn_limit
 from inspect_ai.util._span import current_agent_span_id, span
@@ -289,6 +290,7 @@ class _Host:
         model: str | None = None,
         role: str | None = None,
         tools: list[ToolInfo] | None = None,
+        tool_choice: ToolChoice | None = None,
         config: GenerateConfig | None = None,
     ) -> ModelOutput:
         if isinstance(cast(object, model), Model):
@@ -319,7 +321,10 @@ class _Host:
                 )
             resolved = get_model(model, role=role, default=active_model())
         return await resolved.generate(
-            input, tools=tools or [], config=config or GenerateConfig()
+            input,
+            tools=tools or [],
+            tool_choice=tool_choice,
+            config=config or GenerateConfig(),
         )
 
     async def ask_human(self, step: Step, choices: Sequence[str]) -> HumanAnswer:
