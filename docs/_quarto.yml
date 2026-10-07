@@ -6,6 +6,8 @@ project:
 
 inspect-docs:
   title: Inspect
+  extra-modules:
+    - inspect_core
   description: Open-source framework for large language model evaluations
   image: /images/inspect.png
   logo: images/aisi-logo.svg

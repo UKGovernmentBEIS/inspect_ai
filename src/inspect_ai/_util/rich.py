@@ -92,7 +92,13 @@ def rich_traceback(
         exc_type=exc_type,
         exc_value=exc_value,
         traceback=exc_traceback,
-        suppress=[click, asyncio, tenacity, sys.modules[PKG_NAME]],
+        suppress=[
+            click,
+            asyncio,
+            tenacity,
+            sys.modules[PKG_NAME],
+            sys.modules["inspect_core"],
+        ],
         show_locals=os.environ.get("INSPECT_TRACEBACK_LOCALS", None) == "1",
         width=CONSOLE_DISPLAY_WIDTH,
     )

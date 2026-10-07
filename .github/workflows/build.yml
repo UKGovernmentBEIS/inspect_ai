@@ -200,7 +200,8 @@ jobs:
       # The marker is created only after a successful render and the cache
       # is saved only when the job succeeds, so a hit implies a past pass.
       #
-      # The source component is this PR's own src/inspect_ai delta against
+      # The source component is this PR's own src/inspect_ai and src/inspect_core
+      # delta (the reference docs cover both; inspect_ai re-exports core) against
       # its merge base, not the checked-out tree. On pull_request the
       # checkout is the PR merged into current main, so hashing the tree
       # invalidated every open PR's entry on every push to main that touched
@@ -211,8 +212,8 @@ jobs:
       # the step; an empty unquoted arg would leave the delta silently empty
       # (diff-tree prints nothing for a merge commit given one argument).
       # base_ref is empty on push and workflow_dispatch, so those use main.
-      - name: Record this PR's own inspect_ai source delta
-        run: git diff-tree -r "$(git merge-base origin/${{ github.base_ref || 'main' }} HEAD)" HEAD -- src/inspect_ai > .docs-src-delta
+      - name: Record this PR's own inspect_ai and inspect_core source delta
+        run: git diff-tree -r "$(git merge-base origin/${{ github.base_ref || 'main' }} HEAD)" HEAD -- src/inspect_ai src/inspect_core > .docs-src-delta
 
       - name: Check for previous successful render
         id: render-cache

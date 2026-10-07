@@ -222,6 +222,14 @@ def _is_expired(expiry: datetime | None) -> bool:
     return datetime.now(timezone.utc) > expiry
 
 
+class _Unpickler(pickle.Unpickler):
+    # entries written by 0.3.277 name classes under inspect_ai.core, since moved to inspect_core
+    def find_class(self, module: str, name: str) -> Any:
+        if module == "inspect_ai.core" or module.startswith("inspect_ai.core."):
+            module = "inspect_core" + module.removeprefix("inspect_ai.core")
+        return super().find_class(module, name)
+
+
 def cache_store(
     entry: CacheEntry,
     output: ModelOutput,
@@ -263,7 +271,7 @@ def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
         trace("Fetching from cache: %s", filename)
 
         with open(filename, "rb") as f:
-            expiry, output = pickle.load(f)
+            expiry, output = _Unpickler(f).load()
             if not isinstance(output, ModelOutput):
                 trace(
                     "Unexpected cached type, can only fetch ModelOutput: %s (%s)",
@@ -449,7 +457,7 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
                 continue
             try:
                 with open(path, "rb") as f:
-                    expiry, _cache_entry = pickle.load(f)
+                    expiry, _cache_entry = _Unpickler(f).load()
                     if _is_expired(expiry):
                         trace("Expired cache entry found: %s (%s)", path, expiry)
                         expired_cache_entries.append(path)
@@ -478,7 +486,7 @@ def cache_prune(files: list[Path] = []) -> None:
             continue
         try:
             with open(file, "rb") as f:
-                expiry, _cache_entry = pickle.load(f)
+                expiry, _cache_entry = _Unpickler(f).load()
                 if _is_expired(expiry):
                     trace("Pruning expired cache: %s", file)
                     file.unlink(missing_ok=True)

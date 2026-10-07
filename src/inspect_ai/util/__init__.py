@@ -33,6 +33,9 @@ from inspect_ai.util._limit import (
     working_limit,
 )
 
+# imported from its defining module, so the reference docs can follow it
+from inspect_core._store import store
+
 from ._background import background
 from ._checkpoint import (
     ArchiveSnapshots,
@@ -99,7 +102,7 @@ from ._sandbox import (
     sandboxenv,
 )
 from ._span import SpanIdProvider, current_span_id, span, span_id_provider
-from ._store import Store, store, store_from_events, store_from_events_as
+from ._store import Store, store_from_events, store_from_events_as
 from ._store_model import StoreModel, store_as
 from ._subprocess import (
     ExecResult,

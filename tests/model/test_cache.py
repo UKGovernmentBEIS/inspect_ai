@@ -225,6 +225,39 @@ def test_cache_skips_content_filter(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     assert fetched.completion == "Hi"
 
 
+def test_cache_reads_entries_pickled_under_inspect_ai_core(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """inspect_ai 0.3.277 pickled ModelOutput as inspect_ai.core._model_output.ModelOutput."""
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    entry = CacheEntry(
+        base_url=None,
+        config=GenerateConfig(),
+        input=[ChatMessageUser(content="Hello")],
+        model="mockllm/model",
+        policy=CachePolicy(),
+        tool_choice=None,
+        tools=[],
+    )
+    output = ModelOutput.from_content(model="mockllm/model", content="Hi")
+    assert cache_store(entry=entry, output=output) is True
+
+    # rewrite the entry as 0.3.277 would have written it (protocol 0 keeps
+    # module names as newline-terminated text, so they can be replaced)
+    (path,) = [p for p in tmp_path.rglob("*") if p.is_file()]
+    with open(path, "rb") as f:
+        stored = pickle.load(f)
+    legacy = pickle.dumps(stored, protocol=0).replace(
+        b"inspect_core.", b"inspect_ai.core."
+    )
+    assert b"inspect_ai.core._model_output" in legacy
+    path.write_bytes(legacy)
+
+    fetched = cache_fetch(entry)
+    assert fetched is not None
+    assert fetched.completion == "Hi"
+
+
 def test_cache_trace_omits_key_components(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):

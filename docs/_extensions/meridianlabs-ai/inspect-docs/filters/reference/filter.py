@@ -164,15 +164,22 @@ def main() -> Any:
             Extensions(UnpackTypedDictExtension()) if expand_kwargs else Extensions()
         )
 
+        # `extra-modules` lists packages the module re-exports from (e.g.
+        # inspect_ai re-exports inspect_core). They load into the same griffe
+        # loader first, so aliases into them resolve.
+        extra_modules: list[str] = (
+            [pf.stringify(m) for m in inspect_docs["extra-modules"].content]
+            if inspect_docs and "extra-modules" in inspect_docs
+            else []
+        )
+
         try:
-            module = cast(
-                Module,
-                griffe.load(
-                    module_name,
-                    extensions=extensions,
-                    docstring_parser="google",
-                ),
+            loader = griffe.GriffeLoader(
+                extensions=extensions, docstring_parser="google"
             )
+            for extra_module in extra_modules:
+                loader.load(extra_module)
+            module = cast(Module, loader.load(module_name))
         except (ImportError, ModuleNotFoundError) as e:
             source = "config" if module_in_config else "pyproject.toml"
             _warn(

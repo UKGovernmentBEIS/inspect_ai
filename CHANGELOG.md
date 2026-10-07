@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Core data types moved from `inspect_ai.core` to the top-level `inspect_core` package, which ships in the `inspect_ai` wheel. `inspect_ai.core` is removed; import from `inspect_core`, or from the existing `inspect_ai.model`, `inspect_ai.tool` and `inspect_ai.util` paths, which still work.
+- Core data types moved from `inspect_ai.core` to a top-level `inspect_core` package, importable without loading the rest of inspect_ai.
 - Fixed `StoreModel` skipping field validation when constructed with an empty `instance` string.
 - Tool review now also reviews `handoff()` calls, as approval does.
 - Fixed the human reviewer filling in tool arguments inside tool output that contains `{{{...}}}` (three or more braces).
