@@ -167,6 +167,8 @@ If a provider is docker compatible, then the `config` argument passed to it's me
 2.  A path to a `compose.yaml` file.
 3.  An instance of the `ComposeConfig` class.
 
+A compose file declared for the "docker" sandbox can have any name (e.g. `env.yaml`), so `is_compose_yaml()` won't recognize every compose file passed to a docker compatible provider. A provider whose only file configs are Dockerfiles and compose files can treat any other path as a compose file.
+
 These input for `config` might be handled as follows:
 
 ``` python

@@ -1,3 +1,7 @@
+## Unreleased
+
+- Sandbox: Sample and task `docker` compose files with non-standard names (e.g. `env.yaml`) are no longer silently dropped when a `--sandbox` override or another sandbox type applies.
+
 ## 0.3.277 (06 October 2026)
 
 - Fixed trace logs growing to many gigabytes when model output caching is enabled.
