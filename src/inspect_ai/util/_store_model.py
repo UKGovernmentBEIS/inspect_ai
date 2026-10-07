@@ -83,15 +83,20 @@ class StoreModel(BaseModel):
         # validate store or custom dict
         data = data if data is not None else self.store._data
 
-        # pick out keys to validate
+        # pick out this instance's fields to validate
         validate: dict[str, Any] = {}
-        for k, v in data.items():
-            if k.startswith(f"{self.__class__.__name__}:"):
-                unprefixed = self._un_ns_name(k)
-                validate[unprefixed] = v
+        for name in self.__class__.model_fields.keys():
+            if name in ["store", "instance"]:
+                continue
+            ns_name = self._ns_name(name)
+            if ns_name in data:
+                validate[name] = data[ns_name]
 
-        # perform validation
-        self.__class__.model_validate(validate)
+        # perform validation (use a scratch store so model_post_init of
+        # the validation model doesn't write into any real store)
+        self.__class__.model_validate(
+            validate | {"store": Store(), "instance": self.instance}
+        )
 
     def _validate_value(self, name: str, value: Any) -> None:
         # validate that we aren't using a nested StoreModel
@@ -104,12 +109,6 @@ class StoreModel(BaseModel):
     def _ns_name(self, name: str) -> str:
         namespace = f"{self.instance}:" if self.instance is not None else ""
         return f"{self.__class__.__name__}:{namespace}{name}"
-
-    def _un_ns_name(self, name: str) -> str:
-        name = name.replace(f"{self.__class__.__name__}:", "", 1)
-        if self.instance:
-            name = name.replace(f"{self.instance}:", "", 1)
-        return name
 
     def _get_and_coerce_field(self, field_name: str) -> Any:
         """Get a field value from the store, coerce it to the proper type, and update if needed.

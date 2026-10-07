@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Iterator
 
 import pytest
 from pydantic import BaseModel, Field, ValidationError
@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, ValidationError
 from inspect_ai import Task, eval
 from inspect_ai.solver._solver import Solver, solver
 from inspect_ai.util import Store, StoreModel, store, store_as
+from inspect_ai.util._store import _subtask_store
 
 
 class MyModel(StoreModel):
@@ -292,3 +293,49 @@ def test_error_on_embed_store_model():
     illegal = IllegalModel2()
     with pytest.raises(TypeError):
         illegal.my_model = MyModel()
+
+
+@pytest.fixture
+def ambient_store() -> Iterator[Store]:
+    ambient = Store()
+    token = _subtask_store.set(ambient)
+    try:
+        yield ambient
+    finally:
+        _subtask_store.reset(token)
+
+
+def test_store_model_validation_does_not_write_ambient_store(ambient_store: Store):
+    own_store = Store()
+    model = MyModel(store=own_store)
+
+    model.x = 10
+    model.model_dump()
+
+    assert ambient_store._data == {}
+    assert own_store.get("MyModel:x") == 10
+
+
+def test_store_model_instance_validation_does_not_write_ambient_store(
+    ambient_store: Store,
+):
+    own_store = Store()
+    model = MyModel(store=own_store, instance="m1")
+    MyModel(store=own_store)
+
+    model.x = 10
+    model.model_dump()
+
+    assert ambient_store._data == {}
+    assert own_store.get("MyModel:m1:x") == 10
+    assert own_store.get("MyModel:x") == 5
+
+
+def test_store_model_instance_validation_uses_own_namespace():
+    store = Store()
+    model = MyModel(store=store, instance="m1")
+    MyModel(store=store)
+
+    with pytest.raises(ValidationError):
+        model.x = "invalid"
+    assert store.get("MyModel:m1:x") == 5
