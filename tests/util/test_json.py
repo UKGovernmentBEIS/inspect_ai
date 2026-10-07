@@ -1,8 +1,13 @@
 import json
+import random
+from copy import deepcopy
+from typing import Any
 
+import pytest
 from pydantic import BaseModel, ConfigDict
 
 from inspect_ai._util.json import (
+    JsonChange,
     exceeds_max_depth,
     json_changes,
     to_json_safe,
@@ -12,6 +17,23 @@ from inspect_ai.dataset._sources.json import (
     json_dataset_reader,
     jsonlines_dataset_reader,
 )
+from inspect_ai.event import StoreEvent
+from inspect_ai.util._store import _apply_store_event
+
+
+def _apply_changes(
+    before: dict[str, Any], changes: list[JsonChange] | None
+) -> dict[str, Any]:
+    """Apply changes to a copy of `before` the way StoreEvent replay does."""
+    return _apply_store_event(deepcopy(before), StoreEvent(changes=changes or []))
+
+
+def _assert_round_trip(before: dict[str, Any], after: dict[str, Any]) -> None:
+    changes = json_changes(before, after)
+    # dumps tells 1 from True and 1.0, which == does not
+    assert json.dumps(_apply_changes(before, changes), sort_keys=True) == json.dumps(
+        after, sort_keys=True
+    )
 
 
 def test_json_unicode_replace():
@@ -39,25 +61,19 @@ def test_json_unicode_replace_preserves_exclude():
     assert json.loads(result) == {"keep": "\\ud800"}
 
 
-def test_json_changes_tracks_replaced_value_through_array_shifts():
+def test_json_changes_compares_lists_index_by_index():
     before = {"x": ["a", "b"]}
     after = {"x": ["c", "a", "d"]}
 
     changes = json_changes(before, after)
 
     assert changes is not None
-    assert len(changes) == 2
-
-    # First op: add "c" at index 0
-    assert changes[0].op == "add"
-    assert changes[0].path == "/x/0"
-    assert changes[0].value == "c"
-
-    # Second op: replace index 2 (was "b", now "d")
-    assert changes[1].op == "replace"
-    assert changes[1].path == "/x/2"
-    assert changes[1].value == "d"
-    assert changes[1].replaced == "b"
+    assert [(c.op, c.path, c.value, c.replaced) for c in changes] == [
+        ("replace", "/x/0", "c", "a"),
+        ("replace", "/x/1", "a", "b"),
+        ("add", "/x/2", "d", None),
+    ]
+    assert _apply_changes(before, changes) == after
 
 
 def test_json_changes_basic_replace_no_arrays():
@@ -74,29 +90,20 @@ def test_json_changes_basic_replace_no_arrays():
     assert changes[0].replaced == "old_value"
 
 
-def test_array_insert_shifts_indices_fast_path():
-    """Test 'Fast Path': Simple list of strings.
-
-    This tests that the `replaced` value is correctly captured for the replace op.
-    """
+def test_array_insert_replaces_then_appends():
+    """The `replaced` value of each replace is the item at that index in `before`."""
     before = {"x": ["a", "b"]}
     after = {"x": ["c", "d", "b"]}
 
     changes = json_changes(before, after)
 
-    # Filter to ensure we have the ops we expect
-    ops = {c.path: c for c in changes}
-
-    # The replace operation at index 0
-    assert "/x/0" in ops
-    assert ops["/x/0"].op == "replace"
-    assert ops["/x/0"].value == "c"
-    assert ops["/x/0"].replaced == "a"  # Was "a" before replacement
-
-    # The add operation at index 1
-    assert "/x/1" in ops
-    assert ops["/x/1"].op == "add"
-    assert ops["/x/1"].value == "d"
+    assert changes is not None
+    assert [(c.op, c.path, c.value, c.replaced) for c in changes] == [
+        ("replace", "/x/0", "c", "a"),
+        ("replace", "/x/1", "d", "b"),
+        ("add", "/x/2", "b", None),
+    ]
+    assert _apply_changes(before, changes) == after
 
 
 def test_array_remove_shifts_indices():
@@ -123,8 +130,6 @@ def test_array_remove_shifts_indices():
 
 def test_slow_path_nested_object_modification():
     """Test 'Slow Path': Modifying an object inside a list.
-
-    This triggers the `else` block in `apply_fast_list_op` and requires correct handling of leading slashes in `resolve_pointer`.
 
     The key test is that `replaced` values are correctly tracked even with multiple nested replace operations on array items.
     """
@@ -182,11 +187,14 @@ def test_multiple_independent_arrays():
     after["A"] = [99, 1, 88]  # Insert 99, Replace 2 (now idx 2) with 88
 
     changes = json_changes(before, after)
+    assert changes is not None
     ops = {c.path: c for c in changes}
 
-    # Check A: /A/2 replaced value should be 2 (shifted from pos 1)
-    assert "/A/2" in ops
-    assert ops["/A/2"].replaced == 2
+    # Check A: index by index, then the appended item
+    assert ops["/A/0"].replaced == 1
+    assert ops["/A/1"].replaced == 2
+    assert ops["/A/2"].op == "add"
+    assert ops["/A/2"].value == 88
 
     # Check B: Just an append (add), no replaces.
     assert "/B/2" in ops
@@ -256,48 +264,18 @@ def test_nested_arrays_with_structural_changes():
     assert changes is not None
     ops = {c.path: c for c in changes}
 
-    # The replace at /items/0/tags/2 should have the correct replaced value
-    # After add at index 0 and remove at index 2, the shadow is ["z", "a", "c"]
-    # So replace at index 2 replaces "c" with "NEW"
+    # Index 2 held "c" in `before`
     assert "/items/0/tags/2" in ops
     assert ops["/items/0/tags/2"].op == "replace"
     assert ops["/items/0/tags/2"].value == "NEW"
     assert ops["/items/0/tags/2"].replaced == "c"
 
 
-def test_get_active_container_selects_longest_match():
-    """Test that _get_active_container returns the most specific (longest) matching container.
-
-    This is a unit test for the internal function to ensure correct behavior
-    when there are overlapping tracked containers.
-    """
-    from inspect_ai._util.json import _get_active_container
-
-    tracked = {"/items", "/items/0/tags"}
-
-    # Path under nested container should match the nested one
-    container, rel_path = _get_active_container("/items/0/tags/2", tracked)
-    assert container == "/items/0/tags"
-    assert rel_path == "2"
-
-    # Path under parent but not nested should match parent
-    container, rel_path = _get_active_container("/items/1/name", tracked)
-    assert container == "/items"
-    assert rel_path == "1/name"
-
-    # Path not under any container
-    container, rel_path = _get_active_container("/other/path", tracked)
-    assert container is None
-    assert rel_path is None
-
-
 def test_json_changes_dict_with_numeric_keys():
     """Test that dicts with numeric string keys don't crash json_changes.
 
     JSON Patch uses the same /container/0 syntax for both list indices and
-    dict keys. The shadow state tracker must handle dicts gracefully —
-    _apply_fast_list_op should be skipped for dict containers since dicts
-    don't have index-shift issues.
+    dict keys.
     """
     before = {"tasks": {"0": {"status": "pending"}, "1": {"status": "pending"}}}
     after = {
@@ -320,6 +298,106 @@ def test_json_changes_dict_with_numeric_keys():
     # Add: /tasks/2
     assert "/tasks/2" in ops
     assert ops["/tasks/2"].op == "add"
+
+
+@pytest.mark.parametrize(
+    "before,after",
+    [
+        # jsonpatch moves 1 into its own former container (invalid path)
+        ({"a": [{}, 1, [{}, 0]]}, {"a": [[], "text", [1]]}),
+        # jsonpatch moves a value out of a list item it has just shifted
+        (
+            {"a": [[2, 0, [0, 1]], {"b": True}, True, {"b": {}}]},
+            {"a": [1, {"b": {"d": {}}, "d": 1, "c": []}, {}, {}]},
+        ),
+        # jsonpatch's patch applies but does not reproduce the target
+        (
+            {"a": [["x", {}, [True]]]},
+            {"a": [["y", {"a": 1, "b": "x"}, [], {"d": 1}], {}, [], {}]},
+        ),
+        # values moved between containers
+        ({"a": [1, [2]], "b": []}, {"a": [[2]], "b": [1]}),
+        ({"a": {"b": [1]}, "c": []}, {"a": {}, "c": [[1]]}),
+        ({"a": [{"k": 1}, 2]}, {"a": [2], "b": {"k": 1}}),
+        ({"a": [[1, 2], [3]]}, {"a": [[3], [1, 2]]}),
+        # values moved within a list
+        ({"a": ["x", "y", "z"]}, {"a": ["z", "x", "y"]}),
+        ({"a": [{"k": 1}, {"k": 2}, {"k": 3}]}, {"a": [{"k": 3}, {"k": 1}]}),
+        # dict values moved between keys, including keys needing escapes
+        ({"a/b": {"k": [1]}, "c~d": 2}, {"e": {"k": [1]}, "f": 2}),
+    ],
+)
+def test_json_changes_reproduce_target_when_values_move(
+    before: dict[str, Any], after: dict[str, Any]
+):
+    _assert_round_trip(before, after)
+
+
+def _random_json(rng: random.Random, depth: int = 0) -> Any:
+    kind = rng.random()
+    if depth < 4 and kind < 0.45:
+        return [_random_json(rng, depth + 1) for _ in range(rng.randint(0, 6))]
+    if depth < 4 and kind < 0.6:
+        return {
+            rng.choice("ab"): _random_json(rng, depth + 1)
+            for _ in range(rng.randint(0, 2))
+        }
+    return rng.choice([0, 1, 1.5, "x", None, {}, [], [0], {"a": 0}])
+
+
+def _mutate_json(rng: random.Random, value: Any, depth: int = 0) -> Any:
+    if isinstance(value, list):
+        value = [
+            _mutate_json(rng, item, depth + 1) if rng.random() < 0.3 else item
+            for item in value
+        ]
+        for _ in range(rng.randint(0, 2)):
+            edit = rng.random()
+            if edit < 0.4:
+                value.insert(rng.randint(0, len(value)), _random_json(rng, depth + 1))
+            elif edit < 0.7 and value:
+                value.pop(rng.randrange(len(value)))
+            elif value:
+                item = value.pop(rng.randrange(len(value)))
+                value.insert(rng.randint(0, len(value)), item)
+        return value
+    if isinstance(value, dict):
+        return {
+            key: _mutate_json(rng, item, depth + 1) if rng.random() < 0.4 else item
+            for key, item in value.items()
+        }
+    return _random_json(rng, depth) if rng.random() < 0.5 else value
+
+
+def test_json_changes_reproduce_target_for_random_edits():
+    """Seeded probe: edits that move, insert and remove nested values.
+
+    jsonpatch.make_patch() fails on 91 of these 3,000 pairs (80 raise, 11 differ).
+    """
+    rng = random.Random(0)
+    for _ in range(3000):
+        before = {"a": _random_json(rng)}
+        if rng.random() < 0.7:
+            after = {"a": _mutate_json(rng, deepcopy(before["a"]))}
+        else:
+            after = {"a": _random_json(rng)}
+        _assert_round_trip(before, after)
+
+
+def test_json_changes_replaced_values_come_from_before():
+    before = {"a": [{"k": 1}, "x", [1, 2]], "b": {"c": "old"}}
+    after = {"a": ["y", {"k": 1}, [1]], "b": {"c": "new"}}
+
+    changes = json_changes(before, after)
+
+    assert changes is not None
+    assert [(c.op, c.path, c.replaced) for c in changes] == [
+        ("replace", "/a/0", {"k": 1}),
+        ("replace", "/a/1", "x"),
+        ("remove", "/a/2/1", None),
+        ("replace", "/b/c", "old"),
+    ]
+    assert _apply_changes(before, changes) == after
 
 
 def test_jsonlines_reader_kwargs(tmp_path):

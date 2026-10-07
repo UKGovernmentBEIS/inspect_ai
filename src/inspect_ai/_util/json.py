@@ -1,5 +1,4 @@
-import re
-from copy import deepcopy
+import json
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -10,20 +9,12 @@ from typing import (
 )
 
 import ijson  # type: ignore[import-untyped]
-import jsonpatch
-from jsonpointer import (  # type: ignore  # jsonpointer is already a dependency of jsonpatch
-    JsonPointerException,
-    resolve_pointer,
-)
 from pydantic import BaseModel, Field, JsonValue
 from pydantic_core import PydanticSerializationError, to_json, to_jsonable_python
 
 if TYPE_CHECKING:
     from ijson import IncompleteJSONError  # type: ignore[import-untyped]
     from ijson.backends.python import UnexpectedSymbol  # type: ignore[import-untyped]
-
-# Pre-compile regex to quickly find paths ending in an index for json_changes (e.g., /items/0)
-_ARRAY_INDEX_RE = re.compile(r"^(.*)/(\d+)$")
 
 
 def exceeds_max_depth(value: object, max_depth: int) -> bool:
@@ -288,77 +279,57 @@ class JsonChange(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-def _get_tracked_containers(patch_list: list[dict[str, Any]]) -> set[str]:
-    """Identifies which array paths need state tracking for json_changes.
-
-    We only need to track the state of an array if it undergoes structural changes (add/remove) AND contains a 'replace' operation later in the patch list.
-    """
-    # Find all arrays being structurally modified (add/remove)
-    structural_containers = set()
-    for op in patch_list:
-        if op["op"] in ("add", "remove"):
-            if match := _ARRAY_INDEX_RE.match(op["path"]):
-                structural_containers.add(match.group(1))
-
-    # Filter down to only those that actually impact a 'replace' op
-    tracked = set()
-    if structural_containers:
-        for op in patch_list:
-            if op["op"] == "replace":
-                for container in structural_containers:
-                    if op["path"].startswith(container + "/"):
-                        tracked.add(container)
-                        break
-    return tracked
+def _json_pointer_join(path: str, key: str | int) -> str:
+    return path + "/" + str(key).replace("~", "~0").replace("/", "~1")
 
 
-def _get_active_container(
-    path: str, tracked_paths: set[str]
-) -> tuple[str | None, str | None]:
-    """Checks if a specific path belongs to a tracked container for json_changes.
-
-    Returns:
-        (container, relative_path_without_slash) e.g., ("/items", "0")
-    """
-    if not tracked_paths:
-        return None, None
-
-    # Find the most specific (longest) matching container to handle nested arrays
-    best_match: str | None = None
-    for container in tracked_paths:
-        if path.startswith(container + "/"):
-            if best_match is None or len(container) > len(best_match):
-                best_match = container
-
-    if best_match is not None:
-        # Return container and the path relative to it (stripping the slash)
-        return best_match, path[len(best_match) + 1 :]
-
-    return None, None
-
-
-def _apply_fast_list_op(target: list[Any], op: dict[str, Any], rel_path: str) -> None:
-    """Mutates a list in-place to apply a JSON patch operation efficiently.
-
-    This function optimises the "hot path" by using native Python list methods (.insert, .pop) for simple index operations, avoiding the significant overhead of the jsonpatch library. It falls back to the library for complex paths.
-
-    Args:
-        target: The list to mutate.
-        op: The patch operation dictionary containing 'op' and 'value'.
-        rel_path: The relative path within the list (e.g., "0", "15", "-").
-    """
-    # Fast path: Simple index (e.g. "0", "15", "-")
-    # We check for '/' to ensure it's not a nested path like "0/id"
-    if "/" not in rel_path:
-        if op["op"] == "add":
-            idx = len(target) if rel_path == "-" else int(rel_path)
-            target.insert(idx, op["value"])
-        elif op["op"] == "remove":
-            target.pop(int(rel_path))
-    else:
-        # Slow path: Complex/Nested path (e.g., "0/details/id")
-        # Prepend '/' because jsonpatch requires pointers to start with /
-        target[:] = jsonpatch.apply_patch(target, [{**op, "path": "/" + rel_path}])  # type: ignore
+def _diff_values(path: str, before: Any, after: Any, changes: list[JsonChange]) -> None:
+    if isinstance(before, dict) and isinstance(after, dict):
+        for key in before:
+            if key not in after:
+                changes.append(
+                    JsonChange(op="remove", path=_json_pointer_join(path, key))
+                )
+        for key, value in after.items():
+            if key not in before:
+                changes.append(
+                    JsonChange(
+                        op="add", path=_json_pointer_join(path, key), value=value
+                    )
+                )
+        for key, value in before.items():
+            if key in after:
+                _diff_values(_json_pointer_join(path, key), value, after[key], changes)
+    elif isinstance(before, list) and isinstance(after, list):
+        common = min(len(before), len(after))
+        for index in range(common):
+            old, new = before[index], after[index]
+            if old == new:
+                continue
+            item_path = _json_pointer_join(path, index)
+            if (isinstance(old, dict) and isinstance(new, dict)) or (
+                isinstance(old, list) and isinstance(new, list)
+            ):
+                _diff_values(item_path, old, new, changes)
+            else:
+                changes.append(
+                    JsonChange(op="replace", path=item_path, value=new, replaced=old)
+                )
+        # trailing items are removed or appended, so no earlier index shifts
+        for _ in range(common, len(before)):
+            changes.append(
+                JsonChange(op="remove", path=_json_pointer_join(path, common))
+            )
+        for index in range(common, len(after)):
+            changes.append(
+                JsonChange(
+                    op="add", path=_json_pointer_join(path, index), value=after[index]
+                )
+            )
+    elif json.dumps(before) != json.dumps(after):
+        changes.append(
+            JsonChange(op="replace", path=path, value=after, replaced=before)
+        )
 
 
 def json_changes(
@@ -366,17 +337,18 @@ def json_changes(
 ) -> list[JsonChange] | None:
     """Calculates JSON changes including the 'replaced' value for replace operations.
 
-    Standard JSON Patch does not include the value that was overwritten during a 'replace' operation. This function calculates that value.
+    The changes are JSON Patch operations (plus the value each 'replace'
+    overwrote) that turn `before` into `after` when applied in order.
 
-    Optimisation Strategy:
-        Looking up the 'replaced' value is trivial for static paths. However, if
-        an array has items inserted/removed, the indices shift. To resolve the
-        correct 'replaced' value, we normally need to apply patches sequentially.
-
-        Instead of deepcopying the entire document (slow), this function identifies
-        only the specific arrays that shift and creates small "shadow" copies of
-        them. It applies patches to these shadow arrays to track the correct
-        indices, whilst ignoring the rest of the document.
+    The comparison follows `jsonpatch.make_patch()`: dicts are compared key by
+    key and lists index by index, with trailing items removed or added. Unlike
+    `make_patch()`, it never pairs a removed value with an equal added value
+    into a 'move': jsonpatch does not adjust the indices of such moves across
+    containers, so they can produce invalid paths or a patch that does not
+    reproduce `after`. `make_patch()` has no option to turn moves off, so the
+    comparison is done here. Without moves no operation shifts an index that a
+    later operation reads, so each 'replaced' value comes straight from
+    `before`.
 
     Args:
         before: The original dictionary.
@@ -385,52 +357,6 @@ def json_changes(
     Returns:
         A list of JsonChange objects (which mimic JSON patch ops but include the 'replaced' field), or None if there are no changes.
     """
-    patch_list = list(jsonpatch.make_patch(before, after))
-    if not patch_list:
-        return None
-
-    # Identify which arrays need isolated tracking
-    tracked_paths = _get_tracked_containers(patch_list)
-
-    # Create shadow copies of ONLY those arrays
-    # resolve_pointer handles traversing 'before' to find the sub-list.
-    shadow_state = {
-        path: deepcopy(resolve_pointer(before, path)) for path in tracked_paths
-    }
-
     changes: list[JsonChange] = []
-
-    for op in patch_list:
-        container, rel_path = _get_active_container(op["path"], tracked_paths)
-
-        # Calculate the 'replaced' value if this is a 'replace' op
-        replaced_val = None
-        if op["op"] == "replace":
-            source = shadow_state[container] if container else before
-
-            # Ensure lookup_path has a leading slash for resolve_pointer
-            if container:
-                assert rel_path is not None  # Shouldn't be since container is set
-                lookup_path = "/" + rel_path
-            else:
-                lookup_path = op["path"]
-
-            try:
-                replaced_val = resolve_pointer(source, lookup_path)
-            except JsonPointerException:
-                # Usually implies the path doesn't exist in the shadow state. Just leave replaced_val as None
-                pass
-
-        # Update shadow state if the structure changed due to an 'add' or 'remove' op
-        if container and op["op"] in ("add", "remove"):
-            assert rel_path is not None  # Shouldn't be since container is set
-            if isinstance(shadow_state[container], list):
-                _apply_fast_list_op(shadow_state[container], op, rel_path)
-
-        # Build Result
-        change = JsonChange(**op)
-        if op["op"] == "replace":
-            change.replaced = replaced_val
-        changes.append(change)
-
-    return changes
+    _diff_values("", before, after, changes)
+    return changes or None

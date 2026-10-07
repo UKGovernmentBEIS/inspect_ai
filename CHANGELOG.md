@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
+- Bugfix: Store and state changes that move values between lists or objects no longer crash the sample or log changes that replay to the wrong state.
 
 ## 0.3.277 (06 October 2026)
 
