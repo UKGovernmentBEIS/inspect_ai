@@ -117,11 +117,32 @@ Under the rule:
 - **The reconciliation is removed.** Both of its parts are now intervals.
   Cache hits open no attempt and credit nothing.
 
-These intervals are added after the fact, so the sample keeps a short list
-of closed wait intervals. Intervals that end before the start of the oldest
-generate call still in flight are folded into a running total. The list
-therefore holds only the intervals that may still overlap a later
-addition.
+### The interval set
+
+Some waits are added after the fact: retried attempts, SDK-internal
+retries, and `report_sample_waiting_time(seconds)`. That helper can report
+any `[now - seconds, now]`, even when no model call is in flight. For
+example, EXP-Bench reports a whole custom call's wait after it returns, and
+METR's approver reports every second while a native approval wait may be
+open. A scalar total cannot de-duplicate a late report against what it has
+already counted: histories `[0,1]` and `[1,2]` both total 1, but a later
+report of `[1,3]` must bring them to 3 and to 2 respectively.
+
+So the sample keeps the **merged set of closed wait intervals for the whole
+attempt**, with no folding, plus the start time of the oldest open span:
+
+- **Adding an interval.** It is clipped to the current attempt, from the
+  sample clock's start to now, and merged into the sorted list.
+  Overlapping and adjacent intervals become one, so every addition, live or
+  late, is de-duplicated exactly.
+- **Size.** The list grows at most by one entry per wait span, usually
+  less, because overlapping spans merge. A sample has at most a few
+  thousand waits, so memory is small. Prior attempts are carried as totals
+  in the checkpoint (see "Resume accounting").
+- **Readings.** `waiting(a, b)` is the length of the set intersected with
+  `[a, b]`, plus the open span's overlap with `[a, b]`. It uses a bisect
+  and a short scan. Working time over `[a, b]` is `(b - a) - waiting(a,
+  b)`.
 
 ### Approvals and limit suspension
 
@@ -145,12 +166,18 @@ covers the whole sample while it is open (see "Accepted limitations").
 
 ### Scoped `working_limit()` and enforcement
 
-- **Scoped limits.** A `working_limit()` node records the sample's working
-  time when it is entered. Its `usage` is the current working time minus
-  that value. The per-node `_waiting_time` ledger and `record_waiting_time()`
-  go. A scoped limit therefore sees the same waits as the sample. Outside a
-  running sample there is no clock, and a scoped limit measures wall-clock
-  time.
+- **Scoped limits.** A `working_limit()` node keeps its own start time
+  (and end time, once exited), as today (`util/_limit.py:1480`). Its
+  `usage` is `(end_or_now - start) - waiting(start, end_or_now)`: the waits
+  inside the node's own interval, computed when it is read. A reading
+  difference saved at entry would be wrong. Suppose an attempt runs 0–8, a
+  scope starts at 5, and the attempt is then classified as retried, which
+  adds `[0, 8]`. At 10 the sample's working time is 2 and the value saved
+  at entry is 5, so the difference would be −3. The interval formula gives
+  `5 - 3 = 2`, which is correct. Usage therefore always lies in
+  `[0, elapsed]` and picks up late additions. The per-node `_waiting_time`
+  ledger and `record_waiting_time()` go. Outside a running sample there is
+  no clock, and a scoped limit measures wall-clock time.
 - **Monitor.** `monitor_working_limit` checks the root node once a second,
   as today. An open wait span stops the clock in real time, so neither the
   backoff's credit in advance nor the pause gate's 0.5 s credit ticks are
@@ -161,11 +188,18 @@ covers the whole sample while it is open (see "Accepted limitations").
   generating task; `src/inspect_ai/util/_limit.py:930`), and it is
   removed. An attempt in flight is charged until it is known to have been
   retried, as it is today.
-- **Event times.** `working_start` and the tool and subtask durations keep
-  today's formulas (`_call_tools.py:503`, `:631`; `_subtask.py:128`,
-  `:139`) over the new reading. A retroactive interval can reduce a reading
-  slightly, as today's reconciliation does, so the durations are clamped to
-  `[0, elapsed]`.
+- **Event durations.** Tool and subtask durations use the same interval
+  formula. Each producer keeps its start time instead of a waiting
+  baseline, and passes `waiting_time = waiting(start, end)` to the
+  existing setters. The producers are the tool-stage baselines and every
+  completion and cancellation path in `src/inspect_ai/model/_call_tools.py`
+  (`:503`, `:591`, `:631`, `:699`, `:787`), and the subtask in
+  `src/inspect_ai/util/_subtask.py` (`:128`–`:143`). An event's duration
+  uses the waits known when the event completes. A retried attempt
+  classified after that does not change an event that is already
+  published; this is a stated approximation of the heuristic.
+  `working_start` is the sample's working time at the event's creation,
+  as today.
 
 ### Resume accounting
 
@@ -278,7 +312,10 @@ No migration is required, and there is no schema change other than the
   human-input time is now credited. Retryable attempts in a call that runs
   out of retries are now credited. Cache hits no longer add time.
 - **`report_sample_waiting_time(seconds)`** keeps its signature. It now
-  adds the interval `[now - seconds, now]` instead of a separate amount.
+  adds the interval `[now - seconds, now]`, clipped to the current attempt,
+  instead of a separate amount. Because the merged set is kept for the
+  whole attempt, a late report that overlaps waits already counted is
+  de-duplicated exactly, and the union guarantee holds.
   METR's approver reports the time since its last report every second, so
   its calls merge with the native approval span instead of adding to it,
   and it keeps working.
@@ -296,9 +333,14 @@ Fake-clock tests inject `now` through `init_sample_working_time` and patch
 the backoff sleep's `_sleep` indirection. Their fake `ModelAPI` attempts
 block on `anyio.Event`s, so ordering is fixed.
 
-- **Interval set** (`tests/util/test_limit_working.py`). Covers union,
-  retroactive insertion, and folding of old intervals. Seeded random
-  sequences check that `0 ≤ working ≤ elapsed`.
+- **Interval set** (`tests/util/test_limit_working.py`):
+  - union and retroactive insertion, and clipping to the attempt;
+  - `waiting(a, b)` intersection, including an open span;
+  - seeded random sequences checking that `0 ≤ working ≤ elapsed` and that
+    every window's working time lies in `[0, b - a]`;
+  - late overlap: a `report_sample_waiting_time` interval overlapping an
+    already-closed native wait, and the `[0,1]`/`[1,2]` then `[1,3]` case,
+    giving totals 3 and 2.
 - **Samples** (`tests/test_sample_limits.py`):
   - the three measured scenarios: concurrent retries give `working_time ≥
     0` and waiting equal to the union, a semaphore waiter merges, and a
@@ -307,7 +349,13 @@ block on `anyio.Event`s, so ordering is fixed.
   - an SDK-internal retry is split using a fake `call.time`;
   - `suspend_working_limit()` around an approver, and human input;
   - the batch queue;
-  - scoped limits use deltas.
+  - a scope that starts while a later-retried attempt is in flight: the
+    attempt runs 0–8 and is classified at 8, and the scope starts at 5. At
+    10 the scope's usage is 2 and lies within its elapsed time, and a
+    scoped limit of 1 trips;
+  - a tool and a subtask that straddle the same retroactive interval report
+    the waits inside their own interval only, and a tool that completes
+    before the classification keeps its published duration.
 - **Pause** (`tests/_control/test_pause.py`). Hold credit happens without
   ticks, and two parked calls merge.
 - **`report_sample_waiting_time`** merges with an overlapping native span.
@@ -320,7 +368,8 @@ block on `anyio.Event`s, so ordering is fixed.
 ## Implementation plan
 
 1. **`src/inspect_ai/_util/working.py`.** Replace the waiting ledger with
-   an open-span counter plus the interval set. Add the `sample_wait()`
+   an open-span counter plus the merged interval set for the attempt, with
+   `waiting(a, b)`. Add the `sample_wait()`
    helper, reinterpret `report_sample_waiting_time` as an interval, and add
    the `now` and `_sleep` indirections.
 2. **`src/inspect_ai/util/_limit.py`.** Scoped nodes use deltas. Add
@@ -333,8 +382,9 @@ block on `anyio.Event`s, so ordering is fixed.
    the SDK-retry split, and remove the reconciliation and the pause credit
    ticks. Add the batch `submitted` event in `model/_providers/util/batch.py`.
 4. **`_eval/task/run.py` and `util/_checkpoint/sample_runtime.py`.** Use the
-   logged value and add the resume formulas with `sample_elapsed`. Clamp
-   event durations in `_call_tools.py` and `_subtask.py`.
+   logged value and add the resume formulas with `sample_elapsed`. Switch
+   the event producers in `_call_tools.py` and `_subtask.py` to
+   `waiting(start, end)`.
 5. **Docs, CHANGELOG and the tests above.**
 
 ## Alternatives considered
@@ -365,10 +415,14 @@ too risky.
 ## Open questions
 
 1. **Add a public `suspend_working_limit()`?** I recommend yes. It is
-   small, mirrors `suspend_token_limit()` and `suspend_turn_limit()`, and
-   gives code like METR's approver a public way to mark time as waiting.
-   The alternative is to keep it internal and wrap approvals with the
-   private `sample_wait()` helper.
+   small and gives code like METR's approver a public way to mark time as
+   waiting. Its contract differs from `suspend_token_limit()` and
+   `suspend_turn_limit()`, which suspend metering only for code inside the
+   block in the current task. `suspend_working_limit()` marks the whole
+   sample as waiting while the block is open, including other tasks'
+   work, because waiting is sample-wide under the union rule. Its docstring
+   would say so. The alternative is to keep it internal and wrap approvals
+   with the private `sample_wait()` helper.
 
 ## Not this design
 
