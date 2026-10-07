@@ -7,17 +7,17 @@ from ._chat_message import ChatMessage, ChatMessageAssistant
 from ._model_data.model_data import ModelCost
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._model_output import ChatCompletionChoice as ChatCompletionChoice
-from inspect_ai.core._model_output import Logprob as Logprob
-from inspect_ai.core._model_output import Logprobs as Logprobs
-from inspect_ai.core._model_output import ModelFallback as ModelFallback
-from inspect_ai.core._model_output import ModelOutput as ModelOutput
-from inspect_ai.core._model_output import ModelUsage as ModelUsage
-from inspect_ai.core._model_output import StopCategory as StopCategory
-from inspect_ai.core._model_output import StopDetails as StopDetails
-from inspect_ai.core._model_output import StopReason as StopReason
-from inspect_ai.core._model_output import TopLogprob as TopLogprob
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._model_output import ChatCompletionChoice as ChatCompletionChoice
+from inspect_core._model_output import Logprob as Logprob
+from inspect_core._model_output import Logprobs as Logprobs
+from inspect_core._model_output import ModelFallback as ModelFallback
+from inspect_core._model_output import ModelOutput as ModelOutput
+from inspect_core._model_output import ModelUsage as ModelUsage
+from inspect_core._model_output import StopCategory as StopCategory
+from inspect_core._model_output import StopDetails as StopDetails
+from inspect_core._model_output import StopReason as StopReason
+from inspect_core._model_output import TopLogprob as TopLogprob
 
 # End of backward-compatible re-exports.
 
@@ -106,7 +106,7 @@ def _from_message(
 ) -> ModelOutput:
     """`ModelOutput.from_message` with the active model as the default model name.
 
-    `inspect_ai.core` has no notion of an active model, so this replaces the core
+    `inspect_core` has no notion of an active model, so this replaces the core
     method when `inspect_ai.model` loads. When neither `model` nor the message
     supplies a model name, the active model's name is used.
     """

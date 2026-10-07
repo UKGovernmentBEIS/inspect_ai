@@ -15,7 +15,7 @@ DEFAULT_ALLOWED: tuple[str, ...] = (
     "pydantic_core",
     "typing_extensions",
     "shortuuid",
-    "inspect_ai.core",
+    "inspect_core",
 )
 """Modules (and their submodules) allowed besides the standard library."""
 

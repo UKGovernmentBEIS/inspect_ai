@@ -78,7 +78,6 @@ from inspect_ai._util.working import (
     sample_waiting,
     sample_working_time,
 )
-from inspect_ai.core._registry import set_model_from_dict
 from inspect_ai.model._generate_overrides import generate_config_override_for_attempt
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
@@ -97,6 +96,7 @@ from inspect_ai.util._limit import (
     token_limit_usage,
     turn_count,
 )
+from inspect_core._registry import set_model_from_dict
 
 from ._agent_message import validate_agent_message
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch

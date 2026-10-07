@@ -44,7 +44,7 @@ class ToolInfo(BaseModel):
 
 INTERNAL_TOOL_TYPE = "__internal_tool_type__"
 """Well-known ``ToolInfo.options`` key carrying the
-:class:`~inspect_ai.core.ContentToolUse` ``tool_type`` literal
+:class:`~inspect_core.ContentToolUse` ``tool_type`` literal
 (``"web_search"`` / ``"code_execution"`` / ``"mcp_call"``) for tools that a
 model provider may execute server-side within a single API call."""
 

@@ -23,7 +23,7 @@ git_describe_command = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["inspect_ai*"]
+include = ["inspect_ai*", "inspect_core*"]
 
 # Keep the ts-mono TS source out of the wheel: the git-tracked files are
 # pruned in MANIFEST.in (include-package-data pulls the manifest into the
@@ -47,6 +47,7 @@ inspect_ai = [
     "_view/log-schema.json",
     "py.typed",
 ]
+inspect_core = ["py.typed"]
 
 
 [tool.ruff]
@@ -142,7 +143,7 @@ warn_unused_configs = true
 mypy_path = "tests"
 
 [[tool.mypy.overrides]]
-module = ["inspect_ai.*"]
+module = ["inspect_ai.*", "inspect_core.*"]
 warn_return_any = true
 disallow_untyped_defs = true
 disallow_any_generics = true

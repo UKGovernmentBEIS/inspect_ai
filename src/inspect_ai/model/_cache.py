@@ -15,15 +15,15 @@ from pydantic import BaseModel
 from inspect_ai._util.appdirs import inspect_cache_dir
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
-from inspect_ai.core._cache_policy import _parse_expiry
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_core._cache_policy import _parse_expiry
 
 from ._chat_message import ChatMessage
 from ._model_output import ModelOutput
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._cache_policy import CachePolicy as CachePolicy
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._cache_policy import CachePolicy as CachePolicy
 
 # End of backward-compatible re-exports.
 

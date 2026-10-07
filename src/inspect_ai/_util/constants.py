@@ -2,10 +2,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._constants import DESERIALIZING as DESERIALIZING
-from inspect_ai.core._constants import MESSAGE_CACHE as MESSAGE_CACHE
-from inspect_ai.core._constants import PKG_NAME as PKG_NAME
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._constants import DESERIALIZING as DESERIALIZING
+from inspect_core._constants import MESSAGE_CACHE as MESSAGE_CACHE
+from inspect_core._constants import PKG_NAME as PKG_NAME
 
 # End of backward-compatible re-exports.
 

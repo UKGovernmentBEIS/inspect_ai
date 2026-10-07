@@ -10,22 +10,22 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._package import ArchiveInfo as ArchiveInfo
-from inspect_ai.core._package import DirectUrl as DirectUrl
-from inspect_ai.core._package import DirInfo as DirInfo
-from inspect_ai.core._package import VcsInfo as VcsInfo
-from inspect_ai.core._package import (
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._package import ArchiveInfo as ArchiveInfo
+from inspect_core._package import DirectUrl as DirectUrl
+from inspect_core._package import DirInfo as DirInfo
+from inspect_core._package import VcsInfo as VcsInfo
+from inspect_core._package import (
     get_distribution_direct_url as get_distribution_direct_url,
 )
-from inspect_ai.core._package import (
+from inspect_core._package import (
     get_installed_package_name as get_installed_package_name,
 )
-from inspect_ai.core._package import get_package_direct_url as get_package_direct_url
-from inspect_ai.core._package import (
+from inspect_core._package import get_package_direct_url as get_package_direct_url
+from inspect_core._package import (
     package_is_installed_editable as package_is_installed_editable,
 )
-from inspect_ai.core._package import (
+from inspect_core._package import (
     package_path_is_in_site_packages as package_path_is_in_site_packages,
 )
 

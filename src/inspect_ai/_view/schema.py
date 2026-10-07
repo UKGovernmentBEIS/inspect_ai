@@ -73,7 +73,9 @@ def _merge_same_shape_models(schema: dict[str, Any]) -> dict[str, Any]:
         ]
         if title in components or any(shape != shapes[0] for shape in shapes):
             continue
-        keys.sort(key=lambda key: not key.startswith("inspect_ai__"))
+        keys.sort(
+            key=lambda key: not key.startswith(("inspect_ai__", "inspect_core__"))
+        )
         components[title] = components[keys[0]]
         for key in keys:
             del components[key]

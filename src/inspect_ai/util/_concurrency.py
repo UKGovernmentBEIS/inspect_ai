@@ -11,8 +11,8 @@ from inspect_ai._util.constants import HTTP
 from inspect_ai._util.working import sample_waiting_for
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._adaptive_concurrency import (
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._adaptive_concurrency import (
     AdaptiveConcurrency as AdaptiveConcurrency,
 )
 

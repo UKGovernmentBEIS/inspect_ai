@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from inspect_ai.core._imports import ImportViolation, check_imports
+from inspect_core._imports import ImportViolation, check_imports
 
 
 def test_core_imports_only_allowed_modules() -> None:
-    assert check_imports("inspect_ai.core") == []
+    assert check_imports("inspect_core") == []
 
 
 def _package(root: Path, files: dict[str, str]) -> None:
@@ -57,7 +57,7 @@ def test_check_imports_allows_own_package_core_and_extra(
             "monitors/rules.py": (
                 "import json\n"
                 "from pydantic import BaseModel\n"
-                "from inspect_ai.core import ChatMessage\n"
+                "from inspect_core import ChatMessage\n"
                 "from .helpers import util\n"
                 "from extra_pkg.sub import thing\n"
             ),

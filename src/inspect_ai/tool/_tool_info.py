@@ -15,11 +15,11 @@ from ._tool_description import tool_description
 from ._tool_params import ToolParam
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._tool_info import INTERNAL_TOOL_TYPE as INTERNAL_TOOL_TYPE
-from inspect_ai.core._tool_info import ToolInfo as ToolInfo
-from inspect_ai.core._tool_info import internal_tool_type as internal_tool_type
-from inspect_ai.core._tool_params import ToolParams as ToolParams
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._tool_info import INTERNAL_TOOL_TYPE as INTERNAL_TOOL_TYPE
+from inspect_core._tool_info import ToolInfo as ToolInfo
+from inspect_core._tool_info import internal_tool_type as internal_tool_type
+from inspect_core._tool_params import ToolParams as ToolParams
 
 # End of backward-compatible re-exports.
 

@@ -23,9 +23,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing_extensions import Self, override
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._limit import Limit as Limit
-from inspect_ai.core._limit import LimitExceededError as LimitExceededError
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._limit import Limit as Limit
+from inspect_core._limit import LimitExceededError as LimitExceededError
 
 # End of backward-compatible re-exports.
 

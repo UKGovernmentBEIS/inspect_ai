@@ -7,16 +7,16 @@ from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._tool_call import ToolCall as ToolCall
-from inspect_ai.core._tool_call import ToolCallContent as ToolCallContent
-from inspect_ai.core._tool_call import ToolCallError as ToolCallError
-from inspect_ai.core._tool_call import ToolCallModelInput as ToolCallModelInput
-from inspect_ai.core._tool_call import (
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._tool_call import ToolCall as ToolCall
+from inspect_core._tool_call import ToolCallContent as ToolCallContent
+from inspect_core._tool_call import ToolCallError as ToolCallError
+from inspect_core._tool_call import ToolCallModelInput as ToolCallModelInput
+from inspect_core._tool_call import (
     ToolCallModelInputHints as ToolCallModelInputHints,
 )
-from inspect_ai.core._tool_call import ToolCallView as ToolCallView
-from inspect_ai.core._tool_call import ToolCallViewer as ToolCallViewer
+from inspect_core._tool_call import ToolCallView as ToolCallView
+from inspect_core._tool_call import ToolCallViewer as ToolCallViewer
 
 # End of backward-compatible re-exports.
 

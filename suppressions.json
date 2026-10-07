@@ -544,7 +544,7 @@
       "undescribed": 1
     }
   },
-  "src/inspect_ai/core/_generate_config.py": {
+  "src/inspect_core/_generate_config.py": {
     "type: ignore": {
       "count": 1,
       "undescribed": 1

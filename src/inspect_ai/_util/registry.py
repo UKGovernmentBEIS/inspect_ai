@@ -10,50 +10,50 @@ from typing import (
     overload,
 )
 
-from inspect_ai.core import _registry as _core_registry
-from inspect_ai.core._registry import _instantiate_registry_object
+from inspect_core import _registry as _core_registry
+from inspect_core._registry import _instantiate_registry_object
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._registry import _REGISTRY_TYPE_VALUES as _REGISTRY_TYPE_VALUES
-from inspect_ai.core._registry import REGISTRY_INFO as REGISTRY_INFO
-from inspect_ai.core._registry import REGISTRY_PARAMS as REGISTRY_PARAMS
-from inspect_ai.core._registry import ModelDict as ModelDict
-from inspect_ai.core._registry import RegistryDict as RegistryDict
-from inspect_ai.core._registry import RegistryInfo as RegistryInfo
-from inspect_ai.core._registry import RegistryType as RegistryType
-from inspect_ai.core._registry import _registry as _registry
-from inspect_ai.core._registry import _registry_get as _registry_get
-from inspect_ai.core._registry import create_registry_object as create_registry_object
-from inspect_ai.core._registry import extract_named_params as extract_named_params
-from inspect_ai.core._registry import has_registry_params as has_registry_params
-from inspect_ai.core._registry import is_model_dict as is_model_dict
-from inspect_ai.core._registry import is_registry_dict as is_registry_dict
-from inspect_ai.core._registry import is_registry_object as is_registry_object
-from inspect_ai.core._registry import obj_type as obj_type
-from inspect_ai.core._registry import registry_add as registry_add
-from inspect_ai.core._registry import registry_arg as registry_arg
-from inspect_ai.core._registry import (
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._registry import _REGISTRY_TYPE_VALUES as _REGISTRY_TYPE_VALUES
+from inspect_core._registry import REGISTRY_INFO as REGISTRY_INFO
+from inspect_core._registry import REGISTRY_PARAMS as REGISTRY_PARAMS
+from inspect_core._registry import ModelDict as ModelDict
+from inspect_core._registry import RegistryDict as RegistryDict
+from inspect_core._registry import RegistryInfo as RegistryInfo
+from inspect_core._registry import RegistryType as RegistryType
+from inspect_core._registry import _registry as _registry
+from inspect_core._registry import _registry_get as _registry_get
+from inspect_core._registry import create_registry_object as create_registry_object
+from inspect_core._registry import extract_named_params as extract_named_params
+from inspect_core._registry import has_registry_params as has_registry_params
+from inspect_core._registry import is_model_dict as is_model_dict
+from inspect_core._registry import is_registry_dict as is_registry_dict
+from inspect_core._registry import is_registry_object as is_registry_object
+from inspect_core._registry import obj_type as obj_type
+from inspect_core._registry import registry_add as registry_add
+from inspect_core._registry import registry_arg as registry_arg
+from inspect_core._registry import (
     registry_create_from_dict as registry_create_from_dict,
 )
-from inspect_ai.core._registry import registry_find as registry_find
-from inspect_ai.core._registry import registry_has as registry_has
-from inspect_ai.core._registry import registry_info as registry_info
-from inspect_ai.core._registry import registry_key as registry_key
-from inspect_ai.core._registry import registry_kwargs as registry_kwargs
-from inspect_ai.core._registry import registry_log_name as registry_log_name
-from inspect_ai.core._registry import registry_lookup as registry_lookup
-from inspect_ai.core._registry import registry_name as registry_name
-from inspect_ai.core._registry import registry_package_name as registry_package_name
-from inspect_ai.core._registry import registry_params as registry_params
-from inspect_ai.core._registry import registry_tag as registry_tag
-from inspect_ai.core._registry import (
+from inspect_core._registry import registry_find as registry_find
+from inspect_core._registry import registry_has as registry_has
+from inspect_core._registry import registry_info as registry_info
+from inspect_core._registry import registry_key as registry_key
+from inspect_core._registry import registry_kwargs as registry_kwargs
+from inspect_core._registry import registry_log_name as registry_log_name
+from inspect_core._registry import registry_lookup as registry_lookup
+from inspect_core._registry import registry_name as registry_name
+from inspect_core._registry import registry_package_name as registry_package_name
+from inspect_core._registry import registry_params as registry_params
+from inspect_core._registry import registry_tag as registry_tag
+from inspect_core._registry import (
     registry_unqualified_name as registry_unqualified_name,
 )
-from inspect_ai.core._registry import registry_value as registry_value
-from inspect_ai.core._registry import registry_version as registry_version
-from inspect_ai.core._registry import set_registry_info as set_registry_info
-from inspect_ai.core._registry import set_registry_params as set_registry_params
+from inspect_core._registry import registry_value as registry_value
+from inspect_core._registry import registry_version as registry_version
+from inspect_core._registry import set_registry_info as set_registry_info
+from inspect_core._registry import set_registry_params as set_registry_params
 
 # End of backward-compatible re-exports.
 
@@ -75,7 +75,7 @@ if TYPE_CHECKING:
 else:
 
     def __getattr__(name: str) -> int:
-        """Read `_registry_version` from `inspect_ai.core._registry` on each access.
+        """Read `_registry_version` from `inspect_core._registry` on each access.
 
         A re-export would bind the value at import and go stale on the next
         `registry_add()`. Type checkers see the declaration above instead, because

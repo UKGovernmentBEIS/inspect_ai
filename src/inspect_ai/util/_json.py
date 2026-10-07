@@ -24,9 +24,9 @@ from pydantic import BaseModel, Field, create_model
 from typing_extensions import is_typeddict
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._json import JSONSchema as JSONSchema
-from inspect_ai.core._json import JSONType as JSONType
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._json import JSONSchema as JSONSchema
+from inspect_core._json import JSONType as JSONType
 
 # End of backward-compatible re-exports.
 

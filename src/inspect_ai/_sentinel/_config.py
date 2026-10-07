@@ -11,11 +11,11 @@ from inspect_ai._util.registry import is_registry_object
 from inspect_ai.util._resource import resource
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._sentinel import SentinelConfig as SentinelConfig
-from inspect_ai.core._sentinel import SentinelEntry as SentinelEntry
-from inspect_ai.core._sentinel import SentinelLayer as SentinelLayer
-from inspect_ai.core._sentinel import _layer_kind as _layer_kind
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._sentinel import SentinelConfig as SentinelConfig
+from inspect_core._sentinel import SentinelEntry as SentinelEntry
+from inspect_core._sentinel import SentinelLayer as SentinelLayer
+from inspect_core._sentinel import _layer_kind as _layer_kind
 
 # End of backward-compatible re-exports.
 

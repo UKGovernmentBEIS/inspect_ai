@@ -8,9 +8,9 @@ from inspect_ai.scorer._metric import Reference
 from inspect_ai.tool._tool_call import ToolCall
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._sentinel import SentinelAction as SentinelAction
-from inspect_ai.core._sentinel import SentinelSuspicion as SentinelSuspicion
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._sentinel import SentinelAction as SentinelAction
+from inspect_core._sentinel import SentinelSuspicion as SentinelSuspicion
 
 # End of backward-compatible re-exports.
 

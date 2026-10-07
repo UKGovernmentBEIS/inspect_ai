@@ -167,7 +167,7 @@ def test_registry_arg_instantiates_nested_score_reducer() -> None:
 
 
 def test_registry_arg_round_trips_model() -> None:
-    from inspect_ai.core._registry import registry_arg, registry_value
+    from inspect_core._registry import registry_arg, registry_value
 
     recorded = registry_value(
         get_model("mockllm/model", config=GenerateConfig(temperature=0.5))
@@ -186,7 +186,7 @@ def test_registry_arg_round_trips_model() -> None:
 
 
 def test_registry_value_keeps_a_model_class() -> None:
-    from inspect_ai.core._registry import registry_value
+    from inspect_core._registry import registry_value
 
     assert registry_value(Model) is Model
 
@@ -194,7 +194,7 @@ def test_registry_value_keeps_a_model_class() -> None:
 def test_registry_arg_model_dict_without_restore_function(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from inspect_ai.core import _registry as registry
+    from inspect_core import _registry as registry
 
     monkeypatch.setattr(registry, "_model_from_dict", None)
     with pytest.raises(RuntimeError, match="requires inspect_ai"):
@@ -360,7 +360,7 @@ def test_registry_has_finds_unnamespaced_inspect_ai_names() -> None:
 def test_registry_has_does_not_load_entry_points(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from inspect_ai.core import _registry as registry
+    from inspect_core import _registry as registry
 
     def fail(package: str | None = None) -> None:
         raise AssertionError("entry points were loaded")

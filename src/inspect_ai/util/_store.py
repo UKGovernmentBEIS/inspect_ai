@@ -15,12 +15,12 @@ from pydantic_core import to_jsonable_python
 from inspect_ai._util.json import JsonChange, json_changes
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core import _store as _core_store
-from inspect_ai.core._store import VT as VT
-from inspect_ai.core._store import Store as Store
-from inspect_ai.core._store import _subtask_store as _subtask_store
-from inspect_ai.core._store import init_subtask_store as init_subtask_store
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core import _store as _core_store
+from inspect_core._store import VT as VT
+from inspect_core._store import Store as Store
+from inspect_core._store import _subtask_store as _subtask_store
+from inspect_core._store import init_subtask_store as init_subtask_store
 
 # assigned rather than imported: an imported `store` trips ruff F811 against
 # the `store` parameter of store_jsonable()

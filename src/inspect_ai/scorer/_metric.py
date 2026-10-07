@@ -32,8 +32,8 @@ from inspect_ai._util.text import is_finite_number
 from inspect_ai.log._edit import ProvenanceData
 
 # isort: split
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._reference import Reference as Reference
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._reference import Reference as Reference
 
 # End of backward-compatible re-exports.
 

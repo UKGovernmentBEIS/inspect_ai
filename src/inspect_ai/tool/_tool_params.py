@@ -1,7 +1,7 @@
-# Backward-compatible re-exports of names that moved to inspect_ai.core.
-from inspect_ai.core._tool_params import (
+# Backward-compatible re-exports of names that moved to inspect_core.
+from inspect_core._tool_params import (
     ToolParam as ToolParam,
 )
-from inspect_ai.core._tool_params import (
+from inspect_core._tool_params import (
     ToolParams as ToolParams,
 )
