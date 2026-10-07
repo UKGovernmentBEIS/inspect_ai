@@ -1,6 +1,8 @@
 """Tests for model_info lookup functionality."""
 
+import re
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -649,6 +651,24 @@ class TestGetModelInputTokens:
         assert bedrock_info is not None
         assert bedrock_info.snapshot == "20260928"
 
+    def test_claude_haiku_5_5(self):
+        """Test that Claude Haiku 5.5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-haiku-5-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        # distinguishes the explicit entry from a fuzzy match of haiku-4-5
+        info = get_model_info("anthropic/claude-haiku-5-5")
+        assert info is not None
+        assert info.snapshot == "20261007"
+        assert str(info.release_date) == "2026-10-07"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.output_tokens == 128_000
+        assert info.reasoning_effort_default == "medium"
+        # the Bedrock id resolves to the same entry via its alias
+        bedrock_info = get_model_info("bedrock/anthropic.claude-haiku-5-5")
+        assert bedrock_info is not None
+        assert bedrock_info.snapshot == "20261007"
+
     def test_claude_fable_5(self):
         """Test that Claude Fable 5 reports 1MM input tokens."""
         model = get_model("anthropic/claude-fable-5")
@@ -972,3 +992,198 @@ class TestDoesNotReinstantiateProvider:
         record_and_check_model_usage(model, usage)
         # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
         assert usage.total_cost == pytest.approx(0.007)
+
+
+def test_bundled_model_data_yaml_io_has_explicit_encoding() -> None:
+    """Bundled model-data YAML must be read and written with an explicit encoding.
+
+    The YAML ships inside the package and is UTF-8, but a plain `open()`
+    decodes with the platform locale: on Windows with a CJK ANSI code page
+    (cp932/936/949/950) every model call died on the em dash in `zai.yml`
+    (#5433). CI cannot observe this — ubuntu coerces non-UTF-8 locales to
+    UTF-8 (PEP 538/540) — so the guard is a source scan, mirroring
+    `tests/_control/test_ctl.py::test_no_bare_click_exit_in_ctl_error_sites`.
+    """
+    import inspect_ai.model._model_data as model_data_package
+
+    package_dir = Path(model_data_package.__file__).parent
+    offenders = [
+        f"{path.name}:{lineno}"
+        for path in sorted(package_dir.glob("*.py"))
+        for lineno, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        )
+        if re.search(r"(?<![\w.])open\(", line)
+        and "encoding=" not in line
+        and not re.search(r"[\"'](rb|br|wb|bw)[\"']", line)
+    ]
+    assert not offenders, (
+        "open() without an explicit encoding in _model_data/ — bundled YAML "
+        f"is UTF-8 and must be read as such (#5433): {offenders}"
+    )
+
+
+@modelapi("servedtest")
+def servedtest() -> type[ModelAPI]:
+    """A provider that reports the models in `output.metadata["served"]`."""
+    # an extension implements the hook from the public API
+    from inspect_ai.model import ModelOutput, ModelUsage, ServedModelUsage
+
+    class ServedModelAPI(ModelAPI):
+        async def generate(self, *args: Any, **kwargs: Any) -> Any:
+            raise NotImplementedError
+
+        def served_model_usage(
+            self, output: ModelOutput
+        ) -> list[ServedModelUsage] | None:
+            served = (output.metadata or {}).get("served")
+            if served is None:
+                return None
+            return [ServedModelUsage(m, ModelUsage(**usage)) for m, usage in served]
+
+    return ServedModelAPI
+
+
+class TestServedModelPricing:
+    """Usage is priced by the model that served the call."""
+
+    @staticmethod
+    def _cost(rate: float) -> ModelCost:
+        return ModelCost(
+            input=rate, output=rate, input_cache_write=rate, input_cache_read=rate
+        )
+
+    @staticmethod
+    def _usage(input_tokens: int, output_tokens: int) -> dict[str, int]:
+        return dict(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+        )
+
+    def _record(self, served: list[tuple[str, dict[str, int]]] | None) -> Any:
+        from inspect_ai.model._model import record_and_check_model_usage
+        from inspect_ai.model._model_output import ModelOutput, ModelUsage
+
+        model = get_model("servedtest/called")
+        output = ModelOutput(
+            model="served",
+            usage=ModelUsage(**self._usage(3, 4)),
+            metadata={"served": served} if served is not None else None,
+        )
+        assert output.usage is not None
+        record_and_check_model_usage(model, output.usage, output=output)
+        return output.usage
+
+    @staticmethod
+    def _warnings(monkeypatch: Any) -> list[str]:
+        from inspect_ai._util import logger as logger_mod
+        from inspect_ai.model import _model as model_mod
+
+        warnings: list[str] = []
+        monkeypatch.setattr(logger_mod, "_warned", [])
+        monkeypatch.setattr(
+            model_mod.logger, "warning", lambda msg: warnings.append(msg)
+        )
+        return warnings
+
+    def test_priced_by_served_model(self):
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/other", ModelInfo(cost=self._cost(100.0)))
+        usage = self._record([("served/other", self._usage(3, 4))])
+        # 7 tokens at $100/M, not at the called model's $1000/M
+        assert usage.total_cost == pytest.approx(0.0007)
+
+    def test_each_part_priced_by_its_model(self):
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/first", ModelInfo(cost=self._cost(10.0)))
+        set_model_info("served/second", ModelInfo(cost=self._cost(100.0)))
+        usage = self._record(
+            [("served/first", self._usage(5, 5)), ("served/second", self._usage(3, 4))]
+        )
+        # 10 tokens at $10/M + 7 tokens at $100/M
+        assert usage.total_cost == pytest.approx(0.0001 + 0.0007)
+
+    def test_not_served_by_another_model(self):
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        usage = self._record(None)
+        assert usage.total_cost == pytest.approx(0.007)
+
+    def test_unknown_served_cost_uses_called_rates_and_warns(self, monkeypatch):
+        warnings = self._warnings(monkeypatch)
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/first", ModelInfo(cost=self._cost(10.0)))
+        usage = self._record(
+            [
+                ("served/first", self._usage(5, 5)),
+                ("served/unpriced", self._usage(3, 4)),
+            ]
+        )
+        # the whole call is priced at the called model's rates (7 tokens)
+        assert usage.total_cost == pytest.approx(0.007)
+        assert warnings == [
+            "No cost data for model 'served/unpriced', which served a request to "
+            "'servedtest/called'. Pricing the request at the rates of "
+            "'servedtest/called'. It is not in the model database, so use "
+            "set_model_info() with a ModelInfo that includes cost to add pricing "
+            "for 'served/unpriced'."
+        ]
+
+        # warned once
+        self._record([("served/unpriced", self._usage(3, 4))])
+        assert len(warnings) == 1
+
+        # the advertised fix prices the served model
+        with pytest.raises(ValueError, match="not found"):
+            set_model_cost("served/unpriced", self._cost(100.0))
+        set_model_info("served/unpriced", ModelInfo(cost=self._cost(100.0)))
+        usage = self._record([("served/unpriced", self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.0007)
+
+    def test_unpriced_database_model_warns_to_set_cost(self, monkeypatch):
+        warnings = self._warnings(monkeypatch)
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        served = "openai/gpt-4o-mini-2024-07-18"
+        usage = self._record([(served, self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.007)
+        assert warnings == [
+            f"No cost data for model '{served}', which served a request to "
+            "'servedtest/called'. Pricing the request at the rates of "
+            "'servedtest/called'. Use set_model_cost() or --model-cost-config to "
+            f"add pricing for '{served}'."
+        ]
+
+        # the advertised fix prices the served model
+        set_model_cost(served, self._cost(100.0))
+        usage = self._record([(served, self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.0007)
+
+    def test_unknown_served_cost_without_called_cost_does_not_warn(self, monkeypatch):
+        warnings = self._warnings(monkeypatch)
+        usage = self._record([("served/unpriced", self._usage(3, 4))])
+        assert usage.total_cost is None
+        assert warnings == []
+
+    def test_snapshot_of_called_model_uses_called_rates(self, monkeypatch):
+        """A served name the database knows as the called model is not unpriced."""
+        warnings = self._warnings(monkeypatch)
+        gpt_4o = get_model_info("openai/gpt-4o")
+        assert gpt_4o is not None
+        set_model_info(
+            "servedtest/called", gpt_4o.model_copy(update={"cost": self._cost(1000.0)})
+        )
+        usage = self._record([("openai/gpt-4o-2024-08-06", self._usage(3, 4))])
+        assert usage.total_cost == pytest.approx(0.007)
+        assert warnings == []
+
+    def test_cost_limit_sees_served_model_cost(self):
+        from inspect_ai.util._limit import LimitExceededError, cost_limit
+
+        set_model_info("servedtest/called", ModelInfo(cost=self._cost(1000.0)))
+        set_model_info("served/pricier", ModelInfo(cost=self._cost(2000.0)))
+        # the called model's price ($0.007) is under the limit; the served
+        # model's ($0.014) is over it
+        with cost_limit(0.01):
+            with pytest.raises(LimitExceededError) as exc_info:
+                self._record([("served/pricier", self._usage(3, 4))])
+        assert exc_info.value.value == pytest.approx(0.014)

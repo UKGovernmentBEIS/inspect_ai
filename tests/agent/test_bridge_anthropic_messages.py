@@ -223,11 +223,13 @@ async def _request_impl_messages(
     from inspect_ai.agent._agent import AgentState
     from inspect_ai.agent._bridge.types import AgentBridge
 
-    async def capture(bridge: Any, model: Any, messages: Any, *args: Any) -> Any:
+    async def capture(
+        bridge: Any, model: Any, messages: Any, *args: Any, **kwargs: Any
+    ) -> Any:
         raise _CapturedMessages(messages)
 
     monkeypatch.setattr(impl, "bridge_generate", capture)
-    bridge = AgentBridge(state=AgentState(messages=[]))
+    bridge = AgentBridge(state=AgentState(messages=[]), allow_client_model_names=True)
     with pytest.raises(_CapturedMessages) as exc_info:
         await impl.inspect_anthropic_api_request_impl(
             {

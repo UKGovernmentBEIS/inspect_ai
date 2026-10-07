@@ -1,3 +1,4 @@
+from contextvars import ContextVar
 from typing import Any, cast
 
 from openai.types.chat import ChatCompletion
@@ -17,6 +18,13 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from .._chat_message import ChatMessage
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice
+
+# A context variable rather than an instance field so that concurrent generate
+# calls on one model instance (each in its own task) never see each other's
+# response.
+_response: ContextVar[dict[str, Any] | None] = ContextVar(
+    "perplexity_response", default=None
+)
 
 
 class PerplexityAPI(OpenAICompatibleAPI):
@@ -40,8 +48,6 @@ class PerplexityAPI(OpenAICompatibleAPI):
             **model_args,
         )
 
-        self._response: dict[str, Any] | None = None
-
     @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
@@ -62,8 +68,8 @@ class PerplexityAPI(OpenAICompatibleAPI):
         return params
 
     def on_response(self, response: dict[str, Any]) -> None:
-        """Capture the raw response for post-processing."""
-        self._response = response
+        """Capture the raw response of the current generate call for post-processing."""
+        _response.set(response)
 
     @override
     def auto_streamable(self, config: GenerateConfig) -> bool:
@@ -106,12 +112,15 @@ class PerplexityAPI(OpenAICompatibleAPI):
             extra_body = {**(config.extra_body or {}), **search_options}
             config = config.merge(GenerateConfig(extra_body=extra_body))
 
-        result = await super().generate(input, [], tool_choice, config)
+        token = _response.set(None)
+        try:
+            result = await super().generate(input, [], tool_choice, config)
+            response = _response.get()
+        finally:
+            _response.reset(token)
         output, call = cast(tuple[ModelOutput, "ModelCall"], result)
 
-        if self._response:
-            response = self._response
-
+        if response:
             # attach citations if search results are returned
             search_results = response.get("search_results")
             if isinstance(search_results, list):

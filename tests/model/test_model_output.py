@@ -9,7 +9,15 @@ from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent
 from inspect_ai.log._file import read_eval_log
-from inspect_ai.model import ModelOutput, compute_model_cost, get_model
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageUser,
+    GenerateConfig,
+    ModelOutput,
+    compute_model_cost,
+    get_model,
+)
+from inspect_ai.model._model import init_active_model
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_output import ModelUsage
 
@@ -396,3 +404,45 @@ def test_unknown_input_context_tokens_survives_eval_log(tmp_path: Path) -> None:
     assert by_text["rejected"].input_context_tokens is None
     assert output_input_context_tokens(by_text["rejected"]) is None
     assert by_text["ok"].input_context_tokens == 20
+
+
+def test_from_message_uses_active_model_name() -> None:
+    active = get_model("mockllm/model")
+    init_active_model(active, GenerateConfig())
+
+    output = ModelOutput.from_message(ChatMessageAssistant(content="2"))
+
+    assert output.model == active.api.model_name
+
+
+def test_from_message_converts_non_assistant_message() -> None:
+    active = get_model("mockllm/model")
+    init_active_model(active, GenerateConfig())
+
+    output = ModelOutput.from_message(ChatMessageUser(content="2"))
+
+    assert output.model == active.api.model_name
+    assert output.message.text == "2"
+
+
+def test_from_message_prefers_explicit_and_message_model() -> None:
+    init_active_model(get_model("mockllm/model"), GenerateConfig())
+
+    with_model = ChatMessageAssistant(content="2", model="from-message")
+    without_model = ChatMessageAssistant(content="2")
+
+    assert ModelOutput.from_message(with_model).model == "from-message"
+    assert ModelOutput.from_message(with_model, model="explicit").model == "explicit"
+    assert ModelOutput.from_message(without_model, model="explicit").model == "explicit"
+
+
+def test_from_message_without_active_model() -> None:
+    assert ModelOutput.from_message(ChatMessageAssistant(content="2")).model == ""
+
+
+def test_from_message_keeps_empty_message_model() -> None:
+    init_active_model(get_model("mockllm/model"), GenerateConfig())
+
+    output = ModelOutput.from_message(ChatMessageAssistant(content="2", model=""))
+
+    assert output.model == ""
