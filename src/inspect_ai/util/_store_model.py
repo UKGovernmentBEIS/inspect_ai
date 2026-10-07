@@ -1,6 +1,6 @@
 from typing import Any, Type, TypeVar
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from ._store import Store, store
 
@@ -21,8 +21,8 @@ class StoreModel(BaseModel):
     instance: str | None = Field(exclude=True, default=None)
 
     def model_post_init(self, __context: Any) -> None:
-        # temporary model built by _validate_store(): take the instance being
-        # validated and a scratch store (so field reads see the values under
+        # temporary model built by _validate_store(): take the model's
+        # instance and a scratch store (so field reads see the values under
         # validation), and skip syncing with any real store
         if isinstance(__context, dict) and __context.get(_VALIDATING):
             self.__dict__["instance"] = __context["instance"]
@@ -64,6 +64,11 @@ class StoreModel(BaseModel):
             return super().__getattribute__(name)
 
     def __setattr__(self, name: str, value: Any) -> None:
+        if name in ["store", "instance"]:
+            raise AttributeError(
+                f"'{name}' can't be changed after a StoreModel is created "
+                "(bind the model with store_as() or the constructor)."
+            )
         self._validate_value(name, value)
         if name in self.__class__.model_fields:
             # validate with the new value (can throw ValidationError)
@@ -96,36 +101,19 @@ class StoreModel(BaseModel):
         # validate store or custom dict
         data = data if data is not None else self.store._data
 
-        # pick out this instance's fields to validate (store and instance
-        # default to the current values, so validators see them)
+        # pick out this instance's fields to validate
         validate: dict[str, Any] = {}
         for name in self.__class__.model_fields.keys():
+            if name in ["store", "instance"]:
+                continue
             ns_name = self._ns_name(name)
             if ns_name in data:
-                validate[self._validation_key(name)] = data[ns_name]
-            elif name in ["store", "instance"]:
-                validate[self._validation_key(name)] = getattr(self, name)
+                validate[name] = data[ns_name]
 
         # perform validation
-        instance = data.get(self._ns_name("instance"), self.instance)
         self.__class__.model_validate(
-            validate, context={_VALIDATING: True, "instance": instance}
+            validate, context={_VALIDATING: True, "instance": self.instance}
         )
-
-    def _validation_key(self, name: str) -> str:
-        """Input key for a field in model_validate().
-
-        Uses the field's (first string) validation alias when the model
-        validates by alias, so aliases (e.g. from an alias_generator) don't
-        drop the value. A global `by_name=True` would also change how nested
-        models validate. Fields with only path aliases fall back to the name.
-        """
-        alias = self.__class__.model_fields[name].validation_alias
-        if isinstance(alias, AliasChoices):
-            alias = next((c for c in alias.choices if isinstance(c, str)), None)
-        if isinstance(alias, str) and self.model_config.get("validate_by_alias", True):
-            return alias
-        return name
 
     def _validate_value(self, name: str, value: Any) -> None:
         # validate that we aren't using a nested StoreModel
