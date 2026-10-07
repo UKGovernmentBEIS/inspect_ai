@@ -219,9 +219,9 @@ mode, needs that opt-out".
 > match those calls against and denies all of them. Such an agent needs
 > `require_proposal=False` on every bridged server it uses. The bridge cannot
 > tell these calls from any other unproposed call: it neither detects code
-> mode nor fails the sample, and each denial is logged as a warning that
-> names the opt-out. With the opt-out, approval policies review the `exec`
-> call that carries the script, not the host tool calls made from it.
+> mode nor fails the sample, and logs the opt-out guidance once per server
+> and tool per process. With the opt-out, approval policies review the
+> `exec` call that carries the script, not the host tool calls made from it.
 
 Also amend the opening sentence of "Matching a Proposal", where it lists
 Codex CLI's naming ("Codex CLI the bare name inside a Responses API
