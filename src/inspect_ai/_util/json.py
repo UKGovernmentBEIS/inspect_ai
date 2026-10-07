@@ -1,5 +1,4 @@
 import json
-import math
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -292,25 +291,23 @@ def _replace_change(path: str, value: Any, replaced: Any) -> JsonChange:
     return change
 
 
-def _same_list_item(old: Any, new: Any) -> bool:
-    """`old == new`, except that NaN equals NaN at any depth.
+def _same_json(old: Any, new: Any) -> bool:
+    """Whether two JSON values are the same, with NaN equal to NaN.
 
+    Unlike `==`, this tells 1, 1.0 and True apart, and 0.0 from -0.0.
     Snapshots serialized separately hold distinct NaN objects, and NaN != NaN.
-    Callers try `==` first, so this walk only runs for items it finds unequal.
     """
-    if old == new:
-        return True
-    if isinstance(old, float) and isinstance(new, float):
-        return math.isnan(old) and math.isnan(new)
     if isinstance(old, dict) and isinstance(new, dict):
         return old.keys() == new.keys() and all(
-            _same_list_item(value, new[key]) for key, value in old.items()
+            _same_json(value, new[key]) for key, value in old.items()
         )
     if isinstance(old, list) and isinstance(new, list):
-        return len(old) == len(new) and all(
-            _same_list_item(a, b) for a, b in zip(old, new)
-        )
-    return False
+        return len(old) == len(new) and all(_same_json(a, b) for a, b in zip(old, new))
+    if type(old) is not type(new):
+        return False
+    if isinstance(old, float):
+        return repr(old) == repr(new)
+    return bool(old == new)
 
 
 def _diff_values(path: str, before: Any, after: Any, changes: list[JsonChange]) -> None:
@@ -332,22 +329,25 @@ def _diff_values(path: str, before: Any, after: Any, changes: list[JsonChange]) 
                 _diff_values(_json_pointer_join(path, key), value, after[key], changes)
     elif isinstance(before, list) and isinstance(after, list):
         # leave the items both lists end with alone, so an insert or removal
-        # does not replace every item after it
+        # does not replace every item after it. Items at the same index are
+        # skipped when `==` (fast, but 1 == True) or _same_json() says so; items
+        # paired across indices must be the same JSON value.
+        shifted = len(before) != len(after)
         end_before, end_after = len(before), len(after)
-        while (
-            end_before
-            and end_after
-            and (
-                before[end_before - 1] == after[end_after - 1]
-                or _same_list_item(before[end_before - 1], after[end_after - 1])
-            )
-        ):
+        while end_before and end_after:
+            old, new = before[end_before - 1], after[end_after - 1]
+            if shifted:
+                same = _same_json(old, new)
+            else:
+                same = old == new or _same_json(old, new)
+            if not same:
+                break
             end_before -= 1
             end_after -= 1
         common = min(end_before, end_after)
         for index in range(common):
             old, new = before[index], after[index]
-            if old == new or _same_list_item(old, new):
+            if old == new or _same_json(old, new):
                 continue
             item_path = _json_pointer_join(path, index)
             if (isinstance(old, dict) and isinstance(new, dict)) or (
@@ -385,7 +385,9 @@ def json_changes(
     list are then removed or added, so inserting or removing one item gives one
     change.
     Values compare as in `jsonpatch.make_patch()`, except that NaN equals NaN,
-    so an unchanged NaN gives no change.
+    so an unchanged NaN gives no change, and an item skipped at the end of a
+    list that changed length must be the same JSON value (1, 1.0 and True
+    differ).
 
     Unlike `make_patch()`, this never pairs a removed value with an equal added
     value into a 'move': jsonpatch does not adjust the indices of such moves

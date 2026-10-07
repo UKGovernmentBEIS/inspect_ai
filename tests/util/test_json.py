@@ -505,6 +505,43 @@ def test_json_changes_with_nan_apply_to_after(
     _assert_round_trip(before, after)
 
 
+@pytest.mark.parametrize(
+    "old,new",
+    [(1, True), (1, 1.0), (True, 1.0), (0.0, -0.0)],
+)
+def test_json_changes_nan_beside_a_type_change_still_reports_it(old: Any, new: Any):
+    """A NaN makes `==` fail; the NaN-tolerant check must not skip other changes."""
+    cases: list[tuple[dict[str, Any], dict[str, Any]]] = [
+        # item at the end of the list
+        ({"a": [{"n": NAN, "v": old}]}, {"a": [{"n": float("nan"), "v": new}]}),
+        # item before another changed item
+        (
+            {"a": [{"n": NAN, "v": old}, "x"]},
+            {"a": [{"n": float("nan"), "v": new}, "y"]},
+        ),
+        # change in a nested dict beside the NaN
+        (
+            {"a": [{"n": NAN, "d": {"v": old}}]},
+            {"a": [{"n": float("nan"), "d": {"v": new}}]},
+        ),
+    ]
+    for before, after in cases:
+        changes = json_changes(before, after)
+        assert changes is not None
+        _assert_round_trip(before, after)
+
+
+@pytest.mark.parametrize(
+    "old,new",
+    [(1, True), (True, 1), (1, 1.0), (1.0, 1), (True, 1.0), (1.0, True)],
+)
+def test_json_changes_shifted_items_must_be_the_same_json_value(old: Any, new: Any):
+    """Items moved to another index match only if the JSON value is the same."""
+    _assert_round_trip({"a": [old]}, {"a": ["insert", new]})
+    _assert_round_trip({"a": ["remove", old]}, {"a": [new]})
+    _assert_round_trip({"a": [{"v": old}]}, {"a": ["insert", {"v": new}]})
+
+
 def test_jsonlines_reader_kwargs(tmp_path):
     jsonl_content = '{"a": NaN}\n{"b": 123}\n'
     json_file = tmp_path / "test.jsonl"

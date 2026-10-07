@@ -273,6 +273,23 @@ def test_store_changes_reports_change_to_nan() -> None:
     assert isinstance(changes[0].value, float) and math.isnan(changes[0].value)
 
 
+def test_store_changes_reports_change_beside_unchanged_nan() -> None:
+    store = Store()
+    store.set("items", [{"score": float("nan"), "done": 1}])
+
+    events = _run_span_with(
+        track_store_changes,
+        store,
+        lambda s: s.set("items", [{"score": float("nan"), "done": True}]),
+    )
+
+    store_events = [e for e in events if isinstance(e, StoreEvent)]
+    assert len(store_events) == 1
+    assert [(c.op, c.path, c.value, c.replaced) for c in store_events[0].changes] == [
+        ("replace", "/items/0/done", True, 1)
+    ]
+
+
 @pytest.mark.parametrize(
     "before,after",
     [
