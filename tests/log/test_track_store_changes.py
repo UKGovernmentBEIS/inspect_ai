@@ -19,16 +19,19 @@ Store is used in practice) and assert that the emitted
 
 from __future__ import annotations
 
+import json
 import math
 from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, Callable, ContextManager
 
+import pytest
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.json import JsonChange
 from inspect_ai.agent._human.state import HumanAgentState, IntermediateScoring
 from inspect_ai.event import Event, StoreEvent
+from inspect_ai.log import EvalSample
 from inspect_ai.log._transcript import Transcript, init_transcript, track_store_changes
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.scorer import Score
@@ -38,6 +41,7 @@ from inspect_ai.util._store import (
     dict_jsonable,
     init_subtask_store,
     store_changes,
+    store_from_events,
     store_jsonable,
 )
 
@@ -267,6 +271,29 @@ def test_store_changes_reports_change_to_nan() -> None:
         ("replace", "/values/1", 1.0)
     ]
     assert isinstance(changes[0].value, float) and math.isnan(changes[0].value)
+
+
+@pytest.mark.parametrize(
+    "before,after",
+    [
+        ({"a": [NAN, {}]}, {"a": [0, {"x": float("nan")}]}),
+        ({"a": [NAN, [0]]}, {"a": ["text", [float("nan")]]}),
+    ],
+)
+def test_store_changes_with_nan_replay_from_logged_events(
+    before: dict[str, Any], after: dict[str, Any]
+) -> None:
+    """StoreEvents with NaNs rebuild the final store, also after a log round trip."""
+    events: list[Event] = []
+    for changes in [store_changes({}, before), store_changes(before, after)]:
+        assert changes is not None
+        events.append(StoreEvent(changes=changes))
+    sample = EvalSample(id=1, epoch=1, input="x", target="y", events=events)
+    logged = EvalSample.model_validate_json(sample.model_dump_json())
+
+    for replay_events in [events, logged.events]:
+        replayed = store_from_events(replay_events)._data
+        assert json.dumps(replayed) == json.dumps(after)
 
 
 # ---------------------------------------------------------------------------

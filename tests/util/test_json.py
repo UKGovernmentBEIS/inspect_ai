@@ -1,6 +1,9 @@
 import json
 import math
+from typing import Any
 
+import jsonpatch
+import pytest
 from pydantic import BaseModel, ConfigDict
 
 from inspect_ai._util.json import (
@@ -13,6 +16,7 @@ from inspect_ai.dataset._sources.json import (
     json_dataset_reader,
     jsonlines_dataset_reader,
 )
+from inspect_ai.util._store import _json_change_to_patch_op
 
 
 def test_json_unicode_replace():
@@ -507,3 +511,51 @@ def test_json_changes_unchanged_nan_beside_real_change():
     changes = json_changes({"a": [float("nan")]}, {"a": [float("nan"), float("nan")]})
     assert changes is not None
     assert [(c.op, c.path) for c in changes] == [("add", "/a/1")]
+
+
+NAN = float("nan")
+
+
+@pytest.mark.parametrize(
+    "before,after",
+    [
+        # a NaN element replaced while a NaN appears in a nested container
+        ({"a": [NAN, {}]}, {"a": [0, {"x": float("nan")}]}),
+        ({"a": [NAN, [0]]}, {"a": ["text", [float("nan")]]}),
+        ({"a": [{}, NAN, [0], 1]}, {"a": [[], "text", [float("nan")]]}),
+        # reorders and insertions beside NaNs
+        ({"a": [NAN, 1.0]}, {"a": [1.0, float("nan")]}),
+        ({"a": [NAN, NAN]}, {"a": [0, float("nan"), float("nan")]}),
+        ({"a": [NAN], "b": {"c": NAN}}, {"a": [], "b": {"c": float("nan")}}),
+    ],
+)
+def test_json_changes_with_nan_apply_to_after(before: dict, after: dict):
+    changes = json_changes(before, after)
+
+    assert changes is not None
+    assert not any(
+        c.op == "replace"
+        and isinstance(c.value, float)
+        and math.isnan(c.value)
+        and isinstance(c.replaced, float)
+        and math.isnan(c.replaced)
+        for c in changes
+    )
+    ops: list[Any] = [_json_change_to_patch_op(c) for c in changes]
+    result = jsonpatch.apply_patch(before, ops)
+    assert json.dumps(result) == json.dumps(after)
+
+
+def test_json_changes_keeps_nan_changes_when_patch_cannot_be_applied(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    broken_patch = [
+        {"op": "replace", "path": "/a/0", "value": float("nan")},
+        {"op": "move", "from": "/missing", "path": "/b"},
+    ]
+    monkeypatch.setattr(jsonpatch, "make_patch", lambda before, after: broken_patch)
+
+    changes = json_changes({"a": [NAN]}, {"a": [float("nan")]})
+
+    assert changes is not None
+    assert [(c.op, c.path) for c in changes] == [("replace", "/a/0"), ("move", "/b")]

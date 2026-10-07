@@ -362,33 +362,42 @@ def _apply_fast_list_op(target: list[Any], op: dict[str, Any], rel_path: str) ->
         target[:] = jsonpatch.apply_patch(target, [{**op, "path": "/" + rel_path}])  # type: ignore
 
 
-_NAN = float("nan")
+def _is_nan(value: Any) -> bool:
+    return isinstance(value, float) and math.isnan(value)
 
 
-def _contains_nan(value: Any) -> bool:
-    if isinstance(value, float):
-        return math.isnan(value)
-    if isinstance(value, dict):
-        return any(_contains_nan(v) for v in value.values())
-    if isinstance(value, list):
-        return any(_contains_nan(v) for v in value)
-    return False
+def _drop_unchanged_nan(
+    before: dict[str, Any] | list[Any],
+    patch_list: list[Any],
+    changes: list[JsonChange],
+) -> list[JsonChange]:
+    """Drop the changes that replace a NaN with a NaN.
 
-
-def _share_nan(value: Any) -> Any:
-    """Copy of a JSON value with every NaN replaced by one shared NaN object.
-
-    jsonpatch pairs removed and added values with a dict lookup, which treats
-    an object as equal to itself, so the remove and add it makes for an
-    unchanged NaN then cancel out.
+    Snapshots serialized separately hold distinct NaN objects, and NaN != NaN,
+    so jsonpatch reports an unchanged NaN in a list as replaced. When the patch
+    changes structure (anything but replaces), it is applied to a copy of
+    `before` to read the value each replace actually overwrites. If jsonpatch
+    produced a patch that cannot be applied, the changes are returned
+    unfiltered.
     """
-    if isinstance(value, float):
-        return _NAN if math.isnan(value) else value
-    if isinstance(value, dict):
-        return {k: _share_nan(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_share_nan(v) for v in value]
-    return value
+    structural = any(op["op"] != "replace" for op in patch_list)
+    doc: Any = deepcopy(before) if structural else before
+    kept: list[JsonChange] = []
+    try:
+        for op, change in zip(patch_list, changes, strict=True):
+            if (
+                op["op"] == "replace"
+                and _is_nan(op["value"])
+                and _is_nan(resolve_pointer(doc, op["path"]))
+            ):
+                continue
+            if structural:
+                # copy the op so later ops never mutate the caller's `after`
+                doc = jsonpatch.apply_patch(doc, [deepcopy(op)], in_place=True)
+            kept.append(change)
+    except (jsonpatch.JsonPatchException, JsonPointerException):
+        return changes
+    return kept
 
 
 def json_changes(
@@ -416,11 +425,6 @@ def json_changes(
         A list of JsonChange objects (which mimic JSON patch ops but include the 'replaced' field), or None if there are no changes.
     """
     patch_list = list(jsonpatch.make_patch(before, after))
-    if any(_contains_nan(op.get("value")) for op in patch_list):
-        # NaN != NaN, so an unchanged NaN serialized separately into each
-        # snapshot looks changed; diff again with every NaN as one object
-        before, after = _share_nan(before), _share_nan(after)
-        patch_list = list(jsonpatch.make_patch(before, after))
     if not patch_list:
         return None
 
@@ -468,4 +472,7 @@ def json_changes(
             change.replaced = replaced_val
         changes.append(change)
 
-    return changes
+    if any(op["op"] == "replace" and _is_nan(op["value"]) for op in patch_list):
+        changes = _drop_unchanged_nan(before, patch_list, changes)
+
+    return changes or None
