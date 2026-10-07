@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Preserve each text block’s internal provider state when converting multi-block assistant messages.
+- Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 
 ## 0.3.277 (06 October 2026)
 
