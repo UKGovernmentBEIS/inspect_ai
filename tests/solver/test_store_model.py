@@ -9,6 +9,8 @@ from pydantic import (
     ConfigDict,
     Field,
     ValidationError,
+    field_validator,
+    model_validator,
 )
 
 from inspect_ai import Task, eval
@@ -446,3 +448,80 @@ def test_store_model_nested_aliases_reject_field_names() -> None:
         setattr(model, "nested", {"value": 42})
     assert model.nested.value == 0
     assert store.get("RequiredAliasedNestedModel:nested") == RequiredAliasedNested(v=0)
+
+
+def _limit() -> int:
+    return store().get("limit", 0)
+
+
+class LimitedNested(BaseModel):
+    value: int = 0
+    limit: int = Field(default_factory=_limit)
+
+    @field_validator("value")
+    @classmethod
+    def check_value(cls, value: int) -> int:
+        if value > store().get("limit", 0):
+            raise ValueError("value over limit")
+        return value
+
+
+class LimitedModel(StoreModel):
+    x: int = 0
+    nested: LimitedNested = Field(default_factory=LimitedNested)
+
+    @field_validator("x")
+    @classmethod
+    def check_x(cls, x: int) -> int:
+        if x > store().get("limit", 0):
+            raise ValueError("x over limit")
+        return x
+
+    @model_validator(mode="after")
+    def check_nested(self) -> "LimitedModel":
+        if self.nested.limit != store().get("limit", 0):
+            raise ValueError("nested limit differs from store")
+        return self
+
+
+@pytest.mark.parametrize("own_store", [True, False])
+def test_store_model_validators_see_sample_store(
+    ambient_store: Store, own_store: bool
+) -> None:
+    ambient_store.set("limit", 100)
+    model = LimitedModel(store=Store() if own_store else ambient_store)
+
+    model.x = 10
+    model.nested = LimitedNested(value=10)
+    model.model_dump()
+    model.model_dump_json()
+    assert model.x == 10
+
+    with pytest.raises(ValidationError):
+        model.x = 1000
+    assert model.x == 10
+
+
+class NamedLimit(StoreModel):
+    x: int = 1
+
+    @model_validator(mode="after")
+    def check_m1_limit(self) -> "NamedLimit":
+        if self.instance == "m1" and self.x > 5:
+            raise ValueError("m1 is limited to 5")
+        return self
+
+
+@pytest.mark.parametrize("own_store", [True, False])
+def test_store_model_validators_see_instance(
+    ambient_store: Store, own_store: bool
+) -> None:
+    backing = Store() if own_store else ambient_store
+    model = NamedLimit(store=backing, instance="m1")
+
+    with pytest.raises(ValidationError):
+        model.x = 10
+    assert backing.get("NamedLimit:m1:x") == 1
+
+    NamedLimit(store=backing).x = 10
+    assert backing.get("NamedLimit:x") == 10

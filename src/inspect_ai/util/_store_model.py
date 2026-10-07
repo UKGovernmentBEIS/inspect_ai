@@ -2,7 +2,10 @@ from typing import Any, Type, TypeVar
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, TypeAdapter
 
-from ._store import Store, _subtask_store, store
+from ._store import Store, store
+
+# validation context key marking the temporary model built by _validate_store()
+_VALIDATING = "_inspect_store_model_validating"
 
 
 class StoreModel(BaseModel):
@@ -18,6 +21,16 @@ class StoreModel(BaseModel):
     instance: str | None = Field(exclude=True, default=None)
 
     def model_post_init(self, __context: Any) -> None:
+        # temporary model built by _validate_store(): take the instance being
+        # validated and a scratch store (so field reads see the values under
+        # validation), and skip syncing with any real store
+        if isinstance(__context, dict) and __context.get(_VALIDATING):
+            self.__dict__["instance"] = __context["instance"]
+            self.__dict__["store"] = Store()
+            for name in self.__class__.model_fields.keys():
+                self._validate_value(name, self.__dict__[name])
+            return
+
         for name in self.__class__.model_fields.keys():
             if name == "store":
                 continue
@@ -92,25 +105,22 @@ class StoreModel(BaseModel):
             if ns_name in data:
                 validate[self._validation_key(name)] = data[ns_name]
 
-        # perform validation (the validation model's store defaults to store(),
-        # so point that at a scratch store: its model_post_init then can't
-        # write into any real store)
-        token = _subtask_store.set(Store())
-        try:
-            self.__class__.model_validate(validate)
-        finally:
-            _subtask_store.reset(token)
+        # perform validation
+        self.__class__.model_validate(
+            validate, context={_VALIDATING: True, "instance": self.instance}
+        )
 
     def _validation_key(self, name: str) -> str:
         """Input key for a field in model_validate().
 
-        Uses the field's validation alias when the model validates by alias,
-        so aliases (e.g. from an alias_generator) don't drop the value. A
-        global `by_name=True` would also change how nested models validate.
+        Uses the field's (first string) validation alias when the model
+        validates by alias, so aliases (e.g. from an alias_generator) don't
+        drop the value. A global `by_name=True` would also change how nested
+        models validate. Fields with only path aliases fall back to the name.
         """
         alias = self.__class__.model_fields[name].validation_alias
         if isinstance(alias, AliasChoices):
-            alias = alias.choices[0]
+            alias = next((c for c in alias.choices if isinstance(c, str)), None)
         if isinstance(alias, str) and self.model_config.get("validate_by_alias", True):
             return alias
         return name
