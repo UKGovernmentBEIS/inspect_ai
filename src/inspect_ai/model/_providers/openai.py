@@ -33,7 +33,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI, RetryDecision
+from .._model import ModelAPI, RetryDecision, _stamp_redacted_reasoning_tokens
 from .._model_call import ModelCall
 from .._model_output import (
     ModelOutput,
@@ -678,12 +678,16 @@ class OpenAIAPI(ModelAPI):
         # the probe is billed, so this call's output reports its usage too.
         # Its prompt was never part of the input, so the context size comes
         # from the primary request only, and stays None (assigned, so it is
-        # not filled from usage) when that request was rejected
+        # not filled from usage) when that request was rejected; likewise the
+        # redacted reasoning stamp counts only the primary's reasoning
         if probe_usage is not None:
             output = response[0] if isinstance(response, tuple) else response
             if isinstance(output, ModelOutput):
                 if "input_context_tokens" not in output.model_fields_set:
                     output.input_context_tokens = usage_input_tokens(output.usage)
+                _stamp_redacted_reasoning_tokens(
+                    output, (output.usage.reasoning_tokens if output.usage else 0) or 0
+                )
                 output.usage = sum_usage(probe_usage, output.usage)
 
         return response

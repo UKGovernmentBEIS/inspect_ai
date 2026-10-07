@@ -96,7 +96,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
-from inspect_ai.model._model import RetryDecision
+from inspect_ai.model._model import RetryDecision, _stamp_redacted_reasoning_tokens
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import (
     StopCategory,
@@ -622,6 +622,14 @@ class GoogleGenAIAPI(ModelAPI):
                     input_context_tokens=input_context_tokens,
                     response_id=response.response_id,
                 )
+                if tool_calling_attempts > 0:
+                    # usage also bills the discarded attempts, whose reasoning
+                    # the returned message does not carry
+                    final_usage = usage_metadata_to_model_usage(response.usage_metadata)
+                    _stamp_redacted_reasoning_tokens(
+                        output,
+                        (final_usage.reasoning_tokens if final_usage else 0) or 0,
+                    )
 
                 return output, model_call
 

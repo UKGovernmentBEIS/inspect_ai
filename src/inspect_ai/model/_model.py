@@ -699,20 +699,29 @@ Responses with encrypted reasoning preservation). Compaction reads this
 to correct its threshold estimate."""
 
 
-def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
+def _stamp_redacted_reasoning_tokens(
+    output: ModelOutput, reasoning_tokens: int | None = None
+) -> None:
     """Stamp `redacted_reasoning_tokens` onto an assistant message's metadata.
 
     Only stamps when ALL reasoning blocks in the response are redacted; mixed
     responses (some visible, some redacted) can't be split from a single
     `usage.reasoning_tokens` figure, and responses with only visible reasoning
     don't have the input-counting blind spot the metadata is meant to correct.
+
+    The count defaults to `usage.reasoning_tokens`. A provider whose usage also
+    bills requests whose content is not returned (a capability probe,
+    discarded retries) calls this first with the returned response's own
+    count, zero included; `Model.generate()` keeps a stamp already present.
     """
-    if not (
-        output.usage
-        and output.usage.reasoning_tokens
-        and isinstance(output.message.content, list)
-    ):
+    if output.empty or not isinstance(output.message.content, list):
         return
+    if REDACTED_REASONING_TOKENS_METADATA_KEY in (output.message.metadata or {}):
+        return
+    if reasoning_tokens is None:
+        reasoning_tokens = output.usage.reasoning_tokens if output.usage else None
+        if not reasoning_tokens:
+            return
 
     reasoning_blocks = [
         c for c in output.message.content if isinstance(c, ContentReasoning)
@@ -722,7 +731,7 @@ def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
 
     output.message.metadata = {
         **(output.message.metadata or {}),
-        REDACTED_REASONING_TOKENS_METADATA_KEY: output.usage.reasoning_tokens,
+        REDACTED_REASONING_TOKENS_METADATA_KEY: reasoning_tokens,
     }
 
 

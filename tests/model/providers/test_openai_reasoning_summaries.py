@@ -222,3 +222,61 @@ async def test_reasoning_summaries_probe_then_rejected_request(
         assert _build_usage_update(event) is None
     finally:
         await api.aclose()
+
+
+@pytest.mark.anyio
+async def test_reasoning_summaries_probe_reasoning_not_stamped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The probe's billed reasoning does not count as the message's redacted reasoning."""
+    from inspect_ai._util.content import ContentReasoning, ContentText
+    from inspect_ai.model import ChatMessageAssistant, get_model
+    from inspect_ai.model._compaction._compaction import (
+        _redacted_reasoning_tokens_total,
+    )
+    from inspect_ai.model._model import REDACTED_REASONING_TOKENS_METADATA_KEY
+
+    model = get_model(
+        "openai/gpt-5",
+        memoize=False,
+        api_key="test-key",
+        responses_api=True,
+        config=GenerateConfig(max_retries=0),
+    )
+    api = model.api
+    assert isinstance(api, OpenAIAPI)
+    try:
+
+        async def probe(**kwargs: object) -> Response:
+            return _probe_response()
+
+        async def generate_responses(**kwargs: Any) -> ModelOutput:
+            output = ModelOutput.from_message(
+                ChatMessageAssistant(
+                    content=[
+                        ContentReasoning(reasoning="enc", redacted=True),
+                        ContentText(text="hello"),
+                    ],
+                    model="gpt-5",
+                )
+            )
+            output.usage = ModelUsage(
+                input_tokens=100, output_tokens=10, total_tokens=110, reasoning_tokens=5
+            )
+            return output
+
+        monkeypatch.setattr(api.client.responses, "create", probe)
+        monkeypatch.setattr(openai_provider, "generate_responses", generate_responses)
+
+        output = await model.generate("hi")
+
+        # billed: the primary's 5 reasoning tokens plus the probe's 20
+        assert output.usage is not None
+        assert output.usage.reasoning_tokens == 25
+        # replayed: only the primary's reasoning is in the message
+        metadata = output.message.metadata or {}
+        assert metadata[REDACTED_REASONING_TOKENS_METADATA_KEY] == 5
+        assert api.apply_redacted_reasoning_tokens_to_input()
+        assert _redacted_reasoning_tokens_total([output.message], model) == 5
+    finally:
+        await api.aclose()

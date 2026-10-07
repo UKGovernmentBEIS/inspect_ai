@@ -18,6 +18,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageUser,
     GenerateConfig,
+    Model,
     ModelOutput,
     ModelUsage,
     get_model,
@@ -119,6 +120,28 @@ def test_stamp_preserves_existing_metadata() -> None:
     assert md.get(REDACTED_REASONING_TOKENS_METADATA_KEY) == 256
 
 
+def test_stamp_uses_explicit_count_and_keeps_it() -> None:
+    """A provider's own count (zero included) wins over billed usage."""
+    output = _make_output(
+        [ContentReasoning(reasoning="enc", redacted=True)],
+        reasoning_tokens=25,
+    )
+    _stamp_redacted_reasoning_tokens(output, 5)
+    # generate's later stamp from billed usage keeps the provider's count
+    _stamp_redacted_reasoning_tokens(output)
+    md = output.message.metadata or {}
+    assert md.get(REDACTED_REASONING_TOKENS_METADATA_KEY) == 5
+
+    zero = _make_output(
+        [ContentReasoning(reasoning="enc", redacted=True)],
+        reasoning_tokens=25,
+    )
+    _stamp_redacted_reasoning_tokens(zero, 0)
+    _stamp_redacted_reasoning_tokens(zero)
+    md_zero = zero.message.metadata or {}
+    assert md_zero.get(REDACTED_REASONING_TOKENS_METADATA_KEY) == 0
+
+
 # ---- Provider flag ----
 
 
@@ -161,6 +184,19 @@ OPENAI_REASONING_PROMPT = (
 )
 
 
+async def _run_reasoning_summaries_probe(model: Model) -> None:
+    """Run the once-per-provider reasoning-summary probe before the call under test.
+
+    The first generate on a provider also bills the probe, so its usage would
+    exceed the reasoning the returned message carries (and is stamped with).
+    Running the probe first leaves the generate under test with one request.
+    """
+    from inspect_ai.model._providers.openai import OpenAIAPI
+
+    assert isinstance(model.api, OpenAIAPI)
+    await model.api.reasoning_summaries()
+
+
 @skip_if_no_openai
 @pytest.mark.slow
 async def test_openai_responses_stamps_redacted_reasoning_tokens_e2e() -> None:
@@ -186,6 +222,7 @@ async def test_openai_responses_stamps_redacted_reasoning_tokens_e2e() -> None:
         "expected the OpenAI Responses API path; the e2e is testing the "
         "wrong code path otherwise"
     )
+    await _run_reasoning_summaries_probe(model)
 
     output = await model.generate(OPENAI_REASONING_PROMPT)
 
@@ -236,6 +273,7 @@ async def test_compaction_counts_redacted_reasoning_tokens_e2e(monkeypatch) -> N
     assert model.api.apply_redacted_reasoning_tokens_to_input(), (
         "expected the OpenAI Responses API path"
     )
+    await _run_reasoning_summaries_probe(model)
 
     prompt = OPENAI_REASONING_PROMPT
     output = await model.generate(prompt)
@@ -305,6 +343,7 @@ async def test_compaction_threshold_trips_on_baseline_plus_redacted_e2e() -> Non
         "Find three positive integers a < b < c with a + b + c = 12 and "
         "a * b * c = 36. Show your reasoning briefly."
     )
+    await _run_reasoning_summaries_probe(model)
     output = await model.generate(prompt)
     assert output.usage is not None
     if not output.usage.reasoning_tokens:
