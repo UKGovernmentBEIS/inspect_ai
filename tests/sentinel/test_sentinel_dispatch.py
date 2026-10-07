@@ -2,7 +2,7 @@ import logging
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
-from typing import Any
+from typing import Any, cast
 
 import anyio
 import pytest
@@ -193,10 +193,10 @@ def d3_asks_model() -> Monitor:
 
 
 @monitor
-def d3_asks_with(model: str | Model | None = None, role: str | None = None) -> Monitor:
+def d3_asks_with(model: str | None = None) -> Monitor:
     async def ask(context: Context, step: BeforeToolCall) -> Observation | None:
         output = await context.host.generate(
-            "How suspicious is this call?", model=model, role=role
+            "How suspicious is this call?", model=model
         )
         return Observation.score(float(output.completion))
 
@@ -1185,15 +1185,15 @@ def _scoring_model(score: str) -> Model:
 
 def test_host_generate_uses_a_named_role() -> None:
     log = run(
-        observe_only([d3_asks_with(role="trusted")]),
-        model_roles={"trusted": _scoring_model("0.25")},
+        observe_only([d3_asks_with(model="judge")]),
+        model_roles={"judge": _scoring_model("0.25")},
     )
     assert log.status == "success", log.error
     [event] = sentinel_events(log)
     assert event.suspicion == 0.25
     assert log.samples
     roles = [e.role for e in log.samples[0].events if isinstance(e, ModelEvent)]
-    assert roles.count("trusted") == 1
+    assert roles.count("judge") == 1
 
 
 def test_sentinel_inference_is_not_charged_to_the_sample_limits() -> None:
@@ -1201,10 +1201,10 @@ def test_sentinel_inference_is_not_charged_to_the_sample_limits() -> None:
     expensive.usage = ModelUsage(
         input_tokens=50_000, output_tokens=50_000, total_tokens=100_000
     )
-    trusted = get_model("mockllm/model", custom_outputs=[expensive], memoize=False)
+    judge = get_model("mockllm/model", custom_outputs=[expensive], memoize=False)
     log = run(
-        observe_only([d3_asks_with(role="trusted")]),
-        model_roles={"trusted": trusted},
+        observe_only([d3_asks_with(model="judge")]),
+        model_roles={"judge": judge},
         token_limit=10_000,
         turn_limit=2,
     )
@@ -1217,55 +1217,61 @@ def test_sentinel_inference_is_not_charged_to_the_sample_limits() -> None:
     assert [m.text for m in sample.messages][-1] == "done"
 
 
-def test_host_generate_model_is_always_a_model_name() -> None:
-    # a role named like the model must not shadow an explicit model
-    log = run(
-        observe_only([d3_asks_with(model="mockllm/model")]),
-        model_roles={"mockllm/model": _scoring_model("0.9")},
-    )
+def test_host_generate_uses_a_name_with_a_slash_as_a_model(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a role named like the model must not shadow it
+    with caplog.at_level(logging.WARNING):
+        log = run(
+            observe_only([d3_asks_with(model="mockllm/model")]),
+            model_roles={"mockllm/model": _scoring_model("0.9")},
+        )
     [event] = sentinel_events(log)
     assert event.error is not None
     assert "could not convert string to float" in event.error
-
-
-def test_host_generate_prefers_a_configured_role_to_the_model() -> None:
-    log = run(
-        observe_only([d3_asks_with(model=_scoring_model("0.6"), role="trusted")]),
-        model_roles={"trusted": _scoring_model("0.25")},
-    )
-    assert log.status == "success", log.error
-    [event] = sentinel_events(log)
-    assert event.suspicion == 0.25
-
-
-def test_host_generate_uses_the_model_when_the_role_is_not_configured(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.WARNING):
-        log = run(
-            observe_only([d3_asks_with(model=_scoring_model("0.6"), role="trusted")])
-        )
-    assert log.status == "success", log.error
-    [event] = sentinel_events(log)
-    assert event.suspicion == 0.6
+    assert log.samples
     assert not [r for r in caplog.records if "sentinel role" in r.getMessage()]
+    monitor_calls = [
+        e
+        for e in log.samples[0].events
+        if isinstance(e, ModelEvent)
+        and e.span_id in sentinel_span_ids(log.samples[0].events)
+    ]
+    assert [(e.model, e.role) for e in monitor_calls] == [("mockllm/model", None)]
 
 
+def test_host_generate_rejects_a_model_instance() -> None:
+    log = run(observe_only([d3_asks_with(model=cast(str, _scoring_model("0.5")))]))
+    [event] = sentinel_events(log)
+    assert event.error is not None
+    assert "not a Model" in event.error
+    assert "model_roles" in event.error
+
+
+@pytest.mark.parametrize("model,role", [(None, "monitor"), ("judge", "judge")])
 def test_host_generate_warns_once_without_the_role(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    model: str | None,
+    role: str,
 ) -> None:
     import inspect_ai._util.logger as logger_module
 
     monkeypatch.setattr(logger_module, "_warned", [])
     with caplog.at_level(logging.WARNING):
-        run(observe_only([d3_asks_with(role="judge")]))
+        log = run(observe_only([d3_asks_with(model=model)]))
     warnings = [
         r.getMessage()
         for r in caplog.records
-        if "sentinel role 'judge'" in r.getMessage()
+        if f"sentinel role '{role}'" in r.getMessage()
     ]
     assert len(warnings) == 1
-    assert "--model-role judge=" in warnings[0]
+    assert f"--model-role {role}=" in warnings[0]
+    assert log.samples
+    monitor_calls = [
+        e for e in log.samples[0].events if isinstance(e, ModelEvent) and e.role == role
+    ]
+    assert len(monitor_calls) == 1
 
 
 async def test_missing_model_event_falls_back_to_the_prior_conversation(

@@ -286,19 +286,21 @@ class _Host:
         self,
         input: str | list[ChatMessage],
         *,
-        model: str | Model | None = None,
-        role: str | None = None,
+        model: str | None = None,
         tools: list[ToolInfo] | None = None,
         config: GenerateConfig | None = None,
     ) -> ModelOutput:
-        # get_model() returns a Model instance before consulting the role, so
-        # the role's precedence is applied here
-        role = role or ("monitor" if model is None else None)
-        configured = role is not None and role in model_roles()
-        if model is not None and not configured:
+        if isinstance(cast(object, model), Model):
+            raise TypeError(
+                "Host.generate() takes a model role or a model name, not a Model. "
+                "Configure the Model for a role with Task(model_roles={'<role>': model}) "
+                "or --model-role, and pass the role name."
+            )
+        if model is not None and "/" in model:
             resolved = get_model(model)
         else:
-            if not configured:
+            role = "monitor" if model is None else model
+            if role not in model_roles():
                 warn_once(
                     logger,
                     f"No model is configured for the sentinel role '{role}', so monitor calls use the agent's own model. "
