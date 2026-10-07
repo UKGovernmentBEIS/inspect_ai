@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Support for Claude Haiku 5.5 (`claude-haiku-5-5`): `reasoning_effort="none"` disables thinking, and computer use uses the computer toolset on the Claude API and Vertex.
 - Bugfix: `inspect log convert --stream` (and `convert_eval_logs(stream=...)`) no longer drops the error message and traceback from logs of failed evals.
 
 ## 0.3.277 (06 October 2026)
