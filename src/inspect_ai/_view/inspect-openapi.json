@@ -9872,12 +9872,14 @@
             "items": {
               "$ref": "#/components/schemas/SentinelEntry"
             },
+            "minItems": 1,
             "type": "array"
           },
           {
             "additionalProperties": {
               "$ref": "#/components/schemas/SentinelEntry"
             },
+            "minProperties": 1,
             "type": "object"
           }
         ],
@@ -9887,7 +9889,7 @@
         "additionalProperties": {
           "$ref": "#/components/schemas/SentinelConfig"
         },
-        "description": "One configured monitor or protocol.\n\nAny key besides `name`, `params`, `version` and `meta` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds a list or a mapping of entries, and `nested` returns them.\n\nExperimental: not yet a stable API; may change without notice.",
+        "description": "One configured monitor or protocol.\n\nAny key besides `name`, `params`, `version` and `meta` names a parameter of the factory whose value is nested monitors or protocols, such as `monitors` for `threshold` or `children` for `concurrent`; it holds an entry, a list of entries, or a mapping of instance names to entries, and `nested` returns them.\n\nExperimental: not yet a stable API; may change without notice.",
         "properties": {
           "meta": {
             "anyOf": [
