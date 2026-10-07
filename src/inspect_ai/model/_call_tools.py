@@ -55,7 +55,7 @@ from inspect_ai._util.json import exceeds_max_depth
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
-from inspect_ai._util.working import sample_clock, sample_waiting_time
+from inspect_ai._util.working import sample_clock, sample_working_time_since
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import (
@@ -531,7 +531,7 @@ async def _execute_tools_impl(
                     result=skipped_event.result,
                     truncated=skipped_event.truncated,
                     error=skipped_event.error,
-                    waiting_time=0,
+                    working_time=sample_working_time_since(waiting_starts[idx]),
                     agent=None,
                     failed=None,
                     message_id=tool_message.id,
@@ -572,7 +572,7 @@ async def _execute_tools_impl(
                         result=result_event.result,
                         truncated=result_event.truncated,
                         error=result_event.error,
-                        waiting_time=sample_waiting_time(waiting_start),
+                        working_time=sample_working_time_since(waiting_start),
                         agent=result_event.agent,
                         failed=None,
                         message_id=result.messages[0].id,
@@ -616,7 +616,7 @@ async def _execute_tools_impl(
                                 result=result_event.result,
                                 truncated=result_event.truncated,
                                 error=result_event.error,
-                                waiting_time=sample_waiting_time(waiting_start),
+                                working_time=sample_working_time_since(waiting_start),
                                 agent=result_event.agent,
                                 failed=True if call_exception else None,
                                 message_id=(
@@ -683,7 +683,7 @@ async def _execute_tools_impl(
                         result=op_result_event.result,
                         truncated=op_result_event.truncated,
                         error=op_result_event.error,
-                        waiting_time=sample_waiting_time(waiting_start),
+                        working_time=sample_working_time_since(waiting_start),
                         agent=op_result_event.agent,
                         # Operator-cancel preserves pre-existing serial
                         # semantics: failed=None, the "timeout" error
@@ -770,7 +770,7 @@ async def _execute_tools_impl(
                         result=cancellation_event.result,
                         truncated=cancellation_event.truncated,
                         error=cancellation_event.error,
-                        waiting_time=sample_waiting_time(waiting_start),
+                        working_time=sample_working_time_since(waiting_start),
                         agent=cancellation_event.agent,
                         failed=True,
                         message_id=tool_message.id,

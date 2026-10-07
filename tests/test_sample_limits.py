@@ -10,7 +10,9 @@ from test_helpers.limits import check_limit_event, find_limit_event
 from test_helpers.tools import addition
 from test_helpers.utils import (
     flaky_retry,
+    skip_if_no_anthropic,
     skip_if_no_docker,
+    skip_if_no_google,
     skip_if_no_openai,
     sleep_for_solver,
 )
@@ -28,7 +30,7 @@ from inspect_ai.approval import (
     auto_approver,
 )
 from inspect_ai.dataset import Sample
-from inspect_ai.event import SubtaskEvent, ToolEvent
+from inspect_ai.event import ModelEvent, SubtaskEvent, ToolEvent
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._samples import awaiting_human
 from inspect_ai.model import ChatMessage, ChatMessageAssistant, GenerateConfig, ModelAPI
@@ -53,7 +55,7 @@ from inspect_ai.solver._solver import Solver, generate
 from inspect_ai.tool import Tool, ToolCall, ToolCallView, ToolChoice, ToolInfo, tool
 from inspect_ai.util import subtask
 from inspect_ai.util._concurrency import concurrency
-from inspect_ai.util._limit import TokenLimit, sample_limits
+from inspect_ai.util._limit import TokenLimit, sample_limits, suspend_working_limit
 
 
 @pytest.fixture(autouse=True)
@@ -907,6 +909,7 @@ class _FlakyAPI(ModelAPI):
         fail_times: int = 0,
         attempt_seconds: float = 0.1,
         call_time: float | None = None,
+        return_call: bool = False,
         **model_args: object,
     ) -> None:
         super().__init__(
@@ -919,6 +922,7 @@ class _FlakyAPI(ModelAPI):
         self.fail_times = fail_times
         self.attempt_seconds = attempt_seconds
         self.call_time = call_time
+        self.return_call = return_call
         self.attempts: dict[str, int] = {}
 
     async def generate(
@@ -934,7 +938,7 @@ class _FlakyAPI(ModelAPI):
         if self.attempts[key] <= self.fail_times:
             raise _FlakyError(f"attempt {self.attempts[key]} failed")
         output = ModelOutput.from_content(model=self.model_name, content="ok")
-        if self.call_time is not None:
+        if self.call_time is not None or self.return_call:
             return output, ModelCall.create({}, {}, time=self.call_time)
         return output
 
@@ -1082,6 +1086,71 @@ def test_sdk_internal_retries_are_waiting(flaky_model: None) -> None:
     assert sample.working_time is not None and sample.working_time >= 0.09
 
 
+@pytest.mark.parametrize(
+    "call_args",
+    [
+        {"call_time": 0.0},  # placeholder used by SageMaker and hook fallbacks
+        {"return_call": True},  # a ModelCall with no time
+        {},  # no ModelCall
+    ],
+)
+def test_unmeasured_successful_request_is_working(
+    flaky_model: None, call_args: dict[str, Any]
+) -> None:
+    """Without a positive request time the whole successful attempt is working."""
+
+    @solver
+    def unmeasured() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model(
+                "flakytiming/m", attempt_seconds=0.4, memoize=False, **call_args
+            )
+            await model.generate("unmeasured")
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(unmeasured())
+    assert _waiting(sample) < 0.1
+    assert sample.working_time is not None and sample.working_time >= 0.39
+
+
+def test_events_inside_suspension_have_zero_working_time() -> None:
+    """Tools and subtasks wholly inside `suspend_working_limit()` log 0, never less."""
+
+    @subtask
+    async def quick_subtask() -> str:
+        await anyio.sleep(0.001)
+        return "done"
+
+    @solver
+    def suspended() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with suspend_working_limit():
+                for _ in range(30):
+                    await execute_tools(_tool_calls("_quick_tool"), [_quick_tool()])
+                    await quick_subtask()
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(suspended())
+    events = [e for e in sample.events if isinstance(e, ToolEvent | SubtaskEvent)]
+    assert len(events) == 60
+    for event in events:
+        assert event.working_time == 0
+
+
+@tool
+def _quick_tool() -> Tool:
+    async def execute() -> str:
+        """Quick tool."""
+        await anyio.sleep(0.001)
+        return "quick"
+
+    return execute
+
+
 @tool
 def _fast_tool() -> Tool:
     async def execute() -> str:
@@ -1217,3 +1286,45 @@ def test_human_input_is_waiting() -> None:
 
     sample = _run_timing_solver(ask_human())
     assert _waiting(sample) >= 0.35
+
+
+def _check_live_working_time(model: str) -> None:
+    """Successful live requests stay charged and working time stays in range.
+
+    The sample's waiting time may only include what the provider SDK spent
+    outside the successful request, so it can't exceed the clock time left
+    after the model events' request times.
+    """
+
+    @solver
+    def two_generates() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            for prompt in ("Say hello.", "Say goodbye."):
+                await get_model(model).generate(prompt)
+            return state
+
+        return solve
+
+    sample = _run_timing_solver(two_generates())
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 2
+    request_time = sum(e.working_time or 0 for e in model_events)
+    assert request_time > 0
+    assert sample.working_time is not None and sample.working_time >= request_time
+    assert sample.total_time is not None
+    assert _waiting(sample) <= sample.total_time - request_time
+
+
+@skip_if_no_openai
+def test_live_openai_working_time() -> None:
+    _check_live_working_time("openai/gpt-4o-mini")
+
+
+@skip_if_no_anthropic
+def test_live_anthropic_working_time() -> None:
+    _check_live_working_time("anthropic/claude-haiku-4-5")
+
+
+@skip_if_no_google
+def test_live_google_working_time() -> None:
+    _check_live_working_time("google/gemini-2.5-flash")

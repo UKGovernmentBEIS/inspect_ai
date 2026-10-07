@@ -837,15 +837,25 @@ async def test_generate_gate_parked_calls_merge() -> None:
     model = get_model("mockllm/model", memoize=False)
     start = time.monotonic()
     init_sample_working_time(start)
+    timing = sample_timing()
+    assert timing is not None
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(wait_generate_dispatch, model)
         tg.start_soon(wait_generate_dispatch, model)
+        # both calls are parked
+        with anyio.fail_after(5):
+            while timing.open_waits < 2:
+                await anyio.sleep(0.01)
+        parked = time.monotonic()
         await anyio.sleep(0.2)
+        held = time.monotonic() - parked
         await resume_process()
     elapsed = time.monotonic() - start
     waiting = sample_waiting_time()
-    assert 0.15 <= waiting <= elapsed
+    # counted once: at least the shared hold, never more than clock time
+    assert held <= waiting <= elapsed
+    assert timing.open_waits == 0
 
 
 async def test_generate_gate_stamped_interrupt_escapes(

@@ -1709,7 +1709,9 @@ class Model:
                 output.time = call.time
                 # the attempt's time before its successful request went to
                 # the provider SDK's own failed requests and retry sleeps
-                add_sample_wait(time_start, time_end - call.time)
+                # (zero means the provider did not measure the request)
+                if call.time > 0:
+                    add_sample_wait(time_start, time_end - call.time)
             else:
                 output.time = time_elapsed
 

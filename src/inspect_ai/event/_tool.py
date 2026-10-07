@@ -53,7 +53,7 @@ class ToolEvent(BaseEvent):
     """Time that tool call completed (see `timestamp` for started)"""
 
     working_time: float | None = Field(default=None)
-    """Working time for tool call (i.e. time not spent waiting on semaphores)."""
+    """Working time for tool call (clock time minus time when any wait was open in the sample)."""
 
     agent: str | None = Field(default=None)
     """Name of agent if the tool call was an agent handoff."""
@@ -72,7 +72,7 @@ class ToolEvent(BaseEvent):
         result: ToolResult,
         truncated: tuple[int, int] | None,
         error: ToolCallError | None,
-        waiting_time: float,
+        working_time: float,
         agent: str | None,
         failed: bool | None,
         message_id: str | None,
@@ -102,9 +102,8 @@ class ToolEvent(BaseEvent):
         self.result = result
         self.truncated = truncated
         self.pending = None
-        completed = datetime.now(timezone.utc)
-        self.completed = completed
-        self.working_time = (completed - self.timestamp).total_seconds() - waiting_time
+        self.completed = datetime.now(timezone.utc)
+        self.working_time = working_time
         self.agent = agent
         self.message_id = message_id
         if agent_span_id is not None:

@@ -507,6 +507,8 @@ SampleSummary: list[Column] = [
 
 The `turn_count` column is the number of turns (top-level model generations) used by the sample, and `token_limit_usage` is the metered value of the sample's token limit, respecting the limit's type (`None` when no token limit was configured). Both are `None` for logs written by older versions of Inspect.
 
+The `working_time` column is clock time minus the time when any wait was open in the sample, so work done during a wait is not counted. See [Working Limit](setting-limits.qmd#working-limit) for its limitations.
+
 The `fallbacks` column is the total number of generate calls served by a [fallback model](providers.qmd#anthropic-refusal-fallback) (0 if none). For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
 
 The `eval_id` and `sample_id` fields are automatically included in all sample data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
@@ -686,7 +688,7 @@ Because events are so heterogeneous, there is no default `columns` specification
 | Type | Description |
 |-------------------------|----------------------------------------------|
 | `EventInfo` | Event type and span id. |
-| `EventTiming` | Start and end times (both clock time and working time) |
+| `EventTiming` | Start and end times (both clock time and working time; see [Working Limit](setting-limits.qmd#working-limit)) |
 | `ModelEventColumns` | Read data from model events. |
 | `ToolEventColumns` | Read data from tool events. |
 

@@ -155,6 +155,19 @@ def sample_waiting_time(start: float | None = None, end: float | None = None) ->
     )
 
 
+def sample_working_time_since(start: float) -> float:
+    """Working time from `start` (sample clock) to now, within this attempt.
+
+    Elapsed and waiting time are read over the same window, so the result
+    lies in `[0, now - start]`.
+    """
+    timing = _sample_timing.get()
+    if timing is None:
+        return time.monotonic() - start
+    now = timing.now()
+    return (now - start) - timing.waiting(start, now)
+
+
 def sample_working_time() -> float:
     """Working time of the sample, including prior attempts."""
     timing = _sample_timing.get()

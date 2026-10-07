@@ -909,6 +909,9 @@ def suspend_working_limit() -> AbstractContextManager[None]:
     Only code in the eval process can call it (not agent code running in a
     sandbox). Outside a running sample it has no effect.
 
+    Because work done during the block is not charged, a sample can run longer
+    than its working limit. Set a `time_limit()` as well to bound clock time.
+
     Example:
         with suspend_working_limit():
             # time spent here is not charged as working time
