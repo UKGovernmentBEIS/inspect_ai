@@ -31,13 +31,20 @@ This affects most current Codex models, not an edge case. In the Codex
 inspect_swe), `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-sol`, `gpt-6-luna`,
 `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, both `gpt-daybreak-*`
 entries and `codex-auto-review` are `code_mode_only`; only `gpt-5.5` has no
-tool mode. inspect_swe's `codex_cli` and its ACP `codex-acp` embedding both
-drive Codex through the sandbox bridge, so an eval that gives Codex bridged
-tools and one of these models today runs with every host tool denied. The
-denial reaches the model as a tool error and the eval author as one
-`warn_once` log line per tool that does not say why or what to do
-(`src/inspect_ai/agent/_bridge/sandbox/service.py:268-273`), and the sample
-runs to completion on a different trajectory than intended.
+tool mode. An eval that runs inspect_swe's `codex_cli` with bridged tools and
+one of these models today runs with every host tool denied (the request
+captures under "Current behaviour" are from the CLI's configuration).
+inspect_swe's ACP Codex agent drives Codex through the same bridge, but it
+installs a separately released `codex-acp` package and passes the model name
+without the CLI's catalog resolution, so whether its runtime selects code
+mode has not been established. The denial reaches the model as a tool error.
+The eval author sees two warnings, each also recorded as a `LoggerEvent` in
+the sample transcript: the bridge's `warn_once`, once per tool
+(`src/inspect_ai/agent/_bridge/sandbox/service.py:268-273`), and the sandbox
+service's warning for each failed RPC
+(`src/inspect_ai/util/_sandbox/service.py:562-568`). Neither says why the
+call was denied or what to do, and the sample runs to completion on a
+different trajectory than intended.
 
 The issue asks for a documented statement that code-mode scaffolds are
 outside the proposal check and must opt out, or a bridge-side detection of a
@@ -98,7 +105,13 @@ proposed by the model in a bridged generation (a bridged host tool runs once
 per proposed call)")`, which the scaffold returns to the model as the tool
 result (`service.py:264-278`). `warn_once` keys on the message text
 (`src/inspect_ai/_util/logger.py:277-283`), so the line appears once per
-(server, tool) per process.
+(server, tool) per process. The sandbox service dispatcher then logs the
+failed RPC as `Error calling sandbox service method call_tool: ...` with the
+exception, for every denial (`src/inspect_ai/util/_sandbox/service.py:562-568`).
+Both are `WARNING` records, at or above the default transcript level, so
+`LogHandler` also records each as a `LoggerEvent` in the sample transcript
+(`src/inspect_ai/_util/logger.py:118-127`, `:270-274`), where the viewer
+shows it. A denial has no `ToolEvent`.
 
 **Opt-out.** `BridgedToolsSpec.require_proposal=False` adds the server to
 `proposal_exempt_servers` (`types.py:116-124`): its tools run for any
@@ -232,10 +245,15 @@ warn_once(
     "propose it in a bridged generation (or its proposal has "
     "already executed). An agent that calls host tools from code "
     "the model writes (Codex CLI in code mode) can never match a "
-    f"proposal; set BridgedToolsSpec(name='{server}', "
-    "require_proposal=False) for such an agent.",
+    "proposal; set require_proposal=False on the existing "
+    f"BridgedToolsSpec for server '{server}' for such an agent.",
 )
 ```
+
+The remedy names an edit to the author's existing spec rather than a
+constructor call: `BridgedToolsSpec` requires `tools`
+(`src/inspect_ai/tool/_mcp/_tools_bridge/bridge.py:48`), so a copied
+`BridgedToolsSpec(name=..., require_proposal=False)` would raise `TypeError`.
 
 `server` and `tool` have already been checked against the registry
 (`service.py:257-261`), so the message carries only registered names. The
@@ -337,9 +355,12 @@ No migration required.
   sees the same error text, and no sample that completes today fails.
 - **Public API.** No signature, default or type changes. `BridgedToolsSpec`,
   `sandbox_agent_bridge` and `SandboxAgentBridge` keep their interfaces.
-- **Logs and schemas.** No eval log, event, or generated viewer type
-  changes. The only runtime difference is the text of one Python log
-  warning; nothing in the repo matches on it (the denial tests match the
+- **Logs and schemas.** The text of the bridge's denial warning changes, in
+  Python logs and in the `LoggerEvent` each sample records for it (the
+  textual and web transcript views show the longer string). Event and log
+  schemas, generated viewer types, and the model-facing error are
+  unchanged, and old logs read as before. Nothing in inspect_ai or
+  inspect_swe matches on the warning text (the denial tests match the
   `PermissionError` text, `tests/agent/test_bridge_approval.py:709`, `:730`
   and others).
 - **CHANGELOG.** None: the change is documentation and a log message.
@@ -374,8 +395,8 @@ network, Docker or provider.
 
 1. `test_denial_warning_names_the_opt_out`: an unproposed call to
    `host/read_file` raises `PermissionError` with the unchanged text, and the
-   captured `WARNING` record names `require_proposal=False` and
-   `name='host'`. `warn_once` dedupes on a module-level list, so the test
+   captured `WARNING` record contains "set require_proposal=False on the
+   existing BridgedToolsSpec for server 'host'". `warn_once` dedupes on a module-level list, so the test
    isolates it with `monkeypatch.setattr(inspect_ai._util.logger, "_warned",
    [])`.
 2. `test_code_mode_exec_call_grants_no_nested_tool`: declare `exec` as a
@@ -401,8 +422,10 @@ the tool never runs; with `require_proposal=False` the task completes. CI
 cannot run this (provider key, Docker, a second repo); if it is not run, the
 PR says so.
 
-The documentation changes are checked by reading the rendered page; there is
-no docs build in PR CI to rely on.
+PR CI validates rendering when `docs/**` changes (the `docs` job,
+`.github/workflows/build.yml:162-174`, runs `quarto render docs`, reusing a
+previous successful render for identical inputs). Read the rendered pages to
+check the guidance itself.
 
 ## Implementation plan
 
@@ -427,14 +450,21 @@ Run `make check` and the focused file
    `code_mode_only` and any `BridgedToolsSpec` keeps
    `require_proposal=True`? Recommendation: yes, raise with the opt-out
    message, never opt out on the author's behalf; file it as an inspect_swe
-   issue. It is the only place the cause is known exactly.
+   issue. It is the only place the cause is known exactly. The check should
+   use each adapter's effective tool configuration, not the catalog alone:
+   the ACP agent does not share the CLI's catalog resolution, and namespaces
+   an author makes direct with `features.code_mode.direct_only_tool_namespaces`
+   are proposed as ordinary tool calls and need no opt-out.
 
 ## Not this design
 
 - **inspect_swe fail-fast check** (Alternative 8, Open question 1).
-- **Denials in the transcript.** A denial is a Python log line only;
+- **Denials as tool events.** A denial appears in the transcript only as
+  `LoggerEvent` warnings and has no `ToolEvent`;
   `design/bridge-host-tool-events.md` (proposed) records denied host tool
-  calls as `ToolEvent`s, which would put this failure in the sample itself.
+  calls as `ToolEvent`s.
+- **Whether inspect_swe's ACP Codex agent selects code mode.** Capturing the
+  pinned `codex-acp` package's request would settle it (see "Why").
 - **Code mode with a non-OpenAI eval model.** The Responses bridge drops
   custom tools for non-OpenAI models (`responses_impl.py:266-267`), and
   `exec` is a custom tool. If inspect_swe aligns a non-OpenAI model to a
